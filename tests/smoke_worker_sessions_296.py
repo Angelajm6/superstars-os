@@ -24,3 +24,14 @@ expect("clock-in validates worker session", "_worker_session(conn, session_token
 expect("clock actions do not accept a client geofence bypass", "bypass_geofence" not in server)
 expect("worker app sends the session token", "session_token: sessionData.sessionToken" in worker_app)
 expect("worker app has no testing bypass", "TESTING_BYPASS" not in worker_app)
+
+for route in (
+    "/api/workers/create",
+    "/api/workers/<employee_id>",
+    "/api/employees/<employee_id>/certifications/extract",
+    "/worker-files/<path:filepath>",
+):
+    marker = f"@app.route('{route}'"
+    start = server.index(marker)
+    window = server[start:start + 220]
+    expect(f"company authorization on {route}", "@requires_company" in window)

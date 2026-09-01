@@ -7117,6 +7117,7 @@ def next_employee_id():
 
 
 @app.route('/api/workers/create', methods=['POST'])
+@requires_company
 def api_worker_create():
     """Create a new worker record + worker folder. Returns the new employee_id,
     auto-assigned worker_id (W-####), and folder path.
@@ -7254,6 +7255,7 @@ def api_worker_create():
 
 
 @app.route('/api/workers/<employee_id>', methods=['GET'])
+@requires_company
 def api_worker_get(employee_id):
     """Return full worker record + all documents + all certs.
 
@@ -7313,6 +7315,7 @@ def api_worker_get(employee_id):
 
 
 @app.route('/api/workers/<employee_id>/upload', methods=['POST'])
+@requires_company
 def api_worker_upload(employee_id):
     """Upload a scan to a worker's folder.
     Multipart form fields: file=<binary>, doc_type=<string>, doc_label=<string>, related_cert_id=<int|null>.
@@ -7437,6 +7440,7 @@ def api_worker_upload(employee_id):
 
 
 @app.route('/api/workers/<employee_id>/documents/<int:doc_id>', methods=['DELETE'])
+@requires_company
 def api_worker_delete_document(employee_id, doc_id):
     """Delete a worker document. Removes the file from disk AND the DB row.
     Path is validated to ensure deletion can't escape the worker_records dir."""
@@ -7471,6 +7475,7 @@ def api_worker_delete_document(employee_id, doc_id):
 
 
 @app.route('/api/workers/<employee_id>/certs/<int:cert_id>', methods=['DELETE'])
+@requires_company
 def api_worker_delete_cert(employee_id, cert_id):
     """Delete a single certification entry from a worker."""
     try:
@@ -7487,6 +7492,7 @@ def api_worker_delete_cert(employee_id, cert_id):
 
 
 @app.route('/api/workers/<employee_id>/certs/<int:cert_id>', methods=['PATCH'])
+@requires_company
 def api_worker_patch_cert(employee_id, cert_id):
     """Edit fields on an existing certification row.
 
@@ -7549,6 +7555,7 @@ def api_worker_patch_cert(employee_id, cert_id):
 
 
 @app.route('/api/workers/<employee_id>/certs', methods=['POST'])
+@requires_company
 def api_worker_add_cert(employee_id):
     """Add a certification to a worker.
     Body: {cert_type_id, date_obtained, expiration_date, card_number, issuing_body, notes, status}
@@ -7594,6 +7601,7 @@ def api_worker_add_cert(employee_id):
 
 
 @app.route('/api/employees/<employee_id>/certifications/extract', methods=['POST'])
+@requires_company
 def api_certification_extract(employee_id):
     """Upload a cert card photo, save to the worker folder, run vision-based
     extraction, return structured cert data for operator review.
@@ -8811,6 +8819,7 @@ def delete_employee_credential(emp_id):
 
 
 @app.route('/worker-files/<path:filepath>', methods=['GET'])
+@requires_company
 def serve_worker_file(filepath):
     """Serve scanned documents back to the dashboard (image preview etc.)."""
     try:
