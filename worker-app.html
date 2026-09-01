@@ -1022,7 +1022,7 @@ let capturedPhoto = null;
 
 const PROJECT_LAT = 40.8083;
 const PROJECT_LNG = -73.9162;
-const GEOFENCE_RADIUS = 160934;  // 100 miles in meters — TESTING ONLY, change back to 200 for production
+const GEOFENCE_RADIUS = 200;  // must match the server-side project gate
 
 function haversine(lat1, lng1, lat2, lng2) {
   const R = 6371000;
@@ -1052,7 +1052,7 @@ function updateGeofence() {
   // prompt is resolved. On desktops without GPS hardware, OS location services
   // disabled, or a never-answered prompt, neither callback fires and the UI is
   // stuck on "Checking location…" indefinitely. Force a timeout path manually
-  // so the user always sees actionable state (and TESTING_BYPASS can take over).
+  // so the user always sees actionable state.
   let _settled = false;
   const _watchdog = setTimeout(() => {
     if (_settled) return;
@@ -1106,24 +1106,7 @@ function updateGeofence() {
 // Tapped on the geofence widget — re-request location.
 // On iOS Safari, the permission prompt only appears in response to a user gesture,
 // so this gives the worker an explicit way to trigger it.
-let _tapCount = 0;
-let _tapTimer = null;
 function requestLocation() {
-  // 5 fast taps in a row = toggle testing bypass (admin gesture, not advertised)
-  _tapCount++;
-  clearTimeout(_tapTimer);
-  _tapTimer = setTimeout(() => { _tapCount = 0; }, 1500);
-  if (_tapCount >= 5) {
-    TESTING_BYPASS = !TESTING_BYPASS;
-    localStorage.setItem('testing_bypass', TESTING_BYPASS ? '1' : '0');
-    _tapCount = 0;
-    alert(TESTING_BYPASS
-      ? '⚠ TESTING MODE ON\nGeofence bypassed. Sign-in works without GPS.'
-      : '✓ Testing mode OFF\nNormal geofence enforced.');
-    renderGeofence();
-    updateSignInButton();
-    return;
-  }
   updateGeofence();
 }
 
@@ -1131,16 +1114,6 @@ function renderGeofence() {
   const status = document.getElementById('geofence-text');
   const distance = document.getElementById('geofence-distance');
   const svg = document.getElementById('geofence-svg');
-
-  // Testing bypass takes priority — clear visual badge
-  if (TESTING_BYPASS) {
-    status.textContent = '⚙ TEST MODE';
-    status.classList.remove('off-site');
-    status.classList.add('on-site');
-    distance.textContent = lang === 'es' ? 'Geocerca desactivada' : 'Geofence bypassed';
-    svg.innerHTML = '<circle cx="60" cy="60" r="50" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4 3"/><text x="60" y="70" font-size="40" text-anchor="middle" fill="#f59e0b">⚙</text>';
-    return;
-  }
 
   // Pending — actively asking for / waiting on GPS
   if (geofencePending) {
@@ -1219,13 +1192,6 @@ function checkCertStatus() {
   certDiv.className = 'cert-status';
 }
 
-// TESTING ONLY — when true, allows sign-in even with no GPS / blocked GPS.
-// Toggled by tapping the geofence widget 5 times in a row. Off by default.
-// Intentionally retained for Monday morning QA: lets the operator validate
-// the end-to-end sign-in flow from the office before workers arrive on site.
-// Track removal as a post-Monday cleanup once the field flow is proven.
-let TESTING_BYPASS = localStorage.getItem('testing_bypass') === '1';
-
 // #289 — one-time DEVICE PROVISIONING. The operator opens
 // /worker-app?provision=<code> on the worker's phone (from the console list or a
 // QR), the phone asks for the worker's ID, redeems the code for a device token,
@@ -1258,12 +1224,12 @@ let TESTING_BYPASS = localStorage.getItem('testing_bypass') === '1';
 
 function updateSignInButton() {
   const btn = document.getElementById('signin-btn');
-  const gpsOk = geofenceData.onSite || TESTING_BYPASS;
+  const gpsOk = geofenceData.onSite;
   btn.disabled = !(gpsOk && pinCode.length === 4);
 }
 
 async function signIn() {
-  if ((!geofenceData.onSite && !TESTING_BYPASS) || pinCode.length !== 4) return;
+  if (!geofenceData.onSite || pinCode.length !== 4) return;
 
   const certDiv = document.getElementById('cert-status');
   const btn = document.getElementById('signin-btn');
@@ -1281,8 +1247,6 @@ async function signIn() {
       // flips enforcement on, so PIN entry UX is unchanged until then.
       device_token: localStorage.getItem('ssc_device_token') || ''
     };
-    // Only attach when bypass is on so the server doesn't see an idle flag.
-    if (TESTING_BYPASS) loginPayload.bypass_geofence = true;
     const loginResp = await fetch('/api/worker/login', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -1307,7 +1271,8 @@ async function signIn() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         employee_id: sessionData.employeeId,
-        project_code: sessionData.projectCode
+        project_code: sessionData.projectCode,
+        session_token: sessionData.sessionToken
       })
     });
     const startJson = await startResp.json();
@@ -1452,7 +1417,10 @@ async function confirmSignout() {
       await fetch('/api/worker/session/end', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({employee_id: sessionData.employeeId})
+        body: JSON.stringify({
+          employee_id: sessionData.employeeId,
+          session_token: sessionData.sessionToken
+        })
       });
     } catch (e) {
       console.warn('session/end failed:', e);
