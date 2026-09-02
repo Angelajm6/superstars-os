@@ -6,7 +6,6 @@ ssc_tz.enforce()
 
 import flask
 from flask import Flask, jsonify, request, send_from_directory, send_file, Response, redirect
-from flask_cors import CORS
 import sqlite3
 from pathlib import Path
 from datetime import datetime, date, timedelta
@@ -57,7 +56,12 @@ PM_PROJECTS_PATH = SCRIPT_DIR / "projects.html"  # #263 — pm projects-only lan
 # references shell assets (css/js/fonts/vendor).
 app = Flask(__name__, static_folder=str(SCRIPT_DIR / 'static'),
             static_url_path='/files/static')
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+# #297 — The portal, worker PWA, and client portal are all same-origin.  Do not
+# advertise the authenticated API to arbitrary websites through a wildcard CORS
+# policy; integrations call server-to-server and do not require browser CORS.
+import http_security
+http_security.apply_http_security_headers(app)
 
 # Browser-preview blueprint: /preview/* URLs for HTML-first design iteration.
 # WeasyPrint stays in render_pdf.py for production export only.
