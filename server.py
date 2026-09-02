@@ -81,6 +81,8 @@ from auth import (apply_auth_gate, requires_role, requires_section,  # noqa: F40
 import access  # #262 — central section→roles map (RBAC single source of truth)
 import crm  # #266 — CRM/ops core logic (shared by the endpoints + the guard smoke)
 apply_auth_gate(app)
+import password_reset  # noqa: E402
+password_reset.register(app)
 
 # #279 (UI v2 phase 0) — the interface toggle. MUST follow apply_auth_gate: the
 # stored per-user preference is read off current_user(). Sets g.ui_version on page
@@ -933,7 +935,7 @@ def response_wrapper(data, count=None):
 # must never leave plaintext in server.log. Redact at the logging
 # boundary so the file accumulates only safe data.
 _PIN_BEARING_FIELDS = {'phone_or_pin', 'pin', 'phone', 'emergency_contact_phone'}
-_SECRET_BEARING_FIELDS = {'password', 'password_hash', 'new_password', 'old_password', 'current_password'}
+_SECRET_BEARING_FIELDS = {'password', 'password_hash', 'new_password', 'old_password', 'current_password', 'token'}
 
 def _redact_pii(body):
     if not isinstance(body, dict):

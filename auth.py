@@ -88,6 +88,8 @@ _PUBLIC_PREFIXES = (
 )
 _PUBLIC_EXACT = {
     "/login",
+    "/forgot-password",
+    "/reset-password",
     "/api/health",
     "/api/today",         # date-only, no PII, used by client shells on load
     "/worker-app",

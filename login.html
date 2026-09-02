@@ -87,7 +87,7 @@
     margin-bottom: 6px;
     margin-top: 14px;
   }
-  input[type="email"], input[type="password"] {
+  input[type="email"], .password-wrap input {
     width: 100%;
     padding: 10px 12px;
     font: inherit;
@@ -99,12 +99,12 @@
     outline: none;
     transition: border-color 0.15s ease;
   }
-  input[type="email"]:focus, input[type="password"]:focus {
+  input[type="email"]:focus, .password-wrap input:focus {
     border-color: var(--brand-red);
     box-shadow: 0 0 0 3px rgba(177,30,46,0.12);
   }
-  .password-wrap { position: relative; }
-  .password-wrap input { padding-right: 44px; }
+  .password-wrap { position: relative; width:100%; }
+  .password-wrap input { padding-right: 48px; }
   .password-toggle {
     position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
     width: 34px; height: 34px; margin: 0; padding: 0; border: 0; border-radius: 7px;
@@ -285,11 +285,8 @@
     pwToggle.setAttribute('aria-pressed', String(revealing));
   });
 
-  // Self-service reset must not be added until a verified delivery channel exists.
-  // The existing admin console performs a one-time temporary-password reset safely.
   forgotPassword.addEventListener('click', () => {
-    err.textContent = 'Please contact your company administrator to reset your password.';
-    err.className = 'err show info';
+    window.location.href = '/forgot-password';
   });
 
   form.addEventListener('submit', async (e) => {
