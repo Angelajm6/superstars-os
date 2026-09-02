@@ -1563,7 +1563,7 @@
               <div id="crm-detail-tasks"></div>
             </div>
             <div class="crm-box" id="crm-box-projects">
-              <div class="crm-box-head"><h3>Linked projects</h3><button type="button" class="crm-mini-btn" id="crm-detail-link">+ Link project</button></div>
+              <div class="crm-box-head"><h3>Buildings &amp; job sites</h3><button type="button" class="crm-mini-btn" id="crm-detail-link">+ Link job site</button></div>
               <div id="crm-detail-projects"></div>
             </div>
             <div class="crm-box" id="crm-box-contacts">
@@ -5015,10 +5015,13 @@ applyLanguage();
 
   function renderProjects(items){
     var el = q('crm-detail-projects');
-    if (!items || !items.length){ el.innerHTML = '<div class="crm-mini">No projects linked.</div>'; return; }
+    if (!items || !items.length){ el.innerHTML = '<div class="crm-mini">No buildings or job sites linked yet.</div>'; return; }
     el.innerHTML = items.map(function(p){
-      return '<div class="crm-task-row"><a class="crm-name" href="/projects/'+encodeURIComponent(p.project_code)+'">'+esc(p.name||p.project_code)+'</a>'
-        + '<span class="crm-mini">'+esc(p.project_code)+'</span>'
+      var address = [p.address, p.city_zip].filter(Boolean).join(', ');
+      return '<div class="crm-task-row" style="align-items:flex-start;gap:10px;">'
+        + '<div><a class="crm-name" href="/projects/'+encodeURIComponent(p.project_code)+'">'+esc(p.name||p.address||p.project_code)+'</a>'
+        + '<div class="crm-mini" style="margin-top:2px;">'+esc(address||'Address not yet entered')+' · '+esc(p.project_code)+'</div></div>'
+        + (p.status?'<span class="crm-tag">'+esc(p.status)+'</span>':'')
         + '<button type="button" class="crm-mini-btn" data-unlink="'+esc(p.project_code)+'" style="margin-left:auto;">Unlink</button></div>';
     }).join('');
     el.querySelectorAll('button[data-unlink]').forEach(function(b){ b.addEventListener('click', async function(){
@@ -5177,9 +5180,9 @@ applyLanguage();
     var projs = await allProjects();
     var pOpts = projs.map(function(p){ return opt(p.project_code, (p.name||p.project_code)+' · '+p.project_code, false); }).join('');
     if (!pOpts){ alert('No projects available.'); return; }
-    openModal('Link a project',
-      '<div class="crm-field"><label>Project</label><select class="ssc-field" id="f-link-proj">'+pOpts+'</select></div>'
-      + '<div class="crm-mini">The project will show this organization as its client.</div>',
+    openModal('Link a building / job site',
+      '<div class="crm-field"><label>Building / job site</label><select class="ssc-field" id="f-link-proj">'+pOpts+'</select></div>'
+      + '<div class="crm-mini">This links the job site to the client. Its address, people, documents, compliance, and job activity stay in one operational record.</div>',
       async function(){
         await api('POST','/api/crm/projects/'+encodeURIComponent(q('f-link-proj').value)+'/link',{ org_id: orgId });
         return true;
