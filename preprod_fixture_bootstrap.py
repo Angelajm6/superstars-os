@@ -30,7 +30,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 CONFIRM_VALUE = "CREATE_EMPTY_FIXTURE_SCHEMA"
 ALLOWED_PRE_BOOTSTRAP_TABLES = {
-    "worker_app_session", "worker_device", "app_settings",
+    # server.py's idempotent boot ensures can create these three tables before
+    # the complete application schema has been migrated.  They are empty on a
+    # fresh Render database and are safely replaced by the fixture migration.
+    "worker_app_session", "drawing_set", "drawing_sheet",
 }
 
 # Older migrations predate db_layer and therefore require a local SQLite file
