@@ -16,6 +16,8 @@ import os
 import re
 import time
 import uuid
+import hashlib
+import secrets
 
 # #273 DEV-ONLY isolation marker — must sit ABOVE the db_layer import and every
 # #289-pattern boot ensure below, because those connect at IMPORT time and read
@@ -111,6 +113,20 @@ except Exception as _e:
     logging.warning(f"#289 hardening schema ensure skipped: {_e}")
 import auth_hardening
 auth_hardening.register(app)
+
+# #296 — worker PWA bearer sessions.  The PWA routes are public so the session
+# record, rather than a client supplied employee_id, authorizes clock actions.
+import apply_worker_session_security_296 as _worker_session_schema
+try:
+    _wsc = db_layer.connect(pragma_fk=True)
+    try:
+        _worker_session_schema.ensure_worker_session_security(_wsc)
+        _wsc.commit()
+    finally:
+        _wsc.close()
+    db_layer._PKMAP_CACHE.clear()
+except Exception as _e:
+    logging.warning(f"#296 worker session schema ensure skipped: {type(_e).__name__}")
 
 # #263 — PM project-scoping: registers the project-ASSIGNMENT before_request hook
 # (rejects any /projects/<code> the user can't access) + the admin/c_suite-only
@@ -4026,6 +4042,34 @@ def sign_off_drop(drop_id):
 
 # ============= WORKER APP ENDPOINTS =============
 
+_WORKER_SESSION_TTL = timedelta(hours=16)
+
+
+def _worker_token_hash(token):
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _worker_session(conn, token, *, employee_id=None, project_code=None):
+    """Return the one active PWA session represented by an opaque bearer token.
+
+    An employee ID in a request body is display data only; it must match this
+    server-side record and can never select somebody else's time record.
+    """
+    if not isinstance(token, str) or len(token) < 32:
+        return None
+    row = conn.execute(
+        "SELECT token_hash, employee_id, project_code, expires_at, started_sign_in_id, ended_at "
+        "FROM worker_app_session WHERE token_hash=? AND revoked_at IS NULL",
+        (_worker_token_hash(token),),
+    ).fetchone()
+    if not row or str(row["expires_at"]) <= datetime.now().isoformat(timespec="seconds"):
+        return None
+    if employee_id and row["employee_id"] != employee_id:
+        return None
+    if project_code and row["project_code"] != project_code:
+        return None
+    return row
+
 @app.route('/api/worker/login', methods=['POST'])
 def worker_login():
     """Worker sign-in: PIN + geofence validation.
@@ -4104,28 +4148,18 @@ def worker_login():
                 return jsonify({"error": "This device isn't set up yet — ask the office to add it",
                                 "device_required": True}), 403
 
-        # TESTING AFFORDANCE — remove post-Monday cleanup. The bypass_geofence
-        # flag is intentionally trusted from the client because we have no
-        # separate test environment. Tracked for removal in task #11.
-        bypass_geofence = bool(data.get('bypass_geofence'))
-        if bypass_geofence:
-            app.logger.warning(
-                f"Geofence bypassed via testing flag for employee_id={emp['employee_id']}"
-            )
-        else:
-            # Validate geofence (Bronx project: 40.8083, -73.9162)
-            PROJECT_LAT, PROJECT_LNG = 40.8083, -73.9162
-            R = 6371000  # Earth radius meters
-            dLat = (latitude - PROJECT_LAT) * 3.14159 / 180
-            dLng = (longitude - PROJECT_LNG) * 3.14159 / 180
-            a = (dLat/2)**2 + (dLng/2)**2
-            distance = R * 2 * (a**0.5)
+        # Validate geofence (Bronx project: 40.8083, -73.9162).  There is no
+        # client-controlled test bypass: staging uses a separate test project.
+        PROJECT_LAT, PROJECT_LNG = 40.8083, -73.9162
+        R = 6371000  # Earth radius meters
+        dLat = (latitude - PROJECT_LAT) * 3.14159 / 180
+        dLng = (longitude - PROJECT_LNG) * 3.14159 / 180
+        a = (dLat/2)**2 + (dLng/2)**2
+        distance = R * 2 * (a**0.5)
 
-            # Production geofence per project lat/lng accuracy. Previously relaxed
-            # to 100 miles for cross-borough testing.
-            if distance > 200:
-                conn.close()
-                return jsonify({"error": "Not on site", "distance": round(distance)}), 403
+        if distance > 200:
+            conn.close()
+            return jsonify({"error": "Not on site"}), 403
 
         cert_rows = conn.execute(
             "SELECT c.*, ct.name as cert_name FROM certifications c "
@@ -4133,8 +4167,6 @@ def worker_login():
             "WHERE c.employee_id = ? ORDER BY c.expiration_date",
             (emp['employee_id'],)
         ).fetchall()
-        conn.close()
-
         certs = rows_to_dicts(cert_rows)
         today = date.today().isoformat()
 
@@ -4144,15 +4176,28 @@ def worker_login():
         if certs:
             expired = [c for c in certs if c.get('expiration_date', '') < today]
             if expired:
+                conn.close()
                 return jsonify({
                     "error": "Certification expired",
                     "cert": expired[0].get('cert_name')
                 }), 403
+        # A bearer is only ever returned once and only its digest lives in the
+        # database.  Clock-in/out validate it before touching a labor record.
+        session_token = secrets.token_urlsafe(32)
+        now = datetime.now().isoformat(timespec="seconds")
+        expires = (datetime.now() + _WORKER_SESSION_TTL).isoformat(timespec="seconds")
+        conn.execute(
+            "INSERT INTO worker_app_session "
+            "(token_hash, employee_id, project_code, issued_at, expires_at) VALUES (?,?,?,?,?)",
+            (_worker_token_hash(session_token), emp['employee_id'], "FR-BX-001", now, expires),
+        )
+        conn.commit()
+        conn.close()
 
         return response_wrapper({
             "employee_id": emp['employee_id'],
             "name": emp['name'],
-            "session_token": f"TOKEN-{uuid.uuid4().hex[:12]}",
+            "session_token": session_token,
             "project_code": "FR-BX-001",
             "certifications": certs
         })
@@ -4170,16 +4215,31 @@ def worker_session_start():
         data = request.get_json(silent=True) or {}
         employee_id = data.get('employee_id')
         project_code = data.get('project_code') or 'FR-BX-001'
+        session_token = data.get('session_token') or ''
+        if not employee_id:
+            return jsonify({"error": "employee_id required"}), 400
         now_iso = datetime.now().isoformat()
         today = date.today().isoformat()
 
         conn = db()
+        session = _worker_session(conn, session_token, employee_id=employee_id,
+                                  project_code=project_code)
+        if not session:
+            conn.close()
+            return jsonify({"error": "valid worker session required"}), 401
+        if session["started_sign_in_id"] is not None or session["ended_at"] is not None:
+            conn.close()
+            return jsonify({"error": "worker session already used"}), 409
         cursor = conn.execute(
             "INSERT INTO sign_in_log (date, employee_id, project_code, time_in, created_at, updated_at) "
             "VALUES (?, ?, ?, ?, ?, ?)",
             (today, employee_id, project_code, now_iso, now_iso, now_iso)
         )
         sign_in_log_id = cursor.lastrowid
+        conn.execute(
+            "UPDATE worker_app_session SET started_sign_in_id=? WHERE token_hash=?",
+            (sign_in_log_id, session["token_hash"]),
+        )
         # Stale flag: if a DCR was already issued for this (project, date)
         # — usually only matters when the operator backdates a DCR before
         # workers finish signing out — flag it. Worker-app sign-ins on
@@ -4207,6 +4267,7 @@ def worker_session_end():
     try:
         data = request.get_json(silent=True) or {}
         employee_id = data.get('employee_id')
+        session_token = data.get('session_token') or ''
         if not employee_id:
             return jsonify({"error": "employee_id required"}), 400
         now_iso = datetime.now().isoformat()
@@ -4216,11 +4277,14 @@ def worker_session_end():
         today = date.today().isoformat()
 
         conn = db()
+        session = _worker_session(conn, session_token, employee_id=employee_id)
+        if not session or session["started_sign_in_id"] is None or session["ended_at"] is not None:
+            conn.close()
+            return jsonify({"error": "active worker session required"}), 401
         row = conn.execute(
             "SELECT id, project_code, date FROM sign_in_log "
-            "WHERE employee_id = ? AND date = ? AND time_out IS NULL "
-            "ORDER BY id DESC LIMIT 1",
-            (employee_id, today)
+            "WHERE id = ? AND employee_id = ? AND date = ? AND time_out IS NULL",
+            (session["started_sign_in_id"], employee_id, today)
         ).fetchone()
         if not row:
             conn.close()
@@ -4230,6 +4294,10 @@ def worker_session_end():
         conn.execute(
             "UPDATE sign_in_log SET time_out = ?, updated_at = ? WHERE id = ?",
             (now_iso, now_iso, sign_in_log_id)
+        )
+        conn.execute(
+            "UPDATE worker_app_session SET ended_at=?, revoked_at=? WHERE token_hash=?",
+            (now_iso, now_iso, session["token_hash"]),
         )
         _mark_dcr_stale(conn, row['project_code'], row['date'])
         conn.commit()
@@ -4245,21 +4313,13 @@ def worker_session_end():
 
 @app.route('/api/worker/session/<session_id>', methods=['GET'])
 def get_worker_session(session_id):
-    """Get active session info"""
-    try:
-        conn = db()
-        row = conn.execute(
-            "SELECT * FROM sign_in_log WHERE session_id = ?",
-            (session_id,)
-        ).fetchone()
-        conn.close()
-        
-        if not row:
-            return jsonify({"error": "Session not found"}), 404
-        
-        return response_wrapper(dict(row))
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+    """Legacy route intentionally retired.
+
+    The old implementation queried a nonexistent column and, more importantly,
+    would have disclosed a labor row through a public worker route.  The PWA
+    does not use a read-session endpoint; clock actions use the bearer token.
+    """
+    return jsonify({"error": "worker session lookup is not available"}), 410
 
 @app.route('/api/photos/upload', methods=['POST'])
 def upload_photo():
@@ -7057,6 +7117,7 @@ def next_employee_id():
 
 
 @app.route('/api/workers/create', methods=['POST'])
+@requires_company
 def api_worker_create():
     """Create a new worker record + worker folder. Returns the new employee_id,
     auto-assigned worker_id (W-####), and folder path.
@@ -7194,6 +7255,7 @@ def api_worker_create():
 
 
 @app.route('/api/workers/<employee_id>', methods=['GET'])
+@requires_company
 def api_worker_get(employee_id):
     """Return full worker record + all documents + all certs.
 
@@ -7253,6 +7315,7 @@ def api_worker_get(employee_id):
 
 
 @app.route('/api/workers/<employee_id>/upload', methods=['POST'])
+@requires_company
 def api_worker_upload(employee_id):
     """Upload a scan to a worker's folder.
     Multipart form fields: file=<binary>, doc_type=<string>, doc_label=<string>, related_cert_id=<int|null>.
@@ -7377,6 +7440,7 @@ def api_worker_upload(employee_id):
 
 
 @app.route('/api/workers/<employee_id>/documents/<int:doc_id>', methods=['DELETE'])
+@requires_company
 def api_worker_delete_document(employee_id, doc_id):
     """Delete a worker document. Removes the file from disk AND the DB row.
     Path is validated to ensure deletion can't escape the worker_records dir."""
@@ -7411,6 +7475,7 @@ def api_worker_delete_document(employee_id, doc_id):
 
 
 @app.route('/api/workers/<employee_id>/certs/<int:cert_id>', methods=['DELETE'])
+@requires_company
 def api_worker_delete_cert(employee_id, cert_id):
     """Delete a single certification entry from a worker."""
     try:
@@ -7427,6 +7492,7 @@ def api_worker_delete_cert(employee_id, cert_id):
 
 
 @app.route('/api/workers/<employee_id>/certs/<int:cert_id>', methods=['PATCH'])
+@requires_company
 def api_worker_patch_cert(employee_id, cert_id):
     """Edit fields on an existing certification row.
 
@@ -7489,6 +7555,7 @@ def api_worker_patch_cert(employee_id, cert_id):
 
 
 @app.route('/api/workers/<employee_id>/certs', methods=['POST'])
+@requires_company
 def api_worker_add_cert(employee_id):
     """Add a certification to a worker.
     Body: {cert_type_id, date_obtained, expiration_date, card_number, issuing_body, notes, status}
@@ -7534,6 +7601,7 @@ def api_worker_add_cert(employee_id):
 
 
 @app.route('/api/employees/<employee_id>/certifications/extract', methods=['POST'])
+@requires_company
 def api_certification_extract(employee_id):
     """Upload a cert card photo, save to the worker folder, run vision-based
     extraction, return structured cert data for operator review.
@@ -8751,6 +8819,7 @@ def delete_employee_credential(emp_id):
 
 
 @app.route('/worker-files/<path:filepath>', methods=['GET'])
+@requires_company
 def serve_worker_file(filepath):
     """Serve scanned documents back to the dashboard (image preview etc.)."""
     try:
