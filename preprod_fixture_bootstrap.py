@@ -117,6 +117,11 @@ def _build_empty_sqlite_snapshot(work: Path) -> Path:
 
     sqlite_env = os.environ.copy()
     sqlite_env.pop("SSC_DB_URL", None)
+    # apply_is_system_258 normally requires one real admin; the deliberately
+    # empty preprod snapshot has none until preprod_seed_review_admin.py runs
+    # after migration.  This scoped subprocess-only flag preserves its
+    # fail-closed behavior for every normal migration invocation.
+    sqlite_env["SSC_ALLOW_EMPTY_PREPROD_FIXTURE"] = "1"
     for script in LEGACY_MIGRATIONS + DUAL_BACKEND_MIGRATIONS:
         _run(source, script, sqlite_env)
     return snapshot
