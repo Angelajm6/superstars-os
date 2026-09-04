@@ -19,6 +19,7 @@ Run:  python apply_is_system_258.py
 """
 from __future__ import annotations
 
+import os
 import sqlite3
 import sys
 from pathlib import Path
@@ -27,6 +28,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 DB_PATH = SCRIPT_DIR / "superstars.db"
 
 REAL_DOMAIN = "%@superstarscontracting.com"
+EMPTY_PREPROD_FIXTURE_ENV = "SSC_ALLOW_EMPTY_PREPROD_FIXTURE"
 
 # Known test-fixture email shapes (every gate seeder uses one of these). The real
 # operator + any real c_suite/pm the operator onboards use other domains.
@@ -86,7 +88,16 @@ def main() -> int:
         sys_n = conn.execute("SELECT COUNT(1) FROM users WHERE is_system=1").fetchone()[0]
         print(f"[258] users total={total} | is_system=1 fixtures={sys_n} | "
               f"real (is_system=0) admins={real_admins} | real admin on company domain={real_admin_is_company}")
+        # A production migration must preserve exactly one real company admin.
+        # The isolated pre-production fixture builder intentionally starts with
+        # no users at all and creates its review account only after the full
+        # schema has landed.  That narrow, explicit build-only override keeps
+        # the normal migration fail-closed everywhere else.
+        empty_fixture = (os.environ.get(EMPTY_PREPROD_FIXTURE_ENV) == "1")
         ok = (real_admins == 1 and real_admin_is_company == 1)
+        if empty_fixture and total == 0:
+            ok = True
+            print("[258] empty pre-production fixture invariant: OK")
         print("[258] sole real admin invariant:", "OK" if ok else "FAIL")
         return 0 if ok else 1
     finally:
