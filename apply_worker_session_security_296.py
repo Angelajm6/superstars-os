@@ -25,3 +25,26 @@ def ensure_worker_session_security(conn) -> None:
         "CREATE INDEX IF NOT EXISTS idx_worker_app_session_employee "
         "ON worker_app_session(employee_id, expires_at)"
     )
+
+
+def main() -> int:
+    """Apply the worker-session table when run as a schema migration.
+
+    server.py also calls ``ensure_worker_session_security`` at application boot,
+    but the isolated preproduction snapshot builder runs this file directly.
+    Keeping both paths makes the table part of the migrated snapshot as well.
+    """
+    import db_layer
+
+    conn = db_layer.connect(pragma_fk=True)
+    try:
+        ensure_worker_session_security(conn)
+        conn.commit()
+    finally:
+        conn.close()
+    print("[296] worker_app_session schema ready")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
