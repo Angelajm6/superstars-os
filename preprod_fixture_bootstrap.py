@@ -34,6 +34,10 @@ ALLOWED_PRE_BOOTSTRAP_TABLES = {
     # the complete application schema has been migrated.  They are empty on a
     # fresh Render database and are safely replaced by the fixture migration.
     "worker_app_session", "drawing_set", "drawing_sheet",
+    # password_reset.register() creates its token ledger during app import.
+    # It contains no tokens or user data on a fresh database and is replaced by
+    # the fixture migration, just like the other boot-time support tables.
+    "password_reset_token",
 }
 
 # Older migrations predate db_layer and therefore require a local SQLite file
