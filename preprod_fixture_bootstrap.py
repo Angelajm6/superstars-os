@@ -121,6 +121,11 @@ def _build_empty_sqlite_snapshot(work: Path) -> Path:
 
     sqlite_env = os.environ.copy()
     sqlite_env.pop("SSC_DB_URL", None)
+    # The source snapshot lives under `source/`.  Do not inherit Render's
+    # persistent-data root while composing it: newer dual-backend migrations
+    # use db_layer and would otherwise target /var/data/superstars.db instead
+    # of this isolated temporary snapshot.
+    sqlite_env.pop("SSC_DATA_ROOT", None)
     # apply_is_system_258 normally requires one real admin; the deliberately
     # empty preprod snapshot has none until preprod_seed_review_admin.py runs
     # after migration.  This scoped subprocess-only flag preserves its
