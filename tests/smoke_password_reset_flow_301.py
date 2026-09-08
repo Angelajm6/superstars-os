@@ -223,6 +223,11 @@ def main() -> int:
         assert len(token) >= 40
         assert rows[0]["token_hash"] != token and token not in mails[0].name
         assert rows[0]["token_hash"] == password_reset._hash(token)
+        # the HTML alternative carries the same link (escaped) and the brand button
+        html_files = sorted(MAIL_DIR.glob("*.html"))
+        assert len(html_files) == 1, html_files
+        html_doc = html_files[0].read_text(encoding="utf-8")
+        assert "Choose a new password" in html_doc and token in html_doc and "<script" not in html_doc
 
         # a second request replaces the first token (one live token per user)
         r = post("/api/auth/password-reset/request", {"email": active_email}, "10.99.0.7")
