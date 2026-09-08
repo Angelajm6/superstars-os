@@ -114,6 +114,7 @@
     background: #F7F4EE; color: var(--ink); outline: none;
   }
   .password-toggle svg { width: 18px; height: 18px; }
+  .password-toggle svg[hidden] { display: none; }
   .password-help { display: flex; justify-content: flex-end; margin-top: 9px; }
   .forgot {
     width: auto; margin: 0; padding: 0; color: var(--brand-red); background: transparent;
@@ -219,7 +220,8 @@
     <div class="password-wrap">
       <input id="password" name="password" type="password" autocomplete="current-password" required>
       <button class="password-toggle" id="toggle-password" type="button" aria-label="Show password" aria-pressed="false">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.4 12s3.5-6 9.6-6 9.6 6 9.6 6-3.5 6-9.6 6-9.6-6-9.6-6Z"/><circle cx="12" cy="12" r="2.8"/></svg>
+        <svg class="icon-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.4 12s3.5-6 9.6-6 9.6 6 9.6 6-3.5 6-9.6 6-9.6-6-9.6-6Z"/><circle cx="12" cy="12" r="2.8"/></svg>
+        <svg class="icon-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
       </button>
     </div>
     <div class="password-help"><button class="forgot" id="forgot-password" type="button">Forgot password?</button></div>
@@ -278,11 +280,18 @@
     err.textContent = '';
   }
 
+  // Eye toggle: swaps the input type AND the icon (eye -> eye-off), keeps the
+  // accessible label/state in sync, and returns focus to the field.
+  const pwIconShow = pwToggle.querySelector('.icon-show');
+  const pwIconHide = pwToggle.querySelector('.icon-hide');
   pwToggle.addEventListener('click', () => {
     const revealing = pwEl.type === 'password';
     pwEl.type = revealing ? 'text' : 'password';
     pwToggle.setAttribute('aria-label', revealing ? 'Hide password' : 'Show password');
     pwToggle.setAttribute('aria-pressed', String(revealing));
+    pwIconShow.hidden = revealing;
+    pwIconHide.hidden = !revealing;
+    pwEl.focus({ preventScroll: true });
   });
 
   forgotPassword.addEventListener('click', () => {
@@ -344,6 +353,12 @@
   (function showSsoError() {
     const code = new URLSearchParams(window.location.search).get('sso_error');
     if (code) showErr(SSO_ERRORS[code] || 'Google sign-in failed — please try again.');
+  })();
+  // Landing here from a completed password reset (/reset-password -> /login?reset=1).
+  (function showResetDone() {
+    if (new URLSearchParams(window.location.search).get('reset') !== '1') return;
+    err.classList.add('info');
+    showErr('Your password has been updated. Sign in with your new password.');
   })();
   // Reveal the Google button ONLY when SSO is enabled server-side (creds present).
   // If the config call fails, SSO stays hidden and email/password is unaffected.
