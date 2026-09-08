@@ -20,6 +20,36 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #301 — self-service password reset + password visibility (Bookore, 2026-09-08)
+
+The sign-in page's "Forgot password?" now works end to end and the eye toggle
+swaps its icon (eye / eye-off) on `/login`, `/set-password` and `/reset-password`.
+`password_reset.py` was rewritten from the #300 sketch:
+
+* **Delivery actually happens.** #300 only knew an SMTP transport behind five
+  `SSC_RESET_SMTP_*` vars nobody had set, so every "sent" answer was a lie.
+  Order now: `SSC_RESET_MAIL_FAKE_DIR` (test seam) → SendGrid via the existing
+  `notifications._send_live` (`SENDGRID_API_KEY`) → SMTP fallback. Link origin =
+  `APP_BASE_URL` (already in the Render env; `SSC_PUBLIC_BASE_URL` is an alias),
+  https-only except loopback.
+* **Honest UI.** `GET /api/auth/password-reset/config` → `{enabled}`; the
+  request page shows "not enabled on this environment, contact your admin"
+  instead of a fake "check your email".
+* **Audit that lands.** `login_audit.event` has a CHECK constraint; the #300
+  events (`password_reset_requested/_completed`) were silently dropped by
+  `auth._login_audit`. Completion now writes the allowed `password_reset` event;
+  request attempts go to the new `password_reset_request` table (ip + at, no
+  email), which also backs a per-IP throttle (5 / 15 min → 429).
+* Unchanged guarantees: identical generic 202 for unknown / inactive /
+  `force_sso` / delivery-off; SHA-256 of the token only; one live token per
+  user; 30-min expiry; single use; account must still be `active` at confirm;
+  every session revoked on success. `/login?reset=1` shows the "password
+  updated" banner.
+
+Guard: `tests/smoke_password_reset_flow_301.py` (behavioral, Flask test client,
+isolated DB — builds its own SQLite snapshot when `SSC_DB_URL` is unset) — plus
+the #296–#300 static contracts, all now in the #260 gate list.
+
 ### Cloud M1 (#287) — the storage abstraction
 
 Every DATA path resolves through **`ssc_paths.py`** driven by **`SSC_DATA_ROOT`**:
