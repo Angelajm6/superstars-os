@@ -34,20 +34,32 @@ def _live_key():
     return (os.environ.get("SENDGRID_API_KEY") or "").strip() or None
 
 
-def _send_live(to_email, subject, body) -> tuple:
-    """(sent, error). Only called when the key is present."""
+def _send_live(to_email, subject, body, html=None, *, from_name="SSC Dashboard",
+               track_clicks=True) -> tuple:
+    """(sent, error). Only called when the key is present.
+
+    `html` adds a text/html alternative next to the plain-text body (the plain
+    part always goes first so text-only clients get it). `track_clicks=False`
+    turns off SendGrid's link rewriting for transactional mail whose URL must
+    stay exactly as sent (#301 password-reset links)."""
     try:
         import requests
+        content = [{"type": "text/plain", "value": body}]
+        if html:
+            content.append({"type": "text/html", "value": html})
+        payload = {
+            "personalizations": [{"to": [{"email": to_email}]}],
+            "from": {"email": _FROM, "name": from_name},
+            "subject": subject,
+            "content": content,
+        }
+        if not track_clicks:
+            payload["tracking_settings"] = {"click_tracking": {"enable": False, "enable_text": False}}
         r = requests.post(
             _SENDGRID_URL,
             headers={"Authorization": f"Bearer {_live_key()}",
                      "Content-Type": "application/json"},
-            json={
-                "personalizations": [{"to": [{"email": to_email}]}],
-                "from": {"email": _FROM, "name": "SSC Dashboard"},
-                "subject": subject,
-                "content": [{"type": "text/plain", "value": body}],
-            }, timeout=10)
+            json=payload, timeout=10)
         if r.status_code in (200, 202):
             return 1, None
         return 0, f"sendgrid {r.status_code}"
