@@ -1,0 +1,489 @@
+"""Self-service password reset for the sign-in page (#300 / #301).
+
+Flow
+----
+1. ``GET  /forgot-password``                     the request page
+2. ``POST /api/auth/password-reset/request``     {email} -> always the same 202
+3. email carries ``<base>/reset-password?token=…`` (30-minute, single-use)
+4. ``GET  /reset-password``                      the new-password page
+5. ``POST /api/auth/password-reset/confirm``     {token, new_password}
+6. ``GET  /api/auth/password-reset/config``      {enabled} — lets the request
+   page say honestly when this environment cannot deliver email.
+
+Security properties
+-------------------
+* The request endpoint never reveals whether an account exists: unknown,
+  inactive, SSO-only, and delivery-disabled cases all return the identical
+  generic 202. Only the per-IP throttle answers differently (429), and that
+  says nothing about the account.
+* Only a SHA-256 hash of the token is stored; the raw token lives in the
+  email alone. ``secrets.token_urlsafe(32)`` = 256 bits of entropy.
+* One live token per user (a new request replaces the old one), single use,
+  expiry enforced at confirm time, and the account must still be active.
+* A successful reset revokes every existing session for the account.
+* Per-IP fixed-window throttle (``password_reset_request`` table): at most
+  ``MAX_REQUESTS_PER_IP`` requests per ``REQUEST_WINDOW``, then 429.
+* A completed reset lands in ``login_audit`` as ``password_reset``.
+
+Delivery
+--------
+Chosen at request time, first match wins:
+* ``SSC_RESET_MAIL_FAKE_DIR`` — TEST-ONLY seam: writes the email to a file
+  instead of sending. Never set on a Render service (same rule as
+  DOC_SCAN_FAKE and friends).
+* SendGrid — ``SENDGRID_API_KEY`` (the app's existing outbound-mail path,
+  see notifications.py).
+* SMTP — all of ``SSC_RESET_SMTP_HOST``, ``SSC_RESET_SMTP_USERNAME``,
+  ``SSC_RESET_SMTP_PASSWORD``, ``SSC_RESET_EMAIL_FROM``
+  (+ optional ``SSC_RESET_SMTP_PORT``, default 587, STARTTLS).
+
+The public origin for the link comes from ``APP_BASE_URL`` (already part of
+the Render environment) with ``SSC_PUBLIC_BASE_URL`` as an alias. It must be
+https, except for loopback hosts used in local development.
+"""
+from __future__ import annotations
+
+import hashlib
+import logging
+import os
+import secrets
+import smtplib
+import ssl
+from datetime import datetime, timedelta
+from email.message import EmailMessage
+from pathlib import Path
+from typing import Optional
+from urllib.parse import quote, urlsplit
+
+from flask import jsonify, request, send_file
+
+import auth
+
+log = logging.getLogger(__name__)
+
+TTL = timedelta(minutes=30)
+REQUEST_WINDOW = timedelta(minutes=15)
+MAX_REQUESTS_PER_IP = 5
+
+PAGE = auth.SCRIPT_DIR / "forgot_password.html"
+RESET_PAGE = auth.SCRIPT_DIR / "reset_password.html"
+
+GENERIC_MESSAGE = "If an active account matches that email, a reset link has been sent."
+INVALID_TOKEN_MESSAGE = "This reset link is invalid or has expired."
+EMAIL_SUBJECT = "Reset your Superstars Contracting password"
+EMAIL_FROM_NAME = "Superstars Contracting"
+EMAIL_PREHEADER = "Your one-time link to choose a new password. It expires in 30 minutes."
+EMAIL_TEXT = (
+    "SUPERSTARS CONTRACTING — Office Console\n"
+    "\n"
+    "Reset your password\n"
+    "\n"
+    "We received a request to reset the password for your Superstars Contracting\n"
+    "account. Open this one-time link to choose a new one:\n"
+    "\n"
+    "{url}\n"
+    "\n"
+    "The link works once and expires 30 minutes after it was requested.\n"
+    "\n"
+    "Didn't request this? You can safely ignore this email. Your password won't\n"
+    "change unless you open the link and choose a new one.\n"
+    "\n"
+    "— Superstars Contracting Inc.\n"
+    "This is an automated message from the office console; replies aren't monitored.\n"
+)
+
+# Brand tokens mirrored from login.html. Table layout + inline styles because
+# Gmail/Outlook strip <style> blocks and ignore flex/grid; no images because
+# Gmail won't render SVG and a broken logo looks worse than a clean wordmark.
+_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="x-apple-disable-message-reformatting">
+<title>{subject}</title>
+</head>
+<body style="margin:0;padding:0;background:#FAF7F1;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">{preheader}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAF7F1;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;background:#FFFFFF;border:1px solid #E8E4DD;border-radius:16px;overflow:hidden;">
+        <tr>
+          <td style="height:6px;background:#B11E2E;font-size:0;line-height:0;">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="padding:28px 36px 0 36px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+            <div style="font-size:15px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:#14161C;">Superstars Contracting</div>
+            <div style="font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:#76777E;margin-top:3px;">Office Console</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:26px 36px 0 36px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+            <h1 style="margin:0 0 10px 0;font-size:22px;line-height:1.25;font-weight:700;color:#14161C;">Reset your password</h1>
+            <p style="margin:0;font-size:15px;line-height:1.55;color:#384152;">We received a request to reset the password for your Superstars Contracting account. Use the button below to choose a new one.</p>
+          </td>
+        </tr>
+        <tr>
+          <td align="left" style="padding:24px 36px 0 36px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" style="background:#B11E2E;border-radius:9px;">
+                  <a href="{url}" style="display:inline-block;padding:13px 26px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;letter-spacing:0.3px;color:#FFFFFF;text-decoration:none;border-radius:9px;">Choose a new password</a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 36px 0 36px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+            <p style="margin:0;font-size:13px;line-height:1.5;color:#76777E;">This link works once and expires <strong style="color:#14161C;">30 minutes</strong> after it was requested.</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:22px 36px 0 36px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+            <p style="margin:0 0 6px 0;font-size:12px;line-height:1.5;color:#76777E;">If the button doesn&rsquo;t work, copy and paste this link into your browser:</p>
+            <p style="margin:0;font-size:12px;line-height:1.5;word-break:break-all;"><a href="{url}" style="color:#B11E2E;text-decoration:underline;">{url}</a></p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:26px 36px 0 36px;">
+            <div style="height:1px;background:#E8E4DD;font-size:0;line-height:0;">&nbsp;</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 36px 28px 36px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+            <p style="margin:0;font-size:13px;line-height:1.55;color:#384152;"><strong style="color:#14161C;">Didn&rsquo;t request this?</strong> You can safely ignore this email. Your password won&rsquo;t change unless you open the link and choose a new one.</p>
+          </td>
+        </tr>
+      </table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
+        <tr>
+          <td style="padding:18px 12px 0 12px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;line-height:1.6;color:#9A9BA1;text-align:center;">
+            Superstars Contracting Inc. &middot; Office Console<br>
+            This is an automated message; replies aren&rsquo;t monitored.
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
+"""
+
+
+def render_reset_email(url: str) -> tuple[str, str]:
+    """(plain_text, html) for the reset link. The URL is HTML-escaped in the
+    HTML part; the plain part carries it verbatim."""
+    import html as _html
+    text = EMAIL_TEXT.format(url=url)
+    page = _HTML.format(subject=_html.escape(EMAIL_SUBJECT),
+                        preheader=_html.escape(EMAIL_PREHEADER),
+                        url=_html.escape(url, quote=True))
+    return text, page
+
+_LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "[::1]"}
+
+
+# ============= SCHEMA =============
+
+def ensure_schema(conn) -> None:
+    """Idempotent. No FK on user_id on purpose: a fresh pre-production database
+    may create its application tables after this module boots. The endpoints
+    resolve the user from ``users`` themselves, so integrity is still enforced."""
+    if auth.db_layer.is_postgres():
+        pk = "id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY"
+    else:
+        pk = "id INTEGER PRIMARY KEY AUTOINCREMENT"
+    conn.execute(
+        f"CREATE TABLE IF NOT EXISTS password_reset_token ("
+        f"  {pk},"
+        f"  user_id      INTEGER NOT NULL,"
+        f"  token_hash   TEXT    NOT NULL UNIQUE,"
+        f"  requested_at TEXT    NOT NULL,"
+        f"  expires_at   TEXT    NOT NULL,"
+        f"  used_at      TEXT,"
+        f"  request_ip   TEXT"
+        f")"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_password_reset_token_lookup "
+        "ON password_reset_token(token_hash, used_at, expires_at)"
+    )
+    # Every request attempt, matched or not, for the per-IP throttle. Kept
+    # separate from login_audit on purpose: that table's CHECK constraint
+    # enumerates its event names, so unknown events are silently dropped by
+    # auth._login_audit — exactly what made the earlier throttle a no-op.
+    # No email is ever stored here (PII rule).
+    conn.execute(
+        f"CREATE TABLE IF NOT EXISTS password_reset_request ("
+        f"  {pk},"
+        f"  at         TEXT    NOT NULL,"
+        f"  request_ip TEXT,"
+        f"  matched    INTEGER NOT NULL DEFAULT 0"
+        f")"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_password_reset_request_ip "
+        "ON password_reset_request(request_ip, at)"
+    )
+    conn.commit()
+
+
+# ============= DELIVERY CONFIG =============
+
+def _env(name: str) -> str:
+    return (os.environ.get(name) or "").strip()
+
+
+def public_base_url() -> Optional[str]:
+    """The origin the reset link is built on. https only, except loopback."""
+    raw = _env("APP_BASE_URL") or _env("SSC_PUBLIC_BASE_URL")
+    if not raw:
+        return None
+    parts = urlsplit(raw)
+    if not parts.netloc:
+        return None
+    if parts.scheme == "https" or (parts.scheme == "http" and parts.hostname in _LOOPBACK_HOSTS):
+        return raw.rstrip("/")
+    return None
+
+
+def delivery_config() -> Optional[dict]:
+    """Return {'transport': ..., 'base_url': ...} when a reset email can be
+    delivered from this environment, else None."""
+    base = public_base_url()
+    if not base:
+        return None
+    fake_dir = _env("SSC_RESET_MAIL_FAKE_DIR")
+    if fake_dir:
+        return {"transport": "fake", "base_url": base, "dir": fake_dir}
+    if _env("SENDGRID_API_KEY"):
+        return {"transport": "sendgrid", "base_url": base}
+    smtp = {k: _env(k) for k in ("SSC_RESET_SMTP_HOST", "SSC_RESET_SMTP_USERNAME",
+                                  "SSC_RESET_SMTP_PASSWORD", "SSC_RESET_EMAIL_FROM")}
+    if all(smtp.values()):
+        return {"transport": "smtp", "base_url": base, **smtp}
+    return None
+
+
+def reset_link(base_url: str, token: str) -> str:
+    return base_url + "/reset-password?token=" + quote(token, safe="")
+
+
+def _deliver(to_email: str, token: str, cfg: dict) -> bool:
+    """Send the email. Returns True on success. Never raises — a mail outage
+    must not turn into a 500 that hints at anything."""
+    url = reset_link(cfg["base_url"], token)
+    body, html = render_reset_email(url)
+    transport = cfg["transport"]
+    try:
+        if transport == "fake":
+            out = Path(cfg["dir"])
+            out.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+            (out / f"reset-{stamp}.eml").write_text(
+                f"To: {to_email}\nSubject: {EMAIL_SUBJECT}\n\n{body}", encoding="utf-8")
+            (out / f"reset-{stamp}.html").write_text(html, encoding="utf-8")
+            return True
+        if transport == "sendgrid":
+            import notifications  # the app's single SendGrid path
+            sent, err = notifications._send_live(
+                to_email, EMAIL_SUBJECT, body, html,
+                from_name=EMAIL_FROM_NAME, track_clicks=False)
+            if not sent:
+                log.warning("password reset email not sent via sendgrid: %s", err)
+            return bool(sent)
+        if transport == "smtp":
+            msg = EmailMessage()
+            msg["Subject"] = EMAIL_SUBJECT
+            msg["From"] = f"{EMAIL_FROM_NAME} <{cfg['SSC_RESET_EMAIL_FROM']}>"
+            msg["To"] = to_email
+            msg.set_content(body)
+            msg.add_alternative(html, subtype="html")
+            port = int(_env("SSC_RESET_SMTP_PORT") or "587")
+            with smtplib.SMTP(cfg["SSC_RESET_SMTP_HOST"], port, timeout=12) as s:
+                s.starttls(context=ssl.create_default_context())
+                s.login(cfg["SSC_RESET_SMTP_USERNAME"], cfg["SSC_RESET_SMTP_PASSWORD"])
+                s.send_message(msg)
+            return True
+    except Exception as e:  # noqa: BLE001 — never leak, never 500
+        log.warning("password reset email not sent via %s: %s", transport, type(e).__name__)
+    return False
+
+
+# ============= HELPERS =============
+
+def _hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _generic():
+    return jsonify({"ok": True, "message": GENERIC_MESSAGE}), 202
+
+
+def _eligible(user: Optional[dict]) -> bool:
+    """Only active, password-capable accounts get a token. SSO-only staff
+    (force_sso) recover through Google, never through a password link."""
+    if not user:
+        return False
+    # Same rule as /api/auth/login: status must be exactly 'active'.
+    if user.get("status") != "active" or not user.get("is_active"):
+        return False
+    if user.get("force_sso"):
+        return False
+    return True
+
+
+def _window_start() -> str:
+    return (datetime.now() - REQUEST_WINDOW).isoformat(timespec="seconds")
+
+
+def _too_many_requests(ip: Optional[str]) -> bool:
+    """Per-source fixed-window throttle. Fails OPEN if the table is unavailable —
+    the generic response already protects the account list."""
+    if not ip:
+        return False
+    conn = auth._db()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(1) AS n FROM password_reset_request WHERE request_ip = ? AND at >= ?",
+            (ip, _window_start()),
+        ).fetchone()
+        return int(row["n"] if row else 0) >= MAX_REQUESTS_PER_IP
+    except Exception:
+        return False
+    finally:
+        conn.close()
+
+
+def _record_request(ip: Optional[str], matched: bool) -> None:
+    """Log the attempt for the throttle and sweep rows older than the window."""
+    conn = auth._db()
+    try:
+        conn.execute("DELETE FROM password_reset_request WHERE at < ?", (_window_start(),))
+        conn.execute(
+            "INSERT INTO password_reset_request (at, request_ip, matched) VALUES (?, ?, ?)",
+            (auth._now_iso(), ip, 1 if matched else 0),
+        )
+        conn.commit()
+    except Exception:
+        pass  # never let bookkeeping break the request
+    finally:
+        conn.close()
+
+
+# ============= ENDPOINTS =============
+
+def config_endpoint():
+    """Public. Says whether THIS environment can deliver reset emails so the
+    request page can be honest instead of pretending to send."""
+    return jsonify({"enabled": delivery_config() is not None})
+
+
+def request_reset():
+    payload = request.get_json(silent=True) or {}
+    email = str(payload.get("email") or "").strip()
+    ip = auth._client_ip()
+
+    if _too_many_requests(ip):
+        return jsonify({"error": "Too many reset requests. Wait a few minutes and try again."}), 429
+
+    # Every attempt is recorded for the throttle (the email itself never is).
+    user = auth.get_user_by_email(email) if email else None
+    _record_request(ip, matched=user is not None)
+
+    cfg = delivery_config()
+    if cfg is None:
+        log.warning("password reset requested but no delivery transport is configured")
+        return _generic()
+    if not _eligible(user):
+        return _generic()
+
+    token = secrets.token_urlsafe(32)
+    now = auth._now_iso()
+    expires = (datetime.now() + TTL).isoformat(timespec="seconds")
+    conn = auth._db()
+    try:
+        # One live token per user; sweep anything already expired while here.
+        conn.execute(
+            "DELETE FROM password_reset_token WHERE user_id = ? OR expires_at < ?",
+            (user["id"], now),
+        )
+        conn.execute(
+            "INSERT INTO password_reset_token "
+            "(user_id, token_hash, requested_at, expires_at, request_ip) VALUES (?, ?, ?, ?, ?)",
+            (user["id"], _hash(token), now, expires, ip),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    if not _deliver(user["email"], token, cfg):
+        log.warning("password reset link minted but delivery failed (user_id=%s)", user["id"])
+    return _generic()
+
+
+def confirm_reset():
+    payload = request.get_json(silent=True) or {}
+    token = str(payload.get("token") or "")
+    new_password = payload.get("new_password") or ""
+
+    err = auth.password_strength_error(new_password)
+    if err:
+        return jsonify({"error": err, "code": "weak_password"}), 400
+    if not token:
+        return jsonify({"error": INVALID_TOKEN_MESSAGE, "code": "invalid_token"}), 400
+
+    now = auth._now_iso()
+    conn = auth._db()
+    try:
+        row = conn.execute(
+            "SELECT t.id AS token_id, t.user_id, u.is_active, u.status, u.force_sso "
+            "FROM password_reset_token t JOIN users u ON u.id = t.user_id "
+            "WHERE t.token_hash = ? AND t.used_at IS NULL AND t.expires_at > ?",
+            (_hash(token), now),
+        ).fetchone()
+        account = row and {"is_active": row["is_active"], "status": row["status"],
+                           "force_sso": row["force_sso"]}
+        if not row or not _eligible(account):
+            return jsonify({"error": INVALID_TOKEN_MESSAGE, "code": "invalid_token"}), 400
+        uid = row["user_id"]
+        conn.execute(
+            "UPDATE password_reset_token SET used_at = ? WHERE id = ? AND used_at IS NULL",
+            (now, row["token_id"]),
+        )
+        conn.execute(
+            "UPDATE users SET password_hash = ?, must_reset_password = 0 WHERE id = ?",
+            (auth.hash_password(new_password), uid),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    auth.destroy_all_user_sessions(uid)
+    # 'password_reset' is the event name login_audit's CHECK constraint allows.
+    auth._login_audit(uid, "password_reset", auth._client_ip())
+    return jsonify({"ok": True})
+
+
+# ============= WIRING =============
+
+def register(app) -> None:
+    conn = auth._db()
+    try:
+        ensure_schema(conn)
+    finally:
+        conn.close()
+    app.add_url_rule("/forgot-password", "forgot_password",
+                     lambda: send_file(str(PAGE)), methods=["GET"])
+    app.add_url_rule("/reset-password", "reset_password",
+                     lambda: send_file(str(RESET_PAGE)), methods=["GET"])
+    app.add_url_rule("/api/auth/password-reset/config", "password_reset_config",
+                     config_endpoint, methods=["GET"])
+    app.add_url_rule("/api/auth/password-reset/request", "password_reset_request",
+                     request_reset, methods=["POST"])
+    app.add_url_rule("/api/auth/password-reset/confirm", "password_reset_confirm",
+                     confirm_reset, methods=["POST"])

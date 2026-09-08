@@ -25,11 +25,14 @@ they become the Render **environment group**, values sourced from the 1Password
 | `GOOGLE_OAUTH_ALLOWED_DOMAIN` | SSO domain restriction (@superstarscontracting.com) |
 | `GOOGLE_OAUTH_REDIRECT_URI` | SSO callback — **M4 sets the app.superstarscontracting.com URL** |
 | `APP_BASE_URL` | Absolute-URL base for links/redirects — **M4 sets the public origin** |
+| `SSC_PUBLIC_BASE_URL` | #301 — alias of `APP_BASE_URL` for password-reset links (only needed if they must differ) |
+| `SSC_RESET_SMTP_HOST` / `SSC_RESET_SMTP_USERNAME` / `SSC_RESET_SMTP_PASSWORD` / `SSC_RESET_EMAIL_FROM` / `SSC_RESET_SMTP_PORT` | #301 — optional SMTP fallback for reset email when `SENDGRID_API_KEY` is absent (PASSWORD is a **secret**) |
 | `PORT` | Bind port (waitress) |
 
 ## Test-only seams (never set in production; documented so they're not mistaken for prod)
 `GOOGLE_OAUTH_FAKE_VERIFY`, `DOC_SCAN_FAKE`, `DOC_SCAN_MODEL`, `EXPENSE_SCAN_FAKE`,
 `EXPENSE_SCAN_MODEL` — deterministic-AI / mock-verify switches used by the gate.
+`SSC_RESET_MAIL_FAKE_DIR` — #301: writes password-reset emails to files instead of sending (gate + local dev).
 
 ## Secrets that live in the DB, not env (comp-data class, BitLocker at rest; SQLCipher roadmap)
 - `users.password_hash` (bcrypt), `users.totp_secret` (#289 TOTP shared secret),

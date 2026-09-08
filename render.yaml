@@ -75,6 +75,7 @@ services:
         sync: false
       - key: SENDGRID_API_KEY
         sync: false
+                                # also carries #301 password-reset emails (link origin = APP_BASE_URL)
       - key: GOOGLE_OAUTH_REDIRECT_URI
         sync: false               # M4: https://<service>.onrender.com/auth/google/callback ; M5: https://app.superstarscontracting.com/auth/google/callback
       - key: APP_BASE_URL

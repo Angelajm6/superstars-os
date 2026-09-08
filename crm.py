@@ -373,10 +373,15 @@ def unlink_project(conn, project_code) -> bool:
 
 
 def list_org_projects(conn, org_id) -> list:
-    """Projects linked to this client org (curated columns — no PII/paths)."""
+    """Buildings / job sites linked to this client organization.
+
+    ``projects`` is the existing operational source of truth for a job site.  Returning
+    the address here lets the CRM present an unambiguous client -> building -> job
+    hierarchy without creating a second, competing building registry.
+    """
     return _rows(conn.execute(
-        "SELECT project_code, name, status, client_org_id FROM projects "
-        "WHERE client_org_id=? ORDER BY project_code", (org_id,)))
+        "SELECT project_code, name, address, city_zip, status, client_org_id FROM projects "
+        "WHERE client_org_id=? ORDER BY COALESCE(address, name), project_code", (org_id,)))
 
 
 # ============================ console surfacing ============================

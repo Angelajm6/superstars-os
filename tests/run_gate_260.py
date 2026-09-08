@@ -72,6 +72,12 @@ GATE = [
     "smoke_drawing_author_293.py",  # #293 guard — drawing sets/naming vs the real fixture, AI seam + no-key degrade (own servers), draft/confirm machine, 890 backfill, isolation
     "smoke_photo_reassign_294.py",  # #294 guard — reassign history (single/batch), same-project guard, DCR amend flag+audit, self-service perms, timing buckets, settable alert threshold
     "smoke_hours_edit_295.py",    # #295 guard — sign-in correction history, issued-day amend flag + audit + auto re-render (content-verified), memo invalidation on the edit doors, honest Cancel copy
+    "smoke_worker_sessions_296.py",    # #296 static contract — worker PWA bearer sessions
+    "smoke_http_security_297.py",      # #297 static contract — response security headers
+    "smoke_login_experience_298.py",   # #298 static contract — password visibility + reset routing
+    "smoke_client_building_hub_299.py",# #299 static contract — client buildings / job sites in CRM
+    "smoke_password_reset_300.py",     # #300 static contract — reset module + pages
+    "smoke_password_reset_flow_301.py",# #301 guard — reset BEHAVIOR: no-enum, hashed single-use tokens, session revoke, expiry, throttle
     "smoke_perf_budget_292.py",   # #292 THE BUDGET GATE — per-surface request-count + payload ceilings over the whole census; a page that goes chatty again fails here
     "smoke_dropplan_api.py",
     "smoke_worker_lifecycle.py",
