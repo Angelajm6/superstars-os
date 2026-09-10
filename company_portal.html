@@ -6,6 +6,7 @@
 <title>Company Portal · Superstars Contracting</title>
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=302">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=303">
 <script src="/files/static/js/datepicker.js?v=302" defer></script>
 <script src="/files/static/js/auth_menu.js?v=302" defer></script>
 <style>
@@ -16,31 +17,8 @@
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     font-size: 14px; -webkit-font-smoothing: antialiased; }
   a { color: inherit; }
-  .cp-shell { display: grid; grid-template-columns: 236px 1fr; min-height: 100vh; }
 
-  /* ---- sidebar ---- */
-  .cp-side { background: #14161C; color: #E8E4DD; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
-  .cp-side .brand { display: flex; align-items: center; gap: 10px; padding: 18px 18px 14px; border-bottom: 1px solid rgba(255,255,255,.08); }
-  .cp-side .brand-mark { width: 34px; height: 34px; object-fit: contain; flex-shrink: 0; }
-  .cp-side .brand-name { font-family: 'Archivo', 'Inter', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: #fff; line-height: 1.1; }
-  .cp-side .brand-sub { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: #9A9BA1; margin-top: 2px; }
-  .cp-nav { padding: 10px 10px; display: flex; flex-direction: column; gap: 2px; }
-  .cp-nav a { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; color: #C9C6BE; text-decoration: none; font-weight: 600; font-size: 13px; }
-  .cp-nav a svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .8; }
-  .cp-nav a:hover { background: rgba(255,255,255,.06); color: #fff; }
-  .cp-nav a.active { background: var(--brand-red, #B11E2E); color: #fff; }
-  .cp-nav a.active svg { opacity: 1; }
-  .cp-nav .cp-nav-label { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: #6F7079; padding: 12px 12px 4px; font-weight: 700; }
-  .cp-side-foot { margin-top: auto; padding: 12px 10px 16px; border-top: 1px solid rgba(255,255,255,.08); }
-  .cp-side-foot a { display: block; padding: 8px 12px; color: #9A9BA1; text-decoration: none; font-size: 12px; font-weight: 600; border-radius: 8px; }
-  .cp-side-foot a:hover { background: rgba(255,255,255,.06); color: #fff; }
 
-  /* ---- main ---- */
-  .cp-main { min-width: 0; }
-  .cp-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 28px; background: #fff; border-bottom: 1px solid var(--line, #eceef3); position: sticky; top: 0; z-index: 5; }
-  .cp-top h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.2px; }
-  .cp-top .cp-crumb { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted, #8c92a0); font-weight: 700; margin-bottom: 2px; }
-  .cp-top-right { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--muted); }
   #user-menu { display: flex; align-items: center; gap: 10px; }
   .cp-content { padding: 22px 28px 48px; max-width: 1360px; }
   .cp-view[hidden] { display: none !important; }
@@ -131,18 +109,14 @@
   .cp-toast.err { background: #A8382B; }
 
   @media (max-width: 860px) {
-    .cp-shell { grid-template-columns: 1fr; }
-    .cp-side { position: static; height: auto; }
-    .cp-nav { flex-direction: row; flex-wrap: wrap; }
-    .cp-nav .cp-nav-label { display: none; }
     .cp-content { padding: 16px; }
     .cp-modal-body { grid-template-columns: 1fr; }
   }
 </style>
 </head>
 <body>
-<div class="cp-shell">
-  <aside class="cp-side">
+<div class="ssc-shell">
+  <aside class="ssc-side">
     <div class="brand">
       <img class="brand-mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
       <div>
@@ -150,30 +124,30 @@
         <div class="brand-sub">Company Portal</div>
       </div>
     </div>
-    <nav class="cp-nav" id="cp-nav">
-      <div class="cp-nav-label">Company</div>
+    <nav class="ssc-nav" id="cp-nav">
+      <div class="ssc-nav-label">Company</div>
       <a href="#overview" data-view="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Overview</a>
       <a href="#clients" data-view="clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l7-4v18M10 21h11V11l-4-2v12"/><path d="M6 9h1M6 13h1M6 17h1M14 13h1M14 17h1"/></svg>Clients &amp; Buildings</a>
       <a href="#finance" data-view="finance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 8-8"/><path d="M14 8h6v6"/></svg>Finance</a>
       <a href="#expenses" data-view="expenses"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Expenses</a>
-      <div class="cp-nav-label">People &amp; Risk</div>
+      <div class="ssc-nav-label">People &amp; Risk</div>
       <a href="#workforce" data-view="workforce"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15 14.5a5 5 0 0 1 6.5 5"/></svg>Workforce &amp; Pay</a>
       <a href="#compliance" data-view="compliance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>Compliance</a>
     </nav>
-    <div class="cp-side-foot">
+    <div class="ssc-side-foot">
       <a href="/">← Office Console</a>
       <a href="/admin/users">Users &amp; roles</a>
       <a href="/estimating">Estimating queue</a>
     </div>
   </aside>
 
-  <main class="cp-main">
-    <header class="cp-top">
+  <main class="ssc-main">
+    <header class="ssc-top">
       <div>
-        <div class="cp-crumb" id="cp-crumb">Company Portal</div>
+        <div class="ssc-crumb" id="cp-crumb">Company Portal</div>
         <h1 id="cp-title">Overview</h1>
       </div>
-      <div class="cp-top-right">
+      <div class="ssc-top-right">
         <span id="cp-date"></span>
         <div id="user-menu"></div>
       </div>

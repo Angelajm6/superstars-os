@@ -1,0 +1,74 @@
+/* =====================================================================
+   shell.css — #303 the ONE application shell: left sidebar + top bar.
+   Used by the Office Console (/) and the Company Portal (/company); every
+   operator page migrates onto it over time (audit 2026-09-10, "shared shell").
+
+   Tokens come from widgets.css :root (--ink, --muted, --line, --canvas,
+   --accent, --brand-red). This file only lays out chrome + nav.
+
+   Markup contract:
+     <div class="ssc-shell">
+       <aside class="ssc-side">
+         <div class="brand"><img class="brand-mark"> <div><div class="brand-name">…</div><div class="brand-sub">…</div></div></div>
+         <nav class="ssc-nav">
+           <div class="ssc-nav-label">Group</div>
+           <a class="nav-tab" data-panel="x" href="#x">In-page panel</a>   (console tabs keep .nav-tab + data-panel)
+           <a href="/somewhere">Another page</a>
+         </nav>
+         <div class="ssc-side-foot"><a href="/">…</a></div>
+       </aside>
+       <div class="ssc-main">
+         <header class="ssc-top"> … </header>
+         … page content …
+       </div>
+     </div>
+   Specificity is deliberately .ssc-side .ssc-nav … (0,3,0) so a page's own
+   legacy .nav-tab / .nav-tab.active rules (0,2,0) never win over the shell.
+   ===================================================================== */
+
+.ssc-shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: 100vh; }
+
+/* ---- sidebar ---- */
+.ssc-side { background: #14161C; color: #E8E4DD; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.ssc-side .brand { display: flex; align-items: center; gap: 10px; padding: 18px 18px 14px; border-bottom: 1px solid rgba(255,255,255,.08); margin: 0; }
+.ssc-side .brand-mark { width: 34px; height: 34px; object-fit: contain; flex-shrink: 0; }
+.ssc-side .brand-name { font-family: 'Archivo', 'Inter', -apple-system, sans-serif; font-size: 13px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: #fff; line-height: 1.1; }
+.ssc-side .brand-sub { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: #9A9BA1; margin-top: 2px; font-weight: 600; }
+
+.ssc-side .ssc-nav { padding: 10px 10px; display: flex; flex-direction: column; gap: 2px; }
+.ssc-side .ssc-nav .ssc-nav-label { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: #6F7079; padding: 12px 12px 4px; font-weight: 700; }
+.ssc-side .ssc-nav a, .ssc-side .ssc-nav .nav-tab {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin: 0; border: 0; border-radius: 8px;
+  color: #C9C6BE; text-decoration: none; font-weight: 600; font-size: 13px; line-height: 1.2; cursor: pointer;
+  background: transparent; transition: background .12s ease, color .12s ease;
+}
+.ssc-side .ssc-nav a svg, .ssc-side .ssc-nav .nav-tab svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .8; }
+.ssc-side .ssc-nav a:hover, .ssc-side .ssc-nav .nav-tab:hover { background: rgba(255,255,255,.06); color: #fff; }
+.ssc-side .ssc-nav a:focus-visible, .ssc-side .ssc-nav .nav-tab:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.ssc-side .ssc-nav a.active, .ssc-side .ssc-nav .nav-tab.active { background: var(--brand-red, #B11E2E); color: #fff; border-bottom-color: transparent; }
+.ssc-side .ssc-nav .active svg { opacity: 1; }
+.ssc-side .ssc-nav .ssc-nav-ext::after { content: "↗"; margin-left: auto; font-size: 11px; opacity: .55; }
+
+.ssc-side .ssc-side-foot { margin-top: auto; padding: 12px 10px 16px; border-top: 1px solid rgba(255,255,255,.08); }
+.ssc-side .ssc-side-foot a { display: block; padding: 8px 12px; color: #9A9BA1; text-decoration: none; font-size: 12px; font-weight: 600; border-radius: 8px; }
+.ssc-side .ssc-side-foot a:hover { background: rgba(255,255,255,.06); color: #fff; }
+
+/* ---- main column + top bar ---- */
+.ssc-main { min-width: 0; background: var(--canvas, #fafbfd); }
+.ssc-main .ssc-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 28px;
+  background: #fff; border-bottom: 1px solid var(--line, #eceef3); position: sticky; top: 0; z-index: 5;
+}
+.ssc-top .ssc-crumb { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted, #8c92a0); font-weight: 700; margin-bottom: 2px; }
+.ssc-top h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.2px; line-height: 1.2; }
+.ssc-top .ssc-top-right { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--muted, #8c92a0); }
+
+/* ---- responsive: sidebar collapses to a wrapping strip ---- */
+@media (max-width: 860px) {
+  .ssc-shell { grid-template-columns: 1fr; }
+  .ssc-side { position: static; height: auto; overflow: visible; }
+  .ssc-side .ssc-nav { flex-direction: row; flex-wrap: wrap; }
+  .ssc-side .ssc-nav .ssc-nav-label { display: none; }
+  .ssc-side .ssc-side-foot { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 0; }
+  .ssc-main .ssc-top { padding: 12px 16px; }
+}
