@@ -534,7 +534,8 @@ def main():
                   "estimating.html",       # #276 estimating workspace (estimator/admin/c_suite)
                   "ui_settings.html",      # #279 UI v2 interface switch (Classic / New)
                   "portal_shell.html",     # #285 client portal shell (gained its drop filter)
-                  "company_portal.html"}   # #302 C-suite company portal (company-document modal)
+                  "company_portal.html",   # #302 C-suite company portal (company-document modal)
+                  "forgot_password.html", "reset_password.html"}  # #301 self-service password reset
     # #283 — surfaces that live OUTSIDE the repo root still get the structural
     # sweep. drawing-markup is served from templates/v2 (the #279 v2 tree), so the
     # root glob above cannot see it; registering it by path keeps the "guard never
