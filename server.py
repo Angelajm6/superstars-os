@@ -84,6 +84,11 @@ apply_auth_gate(app)
 import password_reset  # noqa: E402
 password_reset.register(app)
 
+# #302 — Company Portal (C-suite whole-company view). MUST follow apply_auth_gate:
+# every route is behind requires_section('company_portal') = admin/c_suite.
+import company_portal  # noqa: E402
+company_portal.register(app)
+
 # #279 (UI v2 phase 0) — the interface toggle. MUST follow apply_auth_gate: the
 # stored per-user preference is read off current_user(). Sets g.ui_version on page
 # routes; every UI route serves its page through ui_version.serve_ui, which returns
