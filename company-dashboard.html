@@ -10,6 +10,7 @@
      + the shared per-user layout helper (DashLayout → /api/dashboard/layout). -->
 <link rel="stylesheet" href="/files/static/vendor/gridstack.min.css">
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=245">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=303">
 <script src="/files/static/vendor/gridstack-all.js"></script>
 <script src="/files/static/js/dash_layout.js?v=292" defer></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -356,9 +357,56 @@
                       background:#f6f7fa; border:1px solid var(--line); border-radius:8px; padding:5px 9px; cursor:pointer; margin:0; }
   .crm-err { color:var(--brand-red); font-size:12px; margin-top:8px; display:none; }
   .crm-err.show { display:block; }
+
+  /* ==== #303 SHELL — the console lives inside the shared sidebar shell (shell.css) ==== */
+  .ssc-main .topbar { position: sticky; top: 0; z-index: 5; padding: 14px 28px; box-shadow: none; }
+  .ssc-main .topbar .brand { display: none; }          /* brand lockup moved to the sidebar */
+  .ssc-main .container { max-width: 1360px; margin: 0; padding: 22px 28px 48px; }
+  .ssc-main #cc-build-stamp { display: none; }         /* changelog text is not user-facing copy */
+  .nav-tabs { display: none; }                          /* legacy strip retired */
+  @media (max-width: 1000px) { .ssc-main .topbar .console-pill { display: none; } }
+  @media (max-width: 860px) { .ssc-main .container { padding: 16px; } }
 </style>
 </head>
 <body>
+<div class="ssc-shell">
+<aside class="ssc-side" aria-label="Office Console navigation">
+  <div class="brand">
+    <img class="brand-mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
+    <div>
+      <div class="brand-name">Superstars Contracting</div>
+      <div class="brand-sub" data-i18n="office-console">Office Console</div>
+    </div>
+  </div>
+  <nav class="ssc-nav" id="ssc-nav">
+    <div class="ssc-nav-label">Company</div>
+    <a class="nav-tab active" data-panel="projects" href="#projects" data-i18n="tab-projects">Overview</a>
+    <a class="ssc-nav-ext" href="/company" title="Clients &amp; buildings, finance, workforce &amp; pay, compliance">Company Portal</a>
+    <a class="nav-tab" data-panel="crm" href="#crm">CRM</a>
+    <a class="nav-tab" data-panel="estimates" href="#estimates" data-i18n="tab-estimates">Estimates</a>
+    <a class="ssc-nav-ext" href="/estimating">Estimating queue</a>
+    <div class="ssc-nav-label">Workforce</div>
+    <a class="nav-tab" data-panel="workforce" href="#workforce" data-i18n="tab-workforce">Workforce</a>
+    <a class="nav-tab" data-panel="hours" href="#hours">Hours Log</a>
+    <a class="nav-tab" data-panel="cert-health" href="#cert-health" data-i18n="tab-cert-health">Cert Health</a>
+    <a class="nav-tab" data-panel="cert-library" href="#cert-library" data-i18n="tab-cert-library">Cert Library</a>
+    <a class="ssc-nav-ext" id="nav-labor-rates-admin" href="/admin/labor-rates" title="Set &amp; audit per-worker hourly rates">Labor Rates</a>
+    <div class="ssc-nav-label">Operations</div>
+    <a class="ssc-nav-ext" href="/admin/projects">Projects &amp; assignments</a>
+    <a class="nav-tab" data-panel="compliance" href="#compliance" data-i18n="tab-compliance">Compliance</a>
+    <a class="nav-tab" data-panel="specs" href="#specs" data-i18n="tab-specs">Specs Library</a>
+    <a class="ssc-nav-ext" href="/dropplan">Drop Plan</a>
+    <div class="ssc-nav-label">Admin</div>
+    <a class="nav-tab" data-panel="settings" href="#settings" data-i18n="tab-settings">Settings</a>
+    <a class="ssc-nav-ext" href="/settings/interface">Interface</a>
+    <!-- #193 — the Labor Rate Tracker panel is reached by hash only; keep its tab for activatePanel() -->
+    <a class="nav-tab" data-panel="labor-rate" href="#labor-rate" data-i18n="tab-labor-rate" style="display:none;">Labor Rate</a>
+  </nav>
+  <div class="ssc-side-foot">
+    <a href="/projects">My projects view</a>
+  </div>
+</aside>
+<div class="ssc-main">
 
 <!-- #289 — staff second-factor readiness banner (admin/c_suite only). Populated by
      /api/admin/2fa-status; hidden unless staff accounts still lack a 2nd factor. -->
@@ -461,7 +509,8 @@
 })();
 </script>
 
-<div class="topbar">
+<div class="topbar ssc-top">
+  <div class="ssc-top-title"><div class="ssc-crumb" data-i18n="office-console">Office Console</div><h1 id="ssc-top-h1">Overview</h1></div>
   <div class="brand">
     <img class="brand-mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
     <div class="brand-text">
@@ -474,7 +523,6 @@
       <button type="button" class="lang-opt" id="lang-en" onclick="setLanguage('en')">EN</button>
       <button type="button" class="lang-opt" id="lang-es" onclick="setLanguage('es')">ES</button>
     </div>
-    <a class="console-pill" id="nav-company-portal" href="/company" style="text-decoration:none;cursor:pointer;" title="Clients & buildings, finance, workforce & pay, compliance">Company Portal →</a>
     <span class="console-pill" data-i18n="console-pill">Company-Wide</span>
     <span id="today-date">—</span>
     <span id="user-menu" aria-live="polite"></span>
@@ -492,12 +540,11 @@
     <span id="m-certs-valid"></span><span id="m-certs-total"></span><span id="m-certs-expiring"></span><span id="m-certs-expired"></span>
   </div>
 
-  <div class="cc-overview-head" style="margin:6px 0 2px;">
-    <div style="font-size:11px;color:#76777E;text-transform:uppercase;letter-spacing:.12em;font-weight:700;">Company Overview</div>
-    <h1 style="font-size:24px;margin:2px 0;">Superstars Contracting</h1>
-  </div>
-
-  <!-- KPI tiles (live) -->
+  <!-- PROJECTS — #240: Active Projects first, widget grid below. The grid is
+       Projects-tab content: any other active tab replaces everything below
+       the strip, so the grid hides with the panel. -->
+  <div class="panel active" data-panel="projects">
+  <!-- KPI tiles (live) — #303 moved inside Overview; the tab strip became the sidebar -->
   <div class="ph-kpis" data-widget="kpis">
     <div class="ph-kpi"><div><div class="ph-kpi-k">Active projects</div><div class="ph-kpi-v" id="cc-kpi-projects">—</div><div class="ph-kpi-sub" id="cc-kpi-projects-sub">&nbsp;</div></div></div>
     <div class="ph-kpi"><div><div class="ph-kpi-k">Workers</div><div class="ph-kpi-v" id="cc-kpi-workers">—</div><div class="ph-kpi-sub">in the system</div></div></div>
@@ -505,31 +552,6 @@
     <div class="ph-kpi"><div><div class="ph-kpi-k">Certs expiring ≤30d</div><div class="ph-kpi-v" id="cc-kpi-certs">—</div><div class="ph-kpi-sub" id="cc-kpi-certs-sub">incl. expired</div></div></div>
   </div>
 
-  <!-- Tabs — #240: strip sits directly under the KPI row -->
-  <div class="nav-tabs">
-    <div class="nav-tab active" data-panel="projects" data-i18n="tab-projects">Projects</div>
-    <div class="nav-tab" data-panel="workforce" data-i18n="tab-workforce">Workforce</div>
-    <div class="nav-tab" data-panel="cert-health" data-i18n="tab-cert-health">Cert Health</div>
-    <div class="nav-tab" data-panel="cert-library" data-i18n="tab-cert-library">Cert Library</div>
-    <div class="nav-tab" data-panel="compliance" data-i18n="tab-compliance">Compliance</div>
-    <div class="nav-tab" data-panel="estimates" data-i18n="tab-estimates">Estimates</div>
-    <!-- #193 — LRT relocated to the FR-BX-001 project-internal page
-         as the operator-facing entry point. Tab hidden here, panel
-         retained so /company-dashboard.html#labor-rate hash-routing
-         still activates it for the project page's nav-link. -->
-    <div class="nav-tab" data-panel="labor-rate" data-i18n="tab-labor-rate" style="display:none;">Labor Rate</div>
-    <a class="nav-tab" id="nav-labor-rates-admin" href="/admin/labor-rates"
-       style="display:none;text-decoration:none;color:inherit;"
-       title="Set & audit per-worker hourly rates (admin/c_suite only)">Labor Rates</a>
-    <div class="nav-tab" data-panel="specs" data-i18n="tab-specs">Specs Library</div>
-    <div class="nav-tab" data-panel="crm">CRM</div>
-    <div class="nav-tab" data-panel="settings" data-i18n="tab-settings">Settings</div>
-  </div>
-
-  <!-- PROJECTS — #240: Active Projects first, widget grid below. The grid is
-       Projects-tab content: any other active tab replaces everything below
-       the strip, so the grid hides with the panel. -->
-  <div class="panel active" data-panel="projects">
     <div class="section">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;">
         <div>
@@ -1908,7 +1930,7 @@ const I18N = {
     'm-total': 'total',
     'm-cert-alerts': 'Cert Alerts',
     'm-already-expired': 'already expired',
-    'tab-projects': 'Projects',
+    'tab-projects': 'Overview',
     'tab-workforce': 'Workforce',
     'tab-cert-health': 'Cert Health',
     'tab-cert-library': 'Cert Library',
@@ -2063,7 +2085,7 @@ const I18N = {
     'm-total': 'totales',
     'm-cert-alerts': 'Alertas de Cert.',
     'm-already-expired': 'ya vencidas',
-    'tab-projects': 'Proyectos',
+    'tab-projects': 'Resumen',
     'tab-workforce': 'Personal',
     'tab-cert-health': 'Estado de Certificaciones',
     'tab-cert-library': 'Catálogo de Cert.',
@@ -2363,6 +2385,8 @@ applyLanguage();
   // Tabs
   function activatePanel(target) {
     $$('.nav-tab').forEach(x => x.classList.toggle('active', x.getAttribute('data-panel') === target));
+    var _h1 = document.getElementById('ssc-top-h1'), _src = document.querySelector('.ssc-nav .nav-tab[data-panel="' + target + '"]');
+    if (_h1 && _src) _h1.textContent = _src.textContent.trim();
     $$('.panel').forEach(p => p.classList.toggle('active', p.getAttribute('data-panel') === target));
     if (target === 'workforce') loadWorkforce();
     if (target === 'cert-library') loadCertLibrary();
@@ -6442,5 +6466,7 @@ applyLanguage();
   };
 })();
 </script>
+</div><!-- /.ssc-main -->
+</div><!-- /.ssc-shell -->
 </body>
 </html>

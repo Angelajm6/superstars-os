@@ -20,6 +20,34 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #303 — The shared shell: Office Console on the sidebar layout (Bookore, 2026-09-10)
+
+`static/css/shell.css` is now THE application chrome: dark left sidebar (brand
+lockup, grouped nav, foot links) + white sticky top bar (page title, chrome
+right). The Company Portal (#302) and the Office Console (`/`) both use it; every
+operator page migrates onto it over time (the audit's "shared shell" plan).
+
+Console changes, chrome only — no panel logic touched:
+* The horizontal tab strip became the sidebar. In-page panels keep their
+  `.nav-tab` + `data-panel` contract (now real `<a href="#panel">` links, so
+  hash routing and keyboard navigation work); the tabs are grouped Company /
+  Workforce / Operations / Admin and the pages that were URL-only (`/estimating`,
+  `/admin/projects`, `/admin/labor-rates`, `/dropplan`, `/settings/interface`,
+  `/company`) got entry points. `#hours` (Hours Log) got a tab for the first time.
+* First tab renamed Projects → **Overview** (EN/ES dict updated); the KPI tiles
+  moved INSIDE the Overview panel instead of sitting above every tab; the
+  always-visible "Company Overview" heading and the build-stamp footer line are
+  gone from user-facing copy (the stamp element remains, hidden, for tooling).
+* Shell rules are `.ssc-side .ssc-nav …` (0,3,0) on purpose so a page's legacy
+  `.nav-tab` rules never win. Console-only overrides sit at the END of its inline
+  style block.
+
+Guards unchanged and green: design conventions 139/139 (console buttons still
+resolve to the accent), #299 static contract, #302 portal behavioral. Perf budget
+unaffected (one extra static stylesheet, cached). Next surfaces to migrate:
+`admin_users.html`, `admin_projects.html`, `estimating.html`, `admin_labor_rates.html`.
+Buildings-as-a-table moves to **#304**.
+
 ### #302 — Company Portal (Bookore, 2026-09-10)
 
 `/company` — the C-suite's whole-company view, a new standalone page
