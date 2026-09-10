@@ -20,6 +20,40 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #302 — Company Portal (Bookore, 2026-09-10)
+
+`/company` — the C-suite's whole-company view, a new standalone page
+(`company_portal.html`) + module (`company_portal.py`) gated by the new
+`company_portal` section (admin/c_suite; everyone else 403 on the page and every
+endpoint). Six views, one aggregate request each, hash-routed: Overview · Clients
+& Buildings · Finance · Expenses · Workforce & Pay · Compliance.
+
+* **Buildings are DERIVED** (no buildings table yet — #303): the distinct
+  normalized addresses across `projects` + `estimate` linked to a client
+  (`company_portal.address_key`: '890 East 135th Street' == '890 E 135th St, Bronx').
+  Each building groups its projects and estimates.
+* **Finance** rolls up: estimate pipeline/won/lost by month and status, spend from
+  BOTH ledgers (`expenses` receipts + `project_expense`, reported separately —
+  they can overlap), by category/project, receivables from `ira_job`, labor cost =
+  worked hours × the rate effective on the work date (`worker_rates`, fallback
+  `labor_worker_state`) with an explicit UNRATED bucket, QuickBooks sync counts,
+  and the `subscriptions` ledger when the table exists (`available:false` when not).
+* **Compliance** sweeps everything with an expiry: worker certs, `permits_library`,
+  `project_documents`, `estimate_document`, and the NEW `company_document` table
+  (company licenses / insurance / bonds — created at boot, idempotent) into
+  expired / ≤30 / 31–60 / 61–90 buckets. CRUD for company documents lives on the
+  page (add / edit / archive; archive is soft).
+* Comp-class data (rates, labor cost) appears here ON PURPOSE: this is a
+  company-only surface (CLAUDE.md comp-data rule), never field-reachable.
+* Perf budget declared (`company_portal`: reqs 6 / kb 60); design guard registry
+  updated; no build stamps or issue numbers in visible copy.
+
+Guard: `tests/smoke_company_portal_302.py` (behavioral, isolated DB: gating for
+six roles, address de-dup, rollup math, both ledgers + filters, expiry buckets,
+company-document CRUD, no `*_path` keys). Next: #303 first-class `building`
+table + `projects.building_id` / `estimate.building_id`; company-level expense
+ledger; Subscriptions CRUD.
+
 ### #301 — self-service password reset + password visibility (Bookore, 2026-09-08)
 
 The sign-in page's "Forgot password?" now works end to end and the eye toggle

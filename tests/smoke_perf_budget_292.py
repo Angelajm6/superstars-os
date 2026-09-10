@@ -133,6 +133,11 @@ BUDGETS = {
         "apis": ["/api/admin/pm-assignments", "/api/auth/me"],
         "reqs": 5, "kb": 40, "note": "already lean",
     },
+    # #302 — Company Portal: ONE aggregate per view; the landing view (Overview) is
+    # page + /overview + /api/auth/me (chrome). Other views fetch on demand, one
+    # call each (finance / clients / expenses / workforce / compliance+documents).
+    "company_portal": {"page": "/company", "apis": ["/api/company/portal/overview", "/api/auth/me"],
+                       "reqs": 6, "kb": 60, "note": "one aggregate per view, hash-routed (#302)"},
     "login": {"page": "/login", "apis": ["/api/auth/sso/config"], "reqs": 4, "kb": 20,
               "note": "public"},
     "ui_settings": {"page": "/ui-settings", "apis": [], "reqs": 3, "kb": 10,

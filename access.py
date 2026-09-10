@@ -49,6 +49,11 @@ SECTION_ACCESS = {
     # they share one rule (internal tier, never an outside party), which keeps the strip
     # legible; split it the day one of them needs a different answer.
     "internal_ops": frozenset({"admin", "c_suite", "pm", "super"}),
+    # #302 — the Company Portal (/company + /api/company/portal/*): the C-suite's
+    # whole-company view — clients & buildings, finance (pipeline, spend, receivables,
+    # labor cost), workforce with pay rates, and every expiring license/insurance/cert.
+    # Comp-class data lives here, so COMPANY axis only: admin/c_suite. Everyone else 403.
+    "company_portal": frozenset({"admin", "c_suite"}),
 }
 
 # #263 — COMPANY axis. The company overview console (`/`) and its company-level tabs

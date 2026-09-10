@@ -78,6 +78,7 @@ GATE = [
     "smoke_client_building_hub_299.py",# #299 static contract — client buildings / job sites in CRM
     "smoke_password_reset_300.py",     # #300 static contract — reset module + pages
     "smoke_password_reset_flow_301.py",# #301 guard — reset BEHAVIOR: no-enum, hashed single-use tokens, session revoke, expiry, throttle
+    "smoke_company_portal_302.py",     # #302 guard — company portal: company-axis gating, clients/buildings rollups, finance, compliance, company documents CRUD
     "smoke_perf_budget_292.py",   # #292 THE BUDGET GATE — per-surface request-count + payload ceilings over the whole census; a page that goes chatty again fails here
     "smoke_dropplan_api.py",
     "smoke_worker_lifecycle.py",
