@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""#306 — migration ledger: behavioral guard.
+
+On an ISOLATED database (honors SSC_DB_URL; builds a throwaway SQLite fixture
+when unset):
+
+  * ensure_ledger creates schema_migrations once; a second call is a no-op
+  * a database that already carries the app schema is BASELINED: every known
+    migration gets a `baseline` row, nothing is pending
+  * a migration appended to the list shows up as pending; `apply` runs the
+    script as a subprocess with SSC_DB_URL, records name + sha256, and a second
+    apply does nothing
+  * a failing script raises and is NOT recorded
+  * checksum drift is reported when a recorded script's content changes
+  * status()/pending_count() shapes; /api/health carries migrations_pending == 0
+
+Run:  venv/bin/python tests/smoke_migrations_306.py
+"""
+from __future__ import annotations
+
+import os
+import shutil
+import sqlite3
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+_TMP = tempfile.mkdtemp(prefix="ssc_mig_306_")
+
+
+def _build_isolated_sqlite() -> str:
+    import preprod_fixture_bootstrap as pfb
+    src = Path(_TMP) / "source"
+    shutil.copytree(ROOT, src, ignore=shutil.ignore_patterns(
+        ".git", "__pycache__", "*.pyc", "superstars.db*", "venv", "node_modules", "worker_records", "data_room", ".github"))
+    db = src / "superstars.db"
+    with sqlite3.connect(db) as conn:
+        conn.executescript((src / "schema.sql").read_text(encoding="utf-8"))
+    env = os.environ.copy()
+    env.pop("SSC_DB_URL", None); env.pop("SSC_DATA_ROOT", None)
+    env["SSC_ALLOW_EMPTY_PREPROD_FIXTURE"] = "1"
+    for script in pfb.LEGACY_MIGRATIONS + pfb.DUAL_BACKEND_MIGRATIONS:
+        subprocess.run([sys.executable, script], cwd=src, env=env, check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return f"sqlite:{db}"
+
+
+if not (os.environ.get("SSC_DB_URL") or "").strip():
+    os.environ["SSC_DB_URL"] = _build_isolated_sqlite()
+os.environ.setdefault("SSC_DATA_ROOT", str(Path(_TMP) / "dataroot"))
+Path(os.environ["SSC_DATA_ROOT"]).mkdir(parents=True, exist_ok=True)
+
+import db_layer  # noqa: E402
+import migrations  # noqa: E402
+
+FAKE_OK = "apply_smoke306_ok.py"
+FAKE_BAD = "apply_smoke306_bad.py"
+
+
+def _db():
+    return db_layer.connect(pragma_fk=True)
+
+
+def main() -> int:
+    real_names = migrations.migration_names
+    ok_script = ROOT / FAKE_OK
+    bad_script = ROOT / FAKE_BAD
+    try:
+        conn = _db()
+        try:
+            # a fresh ledger on a database with the app schema -> baseline
+            conn.execute("DROP TABLE IF EXISTS schema_migrations"); conn.commit()
+            st = migrations.status(conn)
+            assert st["ledger_created"] is True and st["baselined"] == len(real_names()), st
+            assert st["pending"] == [] and st["applied"] == len(real_names())
+            assert all(r["note"] == "baseline" for r in migrations.applied(conn).values())
+            assert migrations.ensure_ledger(conn) is False, "second ensure must be a no-op"
+            st2 = migrations.status(conn)
+            assert st2["baselined"] == 0 and st2["pending"] == []
+            assert migrations.pending_count() == 0
+        finally:
+            conn.close()
+
+        # a new migration appears in the list -> pending; apply runs it and records it
+        ok_script.write_text(
+            "import os, db_layer\n"
+            "c = db_layer.connect()\n"
+            "c.execute('CREATE TABLE IF NOT EXISTS smoke306_marker (id INTEGER PRIMARY KEY, note TEXT)')\n"
+            "c.execute(\"INSERT INTO smoke306_marker (note) VALUES ('ran')\")\n"
+            "c.commit(); c.close()\n"
+            "print('smoke306 ok')\n", encoding="utf-8")
+        bad_script.write_text("raise SystemExit('boom')\n", encoding="utf-8")
+        migrations.migration_names = lambda: tuple(real_names()) + (FAKE_OK,)
+        conn = _db()
+        try:
+            assert migrations.pending(conn) == [FAKE_OK]
+            assert migrations.apply([FAKE_OK], dry_run=True) == [FAKE_OK]
+            assert migrations.pending(conn) == [FAKE_OK], "dry run must not record"
+            done = migrations.apply([FAKE_OK])
+            assert done == [FAKE_OK]
+            n = conn.execute("SELECT COUNT(1) AS n FROM smoke306_marker").fetchone()["n"]
+            assert int(n) == 1, "the script must have run against SSC_DB_URL"
+            rec = migrations.applied(conn)[FAKE_OK]
+            assert rec["checksum"] == migrations.checksum(FAKE_OK) and rec["note"] is None
+            assert migrations.pending(conn) == []
+            assert migrations.apply(migrations.pending(conn)) == [], "second apply is a no-op"
+            # checksum drift is reported
+            ok_script.write_text(ok_script.read_text(encoding="utf-8") + "# edited after apply\n", encoding="utf-8")
+            assert migrations.status(conn)["checksum_drift"] == [FAKE_OK]
+            # a failing script raises and is not recorded
+            migrations.migration_names = lambda: tuple(real_names()) + (FAKE_OK, FAKE_BAD)
+            assert migrations.pending(conn) == [FAKE_BAD]
+            try:
+                migrations.apply([FAKE_BAD])
+                raise AssertionError("failing migration must raise")
+            except RuntimeError as e:
+                assert "boom" in str(e)
+            assert FAKE_BAD not in migrations.applied(conn)
+            assert migrations.pending_count() == 1
+            # boot(auto=False) only reports; boot(auto=True) would try to apply
+            b = migrations.boot(auto=False)
+            assert b["pending"] == [FAKE_BAD] and b["applied_now"] == [] and b["error"] is None
+        finally:
+            conn.close()
+
+        # /api/health carries the count (real list restored -> 0 pending)
+        migrations.migration_names = real_names
+        os.environ["SSC_STRICT_ROUTES"] = "1"
+        import server  # noqa: E402
+        r = server.app.test_client().get("/api/health")
+        assert r.status_code == 200 and r.get_json()["data"]["migrations_pending"] == 0, r.get_json()
+    finally:
+        migrations.migration_names = real_names
+        for p in (ok_script, bad_script):
+            try:
+                p.unlink()
+            except OSError:
+                pass
+        try:
+            conn = _db()
+            conn.execute("DROP TABLE IF EXISTS smoke306_marker")
+            conn.execute("DELETE FROM schema_migrations WHERE name IN (?, ?)", (FAKE_OK, FAKE_BAD))
+            conn.commit(); conn.close()
+        except Exception:
+            pass
+        shutil.rmtree(_TMP, ignore_errors=True)
+    print("PASS: #306 migration ledger — baseline, pending, apply + record, dry-run, no-op re-apply, "
+          "failure not recorded, checksum drift, boot report, health count")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
