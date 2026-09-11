@@ -1,6 +1,7 @@
 # Handoff to the next Claude Code session
 
-> **Read this + `CLAUDE.md` at the start of every new session.** Together
+> **Read this + `CLAUDE.md` + `ROADMAP.md` at the start of every new session.**
+> `ROADMAP.md` is what is PLANNED (C-suite asks + engineering order); this file is what has SHIPPED. Together
 > they orient you in ~2 minutes. This doc is the operational snapshot;
 > CLAUDE.md is the pinned rules.
 
