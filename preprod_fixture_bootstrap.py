@@ -60,6 +60,14 @@ LEGACY_MIGRATIONS = (
     "apply_project_docs_schema.py", "apply_field_photos_schema.py",
     "apply_lookahead_schema.py", "apply_auth_roles_257.py",
     "apply_is_system_258.py",
+    # #305 — the roster views (v_worker_roster / v_active_workers) were never in this
+    # list, so every fixture DB (preprod included) booted without them: the Workforce
+    # tab said "No workers yet" and /api/employees/<id> 500ed. server.py now also
+    # ensures them at boot for databases that already exist.
+    "apply_roster_views_schema.py",
+    # #305 — worker-intake columns (certifications.card_number & co.): the certifications
+    # endpoints 500ed on every fixture DB without them.
+    "apply_worker_intake_schema.py",
 )
 
 DUAL_BACKEND_MIGRATIONS = (
