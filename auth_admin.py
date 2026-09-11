@@ -53,7 +53,8 @@ ROLE_CATALOG = ('admin', 'c_suite', 'pm', 'super', 'client', 'architect', 'vendo
 ONBOARDABLE_ROLES = ('c_suite', 'pm', 'client', 'estimator', 'architect')
 # Assignable as a role-change target: anything in the catalog EXCEPT admin
 # (no elevation to admin, ever).
-ASSIGNABLE_ROLES = tuple(r for r in ROLE_CATALOG if r != 'admin')
+# #305 — 'vendor' has no containment gate anywhere yet; it is not assignable until it does.
+ASSIGNABLE_ROLES = tuple(r for r in ROLE_CATALOG if r not in ('admin', 'vendor'))
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _TEMP_ALPHABET = string.ascii_letters + string.digits  # no symbols — conveyable by hand

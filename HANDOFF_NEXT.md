@@ -20,6 +20,61 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #305 — Security release (Bookore, 2026-09-11)
+
+Every critical and high finding of the 2026-09-10 audit, plus the mechanical
+mediums, in one branch with a commit per fix. Behavioral guard:
+`tests/smoke_security_release_305.py` (boots `server.app` in-process on an
+isolated DB + scratch data root, one user per role).
+
+* **Worker PIN throttle was inert** — the PIN path audits `pin_fail`, the
+  per-source counter only counted `login_fail`. `auth._recent_ip_fails` now counts
+  both; 20 failures from one source -> 429 on the public `/api/worker/login`.
+* **Credential card render** `/api/cards/<id>/<type>/live` (live PIN) ->
+  `@requires_company`.
+* **Worker PII** — `/api/employees` (+detail, `/api/certifications`,
+  `/api/sign-ins`, per-worker certs, face-photo GET) -> `requires_section('internal_ops')`,
+  and `server.strip_worker_pii()` drops `pin` for everyone and dob/phone/email/
+  emergency-contact/address/license fields for non-company roles.
+* **SQL injection** in the site-closure checklist PATCH: column name allow-listed
+  (`SITE_CLOSURE_CHECKLIST_KEYS`), value Y/N; all four closure routes gated.
+* **Route collisions** — `/api/rfis` GET/POST were registered by elevation.py
+  BEFORE server.py's decorators ran, so the project RFI form + list were dead.
+  server.py owns both now and dispatches to `elevation._api_rfi_*` when an
+  `elevation_id` is present. A second collision surfaced the same way: two
+  GET `/api/projects` handlers (the older one shadowed the console's, dropping
+  `assigned_workers`); the shadowed one is gone. `server._duplicate_routes()`
+  reports duplicates at boot; `SSC_STRICT_ROUTES=1` refuses to start (the gate
+  runs strict).
+* **Containment for estimator + vendor** (`role_containment.py`): estimator lives
+  in `/estimating` + its API; vendor gets nothing and is no longer in
+  `auth_admin.ASSIGNABLE_ROLES`.
+* **Worker create**: caller-supplied `employee_id` must match `E-\d{5}`; the
+  folder is containment-checked; `INSERT OR IGNORE` replaced by INSERT + retry on
+  id collision (a concurrent onboard no longer returns 200 with no row).
+* **/project-files** is project-scoped for pm/super via `pm_can_access_project`.
+* **Preview blueprint** gated to admin/c_suite; root serve allow-listed to report
+  prefixes (the company console was previewable unstripped).
+* **Stored XSS**: `escapeHtml()` on issue descriptions (project dashboard) and
+  project name/address (console cards).
+* Mediums: `INSERT OR REPLACE` -> `ON CONFLICT DO UPDATE` in nyc_compliance
+  (Postgres-safe); UTC "today" in cert-expiry math -> local; projdoc + receipt
+  byte routes use `ssc_paths.resolve_data_path`; worker-file containment via
+  `is_relative_to`; geofence longitude scaled by cos(lat); `/login?next=` quoted;
+  83 handlers stop echoing driver text (`_server_error`, logged with a ref);
+  reset-token burn gated on rowcount; `toISOString().slice(0,10)` -> `todayLocal()`
+  on the facade dashboards; audit/counter failures now log a warning.
+* **Fixture drift found by the guard**: `apply_roster_views_schema.py` and
+  `apply_worker_intake_schema.py` were never in the preprod fixture lists, so
+  fixture DBs (preprod!) had no `v_worker_roster` / `v_active_workers` views and
+  no `certifications.card_number` — Workforce said "No workers yet" and several
+  routes 500ed. Both are in `LEGACY_MIGRATIONS` now, and server.py ensures the
+  two views at boot on both backends.
+
+Not done (tracked): CSP `script-src` (needs the inline-script sweep), worker-app
+hard-coded project + geofence-from-projects, `(project_code, rfi_number)` unique
+index, `GET /api/projects/<code>` explicit field list.
+
 ### #303 — The shared shell: Office Console on the sidebar layout (Bookore, 2026-09-10)
 
 `static/css/shell.css` is now THE application chrome: dark left sidebar (brand

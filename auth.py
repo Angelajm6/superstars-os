@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import functools
 import logging
+from urllib.parse import quote
 import os
 import secrets
 import sqlite3
@@ -185,8 +186,10 @@ def _login_audit(user_id: Optional[int], event: str, ip: Optional[str],
             (user_id, event, _now_iso(), ip, method),
         )
         conn.commit()
-    except Exception:
-        pass  # audit table/column not migrated yet — do not block auth (SQLite or PG)
+    except Exception as e:
+        # do not block auth (SQLite or PG) — but never silently: a dropped audit row
+        # also disables every counter that reads this table (#305)
+        logging.warning(f"login_audit write failed for event={event}: {type(e).__name__}")
     finally:
         conn.close()
 
@@ -201,7 +204,8 @@ def _recent_login_fails(user_id: int) -> int:
             (user_id, since),
         ).fetchone()
         return row[0] if row else 0
-    except Exception:   # not-yet-migrated table, or any backend error — fail open (no lockout)
+    except Exception as e:   # not-yet-migrated table, or any backend error — fail open (no lockout)
+        logging.warning(f"_recent_login_fails unavailable: {type(e).__name__}")
         return 0
     finally:
         conn.close()
@@ -216,10 +220,12 @@ def _recent_ip_fails(ip: Optional[str]) -> int:
     conn = _db()
     try:
         row = conn.execute(
-            "SELECT COUNT(1) FROM login_audit WHERE ip = ? AND event = 'login_fail' AND at >= ?",
+            "SELECT COUNT(1) FROM login_audit WHERE ip = ? "
+            "AND event IN ('login_fail', 'pin_fail') AND at >= ?",   # #305 — PIN failures count too
             (ip, since)).fetchone()
         return row[0] if row else 0
-    except Exception:
+    except Exception as e:
+        logging.warning(f"_recent_ip_fails unavailable: {type(e).__name__}")
         return 0
     finally:
         conn.close()
@@ -496,7 +502,7 @@ def _before_request_gate():
             return jsonify({"error": "auth required"}), 401
         # HTML route — redirect to /login with ?next= so we can bounce back post-login.
         # next is intentionally restricted to same-origin paths only (validated on login).
-        return redirect(f"/login?next={path}")
+        return redirect("/login?next=" + quote(path, safe="/"))   # #305 — no query splitting
     g.auth_user = user
     # Forced first-login reset (#257): a must_reset_password user can reach ONLY the
     # set-password screen + the public /api/auth/* endpoints. NO data loads behind it

@@ -413,6 +413,13 @@
 <div id="twofa-banner" role="status" style="display:none;background:#7A2E1B;color:#fff;
      padding:10px 18px;font-size:13px;font-weight:600;text-align:center;"></div>
 <script>
+
+  // #305 — escape untrusted strings before innerHTML interpolation (stored XSS).
+  function escapeHtml(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
 (function(){
   function boot2fa(){
     fetch('/api/admin/2fa-status',{credentials:'same-origin'})
@@ -2446,12 +2453,12 @@ applyLanguage();
         return `<a class="project-card" href="/projects/${encodeURIComponent(p.project_code)}">
           <div class="project-card-header">
             <div>
-              <div class="project-card-name">${p.name || p.project_code}</div>
+              <div class="project-card-name">${escapeHtml(p.name || p.project_code)}</div>
               <div class="project-card-code">${p.project_code}</div>
             </div>
             <span class="status-pill ${cls}">${status}</span>
           </div>
-          <div class="project-card-addr">${p.address || ''}${p.city_zip ? ', ' + p.city_zip : ''}</div>
+          <div class="project-card-addr">${escapeHtml(p.address || '')}${p.city_zip ? ', ' + escapeHtml(p.city_zip) : ''}</div>
           <div class="project-card-stats">
             <span><strong>${p.assigned_workers || 0}</strong> workers assigned</span>
             <span>${p.start_date ? 'Started ' + p.start_date : ''}</span>
@@ -2461,7 +2468,7 @@ applyLanguage();
 
       // Populate project checks in modal
       const cks = projects.map(p => `<label style="display:block;margin-bottom:6px;color:#14161C;cursor:pointer;">
-        <input type="checkbox" class="project-check" value="${p.project_code}" ${p.status !== 'completed' ? 'checked' : ''}> ${p.name || p.project_code} <span style="color:#76777E;font-size:11px;">(${p.project_code})</span>
+        <input type="checkbox" class="project-check" value="${p.project_code}" ${p.status !== 'completed' ? 'checked' : ''}> ${escapeHtml(p.name || p.project_code)} <span style="color:#76777E;font-size:11px;">(${p.project_code})</span>
       </label>`).join('');
       $('#project-checks').innerHTML = cks || '<em>No projects defined. Worker will be added without a project assignment.</em>';
     } catch (e) { console.warn(e); }
@@ -3967,7 +3974,7 @@ applyLanguage();
           return;
         }
         const url = j.data && j.data.url;
-        const filename = (j.data && j.data.filename) || ('all_credentials_' + new Date().toISOString().slice(0,10) + '.pdf');
+        const filename = (j.data && j.data.filename) || ('all_credentials_' + todayLocal() + '.pdf');
         if (!url) {
           alert('Batch print response missing url');
           return;

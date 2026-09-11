@@ -27,6 +27,22 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 preview_bp = Blueprint('preview', __name__, url_prefix='/preview')
 
 
+# #305 — the preview blueprint serves rendered project documents AND, via
+# _serve_from_root, any root .html (the company console included, UNSTRIPPED).
+# Company roles only, and the root serve is limited to generated report names.
+_PREVIEW_ROLES = frozenset({"admin", "c_suite"})
+_ROOT_PREVIEW_PREFIXES = ("DCR-", "WPS-", "LA-", "DP-", "WS-", "MM-", "RFI-", "TBT-", "CLOSURE-")
+
+
+@preview_bp.before_request
+def _preview_gate():
+    from auth import current_user
+    from flask import jsonify
+    user = current_user()
+    if not user or user.get("role") not in _PREVIEW_ROLES:
+        return jsonify({"error": "forbidden"}), 403
+
+
 # ===================== INDEX =====================
 
 @preview_bp.route('/')
@@ -173,6 +189,9 @@ def _serve_from_root(filename):
     """Serve an HTML file from the outputs root, with path-traversal protection."""
     if not filename.endswith('.html'):
         filename = filename + '.html'
+    # #305 — only generated report files, never app pages (company-dashboard etc.)
+    if '/' in filename or '\\' in filename or not filename.upper().startswith(_ROOT_PREVIEW_PREFIXES):
+        abort(404, description=f"Not found: {filename}")
     target = SCRIPT_DIR / filename
     try:
         target.resolve().relative_to(SCRIPT_DIR.resolve())
