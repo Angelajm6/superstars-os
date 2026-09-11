@@ -81,6 +81,7 @@ DUAL_BACKEND_MIGRATIONS = (
     "apply_elevation_280.py", "apply_public_hardening_289.py",
     "apply_drawing_author_293.py", "apply_photo_reassign_294.py",
     "apply_hours_edit_295.py", "apply_worker_session_security_296.py",
+    "apply_buildings_304.py",
 )
 
 

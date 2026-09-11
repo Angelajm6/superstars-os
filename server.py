@@ -90,6 +90,10 @@ password_reset.register(app)
 import company_portal  # noqa: E402
 company_portal.register(app)
 
+# #304 — buildings as a first-class entity (table + backfill at boot; CRM-axis endpoints).
+import buildings  # noqa: E402
+buildings.register(app)
+
 # #279 (UI v2 phase 0) — the interface toggle. MUST follow apply_auth_gate: the
 # stored per-user preference is read off current_user(). Sets g.ui_version on page
 # routes; every UI route serves its page through ui_version.serve_ui, which returns

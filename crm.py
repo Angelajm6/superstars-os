@@ -364,6 +364,11 @@ def link_project(conn, project_code, org_id) -> bool:
         return False
     conn.execute("UPDATE projects SET client_org_id=? WHERE project_code=?",
                  (org_id, project_code))
+    try:
+        import buildings as _buildings   # #304
+        _buildings.autolink_project(conn, project_code)
+    except Exception:
+        pass
     conn.commit()
     return True
 
