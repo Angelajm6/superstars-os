@@ -1063,7 +1063,8 @@ def register(app) -> None:
     app.add_url_rule("/api/comments/<int:comment_id>", "comment_delete",
                      _api_comment_delete, methods=["DELETE"])
     # step 5 — RFIs
-    app.add_url_rule("/api/rfis", "rfi_list", _api_rfi_list, methods=["GET"])
-    app.add_url_rule("/api/rfis", "rfi_create", _api_rfi_create, methods=["POST"])
+    # #305 — /api/rfis GET+POST are owned by server.py (project RFIs); it dispatches
+    # to _api_rfi_list / _api_rfi_create when an elevation_id is present. Registering
+    # them here too made the project RFI form dead (first-registered rule wins).
     app.add_url_rule("/api/rfis/<int:rfi_id>", "rfi_update", _api_rfi_update,
                      methods=["PATCH"])

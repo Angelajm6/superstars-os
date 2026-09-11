@@ -451,10 +451,15 @@ def confirm_reset():
         if not row or not _eligible(account):
             return jsonify({"error": INVALID_TOKEN_MESSAGE, "code": "invalid_token"}), 400
         uid = row["user_id"]
-        conn.execute(
+        burned = conn.execute(
             "UPDATE password_reset_token SET used_at = ? WHERE id = ? AND used_at IS NULL",
             (now, row["token_id"]),
         )
+        # #305 — single use under concurrency: only the request that actually burned
+        # the token may set the password.
+        if getattr(burned, "rowcount", 1) == 0:
+            conn.rollback()
+            return jsonify({"error": INVALID_TOKEN_MESSAGE, "code": "invalid_token"}), 400
         conn.execute(
             "UPDATE users SET password_hash = ?, must_reset_password = 0 WHERE id = ?",
             (auth.hash_password(new_password), uid),

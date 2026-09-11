@@ -252,12 +252,13 @@ def refresh_permits(project_code, bin_, app_token):
     for r in data:
         permit_id = (r.get("job_filing_number", "") + "-" + r.get("work_permit", ""))[:64] or r.get("work_permit") or r.get("job_filing_number")
         conn.execute(
-            """INSERT OR REPLACE INTO dob_permits
+            """INSERT INTO dob_permits
                (permit_id, project_code, bin, job_filing_number, work_permit,
                 permit_type, permit_subtype, filing_status, issuance_date,
                 expiration_date, filing_date, work_type, permittee_name,
                 permittee_business_name, permittee_license_number, raw_json)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(permit_id) DO UPDATE SET project_code=excluded.project_code, bin=excluded.bin, job_filing_number=excluded.job_filing_number, work_permit=excluded.work_permit, permit_type=excluded.permit_type, permit_subtype=excluded.permit_subtype, filing_status=excluded.filing_status, issuance_date=excluded.issuance_date, expiration_date=excluded.expiration_date, filing_date=excluded.filing_date, work_type=excluded.work_type, permittee_name=excluded.permittee_name, permittee_business_name=excluded.permittee_business_name, permittee_license_number=excluded.permittee_license_number, raw_json=excluded.raw_json""",
             (
                 permit_id, project_code, bin_,
                 r.get("job_filing_number"), r.get("work_permit"),
@@ -305,10 +306,11 @@ def refresh_violations(project_code, bin_, app_token):
             for r in data:
                 vid = "DOB-" + (r.get("isn_dob_bis_viol") or r.get("number") or "")
                 conn.execute(
-                    """INSERT OR REPLACE INTO dob_violations
-                       (violation_id, project_code, bin, source, violation_number, violation_type,
+                    """INSERT INTO dob_violations
+               (violation_id, project_code, bin, source, violation_number, violation_type,
                         violation_category, issue_date, status, description, raw_json)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(violation_id) DO UPDATE SET project_code=excluded.project_code, bin=excluded.bin, source=excluded.source, violation_number=excluded.violation_number, violation_type=excluded.violation_type, violation_category=excluded.violation_category, issue_date=excluded.issue_date, status=excluded.status, description=excluded.description, raw_json=excluded.raw_json""",
                     (
                         vid, project_code, bin_, "DOB",
                         r.get("number"), r.get("violation_type"),
@@ -345,10 +347,11 @@ def refresh_violations(project_code, bin_, app_token):
             for r in data2:
                 vid = "ECB-" + (r.get("ecb_violation_number") or r.get("isn_dob_bis_extract") or "")
                 conn.execute(
-                    """INSERT OR REPLACE INTO dob_violations
-                       (violation_id, project_code, bin, source, violation_number, violation_type,
+                    """INSERT INTO dob_violations
+               (violation_id, project_code, bin, source, violation_number, violation_type,
                         violation_category, issue_date, hearing_date, status, description, penalty_imposed, penalty_paid, raw_json)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(violation_id) DO UPDATE SET project_code=excluded.project_code, bin=excluded.bin, source=excluded.source, violation_number=excluded.violation_number, violation_type=excluded.violation_type, violation_category=excluded.violation_category, issue_date=excluded.issue_date, hearing_date=excluded.hearing_date, status=excluded.status, description=excluded.description, penalty_imposed=excluded.penalty_imposed, penalty_paid=excluded.penalty_paid, raw_json=excluded.raw_json""",
                     (
                         vid, project_code, bin_, "ECB",
                         r.get("ecb_violation_number"),
@@ -393,10 +396,11 @@ def refresh_complaints(project_code, bin_, app_token):
         if not cid:
             continue
         conn.execute(
-            """INSERT OR REPLACE INTO dob_complaints
+            """INSERT INTO dob_complaints
                (complaint_id, project_code, bin, complaint_number, complaint_category,
                 status, date_entered, disposition_date, disposition_code, inspection_date, raw_json)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(complaint_id) DO UPDATE SET project_code=excluded.project_code, bin=excluded.bin, complaint_number=excluded.complaint_number, complaint_category=excluded.complaint_category, status=excluded.status, date_entered=excluded.date_entered, disposition_date=excluded.disposition_date, disposition_code=excluded.disposition_code, inspection_date=excluded.inspection_date, raw_json=excluded.raw_json""",
             (
                 cid, project_code, bin_, cid,
                 r.get("complaint_category"),

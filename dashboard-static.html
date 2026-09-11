@@ -1004,6 +1004,13 @@
     <script src="/files/static/js/auth_menu.js?v=292c" defer></script>
     <div class="content-corner"><span class="cc-live"><span class="cc-dot"></span>Live · <span id="live-date">—</span></span></div>
     <script>
+
+  // #305 — escape untrusted strings before innerHTML interpolation (stored XSS).
+  function escapeHtml(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
       // #193 — reveal the Labor Rate Tracker entry surfaces (nav link
       // + dashboard card) for admin / c_suite only. Server-side gate
       // on /api/payroll/hours is the real authority — non-admin roles
@@ -6108,7 +6115,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
           <td style="padding:8px;">${fmtDate(r.issue_date)}</td>
           <td style="padding:8px;">${badge}</td>
           <td style="padding:8px;">${fmtMoney(r.penalty_imposed)}</td>
-          <td style="padding:8px;font-size:11px;">${(r.description || '—').substring(0, 80)}</td>
+          <td style="padding:8px;font-size:11px;">${escapeHtml((r.description || '—').substring(0, 80))}</td>
         </tr>`;
       }).join('');
     } catch (e) {
