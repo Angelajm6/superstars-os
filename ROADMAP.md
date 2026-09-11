@@ -14,6 +14,7 @@
 | Company Portal (`/company`) | Preprod (#302) |
 | Shared sidebar shell; Office Console rebuilt on it | Preprod (#303) |
 | Security release: every audit critical/high + mechanical mediums | Preprod (#305) |
+| Buildings as a first-class entity (table, auto-link, portal Buildings view) | Preprod (#304) |
 
 Production promotion of #302/#303/#305 waits on the C-suite's yes on preprod.
 
@@ -66,7 +67,7 @@ per issue into `preprod`, then a release PR into the client repo once approved.
 
 ### Phase A — foundation (September)
 
-- **#304 Buildings as a first-class entity.** `building(id, client_org_id,
+- **#304 Buildings as a first-class entity — SHIPPED to preprod 2026-09-11.** `building(id, client_org_id,
   name, address_line, borough, city, state, zip, bin, block, lot, lat, lng,
   stories, year_built, notes)` + `projects.building_id` + `estimate.building_id`,
   backfilled from the #302 address matcher and reviewable in the CRM. Building

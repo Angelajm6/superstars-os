@@ -21,6 +21,35 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #304 — Buildings as a first-class entity (Bookore, 2026-09-11)
+
+`buildings.py` + `apply_buildings_304.py`. A client owns buildings; projects and
+estimates happen at a building.
+
+* **Table** `building(id, client_org_id, name, address_line, address_key, borough,
+  city, state, zip, bin, block, lot, lat, lng, stories, year_built, notes, …,
+  archived_at)`; `projects.building_id` + `estimate.building_id`. Identity =
+  `address_key` (unique): '890 East 135th Street' == '890 E 135th St, Bronx'.
+  The matcher moved from company_portal to `buildings.address_key` (one owner).
+* **Auto-link**: `estimates.create_estimate`, estimate → project convert, and
+  `crm.link_project` call `buildings.autolink_*`; `backfill()` links everything
+  older, creating rows on first sight, and runs at boot (idempotent) so preprod /
+  prod heal on deploy. Projects with no address stay visible in the portal under
+  a "No address on file" bucket.
+* **Endpoints** (`requires_section('crm')` = admin/c_suite): list (search /
+  client / archived), create (duplicate address refused; borough codes
+  normalized; validation), get (projects, estimates, expiring docs, RFI + photo
+  counts), patch (key follows the address; clash refused), archive/restore,
+  link/unlink project or estimate, `unlinked` pickers, `backfill`.
+* **Portal**: sidebar "Clients" + "Buildings"; Buildings list with search /
+  client filter / archived toggle / re-run matcher / add; building page with
+  KPIs, projects, estimates, expiring documents, facts, edit modal, archive,
+  link/unlink pickers. Client page's building cards link to the building page.
+* Guard: `tests/smoke_buildings_304.py`. Fixture: `apply_buildings_304.py` in
+  DUAL_BACKEND_MIGRATIONS.
+* Not yet: the client-portal building view (grant-gated; lands with #308),
+  lat/lng geocoding, DOB BIN lookup.
+
 ### #305 — Security release (Bookore, 2026-09-11)
 
 Every critical and high finding of the 2026-09-10 audit, plus the mechanical

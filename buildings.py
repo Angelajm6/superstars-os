@@ -1,0 +1,587 @@
+"""#304 — Buildings as a first-class entity.
+
+A client owns buildings; a building is where projects and estimates happen. Until
+now a "building" was only an address string on `projects.address` and
+`estimate.building_address`, and the Company Portal (#302) grouped those by a
+normalized key. This module makes the building a real row:
+
+    building(id, client_org_id, name, address_line, address_key, borough, city,
+             state, zip, bin, block, lot, lat, lng, stories, year_built, notes,
+             created_at, updated_at, archived_at)
+    projects.building_id  ->  building.id
+    estimate.building_id  ->  building.id
+
+Rules
+-----
+* `address_key` is the identity: '890 East 135th Street' and '890 E 135th St,
+  Bronx' are the same building. One row per key (unique index).
+* New projects and estimates auto-link at creation (`autolink_*`, called from
+  estimates.py + crm.link_project); a boot-time `backfill()` links everything
+  that was created before #304, idempotently, and creates the missing rows.
+* Access: `requires_section('crm')` (admin / c_suite) — the same axis as the CRM
+  the buildings belong to. Every response is `{data, meta}`.
+* Dates LOCAL (CLAUDE.md dates rule). SQL is portable across SQLite/Postgres
+  through db_layer ('?' placeholders; no dialect-only functions).
+"""
+from __future__ import annotations
+
+import logging
+import re
+from datetime import date, datetime
+from typing import Optional
+
+from flask import jsonify, request
+
+import db_layer
+from auth import current_user, requires_section
+
+log = logging.getLogger(__name__)
+
+SECTION = "crm"
+PIPELINE_STATUSES = ("intake", "scoping", "submitted")
+WON_STATUSES = ("approved", "converted")
+BOROUGHS = ("Manhattan", "Bronx", "Brooklyn", "Queens", "Staten Island")
+_BOROUGH_CODES = {"MN": "Manhattan", "BX": "Bronx", "BK": "Brooklyn", "QN": "Queens", "SI": "Staten Island"}
+
+_ADDR_SUBS = {
+    "street": "st", "avenue": "ave", "boulevard": "blvd", "road": "rd", "place": "pl",
+    "drive": "dr", "court": "ct", "lane": "ln", "parkway": "pkwy", "east": "e",
+    "west": "w", "north": "n", "south": "s", "saint": "st",
+}
+
+EDITABLE = ("client_org_id", "name", "address_line", "borough", "city", "state", "zip",
+            "bin", "block", "lot", "lat", "lng", "stories", "year_built", "notes")
+
+
+# ============================ helpers ============================
+
+def address_key(addr: Optional[str]) -> str:
+    """Normalize a street address so spelling variants collapse to one building.
+    Takes the part before the first comma; lowercases; drops punctuation;
+    canonicalizes street-type and direction words."""
+    if not addr:
+        return ""
+    s = str(addr).split(",")[0].lower()
+    s = re.sub(r"[^a-z0-9 ]+", " ", s)
+    toks = [_ADDR_SUBS.get(t, t) for t in s.split()]
+    return " ".join(toks)
+
+
+def _rows(cur) -> list:
+    return [dict(r) for r in cur.fetchall()]
+
+
+def _one(cur) -> Optional[dict]:
+    r = cur.fetchone()
+    return dict(r) if r else None
+
+
+def _now() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def _today() -> date:
+    return date.today()
+
+
+def _wrap(data, **meta):
+    m = {"generated_at": _now()}
+    m.update(meta)
+    if isinstance(data, list) and "count" not in m:
+        m["count"] = len(data)
+    return jsonify({"data": data, "meta": m})
+
+
+def _err(msg: str, code: int = 400):
+    return jsonify({"error": msg}), code
+
+
+def _split_city_zip(city_zip: Optional[str]) -> tuple:
+    """'Bronx, NY 10454' -> ('Bronx', 'NY', '10454'); tolerant of partial values."""
+    if not city_zip:
+        return None, None, None
+    s = str(city_zip).strip()
+    city, rest = (s.split(",", 1) + [""])[:2] if "," in s else (s, "")
+    m = re.search(r"\b([A-Z]{2})\b\s*(\d{5})?", rest.strip() or s)
+    state = m.group(1) if m else None
+    zip_ = m.group(2) if m and m.group(2) else (re.search(r"\b(\d{5})\b", s).group(1) if re.search(r"\b(\d{5})\b", s) else None)
+    city = city.strip() or None
+    if city and re.fullmatch(r"[A-Z]{2}(\s*\d{5})?", city):
+        city = None
+    return city, state, zip_
+
+
+def _borough_name(v: Optional[str]) -> Optional[str]:
+    if not v:
+        return None
+    v = str(v).strip()
+    return _BOROUGH_CODES.get(v.upper(), v)
+
+
+def _has_column(conn, table: str, column: str) -> bool:
+    if db_layer.is_postgres():
+        r = conn.execute(
+            "SELECT 1 AS x FROM information_schema.columns WHERE table_name = ? AND column_name = ?",
+            (table, column)).fetchone()
+        return bool(r)
+    return any(r["name"] == column for r in conn.execute(f"PRAGMA table_info({table})").fetchall())
+
+
+# ============================ schema ============================
+
+def ensure_schema(conn) -> None:
+    """Idempotent on both backends. No FKs by design (matches the #264/#269 engine
+    tables and the boot-order constraints of a fresh preprod database)."""
+    pk = ("id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY" if db_layer.is_postgres()
+          else "id INTEGER PRIMARY KEY AUTOINCREMENT")
+    conn.execute(
+        f"CREATE TABLE IF NOT EXISTS building ("
+        f"  {pk},"
+        f"  client_org_id INTEGER,"
+        f"  name          TEXT,"
+        f"  address_line  TEXT NOT NULL,"
+        f"  address_key   TEXT NOT NULL,"
+        f"  borough       TEXT,"
+        f"  city          TEXT,"
+        f"  state         TEXT,"
+        f"  zip           TEXT,"
+        f"  bin           TEXT,"
+        f"  block         TEXT,"
+        f"  lot           TEXT,"
+        f"  lat           REAL,"
+        f"  lng           REAL,"
+        f"  stories       INTEGER,"
+        f"  year_built    INTEGER,"
+        f"  notes         TEXT,"
+        f"  created_at    TEXT NOT NULL,"
+        f"  updated_at    TEXT NOT NULL,"
+        f"  archived_at   TEXT"
+        f")"
+    )
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_building_key ON building(address_key)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_building_client ON building(client_org_id)")
+    for table in ("projects", "estimate"):
+        if not _has_column(conn, table, "building_id"):
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN building_id INTEGER")
+    conn.commit()
+
+
+# ============================ identity + linking ============================
+
+def find_or_create(conn, address: Optional[str], *, client_org_id=None, borough=None,
+                   city_zip=None, name=None) -> Optional[int]:
+    """The building id for this address, creating the row on first sight.
+    Fills in client / borough / city on an existing row only where it is blank."""
+    key = address_key(address)
+    if not key:
+        return None
+    row = _one(conn.execute("SELECT id, client_org_id, borough, city, state, zip FROM building "
+                            "WHERE address_key = ?", (key,)))
+    city, state, zip_ = _split_city_zip(city_zip)
+    borough = _borough_name(borough)
+    if row:
+        sets, vals = [], []
+        if client_org_id and not row.get("client_org_id"):
+            sets.append("client_org_id = ?"); vals.append(client_org_id)
+        if borough and not row.get("borough"):
+            sets.append("borough = ?"); vals.append(borough)
+        if city and not row.get("city"):
+            sets.append("city = ?"); vals.append(city)
+        if state and not row.get("state"):
+            sets.append("state = ?"); vals.append(state)
+        if zip_ and not row.get("zip"):
+            sets.append("zip = ?"); vals.append(zip_)
+        if sets:
+            sets.append("updated_at = ?"); vals.append(_now()); vals.append(row["id"])
+            conn.execute(f"UPDATE building SET {', '.join(sets)} WHERE id = ?", vals)
+        return row["id"]
+    now = _now()
+    conn.execute(
+        "INSERT INTO building (client_org_id, name, address_line, address_key, borough, city, state, zip, "
+        "created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (client_org_id, (name or "").strip() or None, str(address).split(",")[0].strip(), key,
+         borough or (city if city in BOROUGHS else None), city, state, zip_, now, now))
+    return _one(conn.execute("SELECT id FROM building WHERE address_key = ?", (key,)))["id"]
+
+
+def autolink_project(conn, project_code: str) -> Optional[int]:
+    p = _one(conn.execute("SELECT project_code, address, name, city_zip, client_org_id, building_id "
+                          "FROM projects WHERE project_code = ?", (project_code,)))
+    if not p or p.get("building_id"):
+        return p.get("building_id") if p else None
+    bid = find_or_create(conn, p.get("address"), client_org_id=p.get("client_org_id"),
+                         city_zip=p.get("city_zip"))
+    if bid:
+        conn.execute("UPDATE projects SET building_id = ? WHERE project_code = ?", (bid, project_code))
+    return bid
+
+
+def autolink_estimate(conn, estimate_id: int) -> Optional[int]:
+    e = _one(conn.execute("SELECT id, building_address, borough, client_org_id, building_id "
+                          "FROM estimate WHERE id = ?", (estimate_id,)))
+    if not e or e.get("building_id"):
+        return e.get("building_id") if e else None
+    bid = find_or_create(conn, e.get("building_address"), client_org_id=e.get("client_org_id"),
+                         borough=e.get("borough"))
+    if bid:
+        conn.execute("UPDATE estimate SET building_id = ? WHERE id = ?", (bid, estimate_id))
+    return bid
+
+
+def backfill(conn) -> dict:
+    """Link every project / estimate that has an address but no building. Idempotent."""
+    before = _one(conn.execute("SELECT COUNT(1) AS n FROM building"))["n"]
+    projects = 0
+    for p in _rows(conn.execute("SELECT project_code FROM projects WHERE building_id IS NULL "
+                                "AND COALESCE(address, '') <> ''")):
+        if autolink_project(conn, p["project_code"]):
+            projects += 1
+    estimates = 0
+    for e in _rows(conn.execute("SELECT id FROM estimate WHERE building_id IS NULL "
+                                "AND COALESCE(building_address, '') <> ''")):
+        if autolink_estimate(conn, e["id"]):
+            estimates += 1
+    conn.commit()
+    after = _one(conn.execute("SELECT COUNT(1) AS n FROM building"))["n"]
+    return {"projects_linked": projects, "estimates_linked": estimates,
+            "buildings_created": int(after) - int(before), "buildings_total": int(after)}
+
+
+# ============================ reads ============================
+
+_PROJECT_COLS = "project_code, name, status, project_type, address, city_zip, client_org_id, building_id"
+_ESTIMATE_COLS = ("id, code, status, est_stage, final_amount, submitted_date, decided_date, "
+                  "converted_project_code, client_org_id, building_id, building_address")
+
+
+def _projects_for(conn, building_ids: list) -> dict:
+    if not building_ids:
+        return {}
+    marks = ",".join("?" * len(building_ids))
+    out: dict = {}
+    for p in _rows(conn.execute(f"SELECT {_PROJECT_COLS} FROM projects WHERE building_id IN ({marks}) "
+                                f"ORDER BY status, project_code", building_ids)):
+        out.setdefault(p["building_id"], []).append(p)
+    return out
+
+
+def _estimates_for(conn, building_ids: list) -> dict:
+    if not building_ids:
+        return {}
+    marks = ",".join("?" * len(building_ids))
+    out: dict = {}
+    for e in _rows(conn.execute(f"SELECT {_ESTIMATE_COLS} FROM estimate WHERE building_id IN ({marks}) "
+                                f"ORDER BY COALESCE(submitted_date, ''), code", building_ids)):
+        e["final_amount"] = float(e.get("final_amount") or 0)
+        out.setdefault(e["building_id"], []).append(e)
+    return out
+
+
+def _decorate(b: dict, projects: list, estimates: list) -> dict:
+    b["projects"] = projects
+    b["estimates"] = estimates
+    b["active_projects"] = sum(1 for p in projects if (p.get("status") or "active") == "active")
+    b["open_estimates"] = sum(1 for e in estimates if e.get("status") in PIPELINE_STATUSES)
+    b["won_value"] = round(sum(e["final_amount"] for e in estimates if e.get("status") in WON_STATUSES), 2)
+    b["pipeline_value"] = round(sum(e["final_amount"] for e in estimates if e.get("status") in PIPELINE_STATUSES), 2)
+    b["display"] = b.get("name") or b.get("address_line")
+    return b
+
+
+def list_buildings(conn, *, client_org_id=None, search=None, include_archived=False) -> list:
+    where, params = [], []
+    if not include_archived:
+        where.append("b.archived_at IS NULL")
+    if client_org_id:
+        where.append("b.client_org_id = ?"); params.append(int(client_org_id))
+    if search:
+        like = f"%{str(search).strip().lower()}%"
+        where.append("(LOWER(b.address_line) LIKE ? OR LOWER(COALESCE(b.name,'')) LIKE ? "
+                     "OR LOWER(COALESCE(o.name,'')) LIKE ? OR COALESCE(b.bin,'') LIKE ?)")
+        params += [like, like, like, like]
+    sql = ("SELECT b.*, o.name AS client_name FROM building b "
+           "LEFT JOIN crm_organization o ON o.id = b.client_org_id")
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY LOWER(b.address_line)"
+    rows = _rows(conn.execute(sql, params))
+    ids = [r["id"] for r in rows]
+    pm, em = _projects_for(conn, ids), _estimates_for(conn, ids)
+    for r in rows:
+        _decorate(r, pm.get(r["id"], []), em.get(r["id"], []))
+        r["projects_total"] = len(r["projects"])
+        r["estimates_total"] = len(r["estimates"])
+        # keep list payloads light
+        r.pop("projects"); r.pop("estimates")
+    return rows
+
+
+def get_building(conn, building_id: int, today: Optional[date] = None) -> Optional[dict]:
+    b = _one(conn.execute("SELECT b.*, o.name AS client_name FROM building b "
+                          "LEFT JOIN crm_organization o ON o.id = b.client_org_id WHERE b.id = ?",
+                          (building_id,)))
+    if not b:
+        return None
+    today = today or _today()
+    _decorate(b, _projects_for(conn, [b["id"]]).get(b["id"], []),
+              _estimates_for(conn, [b["id"]]).get(b["id"], []))
+    codes = [p["project_code"] for p in b["projects"]]
+    docs, rfis, photos = [], 0, 0
+    if codes:
+        marks = ",".join("?" * len(codes))
+        for d in _rows(conn.execute(
+                f"SELECT id, project_code, category, requirement_key, title, expiry_date, version "
+                f"FROM project_documents WHERE project_code IN ({marks}) AND COALESCE(superseded,0) = 0 "
+                f"AND expiry_date IS NOT NULL ORDER BY expiry_date", codes)):
+            try:
+                d["days_left"] = (date.fromisoformat(d["expiry_date"][:10]) - today).days
+            except Exception:
+                d["days_left"] = None
+            docs.append(d)
+        for table, col in (("rfi_log", "rfis"), ("field_photos", "photos")):
+            try:
+                n = _one(conn.execute(f"SELECT COUNT(1) AS n FROM {table} WHERE project_code IN ({marks})", codes))["n"]
+            except Exception:
+                n = 0
+            if col == "rfis":
+                rfis = int(n)
+            else:
+                photos = int(n)
+    b["documents_expiring"] = docs
+    b["rfi_count"] = rfis
+    b["photo_count"] = photos
+    return b
+
+
+def unlinked(conn, client_org_id=None) -> dict:
+    """Projects / estimates without a building (for the link pickers)."""
+    pw, ew, params_p, params_e = ["building_id IS NULL"], ["building_id IS NULL"], [], []
+    if client_org_id:
+        pw.append("client_org_id = ?"); params_p.append(int(client_org_id))
+        ew.append("client_org_id = ?"); params_e.append(int(client_org_id))
+    projects = _rows(conn.execute(f"SELECT {_PROJECT_COLS} FROM projects WHERE {' AND '.join(pw)} "
+                                  f"ORDER BY project_code", params_p))
+    estimates = _rows(conn.execute(f"SELECT {_ESTIMATE_COLS} FROM estimate WHERE {' AND '.join(ew)} "
+                                   f"ORDER BY code", params_e))
+    return {"projects": projects, "estimates": estimates}
+
+
+# ============================ writes ============================
+
+def _clean(fields: dict) -> dict:
+    out = {}
+    for k, v in fields.items():
+        if k not in EDITABLE:
+            continue
+        if isinstance(v, str):
+            v = v.strip() or None
+        if k in ("stories", "year_built", "client_org_id") and v not in (None, ""):
+            try:
+                v = int(v)
+            except (TypeError, ValueError):
+                raise ValueError(f"{k} must be a whole number")
+        if k in ("lat", "lng") and v not in (None, ""):
+            try:
+                v = float(v)
+            except (TypeError, ValueError):
+                raise ValueError(f"{k} must be a number")
+        if k == "borough" and v:
+            v = _borough_name(v)
+        out[k] = v
+    if "year_built" in out and out["year_built"] and not (1600 <= out["year_built"] <= _today().year + 1):
+        raise ValueError("year_built looks wrong")
+    if "stories" in out and out["stories"] is not None and not (0 <= out["stories"] <= 200):
+        raise ValueError("stories looks wrong")
+    return out
+
+
+def create_building(conn, **fields) -> int:
+    f = _clean(fields)
+    if not f.get("address_line"):
+        raise ValueError("address_line is required")
+    key = address_key(f["address_line"])
+    if not key:
+        raise ValueError("address_line is required")
+    if _one(conn.execute("SELECT id FROM building WHERE address_key = ?", (key,))):
+        raise ValueError("a building with this address already exists")
+    now = _now()
+    cols = list(f.keys()) + ["address_key", "created_at", "updated_at"]
+    vals = list(f.values()) + [key, now, now]
+    conn.execute(f"INSERT INTO building ({', '.join(cols)}) VALUES ({','.join('?' * len(cols))})", vals)
+    conn.commit()
+    return _one(conn.execute("SELECT id FROM building WHERE address_key = ?", (key,)))["id"]
+
+
+def update_building(conn, building_id: int, **fields) -> bool:
+    f = _clean(fields)
+    if not f:
+        return False
+    if "address_line" in f:
+        if not f["address_line"]:
+            raise ValueError("address_line cannot be blank")
+        key = address_key(f["address_line"])
+        clash = _one(conn.execute("SELECT id FROM building WHERE address_key = ? AND id <> ?", (key, building_id)))
+        if clash:
+            raise ValueError("another building already has this address")
+        f["address_key"] = key
+    sets = ", ".join(f"{k} = ?" for k in f) + ", updated_at = ?"
+    cur = conn.execute(f"UPDATE building SET {sets} WHERE id = ?", list(f.values()) + [_now(), building_id])
+    conn.commit()
+    return getattr(cur, "rowcount", 1) != 0
+
+
+def set_archived(conn, building_id: int, archived: bool) -> bool:
+    cur = conn.execute("UPDATE building SET archived_at = ?, updated_at = ? WHERE id = ?",
+                       (_now() if archived else None, _now(), building_id))
+    conn.commit()
+    return getattr(cur, "rowcount", 1) != 0
+
+
+def link(conn, building_id: Optional[int], *, project_code=None, estimate_id=None) -> bool:
+    """building_id=None unlinks."""
+    if project_code:
+        cur = conn.execute("UPDATE projects SET building_id = ? WHERE project_code = ?", (building_id, project_code))
+    elif estimate_id:
+        cur = conn.execute("UPDATE estimate SET building_id = ? WHERE id = ?", (building_id, int(estimate_id)))
+    else:
+        raise ValueError("project_code or estimate_id is required")
+    conn.commit()
+    return getattr(cur, "rowcount", 1) != 0
+
+
+# ============================ endpoints ============================
+
+def _conn():
+    return db_layer.connect(pragma_fk=True)
+
+
+def _api_list():
+    conn = _conn()
+    try:
+        return _wrap(list_buildings(conn, client_org_id=request.args.get("client_org_id") or None,
+                                    search=request.args.get("search") or None,
+                                    include_archived=request.args.get("archived") in ("1", "true")))
+    finally:
+        conn.close()
+
+
+def _api_get(building_id):
+    conn = _conn()
+    try:
+        b = get_building(conn, building_id)
+        return _wrap(b) if b else _err("not found", 404)
+    finally:
+        conn.close()
+
+
+def _api_create():
+    data = request.get_json(silent=True) or {}
+    conn = _conn()
+    try:
+        try:
+            bid = create_building(conn, **{k: data.get(k) for k in EDITABLE if k in data})
+        except ValueError as e:
+            return _err(str(e))
+        return _wrap(get_building(conn, bid)), 201
+    finally:
+        conn.close()
+
+
+def _api_update(building_id):
+    data = request.get_json(silent=True) or {}
+    conn = _conn()
+    try:
+        if not _one(conn.execute("SELECT id FROM building WHERE id = ?", (building_id,))):
+            return _err("not found", 404)
+        try:
+            update_building(conn, building_id, **{k: data.get(k) for k in EDITABLE if k in data})
+        except ValueError as e:
+            return _err(str(e))
+        return _wrap(get_building(conn, building_id))
+    finally:
+        conn.close()
+
+
+def _api_archive(building_id):
+    conn = _conn()
+    try:
+        return _wrap({"id": building_id, "archived": True}) if set_archived(conn, building_id, True) else _err("not found", 404)
+    finally:
+        conn.close()
+
+
+def _api_restore(building_id):
+    conn = _conn()
+    try:
+        return _wrap({"id": building_id, "archived": False}) if set_archived(conn, building_id, False) else _err("not found", 404)
+    finally:
+        conn.close()
+
+
+def _api_link(building_id):
+    data = request.get_json(silent=True) or {}
+    conn = _conn()
+    try:
+        if not _one(conn.execute("SELECT id FROM building WHERE id = ?", (building_id,))):
+            return _err("not found", 404)
+        try:
+            ok = link(conn, building_id, project_code=data.get("project_code"), estimate_id=data.get("estimate_id"))
+        except ValueError as e:
+            return _err(str(e))
+        return _wrap(get_building(conn, building_id)) if ok else _err("nothing to link", 404)
+    finally:
+        conn.close()
+
+
+def _api_unlink(building_id):
+    data = request.get_json(silent=True) or {}
+    conn = _conn()
+    try:
+        try:
+            ok = link(conn, None, project_code=data.get("project_code"), estimate_id=data.get("estimate_id"))
+        except ValueError as e:
+            return _err(str(e))
+        return _wrap(get_building(conn, building_id)) if ok else _err("nothing to unlink", 404)
+    finally:
+        conn.close()
+
+
+def _api_unlinked():
+    conn = _conn()
+    try:
+        return _wrap(unlinked(conn, request.args.get("client_org_id") or None))
+    finally:
+        conn.close()
+
+
+def _api_backfill():
+    conn = _conn()
+    try:
+        return _wrap(backfill(conn))
+    finally:
+        conn.close()
+
+
+def register(app) -> None:
+    conn = _conn()
+    try:
+        ensure_schema(conn)
+        try:
+            stats = backfill(conn)
+            if stats["projects_linked"] or stats["estimates_linked"]:
+                log.info("#304 buildings backfill: %s", stats)
+        except Exception as e:  # never block boot on the backfill
+            log.warning("#304 buildings backfill skipped: %s", e)
+    finally:
+        conn.close()
+    gate = requires_section(SECTION)
+    app.add_url_rule("/api/buildings", "buildings_list", gate(_api_list), methods=["GET"])
+    app.add_url_rule("/api/buildings", "buildings_create", gate(_api_create), methods=["POST"])
+    app.add_url_rule("/api/buildings/unlinked", "buildings_unlinked", gate(_api_unlinked), methods=["GET"])
+    app.add_url_rule("/api/buildings/backfill", "buildings_backfill", gate(_api_backfill), methods=["POST"])
+    app.add_url_rule("/api/buildings/<int:building_id>", "buildings_get", gate(_api_get), methods=["GET"])
+    app.add_url_rule("/api/buildings/<int:building_id>", "buildings_update", gate(_api_update), methods=["PATCH"])
+    app.add_url_rule("/api/buildings/<int:building_id>/archive", "buildings_archive", gate(_api_archive), methods=["POST"])
+    app.add_url_rule("/api/buildings/<int:building_id>/restore", "buildings_restore", gate(_api_restore), methods=["POST"])
+    app.add_url_rule("/api/buildings/<int:building_id>/link", "buildings_link", gate(_api_link), methods=["POST"])
+    app.add_url_rule("/api/buildings/<int:building_id>/unlink", "buildings_unlink", gate(_api_unlink), methods=["POST"])

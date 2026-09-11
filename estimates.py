@@ -213,6 +213,11 @@ def create_estimate(conn, *, est_type, borough, client_org_id, contact_id=None,
         vals)
     conn.commit()
     new_id = conn.execute("SELECT id FROM estimate WHERE code=?", (code,)).fetchone()["id"]
+    try:
+        import buildings as _buildings   # #304 — every estimate with an address belongs to a building
+        _buildings.autolink_estimate(conn, new_id)
+    except Exception:
+        pass
     if est_type == "IRA":   # the IRA-only extension row exists from day one
         if not conn.execute("SELECT 1 FROM estimate_ira WHERE estimate_id=?", (new_id,)).fetchone():
             conn.execute("INSERT INTO estimate_ira (estimate_id) VALUES (?)", (new_id,))
@@ -325,6 +330,11 @@ def convert_to_project(conn, est_id, *, actor_user_id=None) -> dict:
     conn.execute(
         "UPDATE estimate SET status='converted', converted_project_code=?, "
         "status_changed_at=?, updated_at=? WHERE id=?", (code, now, now, est_id))
+    try:
+        import buildings as _buildings   # #304 — the new project inherits the estimate's building
+        _buildings.autolink_project(conn, code)
+    except Exception:
+        pass
     conn.commit()
     crm.add_activity(conn, entity_type="organization", entity_id=est["client_org_id"],
                      activity_type="system", author_user_id=actor_user_id, function_tag="sales",

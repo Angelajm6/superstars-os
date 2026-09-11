@@ -13,7 +13,7 @@ field-reachable (CLAUDE.md comp-data rule).
 
 Data sources (read-only rollups, no new copies of anything):
   * clients .......... crm_organization (relationship_type='client') + crm_contact
-  * buildings ........ DERIVED: the distinct addresses on projects + estimates
+  * buildings ........ the `building` table (#304), one row per normalized address,
                        linked to a client (there is no buildings table yet — #303
                        will add one and this module will prefer it when present)
   * pipeline / won ... estimate (status, final_amount, submitted/decided dates)
@@ -131,22 +131,7 @@ def _days_until(iso: Optional[str], today: Optional[date] = None) -> Optional[in
     return (d - (today or _today())).days
 
 
-_ADDR_SUBS = {
-    "street": "st", "avenue": "ave", "boulevard": "blvd", "road": "rd", "place": "pl",
-    "drive": "dr", "court": "ct", "lane": "ln", "parkway": "pkwy", "east": "e",
-    "west": "w", "north": "n", "south": "s", "saint": "st",
-}
-
-
-def address_key(addr: Optional[str]) -> str:
-    """Normalize a street address so '890 E 135th Street' and '890 East 135th St,
-    Bronx' collapse to one building. Takes the part before the first comma."""
-    if not addr:
-        return ""
-    s = str(addr).split(",")[0].lower()
-    s = re.sub(r"[^a-z0-9 ]+", " ", s)
-    toks = [_ADDR_SUBS.get(t, t) for t in s.split()]
-    return " ".join(toks)
+from buildings import address_key  # #304 — one matcher, owned by the buildings module
 
 
 def _valid_date(v) -> bool:
@@ -190,47 +175,57 @@ def ensure_schema(conn) -> None:
     conn.commit()
 
 
-# ============================ buildings (derived) ============================
+# ============================ buildings (#304: the table) ============================
 
 def buildings_by_client(conn) -> dict:
-    """{org_id: [building, ...]} derived from projects + estimates linked to a
-    client. building = {key, address, borough, projects[], estimates[]}."""
+    """{org_id: [building, ...]} from the `building` table (#304). Each building
+    carries its projects and estimates. Projects / estimates that have a client
+    but no building yet (no address) are grouped under one "No address on file"
+    bucket so nothing disappears from the client view."""
+    import buildings as _b
     out: dict = {}
+    rows = _b.list_buildings(conn, include_archived=False)
+    ids = [r["id"] for r in rows]
+    pm, em = _b._projects_for(conn, ids), _b._estimates_for(conn, ids)
+    for r in rows:
+        if not r.get("client_org_id"):
+            continue
+        b = {"id": r["id"], "key": r["address_key"], "address": r["address_line"], "name": r.get("name"),
+             "borough": r.get("borough"), "bin": r.get("bin"), "stories": r.get("stories"),
+             "projects": [{"project_code": p["project_code"], "name": p["name"],
+                           "status": p.get("status") or "active", "project_type": p.get("project_type")}
+                          for p in pm.get(r["id"], [])],
+             "estimates": [{"id": e["id"], "code": e["code"], "status": e["status"], "est_stage": e.get("est_stage"),
+                            "final_amount": _num(e.get("final_amount")), "submitted_date": e.get("submitted_date"),
+                            "decided_date": e.get("decided_date"),
+                            "converted_project_code": e.get("converted_project_code")}
+                           for e in em.get(r["id"], [])]}
+        out.setdefault(r["client_org_id"], []).append(b)
 
-    def bucket(org_id, addr, borough=None):
-        key = address_key(addr)
-        if not org_id or not key:
-            return None
+    def loose(org_id):
         lst = out.setdefault(org_id, [])
         for b in lst:
-            if b["key"] == key:
-                if borough and not b.get("borough"):
-                    b["borough"] = borough
+            if b.get("id") is None:
                 return b
-        b = {"key": key, "address": str(addr).strip(), "borough": borough,
+        b = {"id": None, "key": "", "address": "No address on file", "name": None, "borough": None,
              "projects": [], "estimates": []}
         lst.append(b)
         return b
 
     for p in _rows(conn.execute(
-            "SELECT project_code, name, address, city_zip, status, project_type, client_org_id "
-            "FROM projects WHERE client_org_id IS NOT NULL")):
-        b = bucket(p["client_org_id"], p["address"] or p["name"], p.get("city_zip"))
-        if b is not None:
-            b["projects"].append({
-                "project_code": p["project_code"], "name": p["name"],
-                "status": p.get("status") or "active", "project_type": p.get("project_type")})
+            "SELECT project_code, name, status, project_type, client_org_id FROM projects "
+            "WHERE client_org_id IS NOT NULL AND building_id IS NULL")):
+        loose(p["client_org_id"])["projects"].append({
+            "project_code": p["project_code"], "name": p["name"],
+            "status": p.get("status") or "active", "project_type": p.get("project_type")})
     for e in _rows(conn.execute(
-            "SELECT id, code, building_address, borough, status, est_stage, final_amount, "
-            "       submitted_date, decided_date, converted_project_code, client_org_id "
-            "FROM estimate WHERE client_org_id IS NOT NULL AND building_address IS NOT NULL")):
-        b = bucket(e["client_org_id"], e["building_address"], e.get("borough"))
-        if b is not None:
-            b["estimates"].append({
-                "id": e["id"], "code": e["code"], "status": e["status"],
-                "est_stage": e.get("est_stage"), "final_amount": _num(e.get("final_amount")),
-                "submitted_date": e.get("submitted_date"), "decided_date": e.get("decided_date"),
-                "converted_project_code": e.get("converted_project_code")})
+            "SELECT id, code, status, est_stage, final_amount, submitted_date, decided_date, "
+            "converted_project_code, client_org_id FROM estimate "
+            "WHERE client_org_id IS NOT NULL AND building_id IS NULL")):
+        loose(e["client_org_id"])["estimates"].append({
+            "id": e["id"], "code": e["code"], "status": e["status"], "est_stage": e.get("est_stage"),
+            "final_amount": _num(e.get("final_amount")), "submitted_date": e.get("submitted_date"),
+            "decided_date": e.get("decided_date"), "converted_project_code": e.get("converted_project_code")})
     for lst in out.values():
         for b in lst:
             b["active_projects"] = sum(1 for p in b["projects"] if p["status"] == "active")

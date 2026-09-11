@@ -127,7 +127,8 @@
     <nav class="ssc-nav" id="cp-nav">
       <div class="ssc-nav-label">Company</div>
       <a href="#overview" data-view="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Overview</a>
-      <a href="#clients" data-view="clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l7-4v18M10 21h11V11l-4-2v12"/><path d="M6 9h1M6 13h1M6 17h1M14 13h1M14 17h1"/></svg>Clients &amp; Buildings</a>
+      <a href="#clients" data-view="clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Clients</a>
+      <a href="#buildings" data-view="buildings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l7-4v18M10 21h11V11l-4-2v12"/><path d="M6 9h1M6 13h1M6 17h1M14 13h1M14 17h1"/></svg>Buildings</a>
       <a href="#finance" data-view="finance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 8-8"/><path d="M14 8h6v6"/></svg>Finance</a>
       <a href="#expenses" data-view="expenses"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Expenses</a>
       <div class="ssc-nav-label">People &amp; Risk</div>
@@ -193,6 +194,23 @@
       </section>
 
       <!-- ================= FINANCE ================= -->
+      <section class="cp-view" id="view-buildings" hidden>
+        <div id="buildings-list">
+          <div class="cp-card">
+            <div class="cp-toolbar">
+              <input class="cp-input search" id="bd-search" placeholder="Search address, name, client or BIN…" autocomplete="off">
+              <select class="cp-select" id="bd-client"><option value="">All clients</option></select>
+              <label class="cp-muted" style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="bd-archived"> include archived</label>
+              <span style="flex:1"></span>
+              <button class="btn-ghost btn-sm" id="bd-rematch" type="button" title="Link any project or estimate that has an address but no building yet">Re-run matcher</button>
+              <button class="btn-primary btn-sm" id="bd-add" type="button">+ Add building</button>
+            </div>
+            <div class="cp-table-wrap"><table class="cp-table" id="bd-table"></table></div>
+          </div>
+        </div>
+        <div id="building-detail" hidden></div>
+      </section>
+
       <section class="cp-view" id="view-finance" hidden>
         <div class="cp-kpis" id="fin-kpis"></div>
         <div class="cp-grid3">
@@ -282,6 +300,27 @@
   </main>
 </div>
 
+<!-- building modal (#304) -->
+<div class="cp-overlay" id="bd-overlay" role="dialog" aria-modal="true" aria-labelledby="bd-title">
+  <form class="cp-modal" id="bd-form" novalidate>
+    <div class="cp-modal-head"><h2 id="bd-title">Add building</h2></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><label for="bd-address">Street address</label><input id="bd-address" required placeholder="e.g. 890 E 135th St"></div>
+      <div class="cp-field"><label for="bd-name">Building name (optional)</label><input id="bd-name" placeholder="e.g. Compass Point Tower"></div>
+      <div class="cp-field"><label for="bd-client-sel">Client</label><select id="bd-client-sel"><option value="">— none yet —</option></select></div>
+      <div class="cp-field"><label for="bd-borough">Borough</label><select id="bd-borough"><option value="">—</option><option>Manhattan</option><option>Bronx</option><option>Brooklyn</option><option>Queens</option><option>Staten Island</option></select></div>
+      <div class="cp-field"><label for="bd-zip">ZIP</label><input id="bd-zip" inputmode="numeric" placeholder="10454"></div>
+      <div class="cp-field"><label for="bd-bin">DOB BIN</label><input id="bd-bin" inputmode="numeric" placeholder="7-digit BIN"></div>
+      <div class="cp-field"><label for="bd-blocklot">Block / lot</label><input id="bd-blocklot" placeholder="e.g. 2543 / 12"></div>
+      <div class="cp-field"><label for="bd-stories">Stories</label><input id="bd-stories" inputmode="numeric"></div>
+      <div class="cp-field"><label for="bd-year">Year built</label><input id="bd-year" inputmode="numeric"></div>
+      <div class="cp-field full"><label for="bd-notes">Notes</label><textarea id="bd-notes"></textarea></div>
+      <div class="cp-form-err" id="bd-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="bd-cancel">Cancel</button><button class="btn-primary" type="submit" id="bd-save">Save building</button></div>
+  </form>
+</div>
+
 <!-- company document modal -->
 <div class="cp-overlay" id="cd-overlay" role="dialog" aria-modal="true" aria-labelledby="cd-title">
   <form class="cp-modal" id="cd-form" novalidate>
@@ -324,8 +363,8 @@
   function skeleton(el, n) { el.innerHTML = Array.from({length: n || 4}, () => '<div class="cp-skel"></div>').join(''); }
   function empty(title, sub) { return `<div class="cp-empty"><strong>${esc(title)}</strong>${esc(sub || '')}</div>`; }
 
-  async function api(path, opts) {
-    const res = await fetch(API + path, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' } }, opts || {}));
+  async function api(path, opts, absolute) {
+    const res = await fetch((absolute ? '/api' : API) + path, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' } }, opts || {}));
     const j = await res.json().catch(() => ({}));
     if (res.status === 401) { window.location.href = '/login?next=' + encodeURIComponent('/company'); throw new Error('unauthenticated'); }
     if (!res.ok) throw new Error((j && j.error) || ('Request failed (' + res.status + ')'));
@@ -428,7 +467,7 @@
       $('cp-title').textContent = o.name;
       const buildings = d.buildings.length ? d.buildings.map(b => `
         <div class="cp-building">
-          <h3>${esc(b.address)}${b.borough ? ` <span class="cp-muted" style="font-weight:400">· ${esc(b.borough)}</span>` : ''}</h3>
+          <h3>${b.id ? `<a class="cp-link" href="#buildings/${b.id}">${esc(b.name || b.address)}</a>` : esc(b.address)}${b.name && b.id ? ` <span class="cp-muted" style="font-weight:400">· ${esc(b.address)}</span>` : ''}${b.borough ? ` <span class="cp-muted" style="font-weight:400">· ${esc(b.borough)}</span>` : ''}</h3>
           <div class="meta">${b.active_projects} active project(s) · ${b.projects.length} total · ${b.open_estimates} open estimate(s) · won ${money.format(b.won_value)}</div>
           ${b.projects.length ? `<div class="cp-tags">${b.projects.map(p => `<a href="/projects/${encodeURIComponent(p.project_code)}" style="text-decoration:none"><span><b class="cp-id">${esc(p.project_code)}</b> ${esc(p.name || '')} · ${esc(p.status)}</span></a>`).join('')}</div>` : ''}
           ${b.estimates.length ? `<div class="cp-tags">${b.estimates.map(e => `<span>${esc(e.code)} · ${esc(e.status)}${e.final_amount ? ' · ' + money.format(e.final_amount) : ''}</span>`).join('')}</div>` : ''}
@@ -445,7 +484,7 @@
         </div>
         <div class="cp-grid3">
           <div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Buildings &amp; job sites</h2><span class="hint">derived from projects and estimates</span></div>${buildings}</div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Buildings &amp; job sites</h2><a class="cp-link" href="#buildings">All buildings →</a></div>${buildings}</div>
             <div class="cp-card"><div class="cp-card-head"><h2>Documents expiring on this client's projects</h2></div>
               ${d.documents_expiring.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th><th>Document</th><th>Category</th><th>Expires</th><th></th></tr></thead><tbody>${d.documents_expiring.map(x => `<tr><td class="cp-id">${esc(x.project_code)}</td><td>${esc(x.title)}</td><td>${esc(x.category)}</td><td>${fmtDate(x.expiry_date)}</td><td>${daysPill(x.days_left)}</td></tr>`).join('')}</tbody></table></div>` : empty('No dated documents', 'COIs, permits and contracts with an expiry date will show here.')}
             </div>
@@ -464,6 +503,142 @@
         </div>`;
     } catch (e) { toast(e.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this client', e.message)}</div>`; }
   }
+
+  // ---------- BUILDINGS (#304) ----------
+  async function clientOptions(selectEl, keepValue) {
+    if (!state.cache.clientOpts) {
+      try { const { data } = await api('/clients?type=client'); state.cache.clientOpts = data.map(c => ({ id: c.id, name: c.name })); }
+      catch (e) { state.cache.clientOpts = []; }
+    }
+    const cur = keepValue !== undefined ? keepValue : selectEl.value;
+    const first = selectEl.options[0] ? selectEl.options[0].outerHTML : '';
+    selectEl.innerHTML = first + state.cache.clientOpts.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    selectEl.value = cur || '';
+  }
+  async function loadBuildings() {
+    $('building-detail').hidden = true; $('buildings-list').hidden = false;
+    await clientOptions($('bd-client'));
+    const q = new URLSearchParams(); if ($('bd-search').value.trim()) q.set('search', $('bd-search').value.trim());
+    if ($('bd-client').value) q.set('client_org_id', $('bd-client').value); if ($('bd-archived').checked) q.set('archived', '1');
+    skeleton($('bd-table'), 5);
+    try {
+      const { data: rows } = await api('/buildings?' + q.toString(), null, true);
+      table($('bd-table'), [
+        { key: 'display', label: 'Building', render: r => `<span class="cp-id">${esc(r.name || r.address_line)}</span>${r.name ? `<div class="cp-muted" style="font-size:12px">${esc(r.address_line)}</div>` : ''}${r.archived_at ? ' <span class="cp-pill">archived</span>' : ''}` },
+        { key: 'client_name', label: 'Client', render: r => r.client_name ? esc(r.client_name) : '<span class="cp-muted">— unassigned —</span>' },
+        { key: 'borough', label: 'Borough', render: r => esc(r.borough || '—') },
+        { key: 'active_projects', label: 'Active projects', num: true, render: r => `${r.active_projects}<span class="cp-muted"> / ${r.projects_total}</span>` },
+        { key: 'open_estimates', label: 'Open estimates', num: true, render: r => `${r.open_estimates}<div class="cp-muted" style="font-size:12px">${money.format(r.pipeline_value)}</div>` },
+        { key: 'won_value', label: 'Won value', num: true, render: r => money.format(r.won_value) },
+        { key: 'bin', label: 'BIN', render: r => esc(r.bin || '—') },
+      ], rows, { defaultSort: { key: 'display', dir: 'asc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.hash = '#buildings/' + r.id; },
+        emptyTitle: 'No buildings yet', emptySub: 'Buildings are created automatically from project and estimate addresses. Add one by hand for a building you have not quoted yet.' });
+    } catch (e) { toast(e.message, true); $('bd-table').innerHTML = empty('Could not load buildings', e.message); }
+  }
+  async function loadBuildingDetail(id) {
+    $('buildings-list').hidden = true; const host = $('building-detail'); host.hidden = false; host.innerHTML = '<div class="cp-card"><div class="cp-skel"></div><div class="cp-skel"></div></div>';
+    try {
+      const { data: b } = await api('/buildings/' + encodeURIComponent(id), null, true);
+      $('cp-title').textContent = b.name || b.address_line;
+      const fact = (k, v) => `<li><span class="cp-muted">${esc(k)}</span><span>${v == null || v === '' ? '—' : esc(v)}</span></li>`;
+      const projects = b.projects.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th><th>Name</th><th>Status</th><th>Type</th><th></th></tr></thead><tbody>${b.projects.map(p => `<tr><td class="cp-id"><a class="cp-link" href="/projects/${encodeURIComponent(p.project_code)}">${esc(p.project_code)}</a></td><td>${esc(p.name || '')}</td><td><span class="cp-pill ${p.status === 'active' ? 'active' : ''}">${esc(p.status || 'active')}</span></td><td>${esc(p.project_type || '—')}</td><td><button type="button" class="cp-link" data-unlink-project="${esc(p.project_code)}" style="color:#A8382B">Unlink</button></td></tr>`).join('')}</tbody></table></div>` : empty('No projects at this building yet');
+      const estimates = b.estimates.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Estimate</th><th>Status</th><th>Stage</th><th class="num">Amount</th><th>Submitted</th><th>Decided</th><th></th></tr></thead><tbody>${b.estimates.map(e => `<tr><td class="cp-id">${esc(e.code)}</td><td><span class="cp-pill">${esc(e.status)}</span></td><td>${esc(e.est_stage || '—')}</td><td class="num">${e.final_amount ? money.format(e.final_amount) : '—'}</td><td>${fmtDate(e.submitted_date)}</td><td>${fmtDate(e.decided_date)}</td><td><button type="button" class="cp-link" data-unlink-estimate="${e.id}" style="color:#A8382B">Unlink</button></td></tr>`).join('')}</tbody></table></div>` : empty('No estimates at this building yet');
+      host.innerHTML = `
+        <div class="cp-toolbar"><a class="cp-link" href="#buildings">← All buildings</a><span style="flex:1"></span>
+          ${b.archived_at ? '<span class="cp-pill">archived</span>' : ''}
+          <button class="btn-ghost btn-sm" type="button" id="bd-link-btn">Link project / estimate</button>
+          <button class="btn-ghost btn-sm" type="button" id="bd-edit">Edit</button>
+          <button class="btn-ghost btn-sm" type="button" id="bd-arch" style="color:#A8382B">${b.archived_at ? 'Restore' : 'Archive'}</button></div>
+        <div class="cp-kpis">
+          ${kpi('Active projects', b.active_projects, `${b.projects.length} project(s) total`)}
+          ${kpi('Open estimates', b.open_estimates, money.format(b.pipeline_value) + ' in pipeline')}
+          ${kpi('Won value', money.format(b.won_value), 'approved + converted', 'good')}
+          ${kpi('On file', `${b.documents_expiring.length}`, `dated document(s) · ${b.rfi_count} RFI(s) · ${b.photo_count} photo(s)`)}
+        </div>
+        <div class="cp-grid3">
+          <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Projects</h2></div>${projects}</div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Estimates &amp; proposals</h2></div>${estimates}</div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Documents expiring</h2></div>
+              ${b.documents_expiring.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th><th>Document</th><th>Category</th><th>Expires</th><th></th></tr></thead><tbody>${b.documents_expiring.map(x => `<tr><td class="cp-id">${esc(x.project_code)}</td><td>${esc(x.title)}</td><td>${esc(x.category)}</td><td>${fmtDate(x.expiry_date)}</td><td>${daysPill(x.days_left)}</td></tr>`).join('')}</tbody></table></div>` : empty('No dated documents', 'COIs, permits and contracts with an expiry date will show here.')}
+            </div>
+          </div>
+          <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Building</h2></div>
+              <ul class="cp-list">
+                ${fact('Address', b.address_line)}${fact('Client', b.client_name)}${fact('Borough', b.borough)}${fact('City / state / ZIP', [b.city, b.state, b.zip].filter(Boolean).join(' '))}
+                ${fact('DOB BIN', b.bin)}${fact('Block / lot', [b.block, b.lot].filter(Boolean).join(' / '))}${fact('Stories', b.stories)}${fact('Year built', b.year_built)}
+              </ul>
+              ${b.notes ? `<p class="cp-muted" style="margin:10px 0 0;white-space:pre-wrap">${esc(b.notes)}</p>` : ''}
+              ${b.client_org_id ? `<p style="margin:12px 0 0"><a class="cp-link" href="#clients/${b.client_org_id}">Open client →</a></p>` : ''}
+            </div>
+          </div>
+        </div>
+        <div class="cp-card" id="bd-linker" hidden>
+          <div class="cp-card-head"><h2>Link to this building</h2><button type="button" class="cp-link" id="bd-linker-close">Close</button></div>
+          <div class="cp-toolbar" style="gap:10px;flex-wrap:wrap">
+            <select class="cp-select" id="bd-link-project"><option value="">— project without a building —</option></select>
+            <button class="btn-ghost btn-sm" type="button" id="bd-link-project-go">Link project</button>
+            <select class="cp-select" id="bd-link-estimate"><option value="">— estimate without a building —</option></select>
+            <button class="btn-ghost btn-sm" type="button" id="bd-link-estimate-go">Link estimate</button>
+          </div>
+        </div>`;
+      $('bd-edit').addEventListener('click', () => openBuildingModal(b));
+      $('bd-arch').addEventListener('click', async () => {
+        if (!b.archived_at && !confirm(`Archive "${b.name || b.address_line}"? Its projects and estimates keep their history; it just leaves the active list.`)) return;
+        try { await api('/buildings/' + b.id + (b.archived_at ? '/restore' : '/archive'), { method: 'POST' }, true); toast(b.archived_at ? 'Building restored' : 'Building archived'); loadBuildingDetail(id); } catch (e) { toast(e.message, true); }
+      });
+      $('bd-link-btn').addEventListener('click', async () => {
+        const box = $('bd-linker'); box.hidden = false;
+        try {
+          const { data: u } = await api('/buildings/unlinked', null, true);
+          $('bd-link-project').innerHTML = '<option value="">— project without a building —</option>' + u.projects.map(p => `<option value="${esc(p.project_code)}">${esc(p.project_code)} · ${esc(p.name || p.address || '')}</option>`).join('');
+          $('bd-link-estimate').innerHTML = '<option value="">— estimate without a building —</option>' + u.estimates.map(e => `<option value="${e.id}">${esc(e.code)} · ${esc(e.building_address || '')}</option>`).join('');
+        } catch (e) { toast(e.message, true); }
+      });
+      $('bd-linker-close').addEventListener('click', () => { $('bd-linker').hidden = true; });
+      $('bd-link-project-go').addEventListener('click', async () => { const v = $('bd-link-project').value; if (!v) return; try { await api('/buildings/' + b.id + '/link', { method: 'POST', body: JSON.stringify({ project_code: v }) }, true); toast('Project linked'); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } });
+      $('bd-link-estimate-go').addEventListener('click', async () => { const v = $('bd-link-estimate').value; if (!v) return; try { await api('/buildings/' + b.id + '/link', { method: 'POST', body: JSON.stringify({ estimate_id: Number(v) }) }, true); toast('Estimate linked'); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } });
+      host.querySelectorAll('[data-unlink-project]').forEach(el => el.addEventListener('click', async () => { if (!confirm('Unlink this project from the building?')) return; try { await api('/buildings/' + b.id + '/unlink', { method: 'POST', body: JSON.stringify({ project_code: el.dataset.unlinkProject }) }, true); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } }));
+      host.querySelectorAll('[data-unlink-estimate]').forEach(el => el.addEventListener('click', async () => { if (!confirm('Unlink this estimate from the building?')) return; try { await api('/buildings/' + b.id + '/unlink', { method: 'POST', body: JSON.stringify({ estimate_id: Number(el.dataset.unlinkEstimate) }) }, true); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } }));
+    } catch (e) { toast(e.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this building', e.message)}</div>`; }
+  }
+  async function openBuildingModal(b) {
+    await clientOptions($('bd-client-sel'), b ? String(b.client_org_id || '') : '');
+    $('bd-form').dataset.id = b ? b.id : '';
+    $('bd-title').textContent = b ? 'Edit building' : 'Add building';
+    $('bd-address').value = b ? b.address_line : ''; $('bd-name').value = b ? (b.name || '') : '';
+    $('bd-borough').value = b ? (b.borough || '') : ''; $('bd-zip').value = b ? (b.zip || '') : '';
+    $('bd-bin').value = b ? (b.bin || '') : ''; $('bd-blocklot').value = b ? [b.block, b.lot].filter(Boolean).join(' / ') : '';
+    $('bd-stories').value = b && b.stories != null ? b.stories : ''; $('bd-year').value = b && b.year_built ? b.year_built : ''; $('bd-notes').value = b ? (b.notes || '') : '';
+    $('bd-err').className = 'cp-form-err'; $('bd-overlay').classList.add('open'); setTimeout(() => $('bd-address').focus(), 30);
+  }
+  function closeBuildingModal() { $('bd-overlay').classList.remove('open'); $('bd-form').reset(); $('bd-form').dataset.id = ''; }
+  $('bd-add').addEventListener('click', () => openBuildingModal(null));
+  $('bd-cancel').addEventListener('click', closeBuildingModal);
+  $('bd-overlay').addEventListener('click', (e) => { if (e.target === $('bd-overlay')) closeBuildingModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('bd-overlay').classList.contains('open')) closeBuildingModal(); });
+  $('bd-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('bd-err'); err.className = 'cp-form-err';
+    const [block, lot] = $('bd-blocklot').value.split('/').map(x => x.trim());
+    const payload = { address_line: $('bd-address').value.trim(), name: $('bd-name').value.trim() || null, client_org_id: $('bd-client-sel').value || null,
+      borough: $('bd-borough').value || null, zip: $('bd-zip').value.trim() || null, bin: $('bd-bin').value.trim() || null, block: block || null, lot: lot || null,
+      stories: $('bd-stories').value.trim() || null, year_built: $('bd-year').value.trim() || null, notes: $('bd-notes').value.trim() || null };
+    if (!payload.address_line) { err.textContent = 'A street address is required.'; err.className = 'cp-form-err show'; return; }
+    const id = $('bd-form').dataset.id; $('bd-save').disabled = true;
+    try {
+      const res = id ? await api('/buildings/' + id, { method: 'PATCH', body: JSON.stringify(payload) }, true)
+                     : await api('/buildings', { method: 'POST', body: JSON.stringify(payload) }, true);
+      toast(id ? 'Building updated' : 'Building added'); closeBuildingModal();
+      location.hash = '#buildings/' + res.data.id; if (id) loadBuildingDetail(id);
+    } catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('bd-save').disabled = false; }
+  });
+  $('bd-rematch').addEventListener('click', async () => {
+    try { const { data } = await api('/buildings/backfill', { method: 'POST' }, true); toast(`Matcher: ${data.buildings_created} building(s) created, ${data.projects_linked} project(s) + ${data.estimates_linked} estimate(s) linked`); loadBuildings(); }
+    catch (e) { toast(e.message, true); }
+  });
 
   // ---------- FINANCE ----------
   async function loadFinance() {
@@ -660,8 +835,8 @@
   });
 
   // ---------- router ----------
-  const TITLES = { overview: 'Overview', clients: 'Clients & Buildings', finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce & Pay', compliance: 'Compliance' };
-  const LOADERS = { overview: loadOverview, clients: loadClients, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, compliance: loadCompliance };
+  const TITLES = { overview: 'Overview', clients: 'Clients', buildings: 'Buildings', finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce & Pay', compliance: 'Compliance' };
+  const LOADERS = { overview: loadOverview, clients: loadClients, buildings: loadBuildings, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, compliance: loadCompliance };
   function route() {
     const h = (location.hash || '#overview').slice(1);
     const [view, arg] = h.split('/');
@@ -670,7 +845,7 @@
     document.querySelectorAll('.cp-view').forEach(s => s.hidden = (s.id !== 'view-' + v));
     document.querySelectorAll('#cp-nav a').forEach(a => a.classList.toggle('active', a.dataset.view === v));
     $('cp-title').textContent = TITLES[v];
-    if (v === 'clients' && arg) loadClientDetail(arg); else LOADERS[v]();
+    if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'buildings' && arg) loadBuildingDetail(arg); else LOADERS[v]();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);
@@ -679,6 +854,9 @@
   let t;
   const debounce = (fn) => { clearTimeout(t); t = setTimeout(fn, 250); };
   $('cl-search').addEventListener('input', () => debounce(loadClients));
+  $('bd-search').addEventListener('input', () => debounce(loadBuildings));
+  $('bd-client').addEventListener('change', loadBuildings);
+  $('bd-archived').addEventListener('change', loadBuildings);
   $('cl-type').addEventListener('change', loadClients); $('cl-inactive').addEventListener('change', loadClients);
   $('fin-months').addEventListener('change', loadFinance);
   ['ex-project', 'ex-category', 'ex-month', 'ex-source', 'ex-status'].forEach(id => $(id).addEventListener('change', loadExpenses));
