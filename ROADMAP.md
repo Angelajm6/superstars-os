@@ -15,6 +15,7 @@
 | Shared sidebar shell; Office Console rebuilt on it | Preprod (#303) |
 | Security release: every audit critical/high + mechanical mediums | Preprod (#305) |
 | Buildings as a first-class entity (table, auto-link, portal Buildings view) | Preprod (#304) |
+| Migration ledger + GitHub Actions gate on SQLite and Postgres | Preprod (#306) |
 
 Production promotion of #302/#303/#305 waits on the C-suite's yes on preprod.
 
@@ -73,7 +74,7 @@ per issue into `preprod`, then a release PR into the client repo once approved.
   backfilled from the #302 address matcher and reviewable in the CRM. Building
   page: every project, estimate/proposal, document, photo set, RFI and visit
   for that address. Unlocks items 3, 7 and the client portal's building view.
-- **#306 Migration ledger + CI on Postgres + strict routes in CI.** The
+- **#306 Migration ledger + CI on Postgres + strict routes in CI — SHIPPED 2026-09-11.** The
   three structural fixes from the audit. The gate already runs strict; CI makes
   it run on every PR against a Postgres service.
 - **Shared shell, next four pages** (`admin_users`, `admin_projects`,

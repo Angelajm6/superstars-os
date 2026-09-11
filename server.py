@@ -148,6 +148,11 @@ try:
 except Exception as _e:
     logging.warning(f"#305 roster views ensure skipped: {_e}")
 
+# #306 — migration ledger: ensure the table, baseline an existing database, report what
+# is pending (and apply it when SSC_AUTO_MIGRATE=1 — preprod). Never blocks boot.
+import migrations  # noqa: E402
+_MIGRATION_BOOT = migrations.boot(auto=os.environ.get('SSC_AUTO_MIGRATE') == '1')
+
 import auth_hardening
 auth_hardening.register(app)
 
@@ -1060,6 +1065,7 @@ def health():
     return response_wrapper({
         "status": "ok",
         "db": "postgres" if db_layer.is_postgres() else "sqlite",
+        "migrations_pending": migrations.pending_count(),   # #306 — 0 is healthy; -1 = ledger unreadable
         "timestamp": datetime.now().isoformat()
     })
 

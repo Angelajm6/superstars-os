@@ -21,6 +21,40 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #306 — Migration ledger + CI gate on Postgres (Bookore, 2026-09-11)
+
+Two of the audit's three structural fixes (the third, route default-deny, is now
+partly covered by the strict duplicate-route boot check from #305).
+
+* **`migrations.py` — the ledger.** Table `schema_migrations(name, checksum,
+  applied_at, note)`. The ordered list of migrations IS
+  `preprod_fixture_bootstrap.DUAL_BACKEND_MIGRATIONS` (one list, two readers).
+  `status / pending / apply / baseline_if_needed / boot / pending_count`.
+  Existing databases are **baselined** the first time the ledger appears (every
+  listed migration recorded with note=baseline) — they were migrated by hand or
+  by the fixture builder. From then on only NEW entries are pending.
+  `python migrations.py status|apply [--dry-run]`.
+* **Boot**: server.py ensures the ledger, baselines, and logs what is pending.
+  `SSC_AUTO_MIGRATE=1` (set on preprod) applies pending migrations at boot;
+  production only reports (log + `/api/health.migrations_pending`, 0 = healthy,
+  -1 = ledger unreadable). **Adding a migration = append a dual-backend
+  `apply_*.py` to DUAL_BACKEND_MIGRATIONS.** Nothing else.
+* **`tests/run_gate_ci.py` — the PR gate**, cross-platform: compile every file,
+  strict boot (duplicate routes refuse to start) + ledger clean, the #297–#300
+  static contracts, the #301/#302/#304/#305/#306 behavioral suites, and the
+  design-conventions guard against a live server. `--backend sqlite` (each
+  suite builds its own fixture) or `--backend postgres` (SSC_DB_URL at a
+  fixture-built Postgres). ~45 s on SQLite.
+* **`.github/workflows/gate.yml`**: on every PR / push to `preprod` and `main`,
+  a matrix of sqlite + postgres:16 (service container). The Postgres leg builds
+  the fixture through `preprod_fixture_bootstrap.py` — the same path as the
+  preprod bring-up — so the CI database is shaped exactly like preprod.
+* The #260 gate (`run_gate_260.py`) remains the operator's full census on the
+  Windows workstation; CI runs the subset every PR must pass.
+
+Next: require the `gate` checks in branch protection on the client repo's `main`
+(and on the fork's `preprod`) once a few runs are green.
+
 ### #304 — Buildings as a first-class entity (Bookore, 2026-09-11)
 
 `buildings.py` + `apply_buildings_304.py`. A client owns buildings; projects and

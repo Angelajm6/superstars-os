@@ -36,21 +36,7 @@ sys.path.insert(0, str(ROOT))
 _TMP = tempfile.mkdtemp(prefix="ssc_bld_304_")
 
 
-def _build_isolated_sqlite() -> str:
-    import preprod_fixture_bootstrap as pfb
-    src = Path(_TMP) / "source"
-    shutil.copytree(ROOT, src, ignore=shutil.ignore_patterns(
-        ".git", "__pycache__", "*.pyc", "superstars.db*", "venv", "node_modules", "worker_records", "data_room"))
-    db = src / "superstars.db"
-    with sqlite3.connect(db) as conn:
-        conn.executescript((src / "schema.sql").read_text(encoding="utf-8"))
-    env = os.environ.copy()
-    env.pop("SSC_DB_URL", None); env.pop("SSC_DATA_ROOT", None)
-    env["SSC_ALLOW_EMPTY_PREPROD_FIXTURE"] = "1"
-    for script in pfb.LEGACY_MIGRATIONS + pfb.DUAL_BACKEND_MIGRATIONS:
-        subprocess.run([sys.executable, script], cwd=src, env=env, check=True,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return f"sqlite:{db}"
+from _isolated_db import build_isolated_sqlite as _build_isolated_sqlite, purge_users, purge  # noqa: E402
 
 
 if not (os.environ.get("SSC_DB_URL") or "").strip():
@@ -119,13 +105,19 @@ def _cleanup():
     try:
         conn.execute("DELETE FROM building WHERE address_key LIKE '890 e 135th%' OR address_key LIKE '12 harbor%' "
                      "OR address_key LIKE '77 smoke%' OR address_key LIKE '78 smoke%'")
+        org_ids = [r["id"] for r in conn.execute("SELECT id FROM crm_organization WHERE name LIKE 'Bld304 %'").fetchall()]
+        # estimates created through estimates.create_estimate carry generated codes: purge by client
+        purge(conn, "estimate", "client_org_id", org_ids)
         conn.execute("DELETE FROM estimate WHERE code LIKE 'B304-%'")
+        purge(conn, "projects", "client_org_id", org_ids)
         conn.execute("DELETE FROM projects WHERE project_code LIKE 'B304-%'")
         conn.execute("DELETE FROM crm_activity WHERE summary LIKE '%B304%'")
+        if org_ids:
+            conn.execute(f"DELETE FROM crm_activity WHERE entity_type = 'organization' AND entity_id IN ({','.join('?' * len(org_ids))})", org_ids)
+            conn.execute(f"DELETE FROM crm_task WHERE entity_type = 'organization' AND entity_id IN ({','.join('?' * len(org_ids))})", org_ids)
         ids = [r["id"] for r in conn.execute("SELECT id FROM users WHERE email LIKE ?", (f"{TAG}.%",)).fetchall()]
-        for uid in ids:
-            conn.execute("DELETE FROM sessions WHERE user_id = ?", (uid,))
-        conn.execute("DELETE FROM users WHERE email LIKE ?", (f"{TAG}.%",))
+        conn.commit()
+        purge_users(conn, ids)   # FK-safe on Postgres too
         conn.execute("DELETE FROM crm_organization WHERE name LIKE 'Bld304 %'")
         conn.commit()
     finally:
