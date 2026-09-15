@@ -21,6 +21,45 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #308 — The client's Proposals tab (Bookore, 2026-09-15)
+
+The C-suite's "store proposals in the client's view" — the #307 rows, projected for
+the client, inside the grant-gated portal shell.
+
+* **Catalog:** `proposals` joined `client_grants.SECTIONS` / `SERVED_SECTIONS` /
+  `SECTION_LABELS`, the client row of `portal_matrix.ROLE_SECTION_MATRIX`, and the
+  FULL preset (by decision; Standard/Minimal unchanged). Default OFF like every
+  grant — the admin toggle appears on its own (the grants UI is data-driven).
+* **Registry:** `client_registry.DATASETS["portal.proposal"]` — id, number,
+  version, title, status (CLIENT key `open | signed | declined | expired`, never
+  the lifecycle word), status_label, price, deposit_amount, deposit_pct,
+  valid_until, sent_at, signed_at, signed_name, declined_at, building, view_url,
+  pdf_url, can_accept. Absent by provenance: decline_reason, signed_ip, recipient
+  email, estimate code/status, any internal note.
+* **Payloads** (`portal_sections.py`, all `require_portal_section("proposals")`):
+  `GET /api/portal/<code>/proposals` (the organization that owns the bound
+  project — `projects.client_org_id`; sent/viewed/signed/declined only, never a
+  draft or a superseded version; each labelled with its building), `…/<id>/view`
+  (the document; a real client's first open flips sent → viewed, a preview never
+  does), `…/<id>/pdf`, and — the portal's first write endpoints, by the C-suite's
+  ask — `POST …/<id>/accept {name, title, agreed}` and `POST …/<id>/decline
+  {reason}`. Both reuse `proposals.accept / decline`, so the #307 trigger (estimate
+  approved, COI + deposit tasks, VP notification, activity) is the same code path
+  as the emailed link. An admin preview gets 403 on both writes. By-id access to a
+  foreign organization's proposal, a draft, or a superseded version is 404.
+* **Shell** (`portal_shell.html`): `PORTAL_SECTION:proposals` nav + view; cards
+  with status pill, price, deposit, Open / Download PDF, and — when open — the
+  typed-name signature form with the consent box (hidden in preview with a note).
+  Accepting re-fetches the list (and purges the #291 boot cache for it).
+* **Test** `tests/smoke_client_proposals_308.py` (both gates; boots `server.app`):
+  catalog + registry, shell nav from grants, per-request grant toggle, org
+  scoping + project binding, roles, preview read-only, registry-only payload, view
+  → viewed, accept → trigger, decline. `smoke_portal_flip_284`'s matrix pin now
+  includes `proposals`.
+
+Next: #309 (QuickBooks deposit invoice on `proposal.signed`) and #310 (invoice
+model), so the "Accepted" card can show the deposit invoice status.
+
 ### #307 — Proposals: generated from an estimate, sent with a signed link, accepted online (Bookore, 2026-09-15)
 
 The first piece of the C-suite's "proposals → signature → deposit invoice" flow

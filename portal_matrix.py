@@ -37,6 +37,7 @@ import client_grants
 ROLE_SECTION_MATRIX: dict[str, frozenset] = {
     "client": frozenset({
         "progress", "photos", "documents", "daily", "schedule", "drawing", "rfis",
+        "proposals",   # #308
     }),
     "architect": frozenset({"drawing", "rfis", "documents"}),
     # vendor: DELIBERATELY ABSENT — an empty row until a vendor surface is designed.

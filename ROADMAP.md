@@ -17,8 +17,9 @@
 | Buildings as a first-class entity (table, auto-link, portal Buildings view) | Preprod (#304) |
 | Migration ledger + GitHub Actions gate on SQLite and Postgres | Preprod (#306) |
 | Proposals from estimates: branded document, signed link, online acceptance → estimate approved + COI/deposit tasks | Preprod (#307) |
+| Client portal Proposals tab: read, download, sign or decline inside the portal | Preprod (#308) |
 
-Production promotion of #302–#307 waits on the C-suite's yes on preprod.
+Production promotion of #302–#308 waits on the C-suite's yes on preprod.
 
 ---
 
@@ -93,7 +94,7 @@ per issue into `preprod`, then a release PR into the client repo once approved.
   (originally scoped under #308), so `signed_at` already approves the estimate
   and opens the COI + deposit-invoice tasks. #308 is now only the client
   portal's Proposals tab on top of the same rows.
-- **#308 Client "Proposals" tab + e-signature.** The client portal gains a
+- **#308 Client "Proposals" tab + e-signature — SHIPPED to preprod 2026-09-15.** The client portal gains a
   Proposals section (grant-gated like every other section): open the PDF,
   accept with a typed-name signature + IP + timestamp (audit row, PDF stamped
   with the signature page). `proposal.signed_at` is THE trigger for: the COI

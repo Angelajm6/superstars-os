@@ -314,7 +314,8 @@ def run():
        and portal_matrix.possible_sections(None) == frozenset())
     ok("matrix_unit_client_row",
        portal_matrix.possible_sections("client") ==
-       frozenset({"progress", "photos", "documents", "daily", "schedule", "drawing", "rfis"}))
+       frozenset({"progress", "photos", "documents", "daily", "schedule", "drawing", "rfis",
+                  "proposals"}))   # #308
     ok("matrix_unit_architect_row",
        portal_matrix.possible_sections("architect") == frozenset({"drawing", "rfis", "documents"}))
     r = VEND.get(f"{BASE}/portal/{PC}", **R)
