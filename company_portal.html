@@ -62,6 +62,15 @@
   .cp-pill.active { background: var(--status-active-soft, #ebf0fe); color: var(--accent-ink, #3a5fd0); }
   .cp-pill.warn { background: #FFF4E5; color: #9A5B00; }
   .cp-pill.bad { background: var(--status-behind-soft, #fceeec); color: #A8382B; }
+  .pr-lines td { padding: 4px 4px; }
+  .pr-lines input { width: 100%; font: inherit; font-size: 13px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; background: #fff; }
+  .pr-lines input:disabled, .pr-form input:disabled, .pr-form select:disabled, .pr-form textarea:disabled { background: #FAF7F1; color: var(--ink); }
+  .pr-lines .num input { text-align: right; }
+  .pr-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .pr-form .full { grid-column: 1 / -1; }
+  .pr-timeline li { display: block; }
+  .pr-timeline .when { font-size: 11px; color: var(--muted); }
+  @media (max-width: 720px) { .pr-form { grid-template-columns: 1fr; } }
   .cp-empty { padding: 26px 12px; text-align: center; color: var(--muted); font-size: 13px; }
   .cp-empty strong { display: block; color: var(--ink); margin-bottom: 4px; }
   .cp-skel { height: 14px; border-radius: 6px; background: linear-gradient(90deg,#eef0f4 25%,#f7f8fa 50%,#eef0f4 75%); background-size: 200% 100%; animation: sk 1.1s infinite; margin: 8px 0; }
@@ -129,6 +138,7 @@
       <a href="#overview" data-view="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Overview</a>
       <a href="#clients" data-view="clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Clients</a>
       <a href="#buildings" data-view="buildings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l7-4v18M10 21h11V11l-4-2v12"/><path d="M6 9h1M6 13h1M6 17h1M14 13h1M14 17h1"/></svg>Buildings</a>
+      <a href="#proposals" data-view="proposals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>Proposals</a>
       <a href="#finance" data-view="finance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 8-8"/><path d="M14 8h6v6"/></svg>Finance</a>
       <a href="#expenses" data-view="expenses"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Expenses</a>
       <div class="ssc-nav-label">People &amp; Risk</div>
@@ -209,6 +219,22 @@
           </div>
         </div>
         <div id="building-detail" hidden></div>
+      </section>
+
+      <section class="cp-view" id="view-proposals" hidden>
+        <div id="proposals-list">
+          <div class="cp-kpis" id="pr-kpis"></div>
+          <div class="cp-card">
+            <div class="cp-toolbar">
+              <input class="cp-input search" id="pr-search" placeholder="Search number, title, client or address…" autocomplete="off">
+              <select class="cp-select" id="pr-status"><option value="">All statuses</option><option value="draft">Draft</option><option value="sent">Sent</option><option value="viewed">Viewed</option><option value="signed">Signed</option><option value="declined">Declined</option><option value="superseded">Superseded</option></select>
+              <span style="flex:1"></span>
+              <button class="btn-primary btn-sm" id="pr-new" type="button">+ New proposal</button>
+            </div>
+            <div class="cp-table-wrap"><table class="cp-table" id="pr-table"></table></div>
+          </div>
+        </div>
+        <div id="proposal-detail" hidden></div>
       </section>
 
       <section class="cp-view" id="view-finance" hidden>
@@ -298,6 +324,42 @@
       </section>
     </div>
   </main>
+</div>
+
+<!-- proposal modals (#307) -->
+<div class="cp-overlay" id="pr-new-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-new-title">
+  <form class="cp-modal" id="pr-new-form" novalidate>
+    <div class="cp-modal-head"><h2 id="pr-new-title">New proposal</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">A proposal is generated from an estimate: client, contact, building and price come across; you edit the scope and terms before sending.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><label for="pr-new-est">Estimate</label><select id="pr-new-est"><option value="">Loading…</option></select></div>
+      <div class="cp-form-err" id="pr-new-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-new-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-new-go">Create draft</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="pr-send-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-send-title">
+  <form class="cp-modal" id="pr-send-form" novalidate>
+    <div class="cp-modal-head"><h2 id="pr-send-title">Send proposal</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="pr-send-sub"></p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="pr-send-name">Recipient name</label><input id="pr-send-name" autocomplete="off"></div>
+      <div class="cp-field"><label for="pr-send-email">Recipient email</label><input id="pr-send-email" type="email" autocomplete="off"></div>
+      <div class="cp-field full"><label for="pr-send-msg">Personal note (optional)</label><textarea id="pr-send-msg" placeholder="Thanks for walking the building with us on Tuesday…"></textarea></div>
+      <p class="cp-muted full" style="margin:0;font-size:12px">The email carries a private link where the client reviews the proposal, downloads the PDF, and accepts with a typed signature. The link expires on the proposal's valid-until date. Sending again issues a fresh link.</p>
+      <div class="cp-form-err" id="pr-send-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-send-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-send-go">Send</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="pr-sign-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-sign-title">
+  <form class="cp-modal" id="pr-sign-form" novalidate>
+    <div class="cp-modal-head"><h2 id="pr-sign-title">Record a signature received outside the app</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Use this when the client signed on paper or replied by email. It fires the same follow-ups as an online acceptance: the estimate is approved and the COI + deposit tasks open.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="pr-sign-name">Signed by</label><input id="pr-sign-name" autocomplete="off" placeholder="Full name"></div>
+      <div class="cp-field"><label for="pr-sign-date">Signed on</label><input id="pr-sign-date" type="date"></div>
+      <div class="cp-form-err" id="pr-sign-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-sign-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-sign-go">Mark signed</button></div>
+  </form>
 </div>
 
 <!-- building modal (#304) -->
@@ -542,7 +604,7 @@
       $('cp-title').textContent = b.name || b.address_line;
       const fact = (k, v) => `<li><span class="cp-muted">${esc(k)}</span><span>${v == null || v === '' ? '—' : esc(v)}</span></li>`;
       const projects = b.projects.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th><th>Name</th><th>Status</th><th>Type</th><th></th></tr></thead><tbody>${b.projects.map(p => `<tr><td class="cp-id"><a class="cp-link" href="/projects/${encodeURIComponent(p.project_code)}">${esc(p.project_code)}</a></td><td>${esc(p.name || '')}</td><td><span class="cp-pill ${p.status === 'active' ? 'active' : ''}">${esc(p.status || 'active')}</span></td><td>${esc(p.project_type || '—')}</td><td><button type="button" class="cp-link" data-unlink-project="${esc(p.project_code)}" style="color:#A8382B">Unlink</button></td></tr>`).join('')}</tbody></table></div>` : empty('No projects at this building yet');
-      const estimates = b.estimates.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Estimate</th><th>Status</th><th>Stage</th><th class="num">Amount</th><th>Submitted</th><th>Decided</th><th></th></tr></thead><tbody>${b.estimates.map(e => `<tr><td class="cp-id">${esc(e.code)}</td><td><span class="cp-pill">${esc(e.status)}</span></td><td>${esc(e.est_stage || '—')}</td><td class="num">${e.final_amount ? money.format(e.final_amount) : '—'}</td><td>${fmtDate(e.submitted_date)}</td><td>${fmtDate(e.decided_date)}</td><td><button type="button" class="cp-link" data-unlink-estimate="${e.id}" style="color:#A8382B">Unlink</button></td></tr>`).join('')}</tbody></table></div>` : empty('No estimates at this building yet');
+      const estimates = b.estimates.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Estimate</th><th>Status</th><th>Stage</th><th class="num">Amount</th><th>Submitted</th><th>Decided</th><th></th></tr></thead><tbody>${b.estimates.map(e => `<tr><td class="cp-id">${esc(e.code)}</td><td><span class="cp-pill">${esc(e.status)}</span></td><td>${esc(e.est_stage || '—')}</td><td class="num">${e.final_amount ? money.format(e.final_amount) : '—'}</td><td>${fmtDate(e.submitted_date)}</td><td>${fmtDate(e.decided_date)}</td><td style="white-space:nowrap">${['lost','converted'].includes(e.status) ? '' : `<button type="button" class="cp-link" data-propose="${e.id}">Proposal</button> · `}<button type="button" class="cp-link" data-unlink-estimate="${e.id}" style="color:#A8382B">Unlink</button></td></tr>`).join('')}</tbody></table></div>` : empty('No estimates at this building yet');
       host.innerHTML = `
         <div class="cp-toolbar"><a class="cp-link" href="#buildings">← All buildings</a><span style="flex:1"></span>
           ${b.archived_at ? '<span class="cp-pill">archived</span>' : ''}
@@ -600,6 +662,7 @@
       $('bd-link-project-go').addEventListener('click', async () => { const v = $('bd-link-project').value; if (!v) return; try { await api('/buildings/' + b.id + '/link', { method: 'POST', body: JSON.stringify({ project_code: v }) }, true); toast('Project linked'); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } });
       $('bd-link-estimate-go').addEventListener('click', async () => { const v = $('bd-link-estimate').value; if (!v) return; try { await api('/buildings/' + b.id + '/link', { method: 'POST', body: JSON.stringify({ estimate_id: Number(v) }) }, true); toast('Estimate linked'); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } });
       host.querySelectorAll('[data-unlink-project]').forEach(el => el.addEventListener('click', async () => { if (!confirm('Unlink this project from the building?')) return; try { await api('/buildings/' + b.id + '/unlink', { method: 'POST', body: JSON.stringify({ project_code: el.dataset.unlinkProject }) }, true); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } }));
+      host.querySelectorAll('[data-propose]').forEach(el => el.addEventListener('click', () => proposeFromEstimate(Number(el.dataset.propose))));
       host.querySelectorAll('[data-unlink-estimate]').forEach(el => el.addEventListener('click', async () => { if (!confirm('Unlink this estimate from the building?')) return; try { await api('/buildings/' + b.id + '/unlink', { method: 'POST', body: JSON.stringify({ estimate_id: Number(el.dataset.unlinkEstimate) }) }, true); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } }));
     } catch (e) { toast(e.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this building', e.message)}</div>`; }
   }
@@ -639,6 +702,205 @@
     try { const { data } = await api('/buildings/backfill', { method: 'POST' }, true); toast(`Matcher: ${data.buildings_created} building(s) created, ${data.projects_linked} project(s) + ${data.estimates_linked} estimate(s) linked`); loadBuildings(); }
     catch (e) { toast(e.message, true); }
   });
+
+  // ---------- PROPOSALS (#307) ----------
+  const PR_PILL = { draft: '', sent: 'active', viewed: 'active', signed: 'ok', declined: 'bad', superseded: '', expired: 'warn' };
+  function prPill(p) { const st = p.display_status || p.status; return `<span class="cp-pill ${PR_PILL[st] || ''}">${esc(st)}</span>`; }
+  function fmtWhen(iso) { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? esc(iso) : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+  async function proposeFromEstimate(estimateId) {
+    try { const { data } = await api('/proposals', { method: 'POST', body: JSON.stringify({ estimate_id: estimateId }) }, true); toast(`Draft ${data.number} created`); location.hash = '#proposals/' + data.id; }
+    catch (e) { toast(e.message, true); }
+  }
+  async function loadProposals() {
+    $('proposals-list').hidden = false; $('proposal-detail').hidden = true;
+    skeleton($('pr-kpis'), 4);
+    const q = new URLSearchParams(); const s = $('pr-search').value.trim(); if (s) q.set('q', s); if ($('pr-status').value) q.set('status', $('pr-status').value);
+    try {
+      const { data: rows, meta } = await api('/proposals?' + q.toString(), null, true);
+      const c = meta.counts || {};
+      $('pr-kpis').innerHTML =
+        kpi('Awaiting the client', num.format(meta.awaiting.n), money.format(meta.awaiting.v) + ' sent or viewed') +
+        kpi('Signed this year', num.format(meta.signed_ytd.n), money.format(meta.signed_ytd.v), 'good') +
+        kpi('Drafts', num.format(c.draft || 0), 'not sent yet') +
+        kpi('Declined', num.format(c.declined || 0), `${num.format(c.superseded || 0)} superseded`);
+      table($('pr-table'), [
+        { key: 'number', label: 'Proposal', render: r => `<a class="cp-link cp-id" href="#proposals/${r.id}">${esc(r.number)}</a>` },
+        { key: 'client_name', label: 'Client', render: r => `<a class="cp-link" href="#clients/${r.client_org_id}">${esc(r.client_name)}</a>` },
+        { key: 'building_address', label: 'Building', render: r => r.building_id ? `<a class="cp-link" href="#buildings/${r.building_id}">${esc(r.building_name || r.building_address || '—')}</a>` : esc(r.building_address || '—') },
+        { key: 'title', label: 'Title' },
+        { key: 'price', label: 'Price', num: true, render: r => r.price != null ? money.format(r.price) : '—' },
+        { key: 'status', label: 'Status', render: prPill, sortVal: r => r.display_status },
+        { key: 'sent_at', label: 'Sent', render: r => fmtDate(r.sent_at) },
+        { key: 'updated_at', label: 'Updated', render: r => fmtDate(r.updated_at) },
+      ], rows, { defaultSort: { key: 'updated_at', dir: 'desc' }, emptyTitle: 'No proposals yet', emptySub: 'Create one from an estimate — client, building and price come across.', onRow: r => { location.hash = '#proposals/' + r.id; } });
+    } catch (e) { toast(e.message, true); }
+  }
+  function prLineRow(l, editable) {
+    const d = editable ? '' : 'disabled';
+    return `<tr><td><input class="l-desc" value="${esc(l.description || '')}" placeholder="Item" ${d}></td><td class="num" style="width:80px"><input class="l-qty" inputmode="decimal" value="${l.qty == null ? '' : l.qty}" ${d}></td><td style="width:70px"><input class="l-unit" value="${esc(l.unit || '')}" placeholder="ea" ${d}></td><td class="num" style="width:120px"><input class="l-price" inputmode="decimal" value="${l.unit_price == null ? '' : l.unit_price}" ${d}></td><td class="num l-amt" style="width:110px">${l.amount != null ? money.format(l.amount) : '—'}</td><td style="width:30px">${editable ? '<button type="button" class="cp-link l-del" style="color:#A8382B" title="Remove">✕</button>' : ''}</td></tr>`;
+  }
+  function prRecalc() {
+    let total = 0, any = false;
+    document.querySelectorAll('#pr-lines tbody tr').forEach(tr => {
+      const q = parseFloat(tr.querySelector('.l-qty').value), u = parseFloat(tr.querySelector('.l-price').value);
+      const a = (!isNaN(q) && !isNaN(u)) ? Math.round(q * u * 100) / 100 : null;
+      tr.querySelector('.l-amt').textContent = a != null ? money.format(a) : '—';
+      if (a != null) { total += a; any = true; }
+    });
+    if (any) { const el = $('pr-total'); el.textContent = money.format(total); el.dataset.total = total; }
+  }
+  function prCollectLines() {
+    return Array.from(document.querySelectorAll('#pr-lines tbody tr')).map(tr => ({
+      description: tr.querySelector('.l-desc').value.trim(), qty: tr.querySelector('.l-qty').value.trim() || null,
+      unit: tr.querySelector('.l-unit').value.trim() || null, unit_price: tr.querySelector('.l-price').value.trim() || null })).filter(l => l.description);
+  }
+  async function loadProposalDetail(id) {
+    $('proposals-list').hidden = true; const host = $('proposal-detail'); host.hidden = false; skeleton(host, 6);
+    try {
+      const { data: p } = await api('/proposals/' + encodeURIComponent(id), null, true);
+      $('cp-title').textContent = p.number;
+      const ed = p.editable, d = ed ? '' : 'disabled';
+      const fact = (k, v) => `<li><span class="cp-muted">${esc(k)}</span><span style="text-align:right">${v == null || v === '' ? '—' : v}</span></li>`;
+      const linkState = p.status === 'sent' || p.status === 'viewed' ? (p.display_status === 'expired' ? `expired ${fmtDate(p.link_expires_at)}` : `open until ${fmtDate(p.link_expires_at)}`) : (p.status === 'signed' ? 'accepted' : p.status);
+      const canSend = ['draft', 'sent', 'viewed'].includes(p.status), canVersion = ['sent', 'viewed', 'declined'].includes(p.status);
+      host.innerHTML = `
+        <div class="cp-toolbar"><a class="cp-link" href="#proposals">← All proposals</a>${prPill(p)}<span class="cp-muted" style="font-size:12px">v${p.version} · estimate <strong>${esc(p.estimate_code)}</strong> (${esc(p.estimate_status)})</span><span style="flex:1"></span>
+          <a class="btn-ghost btn-sm" href="/api/proposals/${p.id}/preview" target="_blank" rel="noopener">Preview</a>
+          <a class="btn-ghost btn-sm" href="/api/proposals/${p.id}/pdf" target="_blank" rel="noopener">PDF</a>
+          ${canSend ? `<button class="btn-primary btn-sm" type="button" id="pr-send-btn">${p.status === 'draft' ? 'Send…' : 'Resend…'}</button>` : ''}
+          ${canVersion ? `<button class="btn-ghost btn-sm" type="button" id="pr-version-btn">New version</button>` : ''}
+          ${canSend ? `<button class="btn-ghost btn-sm" type="button" id="pr-sign-btn">Mark signed offline</button>` : ''}
+          ${p.status === 'draft' ? `<button class="btn-ghost btn-sm" type="button" id="pr-del-btn" style="color:#A8382B">Delete draft</button>` : ''}</div>
+        <div class="cp-kpis">
+          ${kpi('Proposal price', p.price != null ? money.format(p.price) : '—', p.lines.length ? `${p.lines.length} line item(s)` : 'lump sum')}
+          ${kpi('Deposit', p.deposit_amount != null ? money.format(p.deposit_amount) : '—', p.deposit_pct != null ? `${p.deposit_pct}% to start` : '')}
+          ${kpi('Valid until', fmtDate(p.valid_until), `link ${linkState}`)}
+          ${kpi(p.status === 'signed' ? 'Signed' : (p.status === 'declined' ? 'Declined' : 'Client activity'), p.status === 'signed' ? fmtDate(p.signed_at) : (p.status === 'declined' ? fmtDate(p.declined_at) : (p.viewed_at ? `${p.view_count} view(s)` : (p.sent_at ? 'not opened yet' : 'not sent'))), p.status === 'signed' ? `by ${p.signed_name}${p.signed_title ? ', ' + p.signed_title : ''}` : (p.viewed_at ? 'first opened ' + fmtWhen(p.viewed_at) : ''), p.status === 'signed' ? 'good' : '')}
+        </div>
+        <div class="cp-grid3">
+          <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>${ed ? 'Edit the proposal' : 'Proposal'}</h2>${ed ? '' : '<span class="cp-muted" style="font-size:12px">Sent proposals are read-only — create a new version to change it.</span>'}</div>
+              <form id="pr-form" class="pr-form" novalidate>
+                <div class="cp-field full"><label for="pr-title">Title</label><input id="pr-title" value="${esc(p.title || '')}" ${d}></div>
+                <div class="cp-field"><label for="pr-contact">Contact</label><select id="pr-contact" ${d}><option value="">— none —</option></select></div>
+                <div class="cp-field"><label for="pr-valid">Valid until</label><input id="pr-valid" type="date" value="${esc(p.valid_until || '')}" ${d}></div>
+                <div class="cp-field"><label for="pr-price">Price ($)</label><input id="pr-price" inputmode="decimal" value="${p.price == null ? '' : p.price}" ${d}></div>
+                <div class="cp-field"><label for="pr-deposit">Deposit %</label><input id="pr-deposit" inputmode="decimal" value="${p.deposit_pct == null ? '' : p.deposit_pct}" ${d}></div>
+                <div class="cp-field full"><label for="pr-scope">Scope of work</label><textarea id="pr-scope" style="min-height:110px" ${d}>${esc(p.scope_summary || '')}</textarea></div>
+                <div class="cp-field full"><label>Schedule of values (optional — the total becomes the price when you leave Price blank)</label>
+                  <div class="cp-table-wrap"><table class="cp-table pr-lines" id="pr-lines"><thead><tr><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Unit price</th><th class="num">Amount</th><th></th></tr></thead><tbody>${p.lines.map(l => prLineRow(l, ed)).join('')}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:700">Lines total</td><td class="num" id="pr-total" style="font-weight:700">${p.lines.length ? money.format(p.lines.reduce((a, l) => a + (l.amount || 0), 0)) : '—'}</td><td></td></tr></tfoot></table></div>
+                  ${ed ? '<button type="button" class="cp-link" id="pr-add-line" style="margin-top:6px">+ Add line</button>' : ''}</div>
+                <div class="cp-field full"><label for="pr-schedule">Schedule</label><textarea id="pr-schedule" ${d}>${esc(p.schedule_text || '')}</textarea></div>
+                <div class="cp-field full"><label for="pr-excl">Exclusions</label><textarea id="pr-excl" ${d}>${esc(p.exclusions_text || '')}</textarea></div>
+                <div class="cp-field full"><label for="pr-terms">Terms</label><textarea id="pr-terms" style="min-height:110px" ${d}>${esc(p.terms_text || '')}</textarea></div>
+                <div class="cp-form-err full" id="pr-err" role="alert"></div>
+                ${ed ? '<div class="full" style="display:flex;justify-content:flex-end;gap:8px"><button class="btn-primary" type="submit" id="pr-save">Save draft</button></div>' : ''}
+              </form>
+            </div>
+          </div>
+          <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Who and where</h2></div>
+              <ul class="cp-list">
+                ${fact('Client', `<a class="cp-link" href="#clients/${p.client_org_id}">${esc(p.client_name)}</a>`)}
+                ${fact('Building', p.building_id ? `<a class="cp-link" href="#buildings/${p.building_id}">${esc(p.building_name || p.building_address || '')}</a>` : esc(p.building_address || ''))}
+                ${fact('Contact', esc(p.contact_name || ''))}
+                ${fact('Sent to', p.recipient_email ? `${esc(p.recipient_name || '')}<br><span class="cp-muted">${esc(p.recipient_email)}</span>` : '')}
+                ${fact('Sent', p.sent_at ? fmtWhen(p.sent_at) : '')}
+                ${fact('First opened', p.viewed_at ? fmtWhen(p.viewed_at) : '')}
+                ${p.status === 'signed' ? fact('Signed', `${esc(p.signed_name)}<br><span class="cp-muted">${fmtWhen(p.signed_at)}${p.signed_ip ? ' · ' + esc(p.signed_ip) : ''}</span>`) : ''}
+                ${p.status === 'declined' ? fact('Declined', `${fmtWhen(p.declined_at)}${p.decline_reason ? '<br><span class="cp-muted">' + esc(p.decline_reason) + '</span>' : ''}`) : ''}
+                ${p.superseded_by ? fact('Replaced by', `<a class="cp-link" href="#proposals/${p.superseded_by}">newer version</a>`) : ''}
+                ${p.converted_project_code ? fact('Project', `<a class="cp-link" href="/projects/${encodeURIComponent(p.converted_project_code)}">${esc(p.converted_project_code)}</a>`) : ''}
+              </ul>
+            </div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Timeline</h2></div>
+              ${p.events.length ? `<ul class="cp-list pr-timeline">${p.events.slice().reverse().map(ev => `<li><span class="cp-pill ${PR_PILL[ev.event] || ''}">${esc(ev.event.replace('_', ' '))}</span> ${esc(ev.detail || '')}<div class="when">${fmtWhen(ev.at)}</div></li>`).join('')}</ul>` : empty('Nothing yet')}
+            </div>
+          </div>
+        </div>`;
+      // contact options for this client
+      try {
+        const { data: cd } = await api('/clients/' + p.client_org_id);
+        const sel = $('pr-contact'); sel.innerHTML = '<option value="">— none —</option>' + (cd.contacts || []).map(c => `<option value="${c.id}" ${c.id === p.contact_id ? 'selected' : ''}>${esc(c.full_name)}${c.email ? ' · ' + esc(c.email) : ''}</option>`).join('');
+      } catch (e) { /* contacts are optional */ }
+      if (ed) {
+        $('pr-add-line').addEventListener('click', () => { $('pr-lines').querySelector('tbody').insertAdjacentHTML('beforeend', prLineRow({}, true)); $('pr-lines').querySelector('tbody tr:last-child .l-desc').focus(); });
+        $('pr-lines').addEventListener('input', prRecalc);
+        $('pr-lines').addEventListener('click', (e) => { if (e.target.classList.contains('l-del')) { e.target.closest('tr').remove(); prRecalc(); } });
+        $('pr-form').addEventListener('submit', async (e) => {
+          e.preventDefault(); const err = $('pr-err'); err.className = 'cp-form-err';
+          const payload = { title: $('pr-title').value, contact_id: $('pr-contact').value || null, valid_until: dateGet($('pr-valid')) || null,
+            deposit_pct: $('pr-deposit').value, scope_summary: $('pr-scope').value, schedule_text: $('pr-schedule').value,
+            exclusions_text: $('pr-excl').value, terms_text: $('pr-terms').value, lines: prCollectLines() };
+          if ($('pr-price').value.trim() !== '') payload.price = $('pr-price').value.trim();
+          $('pr-save').disabled = true;
+          try { await api('/proposals/' + p.id, { method: 'PATCH', body: JSON.stringify(payload) }, true); toast('Draft saved'); loadProposalDetail(id); }
+          catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+          finally { const b = $('pr-save'); if (b) b.disabled = false; }
+        });
+      }
+      if (canSend) {
+        $('pr-send-btn').addEventListener('click', () => {
+          $('pr-send-form').dataset.id = p.id; $('pr-send-sub').textContent = `${p.number} · ${money.format(p.price || 0)} · valid until ${fmtDate(p.valid_until)}`;
+          $('pr-send-name').value = p.recipient_name || p.contact_name || ''; $('pr-send-email').value = p.recipient_email || p.contact_email || ''; $('pr-send-msg').value = '';
+          $('pr-send-err').className = 'cp-form-err'; $('pr-send-overlay').classList.add('open'); setTimeout(() => $('pr-send-email').focus(), 30);
+        });
+        $('pr-sign-btn').addEventListener('click', () => {
+          $('pr-sign-form').dataset.id = p.id; $('pr-sign-name').value = p.recipient_name || p.contact_name || ''; dateSet($('pr-sign-date'), todayLocal());
+          $('pr-sign-err').className = 'cp-form-err'; $('pr-sign-overlay').classList.add('open');
+        });
+      }
+      if (canVersion) $('pr-version-btn').addEventListener('click', async () => {
+        if (!confirm(`Create version ${p.version + 1}? ${p.number} becomes superseded and its link stops working.`)) return;
+        try { const { data } = await api('/proposals/' + p.id + '/new-version', { method: 'POST' }, true); toast(`${data.number} drafted`); location.hash = '#proposals/' + data.id; } catch (e) { toast(e.message, true); }
+      });
+      if (p.status === 'draft') $('pr-del-btn').addEventListener('click', async () => {
+        if (!confirm(`Delete draft ${p.number}?`)) return;
+        try { await api('/proposals/' + p.id, { method: 'DELETE' }, true); toast('Draft deleted'); location.hash = '#proposals'; } catch (e) { toast(e.message, true); }
+      });
+    } catch (e) { toast(e.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this proposal', e.message)}</div>`; }
+  }
+  // new-proposal modal
+  async function openNewProposal() {
+    const sel = $('pr-new-est'); sel.innerHTML = '<option value="">Loading…</option>'; $('pr-new-err').className = 'cp-form-err';
+    $('pr-new-overlay').classList.add('open');
+    try {
+      const { data } = await api('/estimates', null, true);
+      const rows = ((data && data.estimates) || []).filter(e => !['lost', 'converted'].includes(e.status)).sort((a, b) => a.code.localeCompare(b.code));
+      sel.innerHTML = '<option value="">— choose an estimate —</option>' + rows.map(e => `<option value="${e.id}">${esc(e.code)} · ${esc(e.org_name || '')} · ${esc(e.building_address || 'no address')}${e.final_amount ? ' · ' + money.format(e.final_amount) : ''} (${esc(e.status)})</option>`).join('');
+      if (!rows.length) sel.innerHTML = '<option value="">No open estimates — open one in Estimating first</option>';
+    } catch (e) { sel.innerHTML = '<option value="">Could not load estimates</option>'; }
+  }
+  function closeOverlay(id) { $(id).classList.remove('open'); }
+  $('pr-new').addEventListener('click', openNewProposal);
+  $('pr-new-cancel').addEventListener('click', () => closeOverlay('pr-new-overlay'));
+  $('pr-new-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const v = $('pr-new-est').value; const err = $('pr-new-err'); err.className = 'cp-form-err';
+    if (!v) { err.textContent = 'Pick an estimate.'; err.className = 'cp-form-err show'; return; }
+    $('pr-new-go').disabled = true;
+    try { const { data } = await api('/proposals', { method: 'POST', body: JSON.stringify({ estimate_id: Number(v) }) }, true); closeOverlay('pr-new-overlay'); toast(`Draft ${data.number} created`); location.hash = '#proposals/' + data.id; }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('pr-new-go').disabled = false; }
+  });
+  $('pr-send-cancel').addEventListener('click', () => closeOverlay('pr-send-overlay'));
+  $('pr-send-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('pr-send-err'); err.className = 'cp-form-err'; const id = $('pr-send-form').dataset.id;
+    const email = $('pr-send-email').value.trim(); if (!email.includes('@')) { err.textContent = 'A valid recipient email is required.'; err.className = 'cp-form-err show'; return; }
+    $('pr-send-go').disabled = true; $('pr-send-go').textContent = 'Sending…';
+    try { await api('/proposals/' + id + '/send', { method: 'POST', body: JSON.stringify({ to_email: email, to_name: $('pr-send-name').value.trim(), message: $('pr-send-msg').value }) }, true); closeOverlay('pr-send-overlay'); toast('Proposal sent'); loadProposalDetail(id); }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('pr-send-go').disabled = false; $('pr-send-go').textContent = 'Send'; }
+  });
+  $('pr-sign-cancel').addEventListener('click', () => closeOverlay('pr-sign-overlay'));
+  $('pr-sign-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('pr-sign-err'); err.className = 'cp-form-err'; const id = $('pr-sign-form').dataset.id;
+    $('pr-sign-go').disabled = true;
+    try { await api('/proposals/' + id + '/mark-signed', { method: 'POST', body: JSON.stringify({ name: $('pr-sign-name').value.trim(), signed_on: dateGet($('pr-sign-date')) || null }) }, true); closeOverlay('pr-sign-overlay'); toast('Recorded as signed'); loadProposalDetail(id); }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('pr-sign-go').disabled = false; }
+  });
+  ['pr-new-overlay', 'pr-send-overlay', 'pr-sign-overlay'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target === $(id)) closeOverlay(id); }));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ['pr-new-overlay', 'pr-send-overlay', 'pr-sign-overlay'].forEach(closeOverlay); });
 
   // ---------- FINANCE ----------
   async function loadFinance() {
@@ -835,8 +1097,8 @@
   });
 
   // ---------- router ----------
-  const TITLES = { overview: 'Overview', clients: 'Clients', buildings: 'Buildings', finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce & Pay', compliance: 'Compliance' };
-  const LOADERS = { overview: loadOverview, clients: loadClients, buildings: loadBuildings, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, compliance: loadCompliance };
+  const TITLES = { overview: 'Overview', clients: 'Clients', buildings: 'Buildings', proposals: 'Proposals', finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce & Pay', compliance: 'Compliance' };
+  const LOADERS = { overview: loadOverview, clients: loadClients, buildings: loadBuildings, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, compliance: loadCompliance };
   function route() {
     const h = (location.hash || '#overview').slice(1);
     const [view, arg] = h.split('/');
@@ -845,7 +1107,7 @@
     document.querySelectorAll('.cp-view').forEach(s => s.hidden = (s.id !== 'view-' + v));
     document.querySelectorAll('#cp-nav a').forEach(a => a.classList.toggle('active', a.dataset.view === v));
     $('cp-title').textContent = TITLES[v];
-    if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'buildings' && arg) loadBuildingDetail(arg); else LOADERS[v]();
+    if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'buildings' && arg) loadBuildingDetail(arg); else if (v === 'proposals' && arg) loadProposalDetail(arg); else LOADERS[v]();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);
@@ -857,6 +1119,8 @@
   $('bd-search').addEventListener('input', () => debounce(loadBuildings));
   $('bd-client').addEventListener('change', loadBuildings);
   $('bd-archived').addEventListener('change', loadBuildings);
+  $('pr-search').addEventListener('input', () => debounce(loadProposals));
+  $('pr-status').addEventListener('change', loadProposals);
   $('cl-type').addEventListener('change', loadClients); $('cl-inactive').addEventListener('change', loadClients);
   $('fin-months').addEventListener('change', loadFinance);
   ['ex-project', 'ex-category', 'ex-month', 'ex-source', 'ex-status'].forEach(id => $(id).addEventListener('change', loadExpenses));

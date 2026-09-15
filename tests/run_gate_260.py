@@ -80,6 +80,7 @@ GATE = [
     "smoke_password_reset_flow_301.py",# #301 guard — reset BEHAVIOR: no-enum, hashed single-use tokens, session revoke, expiry, throttle
     "smoke_company_portal_302.py",     # #302 guard — company portal: company-axis gating, clients/buildings rollups, finance, compliance, company documents CRUD
     "smoke_migrations_306.py",         # #306 guard — migration ledger: baseline, pending, apply/record, drift, health count
+    "smoke_proposals_307.py",          # #307 guard — proposal from estimate, send + signed link, public view/accept/decline, signature trigger, versions, gates
     "smoke_buildings_304.py",          # #304 guard — building identity, backfill de-dup, autolink, CRUD + gating, portal client view on the table
     "smoke_security_release_305.py",   # #305 guard — PIN throttle, PII gates/strip, SQL-injection close, RFI routes, estimator/vendor containment, traversal, artifact scoping, preview gate, no duplicate routes
     "smoke_perf_budget_292.py",   # #292 THE BUDGET GATE — per-surface request-count + payload ceilings over the whole census; a page that goes chatty again fails here

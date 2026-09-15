@@ -672,6 +672,7 @@ _ARCH_ALLOW_PREFIXES = (
     "/api/meeting-request",   # step 6 (route exists only once step 6 ships)
     "/api/auth/",
     "/files/static/",
+    "/p/", "/api/p/",         # #307 — a proposal link works for any signed-in role
 )
 
 
