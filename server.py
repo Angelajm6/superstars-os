@@ -94,6 +94,12 @@ company_portal.register(app)
 import buildings  # noqa: E402
 buildings.register(app)
 
+# #307 — proposals generated from estimates, sent with a signed link, accepted online.
+# Internal endpoints are requires_section('estimates'); /p/<token> + /api/p/<token>/* are
+# public by token (auth._PUBLIC_PREFIXES).
+import proposals  # noqa: E402
+proposals.register(app)
+
 # #279 (UI v2 phase 0) — the interface toggle. MUST follow apply_auth_gate: the
 # stored per-user preference is read off current_user(). Sets g.ui_version on page
 # routes; every UI route serves its page through ui_version.serve_ui, which returns

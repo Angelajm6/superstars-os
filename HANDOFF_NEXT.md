@@ -21,6 +21,65 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #307 — Proposals: generated from an estimate, sent with a signed link, accepted online (Bookore, 2026-09-15)
+
+The first piece of the C-suite's "proposals → signature → deposit invoice" flow
+(ROADMAP items 1, 2, 4). A proposal is now a record, not an attachment.
+
+* **`proposals.py`** — tables `proposal` (one per estimate *version*; number
+  `<estimate code>-P<version>`), `proposal_line` (schedule-of-values seed) and
+  `proposal_event` (audit). Status `draft → sent → viewed → signed | declined`;
+  a new version marks the old one `superseded` and kills its link. Only a draft
+  is editable. Price follows the line items when no explicit price is given;
+  deposit amount is derived from `deposit_pct` (default 30 %).
+* **The document** — `render_document()` is self-contained branded HTML (letterhead
+  from `app_settings` keys `company_address / company_phone / company_email /
+  company_license` when present). `render_pdf()` runs it through
+  `pdf_export.render_html_to_pdf` (chromium on Render, `SSC_PDF_ENGINE`), stores
+  the file under `data_room/proposals/` and a row in `estimate_document`
+  (new category `proposal`). Best effort: when the engine is missing the
+  proposal still sends and the public page is the reference copy; the PDF route
+  answers 503 with a plain message.
+* **Send** — `send()` needs a price and a valid recipient; issues a 32-byte
+  random token (sha256 stored, never the token), expiring at `valid_until`
+  23:59:59; emails the branded message via `notifications._send_live`
+  (`track_clicks=False` so the link is not rewritten). Test seam
+  `SSC_MAIL_FAKE_DIR` (falls back to `SSC_RESET_MAIL_FAKE_DIR`). A failed
+  delivery rolls the row back to draft and records `send_failed`. Resend
+  issues a fresh link (also the fix for an expired one).
+* **Public page** `/p/<token>` (+ `/p/<token>/pdf`, `POST /api/p/<token>/accept
+  | /decline`) — public by token (`auth._PUBLIC_PREFIXES`, and admitted by the
+  client-portal, estimator/vendor and architect containment gates so a
+  signed-in user can open the link too). First open flips `sent → viewed`;
+  accept requires a typed name + the consent box and records name, title, IP,
+  timestamp; `no-store` + `noindex` on every response. Bad/expired/superseded
+  links get a branded 404/410-style page, never a stack trace.
+* **THE TRIGGER (`_on_signed`)** — the estimate moves to `approved` with the
+  proposal price as `final_amount` (the manual approve modal still requires a
+  QuickBooks ref; a signed proposal is the stronger evidence, so it is applied
+  directly); CRM tasks open for the Certificate of Insurance (7 days, high)
+  and the deposit invoice (2 days, high — #309 automates it); c_suite users get
+  a `proposal_signed` notification; every step writes a CRM activity row.
+  `mark_signed_offline()` (paper / email signature) fires the same trigger.
+  Decline opens a follow-up task and leaves the estimate untouched.
+* **Company Portal → Proposals**: list (KPIs, search, status filter), "New
+  proposal" from any open estimate, detail with editor (fields + line items),
+  Preview / PDF / Send… / Resend… / New version / Mark signed offline / Delete
+  draft, who-and-where facts and the event timeline. Building detail's estimate
+  rows gained a "Proposal" action. Date inputs go through the app's
+  `SSCDatePicker` (`dateGet` / `dateSet`) — the picker rewrites
+  `type=date` inputs to MM-DD-YYYY text, so read `dataset.iso`, never `.value`.
+* **Migration** `apply_proposals_307.py` appended to `DUAL_BACKEND_MIGRATIONS`
+  (the #306 ledger picks it up; boot ensures the schema regardless).
+* **Test** `tests/smoke_proposals_307.py` (gate + CI): gates, prefill, edit
+  rules, send + link extraction from the fake mailbox, public view/accept/
+  decline, the trigger, versions, expiry + resend, offline signature, delete,
+  no-secrets payloads. Tolerates a missing PDF engine.
+
+Internal endpoints are `requires_section('estimates')` (admin / c_suite).
+Next: #308 (client portal Proposals tab reading the same rows) and #309
+(QuickBooks deposit invoice from `proposal.signed`).
+
 ### #306 — Migration ledger + CI gate on Postgres (Bookore, 2026-09-11)
 
 Two of the audit's three structural fixes (the third, route default-deny, is now

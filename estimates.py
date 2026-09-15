@@ -73,7 +73,7 @@ _TRANSITIONS = {
 
 # #273 attachment categories; #274 extends with the IRA artifact slots (cd5, coi).
 DOC_CATEGORIES = ("bid_file", "drawing", "addendum", "roof_plan", "contract",
-                  "cd5", "coi", "other")
+                  "cd5", "coi", "proposal", "other")   # #307 — generated proposal PDFs
 
 _DOC_EXT_TYPE = {
     '.pdf': ('PDF', 'application/pdf'),

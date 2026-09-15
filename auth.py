@@ -83,6 +83,8 @@ _PUBLIC_PREFIXES = (
     "/api/auth/",         # login, logout, me, sso/config — see below for /me caveat
     "/api/worker/",       # worker-app PIN flow — unchanged
     "/files/static/",     # vendored shell assets ONLY (css/js/fonts/vendor)
+    "/p/",                # #307 — a client's proposal link (the token IS the credential)
+    "/api/p/",            # #307 — accept / decline from that page
     "/auth/google/",      # #261 — Google OIDC login/callback must be reachable while
                           # logged OUT (that IS the login). When SSO is disabled (no
                           # GOOGLE_OAUTH_* env) the handlers themselves return 404.

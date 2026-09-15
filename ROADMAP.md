@@ -6,7 +6,7 @@
 > what has shipped; this file records what is planned. Issue numbers continue
 > the repo's `#nnn` sequence.
 
-## Status snapshot (2026-09-11)
+## Status snapshot (2026-09-15)
 
 | Shipped | Where |
 |---|---|
@@ -16,8 +16,9 @@
 | Security release: every audit critical/high + mechanical mediums | Preprod (#305) |
 | Buildings as a first-class entity (table, auto-link, portal Buildings view) | Preprod (#304) |
 | Migration ledger + GitHub Actions gate on SQLite and Postgres | Preprod (#306) |
+| Proposals from estimates: branded document, signed link, online acceptance → estimate approved + COI/deposit tasks | Preprod (#307) |
 
-Production promotion of #302/#303/#305 waits on the C-suite's yes on preprod.
+Production promotion of #302–#307 waits on the C-suite's yes on preprod.
 
 ---
 
@@ -83,11 +84,15 @@ per issue into `preprod`, then a release PR into the client repo once approved.
 
 ### Phase B — proposals to cash (October)
 
-- **#307 Proposals.** A proposal is generated FROM an estimate: branded HTML →
+- **#307 Proposals — SHIPPED to preprod 2026-09-15.** A proposal is generated FROM an estimate: branded HTML →
   PDF (the app's chromium engine), versioned in `estimate_document`
   (`category='proposal'`), with scope, price, exclusions, schedule, terms, and
   a schedule of values seed. States: `draft → sent → viewed → signed → declined
   → superseded`. Send = SendGrid email with a signed, expiring link.
+  Shipped with the public accept/decline page and the typed-name signature
+  (originally scoped under #308), so `signed_at` already approves the estimate
+  and opens the COI + deposit-invoice tasks. #308 is now only the client
+  portal's Proposals tab on top of the same rows.
 - **#308 Client "Proposals" tab + e-signature.** The client portal gains a
   Proposals section (grant-gated like every other section): open the PDF,
   accept with a typed-name signature + IP + timestamp (audit row, PDF stamped
