@@ -75,6 +75,18 @@ DATASETS: dict[str, frozenset] = {
     "health.weather": frozenset({"date", "temp_f", "condition", "icon",
                                  "precip_pct", "wind_mph"}),
 
+    # ---- #308 · proposals (the #307 rows, the CLIENT projection) ----------
+    # What the client signed or is asked to sign. status is a CLIENT key
+    # (open | signed | declined | expired), never the internal lifecycle word;
+    # building is the address line; URLs point at the grant-gated portal routes.
+    # ABSENT by provenance: decline_reason, signed_ip, recipient email, the
+    # estimate code/status, deposit terms beyond the two numbers shown on the
+    # document itself, any internal note.
+    "portal.proposal": frozenset({"id", "number", "version", "title", "status", "status_label",
+                                  "price", "deposit_amount", "deposit_pct", "valid_until",
+                                  "sent_at", "signed_at", "signed_name", "declined_at",
+                                  "building", "view_url", "pdf_url", "can_accept"}),
+
     # ---- project identity shown in the shell header ----------------------
     "project.identity": frozenset({"project_code", "name", "client_name"}),
 

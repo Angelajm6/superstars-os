@@ -40,7 +40,9 @@ from auth import _db, _now_iso, current_user, requires_company
 # The grantable client sections, in portal display order. A future section is an
 # additive change HERE (+ its portal endpoint/UI) — no schema change (no CHECK by
 # design, see schema_client_grants_269.sql).
-SECTIONS = ("progress", "photos", "documents", "daily", "schedule",
+SECTIONS = ("progress", "photos", "documents", "proposals", "daily", "schedule",
+            # #308 — proposals: the client reads, downloads and signs the proposals
+            # sent to their organization (#307 rows). DEFAULT OFF like every grant.
             # #281 — the shared-shell sections. All DEFAULT OFF like every other grant:
             # adding a key here grants nobody anything, it only makes the toggle exist.
             "drawing", "weekly", "materials", "rfis")
@@ -49,6 +51,7 @@ SECTIONS = ("progress", "photos", "documents", "daily", "schedule",
 # new key rendered as its raw slug until someone remembered to add it in a second place.
 SECTION_LABELS = {
     "progress": "Progress", "photos": "Photos", "documents": "Documents",
+    "proposals": "Proposals",
     "daily": "Daily Reports", "schedule": "Schedule",
     "drawing": "Drawing Markup", "weekly": "Weekly Summary",
     "materials": "Materials", "rfis": "RFIs",
@@ -59,7 +62,7 @@ SECTION_LABELS = {
 # admin UI hides catalog keys that are not yet served. SECTIONS is what MAY be granted;
 # SERVED_SECTIONS is what a grant OPENS today. weekly/materials stay catalogued but
 # hidden until their payloads ship — adding a payload later means adding its key HERE.
-SERVED_SECTIONS = ("progress", "photos", "documents", "daily", "schedule",
+SERVED_SECTIONS = ("progress", "photos", "documents", "proposals", "daily", "schedule",
                    "drawing", "rfis")
 
 # #270 — access presets: named bundles an admin applies in one click. IN CODE, no
@@ -78,7 +81,7 @@ SERVED_SECTIONS = ("progress", "photos", "documents", "daily", "schedule",
 PRESETS = {
     "minimal": ("progress",),
     "standard": ("progress", "photos", "daily"),
-    "full": ("progress", "photos", "documents", "daily", "schedule", "drawing", "rfis"),
+    "full": ("progress", "photos", "documents", "proposals", "daily", "schedule", "drawing", "rfis"),   # #308 — proposals joined FULL by decision
 }
 PRESET_LABELS = {"minimal": "Minimal", "standard": "Standard", "full": "Full view"}
 
