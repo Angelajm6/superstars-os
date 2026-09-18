@@ -21,6 +21,27 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #313 — Interactive accent moves from brand red to a dark blue (Bookore, 2026-09-18)
+
+* **Decision (Angela, 2026-09-18):** navigation and interactive accents are a dark
+  blue; brand red stays for identity (the star, worker IDs and codes, top bars on
+  documents and emails) and for error / danger states. New tokens in `widgets.css`
+  `:root`: `--ui:#24418C`, `--ui-deep:#1B3272`, `--ui-soft:#E8EDF8`, `--ui-edge`.
+  The auth pages (login / forgot / reset / set-password) carry their own `:root` and
+  received the two tokens too.
+* **Switched:** shell nav active pill + top-bar user-chip links (`shell.css`); the
+  client portal's nav active/hover, sign-out, Open buttons and the proposal Accept
+  button; the project dashboard's nav active, avatar, header CTAs, sign-out; the
+  console's legacy tab underline, `.btn`, language toggle, project-card hover, Hours
+  Log week buttons and cell-editor buttons, onboarding camera / save buttons, spec
+  add button; the auth pages' primary buttons, links, focus rings and the
+  password suggester; the public proposal page's Accept button and the two email
+  CTA buttons (reset + proposal). Cache versions bumped to `?v=313`.
+* **Deliberately unchanged:** `.cp-id`, `.cc-wid`, `.ph-wid`, estimate codes and
+  CRM names (identifier red per the design rule), status reds (`--bad`, behind,
+  no-work banners), the Hours Log red table header + grand-total cell, and the red
+  top bars on the proposal document / emails.
+
 ### #312 — Collapsible menu at phone width (Bookore, 2026-09-18)
 
 * Below 860 px every sidebar is a compact brand bar with a **Menu** button; the nav

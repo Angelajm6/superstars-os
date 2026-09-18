@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Superstars Contracting — Project Portal</title>
   <link rel="stylesheet" href="/files/static/fonts/typography.css">
-  <link rel="stylesheet" href="/files/static/css/widgets.css?v=312">
+  <link rel="stylesheet" href="/files/static/css/widgets.css?v=313">
   <script src="/files/static/js/shell.js?v=312" defer></script>
   <script src="/files/static/vendor/chart.umd.min.js"></script>
   <!-- #286 — the REAL grid engine, the same shared assets the internal dashboards
@@ -45,8 +45,8 @@
     .nav-link { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:8px;
                 font-size:13.5px; font-weight:600; color:var(--soft); text-decoration:none;
                 cursor:pointer; border-left:3px solid transparent; }
-    .nav-link:hover { color:var(--brand-red); background:var(--paper); }
-    .nav-link.active { color:var(--brand-red); background:#fbeceb; border-left-color:var(--brand-red); }
+    .nav-link:hover { color:var(--ui); background:var(--paper); }
+    .nav-link.active { color:var(--ui); background:var(--ui-soft); border-left-color:var(--ui); }
     .nav-ic { width:16px; height:16px; flex:none; stroke:currentColor; fill:none;
               stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
     .sidebar-grow { flex:1; min-height:8px; }
@@ -54,9 +54,9 @@
     .acct-name { font-size:12.5px; font-weight:700; }
     .acct-role { font-size:10px; color:var(--mute); text-transform:uppercase; letter-spacing:.08em; }
     .signout { margin-top:8px; display:inline-block; font-size:12px; font-weight:700;
-               color:var(--brand-red); background:none; border:1px solid var(--hairline);
+               color:var(--ui); background:none; border:1px solid var(--hairline);
                border-radius:8px; padding:6px 12px; cursor:pointer; }
-    .signout:hover { border-color:var(--brand-red); }
+    .signout:hover { border-color:var(--ui); }
 
     /* ---- main pane ---- */
     .main { flex:1; min-width:0; display:flex; flex-direction:column; }
@@ -81,9 +81,9 @@
     .doc-main { min-width:0; flex:1; }
     .doc-title { font-size:13.5px; font-weight:700; }
     .doc-meta { font-size:11px; color:var(--mute); text-transform:uppercase; letter-spacing:.04em; margin-top:1px; }
-    .doc-open { flex:none; font-size:12px; font-weight:700; color:var(--brand-red); text-decoration:none;
+    .doc-open { flex:none; font-size:12px; font-weight:700; color:var(--ui); text-decoration:none;
                 border:1px solid var(--hairline); border-radius:8px; padding:6px 12px; }
-    .doc-open:hover { border-color:var(--brand-red); }
+    .doc-open:hover { border-color:var(--ui); }
     .doc-pad { padding:18px; }
     /* #308 proposals */
     .prp-card { background:#fff; border:1px solid var(--hairline); border-radius:12px; padding:18px 20px; margin-bottom:14px; }
@@ -98,7 +98,7 @@
     .prp-pill.declined, .prp-pill.expired { background:#fceeec; color:#A8382B; }
     .prp-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; align-items:center; }
     .prp-btn { font:inherit; font-size:12px; font-weight:700; padding:8px 14px; border-radius:8px; border:1px solid var(--hairline); background:#fff; color:var(--ink); cursor:pointer; text-decoration:none; }
-    .prp-btn.primary { background:var(--brand-red); border-color:var(--brand-red); color:#fff; }
+    .prp-btn.primary { background:var(--ui); border-color:var(--ui); color:#fff; }
     .prp-btn:disabled { opacity:.6; cursor:default; }
     .prp-sign { margin-top:14px; border-top:1px solid #F2EFE7; padding-top:14px; }
     .prp-sign label { display:block; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--mute); margin:10px 0 5px; }
@@ -119,7 +119,7 @@
     .nav-link { color:#C9C6BE; border-left-color:transparent; position:relative;
                 transition:background var(--ssc-t-fast,.12s) ease, color var(--ssc-t-fast,.12s) ease, transform var(--ssc-t,.18s) var(--ssc-ease,ease); }
     .nav-link:hover { background:rgba(255,255,255,.06); color:#fff; transform:translateX(2px); }
-    .nav-link.active { background:var(--brand-red); color:#fff; border-left-color:transparent; transform:none; }
+    .nav-link.active { background:var(--ui); color:#fff; border-left-color:transparent; transform:none; }
     .nav-link::before { content:""; position:absolute; left:0; top:50%; width:3px; height:0; border-radius:3px; background:#fff;
                         transform:translateY(-50%); transition:height var(--ssc-t,.18s) var(--ssc-ease,ease); }
     .nav-link.active::before { height:18px; }

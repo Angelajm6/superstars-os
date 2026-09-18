@@ -712,7 +712,7 @@ _EMAIL_HTML = """<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><met
 <tr><td style="padding:4px 18px 4px 0;color:#76777E;">Building</td><td>{building}</td></tr>
 <tr><td style="padding:4px 18px 4px 0;color:#76777E;">Proposal price</td><td><strong>{price}</strong></td></tr>
 <tr><td style="padding:4px 18px 4px 0;color:#76777E;">Valid until</td><td>{valid_until}</td></tr></table></td></tr>
-<tr><td align="left" style="padding:24px 36px 0 36px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="background:#B11E2E;border-radius:9px;">
+<tr><td align="left" style="padding:24px 36px 0 36px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="background:#24418C;border-radius:9px;">
 <a href="{url}" style="display:inline-block;padding:13px 26px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;letter-spacing:0.3px;color:#FFFFFF;text-decoration:none;border-radius:9px;">Review and accept the proposal</a></td></tr></table></td></tr>
 <tr><td style="padding:18px 36px 30px 36px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 <p style="margin:0;font-size:13px;line-height:1.5;color:#76777E;">The link opens the proposal, lets you download the PDF, and records your acceptance with a typed signature. It is personal to this proposal and stops working after {valid_until}. If the button does not work, copy this address into your browser:<br><span style="word-break:break-all;color:#14161C;">{url}</span></p></td></tr>
@@ -942,7 +942,7 @@ _PAGE_UI = """
   .act label.chk{display:flex;gap:10px;align-items:flex-start;font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:#384152;margin:14px 0 0}
   .act .chk input{width:auto;margin-top:3px}
   .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;align-items:center}
-  .btn{font:inherit;font-size:14px;font-weight:700;padding:12px 22px;border-radius:9px;border:1px solid #B11E2E;background:#B11E2E;color:#fff;cursor:pointer}
+  .btn{font:inherit;font-size:14px;font-weight:700;padding:12px 22px;border-radius:9px;border:1px solid #24418C;background:#24418C;color:#fff;cursor:pointer}
   .btn.ghost{background:#fff;color:#14161C;border-color:#E8E4DD}
   .btn:disabled{opacity:.6;cursor:default}
   .err{display:none;color:#A8382B;background:#fceeec;border-radius:8px;padding:8px 10px;font-size:13px;margin-top:12px}

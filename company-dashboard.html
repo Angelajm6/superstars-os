@@ -9,7 +9,7 @@
      vendored GridStack (offline-safe, no CDN) + the shared widget design language
      + the shared per-user layout helper (DashLayout → /api/dashboard/layout). -->
 <link rel="stylesheet" href="/files/static/vendor/gridstack.min.css">
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=312">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=313">
 <script src="/files/static/js/shell.js?v=312" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=303">
 <script src="/files/static/vendor/gridstack-all.js"></script>
@@ -56,7 +56,7 @@
   .lang-toggle {
     display: inline-flex;
     background: white;
-    border: 1px solid var(--brand-red-deep);
+    border: 1px solid var(--ui-deep);
     border-radius: 99px;
     overflow: hidden;
     box-shadow: 0 1px 3px rgba(20,22,28,0.08);
@@ -68,14 +68,14 @@
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.5px;
-    color: var(--brand-red-deep);
+    color: var(--ui-deep);
     cursor: pointer;
     padding: 5px 12px;
     min-width: 34px;
     transition: all 0.15s ease;
   }
   .lang-opt.active {
-    background: var(--brand-red-deep);
+    background: var(--ui-deep);
     color: white;
   }
   .lang-opt:active { background: #6E1019; color: white; }
@@ -111,7 +111,7 @@
     color: var(--ink);
     display: block;
   }
-  .project-card:hover { border-color: var(--brand-red); box-shadow: 0 4px 14px rgba(177,30,46,0.08); transform: translateY(-1px); }
+  .project-card:hover { border-color: var(--ui); box-shadow: 0 4px 14px rgba(36,65,140,0.10); transform: translateY(-1px); }
   .project-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
   .project-card-name { font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 17px; font-weight: 700; line-height: 1.2; }
   .project-card-code { font-family: 'Consolas', monospace; font-size: 10px; color: var(--mute); margin-top: 2px; }
@@ -127,14 +127,14 @@
   .nav-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--hairline); margin-bottom: 24px; }
   .nav-tab { padding: 12px 18px; font-size: 13px; font-weight: 600; color: var(--mute); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
   .nav-tab:hover { color: var(--ink); }
-  .nav-tab.active { color: var(--brand-red); border-bottom-color: var(--brand-red); }
+  .nav-tab.active { color: var(--ui); border-bottom-color: var(--ui); }
 
   .panel { display: none; }
   .panel.active { display: block; animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }   /* #311 — views rise in */
 
   /* ==== BUTTONS ==== */
-  .btn { background: var(--brand-red); color: white; border: none; border-radius: 6px; padding: 10px 18px; font-weight: 600; cursor: pointer; font-size: 13px; letter-spacing: 0.3px; font-family: inherit; }
-  .btn:hover { background: var(--brand-red-deep); }
+  .btn { background: var(--ui); color: white; border: none; border-radius: 6px; padding: 10px 18px; font-weight: 600; cursor: pointer; font-size: 13px; letter-spacing: 0.3px; font-family: inherit; }
+  .btn:hover { background: var(--ui-deep); }
   .btn-outline { background: white; color: var(--ink); border: 1px solid var(--hairline); }
   .btn-outline:hover { background: var(--cream); }
 
@@ -567,7 +567,7 @@
           <div class="h2-sub" data-i18n="p-active-projects-sub">Click any project to drill into its dashboard.</div>
         </div>
         <!-- #263 — admin/c_suite: assign PMs to projects + close/reopen projects. -->
-        <a href="/admin/projects" style="flex:none;font-size:12px;font-weight:700;color:var(--brand-red);text-decoration:none;border:1px solid var(--hairline);border-radius:8px;padding:7px 13px;white-space:nowrap;" onmouseover="this.style.borderColor='var(--brand-red)'" onmouseout="this.style.borderColor='var(--hairline)'">Assignments &amp; status →</a>
+        <a href="/admin/projects" style="flex:none;font-size:12px;font-weight:700;color:var(--ui);text-decoration:none;border:1px solid var(--hairline);border-radius:8px;padding:7px 13px;white-space:nowrap;" onmouseover="this.style.borderColor='var(--brand-red)'" onmouseout="this.style.borderColor='var(--hairline)'">Assignments &amp; status →</a>
       </div>
       <div class="project-grid" id="project-grid">
         <div class="placeholder" data-i18n="loading-projects">Loading projects…</div>
@@ -717,14 +717,14 @@
           <div class="h2-sub">Last completed Mon–Sun week defaults below (weekend days included). Source = sign_in_log (same as DCR labor — they can never disagree).</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <button id="hrs-prev" type="button" style="background:white;border:1px solid #B11E2E;color:#B11E2E;padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">‹ Prev</button>
+          <button id="hrs-prev" type="button" style="background:white;border:1px solid var(--ui);color:var(--ui);padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">‹ Prev</button>
           <div id="hrs-range" style="font-family:'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;font-size:14px;font-weight:700;min-width:220px;text-align:center;">—</div>
-          <button id="hrs-next" type="button" style="background:white;border:1px solid #B11E2E;color:#B11E2E;padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">Next ›</button>
+          <button id="hrs-next" type="button" style="background:white;border:1px solid var(--ui);color:var(--ui);padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">Next ›</button>
           <button id="hrs-csv" type="button" style="background:#14161C;color:white;border:none;padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;margin-left:14px;display:inline-flex;align-items:center;gap:6px;">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             CSV
           </button>
-          <button id="hrs-pdf" type="button" style="background:#B11E2E;color:white;border:none;padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+          <button id="hrs-pdf" type="button" style="background:var(--ui);color:white;border:none;padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             PDF
           </button>
@@ -1221,7 +1221,7 @@
 
     function rowHTML(s, projects) {
       const tds = s.spec_url
-        ? `<a href="${esc(s.spec_url)}" target="_blank" rel="noopener" style="color:#B11E2E;font-weight:600;text-decoration:none;">TDS →</a>`
+        ? `<a href="${esc(s.spec_url)}" target="_blank" rel="noopener" style="color:var(--ui);font-weight:600;text-decoration:none;">TDS →</a>`
         : '<span style="color:#76777E;">—</span>';
       const tagBadge = s.tags
         ? `<span class="badge-pill warn" style="font-size:9px;">${esc(s.tags)}</span>`
@@ -1235,7 +1235,7 @@
             <option value="">— project —</option>${projOpts}
           </select>
           <button type="button" class="specs-attach-btn" data-spec-id="${s.id}"
-                  style="font-size:10px;font-weight:700;padding:3px 8px;border:none;border-radius:3px;background:#B11E2E;color:white;cursor:pointer;letter-spacing:0.04em;">ATTACH</button>
+                  style="font-size:10px;font-weight:700;padding:3px 8px;border:none;border-radius:3px;background:var(--ui);color:white;cursor:pointer;letter-spacing:0.04em;">ATTACH</button>
         </span>
       `;
       return `<tr data-spec-id="${s.id}">
@@ -1325,7 +1325,7 @@
       }
       setTimeout(() => {
         btn.disabled = false; btn.textContent = 'ATTACH';
-        btn.style.background = '#B11E2E';
+        btn.style.background = 'var(--ui)';
       }, 2500);
     });
 
@@ -3225,12 +3225,12 @@ applyLanguage();
           <div data-role="cam-error" style="display:none;color:white;padding:24px;text-align:center;font-size:14px;line-height:1.5;max-width:480px;"></div>
         </div>
         <div data-role="cam-controls" style="padding:14px 18px;display:flex;gap:10px;justify-content:center;background:#FAF7F1;flex-wrap:wrap;">
-          <button data-role="cam-capture" style="background:#B11E2E;color:white;border:none;padding:14px 28px;font-size:14px;font-weight:600;border-radius:8px;cursor:pointer;min-width:140px;min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:8px;">
+          <button data-role="cam-capture" style="background:var(--ui);color:white;border:none;padding:14px 28px;font-size:14px;font-weight:600;border-radius:8px;cursor:pointer;min-width:140px;min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:8px;">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             Capture
           </button>
           <button data-role="cam-retake" style="background:white;color:#14161C;border:1px solid #E8E4DD;padding:14px 24px;font-size:14px;font-weight:600;border-radius:8px;cursor:pointer;display:none;min-height:48px;">Retake</button>
-          <button data-role="cam-use" style="background:#B11E2E;color:white;border:none;padding:14px 28px;font-size:14px;font-weight:600;border-radius:8px;cursor:pointer;display:none;min-width:140px;min-height:48px;">Use Photo</button>
+          <button data-role="cam-use" style="background:var(--ui);color:white;border:none;padding:14px 28px;font-size:14px;font-weight:600;border-radius:8px;cursor:pointer;display:none;min-width:140px;min-height:48px;">Use Photo</button>
         </div>
       `;
       modal.appendChild(card);
@@ -3277,7 +3277,7 @@ applyLanguage();
           : '';
         errorEl.innerHTML = `<div>${esc(msg)}</div>
           <div style="margin-top:18px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-            <button data-role="cam-err-close" style="background:#B11E2E;color:white;border:none;padding:10px 18px;border-radius:6px;cursor:pointer;font-weight:600;">Close</button>
+            <button data-role="cam-err-close" style="background:var(--ui);color:white;border:none;padding:10px 18px;border-radius:6px;cursor:pointer;font-weight:600;">Close</button>
             ${manualBtn}
           </div>`;
         errorEl.style.display = 'block';
@@ -3393,7 +3393,7 @@ applyLanguage();
         </div>
         <div style="padding:14px 18px;border-top:1px solid #E8E4DD;display:flex;gap:10px;justify-content:flex-end;background:#FAF7F1;">
           <button data-role="cancel" style="background:white;color:#14161C;border:1px solid #E8E4DD;padding:10px 18px;border-radius:6px;cursor:pointer;font-weight:600;">Cancel</button>
-          <button data-role="save" style="background:#B11E2E;color:white;border:none;padding:10px 22px;border-radius:6px;cursor:pointer;font-weight:600;min-width:120px;">Save</button>
+          <button data-role="save" style="background:var(--ui);color:white;border:none;padding:10px 22px;border-radius:6px;cursor:pointer;font-weight:600;min-width:120px;">Save</button>
         </div>`;
       modal.appendChild(card);
       document.body.appendChild(modal);
@@ -3611,7 +3611,7 @@ applyLanguage();
         </div>
         <div style="padding:14px 18px;border-top:1px solid #E8E4DD;display:flex;gap:10px;justify-content:flex-end;background:#FAF7F1;">
           <button data-role="cancel" style="background:white;color:#14161C;border:1px solid #E8E4DD;padding:10px 18px;border-radius:6px;cursor:pointer;font-weight:600;">Cancel</button>
-          <button data-role="save" style="background:#B11E2E;color:white;border:none;padding:10px 22px;border-radius:6px;cursor:pointer;font-weight:600;min-width:120px;">Save</button>
+          <button data-role="save" style="background:var(--ui);color:white;border:none;padding:10px 22px;border-radius:6px;cursor:pointer;font-weight:600;min-width:120px;">Save</button>
         </div>`;
       modal.appendChild(card);
       document.body.appendChild(modal);
@@ -4176,9 +4176,9 @@ applyLanguage();
         <input type="time" class="hrs-edit-in" value="${esc(tin)}" style="font-size:10px;padding:2px;width:100%;">
         <input type="time" class="hrs-edit-out" value="${esc(tout)}" style="font-size:10px;padding:2px;width:100%;">
         <div style="display:flex;gap:2px;">
-          <button type="button" class="hrs-edit-save" style="flex:1;background:#B11E2E;color:white;border:none;font-size:9px;padding:3px 4px;border-radius:2px;cursor:pointer;">Save</button>
+          <button type="button" class="hrs-edit-save" style="flex:1;background:var(--ui);color:white;border:none;font-size:9px;padding:3px 4px;border-radius:2px;cursor:pointer;">Save</button>
           <button type="button" class="hrs-edit-full" title="07:00–15:30" style="background:#14161C;color:white;border:none;font-size:9px;padding:3px 4px;border-radius:2px;cursor:pointer;">8h</button>
-          <button type="button" class="hrs-edit-clear" title="Mark absent" style="background:white;color:#B11E2E;border:1px solid #B11E2E;font-size:9px;padding:2px 4px;border-radius:2px;cursor:pointer;">×</button>
+          <button type="button" class="hrs-edit-clear" title="Mark absent" style="background:white;color:var(--ui);border:1px solid var(--ui);font-size:9px;padding:2px 4px;border-radius:2px;cursor:pointer;">×</button>
           <button type="button" class="hrs-edit-cancel" title="Cancel" style="background:white;color:#76777E;border:1px solid #ccc;font-size:9px;padding:2px 4px;border-radius:2px;cursor:pointer;">↶</button>
         </div>
       </div>`;
