@@ -21,6 +21,25 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #309 — C-suite can reset a client's password; strong-password suggester (Bookore, 2026-09-18)
+
+* **Why:** a customer was locked out and the only account able to issue a one-time
+  password was the single production admin login. `auth_admin.CSUITE_RESET_ROLES =
+  ('client',)`: `/admin/users`, the list and `…/reset-password` now accept `c_suite`;
+  the list is filtered to client accounts for them and the reset handler refuses any
+  other target role (403). Creating accounts, changing roles and deactivating remain
+  admin-only; the admin row is never reset from the page by anyone. The page renders a
+  "Client accounts" reset-only view for c_suite (no Create, no role/deactivate buttons).
+* **Strong-password suggester:** `static/js/pw_suggest.js` (`SSCPasswordSuggest.generate
+  / wire`) — three random dictionary words + two digits (`Harbor-Copper-Stone-47`,
+  always ≥ 12 chars with a letter and a digit, from `crypto.getRandomValues`). Wired on
+  `reset_password.html` and `set_password.html`: the button fills both fields, reveals
+  them through the existing eye toggles, re-runs the checklist and shows a "save it"
+  hint. No server involvement.
+* **Test** `tests/smoke_csuite_reset_309.py` (both gates): role matrix on every users
+  endpoint, c_suite list filtering, reset allowed/denied by target role, page wiring +
+  generator contract (node when available).
+
 ### Ops — warnings mirrored to the host log stream (Bookore, 2026-09-18)
 
 `server.py` logging: the file under the data root (`/var/data/server.log` on Render)
