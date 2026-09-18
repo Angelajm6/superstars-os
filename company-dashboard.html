@@ -683,7 +683,7 @@
       <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap;gap:12px;">
         <div>
           <h2>Hours <span style="font-size:12px;color:#76777E;font-weight:400;text-transform:none;letter-spacing:0;">· Payroll · hours worked, lunch (−30 min) always deducted</span></h2>
-          <div class="h2-sub">Last completed Mon-Fri week defaults below. Source = sign_in_log (same as DCR labor — they can never disagree).</div>
+          <div class="h2-sub">Last completed Mon–Sun week defaults below (weekend days included). Source = sign_in_log (same as DCR labor — they can never disagree).</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <button id="hrs-prev" type="button" style="background:white;border:1px solid #B11E2E;color:#B11E2E;padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">‹ Prev</button>
@@ -1436,6 +1436,7 @@
     .lrt-weeknav button { border: none; background: #fff; color: var(--accent); font-size: 17px; font-weight: 700; padding: 8px 13px; cursor: pointer; font-family: inherit; line-height: 1; }
     .lrt-weeknav button:hover { background: var(--accent-soft); }
     .lrt-weeknav #lrt-range { background: var(--accent-soft); color: var(--ink); font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; padding: 0 16px; min-width: 190px; }
+    #lrt-grid th.lrt-weekend { background: #F3F0E9; color: #6b6455; }   /* #310 — Sat/Sun columns */
     .lrt-body { padding: 16px 22px 18px; }
     .lrt-note { display: none; align-items: center; gap: 8px; background: var(--accent-soft); border: 1px solid var(--accent-edge); color: var(--muted); font-size: 11px; padding: 8px 12px; border-radius: 9px; margin-bottom: 12px; }
     .lrt-note a { color: var(--accent); font-weight: 700; }
@@ -4033,7 +4034,8 @@ applyLanguage();
   const PROJECT_CODE = 'FR-BX-001';
   const STD_IN = '07:00';
   const STD_OUT = '15:30';
-  const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];   // #310 — seven-day payroll week
+  const isWeekendIso = (iso) => { const g = new Date(iso + 'T00:00:00').getDay(); return g === 0 || g === 6; };
 
   let currentMonday = null;  // Date object
   let currentGrid = null;    // last loaded grid response
@@ -4043,7 +4045,7 @@ applyLanguage();
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'));
 
   function fmtRange(monday) {
-    const d = new Date(monday); const e = new Date(monday); e.setDate(e.getDate()+4);
+    const d = new Date(monday); const e = new Date(monday); e.setDate(e.getDate()+6);   // #310 Mon–Sun
     const mo = (x) => x.toLocaleString('en-US', {month:'short'});
     return `${mo(d)} ${d.getDate()} – ${mo(e)} ${e.getDate()}, ${e.getFullYear()}`;
   }
@@ -4075,8 +4077,9 @@ applyLanguage();
       + '<th style="padding:8px 6px;background:#1a1a1a;color:white;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Trade</th>';
     g.dates.forEach((d, i) => {
       const dt = new Date(d + 'T00:00:00');
-      headHtml += `<th style="padding:8px 6px;background:#B11E2E;color:white;font-size:11px;text-align:center;">
-        <div style="font-weight:700;">${DAY_LABELS[i]} ${dt.getDate()}</div>
+      const wknd = isWeekendIso(d);   // #310 — weekend columns read as weekend, same editing
+      headHtml += `<th style="padding:8px 6px;background:${wknd ? '#7A1A24' : '#B11E2E'};color:white;font-size:11px;text-align:center;">
+        <div style="font-weight:700;">${DAY_LABELS[i]} ${dt.getDate()}</div>${wknd ? '<div style="font-size:8px;font-weight:700;letter-spacing:.08em;opacity:.85;">WEEKEND</div>' : ''}
         <button type="button" data-hrs-col-full="${esc(d)}" title="Everyone full day"
           style="margin-top:4px;background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.4);font-size:9px;padding:2px 6px;border-radius:3px;cursor:pointer;">All full day</button>
       </th>`;
@@ -4239,7 +4242,9 @@ applyLanguage();
     setStatus('Filling week…', '#76777E');
     const w = currentGrid.workers.find(x => x.employee_id === empId);
     if (!w) return;
-    const ops = w.days.map(day => {
+    // #310 — "Full week" stays a Mon–Fri standard week; weekend hours are entered
+    // on purpose, cell by cell (or via that day's "All full day" header button).
+    const ops = w.days.filter(day => !isWeekendIso(day.date)).map(day => {
       if (day.has_entry && day.sign_in_id) {
         return fetch('/api/sign-ins/' + day.sign_in_id, {
           method:'PUT', headers:{'Content-Type':'application/json'},
@@ -4308,8 +4313,8 @@ applyLanguage();
 <script>
 (function() {
   const PROJECT_CODE = 'FR-BX-001';  // single active project for now
-  const DAY_LABELS_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-  const DAY_LABELS_ES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie'];
+  const DAY_LABELS_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];   // #310 — seven-day payroll week
+  const DAY_LABELS_ES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
   // =====================================================================
   // RATES — server-rendered, role-gated source (#158).
@@ -4340,7 +4345,7 @@ applyLanguage();
   function fmtRange(mondayIso) {
     // Mirror the Hours Log range label so the two surfaces read alike.
     const m = new Date(mondayIso + 'T00:00:00');
-    const f = new Date(m); f.setDate(f.getDate() + 4);
+    const f = new Date(m); f.setDate(f.getDate() + 6);   // #310 Mon–Sun
     const mo = (d) => d.toLocaleString('en-US', {month: 'short'});
     return `${mo(m)} ${m.getDate()} – ${mo(f)} ${f.getDate()}, ${f.getFullYear()}`;
   }
@@ -4363,12 +4368,14 @@ applyLanguage();
     const labels = dayLabels();
     const dayCells = dates.map((d, i) => {
       const dayNum = (new Date(d + 'T00:00:00')).getDate();
+      const dow = (new Date(d + 'T00:00:00')).getDay();
+      const wkndCls = (dow === 0 || dow === 6) ? ' lrt-weekend' : '';   // #310 — Sat/Sun tinted, same math
       const nw = noWorkByDate && noWorkByDate[d];
       if (nw) {
         const reason = (nw.reason || 'OTHER').toUpperCase();
-        return `<th class="lrt-num" style="background:#FFE8D6;color:#7A2E1B;" title="${esc(reason)}${nw.note ? ' · ' + esc(nw.note) : ''}">${esc(labels[i])} ${dayNum}<div style="font-size:8px;font-weight:800;letter-spacing:0.5px;margin-top:1px;">NO WORK</div><div style="font-size:7.5px;font-weight:700;">${esc(reason)}</div></th>`;
+        return `<th class="lrt-num${wkndCls}" style="background:#FFE8D6;color:#7A2E1B;" title="${esc(reason)}${nw.note ? ' · ' + esc(nw.note) : ''}">${esc(labels[i])} ${dayNum}<div style="font-size:8px;font-weight:800;letter-spacing:0.5px;margin-top:1px;">NO WORK</div><div style="font-size:7.5px;font-weight:700;">${esc(reason)}</div></th>`;
       }
-      return `<th class="lrt-num">${esc(labels[i])} ${dayNum}</th>`;
+      return `<th class="lrt-num${wkndCls}">${esc(labels[i])} ${dayNum}</th>`;
     }).join('');
     // Rate + Amount Owed headers ONLY when the caller can see comp data.
     // For pm/super (or any future non-comp role) the headers are absent
@@ -4381,9 +4388,9 @@ applyLanguage();
     // Also adjust the colgroup so the table layout matches the column count.
     const cg = $('lrt-colgroup');
     if (cg) {
-      cg.innerHTML = ratesVisible
-        ? '<col><col><col><col><col><col><col><col class="lrt-comp"><col class="lrt-comp">'
-        : '<col><col><col><col><col><col><col>';
+      // Worker + one col per day + Total Hrs (+ the two comp cols). #310 — seven days.
+      const base = '<col>' + dates.map(() => '<col>').join('') + '<col>';
+      cg.innerHTML = ratesVisible ? base + '<col class="lrt-comp"><col class="lrt-comp">' : base;
     }
     $('lrt-thead').innerHTML = `<tr>
       <th data-i18n="col-worker">Worker</th>

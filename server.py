@@ -1260,8 +1260,8 @@ def api_payroll_hours():
 
     Query params:
       week_start (optional, ISO 'YYYY-MM-DD'): the Monday of the week. If
-        omitted, defaults to the last completed Mon-Fri week relative to
-        today (payroll runs one week in arrears).
+        omitted, defaults to the last completed Mon-Sun week relative to
+        today (payroll runs one week in arrears). #310 — seven days.
 
     Returns the payroll_hours.build_week_grid dict: dates, workers (with
     per-day cells + weekly totals), totals_by_day, grand_total. Worker pool
@@ -1369,7 +1369,7 @@ def api_payroll_hours():
 @app.route('/api/payroll/hours.csv', methods=['GET'])
 def api_payroll_hours_csv():
     """CSV export of the weekly hours grid. One row per worker; columns:
-    employee_id, name, trade, <Mon date>, <Tue>, <Wed>, <Thu>, <Fri>,
+    employee_id, name, trade, <Mon date> … <Sun date> (#310 — seven days),
     weekly_total. A 'DAILY TOTAL' summary row follows the data rows.
 
     Hours are hours WORKED (lunch deducted) so the CSV matches what the
@@ -5551,7 +5551,7 @@ def api_signin_dcr_divergence(project_code):
     W-####) list for `project_code` over the date range. Read-only.
 
     Query params:
-      week_start (optional, ISO Monday) — narrows to that Monday-Friday
+      week_start (optional, ISO Monday) — narrows to that Monday-Sunday (#310)
       start_date / end_date (optional, ISO) — explicit range
     If no params, the endpoint scans every issued DCR for the project.
 
@@ -5572,7 +5572,7 @@ def api_signin_dcr_divergence(project_code):
             if monday.weekday() != 0:
                 return jsonify({"error": "week_start must be a Monday"}), 400
             start = monday.isoformat()
-            end = (monday + timedelta(days=4)).isoformat()
+            end = (monday + timedelta(days=6)).isoformat()   # #310 — the payroll week is Mon-Sun
         conn = db()
         try:
             divergences = sdr.compute_divergences(
@@ -5619,7 +5619,7 @@ def api_signin_dcr_reconcile(project_code):
             if monday.weekday() != 0:
                 return jsonify({"error": "week_start must be a Monday"}), 400
             start = monday.isoformat()
-            end = (monday + timedelta(days=4)).isoformat()
+            end = (monday + timedelta(days=6)).isoformat()   # #310 — the payroll week is Mon-Sun
         user = current_user() or {}
         conn = db()
         try:

@@ -20,6 +20,24 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #310 — The payroll week is Monday through Sunday (Bookore, 2026-09-18 — production hotfix)
+
+Shipped to production ahead of the preprod stack because weekend payroll could not
+wait: crews now work weekends and the Labor Rate Tracker / Hours Log only showed
+Mon–Fri. `payroll_hours.WEEK_DAYS = 7`; `week_dates()` is Mon..Sun;
+`last_completed_week()` resolves to the prior Mon..Sun from ANY day of the current
+week (Sunday included); `totals_by_day` sized from the dates. Every consumer (grid,
+CSV, PDF timesheet, per-day comp overlay) iterates `dates`, so weekend hours are
+counted, totalled and priced like any other day. The sign-in/DCR divergence and
+reconcile windows for a `week_start` run Mon..Sun. Console: seven day labels
+(EN + ES), range labels end on Sunday, LRT colgroup sized from the dates, Sat/Sun
+headers tinted; **"Full week" still fills Mon–Fri only** — weekend hours are entered
+on purpose. Fixture: `apply_assignments_schema.py` joins `LEGACY_MIGRATIONS`
+(`project_assignments` was missing on every fixture DB). Test:
+`tests/smoke_payroll_week_310.py` (+ the shared `tests/_isolated_db.py` helper);
+`tests/smoke_weekly_hours.py` updated to the seven-day contract. The same change is
+on preprod as PR #25 and comes back with the full release.
+
 ### #301 — self-service password reset + password visibility (Bookore, 2026-09-08)
 
 The sign-in page's "Forgot password?" now works end to end and the eye toggle

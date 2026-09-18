@@ -60,10 +60,10 @@ sys.path.insert(0, str(D))
 import db_layer  # noqa: E402  # #260 — route DB access through the env-driven layer (SSC_DB_URL)
 from payroll_hours import last_completed_week, compute_worked_hours  # noqa: E402
 
-_mon, _fri = last_completed_week(date.today())
+_mon, _sun = last_completed_week(date.today())   # #310 — Mon..Sun
 WEEK_START = _mon.isoformat()
-WEEK_END = _fri.isoformat()
-WEEK_DATES = [(_mon + timedelta(days=i)).isoformat() for i in range(5)]
+WEEK_END = _sun.isoformat()
+WEEK_DATES = [(_mon + timedelta(days=i)).isoformat() for i in range(7)]
 
 
 def hit(method, path, body=None):
@@ -166,10 +166,18 @@ clean_test_data()
 # pure-function check, valid forever)
 from datetime import date as _date
 
-mon, fri = last_completed_week(_date(2026, 5, 20))
-expect("helper: last_completed_week(2026-05-20) -> (2026-05-11, 2026-05-15)",
-       (mon.isoformat(), fri.isoformat()) == ("2026-05-11", "2026-05-15"),
-       f"got ({mon.isoformat()}, {fri.isoformat()})")
+mon, sun = last_completed_week(_date(2026, 5, 20))   # #310 — the week is Mon..Sun
+expect("helper: last_completed_week(2026-05-20) -> (2026-05-11, 2026-05-17)",
+       (mon.isoformat(), sun.isoformat()) == ("2026-05-11", "2026-05-17"),
+       f"got ({mon.isoformat()}, {sun.isoformat()})")
+mon, sun = last_completed_week(_date(2026, 5, 24))
+expect("helper: last_completed_week(Sunday 2026-05-24) -> still the prior week (05-11..05-17)",
+       (mon.isoformat(), sun.isoformat()) == ("2026-05-11", "2026-05-17"),
+       f"got ({mon.isoformat()}, {sun.isoformat()})")
+mon, sun = last_completed_week(_date(2026, 5, 25))
+expect("helper: last_completed_week(Monday 2026-05-25) -> (2026-05-18, 2026-05-24)",
+       (mon.isoformat(), sun.isoformat()) == ("2026-05-18", "2026-05-24"),
+       f"got ({mon.isoformat()}, {sun.isoformat()})")
 expect("helper: worked_hours(07:00, 15:30) == 8.00",
        compute_worked_hours("07:00", "15:30") == 8.0)
 expect("helper: worked_hours(07:00, 12:00) == 4.50  (early leave)",
@@ -215,7 +223,7 @@ try:
     expect("GET default returns 200", s == 200)
     expect(f"default week_start == {WEEK_START}", grid.get("week_start") == WEEK_START)
     expect(f"default week_end == {WEEK_END}", grid.get("week_end") == WEEK_END)
-    expect("5 date entries (Mon-Fri)", len(grid.get("dates", [])) == 5)
+    expect("7 date entries (Mon-Sun, #310)", len(grid.get("dates", [])) == 7)
     expect("grid has workers list", isinstance(grid.get("workers"), list))
 
     # ----- Step 2: seed hours-worked math (full day + early leave + absent) -----

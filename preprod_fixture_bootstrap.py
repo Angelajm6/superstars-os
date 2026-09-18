@@ -60,6 +60,12 @@ LEGACY_MIGRATIONS = (
     "apply_project_docs_schema.py", "apply_field_photos_schema.py",
     "apply_lookahead_schema.py", "apply_auth_roles_257.py",
     "apply_is_system_258.py",
+    # #305/#310 — the roster views (v_worker_roster / v_active_workers) and the
+    # project_assignments table (the payroll worker pool) were never in this list, so a
+    # fixture DB had neither and /api/payroll/hours 500ed on it. Production and preprod
+    # already carry both; this only makes a fixture-built database match them.
+    "apply_roster_views_schema.py",
+    "apply_assignments_schema.py",
 )
 
 DUAL_BACKEND_MIGRATIONS = (
