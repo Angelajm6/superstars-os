@@ -425,6 +425,23 @@
     }
     .nav-link.active .nav-ic { color: #1E73E8; }
     .nav-link.active::before { content: none; }
+    /* #311 — ONE sidebar language across the product (mirrors shell.css: ink sidebar,
+       brand-red active pill with a white indicator, quiet hover). Markup + JS untouched;
+       the blue stays the widget accent inside the content column. */
+    .sidebar { background: #14161C; border-right: 0; }
+    .sidebar-header { border-bottom-color: rgba(255,255,255,.08); }
+    .sidebar .brand-name { color: #fff; } .sidebar .brand-sub { color: #9A9BA1; }
+    .nav-group-label { color: #6F7079; } .nav-group-label:hover { color: #C9C6BE; } .nav-chev { color: #6F7079; }
+    .nav-link { color: #C9C6BE; border-left-color: transparent; position: relative;
+                transition: background var(--ssc-t-fast, .12s) ease, color var(--ssc-t-fast, .12s) ease, transform var(--ssc-t, .18s) var(--ssc-ease, ease); }
+    .nav-link:hover { background: rgba(255,255,255,.06); color: #fff; transform: translateX(2px); }
+    .nav-ic { color: #9A9BA1; } .nav-link:hover .nav-ic { color: #fff; }
+    .nav-link.active { background: var(--brand-red, #B11E2E); color: #fff; border-left-color: transparent; transform: none; }
+    .nav-link.active .nav-ic { color: #fff; }
+    .nav-link.active::before { content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 18px; border-radius: 3px; background: #fff; transform: translateY(-50%); }
+    .sidebar-footer { border-top-color: rgba(255,255,255,.08); }
+    .sidebar .acct-name { color: #fff; } .sidebar .acct-role { color: #9A9BA1; } .sidebar .acct-chev { color: #9A9BA1; }
+    .sidebar .acct-avatar { background: var(--brand-red, #B11E2E); }
 
     /* #212 Drop Report — matches drop_report_mockup.html (brand red+black header) */
     .dr-edit { font-size:12px;font-weight:700;color:#1E73E8;text-decoration:none;white-space:nowrap; }
@@ -497,7 +514,7 @@
     /* Views Container */
     .views-container { flex: 1; overflow-y: auto; }
     .view { display: none; padding: 32px; }
-    .view.active { display: block; }
+    .view.active { display: block; animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }   /* #311 */
 
     /* #280 — the Drawing Markup view is full-bleed: the embedded v2 page brings its own
        padding, header and tokens, so the v1 32px gutter would double it. The frame owns

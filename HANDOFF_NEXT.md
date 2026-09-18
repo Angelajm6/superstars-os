@@ -21,6 +21,32 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #311 — UI coherence: one shell, one motion language (Bookore, 2026-09-18)
+
+* **Every operator page is now on the shared shell.** `admin_users.html`,
+  `admin_projects.html`, `estimating.html` and `admin_labor_rates.html` dropped their
+  one-off header rows for the same ink sidebar + top bar the Office Console and the
+  Company Portal use (`shell.css`). The sidebar markup is inline per page (no extra
+  request beyond `shell.css`); links carry `data-roles`, and a tiny inline
+  `sscNavForRole(role)` hides what the signed-in role cannot open (the server gates
+  remain the control — this is navigation hygiene, not access control). Labor Rates
+  had no shared tokens at all; it now loads `typography.css` + `widgets.css` too, its
+  local palette still applying inside the content column. Stale build stamps hidden.
+* **Project dashboard + client portal** keep their markup and JS; CSS-only re-skins
+  give them the same sidebar language (ink background, brand-red active pill with the
+  white indicator, quiet hover). The blue stays the widget accent inside content.
+* **Motion layer** (`widgets.css`, so every page has it): `ssc-rise` view/panel enter
+  (220 ms), hover lift + press sink on `.btn-primary/.btn-ghost`, card hover shadow,
+  table-row hover, focus rings, `.ssc-skel` shimmer, `.ssc-pill` variants, and a
+  `prefers-reduced-motion` switch that zeroes every duration. Console panels,
+  Company Portal views, client portal views and project-dashboard views all rise in.
+* **Shell additions** (`shell.css`): nav active indicator + hover nudge, `.ssc-user`
+  top-bar chip (name · role pill · sign out), `.ssc-page-head`, and the `.wrap`
+  rhythm so a legacy content column matches the console.
+* **Budgets**: `smoke_perf_budget_292` ceilings raised by exactly the new static
+  requests (users/projects/estimating 5→6; labor rates 6→9 + 60 KB). API sets are
+  unchanged. Design guard: logo images on the four pages declare their box.
+
 ### #310 — The payroll week is Monday through Sunday (Bookore, 2026-09-18)
 
 * **Why:** crews now work weekends; the Labor Rate Tracker / Hours Log only showed
