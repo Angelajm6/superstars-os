@@ -22,6 +22,7 @@
   #user-menu { display: flex; align-items: center; gap: 10px; }
   .cp-content { padding: 22px 28px 48px; max-width: 1360px; }
   .cp-view[hidden] { display: none !important; }
+  .cp-view:not([hidden]) { animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }   /* #311 — views rise in */
 
   /* ---- components ---- */
   .cp-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px; }

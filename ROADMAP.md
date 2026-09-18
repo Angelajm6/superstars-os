@@ -79,9 +79,11 @@ per issue into `preprod`, then a release PR into the client repo once approved.
 - **#306 Migration ledger + CI on Postgres + strict routes in CI — SHIPPED 2026-09-11.** The
   three structural fixes from the audit. The gate already runs strict; CI makes
   it run on every PR against a Postgres service.
-- **Shared shell, next four pages** (`admin_users`, `admin_projects`,
-  `estimating`, `admin_labor_rates`) so the product stops looking like four
-  products before the client-facing work begins.
+- **Shared shell, next four pages — SHIPPED to preprod 2026-09-18 (#311).**
+  `admin_users`, `admin_projects`, `estimating`, `admin_labor_rates` are on the
+  sidebar shell; the project dashboard and client portal share its sidebar
+  language; one motion layer (view enter, hover/press, skeletons, reduced-motion)
+  runs across every surface.
 
 ### Phase B — proposals to cash (October)
 

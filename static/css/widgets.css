@@ -388,3 +388,51 @@ textarea.ssc-field,
 .shc-la-mile.insp { border-color:#15a07e; }
 .shc-la-mile span { transform:rotate(-45deg); font-size:9px; display:flex; }
 .shc-la-hint { color:#8c92a0; font-size:12px; margin-top:13px; }
+
+/* ===== Motion & interaction layer (#311) — ONE vocabulary for every surface.
+   Views/panels rise in (180 ms), controls answer the pointer (hover lift, press
+   sink), loading placeholders shimmer, and everything collapses to instant when
+   the person asked their OS for reduced motion. Pages opt a view in by adding
+   `animation: ssc-rise var(--ssc-t-view) var(--ssc-ease) both` to its active
+   state; nothing here changes layout. ===== */
+:root {
+  --ssc-t-fast: .12s; --ssc-t: .18s; --ssc-t-view: .22s;
+  --ssc-ease: cubic-bezier(.2, .7, .2, 1);
+  --ssc-shadow-hover: 0 6px 18px rgba(20,22,28,.08);
+}
+@keyframes ssc-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ssc-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ssc-shimmer { from { background-position: -400px 0; } to { background-position: 400px 0; } }
+.ssc-rise { animation: ssc-rise var(--ssc-t-view) var(--ssc-ease) both; }
+.ssc-skel, .cp-skel, .lr-card-loading.skel {
+  position: relative; overflow: hidden; border-radius: 10px; min-height: 14px;
+  background: linear-gradient(90deg, #f1f2f5 0px, #f8f9fb 40%, #f1f2f5 80%) 0 0 / 800px 100%;
+  animation: ssc-shimmer 1.3s linear infinite;
+}
+.btn-primary, .btn-ghost, .btn-sm, .prp-btn, .shc-apply, .doc-open, .cp-link, .nav-tab, .ssc-nav a {
+  transition: background var(--ssc-t-fast) ease, color var(--ssc-t-fast) ease, border-color var(--ssc-t-fast) ease,
+              box-shadow var(--ssc-t) var(--ssc-ease), transform var(--ssc-t) var(--ssc-ease);
+}
+.btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(67,100,220,.28); }
+.btn-primary:active:not(:disabled) { transform: translateY(0) scale(.985); box-shadow: 0 1px 4px rgba(67,100,220,.25); }
+.btn-ghost:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--ssc-shadow-hover); }
+.btn-ghost:active:not(:disabled) { transform: translateY(0) scale(.985); box-shadow: none; }
+.ph-card, .cp-card, .shc-card, .frame, .section, .lrt-card, .prp-card {
+  transition: box-shadow var(--ssc-t) var(--ssc-ease), transform var(--ssc-t) var(--ssc-ease);
+}
+.cp-card:hover, .prp-card:hover, .frame:hover { box-shadow: var(--ssc-shadow-hover); }
+tbody tr { transition: background var(--ssc-t-fast) ease; }
+.cp-table tbody tr:hover td, table.ssc-table tbody tr:hover td { background: #f7f8fb; }
+:where(button, a, input, select, textarea, [tabindex]):focus-visible { outline: 2px solid var(--accent, #4364dc); outline-offset: 2px; border-radius: 6px; }
+.ssc-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+  background: var(--status-oat-soft, #f3f0e9); color: #6b6455; white-space: nowrap; line-height: 1.4; }
+.ssc-pill.ok { background: var(--status-complete-soft); color: var(--status-complete-deep); }
+.ssc-pill.info { background: var(--status-active-soft); color: var(--accent-ink); }
+.ssc-pill.warn { background: #FFF4E5; color: #9A5B00; }
+.ssc-pill.bad { background: var(--status-behind-soft); color: #A8382B; }
+.ssc-pill.brand { background: #fbeceb; color: var(--brand-red); }
+@media (prefers-reduced-motion: reduce) {
+  :root { --ssc-t-fast: 0s; --ssc-t: 0s; --ssc-t-view: 0s; }
+  .ssc-rise, .ssc-skel, .cp-skel { animation: none; }
+  *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; }
+}

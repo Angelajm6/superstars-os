@@ -68,7 +68,7 @@
                       padding:8px 22px; letter-spacing:.03em; }
     .content { padding:22px; max-width:1120px; width:100%; }
     .view { display:none; }
-    .view.active { display:block; }
+    .view.active { display:block; animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }   /* #311 */
     .v-head { margin:2px 0 16px; }
     .v-eyebrow { font-size:11px; color:var(--mute); text-transform:uppercase; letter-spacing:.12em; font-weight:700; }
     .v-head h1 { font-size:22px; line-height:1.25; margin-top:2px; }
@@ -108,6 +108,25 @@
     .prp-err { display:none; color:#A8382B; background:#fceeec; border-radius:8px; padding:8px 10px; font-size:12.5px; margin-top:10px; }
     .prp-err.show { display:block; }
     @media (max-width:600px) { .prp-sign .row { grid-template-columns:1fr; } .prp-price { text-align:left; } }
+    /* #311 — ONE sidebar language across the product (mirrors shell.css: ink sidebar,
+       brand-red active pill with a white indicator, quiet hover). Markup + JS untouched. */
+    .sidebar { background:#14161C; border-right:0; }
+    .sidebar-header { border-bottom-color:rgba(255,255,255,.08); }
+    .brand-name { color:#fff; } .brand-sub { color:#9A9BA1; }
+    .proj-line { border-bottom-color:rgba(255,255,255,.08); } .proj-name { color:#fff; } .proj-client { color:#9A9BA1; }
+    .nav-label { color:#6F7079; }
+    .nav-link { color:#C9C6BE; border-left-color:transparent; position:relative;
+                transition:background var(--ssc-t-fast,.12s) ease, color var(--ssc-t-fast,.12s) ease, transform var(--ssc-t,.18s) var(--ssc-ease,ease); }
+    .nav-link:hover { background:rgba(255,255,255,.06); color:#fff; transform:translateX(2px); }
+    .nav-link.active { background:var(--brand-red); color:#fff; border-left-color:transparent; transform:none; }
+    .nav-link::before { content:""; position:absolute; left:0; top:50%; width:3px; height:0; border-radius:3px; background:#fff;
+                        transform:translateY(-50%); transition:height var(--ssc-t,.18s) var(--ssc-ease,ease); }
+    .nav-link.active::before { height:18px; }
+    .sidebar-footer { border-top-color:rgba(255,255,255,.08); }
+    .acct-name { color:#fff; } .acct-role { color:#9A9BA1; }
+    .signout { color:#fff; background:transparent; border-color:rgba(255,255,255,.18); }
+    .signout:hover { border-color:#fff; }
+    @media (max-width:860px) { .sidebar { border-bottom:0; } }
 
     @media (max-width:860px) {
       .app-shell { flex-direction:column; }

@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=276">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=311">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=311">
 <script src="/files/static/js/datepicker.js?v=276"></script>
 <title>Estimating · Superstars Contracting</title>
 <!-- #276 — THE ESTIMATING WORKSPACE (blueprint Build B; bound visual reference:
@@ -106,11 +107,54 @@
 </style>
 </head>
 <body>
-<div class="top">
-  <a class="brand-home" href="/estimating" title="Estimating"><img class="mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting"></a>
-  <h1>Estimating</h1>
-  <div class="who" id="who">—</div>
-</div>
+<!-- #311 — the shared application shell (shell.css): one sidebar, one top bar, on every operator page -->
+<div class="ssc-shell">
+<aside class="ssc-side" aria-label="Office Console navigation">
+  <div class="brand">
+    <img class="brand-mark" width="34" height="34" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
+    <div><div class="brand-name">Superstars Contracting</div><div class="brand-sub">Office Console</div></div>
+  </div>
+  <nav class="ssc-nav" id="ssc-nav">
+    <div class="ssc-nav-label">Company</div>
+    <a href="/#projects" data-roles="admin,c_suite">Overview</a>
+    <a href="/company" data-roles="admin,c_suite">Company Portal</a>
+    <a href="/#crm" data-roles="admin,c_suite">CRM</a>
+    <a href="/#estimates" data-roles="admin,c_suite">Estimates</a>
+    <a href="/estimating" class="active" data-roles="admin,c_suite,estimator">Estimating queue</a>
+    <div class="ssc-nav-label">Workforce</div>
+    <a href="/#workforce" data-roles="admin,c_suite">Workforce</a>
+    <a href="/#hours" data-roles="admin,c_suite">Hours Log</a>
+    <a href="/#cert-health" data-roles="admin,c_suite">Cert Health</a>
+    <a href="/#cert-library" data-roles="admin,c_suite">Cert Library</a>
+    <a href="/admin/labor-rates" data-roles="admin,c_suite,pm">Labor Rates</a>
+    <div class="ssc-nav-label">Operations</div>
+    <a href="/admin/projects" data-roles="admin,c_suite">Projects &amp; assignments</a>
+    <a href="/#compliance" data-roles="admin,c_suite">Compliance</a>
+    <a href="/#specs" data-roles="admin,c_suite">Specs Library</a>
+    <a href="/dropplan" data-roles="admin,c_suite,pm,super">Drop Plan</a>
+    <div class="ssc-nav-label">Admin</div>
+    <a href="/admin/users" data-roles="admin,c_suite">Users &amp; roles</a>
+    <a href="/#settings" data-roles="admin,c_suite">Settings</a>
+  </nav>
+  <div class="ssc-side-foot"><a href="/projects">My projects view</a></div>
+</aside>
+<script>
+  // #311 — the sidebar shows only what THIS role can open (server gates stay the control).
+  window.sscNavForRole = function (role) {
+    var nav = document.querySelector('.ssc-side .ssc-nav'); if (!nav) return;
+    nav.querySelectorAll('a[data-roles]').forEach(function (a) { a.hidden = a.getAttribute('data-roles').split(',').indexOf(role) < 0; });
+    nav.querySelectorAll('.ssc-nav-label').forEach(function (l) {
+      var n = l.nextElementSibling, any = false;
+      while (n && !n.classList.contains('ssc-nav-label')) { if (n.tagName === 'A' && !n.hidden) any = true; n = n.nextElementSibling; }
+      l.hidden = !any;
+    });
+  };
+</script>
+<div class="ssc-main">
+<header class="ssc-top">
+  <div class="ssc-top-title"><div class="ssc-crumb">Office Console · Company</div><h1>Estimating</h1></div>
+  <div class="ssc-top-right"><div class="ssc-user" id="who">—</div></div>
+</header>
 
 <div class="wrap">
   <!-- HERO -->
@@ -450,8 +494,9 @@
 
   fetch('/api/auth/me', {credentials:'include'}).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){
     var u = j && j.data && j.data.user ? j.data.user : (j && j.data ? j.data : null);
-    if (u) q('who').innerHTML = '<b>'+esc(u.display_name||u.full_name||u.email)+'</b> · '+esc(u.role)
-      + ' <a id="signout">Sign out</a>';
+    if (u) q('who').innerHTML = '<b>'+esc(u.display_name||u.full_name||u.email)+'</b><span class="ssc-role">'+esc(u.role)
+      + '</span><a id="signout">Sign out</a>';
+    if (u && window.sscNavForRole) sscNavForRole(u.role);
     var so = q('signout');
     if (so) so.addEventListener('click', function(){
       fetch('/api/auth/logout', {method:'POST', credentials:'include'}).then(function(){ window.location.href='/login'; });
@@ -461,6 +506,9 @@
   load();
 })();
 </script>
-<div style="text-align:center;color:#9aa3ae;font-size:11px;margin:10px 0 26px;">build #277 · 2026-07-07 · Estimating workspace — walkthrough scheduling (attendee-required, stage-synced), upcoming list, iPad walkthrough reports (GPS-stripped photos)</div>
+<div hidden style="text-align:center;color:#9aa3ae;font-size:11px;margin:10px 0 26px;">build #277 · 2026-07-07 · Estimating workspace — walkthrough scheduling (attendee-required, stage-synced), upcoming list, iPad walkthrough reports (GPS-stripped photos)</div>
+
+</div><!-- /.ssc-main -->
+</div><!-- /.ssc-shell -->
 </body>
 </html>
