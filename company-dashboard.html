@@ -4612,6 +4612,13 @@ applyLanguage();
   // its tab is clicked, not on every page load (cheap enough but no
   // reason to ping the API when the panel isn't visible).
   window.LRT_loadGrid = loadGrid;
+  // #310 — the deep link (/company-dashboard.html#labor-rate) is routed by
+  // maybeActivateFromHash, deferred by ONE tick so this binding exists. On a real
+  // network the 380 KB page is still parsing when that tick fires, so the panel was
+  // shown without its loader ever being called: blank status, "—" range, the
+  // "Loading…" placeholder forever. If the panel is already active by the time this
+  // block runs, load now. (A second call from activatePanel is a harmless re-render.)
+  if ((window.location.hash || '').replace(/^#/, '').trim() === 'labor-rate') loadGrid(null);
 
   function shiftWeek(deltaDays) {
     if (!currentMonday) { loadGrid(null); return; }
