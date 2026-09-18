@@ -854,6 +854,17 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
+# #309-ops — mirror WARNING and above to stderr as well. The file under the data root
+# stays the full INFO record; the stream is what a cloud host (Render) collects, so a
+# "password reset email not sent via sendgrid" line is visible from the dashboard
+# without a shell into the disk. Guarded so a re-import (tests) adds it once.
+if not any(getattr(h, "_ssc_stream_mirror", False) for h in logging.getLogger().handlers):
+    _stream = logging.StreamHandler()   # defaults to stderr
+    _stream.setLevel(logging.WARNING)
+    _stream.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s'))
+    _stream._ssc_stream_mirror = True
+    logging.getLogger().addHandler(_stream)
+
 class _ReqConn:
     """#291 — request-scoped connection PROXY. db() hands every caller in one
     request the SAME underlying connection; a handler's .close() must not kill
