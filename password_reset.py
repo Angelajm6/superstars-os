@@ -129,7 +129,7 @@ _HTML = """\
           <td align="left" style="padding:24px 36px 0 36px;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td align="center" style="background:#B11E2E;border-radius:9px;">
+                <td align="center" style="background:#24418C;border-radius:9px;">
                   <a href="{url}" style="display:inline-block;padding:13px 26px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;letter-spacing:0.3px;color:#FFFFFF;text-decoration:none;border-radius:9px;">Choose a new password</a>
                 </td>
               </tr>

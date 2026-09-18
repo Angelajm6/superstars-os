@@ -22,8 +22,8 @@
   .ph-head h1 { font-size:24px; margin:2px 0; line-height:1.2; }
   .ph-head .ph-sub { font-size:12px; color:#B11E2E; text-transform:uppercase; letter-spacing:.1em; font-weight:700; }
   .ph-actions { display:flex; flex-wrap:wrap; gap:10px; margin:14px 0 4px; }
-  .ph-actions .ph-btn { background:#B11E2E; color:#fff; border:none; border-radius:8px; padding:9px 14px; font-size:12px; font-weight:700; letter-spacing:.03em; cursor:pointer; }
-  .ph-actions .ph-btn.ghost { background:#fff; color:#B11E2E; border:1px solid #B11E2E; }
+  .ph-actions .ph-btn { background:var(--ui); color:#fff; border:none; border-radius:8px; padding:9px 14px; font-size:12px; font-weight:700; letter-spacing:.03em; cursor:pointer; }
+  .ph-actions .ph-btn.ghost { background:#fff; color:var(--ui); border:1px solid var(--ui); }
   .ph-actions .ph-btn:hover { filter:brightness(.96); }
 
   /* KPI tiles */
@@ -94,7 +94,7 @@
   /* ===== GridStack integration (#209) — real drag + resize, per-user layouts ===== */
   .ph-gridbar { display:flex; align-items:center; gap:12px; margin:8px 0 4px; }
   .ph-reset { background:#fff; color:#54505A; border:1px solid #E8E4DD; border-radius:8px; padding:7px 12px; font-size:12px; font-weight:700; cursor:pointer; }
-  .ph-reset:hover { border-color:#B11E2E; color:#B11E2E; }
+  .ph-reset:hover { border-color:var(--ui); color:var(--ui); }
   .ph-gridbar-hint { font-size:11px; color:#76777E; }
   .grid-stack { background:transparent; }
   /* the .ph-widget card IS the visible surface; the grid item-content is just its box */
@@ -150,7 +150,7 @@
     .acct-mi { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: none; background: transparent; border-radius: 7px; cursor: pointer; text-align: left; font: inherit; font-size: 13px; color: #14161C; text-decoration: none; }
     .acct-mi:hover { background: #F5F6F8; }
     .acct-mi .nav-ic { width: 16px; height: 16px; color: #76777E; }
-    .acct-mi.acct-signout { color: #B11E2E; } .acct-mi.acct-signout .nav-ic { color: #B11E2E; }
+    .acct-mi.acct-signout { color: var(--ui); } .acct-mi.acct-signout .nav-ic { color: var(--ui); }
     .acct-mi.acct-signout:hover { background: rgba(177,30,46,.06); }
     .acct-mi:disabled { opacity: .6; cursor: not-allowed; }
     /* content corner — faint "Live · date" (Option 1) */
@@ -436,12 +436,12 @@
                 transition: background var(--ssc-t-fast, .12s) ease, color var(--ssc-t-fast, .12s) ease, transform var(--ssc-t, .18s) var(--ssc-ease, ease); }
     .nav-link:hover { background: rgba(255,255,255,.06); color: #fff; transform: translateX(2px); }
     .nav-ic { color: #9A9BA1; } .nav-link:hover .nav-ic { color: #fff; }
-    .nav-link.active { background: var(--brand-red, #B11E2E); color: #fff; border-left-color: transparent; transform: none; }
+    .nav-link.active { background: var(--ui, #24418C); color: #fff; border-left-color: transparent; transform: none; }
     .nav-link.active .nav-ic { color: #fff; }
     .nav-link.active::before { content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 18px; border-radius: 3px; background: #fff; transform: translateY(-50%); }
     .sidebar-footer { border-top-color: rgba(255,255,255,.08); }
     .sidebar .acct-name { color: #fff; } .sidebar .acct-role { color: #9A9BA1; } .sidebar .acct-chev { color: #9A9BA1; }
-    .sidebar .acct-avatar { background: var(--brand-red, #B11E2E); }
+    .sidebar .acct-avatar { background: var(--ui, #24418C); }
 
     /* #212 Drop Report — matches drop_report_mockup.html (brand red+black header) */
     .dr-edit { font-size:12px;font-weight:700;color:#1E73E8;text-decoration:none;white-space:nowrap; }
@@ -770,7 +770,7 @@
       letter-spacing: 0.05em;
     }
     .hero-btn-primary {
-      background-color: #B11E2E;
+      background-color: var(--ui);
       color: white;
     }
     .hero-btn-primary:hover {
@@ -815,7 +815,7 @@
 <!-- #211 calm-blue widget accent — applied via the SHARED widgets.css, loaded
      AFTER the inline #208 styles so the accent (blue band + inward shading + blue
      rings) wins, giving the project page + the company console one source of truth. -->
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=312">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=313">
 <script src="/files/static/js/shell.js?v=312" defer></script>
 </head>
 <body>

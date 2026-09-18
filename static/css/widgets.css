@@ -21,6 +21,7 @@
      colourway change updates brand.py + these tokens and propagates everywhere
      (UI chrome + report letterheads). The LOGO is a swappable asset (static/brand/). */
   --brand-red:#B11E2E; --brand-red-deep:#8B1623; --cream:#FAF7F1;
+  --ui:#24418C; --ui-deep:#1B3272; --ui-soft:#E8EDF8; --ui-edge:rgba(36,65,140,.35);   /* #313 — interactive accent (nav, links, primary actions); brand red = identity + errors */
   /* Lumen+Oat STATUS tokens — status meaning ONLY (never decoration) */
   --status-complete:#15a07e; --status-complete-soft:#e7f6f0;
   --status-active:#4364dc;   --status-active-soft:#ebf0fe;
@@ -116,7 +117,7 @@ textarea.ssc-field,
 /* layout controls */
 .ph-gridbar { display:flex; align-items:center; gap:12px; margin:8px 0 4px; }
 .ph-reset { background:#fff; color:#54505A; border:1px solid #E8E4DD; border-radius:8px; padding:7px 12px; font-size:12px; font-weight:700; cursor:pointer; }
-.ph-reset:hover { border-color:#B11E2E; color:#B11E2E; }
+.ph-reset:hover { border-color:var(--ui); color:var(--ui); }
 .ph-gridbar-hint { font-size:11px; color:#76777E; }
 
 /* circular ring */
@@ -142,7 +143,7 @@ textarea.ssc-field,
 .cc-active-name { font-weight:800; font-size:17px; }
 .cc-active-client { font-size:12px; color:#B11E2E; text-transform:uppercase; letter-spacing:.08em; font-weight:700; margin-top:2px; }
 .cc-active-sub { font-size:12px; color:#54505A; margin-top:6px; }
-.cc-open { display:inline-block; margin-top:10px; font-size:12px; font-weight:700; color:#B11E2E; text-decoration:none; }
+.cc-open { display:inline-block; margin-top:10px; font-size:12px; font-weight:700; color:var(--ui); text-decoration:none; }
 
 .cc-light { display:inline-flex; align-items:center; gap:8px; font-weight:700; font-size:13px; }
 .cc-dot { width:11px; height:11px; border-radius:50%; flex-shrink:0; }
@@ -160,7 +161,7 @@ textarea.ssc-field,
 
 .cc-actions { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
 .cc-action { display:block; text-align:center; background:#FCFBF8; border:1px solid #E8E4DD; border-radius:9px; padding:12px 10px; font-size:12px; font-weight:700; color:#14161C; text-decoration:none; }
-.cc-action:hover { border-color:#B11E2E; color:#B11E2E; }
+.cc-action:hover { border-color:var(--ui); color:var(--ui); }
 
 .cc-feed { display:flex; flex-direction:column; }
 .cc-feed-item { display:flex; align-items:baseline; gap:10px; padding:7px 0; border-bottom:1px solid #F2EFE7; font-size:12px; }
@@ -430,7 +431,7 @@ tbody tr { transition: background var(--ssc-t-fast) ease; }
 .ssc-pill.info { background: var(--status-active-soft); color: var(--accent-ink); }
 .ssc-pill.warn { background: #FFF4E5; color: #9A5B00; }
 .ssc-pill.bad { background: var(--status-behind-soft); color: #A8382B; }
-.ssc-pill.brand { background: #fbeceb; color: var(--brand-red); }
+.ssc-pill.brand { background: var(--ui-soft); color: var(--ui); }
 @media (prefers-reduced-motion: reduce) {
   :root { --ssc-t-fast: 0s; --ssc-t: 0s; --ssc-t-view: 0s; }
   .ssc-rise, .ssc-skel, .cp-skel { animation: none; }

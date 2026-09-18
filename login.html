@@ -7,7 +7,7 @@
 <title>Sign in · Superstars Contracting</title>
 <style>
   :root {
-    --brand-red: #B11E2E;
+    --brand-red: #B11E2E; --ui: #24418C; --ui-deep: #1B3272;
     --brand-red-deep: #8B1623;
     --ink: #14161C;
     --cream: #FAF7F1;
@@ -100,8 +100,8 @@
     transition: border-color 0.15s ease;
   }
   input[type="email"]:focus, .password-wrap input:focus {
-    border-color: var(--brand-red);
-    box-shadow: 0 0 0 3px rgba(177,30,46,0.12);
+    border-color: var(--ui);
+    box-shadow: 0 0 0 3px rgba(36,65,140,0.15);
   }
   .password-wrap { position: relative; width:100%; }
   .password-wrap input { padding-right: 48px; }
@@ -117,11 +117,11 @@
   .password-toggle svg[hidden] { display: none; }
   .password-help { display: flex; justify-content: flex-end; margin-top: 9px; }
   .forgot {
-    width: auto; margin: 0; padding: 0; color: var(--brand-red); background: transparent;
+    width: auto; margin: 0; padding: 0; color: var(--ui); background: transparent;
     font-size: 12px; font-weight: 700; letter-spacing: 0; text-decoration: underline;
     text-underline-offset: 3px;
   }
-  .forgot:hover:not(:disabled) { background: transparent; color: var(--brand-red-deep); }
+  .forgot:hover:not(:disabled) { background: transparent; color: var(--ui-deep); }
   .err {
     background: #FBEAEC;
     color: var(--bad);
@@ -143,13 +143,13 @@
     font-weight: 700;
     letter-spacing: 0.3px;
     color: white;
-    background: var(--brand-red);
+    background: var(--ui);
     border: none;
     border-radius: 9px;
     cursor: pointer;
     transition: background 0.15s ease;
   }
-  button:hover:not(:disabled) { background: var(--brand-red-deep); }
+  button:hover:not(:disabled) { background: var(--ui-deep); }
   button:disabled { opacity: 0.6; cursor: not-allowed; }
   .foot {
     margin-top: 18px;
