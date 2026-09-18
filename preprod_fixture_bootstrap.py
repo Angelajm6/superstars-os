@@ -68,6 +68,9 @@ LEGACY_MIGRATIONS = (
     # #305 — worker-intake columns (certifications.card_number & co.): the certifications
     # endpoints 500ed on every fixture DB without them.
     "apply_worker_intake_schema.py",
+    # #310 — project_assignments (the payroll worker pool) was never in this list, so a
+    # fixture DB had no assignments table and /api/payroll/hours 500ed on it.
+    "apply_assignments_schema.py",
 )
 
 DUAL_BACKEND_MIGRATIONS = (

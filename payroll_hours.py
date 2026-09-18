@@ -25,32 +25,34 @@ STANDARD_TIME_IN = "07:00"
 STANDARD_TIME_OUT = "15:30"
 
 
+WEEK_DAYS = 7   # #310 — the payroll week is Monday through Sunday (crews work weekends)
+
+
 def last_completed_week(today=None):
-    """Return (monday, friday) of the most recent Mon-Fri week that is
-    fully past relative to `today`. If today is Friday or earlier in the
-    same Mon-Fri week, returns the previous week. Payroll runs one week
-    in arrears, so this is what the weekly view defaults to.
+    """Return (monday, sunday) of the most recent Mon-Sun week that is
+    fully past relative to `today`. Any day of the current week — Sunday
+    included, the week is still in progress — resolves to the previous
+    week. Payroll runs one week in arrears, so this is what the weekly
+    view defaults to.
+
+    #310 — the week used to be Mon-Fri; the company now works weekends, so
+    Saturday and Sunday hours are payroll hours like any other day.
 
     Examples (today -> result):
-      Wed May 20, 2026 -> (May 11, May 15)  # this week not yet done
-      Fri May 22, 2026 -> (May 11, May 15)  # today is Friday — still this-week-in-progress
-      Sat May 23, 2026 -> (May 18, May 22)
-      Mon May 25, 2026 -> (May 18, May 22)
+      Wed May 20, 2026 -> (May 11, May 17)  # this week not yet done
+      Sun May 24, 2026 -> (May 11, May 17)  # Sunday is still this week
+      Mon May 25, 2026 -> (May 18, May 24)
     """
     today = today or date.today()
-    # weekday(): Mon=0, Tue=1, ..., Fri=4, Sat=5, Sun=6
-    days_since_fri = (today.weekday() + 7 - 4) % 7
-    if days_since_fri == 0:
-        # today IS a Friday — the current Mon-Fri week is not yet "completed"
-        days_since_fri = 7
-    last_fri = today - timedelta(days=days_since_fri)
-    last_mon = last_fri - timedelta(days=4)
-    return last_mon, last_fri
+    # weekday(): Mon=0 ... Sun=6 — this week's Monday, then step back one week.
+    this_mon = today - timedelta(days=today.weekday())
+    last_mon = this_mon - timedelta(days=7)
+    return last_mon, last_mon + timedelta(days=WEEK_DAYS - 1)
 
 
 def week_dates(monday):
-    """Return the 5 weekday dates Mon..Fri starting from `monday`."""
-    return [monday + timedelta(days=i) for i in range(5)]
+    """Return the 7 dates Mon..Sun starting from `monday` (#310)."""
+    return [monday + timedelta(days=i) for i in range(WEEK_DAYS)]
 
 
 def _parse_hhmm(s):
@@ -104,8 +106,8 @@ def build_week_grid(conn, monday):
     Returns dict:
       {
         "week_start": "YYYY-MM-DD" (monday),
-        "week_end":   "YYYY-MM-DD" (friday),
-        "dates":      ["YYYY-MM-DD"] * 5 (Mon..Fri),
+        "week_end":   "YYYY-MM-DD" (sunday — #310),
+        "dates":      ["YYYY-MM-DD"] * 7 (Mon..Sun),
         "workers": [
           {"employee_id": "E-00001", "name": "...", "trade": "...",
            "days": [{"date": "...", "sign_in_id": int|None,
@@ -175,7 +177,7 @@ def build_week_grid(conn, monday):
         by_emp_day.setdefault(key, []).append(r)
 
     grid_workers = []
-    totals_by_day = [0.0] * 5
+    totals_by_day = [0.0] * len(date_strs)
     grand_total = 0.0
     roster_active_count = 0
     no_signin_count = 0
