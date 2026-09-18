@@ -86,7 +86,7 @@
     <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Last login</th><th style="text-align:right;">Actions</th></tr></thead>
     <tbody id="rows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
   </table>
-  <div style="text-align:center;color:var(--muted);font-size:11px;letter-spacing:.04em;margin-top:24px;padding-top:14px;border-top:1px solid var(--line);">build #268 · 2026-06-30 · Create-user dropdown offers Client (external — forced first-login reset → welcome hard-stop until access is granted); admin stays non-creatable (single-admin invariant)</div>
+  <div style="text-align:center;color:var(--muted);font-size:11px;letter-spacing:.04em;margin-top:24px;padding-top:14px;border-top:1px solid var(--line);">build #309 · 2026-09-18 · C-suite can issue a one-time password for client accounts; creating accounts, roles and deactivation stay with the single admin</div>
 </div>
 
 <!-- Create-user modal -->
@@ -164,6 +164,7 @@
   function clearErr(){$('err-bar').className='err-bar';}
   function fmtDate(iso){if(!iso)return '—';var m=String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?(m[2]+'/'+m[3]+'/'+m[1]):'—';}
 
+  var LIMITED=false;   // #309 — c_suite: reset-only view of client accounts
   function rowHtml(u){
     var isMe=ME&&ME.id===u.id;
     var isAdmin=u.role==='admin';
@@ -174,6 +175,8 @@
     if(isAdmin){
       // Admin rows are managed out-of-band (single-admin invariant). No UI actions.
       acts='<span class="muted" style="font-size:11.5px;">'+(isMe?'you · admin':'admin')+'</span>';
+    } else if(LIMITED){
+      acts+='<button class="btn-sm" type="button" data-reset="'+u.id+'">Reset password</button>';
     } else {
       acts+='<button class="btn-sm" type="button" data-role="'+u.id+'">Change role</button>';
       acts+='<button class="btn-sm" type="button" data-reset="'+u.id+'">Reset password</button>';
@@ -187,7 +190,7 @@
 
   function render(){
     var tb=$('rows');
-    if(!USERS.length){tb.innerHTML='<tr><td colspan="5" class="empty">No users yet.</td></tr>';return;}
+    if(!USERS.length){tb.innerHTML='<tr><td colspan="5" class="empty">'+(LIMITED?'No client accounts yet.':'No users yet.')+'</td></tr>';return;}
     tb.innerHTML=USERS.map(rowHtml).join('');
   }
 
@@ -198,7 +201,13 @@
     if(!ME){location.href='/login?next=/admin/users';return;}
     $('who').innerHTML='<b>'+esc(ME.display_name||ME.full_name||ME.email)+'</b> · '+esc(ROLE_LABEL[ME.role]||ME.role)+' <a id="signout">Sign out</a>';
     $('signout').addEventListener('click',function(){fetch('/api/auth/logout',{method:'POST',credentials:'include'}).then(function(){location.href='/login';});});
-    if(ME.role!=='admin'){document.querySelector('.wrap').innerHTML='<div class="empty">Admins only.</div>';return;}
+    LIMITED=(ME.role==='c_suite');
+    if(ME.role!=='admin'&&!LIMITED){document.querySelector('.wrap').innerHTML='<div class="empty">Admins only.</div>';return;}
+    if(LIMITED){
+      $('new-user-btn').style.display='none';   // the button's own display rule beats the hidden attribute
+      document.querySelector('.head-row h2').textContent='Client accounts';
+      document.querySelector('.head-row .sub').textContent='A client who is locked out can get a new one-time password here. Creating accounts and changing roles stay with the admin.';
+    }
     var r=await jget('/api/admin/users');
     if(!r.ok){showErr((r.j&&r.j.error)||'Could not load users.');return;}
     USERS=(r.j&&r.j.data)||[];
