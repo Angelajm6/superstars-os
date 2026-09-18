@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Superstars Contracting — Project Portal</title>
   <link rel="stylesheet" href="/files/static/fonts/typography.css">
-  <link rel="stylesheet" href="/files/static/css/widgets.css?v=313">
+  <link rel="stylesheet" href="/files/static/css/widgets.css?v=314">
   <script src="/files/static/js/shell.js?v=312" defer></script>
   <script src="/files/static/vendor/chart.umd.min.js"></script>
   <!-- #286 — the REAL grid engine, the same shared assets the internal dashboards
@@ -70,13 +70,15 @@
     .content { padding:22px; max-width:1120px; width:100%; }
     .view { display:none; }
     .view.active { display:block; animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }   /* #311 */
-    .v-head { margin:2px 0 16px; }
+    .v-head { margin:2px 0 16px; position:relative; overflow:hidden; padding:16px 18px; border:1px solid var(--hairline); border-radius:12px;
+              background:radial-gradient(520px 170px at 14% 0%, rgba(67,100,220,.14) 0%, rgba(255,255,255,0) 60%), #fff; }   /* #314 hero band */
+    .v-head::before { content:""; position:absolute; left:0; right:0; top:0; height:3px; background:linear-gradient(90deg, #4364dc, #ebf0fe); }
     .v-eyebrow { font-size:11px; color:var(--mute); text-transform:uppercase; letter-spacing:.12em; font-weight:700; }
     .v-head h1 { font-size:22px; line-height:1.25; margin-top:2px; }
     .loading { color:var(--mute); font-size:13px; padding:10px 0; }
 
     /* documents (unchanged this build — local look) */
-    .doc-row { display:flex; align-items:center; gap:14px; padding:12px 4px;
+    .doc-row { display:flex; align-items:center; gap:14px; padding:12px 10px;
                border-bottom:1px solid #F2EFE7; }
     .doc-main { min-width:0; flex:1; }
     .doc-title { font-size:13.5px; font-weight:700; }

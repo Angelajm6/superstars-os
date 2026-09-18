@@ -534,8 +534,11 @@
 
     /* Common Styles */
     .hero {
-      background-color: #FAF7F1;
+      position: relative;                                   /* #314 — the LRT blue wash + accent bar */
+      background: radial-gradient(520px 170px at 14% 0%, rgba(67,100,220,.14) 0%, rgba(255,255,255,0) 60%), #FAF7F1;
       padding: 24px 0 0 0;
+      border-top: 3px solid transparent;
+      border-image: linear-gradient(90deg, #4364dc, #ebf0fe) 1;
       border-bottom: 1px solid #E8E4DD;
       margin-bottom: 24px;
     }
@@ -815,7 +818,7 @@
 <!-- #211 calm-blue widget accent — applied via the SHARED widgets.css, loaded
      AFTER the inline #208 styles so the accent (blue band + inward shading + blue
      rings) wins, giving the project page + the company console one source of truth. -->
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=313">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=314">
 <script src="/files/static/js/shell.js?v=312" defer></script>
 </head>
 <body>
