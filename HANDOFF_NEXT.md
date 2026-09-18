@@ -21,6 +21,20 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #312 — Collapsible menu at phone width (Bookore, 2026-09-18)
+
+* Below 860 px every sidebar is a compact brand bar with a **Menu** button; the nav
+  and footer stay hidden until tapped, rise in, and close on a nav tap, Escape, or
+  when the window widens. `static/js/shell.js` (one small deferred script, loaded by
+  all eight sidebar surfaces) creates the button and toggles `.nav-open`; it handles
+  both families — the shell (`aside.ssc-side` + `.brand`) and the project dashboard /
+  client portal (`.sidebar` + `.sidebar-header`) — without touching their markup.
+* Styles: `.ssc-menu-btn` + the `.sidebar` phone rules in `widgets.css`; the shell's
+  phone block in `shell.css` replaced the old wrapping strip. The project dashboard's
+  own sidebar breakpoint moved from 768 to 860 px to match.
+* Budgets: +1 static request per surface, all inside the existing ceilings (no
+  changes to `smoke_perf_budget_292`).
+
 ### #311 — UI coherence: one shell, one motion language (Bookore, 2026-09-18)
 
 * **Every operator page is now on the shared shell.** `admin_users.html`,

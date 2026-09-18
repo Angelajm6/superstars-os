@@ -793,9 +793,13 @@
       .kpi-strip { grid-template-columns: repeat(4, 1fr); }
       .hero-stats { grid-template-columns: repeat(2, 1fr); }
     }
-    @media (max-width: 768px) {
+    /* #312 — the sidebar collapses at 860px, the same breakpoint as the shared menu
+       (widgets.css / shell.js); the rest of this block keeps its 768px rules. */
+    @media (max-width: 860px) {
       .app-shell { flex-direction: column; }
-      .sidebar { width: 100%; height: auto; position: static; }
+      .sidebar { width: 100%; height: auto; }
+    }
+    @media (max-width: 768px) {
       .kpi-strip { grid-template-columns: repeat(2, 1fr); }
       .hero-stats { grid-template-columns: 1fr; }
       .hero-meta { grid-template-columns: 1fr; }
@@ -811,7 +815,8 @@
 <!-- #211 calm-blue widget accent — applied via the SHARED widgets.css, loaded
      AFTER the inline #208 styles so the accent (blue band + inward shading + blue
      rings) wins, giving the project page + the company console one source of truth. -->
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=272">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=312">
+<script src="/files/static/js/shell.js?v=312" defer></script>
 </head>
 <body>
 <!-- #281 — ONE source for the project code, filled server-side from the URL.

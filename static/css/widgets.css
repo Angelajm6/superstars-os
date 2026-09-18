@@ -436,3 +436,25 @@ tbody tr { transition: background var(--ssc-t-fast) ease; }
   .ssc-rise, .ssc-skel, .cp-skel { animation: none; }
   *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; }
 }
+
+/* ===== #312 — collapsible menu at phone width (button + open/closed rules for
+   the two sidebar families; shell.js creates the button and toggles .nav-open).
+   Desktop is untouched: the button does not exist above 860 px. ===== */
+.ssc-menu-btn { display: none; margin-left: auto; align-items: center; gap: 8px; font: inherit; font-size: 12px; font-weight: 700;
+  letter-spacing: .3px; color: #fff; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); border-radius: 9px;
+  padding: 7px 11px; cursor: pointer; transition: background var(--ssc-t-fast, .12s) ease, border-color var(--ssc-t-fast, .12s) ease; }
+.ssc-menu-btn:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.4); }
+.ssc-menu-bars { display: inline-flex; flex-direction: column; gap: 3px; width: 14px; }
+.ssc-menu-bars i { display: block; height: 2px; border-radius: 2px; background: currentColor; transition: transform var(--ssc-t, .18s) var(--ssc-ease, ease), opacity var(--ssc-t, .18s) ease; transform-origin: center; }
+[aria-expanded="true"] .ssc-menu-bars i:nth-child(1) { transform: translateY(5px) rotate(45deg); }
+[aria-expanded="true"] .ssc-menu-bars i:nth-child(2) { opacity: 0; }
+[aria-expanded="true"] .ssc-menu-bars i:nth-child(3) { transform: translateY(-5px) rotate(-45deg); }
+@media (max-width: 860px) {
+  .ssc-menu-btn { display: inline-flex; }
+  /* project dashboard + client portal (.sidebar family): compact bar, menu slides in */
+  .sidebar { width: 100%; height: auto; position: sticky; top: 0; z-index: 6; padding: 10px 12px; }
+  .sidebar .sidebar-header { padding: 4px 6px 8px; margin-bottom: 0; border-bottom: 0; }
+  .sidebar .nav, .sidebar .proj-line, .sidebar .sidebar-grow, .sidebar .sidebar-footer, .sidebar .nav-group { display: none; }
+  .sidebar.nav-open .nav, .sidebar.nav-open .proj-line, .sidebar.nav-open .sidebar-footer, .sidebar.nav-open .nav-group { display: block; animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }
+  .sidebar.nav-open .nav { display: flex; flex-direction: column; }
+}
