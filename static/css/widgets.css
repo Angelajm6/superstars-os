@@ -459,3 +459,37 @@ tbody tr { transition: background var(--ssc-t-fast) ease; }
   .sidebar.nav-open .nav, .sidebar.nav-open .proj-line, .sidebar.nav-open .sidebar-footer, .sidebar.nav-open .nav-group { display: block; animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }
   .sidebar.nav-open .nav { display: flex; flex-direction: column; }
 }
+
+/* ===== #314 — the production Labor Rate Tracker look, shared: a 3px accent bar +
+   a soft blue wash fading to white on hero areas (.ssc-hero), the calm-blue inward
+   vignette on KPI tiles (.ssc-tile), and three hover behaviours — lift for tiles and
+   cards, edge for link rows, tint for table rows. Pages opt in by class or by the
+   selector lists below. ===== */
+.ssc-hero { position: relative; background: radial-gradient(520px 170px at 14% 0%, var(--accent-in) 0%, rgba(255,255,255,0) 60%), #fff; }
+.ssc-hero::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; border-radius: inherit; border-bottom-left-radius: 0; border-bottom-right-radius: 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent-soft)); }
+.ssc-tile { border-color: var(--accent-edge); box-shadow: inset 0 0 12px var(--accent-in), 0 1px 4px rgba(0,0,0,.04); }
+
+/* lift: tiles + cards that open something */
+.hv-lift, .cp-kpis .cp-kpi, .prp-card, .pm-card, .shc-tile, .kpis .tile, .project-card {
+  transition: transform var(--ssc-t, .18s) var(--ssc-ease, ease), box-shadow var(--ssc-t, .18s) var(--ssc-ease, ease), border-color var(--ssc-t-fast, .12s) ease; }
+.hv-lift:hover, .cp-kpis .cp-kpi:hover, .prp-card:hover, .pm-card:hover, .shc-tile:hover, .kpis .tile:hover, .project-card:hover {
+  transform: translateY(-2px); box-shadow: 0 10px 28px rgba(20,22,28,.10), 0 2px 6px rgba(20,22,28,.06); }
+.hv-lift:active, .cp-kpis .cp-kpi:active, .prp-card:active, .pm-card:active { transform: translateY(0) scale(.995); }
+
+/* edge: rows that are links or pickers */
+.hv-edge, .cp-list li:has(a), .doc-row { position: relative; border-radius: 8px;
+  transition: background-color var(--ssc-t-fast, .12s) ease, border-color var(--ssc-t-fast, .12s) ease; }
+.hv-edge::before, .cp-list li:has(a)::before, .doc-row::before { content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 0; border-radius: 3px;
+  background: var(--ui, #24418C); transform: translateY(-50%); transition: height var(--ssc-t, .18s) var(--ssc-ease, ease); }
+.hv-edge:hover, .cp-list li:has(a):hover, .doc-row:hover { background-color: var(--ui-soft, #E8EDF8); }
+.hv-edge:hover::before, .cp-list li:has(a):hover::before, .doc-row:hover::before { height: 60%; }
+
+/* tint: dense table rows (no movement) */
+.hv-fill:hover td, #lrt-grid tbody tr:hover td, #hrs-table tbody tr:hover td, .shc-dcr-table tbody tr:hover td,
+.ssc-main > .wrap table tbody tr:hover td, .cp-table tbody tr:hover td { background-color: var(--ui-soft, #E8EDF8); }
+
+@media (hover: none) {
+  .hv-lift:hover, .cp-kpis .cp-kpi:hover, .prp-card:hover, .pm-card:hover, .shc-tile:hover, .kpis .tile:hover, .project-card:hover { transform: none; box-shadow: none; }
+  .hv-edge:hover::before, .cp-list li:has(a):hover::before, .doc-row:hover::before { height: 0; }
+}

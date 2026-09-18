@@ -111,3 +111,11 @@
 /* content column for pages that keep a legacy .wrap: same rhythm as the console */
 .ssc-main > .wrap { max-width: 1160px; margin: 0; padding: 22px 28px 48px; animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }
 @media (max-width: 860px) { .ssc-main > .wrap { padding: 16px; } }
+
+/* ===== #314 — page heads on the converted admin pages become hero bands (the LRT
+   gradient), so the first thing on every page reads the same. ===== */
+.ssc-main > .wrap > .head-row, .ssc-main > .wrap > section:first-of-type > .head-row {
+  position: relative; background: radial-gradient(520px 170px at 14% 0%, var(--accent-in, rgba(67,100,220,.14)) 0%, rgba(255,255,255,0) 60%), #fff;
+  border: 1px solid var(--line, #eceef3); border-radius: 14px; padding: 18px 20px; margin-bottom: 18px; overflow: hidden; }
+.ssc-main > .wrap > .head-row::before, .ssc-main > .wrap > section:first-of-type > .head-row::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: linear-gradient(90deg, var(--accent, #4364dc), var(--accent-soft, #ebf0fe)); }

@@ -21,6 +21,30 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #314 — Gradients and clean hovers on every surface (Bookore, 2026-09-18)
+
+* **Ask (Angela, 2026-09-18):** the production Labor Rate Tracker hero (3px accent
+  bar + a soft blue radial wash fading to white) is the look to carry everywhere,
+  plus the three hover behaviours from the CSS options reviewed the same day.
+* **Shared classes in `widgets.css`:** `.ssc-hero` (wash + bar), `.ssc-tile`
+  (calm-blue inward vignette, same recipe as `.ph-tile` / `.shc-tile`), and the
+  hover set — **lift** (`.hv-lift`: -2px translate + layered shadow) for tiles and
+  cards, **edge** (`.hv-edge`: 3px `--ui` indicator growing to 60% + `--ui-soft`
+  tint) for link rows, **tint** (`.hv-fill`: `--ui-soft` cell background, no
+  movement) for dense table rows. Selector lists opt existing markup in without
+  touching HTML: `.cp-kpi`, `.prp-card`, `.pm-card`, `.shc-tile`, `.kpis .tile`,
+  `.project-card` lift; `.cp-list li:has(a)` and `.doc-row` edge; `#lrt-grid`,
+  `#hrs-table`, `.shc-dcr-table`, `.cp-table` and the admin `.wrap table` rows
+  tint. `@media (hover:none)` removes lift/edge on touch; reduced-motion already
+  zeroes the motion tokens.
+* **Hero bands applied:** Company Portal first card per view (`.cp-view` rules) +
+  KPI vignette; client portal `.v-head`; the admin `.head-row` on Users / Projects
+  (`shell.css`); Labor Rates `#lr-admin-only` frame + its KPI tiles; Estimating
+  `.hero`; project dashboard `.hero` (wash over the cream band, gradient top
+  border). LRT itself is unchanged. Cache versions bumped to `?v=314`.
+* **Verified:** browser on all seven surfaces; CI gate 16/16; perf budget 41/42
+  (the one failure is the known local `/api/weather` 400 — macOS SSL).
+
 ### #313 — Interactive accent moves from brand red to a dark blue (Bookore, 2026-09-18)
 
 * **Decision (Angela, 2026-09-18):** navigation and interactive accents are a dark
