@@ -21,6 +21,16 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Ops — warnings mirrored to the host log stream (Bookore, 2026-09-18)
+
+`server.py` logging: the file under the data root (`/var/data/server.log` on Render)
+remains the full INFO record; WARNING and above are now ALSO written to stderr, which
+Render collects into the service's Logs tab. Motivation: a customer's password-reset
+email never arrived and the only record ("password reset email not sent via
+sendgrid …" or "delivery failed") lived on the disk, unreadable without a shell.
+From this build, Render's log search for `password reset` answers it. No new data
+leaves the building: the warnings never carry an email address (PII rule).
+
 ### #308 — The client's Proposals tab (Bookore, 2026-09-15)
 
 The C-suite's "store proposals in the client's view" — the #307 rows, projected for
