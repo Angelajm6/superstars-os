@@ -21,6 +21,31 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #310 — The payroll week is Monday through Sunday (Bookore, 2026-09-18)
+
+* **Why:** crews now work weekends; the Labor Rate Tracker / Hours Log only showed
+  Mon–Fri, so Saturday and Sunday hours had nowhere to be logged or paid.
+* **`payroll_hours.py`:** `WEEK_DAYS = 7`; `week_dates()` returns Mon..Sun;
+  `last_completed_week()` resolves to the prior Mon..Sun from ANY day of the
+  current week (Sunday included — the week is still in progress); `totals_by_day`
+  sized from the dates. `build_week_grid` is otherwise unchanged: every consumer
+  (grid, CSV, PDF timesheet, comp overlay) iterates `dates`, so weekend hours are
+  counted, totalled and priced at the per-day rate like any other day.
+* **`server.py`:** the sign-in/DCR divergence + reconcile windows for a `week_start`
+  now run Monday..Sunday (were Mon..Fri). Docstrings updated.
+* **`company-dashboard.html`:** day labels are seven (EN + ES), both week-range
+  labels end on Sunday, the LRT colgroup is sized from the dates, Sat/Sun header
+  cells are tinted (`.lrt-weekend`; Hours Log shows a small WEEKEND caption) and
+  edit exactly like weekdays. **"Full week" still fills Mon–Fri only** — weekend
+  hours are entered on purpose, cell by cell or with that day's "All full day".
+* **Untouched by design:** the weekly summary report keeps its own Mon..Sun date
+  list; the look-ahead's working-day math (Mon–Fri) is a schedule concern, not
+  payroll.
+* **Tests:** `tests/smoke_payroll_week_310.py` (both gates; boots `server.app`) —
+  helpers, 7-day grid with weekend hours counted + priced, default week, CSV
+  columns, divergence window, non-Monday 400. `tests/smoke_weekly_hours.py`
+  updated to the seven-day contract (operator gate).
+
 ### #309 — C-suite can reset a client's password; strong-password suggester (Bookore, 2026-09-18)
 
 * **Why:** a customer was locked out and the only account able to issue a one-time
