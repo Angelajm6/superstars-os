@@ -40,6 +40,7 @@ from flask import jsonify, request, send_file
 
 import db_layer
 from auth import SCRIPT_DIR, current_user, requires_section
+import invoices
 from payroll_hours import compute_worked_hours
 
 log = logging.getLogger(__name__)
@@ -302,8 +303,21 @@ def overview(conn, today: Optional[date] = None) -> dict:
         "receivables": {"open_jobs": int(receivables.get("n") or 0),
                         "open_value": round(_num(receivables.get("v")), 2),
                         "awaiting_deposit": int(receivables.get("no_deposit") or 0)},
+        "invoices": _safe_invoice_summary(conn, today),   # #315
         "expiring": expiring,
     }
+
+
+def _safe_invoice_summary(conn, today) -> dict:
+    """#315 — a fresh preprod DB may not have the invoice tables yet; never break the overview."""
+    try:
+        return invoices.receivables_summary(conn, today=today)
+    except Exception as e:
+        log.info("#315 invoice summary unavailable: %s", e)
+        return {"available": False, "open_count": 0, "open_value": 0, "overdue_count": 0, "overdue_value": 0,
+                "due_soon_count": 0, "due_soon_value": 0, "horizon_days": 30, "awaiting_deposit_count": 0,
+                "awaiting_deposit_value": 0, "draft_count": 0, "draft_value": 0,
+                "collected_ytd_count": 0, "collected_ytd_value": 0}
 
 
 # ============================ clients ============================
@@ -485,10 +499,20 @@ def finance(conn, *, months: int = 12, today: Optional[date] = None) -> dict:
         "spend_by_project": by_project,
         "pipeline_by_status": pipeline,
         "receivables": receivables,
+        "invoices": _safe_invoice_list(conn, today),          # #315
+        "invoice_summary": _safe_invoice_summary(conn, today),
         "quickbooks": {"receipts_synced": int(qb.get("synced") or 0), "receipts_total": int(qb.get("total") or 0)},
         "labor_last_30_days": labor,
         "subscriptions": subscriptions(conn, today=today),
     }
+
+
+def _safe_invoice_list(conn, today) -> list:
+    try:
+        return invoices.list_invoices(conn, limit=300, today=today)
+    except Exception as e:
+        log.info("#315 invoice list unavailable: %s", e)
+        return []
 
 
 def subscriptions(conn, today: Optional[date] = None) -> dict:

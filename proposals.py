@@ -870,10 +870,18 @@ def _on_signed(conn, r: dict) -> None:
                                f"The COI is required before work starts.",
                         due_date=due_coi, priority="high", function_tag="sales")
         if r.get("deposit_amount"):
+            inv = None
+            try:
+                import invoices
+                inv = invoices.create_from_proposal(conn, r)   # #315: the deposit invoice is drafted here
+            except Exception as e:
+                log.warning("#315 deposit invoice not drafted for %s: %s", r.get("number"), e)
+            where = (f"Draft invoice {inv['number']} is waiting under Company Portal → Finance → Receivables; issue it there."
+                     if inv else "Create the deposit invoice under Company Portal → Finance → Receivables.")
             crm.create_task(conn, title=f"Issue deposit invoice {_money(r['deposit_amount'])} — {label}",
                             entity_type="organization", entity_id=r["client_org_id"],
                             detail=f"Deposit of {'%g' % float(r.get('deposit_pct') or 0)}% on proposal {r['number']} "
-                                   f"({_money(r.get('price'))}). QuickBooks invoice (#309).",
+                                   f"({_money(r.get('price'))}). {where}",
                             due_date=(_today() + timedelta(days=2)).isoformat(), priority="high", function_tag="sales")
     except Exception as e:
         log.warning("#307 follow-up tasks not created: %s", e)

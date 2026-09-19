@@ -86,6 +86,7 @@ DUAL_BACKEND_MIGRATIONS = (
     "apply_hours_edit_295.py", "apply_worker_session_security_296.py",
     "apply_buildings_304.py",
     "apply_proposals_307.py",
+    "apply_invoices_315.py",
 )
 
 

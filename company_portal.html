@@ -266,9 +266,21 @@
             <div class="cp-table-wrap"><table class="cp-table" id="fin-proj"></table></div>
           </div>
         </div>
+        <div class="cp-card" id="fin-inv-card">
+          <div class="cp-card-head"><h2>Receivables — invoices</h2><span class="hint">what needs to get paid · deposits draft themselves when a proposal is signed</span></div>
+          <div class="cp-kpis" id="inv-kpis" style="margin-bottom:12px"></div>
+          <div class="cp-toolbar">
+            <input class="cp-input search" id="inv-search" placeholder="Search number, client, project or description…" autocomplete="off">
+            <select class="cp-select" id="inv-status"><option value="">All statuses</option><option value="issued">Open (issued)</option><option value="overdue">Overdue</option><option value="draft">Draft</option><option value="paid">Paid</option><option value="void">Void</option></select>
+            <select class="cp-select" id="inv-kind"><option value="">All kinds</option><option value="deposit">Deposit</option><option value="progress">Progress</option><option value="final">Final</option><option value="change_order">Change order</option><option value="other">Other</option></select>
+            <span style="flex:1"></span>
+            <button class="btn-primary btn-sm" id="inv-new" type="button">+ New invoice</button>
+          </div>
+          <div class="cp-table-wrap"><table class="cp-table" id="inv-table"></table></div>
+        </div>
         <div class="cp-grid2">
           <div class="cp-card">
-            <div class="cp-card-head"><h2>Receivables (IRA jobs)</h2><span class="hint">deposit + balance status per job</span></div>
+            <div class="cp-card-head"><h2>IRA job deposits</h2><span class="hint">deposit + balance status per rope-access job</span></div>
             <div class="cp-table-wrap"><table class="cp-table" id="fin-recv"></table></div>
           </div>
           <div class="cp-card">
@@ -366,6 +378,45 @@
     </div>
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-sign-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-sign-go">Mark signed</button></div>
   </form>
+</div>
+
+<!-- invoice modals (#315) -->
+<div class="cp-overlay" id="inv-new-overlay" role="dialog" aria-modal="true" aria-labelledby="inv-new-title">
+  <form class="cp-modal" id="inv-new-form" novalidate>
+    <div class="cp-modal-head"><h2 id="inv-new-title">New invoice</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Drafts do not count as receivables until you issue them. Deposit invoices draft themselves when a proposal is signed.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="inv-new-client">Client</label><select id="inv-new-client"><option value="">— choose a client —</option></select></div>
+      <div class="cp-field"><label for="inv-new-kind">Kind</label><select id="inv-new-kind"><option value="deposit">Deposit</option><option value="progress">Progress</option><option value="final">Final</option><option value="change_order">Change order</option><option value="other" selected>Other</option></select></div>
+      <div class="cp-field"><label for="inv-new-project">Project (optional)</label><select id="inv-new-project"><option value="">— none —</option></select></div>
+      <div class="cp-field"><label for="inv-new-amount">Amount (USD)</label><input id="inv-new-amount" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
+      <div class="cp-field"><label for="inv-new-retainage">Retainage held (USD)</label><input id="inv-new-retainage" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
+      <div class="cp-field"><label for="inv-new-due">Due date (optional)</label><input id="inv-new-due" type="date"></div>
+      <div class="cp-field full"><label for="inv-new-desc">Description</label><input id="inv-new-desc" placeholder="e.g. Progress billing #2 — parapet rebuild" autocomplete="off"></div>
+      <div class="cp-form-err" id="inv-new-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="inv-new-cancel">Cancel</button><button class="btn-primary" type="submit" id="inv-new-go">Create draft</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="inv-pay-overlay" role="dialog" aria-modal="true" aria-labelledby="inv-pay-title">
+  <form class="cp-modal" id="inv-pay-form" novalidate>
+    <div class="cp-modal-head"><h2 id="inv-pay-title">Record a payment</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="inv-pay-sub"></p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="inv-pay-amount">Amount received (USD)</label><input id="inv-pay-amount" inputmode="decimal" autocomplete="off"></div>
+      <div class="cp-field"><label for="inv-pay-date">Received on</label><input id="inv-pay-date" type="date"></div>
+      <div class="cp-field"><label for="inv-pay-method">Method</label><select id="inv-pay-method"><option value="">—</option><option value="check">Check</option><option value="ach">ACH</option><option value="wire">Wire</option><option value="card">Card</option><option value="cash">Cash</option><option value="quickbooks">QuickBooks payment</option><option value="other">Other</option></select></div>
+      <div class="cp-field"><label for="inv-pay-ref">Reference (check # etc.)</label><input id="inv-pay-ref" autocomplete="off"></div>
+      <div class="cp-field full"><label for="inv-pay-notes">Notes</label><input id="inv-pay-notes" autocomplete="off"></div>
+      <div class="cp-form-err" id="inv-pay-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="inv-pay-cancel">Cancel</button><button class="btn-primary" type="submit" id="inv-pay-go">Record payment</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="inv-view-overlay" role="dialog" aria-modal="true" aria-labelledby="inv-view-title">
+  <div class="cp-modal" id="inv-view-modal" style="max-width:640px">
+    <div class="cp-modal-head"><h2 id="inv-view-title">Invoice</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="inv-view-sub"></p></div>
+    <div class="cp-modal-body" style="display:block" id="inv-view-body"></div>
+    <div class="cp-modal-foot" id="inv-view-foot"></div>
+  </div>
 </div>
 
 <!-- building modal (#304) -->
@@ -492,13 +543,18 @@
         ['Won year to date', money2.format(d.pipeline.won_value_ytd)],
         ['Receipts this month', money2.format(d.spend.receipts_mtd)],
         ['Expense ledger this month', money2.format(d.spend.ledger_mtd)],
-        ['Open receivables (IRA jobs)', `${money2.format(d.receivables.open_value)} <span class="cp-muted">· ${d.receivables.open_jobs} open · ${d.receivables.awaiting_deposit} awaiting deposit</span>`],
+        ['Open invoices', `${money2.format(d.invoices.open_value)} <span class="cp-muted">· ${d.invoices.open_count} open${d.invoices.overdue_count ? ' · <span class="cp-pill bad">' + d.invoices.overdue_count + ' overdue</span>' : ''}</span>`],
+        ['Collected year to date', money2.format(d.invoices.collected_ytd_value)],
+        ['IRA job deposits', `${money2.format(d.receivables.open_value)} <span class="cp-muted">· ${d.receivables.open_jobs} open · ${d.receivables.awaiting_deposit} awaiting deposit</span>`],
         ['Receipts needing review', `${d.spend.receipts_needing_review}`],
       ].map(([k, v]) => `<li><span>${esc(k)}</span><strong>${v}</strong></li>`).join('');
       const att = [];
       if (d.expiring.expired) att.push([`${d.expiring.expired} expired item(s)`, '<a class="cp-link" href="#compliance">review</a>']);
       if (d.expiring.next_30) att.push([`${d.expiring.next_30} item(s) expire within 30 days`, '<a class="cp-link" href="#compliance">review</a>']);
       if (d.spend.receipts_needing_review) att.push([`${d.spend.receipts_needing_review} receipt(s) need review`, '<a class="cp-link" href="#expenses">open</a>']);
+      if (d.invoices.overdue_count) att.push([`${d.invoices.overdue_count} invoice(s) overdue · ${money2.format(d.invoices.overdue_value)}`, '<a class="cp-link" href="#finance/overdue">collect</a>']);
+      if (d.invoices.draft_count) att.push([`${d.invoices.draft_count} draft invoice(s) waiting to be issued · ${money2.format(d.invoices.draft_value)}`, '<a class="cp-link" href="#finance/draft">issue</a>']);
+      if (d.invoices.due_soon_count) att.push([`${d.invoices.due_soon_count} invoice(s) due within ${d.invoices.horizon_days} days · ${money2.format(d.invoices.due_soon_value)}`, '<a class="cp-link" href="#finance">open</a>']);
       if (d.receivables.awaiting_deposit) att.push([`${d.receivables.awaiting_deposit} job(s) awaiting deposit`, '<a class="cp-link" href="#finance">open</a>']);
       if (!d.pipeline.open_count) att.push(['No open estimates in the pipeline', '<a class="cp-link" href="/#estimates">estimates</a>']);
       $('ov-attention').innerHTML = att.length ? att.map(([k, v]) => `<li><span>${esc(k)}</span>${v}</li>`).join('') : `<li><span class="cp-muted">All clear. Nothing needs attention right now.</span></li>`;
@@ -817,6 +873,7 @@
                 ${p.status === 'declined' ? fact('Declined', `${fmtWhen(p.declined_at)}${p.decline_reason ? '<br><span class="cp-muted">' + esc(p.decline_reason) + '</span>' : ''}`) : ''}
                 ${p.superseded_by ? fact('Replaced by', `<a class="cp-link" href="#proposals/${p.superseded_by}">newer version</a>`) : ''}
                 ${p.converted_project_code ? fact('Project', `<a class="cp-link" href="/projects/${encodeURIComponent(p.converted_project_code)}">${esc(p.converted_project_code)}</a>`) : ''}
+                <li id="pr-deposit-inv" hidden></li>
               </ul>
             </div>
             <div class="cp-card"><div class="cp-card-head"><h2>Timeline</h2></div>
@@ -824,6 +881,11 @@
             </div>
           </div>
         </div>`;
+      // #315: the deposit invoice drafted by the signature
+      if (p.status === 'signed') {
+        try { const { data: inv } = await api('/invoices?proposal_id=' + p.id, null, true); const d = inv.find(i => i.kind === 'deposit' && i.status !== 'void');
+          if (d) { const li = $('pr-deposit-inv'); li.hidden = false; li.innerHTML = `<span>Deposit invoice</span><strong><a class="cp-link" href="#finance">${esc(d.number)}</a> <span class="cp-pill ${d.overdue ? 'bad' : (INV_PILL[d.status] || '')}">${esc(d.overdue ? 'overdue' : d.status)}</span> <span class="cp-muted">${money2.format(d.amount)}</span></strong>`; } } catch (e) {}
+      }
       // contact options for this client
       try {
         const { data: cd } = await api('/clients/' + p.client_org_id);
@@ -943,6 +1005,7 @@
         { key: 'balance_status', label: 'Balance', render: r => `<span class="cp-pill ${r.balance_status === 'paid' ? 'ok' : 'active'}">${esc(r.balance_status || 'open')}</span>` },
         { key: 'qb_invoice_ref', label: 'QB invoice', render: r => esc(r.qb_invoice_ref || '—') },
       ], d.receivables, { emptyTitle: 'No IRA jobs tracked', emptySub: 'Receivables come from converted rope-access estimates.' });
+      state.cache.invoices = d.invoices || []; renderInvoices(d.invoice_summary);
       const l = d.labor_last_30_days;
       $('fin-labor').innerHTML = l.by_trade.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Trade</th><th class="num">Worked hours</th><th class="num">Est. cost</th></tr></thead><tbody>${l.by_trade.map(t => `<tr><td>${esc(t.trade)}</td><td class="num">${t.hours}</td><td class="num">${money2.format(t.cost)}</td></tr>`).join('')}</tbody></table></div>${l.unrated_hours ? `<div class="cp-note">${l.unrated_hours} worked hours have no rate on file and are excluded from the cost. Set rates under Workforce &amp; Pay.</div>` : ''}` : empty('No hours logged in the last 30 days');
     } catch (e) { toast(e.message, true); $('fin-kpis').innerHTML = empty('Could not load finance', e.message); }
@@ -1102,6 +1165,122 @@
     finally { $('cd-save').disabled = false; }
   });
 
+  // ---------- INVOICES & RECEIVABLES (#315) ----------
+  const INV_PILL = { draft: '', issued: 'active', paid: 'ok', void: '' };
+  function invPill(r) { if (r.overdue) return `<span class="cp-pill bad">overdue ${r.days_overdue}d</span>`; return `<span class="cp-pill ${INV_PILL[r.status] || ''}">${esc(r.status)}</span>`; }
+  function invKind(k) { return esc(String(k || '').replace('_', ' ')); }
+  function renderInvoices(sum) {
+    const rows = state.cache.invoices || [];
+    if (sum) $('inv-kpis').innerHTML =
+      kpi('Open', money.format(sum.open_value), `${sum.open_count} issued, unpaid`) +
+      kpi('Overdue', money.format(sum.overdue_value), `${sum.overdue_count} past due`, sum.overdue_count ? 'warn' : '') +
+      kpi(`Due in ${sum.horizon_days} days`, money.format(sum.due_soon_value), `${sum.due_soon_count} invoice(s)`) +
+      kpi('Awaiting deposit', money.format(sum.awaiting_deposit_value), `${sum.awaiting_deposit_count} deposit invoice(s) open`) +
+      kpi('Drafts', money.format(sum.draft_value), `${sum.draft_count} not issued yet`) +
+      kpi('Collected YTD', money.format(sum.collected_ytd_value), `${sum.collected_ytd_count} payment(s)`, 'good');
+    const st = $('inv-status').value, kd = $('inv-kind').value, q = $('inv-search').value.trim().toLowerCase();
+    const data = rows.filter(r => (st === 'overdue' ? r.overdue : (!st || r.status === st)) && (!kd || r.kind === kd) &&
+      (!q || [r.number, r.client_name, r.project_code, r.description, r.building_address].some(v => String(v || '').toLowerCase().includes(q))));
+    table($('inv-table'), [
+      { key: 'number', label: 'Invoice', render: r => `<span class="cp-id">${esc(r.number)}</span><div class="cp-muted" style="font-size:12px">${invKind(r.kind)}${r.proposal_number ? ' · ' + esc(r.proposal_number) : ''}</div>` },
+      { key: 'client_name', label: 'Client', render: r => `${esc(r.client_name || '')}<div class="cp-muted" style="font-size:12px">${esc(r.project_code || r.building_address || '')}</div>` },
+      { key: 'description', label: 'Description', render: r => esc(r.description || '—') },
+      { key: 'amount', label: 'Amount', num: true, render: r => money2.format(r.amount) },
+      { key: 'balance', label: 'Open', num: true, render: r => r.status === 'issued' ? `<strong>${money2.format(r.balance)}</strong>` : '—' },
+      { key: 'due_at', label: 'Due', render: r => r.status === 'draft' ? '<span class="cp-muted">draft</span>' : fmtDate(r.due_at) },
+      { key: 'status', label: 'Status', render: invPill },
+    ], data, { defaultSort: { key: 'due_at', dir: 'asc' }, emptyTitle: rows.length ? 'No invoices match' : 'No invoices yet', emptySub: rows.length ? '' : 'Sign a proposal with deposit terms, or create one here.', onRow: r => openInvoice(r.id) });
+  }
+  async function reloadInvoices() {
+    try { const { data, meta } = await api('/invoices', null, true); state.cache.invoices = data; renderInvoices(meta.summary); }
+    catch (e) { toast(e.message, true); }
+  }
+  async function openInvoice(id) {
+    const body = $('inv-view-body'), foot = $('inv-view-foot'); skeleton(body, 4); foot.innerHTML = ''; $('inv-view-overlay').classList.add('open');
+    try {
+      const { data: r } = await api('/invoices/' + id, null, true);
+      $('inv-view-title').textContent = `${r.number} · ${money2.format(r.amount)}`;
+      $('inv-view-sub').innerHTML = `${invPill(r)} <span class="cp-muted">${invKind(r.kind)}${r.issued_at ? ' · issued ' + fmtDate(r.issued_at) : ' · not issued'}${r.paid_at ? ' · paid ' + fmtDate(r.paid_at) : ''}</span>`;
+      const f = (k, v) => v ? `<li><span>${esc(k)}</span><strong>${v}</strong></li>` : '';
+      body.innerHTML = `<ul class="cp-list">
+          ${f('Client', `<a class="cp-link" href="#clients/${r.client_org_id}">${esc(r.client_name || '')}</a>`)}
+          ${f('Project', r.project_code ? `${esc(r.project_code)}${r.project_name ? ' · ' + esc(r.project_name) : ''}` : '')}
+          ${f('Building', r.building_id ? `<a class="cp-link" href="#buildings/${r.building_id}">${esc(r.building_address || '')}</a>` : '')}
+          ${f('Proposal', r.proposal_id ? `<a class="cp-link" href="#proposals/${r.proposal_id}">${esc(r.proposal_number || '')}</a>` : '')}
+          ${f('Description', esc(r.description || ''))}
+          ${f('Retainage held', r.retainage ? money2.format(r.retainage) : '')}
+          ${f('Due', r.due_at ? fmtDate(r.due_at) + (r.overdue ? ` <span class="cp-pill bad">${r.days_overdue} days late</span>` : (r.days_to_due != null ? ` <span class="cp-muted">in ${r.days_to_due} days</span>` : '')) : '')}
+          ${f('Paid so far', money2.format(r.amount_paid) + (r.status === 'issued' ? ` <span class="cp-muted">· ${money2.format(r.balance)} open</span>` : ''))}
+          ${f('QuickBooks', r.qb_invoice_id ? esc(r.qb_invoice_id) + (r.qb_status ? ' · ' + esc(r.qb_status) : '') : '')}
+          ${f('Notes', esc(r.notes || '').replace(/\n/g, '<br>'))}
+        </ul>
+        ${r.payments.length ? `<div class="cp-card-head" style="margin-top:14px"><h2>Payments</h2></div><div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Received</th><th>Method</th><th>Reference</th><th class="num">Amount</th></tr></thead><tbody>${r.payments.map(p => `<tr><td>${fmtDate(p.paid_on)}</td><td>${esc(p.method || '—')}</td><td>${esc(p.reference || '—')}</td><td class="num">${money2.format(p.amount)}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
+      const btn = (id, cls, label) => `<button class="${cls}" type="button" id="${id}">${label}</button>`;
+      foot.innerHTML = btn('inv-close', 'btn-ghost', 'Close') + '<span style="flex:1"></span>' +
+        (r.status === 'draft' ? btn('inv-del', 'btn-ghost', 'Delete draft') + btn('inv-issue', 'btn-primary', 'Issue invoice') : '') +
+        (r.status === 'issued' ? btn('inv-void', 'btn-ghost', 'Void') + btn('inv-pay', 'btn-primary', 'Record payment…') : '');
+      $('inv-close').addEventListener('click', () => closeOverlay('inv-view-overlay'));
+      const after = async (msg) => { toast(msg); closeOverlay('inv-view-overlay'); await reloadInvoices(); if (state.view === 'overview') loadOverview(); };
+      if (r.status === 'draft') {
+        $('inv-issue').addEventListener('click', async () => {
+          if (!confirm(`Issue ${r.number} for ${money2.format(r.amount)}? It becomes a receivable${r.due_at ? ' due ' + fmtDate(r.due_at) : (r.kind === 'deposit' ? ' due in 7 days' : ' due in 30 days')}.`)) return;
+          try { await api('/invoices/' + r.id + '/issue', { method: 'POST', body: '{}' }, true); after(`${r.number} issued`); } catch (e) { toast(e.message, true); }
+        });
+        $('inv-del').addEventListener('click', async () => {
+          if (!confirm(`Delete draft ${r.number}?`)) return;
+          try { await api('/invoices/' + r.id, { method: 'DELETE' }, true); after('Draft deleted'); } catch (e) { toast(e.message, true); }
+        });
+      }
+      if (r.status === 'issued') {
+        $('inv-pay').addEventListener('click', () => {
+          $('inv-pay-form').dataset.id = r.id; $('inv-pay-sub').textContent = `${r.number} · ${money2.format(r.balance)} open`;
+          $('inv-pay-amount').value = r.balance.toFixed(2); dateSet($('inv-pay-date'), todayLocal()); $('inv-pay-method').value = ''; $('inv-pay-ref').value = ''; $('inv-pay-notes').value = '';
+          $('inv-pay-err').className = 'cp-form-err'; closeOverlay('inv-view-overlay'); $('inv-pay-overlay').classList.add('open'); setTimeout(() => $('inv-pay-amount').focus(), 30);
+        });
+        $('inv-void').addEventListener('click', async () => {
+          const reason = prompt(`Void ${r.number}? It stops being a receivable. Reason (optional):`); if (reason === null) return;
+          try { await api('/invoices/' + r.id + '/void', { method: 'POST', body: JSON.stringify({ reason }) }, true); after(`${r.number} voided`); } catch (e) { toast(e.message, true); }
+        });
+      }
+    } catch (e) { body.innerHTML = empty('Could not load this invoice', e.message); foot.innerHTML = '<button class="btn-ghost" type="button" onclick="document.getElementById(\'inv-view-overlay\').classList.remove(\'open\')">Close</button>'; }
+  }
+  async function openNewInvoice() {
+    $('inv-new-err').className = 'cp-form-err'; $('inv-new-amount').value = ''; $('inv-new-retainage').value = ''; $('inv-new-desc').value = ''; dateSet($('inv-new-due'), '');
+    $('inv-new-overlay').classList.add('open');
+    await clientOptions($('inv-new-client'), '');
+    const ps = $('inv-new-project');
+    try { const res = await fetch('/api/projects', { credentials: 'same-origin' }); const j = await res.json(); const list = Array.isArray(j) ? j : (j.projects || j.data || []);
+      ps.innerHTML = '<option value="">— none —</option>' + list.map(p => `<option value="${esc(p.project_code)}">${esc(p.project_code)} · ${esc(p.name || '')}</option>`).join(''); }
+    catch (e) { ps.innerHTML = '<option value="">— none —</option>'; }
+    setTimeout(() => $('inv-new-client').focus(), 30);
+  }
+  $('inv-new').addEventListener('click', openNewInvoice);
+  $('inv-new-cancel').addEventListener('click', () => closeOverlay('inv-new-overlay'));
+  $('inv-new-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('inv-new-err'); err.className = 'cp-form-err';
+    const payload = { client_org_id: $('inv-new-client').value, kind: $('inv-new-kind').value, project_code: $('inv-new-project').value || null,
+      amount: $('inv-new-amount').value.replace(/[$,]/g, ''), retainage: $('inv-new-retainage').value.replace(/[$,]/g, '') || 0,
+      due_at: dateGet($('inv-new-due')) || null, description: $('inv-new-desc').value };
+    if (!payload.client_org_id) { err.textContent = 'Choose a client.'; err.className = 'cp-form-err show'; return; }
+    $('inv-new-go').disabled = true;
+    try { const { data } = await api('/invoices', { method: 'POST', body: JSON.stringify(payload) }, true); closeOverlay('inv-new-overlay'); toast(`Draft ${data.number} created`); await reloadInvoices(); openInvoice(data.id); }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('inv-new-go').disabled = false; }
+  });
+  $('inv-pay-cancel').addEventListener('click', () => closeOverlay('inv-pay-overlay'));
+  $('inv-pay-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('inv-pay-err'); err.className = 'cp-form-err'; const id = $('inv-pay-form').dataset.id;
+    const payload = { amount: $('inv-pay-amount').value.replace(/[$,]/g, ''), paid_on: dateGet($('inv-pay-date')) || null, method: $('inv-pay-method').value || null,
+      reference: $('inv-pay-ref').value, notes: $('inv-pay-notes').value };
+    $('inv-pay-go').disabled = true;
+    try { const { data } = await api('/invoices/' + id + '/payments', { method: 'POST', body: JSON.stringify(payload) }, true); closeOverlay('inv-pay-overlay'); toast(data.status === 'paid' ? `${data.number} paid in full` : `Payment recorded · ${money2.format(data.balance)} still open`); await reloadInvoices(); if (state.view === 'overview') loadOverview(); }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('inv-pay-go').disabled = false; }
+  });
+  ['inv-status', 'inv-kind'].forEach(id => $(id).addEventListener('change', () => renderInvoices()));
+  $('inv-search').addEventListener('input', () => debounce(() => renderInvoices()));
+  document.querySelectorAll('.cp-overlay').forEach(o => o.addEventListener('click', (e) => { if (e.target === o) o.classList.remove('open'); }));
+
   // ---------- router ----------
   const TITLES = { overview: 'Overview', clients: 'Clients', buildings: 'Buildings', proposals: 'Proposals', finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce & Pay', compliance: 'Compliance' };
   const LOADERS = { overview: loadOverview, clients: loadClients, buildings: loadBuildings, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, compliance: loadCompliance };
@@ -1113,6 +1292,7 @@
     document.querySelectorAll('.cp-view').forEach(s => s.hidden = (s.id !== 'view-' + v));
     document.querySelectorAll('#cp-nav a').forEach(a => a.classList.toggle('active', a.dataset.view === v));
     $('cp-title').textContent = TITLES[v];
+    if (v === 'finance') $('inv-status').value = ['overdue', 'draft', 'issued', 'paid', 'void'].includes(arg) ? arg : '';
     if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'buildings' && arg) loadBuildingDetail(arg); else if (v === 'proposals' && arg) loadProposalDetail(arg); else LOADERS[v]();
     window.scrollTo(0, 0);
   }
