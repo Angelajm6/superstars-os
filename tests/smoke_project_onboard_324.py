@@ -95,18 +95,40 @@ def _seed() -> dict:
 
 
 def _cleanup():
+    """Key everything off the test organizations (not address patterns): Postgres
+    enforces the FKs SQLite ignores, so every dependent row must go first."""
     conn = db_layer.connect(pragma_fk=False)
     try:
-        codes = [r["project_code"] for r in conn.execute("SELECT project_code FROM projects WHERE address LIKE '% Np324 %' "
-                                                          "OR name LIKE 'Np324 %'").fetchall()]
-        for t, col in (("pm_project_assignment", "project_code"), ("ira_job", "project_code"), ("projects", "project_code")):
-            purge(conn, t, col, codes)
-        est_ids = [r["id"] for r in conn.execute("SELECT id FROM estimate WHERE building_address LIKE '% Np324 %'").fetchall()]
-        purge(conn, "estimate", "id", est_ids)
-        conn.execute("DELETE FROM building WHERE address_key LIKE '% np324 %'")
         org_ids = [r["id"] for r in conn.execute("SELECT id FROM crm_organization WHERE name LIKE 'Np324 %'").fetchall()]
-        purge(conn, "crm_activity", "entity_id", org_ids)
-        conn.execute("DELETE FROM crm_organization WHERE name LIKE 'Np324 %'")
+        ph = ",".join("?" * len(org_ids)) or "NULL"
+        est_ids = [r["id"] for r in conn.execute(
+            f"SELECT id FROM estimate WHERE client_org_id IN ({ph}) OR building_address LIKE '% Np324 %'", org_ids).fetchall()]
+        eph = ",".join("?" * len(est_ids)) or "NULL"
+        codes = {r["project_code"] for r in conn.execute(
+            f"SELECT project_code FROM projects WHERE client_org_id IN ({ph}) OR address LIKE '% Np324 %' OR name LIKE 'Np324 %'",
+            org_ids).fetchall()}
+        codes |= {r["converted_project_code"] for r in conn.execute(
+            f"SELECT converted_project_code FROM estimate WHERE id IN ({eph}) AND converted_project_code IS NOT NULL",
+            est_ids).fetchall()}
+        codes = list(codes)
+        for t, col in (("pm_project_assignment", "project_code"), ("ira_visit", "project_code"), ("ira_job", "project_code")):
+            purge(conn, t, col, codes)
+        for t in ("ira_job", "estimate_document", "walkthrough_visit", "proposal_line", "proposal_event", "proposal"):
+            purge(conn, t, "estimate_id", est_ids)
+        purge(conn, "projects", "project_code", codes)
+        purge(conn, "estimate", "id", est_ids)
+        purge(conn, "building", "client_org_id", org_ids)
+        try:
+            conn.execute("DELETE FROM building WHERE address_key LIKE '% np324 %'")
+            conn.commit()
+        except Exception:
+            conn.rollback()
+        for t, col in (("crm_activity", "entity_id"), ("crm_task", "entity_id"), ("crm_contact", "org_id")):
+            purge(conn, t, col, org_ids)
+        purge(conn, "crm_organization", "id", org_ids)
+        left = conn.execute("SELECT COUNT(1) AS n FROM crm_organization WHERE name LIKE 'Np324 %'").fetchone()["n"]
+        if left:
+            print(f"WARN: {left} Np324 organization(s) could not be removed", file=sys.stderr)
         uids = [r["id"] for r in conn.execute("SELECT id FROM users WHERE email LIKE ?", (f"{TAG}.%",)).fetchall()]
         conn.commit()
         purge_users(conn, uids)
