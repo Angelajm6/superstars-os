@@ -18,8 +18,11 @@
 | Migration ledger + GitHub Actions gate on SQLite and Postgres | Preprod (#306) |
 | Proposals from estimates: branded document, signed link, online acceptance → estimate approved + COI/deposit tasks | Preprod (#307) |
 | Client portal Proposals tab: read, download, sign or decline inside the portal | Preprod (#308) |
+| Mon–Sun payroll week on the Labor Rate Tracker | Production (#310) |
+| Shared shell on the admin pages, motion layer, mobile menu, dark-blue accent, gradients + hovers | Preprod (#311–#314) |
+| Invoices & receivables: Finance → Receivables, deposit invoice drafted on signature | Preprod (#315) |
 
-Production promotion of #302–#308 waits on the C-suite's yes on preprod.
+Production promotion of #302–#315 (except the #310 payroll-week hotfix, already live) waits on the C-suite's yes on preprod.
 
 ---
 
@@ -104,39 +107,44 @@ per issue into `preprod`, then a release PR into the client repo once approved.
   the deposit invoice (next item). A DocuSign/Dropbox Sign adapter is a later
   swap-in; typed acceptance is legally sufficient for this use and ships
   without a new subscription.
-- **#309 QuickBooks integration, phase 1 — deposit invoice.** Intuit OAuth2
+- **#316 QuickBooks integration, phase 1 — deposit invoice.** Intuit OAuth2
   (sandbox first), customer sync from `crm_organization`, and on
   `proposal.signed` create the deposit invoice in QuickBooks Online from the
   proposal's deposit terms; store `qb_invoice_id`, poll status (sent / viewed /
   paid), reflect in the portal's receivables. Later phases: expenses → QBO
   bills, progress invoices from G702, payments back.
-- **#310 Invoices & receivables model.** `invoice(id, project_code,
-  building_id, kind: deposit|progress|final|change_order, amount, retainage,
-  issued_at, due_at, paid_at, qb_invoice_id, source_doc)` so "what needs to
-  get paid / any due invoice" is a real query, not a QuickBooks screenshot.
-
+- **#315 Invoices & receivables model — SHIPPED to preprod 2026-09-19.** `invoice`
+  (number INV-YYYY-####, kind deposit|progress|final|change_order|other, status
+  draft→issued→paid / void, client, project, building, estimate, proposal,
+  amount, retainage, amount_paid, issued/due/paid dates, qb_invoice_id) +
+  `invoice_payment`. "What needs to get paid / any due invoice" is a real query
+  on the Company Portal (Finance → Receivables: open, overdue, due in 30 days,
+  awaiting deposit, drafts, collected YTD; Overview surfaces overdue + drafts).
+  A signed proposal with deposit terms drafts its deposit invoice automatically.
+  Numbering note: roadmap items below were renumbered on 2026-09-19 because
+  #309–#314 were consumed by the September UI / ops tickets (see HANDOFF).
 ### Phase C — the company's back office (October–November)
 
-- **#311 AIA progress billing (G702/G703).** Upgrade `sov_line_items` into a
+- **#317 AIA progress billing (G702/G703).** Upgrade `sov_line_items` into a
   billing schedule of values per project (`scheduled_value, previous_billed,
   this_period, stored_materials, pct_complete, retainage`), billing periods,
   and a G702 + G703 render (HTML → PDF, matching the AIA layout, with the
   company's own numbering). Each application becomes a `progress` invoice
-  (#310) and, with #309 phase 2, a QuickBooks invoice.
-- **#312 Company vault.** Extend `company_document` with: vehicles (6 cars:
+  (#315) and, with #316 phase 2, a QuickBooks invoice.
+- **#318 Company vault.** Extend `company_document` with: vehicles (6 cars:
   registration, insurance, inspection, plate, assigned driver), tax returns by
   year, filing receipts, and a generic "company record" with expiry — all in
   the Compliance view's expiry buckets. File attachments on company documents
   (today it is metadata only).
-- **#313 Accounts payable.** `payable(vendor, doc, amount, due_at, paid_at,
+- **#319 Accounts payable.** `payable(vendor, doc, amount, due_at, paid_at,
   source: receipt|bill|subscription)` fed by the receipts ledger, the
   subscriptions register, and manual bills; "what needs to get paid" = due
   payables + due receivables on one Portal screen with a 30-day cash view.
-- **#314 Worker job history + payroll view.** On each worker: projects
+- **#320 Worker job history + payroll view.** On each worker: projects
   worked (from `sign_in_log` + assignments), hours by project and month,
   certifications, credentials issued, rate history (`worker_rates`). Company-only
   surface per the comp-data rule.
-- **#315 Company overhead + subscriptions screen** in the Portal (the
+- **#321 Company overhead + subscriptions screen** in the Portal (the
   `subscriptions` ledger already exists in the schema; the CSV is the interim).
 
 ### Phase D — the building in 3D (November onward, staged)
@@ -145,7 +153,7 @@ The ask is "a 3D model of each building you can click into, looking almost
 identical to the real one". That is two different things, and the honest path
 is to ship them in order:
 
-- **#316 Stage 1 — 3D massing from what we already have.** Extrude each
+- **#322 Stage 1 — 3D massing from what we already have.** Extrude each
   elevation grid (`elevation` × `elevation_cell` rows/columns, stories, drops)
   into a simple 3D box model of the building in the browser (three.js). Every
   face is the existing elevation; every cell is clickable and opens the same
@@ -173,8 +181,8 @@ of the effort.
 
 Buildings (#304) come first because proposals, invoices, the client portal and
 the 3D model all hang off a building record. Proposals → signature → deposit
-invoice is one continuous flow and is built as one (#307–#310), because each
-piece is only valuable with the next. AIA billing (#311) reuses the invoice
+invoice is one continuous flow and is built as one (#307, #308, #315, #316), because each
+piece is only valuable with the next. AIA billing (#317) reuses the invoice
 model and the QuickBooks connection. The 3D work is staged so the C-suite sees
 a clickable building within a sprint (Stage 1) while the photoreal capture is
 arranged.

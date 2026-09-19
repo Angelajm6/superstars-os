@@ -99,6 +99,8 @@ buildings.register(app)
 # public by token (auth._PUBLIC_PREFIXES).
 import proposals  # noqa: E402
 proposals.register(app)
+import invoices  # noqa: E402
+invoices.register(app)
 
 # #279 (UI v2 phase 0) — the interface toggle. MUST follow apply_auth_gate: the
 # stored per-user preference is read off current_user(). Sets g.ui_version on page

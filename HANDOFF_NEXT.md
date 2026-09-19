@@ -21,6 +21,48 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #315 — Invoices & receivables (Bookore, 2026-09-19)
+
+* **What:** ROADMAP Phase B "invoices & receivables model" (the roadmap's old #310;
+  renumbered — #309–#314 were consumed by the September UI / ops tickets).
+  Money-in only: `invoice` + `invoice_payment` in `invoices.py`, migration
+  `apply_invoices_315.py` (appended to `DUAL_BACKEND_MIGRATIONS`; boot ensures
+  the schema too). Numbers are `INV-YYYY-####` with a numeric max (CLAUDE.md ID
+  rule). Lifecycle draft → issued → paid, or draft / issued → void; `overdue`
+  and `days_overdue` are derived at read time, never stored.
+* **Rules that matter:** payments land only on an issued invoice and never
+  exceed the open balance; the invoice flips to paid when they cover it; a paid
+  deposit flags the IRA job's `deposit_received` when the project is known;
+  void refuses anything with payments; delete is draft-only; issued invoices
+  accept only due date / notes / description edits (amount is frozen). Default
+  terms on issue: net 30, deposits net 7.
+* **The trigger:** `proposals._on_signed` now calls
+  `invoices.create_from_proposal` (idempotent per proposal) so the "Issue deposit
+  invoice" CRM task names a real draft. Signature → estimate approved → COI task
+  → deposit invoice draft, all in one commit path; failures there are logged and
+  never block the signature.
+* **API** (`requires_section('company_portal')`, admin / c_suite): `GET/POST
+  /api/invoices` (list carries `meta.summary`), `GET/PATCH/DELETE
+  /api/invoices/<id>`, `POST …/issue`, `POST …/payments`, `POST …/void`.
+  Filters: status (open|draft|issued|paid|void), kind, client_org_id, project,
+  proposal_id, overdue=1, search.
+* **Company Portal:** Finance gains "Receivables — invoices" above the IRA card
+  (six KPIs, search / status / kind filters, New invoice, row → detail modal
+  with Issue / Record payment / Void / Delete draft). Overview's money list
+  shows Open invoices + Collected YTD; needs-attention lists overdue, drafts
+  waiting to be issued and due-within-30. `#finance/overdue` and
+  `#finance/draft` preselect the filter. A signed proposal's detail links its
+  deposit invoice. `overview()` / `finance()` payloads gained `invoices` /
+  `invoice_summary`; the IRA `receivables` keys are unchanged (#302 test pins
+  them). Both helpers degrade to empty when the tables are missing.
+* **Test** `tests/smoke_invoices_315.py` (gate + CI): gates, validation,
+  numbering, issue terms, edit rules, payments, overdue math + summary buckets,
+  void / delete, the proposal trigger, the IRA flag, portal payloads, no
+  `*_path` keys.
+* **Not in this ticket:** the client portal does not show invoices yet (needs a
+  grant section like proposals); no PDF / email for invoices (QuickBooks sends
+  them in #316); no payables (#319).
+
 ### #314 — Gradients and clean hovers on every surface (Bookore, 2026-09-18)
 
 * **Ask (Angela, 2026-09-18):** the production Labor Rate Tracker hero (3px accent
