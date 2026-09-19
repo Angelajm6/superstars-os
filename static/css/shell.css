@@ -29,29 +29,29 @@
 .ssc-shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: 100vh; }
 
 /* ---- sidebar ---- */
-.ssc-side { background: #14161C; color: #E8E4DD; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
-.ssc-side .brand { display: flex; align-items: center; gap: 10px; padding: 18px 18px 14px; border-bottom: 1px solid rgba(255,255,255,.08); margin: 0; }
+.ssc-side { background: var(--side-bg, #F3F4F6); color: var(--side-ink, #2B2F38); border-right: 1px solid var(--side-edge, #E3E5EA); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.ssc-side .brand { display: flex; align-items: center; gap: 10px; padding: 18px 18px 14px; border-bottom: 1px solid var(--side-edge, #E3E5EA); margin: 0; }
 .ssc-side .brand-mark { width: 34px; height: 34px; object-fit: contain; flex-shrink: 0; }
-.ssc-side .brand-name { font-family: 'Archivo', 'Inter', -apple-system, sans-serif; font-size: 13px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: #fff; line-height: 1.1; }
-.ssc-side .brand-sub { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: #9A9BA1; margin-top: 2px; font-weight: 600; }
+.ssc-side .brand-name { font-family: 'Archivo', 'Inter', -apple-system, sans-serif; font-size: 13px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--ink, #14161C); line-height: 1.1; }
+.ssc-side .brand-sub { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--side-muted, #8A8F99); margin-top: 2px; font-weight: 600; }
 
 .ssc-side .ssc-nav { padding: 10px 10px; display: flex; flex-direction: column; gap: 2px; }
-.ssc-side .ssc-nav .ssc-nav-label { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: #6F7079; padding: 12px 12px 4px; font-weight: 700; }
+.ssc-side .ssc-nav .ssc-nav-label { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--side-muted, #8A8F99); padding: 12px 12px 4px; font-weight: 700; }
 .ssc-side .ssc-nav a, .ssc-side .ssc-nav .nav-tab {
   display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin: 0; border: 0; border-radius: 8px;
-  color: #C9C6BE; text-decoration: none; font-weight: 600; font-size: 13px; line-height: 1.2; cursor: pointer;
+  color: var(--side-ink, #2B2F38); text-decoration: none; font-weight: 600; font-size: 13px; line-height: 1.2; cursor: pointer;
   background: transparent; transition: background .12s ease, color .12s ease;
 }
 .ssc-side .ssc-nav a svg, .ssc-side .ssc-nav .nav-tab svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .8; }
-.ssc-side .ssc-nav a:hover, .ssc-side .ssc-nav .nav-tab:hover { background: rgba(255,255,255,.06); color: #fff; }
-.ssc-side .ssc-nav a:focus-visible, .ssc-side .ssc-nav .nav-tab:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
-.ssc-side .ssc-nav a.active, .ssc-side .ssc-nav .nav-tab.active { background: var(--ui, #24418C); color: #fff; border-bottom-color: transparent; }
+.ssc-side .ssc-nav a:hover, .ssc-side .ssc-nav .nav-tab:hover { background: var(--side-hover, rgba(20,22,28,.05)); color: var(--ink, #14161C); }
+.ssc-side .ssc-nav a:focus-visible, .ssc-side .ssc-nav .nav-tab:focus-visible { outline: 2px solid var(--ui, #24418C); outline-offset: 1px; }
+.ssc-side .ssc-nav a.active, .ssc-side .ssc-nav .nav-tab.active { background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); border-bottom-color: transparent; }   /* #321 — soft fill + blue edge */
 .ssc-side .ssc-nav .active svg { opacity: 1; }
 .ssc-side .ssc-nav .ssc-nav-ext::after { content: "↗"; margin-left: auto; font-size: 11px; opacity: .55; }
 
-.ssc-side .ssc-side-foot { margin-top: auto; padding: 12px 10px 16px; border-top: 1px solid rgba(255,255,255,.08); }
-.ssc-side .ssc-side-foot a { display: block; padding: 8px 12px; color: #9A9BA1; text-decoration: none; font-size: 12px; font-weight: 600; border-radius: 8px; }
-.ssc-side .ssc-side-foot a:hover { background: rgba(255,255,255,.06); color: #fff; }
+.ssc-side .ssc-side-foot { margin-top: auto; padding: 12px 10px 16px; border-top: 1px solid var(--side-edge, #E3E5EA); }
+.ssc-side .ssc-side-foot a { display: block; padding: 8px 12px; color: var(--side-muted, #8A8F99); text-decoration: none; font-size: 12px; font-weight: 600; border-radius: 8px; }
+.ssc-side .ssc-side-foot a:hover { background: var(--side-hover, rgba(20,22,28,.05)); color: var(--ink, #14161C); }
 
 /* ---- main column + top bar ---- */
 .ssc-main { min-width: 0; background: var(--canvas, #fafbfd); }
@@ -68,10 +68,10 @@
    widening. shell.js creates the button and toggles .nav-open. ---- */
 @media (max-width: 860px) {
   .ssc-shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; align-content: start; }   /* the bar hugs its content; main takes the rest */
-  .ssc-side { position: sticky; top: 0; z-index: 6; height: auto; overflow: visible; }
+  .ssc-side { position: sticky; top: 0; z-index: 6; height: auto; overflow: visible; border-right: 0; border-bottom: 1px solid var(--side-edge, #E3E5EA); }
   .ssc-side .brand { padding: 12px 16px; border-bottom: 0; }
   .ssc-side .ssc-nav, .ssc-side .ssc-side-foot { display: none; }
-  .ssc-side.nav-open .ssc-nav { display: flex; flex-direction: column; padding: 6px 10px 10px; border-top: 1px solid rgba(255,255,255,.08);
+  .ssc-side.nav-open .ssc-nav { display: flex; flex-direction: column; padding: 6px 10px 10px; border-top: 1px solid var(--side-edge, #E3E5EA);
     animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }
   .ssc-side.nav-open .ssc-side-foot { display: block; margin-top: 0; }
   .ssc-main .ssc-top { padding: 12px 16px; }
@@ -86,7 +86,7 @@
    /admin/projects, /estimating, /admin/labor-rates. ===== */
 .ssc-side .ssc-nav a, .ssc-side .ssc-nav .nav-tab { position: relative; }
 .ssc-side .ssc-nav a::before, .ssc-side .ssc-nav .nav-tab::before {
-  content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 0; border-radius: 3px; background: #fff;
+  content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 0; border-radius: 3px; background: var(--ui, #24418C);
   transform: translateY(-50%); transition: height var(--ssc-t, .18s) var(--ssc-ease, ease); opacity: .9;
 }
 .ssc-side .ssc-nav a.active::before, .ssc-side .ssc-nav .nav-tab.active::before { height: 18px; }

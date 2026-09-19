@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Superstars Contracting — Project Portal</title>
   <link rel="stylesheet" href="/files/static/fonts/typography.css">
-  <link rel="stylesheet" href="/files/static/css/widgets.css?v=314">
+  <link rel="stylesheet" href="/files/static/css/widgets.css?v=321">
   <script src="/files/static/js/shell.js?v=312" defer></script>
   <script src="/files/static/vendor/chart.umd.min.js"></script>
   <!-- #286 — the REAL grid engine, the same shared assets the internal dashboards
@@ -111,25 +111,25 @@
     .prp-err { display:none; color:#A8382B; background:#fceeec; border-radius:8px; padding:8px 10px; font-size:12.5px; margin-top:10px; }
     .prp-err.show { display:block; }
     @media (max-width:600px) { .prp-sign .row { grid-template-columns:1fr; } .prp-price { text-align:left; } }
-    /* #311 — ONE sidebar language across the product (mirrors shell.css: ink sidebar,
-       brand-red active pill with a white indicator, quiet hover). Markup + JS untouched. */
-    .sidebar { background:#14161C; border-right:0; }
-    .sidebar-header { border-bottom-color:rgba(255,255,255,.08); }
-    .brand-name { color:#fff; } .brand-sub { color:#9A9BA1; }
-    .proj-line { border-bottom-color:rgba(255,255,255,.08); } .proj-name { color:#fff; } .proj-client { color:#9A9BA1; }
-    .nav-label { color:#6F7079; }
-    .nav-link { color:#C9C6BE; border-left-color:transparent; position:relative;
+    /* #311 / #321 — ONE sidebar language across the product (mirrors shell.css): light
+       grey sidebar, ink text, soft-blue active row with a blue edge, quiet hover. Markup + JS untouched. */
+    .sidebar { background:var(--side-bg,#F3F4F6); border-right:1px solid var(--side-edge,#E3E5EA); }
+    .sidebar-header { border-bottom-color:var(--side-edge,#E3E5EA); }
+    .brand-name { color:#14161C; } .brand-sub { color:var(--side-muted,#8A8F99); }
+    .proj-line { border-bottom-color:var(--side-edge,#E3E5EA); } .proj-name { color:#14161C; } .proj-client { color:var(--side-muted,#8A8F99); }
+    .nav-label { color:var(--side-muted,#8A8F99); }
+    .nav-link { color:var(--side-ink,#2B2F38); border-left-color:transparent; position:relative;
                 transition:background var(--ssc-t-fast,.12s) ease, color var(--ssc-t-fast,.12s) ease, transform var(--ssc-t,.18s) var(--ssc-ease,ease); }
-    .nav-link:hover { background:rgba(255,255,255,.06); color:#fff; transform:translateX(2px); }
-    .nav-link.active { background:var(--ui); color:#fff; border-left-color:transparent; transform:none; }
-    .nav-link::before { content:""; position:absolute; left:0; top:50%; width:3px; height:0; border-radius:3px; background:#fff;
+    .nav-link:hover { background:var(--side-hover,rgba(20,22,28,.05)); color:#14161C; transform:translateX(2px); }
+    .nav-link.active { background:var(--ui-soft,#E8EDF8); color:var(--ui,#24418C); border-left-color:transparent; transform:none; }
+    .nav-link::before { content:""; position:absolute; left:0; top:50%; width:3px; height:0; border-radius:3px; background:var(--ui,#24418C);
                         transform:translateY(-50%); transition:height var(--ssc-t,.18s) var(--ssc-ease,ease); }
     .nav-link.active::before { height:18px; }
-    .sidebar-footer { border-top-color:rgba(255,255,255,.08); }
-    .acct-name { color:#fff; } .acct-role { color:#9A9BA1; }
-    .signout { color:#fff; background:transparent; border-color:rgba(255,255,255,.18); }
-    .signout:hover { border-color:#fff; }
-    @media (max-width:860px) { .sidebar { border-bottom:0; } }
+    .sidebar-footer { border-top-color:var(--side-edge,#E3E5EA); }
+    .acct-name { color:#14161C; } .acct-role { color:var(--side-muted,#8A8F99); }
+    .signout { color:var(--ui,#24418C); background:#fff; border-color:var(--side-edge,#E3E5EA); }
+    .signout:hover { border-color:var(--ui,#24418C); }
+    @media (max-width:860px) { .sidebar { border-right:0; border-bottom:1px solid var(--side-edge,#E3E5EA); } }
 
     @media (max-width:860px) {
       .app-shell { flex-direction:column; }

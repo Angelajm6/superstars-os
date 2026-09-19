@@ -425,22 +425,22 @@
     }
     .nav-link.active .nav-ic { color: #1E73E8; }
     .nav-link.active::before { content: none; }
-    /* #311 — ONE sidebar language across the product (mirrors shell.css: ink sidebar,
-       brand-red active pill with a white indicator, quiet hover). Markup + JS untouched;
-       the blue stays the widget accent inside the content column. */
-    .sidebar { background: #14161C; border-right: 0; }
-    .sidebar-header { border-bottom-color: rgba(255,255,255,.08); }
-    .sidebar .brand-name { color: #fff; } .sidebar .brand-sub { color: #9A9BA1; }
-    .nav-group-label { color: #6F7079; } .nav-group-label:hover { color: #C9C6BE; } .nav-chev { color: #6F7079; }
-    .nav-link { color: #C9C6BE; border-left-color: transparent; position: relative;
+    /* #311 / #321 — ONE sidebar language across the product (mirrors shell.css): light
+       grey sidebar, ink text, soft-blue active row with a blue edge, quiet hover.
+       Markup + JS untouched; the blue stays the widget accent inside the content column. */
+    .sidebar { background: var(--side-bg, #F3F4F6); border-right: 1px solid var(--side-edge, #E3E5EA); }
+    .sidebar-header { border-bottom-color: var(--side-edge, #E3E5EA); }
+    .sidebar .brand-name { color: #14161C; } .sidebar .brand-sub { color: var(--side-muted, #8A8F99); }
+    .nav-group-label { color: var(--side-muted, #8A8F99); } .nav-group-label:hover { color: #14161C; } .nav-chev { color: var(--side-muted, #8A8F99); }
+    .nav-link { color: var(--side-ink, #2B2F38); border-left-color: transparent; position: relative;
                 transition: background var(--ssc-t-fast, .12s) ease, color var(--ssc-t-fast, .12s) ease, transform var(--ssc-t, .18s) var(--ssc-ease, ease); }
-    .nav-link:hover { background: rgba(255,255,255,.06); color: #fff; transform: translateX(2px); }
-    .nav-ic { color: #9A9BA1; } .nav-link:hover .nav-ic { color: #fff; }
-    .nav-link.active { background: var(--ui, #24418C); color: #fff; border-left-color: transparent; transform: none; }
-    .nav-link.active .nav-ic { color: #fff; }
-    .nav-link.active::before { content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 18px; border-radius: 3px; background: #fff; transform: translateY(-50%); }
-    .sidebar-footer { border-top-color: rgba(255,255,255,.08); }
-    .sidebar .acct-name { color: #fff; } .sidebar .acct-role { color: #9A9BA1; } .sidebar .acct-chev { color: #9A9BA1; }
+    .nav-link:hover { background: var(--side-hover, rgba(20,22,28,.05)); color: #14161C; transform: translateX(2px); }
+    .nav-ic { color: var(--side-muted, #8A8F99); } .nav-link:hover .nav-ic { color: #14161C; }
+    .nav-link.active { background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); border-left-color: transparent; transform: none; }
+    .nav-link.active .nav-ic { color: var(--ui, #24418C); }
+    .nav-link.active::before { content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 18px; border-radius: 3px; background: var(--ui, #24418C); transform: translateY(-50%); }
+    .sidebar-footer { border-top-color: var(--side-edge, #E3E5EA); }
+    .sidebar .acct-name { color: #14161C; } .sidebar .acct-role { color: var(--side-muted, #8A8F99); } .sidebar .acct-chev { color: var(--side-muted, #8A8F99); }
     .sidebar .acct-avatar { background: var(--ui, #24418C); }
 
     /* #212 Drop Report — matches drop_report_mockup.html (brand red+black header) */
@@ -818,7 +818,7 @@
 <!-- #211 calm-blue widget accent — applied via the SHARED widgets.css, loaded
      AFTER the inline #208 styles so the accent (blue band + inward shading + blue
      rings) wins, giving the project page + the company console one source of truth. -->
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=314">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=321">
 <script src="/files/static/js/shell.js?v=312" defer></script>
 </head>
 <body>

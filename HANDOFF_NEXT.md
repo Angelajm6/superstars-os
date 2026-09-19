@@ -21,6 +21,26 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #321 — Light sidebar (Bookore, 2026-09-19)
+
+* **Decision (Angela, 2026-09-19):** the ink-black sidebar was the heaviest element
+  on every screen; of three tones shown (light grey, soft blue, brand paper) she
+  chose **light grey**. Tokens in `widgets.css` `:root`: `--side-bg:#F3F4F6`,
+  `--side-edge:#E3E5EA`, `--side-ink:#2B2F38`, `--side-muted:#8A8F99`,
+  `--side-hover:rgba(20,22,28,.05)`.
+* **One language, four families:** `shell.css` (`.ssc-side` — console, Company
+  Portal, admin Users / Projects / Labor Rates, Estimating), the project
+  dashboard's and the client portal's `.sidebar` re-skin blocks. Brand name in
+  ink, section labels muted, links in `--side-ink`, hover = faint ink wash +
+  2px nudge, **active = `--ui-soft` fill, `--ui` text and a 3px `--ui` left
+  edge** (the indicator was white on ink). A 1px `--side-edge` border replaces
+  the dark block's hard edge; at phone width it moves to the bottom of the
+  brand bar. The `.ssc-menu-btn` is now white with an ink label and turns
+  `--ui-soft` on hover. The client portal's Sign out button is white with the
+  blue text. Cache versions bumped to `?v=321`.
+* **Unchanged:** the red star, every top bar / page head, the LRT hero and
+  everything inside the content column; the login page.
+
 ### #320 — Worker job history + payroll view (Bookore, 2026-09-19)
 
 * **What:** ROADMAP Phase C — one read model per worker in `worker_history.py`,
