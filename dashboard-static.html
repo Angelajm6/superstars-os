@@ -960,6 +960,7 @@
         <div class="nav-group-label"><span class="nav-group-name">Financial</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
           <a class="nav-link" data-view="sov"><svg class="nav-ic"><use href="#i-dollar"/></svg>Schedule of Values</a>
+          <a class="nav-link" data-view="payments"><svg class="nav-ic"><use href="#i-dollar"/></svg>Payments</a>
           <!-- Labor Rate Tracker — routes to the LRT view on the company console. The
                whole Financial group is server-stripped for non-admin/c_suite, so this
                only reaches admin/c_suite; the inline reveal stays as belt-and-suspenders
@@ -4461,6 +4462,169 @@
       <!-- SECTION:financial:start -->
       <!-- SCHEDULE OF VALUES (#262 — Financial section; server-stripped for non-admin/c_suite,
            and the /api/projects/<code>/sov data endpoint 403s for them too) -->
+      <section class="view" data-view="payments">
+        <style>
+          .pay-wrap{font:14px/1.55 -apple-system,"Segoe UI",Inter,Roboto,sans-serif;color:#222633}
+          .pay-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+          .pay-h1{margin:0;font-size:21px;font-weight:700} .pay-sub{color:#8c92a0;font-size:12.5px;margin-top:3px}
+          .pay-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+          .pay-kpi{background:#fff;border:1px solid var(--accent-edge,rgba(67,100,220,.3));border-radius:12px;padding:12px 14px;box-shadow:inset 0 0 12px var(--accent-in,rgba(67,100,220,.14)),0 1px 4px rgba(0,0,0,.04)}
+          .pay-kpi .k{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#8c92a0;font-weight:700} .pay-kpi .v{font-size:22px;font-weight:800;margin-top:2px} .pay-kpi .s{font-size:12px;color:#8c92a0}
+          .pay-kpi.warn .v{color:#A8382B} .pay-kpi.good .v{color:#0c7a5f}
+          .pay-card{background:#fff;border:1px solid #eceef3;border-radius:14px;padding:16px 18px;margin-bottom:14px}
+          .pay-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+          .pay-btn{font:inherit;font-size:12px;font-weight:700;padding:7px 12px;border-radius:8px;border:1px solid #eceef3;background:#fff;color:#222633;cursor:pointer;text-decoration:none;display:inline-block}
+          .pay-btn:hover{border-color:var(--ui-edge,rgba(36,65,140,.35));background:var(--ui-soft,#E8EDF8);color:var(--ui,#24418C)}
+          .pay-btn.primary{background:var(--ui,#24418C);color:#fff;border-color:transparent} .pay-btn.primary:hover{background:var(--ui-deep,#1B3272);color:#fff}
+          .pay-btn:disabled{opacity:.55;cursor:not-allowed}
+          .pay-table{width:100%;border-collapse:collapse;font-size:13px} .pay-table th{text-align:left;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#8c92a0;padding:8px 10px;border-bottom:1px solid #eceef3}
+          .pay-table td{padding:10px;border-bottom:1px solid #eceef3;vertical-align:top} .pay-table td.num,.pay-table th.num{text-align:right} .pay-table tbody tr:hover td{background:var(--ui-soft,#E8EDF8)}
+          .pay-id{font-weight:700;color:#B11E2E} .pay-muted{color:#8c92a0;font-size:12px}
+          .pay-pill{display:inline-block;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:#f3f0e9;color:#6b6455;white-space:nowrap}
+          .pay-pill.ok{background:#e7f6f0;color:#0c7a5f} .pay-pill.active{background:#ebf0fe;color:#3a5fd0} .pay-pill.bad{background:#fceeec;color:#A8382B} .pay-pill.warn{background:#FFF4E5;color:#9A5B00}
+          .pay-acts{display:flex;gap:6px;flex-wrap:wrap} .pay-acts .pay-btn{padding:5px 9px;font-size:11.5px}
+          .pay-empty{text-align:center;color:#8c92a0;padding:26px 10px}
+          .pay-overlay{position:fixed;inset:0;background:rgba(20,22,28,.45);display:none;align-items:center;justify-content:center;z-index:60;padding:16px} .pay-overlay.open{display:flex}
+          .pay-modal{background:#fff;border-radius:14px;width:100%;max-width:560px;box-shadow:0 24px 64px rgba(20,22,28,.25);max-height:92vh;overflow:auto}
+          .pay-mhead{padding:18px 20px 6px} .pay-mhead h3{margin:0;font-size:17px;font-weight:800} .pay-mhead p{margin:6px 0 0;font-size:12.5px;color:#8c92a0}
+          .pay-mbody{padding:14px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px} .pay-mbody .full{grid-column:1 / -1}
+          .pay-field label{display:block;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#8c92a0;margin-bottom:5px}
+          .pay-field input,.pay-field select,.pay-field textarea{width:100%;font:inherit;font-size:13px;padding:9px 10px;border:1px solid #eceef3;border-radius:8px;background:#fff;color:#222633;box-sizing:border-box}
+          .pay-err{grid-column:1 / -1;color:#A8382B;background:#fceeec;border-radius:8px;padding:8px 10px;font-size:13px;display:none} .pay-err.show{display:block}
+          .pay-mfoot{padding:12px 20px 18px;display:flex;justify-content:flex-end;gap:8px}
+          @media (max-width:600px){ .pay-mbody{grid-template-columns:1fr} }
+        </style>
+        <div class="pay-wrap">
+          <div class="pay-head"><div><h1 class="pay-h1">Payments</h1><div class="pay-sub" id="pay-sub">Invoices on this job · email them to the client from here</div></div>
+            <div class="pay-toolbar"><button type="button" class="pay-btn primary" id="pay-new">+ New invoice</button></div></div>
+          <div class="pay-kpis" id="pay-kpis"></div>
+          <div class="pay-card"><div style="overflow:auto"><table class="pay-table" id="pay-table"><tbody><tr><td class="pay-empty">Loading…</td></tr></tbody></table></div>
+            <div class="pay-muted" style="margin-top:10px">Deposit invoices draft themselves when a proposal is signed. AIA progress billing (G702 / G703) fills a progress invoice — coming next. Amounts here are what the client owes, not labor cost.</div></div>
+        </div>
+        <div class="pay-overlay" id="pay-new-overlay"><form class="pay-modal" id="pay-new-form" novalidate>
+          <div class="pay-mhead"><h3>New invoice</h3><p id="pay-new-sub"></p></div>
+          <div class="pay-mbody">
+            <div class="pay-field"><label for="pay-new-kind">Kind</label><select id="pay-new-kind"></select></div>
+            <div class="pay-field"><label for="pay-new-amount">Amount (USD)</label><input id="pay-new-amount" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
+            <div class="pay-field"><label for="pay-new-due">Due date (optional)</label><input id="pay-new-due" type="date"></div>
+            <div class="pay-field"><label for="pay-new-ret">Retainage held (USD)</label><input id="pay-new-ret" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
+            <div class="pay-field full"><label for="pay-new-desc">Description</label><input id="pay-new-desc" placeholder="e.g. Progress billing #2 — north elevation" autocomplete="off"></div>
+            <div class="pay-err" id="pay-new-err"></div></div>
+          <div class="pay-mfoot"><button type="button" class="pay-btn" id="pay-new-cancel">Cancel</button><button type="submit" class="pay-btn primary" id="pay-new-go">Create draft</button></div></form></div>
+        <div class="pay-overlay" id="pay-mail-overlay"><form class="pay-modal" id="pay-mail-form" novalidate>
+          <div class="pay-mhead"><h3>Email invoice to the client</h3><p id="pay-mail-sub"></p></div>
+          <div class="pay-mbody">
+            <div class="pay-field"><label for="pay-mail-name">Recipient name</label><input id="pay-mail-name" autocomplete="off"></div>
+            <div class="pay-field"><label for="pay-mail-email">Recipient email</label><input id="pay-mail-email" type="email" autocomplete="off" list="pay-mail-list"><datalist id="pay-mail-list"></datalist></div>
+            <div class="pay-field full"><label for="pay-mail-msg">Message (optional)</label><textarea id="pay-mail-msg" rows="3" placeholder="A short note above the invoice details"></textarea></div>
+            <div class="pay-muted full">The email carries a private link where the client views the invoice, downloads the PDF, and sees how to pay. Each send mints a fresh link.</div>
+            <div class="pay-err" id="pay-mail-err"></div></div>
+          <div class="pay-mfoot"><button type="button" class="pay-btn" id="pay-mail-cancel">Cancel</button><button type="submit" class="pay-btn primary" id="pay-mail-go">Send</button></div></form></div>
+        <div class="pay-overlay" id="pay-pay-overlay"><form class="pay-modal" id="pay-pay-form" novalidate>
+          <div class="pay-mhead"><h3>Record a payment</h3><p id="pay-pay-sub"></p></div>
+          <div class="pay-mbody">
+            <div class="pay-field"><label for="pay-pay-amount">Amount received (USD)</label><input id="pay-pay-amount" inputmode="decimal" autocomplete="off"></div>
+            <div class="pay-field"><label for="pay-pay-date">Received on</label><input id="pay-pay-date" type="date"></div>
+            <div class="pay-field"><label for="pay-pay-method">Method</label><select id="pay-pay-method"><option value="">—</option><option value="check">Check</option><option value="ach">ACH</option><option value="wire">Wire</option><option value="card">Card</option><option value="cash">Cash</option><option value="quickbooks">QuickBooks payment</option><option value="other">Other</option></select></div>
+            <div class="pay-field"><label for="pay-pay-ref">Reference</label><input id="pay-pay-ref" autocomplete="off"></div>
+            <div class="pay-err" id="pay-pay-err"></div></div>
+          <div class="pay-mfoot"><button type="button" class="pay-btn" id="pay-pay-cancel">Cancel</button><button type="submit" class="pay-btn primary" id="pay-pay-go">Record payment</button></div></form></div>
+        <script>
+        (function(){
+          const $p = id => document.getElementById(id);
+          const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+          const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+          const fmtDate = iso => { if (!iso) return '—'; const [y,m,d] = String(iso).slice(0,10).split('-'); return (m && d) ? `${m}/${d}/${y}` : esc(iso); };
+          const todayLocal = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+          const dGet = el => { const p = window.SSCDatePicker; if (p && typeof p.getISO === 'function') { const v = p.getISO(el); if (v !== undefined && v !== null) return v; } return el.value || ''; };
+          const dSet = (el, iso) => { const p = window.SSCDatePicker; if (p && typeof p.setISO === 'function') { try { p.setISO(el, iso || ''); return; } catch (e) {} } el.value = iso || ''; };
+          const S = { data: null, code: null };
+          async function api(path, opts) {
+            const res = await fetch(path, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' } }, opts || {}));
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error((j && j.error) || ('Request failed (' + res.status + ')'));
+            return j;
+          }
+          function pill(r) { if (r.overdue) return `<span class="pay-pill bad">overdue ${r.days_overdue}d</span>`; const c = { draft: '', issued: 'active', paid: 'ok', void: '' }[r.status] || ''; return `<span class="pay-pill ${c}">${esc(r.status)}</span>`; }
+          function kpi(k, v, s, cls) { return `<div class="pay-kpi ${cls || ''}"><div class="k">${esc(k)}</div><div class="v">${v}</div><div class="s">${esc(s || '')}</div></div>`; }
+          function toast(msg, bad) { const t = document.createElement('div'); t.textContent = msg; t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:' + (bad ? '#A8382B' : '#14161C') + ';color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:99;box-shadow:0 6px 20px rgba(0,0,0,.2)'; document.body.appendChild(t); setTimeout(() => t.remove(), 3200); }
+          function render() {
+            const d = S.data, s = d.summary;
+            $p('pay-sub').textContent = (d.client ? d.client.name + ' · ' : '') + d.project.project_code + ' · invoices on this job';
+            $p('pay-kpis').innerHTML = kpi('Invoiced', money.format(s.invoiced_total), 'issued + paid') + kpi('Open', money.format(s.open_value), `${s.open_count} unpaid`, s.open_count ? '' : 'good') +
+              kpi('Overdue', money.format(s.overdue_value), `${s.overdue_count} past due`, s.overdue_count ? 'warn' : '') + kpi('Collected', money.format(s.collected), 'payments received', 'good') + kpi('Drafts', s.draft_count, 'not issued yet');
+            const rows = d.invoices;
+            if (!rows.length) { $p('pay-table').innerHTML = '<tbody><tr><td class="pay-empty"><b>No invoices on this job yet.</b><br>Create one, or sign a proposal with deposit terms.</td></tr></tbody>'; return; }
+            $p('pay-table').innerHTML = '<thead><tr><th>Invoice</th><th>Description</th><th class="num">Amount</th><th class="num">Open</th><th>Due</th><th>Status</th><th>Client</th><th></th></tr></thead><tbody>' + rows.map(r => `<tr>
+              <td><span class="pay-id">${esc(r.number)}</span><div class="pay-muted">${esc(String(r.kind || '').replace('_',' '))}${r.proposal_number ? ' · ' + esc(r.proposal_number) : ''}</div></td>
+              <td>${esc(r.description || '—')}</td><td class="num">${money.format(r.amount)}</td><td class="num">${r.status === 'issued' ? '<b>' + money.format(r.balance) + '</b>' : '—'}</td>
+              <td>${r.status === 'draft' ? '<span class="pay-muted">draft</span>' : fmtDate(r.due_at)}</td><td>${pill(r)}</td>
+              <td class="pay-muted">${r.sent_at ? (r.viewed_at ? 'opened ' + fmtDate(r.viewed_at) : 'sent ' + fmtDate(r.sent_at)) + (r.sent_count > 1 ? ' · ×' + r.sent_count : '') : 'not sent'}</td>
+              <td><div class="pay-acts"><a class="pay-btn" href="/api/invoices/${r.id}/preview" target="_blank" rel="noopener">Preview</a>${r.status !== 'draft' ? `<a class="pay-btn" href="/api/invoices/${r.id}/pdf" target="_blank" rel="noopener">PDF</a>` : ''}
+                ${r.status === 'draft' ? `<button type="button" class="pay-btn primary" data-issue="${r.id}">Issue</button>` : ''}
+                ${r.status === 'issued' ? `<button type="button" class="pay-btn primary" data-mail="${r.id}">${r.sent_at ? 'Resend' : 'Email client'}</button><button type="button" class="pay-btn" data-pay="${r.id}">Payment</button>` : ''}
+                ${r.status === 'paid' ? `<button type="button" class="pay-btn" data-mail="${r.id}">Email receipt</button>` : ''}</div></td></tr>`).join('') + '</tbody>';
+            $p('pay-table').querySelectorAll('[data-issue]').forEach(b => b.addEventListener('click', async () => {
+              const r = rows.find(x => String(x.id) === b.dataset.issue); if (!confirm(`Issue ${r.number} for ${money.format(r.amount)}? It becomes a receivable.`)) return;
+              try { await api('/api/invoices/' + r.id + '/issue', { method: 'POST', body: '{}' }); toast(r.number + ' issued'); load(); } catch (e) { toast(e.message, true); } }));
+            $p('pay-table').querySelectorAll('[data-mail]').forEach(b => b.addEventListener('click', () => openMail(rows.find(x => String(x.id) === b.dataset.mail))));
+            $p('pay-table').querySelectorAll('[data-pay]').forEach(b => b.addEventListener('click', () => openPay(rows.find(x => String(x.id) === b.dataset.pay))));
+          }
+          async function load() {
+            S.code = (typeof getProjectCode === 'function') ? getProjectCode() : (new URLSearchParams(location.search).get('project') || '');
+            try { const { data } = await api('/api/projects/' + encodeURIComponent(S.code) + '/payments'); S.data = data; render(); }
+            catch (e) { $p('pay-table').innerHTML = '<tbody><tr><td class="pay-empty">' + esc(e.message) + '</td></tr></tbody>'; }
+          }
+          window.PAY_load = load;
+          async function openMail(r) {
+            $p('pay-mail-form').dataset.id = r.id; $p('pay-mail-sub').textContent = `${r.number} · ${money.format(r.balance)} open`; $p('pay-mail-err').className = 'pay-err'; $p('pay-mail-msg').value = '';
+            $p('pay-mail-list').innerHTML = (S.data.contacts || []).map(c => `<option value="${esc(c.email)}">${esc(c.full_name || '')}</option>`).join('');
+            $p('pay-mail-name').value = r.sent_name || ''; $p('pay-mail-email').value = r.sent_to || '';
+            if (!r.sent_to) { try { const { data } = await api('/api/invoices/' + r.id + '/recipient'); $p('pay-mail-email').value = data.email || ''; $p('pay-mail-name').value = data.name || ''; } catch (e) {} }
+            $p('pay-mail-overlay').classList.add('open'); setTimeout(() => $p('pay-mail-email').focus(), 30);
+          }
+          function openPay(r) {
+            $p('pay-pay-form').dataset.id = r.id; $p('pay-pay-sub').textContent = `${r.number} · ${money.format(r.balance)} open`; $p('pay-pay-err').className = 'pay-err';
+            $p('pay-pay-amount').value = Number(r.balance).toFixed(2); dSet($p('pay-pay-date'), todayLocal()); $p('pay-pay-method').value = ''; $p('pay-pay-ref').value = '';
+            $p('pay-pay-overlay').classList.add('open'); setTimeout(() => $p('pay-pay-amount').focus(), 30);
+          }
+          $p('pay-new').addEventListener('click', () => {
+            if (!S.data) return; const d = S.data; $p('pay-new-err').className = 'pay-err';
+            $p('pay-new-sub').textContent = (d.client ? d.client.name + ' · ' : '') + d.project.project_code;
+            $p('pay-new-kind').innerHTML = d.kinds.map(k => `<option value="${esc(k.code)}" ${k.code === 'progress' ? 'selected' : ''}>${esc(k.label)}</option>`).join('');
+            $p('pay-new-amount').value = ''; $p('pay-new-ret').value = ''; $p('pay-new-desc').value = ''; dSet($p('pay-new-due'), '');
+            $p('pay-new-overlay').classList.add('open'); setTimeout(() => $p('pay-new-amount').focus(), 30);
+          });
+          $p('pay-new-cancel').addEventListener('click', () => $p('pay-new-overlay').classList.remove('open'));
+          $p('pay-new-form').addEventListener('submit', async (e) => {
+            e.preventDefault(); const err = $p('pay-new-err'); err.className = 'pay-err'; const d = S.data;
+            if (!d.client) { err.textContent = 'This project has no client organization yet — link it in the Company Portal first.'; err.className = 'pay-err show'; return; }
+            const payload = { client_org_id: d.client.id, project_code: d.project.project_code, kind: $p('pay-new-kind').value, amount: $p('pay-new-amount').value.replace(/[$,]/g, ''),
+              retainage: $p('pay-new-ret').value.replace(/[$,]/g, '') || 0, due_at: dGet($p('pay-new-due')) || null, description: $p('pay-new-desc').value };
+            $p('pay-new-go').disabled = true;
+            try { const { data } = await api('/api/invoices', { method: 'POST', body: JSON.stringify(payload) }); $p('pay-new-overlay').classList.remove('open'); toast('Draft ' + data.number + ' created'); load(); }
+            catch (ex) { err.textContent = ex.message; err.className = 'pay-err show'; } finally { $p('pay-new-go').disabled = false; }
+          });
+          $p('pay-mail-cancel').addEventListener('click', () => $p('pay-mail-overlay').classList.remove('open'));
+          $p('pay-mail-form').addEventListener('submit', async (e) => {
+            e.preventDefault(); const err = $p('pay-mail-err'); err.className = 'pay-err'; const id = $p('pay-mail-form').dataset.id; const email = $p('pay-mail-email').value.trim();
+            if (!email.includes('@')) { err.textContent = 'Enter the recipient email.'; err.className = 'pay-err show'; return; }
+            $p('pay-mail-go').disabled = true;
+            try { const { data } = await api('/api/invoices/' + id + '/send', { method: 'POST', body: JSON.stringify({ to_email: email, to_name: $p('pay-mail-name').value.trim(), message: $p('pay-mail-msg').value }) }); $p('pay-mail-overlay').classList.remove('open'); toast(data.number + ' emailed to ' + email); load(); }
+            catch (ex) { err.textContent = ex.message; err.className = 'pay-err show'; } finally { $p('pay-mail-go').disabled = false; }
+          });
+          $p('pay-pay-cancel').addEventListener('click', () => $p('pay-pay-overlay').classList.remove('open'));
+          $p('pay-pay-form').addEventListener('submit', async (e) => {
+            e.preventDefault(); const err = $p('pay-pay-err'); err.className = 'pay-err'; const id = $p('pay-pay-form').dataset.id;
+            const payload = { amount: $p('pay-pay-amount').value.replace(/[$,]/g, ''), paid_on: dGet($p('pay-pay-date')) || null, method: $p('pay-pay-method').value || null, reference: $p('pay-pay-ref').value };
+            $p('pay-pay-go').disabled = true;
+            try { const { data } = await api('/api/invoices/' + id + '/payments', { method: 'POST', body: JSON.stringify(payload) }); $p('pay-pay-overlay').classList.remove('open'); toast(data.status === 'paid' ? data.number + ' paid in full' : 'Payment recorded · ' + money.format(data.balance) + ' still open'); load(); }
+            catch (ex) { err.textContent = ex.message; err.className = 'pay-err show'; } finally { $p('pay-pay-go').disabled = false; }
+          });
+          document.querySelectorAll('#pay-new-overlay,#pay-mail-overlay,#pay-pay-overlay').forEach(o => o.addEventListener('click', ev => { if (ev.target === o) o.classList.remove('open'); }));
+        })();
+        </script>
+      </section>
       <section class="view" data-view="sov">
         <div class="section">
           <h2>Schedule of Values</h2>
@@ -4935,6 +5099,9 @@ document.querySelectorAll('.nav-link').forEach(link => {
     }
     if (targetView === 'documents') {
       if (typeof window.PROJ_loadAttachedSpecs === 'function') window.PROJ_loadAttachedSpecs();
+    }
+    if (targetView === 'payments') {   // #326 — Financial; PAY_load is absent (server-stripped) for non-admin/c_suite
+      if (typeof window.PAY_load === 'function') window.PAY_load();
     }
     if (targetView === 'field-photos') {
       if (typeof window.FP_load === 'function') window.FP_load();

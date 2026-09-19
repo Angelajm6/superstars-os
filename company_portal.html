@@ -420,6 +420,19 @@
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="inv-pay-cancel">Cancel</button><button class="btn-primary" type="submit" id="inv-pay-go">Record payment</button></div>
   </form>
 </div>
+<div class="cp-overlay" id="inv-mail-overlay" role="dialog" aria-modal="true" aria-labelledby="inv-mail-title">
+  <form class="cp-modal" id="inv-mail-form" novalidate>
+    <div class="cp-modal-head"><h2 id="inv-mail-title">Email invoice to the client</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="inv-mail-sub"></p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="inv-mail-name">Recipient name</label><input id="inv-mail-name" autocomplete="off"></div>
+      <div class="cp-field"><label for="inv-mail-email">Recipient email</label><input id="inv-mail-email" type="email" autocomplete="off"></div>
+      <div class="cp-field full"><label for="inv-mail-msg">Message (optional)</label><textarea id="inv-mail-msg" placeholder="A short note above the invoice details"></textarea></div>
+      <div class="cp-note full">The email carries a private link where the client views the invoice, downloads the PDF, and sees how to pay. Each send mints a fresh link; the previous one stops working.</div>
+      <div class="cp-form-err" id="inv-mail-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="inv-mail-cancel">Cancel</button><button class="btn-primary" type="submit" id="inv-mail-go">Send</button></div>
+  </form>
+</div>
 <div class="cp-overlay" id="inv-view-overlay" role="dialog" aria-modal="true" aria-labelledby="inv-view-title">
   <div class="cp-modal" id="inv-view-modal" style="max-width:640px">
     <div class="cp-modal-head"><h2 id="inv-view-title">Invoice</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="inv-view-sub"></p></div>
@@ -1399,7 +1412,7 @@
       { key: 'amount', label: 'Amount', num: true, render: r => money2.format(r.amount) },
       { key: 'balance', label: 'Open', num: true, render: r => r.status === 'issued' ? `<strong>${money2.format(r.balance)}</strong>` : '—' },
       { key: 'due_at', label: 'Due', render: r => r.status === 'draft' ? '<span class="cp-muted">draft</span>' : fmtDate(r.due_at) },
-      { key: 'status', label: 'Status', render: invPill },
+      { key: 'status', label: 'Status', render: r => invPill(r) + (r.sent_at ? `<div class="cp-muted" style="font-size:11px">${r.viewed_at ? 'opened' : 'sent'} ${fmtDate(r.viewed_at || r.sent_at)}</div>` : '') },
     ], data, { defaultSort: { key: 'due_at', dir: 'asc' }, emptyTitle: rows.length ? 'No invoices match' : 'No invoices yet', emptySub: rows.length ? '' : 'Sign a proposal with deposit terms, or create one here.', onRow: r => openInvoice(r.id) });
   }
   async function reloadInvoices() {
@@ -1427,9 +1440,21 @@
         </ul>
         ${r.payments.length ? `<div class="cp-card-head" style="margin-top:14px"><h2>Payments</h2></div><div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Received</th><th>Method</th><th>Reference</th><th class="num">Amount</th></tr></thead><tbody>${r.payments.map(p => `<tr><td>${fmtDate(p.paid_on)}</td><td>${esc(p.method || '—')}</td><td>${esc(p.reference || '—')}</td><td class="num">${money2.format(p.amount)}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
       const btn = (id, cls, label) => `<button class="${cls}" type="button" id="${id}">${label}</button>`;
-      foot.innerHTML = btn('inv-close', 'btn-ghost', 'Close') + '<span style="flex:1"></span>' +
+      foot.innerHTML = btn('inv-close', 'btn-ghost', 'Close') +
+        `<a class="btn-ghost" href="/api/invoices/${r.id}/preview" target="_blank" rel="noopener" style="text-decoration:none">Preview</a>` +
+        (r.status !== 'draft' ? `<a class="btn-ghost" href="/api/invoices/${r.id}/pdf" target="_blank" rel="noopener" style="text-decoration:none">PDF</a>` : '') +
+        '<span style="flex:1"></span>' +
         (r.status === 'draft' ? btn('inv-del', 'btn-ghost', 'Delete draft') + btn('inv-issue', 'btn-primary', 'Issue invoice') : '') +
-        (r.status === 'issued' ? btn('inv-void', 'btn-ghost', 'Void') + btn('inv-pay', 'btn-primary', 'Record payment…') : '');
+        (r.status === 'issued' ? btn('inv-void', 'btn-ghost', 'Void') + btn('inv-send', 'btn-ghost', r.sent_at ? 'Resend…' : 'Email to client…') + btn('inv-pay', 'btn-primary', 'Record payment…') : '') +
+        (r.status === 'paid' ? btn('inv-send', 'btn-ghost', 'Email receipt…') : '');
+      if (r.sent_at) body.insertAdjacentHTML('beforeend', `<div class="cp-note" style="margin-top:12px">Emailed to ${esc(r.sent_name ? r.sent_name + ' · ' : '')}${esc(r.sent_to || '')} on ${fmtWhen(r.sent_at)}${r.sent_count > 1 ? ' (' + r.sent_count + ' sends)' : ''}${r.viewed_at ? ' · opened ' + fmtWhen(r.viewed_at) : ' · not opened yet'}</div>`);
+      if ($('inv-send')) $('inv-send').addEventListener('click', async () => {
+        $('inv-mail-form').dataset.id = r.id; $('inv-mail-sub').textContent = `${r.number} · ${money2.format(r.balance)} open`;
+        $('inv-mail-err').className = 'cp-form-err'; $('inv-mail-msg').value = '';
+        $('inv-mail-name').value = r.sent_name || ''; $('inv-mail-email').value = r.sent_to || '';
+        if (!r.sent_to) { try { const { data } = await api('/invoices/' + r.id + '/recipient', null, true); $('inv-mail-email').value = data.email || ''; $('inv-mail-name').value = data.name || ''; } catch (e) {} }
+        closeOverlay('inv-view-overlay'); $('inv-mail-overlay').classList.add('open'); setTimeout(() => $('inv-mail-email').focus(), 30);
+      });
       $('inv-close').addEventListener('click', () => closeOverlay('inv-view-overlay'));
       const after = async (msg) => { toast(msg); closeOverlay('inv-view-overlay'); await reloadInvoices(); if (state.view === 'overview') loadOverview(); };
       if (r.status === 'draft') {
@@ -1487,6 +1512,15 @@
     try { const { data } = await api('/invoices/' + id + '/payments', { method: 'POST', body: JSON.stringify(payload) }, true); closeOverlay('inv-pay-overlay'); toast(data.status === 'paid' ? `${data.number} paid in full` : `Payment recorded · ${money2.format(data.balance)} still open`); await reloadInvoices(); if (state.view === 'overview') loadOverview(); }
     catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
     finally { $('inv-pay-go').disabled = false; }
+  });
+  $('inv-mail-cancel').addEventListener('click', () => closeOverlay('inv-mail-overlay'));
+  $('inv-mail-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('inv-mail-err'); err.className = 'cp-form-err'; const id = $('inv-mail-form').dataset.id;
+    const email = $('inv-mail-email').value.trim(); if (!email.includes('@')) { err.textContent = 'Enter the recipient email.'; err.className = 'cp-form-err show'; return; }
+    $('inv-mail-go').disabled = true;
+    try { const { data } = await api('/invoices/' + id + '/send', { method: 'POST', body: JSON.stringify({ to_email: email, to_name: $('inv-mail-name').value.trim(), message: $('inv-mail-msg').value }) }, true); closeOverlay('inv-mail-overlay'); toast(`${data.number} emailed to ${email}`); await reloadInvoices(); }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('inv-mail-go').disabled = false; }
   });
   ['inv-status', 'inv-kind'].forEach(id => $(id).addEventListener('change', () => renderInvoices()));
   $('inv-search').addEventListener('input', () => debounce(() => renderInvoices()));

@@ -58,7 +58,7 @@ _DOC_BASE = ssc_paths.under_root("data_room", "project_docs")   # #287
 #                          /portal + /api/portal/* become reachable (each API still
 #                          enforces ITS OWN section grant — see require_section), and
 #                          every OTHER page/API stays contained (redirect /portal | 403).
-_CLIENT_ALLOW_PREFIXES = ("/api/auth/", "/files/static/", "/p/", "/api/p/")   # #307 — proposal links
+_CLIENT_ALLOW_PREFIXES = ("/api/auth/", "/files/static/", "/p/", "/api/p/", "/i/")   # #307 proposal + #326 invoice links
 _CLIENT_ALLOW_EXACT = {"/set-password", "/api/health", "/api/today"}
 
 

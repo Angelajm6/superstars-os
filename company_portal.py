@@ -536,7 +536,8 @@ def finance(conn, *, months: int = 12, today: Optional[date] = None) -> dict:
 
 def _safe_invoice_list(conn, today) -> list:
     try:
-        return invoices.list_invoices(conn, limit=300, today=today)
+        import invoice_docs
+        return [invoice_docs.public(r) for r in invoices.list_invoices(conn, limit=300, today=today)]   # #326: no pdf_path / token_hash
     except Exception as e:
         log.info("#315 invoice list unavailable: %s", e)
         return []

@@ -25,8 +25,9 @@
 | Worker job history + payroll view: projects, hours by month, rate-on-date cost, certs, credentials, rate history | Preprod (#320) |
 | Light sidebar; onboard an already-won job with "+ New project" on Projects & assignments | Preprod (#321, #324) |
 | Crews + site coordinates per job; worker app job picker with per-job geofence | Preprod (#325) |
+| Invoice documents: PDF, email to client with a private link, per-project Payments section | Preprod (#326) |
 
-Production promotion of #302–#325 (except the #310 payroll-week hotfix, already live) waits on the C-suite's yes on preprod.
+Production promotion of #302–#326 (except the #310 payroll-week hotfix, already live) waits on the C-suite's yes on preprod.
 
 ---
 

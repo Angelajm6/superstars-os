@@ -85,6 +85,7 @@ _PUBLIC_PREFIXES = (
     "/files/static/",     # vendored shell assets ONLY (css/js/fonts/vendor)
     "/p/",                # #307 — a client's proposal link (the token IS the credential)
     "/api/p/",            # #307 — accept / decline from that page
+    "/i/",                # #326 — a client's invoice link (the token IS the credential)
     "/auth/google/",      # #261 — Google OIDC login/callback must be reachable while
                           # logged OUT (that IS the login). When SSO is disabled (no
                           # GOOGLE_OAUTH_* env) the handlers themselves return 404.

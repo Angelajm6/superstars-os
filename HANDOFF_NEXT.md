@@ -21,6 +21,48 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #326 — Invoice documents, email to client, project Payments (Bookore, 2026-09-19)
+
+* **Ask (C-suite via Angela, 2026-09-19, priority item 3, without QuickBooks):** a
+  payment section per job holding invoices, emailed straight to the client.
+* **Module** `invoice_docs.py` on top of #315. Columns added to `invoice`
+  (idempotent via `invoices.ensure_schema`): sent_at, sent_to, sent_name,
+  sent_count, viewed_at, view_count, pdf_path, pdf_rendered_at, token_hash,
+  token_expires_at, last_message. `pdf_path` / `token_hash` never leave the
+  server — `invoices._wrap` scrubs every payload through `invoice_docs.public`
+  (flags `has_pdf`, `link_active` instead).
+* **Document:** `render_document` — the proposal sheet (same `_DOC_CSS`), kind
+  heading, bill-to, project, amount / retainage / paid / balance due, payments
+  received, "How to pay" (app_settings `payment_instructions`, else the default
+  check / ACH line), a paid / void / draft stamp. `render_pdf` uses the app's
+  engine (best effort; absent on macOS, present on Render); the gated
+  `/api/invoices/<id>/pdf` renders on demand and 503s without an engine;
+  `/api/invoices/<id>/preview` is the HTML.
+* **Send** (`POST /api/invoices/<id>/send`, admin / c_suite): issued or paid
+  only (draft → 409 "issue it first", void → 409). Recipient = body, else the
+  last send, else the proposal's recipient, else the client's first contact
+  with an email (`GET …/recipient`). EVERY send mints a fresh 180-day link
+  `/i/<token>` and the previous one dies; email (SendGrid live, fake dir in
+  tests) carries the link, amount due and due date; a CRM activity row.
+* **Public** `/i/<token>` (+ `/pdf`): no login, no-store, noindex; first open
+  recorded (`viewed_at`, `view_count`); void → 410, expired → 410. Prefix `/i/`
+  added to `auth._PUBLIC_PREFIXES`, `role_containment._COMMON_PREFIXES` and
+  `client_portal._CLIENT_ALLOW_PREFIXES` (a logged-in client / estimator reaches
+  it too).
+* **Project dashboard → Financial → Payments** (`GET /api/projects/<code>/payments`,
+  `requires_company`; the whole Financial group is server-stripped for
+  pm / super): KPIs (invoiced, open, overdue, collected, drafts), the job's
+  invoices with Preview / PDF / Issue / Email client / Resend / Payment /
+  Email receipt, New invoice (prefilled with the job + client), send modal with
+  the client's contacts as suggestions, payment modal.
+* **Company Portal:** the invoice detail modal gains Preview / PDF / Email to
+  client / Resend / Email receipt and shows sent / opened; the receivables table
+  shows sent / opened under the status.
+* **Test** `tests/smoke_project_payments_326.py` (gate + CI).
+* **Not in this ticket:** a client-portal Payments tab (the link is the client's
+  copy for now); QuickBooks (#316 — blocked on the QBO admin app);
+  AIA G702 / G703 (#317 — fills a `progress` invoice); online card / ACH payment.
+
 ### #325 — Crews, site coordinates, and the worker app's job picker (Bookore, 2026-09-19)
 
 * **Ask (C-suite via Angela, 2026-09-19, priority item 1):** once a job is added, the
