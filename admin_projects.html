@@ -63,6 +63,11 @@
   .np-err{grid-column:1 / -1;color:#A8382B;background:var(--status-behind-soft,#fceeec);border-radius:8px;padding:8px 10px;font-size:13px;display:none;} .np-err.show{display:block;}
   .np-foot{padding:12px 20px 18px;display:flex;justify-content:flex-end;gap:8px;}
   .btn-ghost{font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
+  .np-site{display:flex;gap:8px;flex-wrap:wrap;align-items:center;} .np-site input{flex:1;min-width:110px;}
+  .np-hint{font-size:12px;color:var(--muted);margin-top:6px;}
+  .np-crew{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 12px;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:10px;}
+  .np-crew label{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;} .np-crew input{width:auto;} .np-crew .wid{font-weight:700;color:#B11E2E;}
+  .np-crew .none{grid-column:1 / -1;color:var(--muted);font-size:12.5px;}
   @media (max-width:600px){ .np-body{grid-template-columns:1fr;} }
   .err-bar{background:#fceeec;color:#a23b30;border:1px solid #f3c9c4;border-radius:9px;padding:9px 13px;font-size:13px;margin-bottom:14px;display:none;}
   .err-bar.show{display:block;}
@@ -204,9 +209,27 @@
       <div class="np-field"><label for="np-start">Start date</label><input id="np-start" type="date" class="ssc-date"></div>
       <div class="np-field"><label for="np-pm">Project manager</label><select id="np-pm"><option value="">— assign later —</option></select></div>
       <div class="np-field full"><label for="np-notes">Notes</label><input id="np-notes" placeholder="optional" autocomplete="off"></div>
+      <div class="np-field full"><label>Site location · worker app check-in</label>
+        <div class="np-site"><input id="np-lat" inputmode="decimal" placeholder="Latitude" autocomplete="off"><input id="np-lng" inputmode="decimal" placeholder="Longitude" autocomplete="off"><input id="np-radius" inputmode="numeric" placeholder="200 m" autocomplete="off" style="max-width:90px"><button type="button" class="btn-ghost" id="np-geo">Use my location</button></div>
+        <div class="np-hint">Workers can only check in within this radius. Leave blank and the job accepts check-ins from anywhere until you set it (from the site, tap "Use my location").</div></div>
+      <div class="np-field full"><label>Crew · who can check in to this job</label><div class="np-crew" id="np-crew"></div></div>
       <div class="np-err" id="np-err" role="alert"></div>
     </div>
     <div class="np-foot"><button type="button" class="btn-ghost" id="np-cancel">Cancel</button><button type="submit" class="btn-primary" id="np-go">Create project</button></div>
+  </form>
+</div>
+<!-- #325 — crew + site for an existing project -->
+<div class="np-overlay" id="cs-overlay" role="dialog" aria-modal="true" aria-labelledby="cs-title">
+  <form class="np-modal" id="cs-form" novalidate>
+    <div class="np-head"><h2 id="cs-title">Crew &amp; site</h2><p id="cs-sub">Who can check in to this job on the worker app, and where.</p></div>
+    <div class="np-body">
+      <div class="np-field full"><label>Site location · worker app check-in</label>
+        <div class="np-site"><input id="cs-lat" inputmode="decimal" placeholder="Latitude" autocomplete="off"><input id="cs-lng" inputmode="decimal" placeholder="Longitude" autocomplete="off"><input id="cs-radius" inputmode="numeric" placeholder="200 m" autocomplete="off" style="max-width:90px"><button type="button" class="btn-ghost" id="cs-geo">Use my location</button></div>
+        <div class="np-hint">Blank = check-ins accepted from anywhere. Radius 25–5000 m.</div></div>
+      <div class="np-field full"><label>Crew</label><div class="np-crew" id="cs-crew"></div></div>
+      <div class="np-err" id="cs-err" role="alert"></div>
+    </div>
+    <div class="np-foot"><button type="button" class="btn-ghost" id="cs-cancel">Cancel</button><button type="submit" class="btn-primary" id="cs-go">Save</button></div>
   </form>
 </div>
 </div><!-- /.ssc-main -->
@@ -279,6 +302,7 @@
       var p=window.SSCDatePicker; if(p && typeof p.wire==='function' && !$('np-start').dataset.sscDp){ try{ p.wire($('np-start'), {}); }catch(e){} }
       npDateSet($('np-start'), npToday());
       $('np-neworg-wrap').hidden = true; $('np-neworg').value=''; $('np-address').value=''; $('np-name').value=''; $('np-contract').value=''; $('np-notes').value='';
+      $('np-lat').value=''; $('np-lng').value=''; $('np-radius').value=''; renderCrewBoxes($('np-crew'), m.workers, {});
       setTimeout(function(){ $('np-client').focus(); }, 30);
     }catch(e){ err.textContent='Could not load the form: '+e.message; err.className='np-err show'; }
   }
@@ -286,14 +310,16 @@
   $('np-open').addEventListener('click', openNewProject);
   $('np-cancel').addEventListener('click', closeNewProject);
   $('np-overlay').addEventListener('click', function(e){ if(e.target===$('np-overlay')) closeNewProject(); });
-  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && $('np-overlay').classList.contains('open')) closeNewProject(); });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && $('np-overlay').classList.contains('open')) closeNewProject(); if(e.key==='Escape' && $('cs-overlay').classList.contains('open')) $('cs-overlay').classList.remove('open'); });
   $('np-client').addEventListener('change', function(){ var isNew = $('np-client').value==='__new'; $('np-neworg-wrap').hidden = !isNew; if(isNew) setTimeout(function(){ $('np-neworg').focus(); }, 30); });
   $('np-form').addEventListener('submit', async function(e){
     e.preventDefault(); var err=$('np-err'); err.className='np-err';
     var isNew = $('np-client').value==='__new';
     var payload = { client_org_id: isNew ? null : ($('np-client').value||null), new_org_name: isNew ? $('np-neworg').value.trim() : '',
       est_type: $('np-type').value, borough: $('np-borough').value, address: $('np-address').value.trim(), name: $('np-name').value.trim(),
-      contract_value: $('np-contract').value.trim() || null, start_date: npDateGet($('np-start')) || null, pm_user_id: $('np-pm').value || null, notes: $('np-notes').value.trim() };
+      contract_value: $('np-contract').value.trim() || null, start_date: npDateGet($('np-start')) || null, pm_user_id: $('np-pm').value || null, notes: $('np-notes').value.trim(),
+      site_lat: $('np-lat').value.trim() || null, site_lng: $('np-lng').value.trim() || null, geofence_m: $('np-radius').value.trim() || null, crew: crewChecked($('np-crew')) };
+    if((payload.site_lat && !payload.site_lng) || (!payload.site_lat && payload.site_lng)){ err.textContent='Enter both latitude and longitude, or leave both blank.'; err.className='np-err show'; return; }
     if(!payload.client_org_id && !payload.new_org_name){ err.textContent='Pick a client or type a new client name.'; err.className='np-err show'; return; }
     if(payload.address.length < 4){ err.textContent='Enter the building address.'; err.className='np-err show'; return; }
     $('np-go').disabled = true;
@@ -306,6 +332,50 @@
       await load();
     }catch(ex){ err.textContent=ex.message; err.className='np-err show'; }
     finally{ $('np-go').disabled=false; }
+  });
+
+  // #325 — crew checkboxes + site geolocation, shared by both modals
+  function renderCrewBoxes(host, workers, assigned){
+    if(!workers || !workers.length){ host.innerHTML='<div class="none">No active workers yet. Onboard them from Workforce first.</div>'; return; }
+    host.innerHTML = workers.map(function(w){ return '<label><input type="checkbox" value="'+esc(w.employee_id)+'" '+(assigned[w.employee_id]?'checked':'')+'><span><span class="wid">'+esc(w.worker_id||w.employee_id)+'</span> — '+esc(w.name||'')+(w.trade?' <span style="color:var(--muted)">· '+esc(w.trade)+'</span>':'')+'</span></label>'; }).join('');
+  }
+  function crewChecked(host){ return Array.prototype.map.call(host.querySelectorAll('input[type=checkbox]:checked'), function(i){ return i.value; }); }
+  function useMyLocation(latEl, lngEl, btn){
+    if(!navigator.geolocation){ showErr('This browser cannot read your location.'); return; }
+    btn.disabled=true; btn.textContent='Locating…';
+    navigator.geolocation.getCurrentPosition(function(pos){ latEl.value=pos.coords.latitude.toFixed(6); lngEl.value=pos.coords.longitude.toFixed(6); btn.disabled=false; btn.textContent='Use my location'; },
+      function(){ btn.disabled=false; btn.textContent='Use my location'; showErr('Location not available — allow location access and try again, or type the coordinates.'); }, { enableHighAccuracy:true, timeout:12000 });
+  }
+  $('np-geo').addEventListener('click', function(){ useMyLocation($('np-lat'), $('np-lng'), $('np-geo')); });
+  $('cs-geo').addEventListener('click', function(){ useMyLocation($('cs-lat'), $('cs-lng'), $('cs-geo')); });
+  async function openCrew(code){
+    var err=$('cs-err'); err.className='np-err'; $('cs-form').dataset.code=code; $('cs-overlay').classList.add('open');
+    $('cs-crew').innerHTML='<div class="none">Loading…</div>';
+    try{
+      var r = await fetch('/api/admin/projects/'+encodeURIComponent(code)+'/crew').then(function(x){ return x.json(); });
+      if(r.error) throw new Error(r.error);
+      var d=r.data; $('cs-sub').textContent = (d.project.name||code)+' · '+code+' · '+d.assigned_count+' on the crew';
+      $('cs-lat').value = d.site.site_lat!=null ? d.site.site_lat : ''; $('cs-lng').value = d.site.site_lng!=null ? d.site.site_lng : ''; $('cs-radius').value = d.site.geofence_m || '';
+      var assigned={}; d.workers.forEach(function(w){ if(w.assigned) assigned[w.employee_id]=true; });
+      renderCrewBoxes($('cs-crew'), d.workers, assigned);
+    }catch(e){ err.textContent='Could not load: '+e.message; err.className='np-err show'; }
+  }
+  $('cs-cancel').addEventListener('click', function(){ $('cs-overlay').classList.remove('open'); });
+  $('cs-overlay').addEventListener('click', function(e){ if(e.target===$('cs-overlay')) $('cs-overlay').classList.remove('open'); });
+  $('cs-form').addEventListener('submit', async function(e){
+    e.preventDefault(); var err=$('cs-err'); err.className='np-err'; var code=$('cs-form').dataset.code;
+    var lat=$('cs-lat').value.trim(), lng=$('cs-lng').value.trim();
+    if((lat && !lng) || (!lat && lng)){ err.textContent='Enter both latitude and longitude, or leave both blank.'; err.className='np-err show'; return; }
+    var payload = { crew: crewChecked($('cs-crew')), site_lat: lat || null, site_lng: lng || null };
+    if($('cs-radius').value.trim()) payload.geofence_m = $('cs-radius').value.trim();
+    $('cs-go').disabled=true;
+    try{
+      var r = await fetch('/api/admin/projects/'+encodeURIComponent(code)+'/crew', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      var j = await r.json().catch(function(){ return {}; }); if(!r.ok) throw new Error(j.error || ('Request failed ('+r.status+')'));
+      $('cs-overlay').classList.remove('open');
+      var ch=j.data.change||{added:[],removed:[]}; showOk('Crew saved for '+code+' — '+j.data.assigned_count+' on the crew'+(ch.added.length?', +'+ch.added.length:'')+(ch.removed.length?', −'+ch.removed.length:''));
+    }catch(ex){ err.textContent=ex.message; err.className='np-err show'; }
+    finally{ $('cs-go').disabled=false; }
   });
 
   function statusPill(st){
@@ -323,10 +393,11 @@
       var btn = isClosed
         ? '<button class="btn-sm" onclick="setStatus(\''+esc(p.project_code)+'\',\'active\')">Reopen</button>'
         : '<button class="btn-sm danger" onclick="setStatus(\''+esc(p.project_code)+'\',\'closed\')">Close</button>';
+      var crewBtn = '<button class="btn-sm" onclick="openCrew(\''+esc(p.project_code)+'\')">Crew &amp; site</button> ';
       return '<tr><td class="nm">'+esc(p.name||p.project_code)+'</td>'
         + '<td class="code">'+esc(p.project_code)+'</td>'
         + '<td>'+statusPill(st)+'</td>'
-        + '<td class="acts">'+btn+'</td></tr>';
+        + '<td class="acts">'+crewBtn+btn+'</td></tr>';
     }).join('');
   }
 

@@ -24,8 +24,9 @@
 | Company vault: vehicles with registration / insurance / inspection, tax returns by year, filings, records, file attachments | Preprod (#318) |
 | Worker job history + payroll view: projects, hours by month, rate-on-date cost, certs, credentials, rate history | Preprod (#320) |
 | Light sidebar; onboard an already-won job with "+ New project" on Projects & assignments | Preprod (#321, #324) |
+| Crews + site coordinates per job; worker app job picker with per-job geofence | Preprod (#325) |
 
-Production promotion of #302–#324 (except the #310 payroll-week hotfix, already live) waits on the C-suite's yes on preprod.
+Production promotion of #302–#325 (except the #310 payroll-week hotfix, already live) waits on the C-suite's yes on preprod.
 
 ---
 

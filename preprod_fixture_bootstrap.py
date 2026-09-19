@@ -89,6 +89,7 @@ DUAL_BACKEND_MIGRATIONS = (
     "apply_invoices_315.py",
     "apply_company_vault_318.py",
     "apply_assignments_322.py",
+    "apply_project_site_325.py",
 )
 
 
