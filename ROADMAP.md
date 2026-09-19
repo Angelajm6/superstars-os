@@ -22,8 +22,9 @@
 | Shared shell on the admin pages, motion layer, mobile menu, dark-blue accent, gradients + hovers | Preprod (#311–#314) |
 | Invoices & receivables: Finance → Receivables, deposit invoice drafted on signature | Preprod (#315) |
 | Company vault: vehicles with registration / insurance / inspection, tax returns by year, filings, records, file attachments | Preprod (#318) |
+| Worker job history + payroll view: projects, hours by month, rate-on-date cost, certs, credentials, rate history | Preprod (#320) |
 
-Production promotion of #302–#318 (except the #310 payroll-week hotfix, already live) waits on the C-suite's yes on preprod.
+Production promotion of #302–#320 (except the #310 payroll-week hotfix, already live) waits on the C-suite's yes on preprod.
 
 ---
 
@@ -141,7 +142,7 @@ per issue into `preprod`, then a release PR into the client repo once approved.
   source: receipt|bill|subscription)` fed by the receipts ledger, the
   subscriptions register, and manual bills; "what needs to get paid" = due
   payables + due receivables on one Portal screen with a 30-day cash view.
-- **#320 Worker job history + payroll view.** On each worker: projects
+- **#320 Worker job history + payroll view — SHIPPED to preprod 2026-09-19.** On each worker: projects
   worked (from `sign_in_log` + assignments), hours by project and month,
   certifications, credentials issued, rate history (`worker_rates`). Company-only
   surface per the comp-data rule.
