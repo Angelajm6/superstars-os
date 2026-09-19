@@ -310,6 +310,7 @@
 
       <!-- ================= WORKFORCE ================= -->
       <section class="cp-view" id="view-workforce" hidden>
+        <div id="workforce-list">
         <div class="cp-kpis" id="wf-kpis"></div>
         <div class="cp-grid3">
           <div class="cp-card">
@@ -323,6 +324,8 @@
             <div class="cp-table-wrap"><table class="cp-table" id="wf-trades"></table></div>
           </div>
         </div>
+        </div>
+        <div id="worker-detail" hidden></div>
       </section>
 
       <!-- ================= COMPLIANCE ================= -->
@@ -1074,6 +1077,7 @@
 
   // ---------- WORKFORCE ----------
   async function loadWorkforce() {
+    $('worker-detail').hidden = true; $('workforce-list').hidden = false;
     skeleton($('wf-kpis'), 1); skeleton($('wf-table'), 6); skeleton($('wf-trades'), 3);
     try {
       const { data: d } = await api('/workforce');
@@ -1096,12 +1100,87 @@
     const q = $('wf-search').value.trim().toLowerCase();
     const rows = d.workers.filter(w => !q || [w.worker_id, w.name, w.trade].some(x => String(x || '').toLowerCase().includes(q)));
     table($('wf-table'), [
-      { key: 'worker_id', label: 'Worker', render: r => `<span class="cp-id">${esc(r.worker_id || r.employee_id)}</span> — ${esc(r.name)}<div class="cp-muted" style="font-size:12px">${esc(r.trade || 'trade not set')}</div>` },
+      { key: 'worker_id', label: 'Worker', render: r => `<a class="cp-link" href="#workforce/${encodeURIComponent(r.employee_id)}"><span class="cp-id">${esc(r.worker_id || r.employee_id)}</span> — ${esc(r.name)}</a><div class="cp-muted" style="font-size:12px">${esc(r.trade || 'trade not set')}</div>` },
       { key: 'current_rate', label: 'Rate', num: true, render: r => r.current_rate ? `${money2.format(r.current_rate)}/h${r.pending_rate_changes ? ' <span class="cp-pill warn">pending</span>' : ''}` : '<span class="cp-pill warn">not set</span>' },
       { key: 'hours_7d', label: 'Worked 7d', num: true }, { key: 'hours_30d', label: 'Worked 30d', num: true },
       { key: 'last_on_site', label: 'Last on site', render: r => fmtDate(r.last_on_site) },
       { key: 'certs_total', label: 'Certs', num: true, render: r => `${r.certs_total}${r.certs_expired ? ` <span class="cp-pill bad">${r.certs_expired} expired</span>` : ''}${r.certs_expiring_30 ? ` <span class="cp-pill warn">${r.certs_expiring_30} soon</span>` : ''}` },
-    ], rows, { defaultSort: { key: 'worker_id', dir: 'asc' }, emptyTitle: q ? 'No workers match' : 'No active workers', emptySub: q ? '' : 'Onboard workers from the Workforce tab of the Office Console.' });
+    ], rows, { defaultSort: { key: 'worker_id', dir: 'asc' }, emptyTitle: q ? 'No workers match' : 'No active workers', emptySub: q ? '' : 'Onboard workers from the Workforce tab of the Office Console.', onRow: r => { location.hash = '#workforce/' + encodeURIComponent(r.employee_id); } });
+  }
+
+  // ---------- WORKER JOB HISTORY + PAYROLL VIEW (#320) ----------
+  const hrs = h => (Math.round((h || 0) * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  async function loadWorkerDetail(id, months) {
+    $('workforce-list').hidden = true; const host = $('worker-detail'); host.hidden = false;
+    host.innerHTML = '<div class="cp-card"><div class="cp-skel"></div><div class="cp-skel"></div><div class="cp-skel"></div></div>';
+    months = months || state.cache.workerMonths || 12;
+    try {
+      const { data: d } = await api('/workers/' + encodeURIComponent(id) + '?months=' + months);
+      const w = d.worker, s = d.summary, L = d.window.labels;
+      $('cp-title').textContent = `${w.worker_id || w.employee_id} — ${w.name}`;
+      const statusPill = w.status === 'archived' ? '<span class="cp-pill">archived</span>' : (w.status === 'inactive' ? '<span class="cp-pill warn">inactive</span>' : '<span class="cp-pill ok">active</span>');
+      const max = Math.max(1, ...d.by_month.map(m => m.hours));
+      const bars = `<div class="cp-bars">${d.by_month.map(m => `<div class="cp-bar" title="${esc(fmtMonth(m.month))} · ${hrs(m.hours)} h · ${m.days} day(s) · est. ${money2.format(m.est_cost)}"><div class="b won" style="height:${Math.round(m.hours / max * 120)}px"></div><div class="lbl">${esc(fmtMonth(m.month))}</div></div>`).join('')}</div>`;
+      const certRow = c => `<tr><td>${esc(c.name || c.cert_type_id)}</td><td>${fmtDate(c.date_obtained)}</td><td>${fmtDate(c.expiration_date)} ${c.expiration_date ? daysPill(c.days_left) : ''}</td></tr>`;
+      const credRow = c => `<tr><td><span class="cp-id">${esc(c.card_id)}</span></td><td>${fmtDate(c.issued_date)}</td><td>${fmtDate(c.expires_date)} ${c.expires_date ? daysPill(c.days_left) : ''}</td><td><span class="cp-pill ${c.status === 'issued' ? 'ok' : ''}">${esc(c.status)}</span></td><td>${esc(c.issued_by || '')}</td></tr>`;
+      const rateRow = r => `<tr><td><strong>${money2.format(r.hourly_rate)}/h</strong> ${r.current ? '<span class="cp-pill ok">current</span>' : ''}</td><td>${fmtDate(r.effective_from)}</td><td>${r.effective_to ? fmtDate(r.effective_to) : '<span class="cp-muted">open</span>'}</td><td class="cp-muted">${esc(r.notes || '')}</td></tr>`;
+      const chgRow = r => `<tr><td>${r.old_rate ? money2.format(r.old_rate) : '—'} → <strong>${money2.format(r.new_rate)}</strong></td><td>${fmtDate(r.effective_date)}</td><td><span class="cp-pill ${r.status === 'approved' ? 'ok' : (r.status === 'pending' ? 'warn' : (r.status === 'rejected' ? 'bad' : ''))}">${esc(r.status)}</span></td><td class="cp-muted">${esc(r.note || '')}</td></tr>`;
+      host.innerHTML = `
+        <div class="cp-toolbar"><a class="cp-link" href="#workforce">← All workers</a><span style="flex:1"></span>${statusPill}<span class="cp-pill">${esc(w.trade || 'trade not set')}</span>
+          <select class="cp-select" id="wk-months"><option value="6">6 months</option><option value="12">12 months</option><option value="24">24 months</option><option value="36">36 months</option></select>
+          <a class="btn-ghost btn-sm" href="/admin/labor-rates" style="text-decoration:none">Manage rates</a></div>
+        <div class="cp-kpis">
+          ${kpi('Hours worked (' + months + ' mo)', hrs(s.hours_window), `${s.days_window} day(s) on site · ${hrs(s.hours_ytd)} h this year · ${hrs(s.hours_all_time)} h all time`)}
+          ${kpi('Est. labor cost (' + months + ' mo)', money.format(s.est_cost_window), s.unrated_hours_window ? `${hrs(s.unrated_hours_window)} h had no rate on file` : 'worked hours × rate on each date', s.unrated_hours_window ? 'warn' : '')}
+          ${kpi('Current rate', w.current_rate ? money2.format(w.current_rate) + '/h' : '—', w.current_rate ? `since ${fmtDate(w.rate_effective_date)}${s.pending_rate_changes ? ' · ' + s.pending_rate_changes + ' pending change(s)' : ''}` : 'no rate on file', !w.current_rate || s.pending_rate_changes ? 'warn' : '')}
+          ${kpi('Projects', s.projects_total, `${s.projects_active} active assignment(s) · last on site ${fmtDate(s.last_on_site)}`)}
+          ${kpi('Certifications', s.certs_total, `${s.certs_expired} expired · ${s.certs_expiring_30} expiring ≤ 30d`, s.certs_expired ? 'warn' : (s.certs_expiring_30 ? 'warn' : 'good'))}
+          ${kpi('Credentials', s.credentials_issued, 'Certificate of Fitness cards issued')}
+        </div>
+        <div class="cp-grid3">
+          <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Projects worked</h2><span class="hint">from sign-ins and assignments · all time</span></div>
+              <div class="cp-table-wrap"><table class="cp-table" id="wk-projects"></table></div></div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Hours by month</h2><span class="hint">last ${months} months</span></div>${bars}
+              <div class="cp-table-wrap" style="margin-top:12px"><table class="cp-table" id="wk-months-table"></table></div></div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Hours by project and month</h2></div>
+              ${d.matrix.rows.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th>${L.map(m => `<th class="num">${esc(fmtMonth(m))}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>${d.matrix.rows.map(r => `<tr><td><span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:12px">${esc(r.project_name || '')}</div></td>${r.cells.map(c => `<td class="num">${c ? hrs(c) : '<span class="cp-muted">·</span>'}</td>`).join('')}<td class="num"><strong>${hrs(r.total)}</strong></td></tr>`).join('')}</tbody></table></div>` : empty('No hours in this window')}
+            </div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Last 30 days</h2><span class="hint">each sign-in · hours worked</span></div>
+              ${d.recent_days.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Date</th><th>Project</th><th>In</th><th>Out</th><th class="num">Hours</th><th class="num">Est. cost</th></tr></thead><tbody>${d.recent_days.map(r => `<tr><td>${fmtDate(r.date)}</td><td><span class="cp-id">${esc(r.project_code)}</span></td><td>${esc(r.time_in || '—')}</td><td>${esc(r.time_out || '—')}</td><td class="num">${hrs(r.hours)}</td><td class="num">${r.est_cost ? money2.format(r.est_cost) : '<span class="cp-muted">no rate</span>'}</td></tr>`).join('')}</tbody></table></div>` : empty('No sign-ins in the last 30 days')}
+            </div>
+          </div>
+          <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Rate history</h2><span class="hint">company-confidential</span></div>
+              ${d.rate_history.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Rate</th><th>From</th><th>To</th><th></th></tr></thead><tbody>${d.rate_history.map(rateRow).join('')}</tbody></table></div>` : empty('No effective-dated rates', w.current_rate ? 'The current rate comes from the labor rate tracker state.' : 'Set a rate under Labor Rates.')}
+              ${d.rate_changes.length ? `<div class="cp-card-head" style="margin-top:14px"><h2>Rate changes</h2><span class="hint">approval audit</span></div><div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Change</th><th>Effective</th><th>Status</th><th></th></tr></thead><tbody>${d.rate_changes.slice().reverse().map(chgRow).join('')}</tbody></table></div>` : ''}
+            </div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Certifications</h2></div>
+              ${d.certifications.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Certification</th><th>Obtained</th><th>Expires</th></tr></thead><tbody>${d.certifications.map(certRow).join('')}</tbody></table></div>` : empty('No certifications on file')}
+            </div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Credentials issued</h2><span class="hint">Certificate of Fitness cards</span></div>
+              ${d.credentials.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Card</th><th>Issued</th><th>Expires</th><th>Status</th><th>By</th></tr></thead><tbody>${d.credentials.map(credRow).join('')}</tbody></table></div>` : empty('No cards issued yet')}
+            </div>
+          </div>
+        </div>`;
+      $('wk-months').value = String(months);
+      $('wk-months').addEventListener('change', () => { state.cache.workerMonths = Number($('wk-months').value); loadWorkerDetail(id, state.cache.workerMonths); });
+      table($('wk-projects'), [
+        { key: 'project_code', label: 'Project', render: p => `<a class="cp-link" href="/projects/${encodeURIComponent(p.project_code)}"><span class="cp-id">${esc(p.project_code)}</span></a><div class="cp-muted" style="font-size:12px">${esc(p.project_name || '')}${p.project_status ? ' · ' + esc(p.project_status) : ''}</div>` },
+        { key: 'role_on_project', label: 'Assignment', render: p => p.assignment_status ? `<span class="cp-pill ${p.assignment_status === 'active' ? 'ok' : ''}">${esc(p.assignment_status)}</span>${p.role_on_project ? ' ' + esc(p.role_on_project) : ''}` : '<span class="cp-muted">sign-ins only</span>' },
+        { key: 'first_date', label: 'First', render: p => fmtDate(p.first_date || p.assigned_from) },
+        { key: 'last_date', label: 'Last', render: p => fmtDate(p.last_date || p.assigned_to) },
+        { key: 'days', label: 'Days', num: true },
+        { key: 'hours', label: 'Hours', num: true, render: p => hrs(p.hours) },
+        { key: 'est_cost', label: 'Est. cost', num: true, render: p => p.est_cost ? money2.format(p.est_cost) + (p.unrated_hours ? ` <span class="cp-pill warn">${hrs(p.unrated_hours)} h unrated</span>` : '') : (p.hours ? '<span class="cp-pill warn">no rate</span>' : '—') },
+      ], d.projects, { defaultSort: { key: 'last_date', dir: 'desc' }, emptyTitle: 'No projects yet', emptySub: 'Sign-ins and project assignments will build this history.' });
+      table($('wk-months-table'), [
+        { key: 'month', label: 'Month', render: m => esc(fmtMonth(m.month)) },
+        { key: 'days', label: 'Days', num: true },
+        { key: 'hours', label: 'Hours', num: true, render: m => hrs(m.hours) },
+        { key: 'est_cost', label: 'Est. cost', num: true, render: m => m.est_cost ? money2.format(m.est_cost) : (m.hours ? '<span class="cp-pill warn">no rate</span>' : '—') },
+      ], d.by_month.filter(m => m.hours || m.days).slice().reverse(), { defaultSort: { key: 'month', dir: 'desc' }, emptyTitle: 'No hours in this window' });
+    } catch (e) { toast(e.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this worker', e.message)}<div style="margin-top:10px"><a class="cp-link" href="#workforce">← All workers</a></div></div>`; }
   }
 
   // ---------- COMPLIANCE ----------
@@ -1425,7 +1504,7 @@
     document.querySelectorAll('#cp-nav a').forEach(a => a.classList.toggle('active', a.dataset.view === v));
     $('cp-title').textContent = TITLES[v];
     if (v === 'finance') $('inv-status').value = ['overdue', 'draft', 'issued', 'paid', 'void'].includes(arg) ? arg : '';
-    if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'buildings' && arg) loadBuildingDetail(arg); else if (v === 'proposals' && arg) loadProposalDetail(arg); else LOADERS[v]();
+    if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'buildings' && arg) loadBuildingDetail(arg); else if (v === 'proposals' && arg) loadProposalDetail(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);

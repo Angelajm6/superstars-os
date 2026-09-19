@@ -1095,3 +1095,5 @@ def register(app) -> None:
 
     import company_vault
     company_vault.register_routes(app, gate)   # #318 — vehicles + document files
+    import worker_history
+    worker_history.register_routes(app, gate)   # #320 — worker job history + payroll view

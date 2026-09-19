@@ -21,6 +21,43 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #320 — Worker job history + payroll view (Bookore, 2026-09-19)
+
+* **What:** ROADMAP Phase C — one read model per worker in `worker_history.py`,
+  served at `GET /api/company/portal/workers/<employee_id>?months=12` (1..36,
+  clamped) behind the company-portal gate (admin / c_suite). Company-only per the
+  comp-data rule: never linked from the project dashboard, worker app or any
+  client surface.
+* **Payload:** `worker` (id, W-####, name, trade, status active | inactive |
+  archived, current rate + its effective date), `summary` (hours in the window /
+  YTD / all time, days on site, est. labor cost + unrated hours in the window,
+  projects total / active, first + last on site, certs total / expired /
+  expiring, credentials issued, pending rate changes, hours corrections),
+  `projects` (per project: hours, distinct days, first / last date, est. cost,
+  unrated hours, plus the assignment's role / status / dates merged in — an
+  assignment with no sign-ins still shows), `by_month`, `matrix` (project ×
+  month hours), `recent_days` (last 30 days of sign-ins with the rate applied),
+  `certifications` (with expired / expiring / valid state), `credentials`
+  (Certificate of Fitness cards — no path columns), `rate_history`
+  (`worker_rates`, `current` flag) and `rate_changes` (the approval audit).
+* **Money rule:** worked hours × the rate effective ON THE WORK DATE via
+  `company_portal._rate_on` — the same rule as the Finance view's labor cost: a
+  raise splits the cost at its boundary; a worker with a rate on file but a
+  sign-in older than every effective-dated row prices at the current rate (the
+  fallback, deliberately shared); a worker with no rate at all reports unrated
+  hours and no cost. It is an estimate of labor cost, never payroll; labels say
+  "worked" and "est. cost".
+* **Portal (Workforce & Pay):** every worker row links to `#workforce/<id>`;
+  the detail page has six KPIs, a months selector (6 / 12 / 24 / 36), Projects
+  worked, Hours by month (bars + table), Hours by project and month (matrix),
+  Last 30 days, Rate history + Rate changes, Certifications, Credentials issued.
+* **Test** `tests/smoke_worker_history_320.py` (gate + CI). Optional sources
+  (`worker_rates`, `project_assignments`, `cof_cards`, `labor_rate_change`,
+  `sign_in_edit`) degrade to empty when a fixture lacks the table.
+* **Not in this ticket:** CSV export of the per-worker history; a payroll-period
+  view (the Labor Rate Tracker on the console remains the check-cutting sheet);
+  edits — everything here is read-only.
+
 ### #318 — Company vault (Bookore, 2026-09-19)
 
 * **What:** ROADMAP Phase C "Company vault" — Amit's "everything that has to do
