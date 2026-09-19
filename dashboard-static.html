@@ -24,7 +24,10 @@
   .ph-actions { display:flex; flex-wrap:wrap; gap:10px; margin:14px 0 4px; }
   .ph-actions .ph-btn { background:var(--ui); color:#fff; border:none; border-radius:8px; padding:9px 14px; font-size:12px; font-weight:700; letter-spacing:.03em; cursor:pointer; }
   .ph-actions .ph-btn.ghost { background:#fff; color:var(--ui); border:1px solid var(--ui); }
-  .ph-actions .ph-btn:hover { filter:brightness(.96); }
+  /* #323 — beat the generic [data-link]:hover wash (line ~816) that washed the button to a
+     pale box with white text; the solid button darkens, the ghost fills soft blue. */
+  .ph-actions .ph-btn[data-link]:hover, .ph-actions .ph-btn:hover { background:var(--ui-deep, #1B3272); color:#fff; }
+  .ph-actions .ph-btn.ghost[data-link]:hover, .ph-actions .ph-btn.ghost:hover { background:var(--ui-soft, #E8EDF8); color:var(--ui, #24418C); }
 
   /* KPI tiles */
   .ph-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin:16px 0 20px; }
@@ -777,8 +780,8 @@
       color: white;
     }
     .hero-btn-primary:hover {
-      background-color: #8B1621;
-      box-shadow: 0 4px 12px rgba(177, 30, 46, 0.2);
+      background-color: var(--ui-deep, #1B3272);
+      box-shadow: 0 4px 12px rgba(36, 65, 140, 0.2);
     }
 
     /* Placeholder Card */

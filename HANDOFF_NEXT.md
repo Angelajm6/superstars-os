@@ -21,6 +21,18 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #323 — Project-health buttons washed out on hover (Bookore, 2026-09-19)
+
+* **Reported by Angela on preprod:** hovering "Drop Plan" under Project Health
+  faded the button to a pale box with unreadable text.
+* **Why:** `[data-link]:hover { background: rgba(177,30,46,.04) }` (a generic
+  row-hover rule in `dashboard-static.html`) has the same specificity as
+  `.ph-actions .ph-btn` and comes later, so it replaced the button's solid blue
+  with a near-transparent wash under white text.
+* **Fix:** `.ph-actions .ph-btn[data-link]:hover` → `--ui-deep` with white text;
+  the ghost variant fills `--ui-soft` with blue text. The hero's
+  `.hero-btn-primary:hover` still carried a #313-era red; it is `--ui-deep` now.
+
 ### #322 — project_assignments missing on preprod Postgres (Bookore, 2026-09-19)
 
 * **Found in the Render logs** after the #321 deploy: `GET /api/payroll/hours:
