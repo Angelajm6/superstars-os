@@ -103,6 +103,8 @@ import invoices  # noqa: E402
 invoices.register(app)
 import invoice_docs  # noqa: E402
 invoice_docs.register(app)   # #326 — invoice documents, email, public link, project Payments
+import doc_packages  # noqa: E402
+doc_packages.register(app)   # #327 — permits & insurance package, send to client
 
 # #279 (UI v2 phase 0) — the interface toggle. MUST follow apply_auth_gate: the
 # stored per-user preference is read off current_user(). Sets g.ui_version on page

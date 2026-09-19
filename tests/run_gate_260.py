@@ -80,6 +80,7 @@ GATE = [
     "smoke_password_reset_flow_301.py",# #301 guard — reset BEHAVIOR: no-enum, hashed single-use tokens, session revoke, expiry, throttle
     "smoke_company_portal_302.py",     # #302 guard — company portal: company-axis gating, clients/buildings rollups, finance, compliance, company documents CRUD
     "smoke_migrations_306.py",         # #306 guard — migration ledger: baseline, pending, apply/record, drift, health count
+    "smoke_doc_package_327.py",      # #327 guard — permits & insurance package: readiness, send to client + private link, portal share, red-flag revocation, gates
     "smoke_project_payments_326.py", # #326 guard — invoice documents: preview/pdf, email to client + private link, view tracking, project Payments, gates
     "smoke_crew_sites_325.py",       # #325 guard — crews + site coordinates + worker-app job picker: per-job geofence, chooser, shift start validation
     "smoke_project_onboard_324.py",  # #324 guard — onboard an already-won job: gates, validation, estimate→approved→convert in one step, PM assignment, numbering

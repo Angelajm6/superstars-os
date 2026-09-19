@@ -90,6 +90,7 @@ DUAL_BACKEND_MIGRATIONS = (
     "apply_company_vault_318.py",
     "apply_assignments_322.py",
     "apply_project_site_325.py",
+    "apply_doc_packages_327.py",
 )
 
 

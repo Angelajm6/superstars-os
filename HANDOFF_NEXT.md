@@ -21,6 +21,43 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #327 — Permits & insurance package, send to client (Bookore, 2026-09-19)
+
+* **Ask (C-suite via Angela, 2026-09-19, priority item 2):** a section within each
+  job for the permits and insurance documents (from the broker) that secure the
+  job, delivered to the client.
+* **What existed:** Project Documents (#229 / #271) — categories, a required-docs
+  checklist per category, uploads, versions, per-document client sharing
+  (#270 visibility engine). What was missing: the job-securing subset as one
+  readiness view, and a way to hand it to the client in one go.
+* **Module** `doc_packages.py`. `PACKAGE_KEYS` = COI + bond (CONTRACTS) and every
+  PERMITS requirement; un-keyed PERMITS documents ride along as extras.
+  `GET /api/projects/<code>/documents/package` (admin / c_suite / pm / super):
+  items with missing / on_file / expiring / expired, extras, summary, the
+  client + contacts, `last_sent` (sent_to, viewed_at, view_count, link_active)
+  and `sends`. `POST …/package/send` (admin / c_suite / pm): recipient (body,
+  else the client's first contact), message, `document_ids` (default = every
+  deliverable document; a red-flagged or out-of-package id → 400),
+  `share_in_portal` (default true → `visibility.share(...'client')` so the
+  portal's Documents section shows them). Each send is its own
+  `document_package` row + items with a 90-day link `/d/<token>`; older links
+  keep working until they expire. Email lists the documents; CRM activity row.
+* **Public** `/d/<token>` and `/d/<token>/file/<id>`: no login, no-store,
+  noindex, first open recorded; a file is served only if it is in the package,
+  not superseded and not red-flagged — a flag pulls a document from every sent
+  package at once. `/d/` added to the public, containment and client allowlists.
+  Tables in `apply_doc_packages_327.py` (dual-backend list; boot heals).
+* **Project dashboard → Project Documents:** a "Permits & insurance — what
+  secures this job" card under the readiness hero (per-item pills, extras, last
+  sent / opened, "Send to client…" modal with the client's contacts as
+  suggestions, checkboxes per document (expired ones unticked), "also show in
+  the client's portal").
+* **Test** `tests/smoke_doc_package_327.py` (gate + CI) boots the real app and
+  uploads through the real endpoint.
+* **Not in this ticket:** editing the package definition per job (it is the
+  taxonomy's PERMITS + COI + bond); reminders when the COI nears expiry (the
+  Compliance view already lists it); requesting the COI from the broker by email.
+
 ### #326 — Invoice documents, email to client, project Payments (Bookore, 2026-09-19)
 
 * **Ask (C-suite via Angela, 2026-09-19, priority item 3, without QuickBooks):** a

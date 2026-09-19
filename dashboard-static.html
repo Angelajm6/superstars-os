@@ -1331,8 +1331,30 @@
              button's background falls back to transparent and its white text lands on
              the white modal = an invisible "empty white box". (#230) color/font stay
              on .pd-wrap only so the overlay's own text rendering is unchanged. */
-          .pd-wrap,.pd-overlay{--pd-ink:#222633;--pd-muted:#8c92a0;--pd-line:#eceef3;--pd-accent:#4364dc;--pd-accent-ink:#3a5fd0;--pd-accent-soft:#ebf0fe;--pd-accent-edge:rgba(67,100,220,.30);--on-ink:#178a6c;--on-soft:#e7f6f0;--miss-ink:#8f8675;--miss-soft:#f3f0e9;--miss:#cabfad;--warn-ink:#d75a4c;--warn-soft:#fceeec}
+          .pd-wrap,.pd-overlay,.pk-overlay{--pd-ink:#222633;--pd-muted:#8c92a0;--pd-line:#eceef3;--pd-accent:#4364dc;--pd-accent-ink:#3a5fd0;--pd-accent-soft:#ebf0fe;--pd-accent-edge:rgba(67,100,220,.30);--on-ink:#178a6c;--on-soft:#e7f6f0;--miss-ink:#8f8675;--miss-soft:#f3f0e9;--miss:#cabfad;--warn-ink:#d75a4c;--warn-soft:#fceeec}
           .pd-wrap{color:var(--pd-ink);font:14px/1.55 -apple-system,"Segoe UI",Inter,Roboto,sans-serif}
+          /* #327 — permits & insurance package */
+          .pk-card{background:#fff;border:1px solid var(--pd-accent-edge);border-radius:16px;padding:16px 20px;margin-bottom:18px;position:relative;overflow:hidden;background:radial-gradient(520px 170px at 14% 0%, rgba(67,100,220,.14) 0%, rgba(255,255,255,0) 60%), #fff}
+          .pk-card::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,#4364dc,#ebf0fe)}
+          .pk-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+          .pk-h{font-size:15px;font-weight:700} .pk-sub{font-size:12.5px;color:var(--pd-muted);margin-top:2px}
+          .pk-btn{font:inherit;font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:9px;border:1px solid var(--pd-line);background:#fff;color:var(--pd-ink);cursor:pointer}
+          .pk-btn.primary{background:var(--ui,#24418C);color:#fff;border-color:transparent} .pk-btn.primary:hover{background:var(--ui-deep,#1B3272)} .pk-btn:disabled{opacity:.5;cursor:not-allowed}
+          .pk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px 16px}
+          .pk-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--pd-line);font-size:13px} .pk-item .lbl{flex:1;min-width:0} .pk-item .lbl small{display:block;color:var(--pd-muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .pk-pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap} .pk-pill.on{background:var(--on-soft);color:var(--on-ink)} .pk-pill.miss{background:var(--miss-soft);color:var(--miss-ink)} .pk-pill.warn{background:var(--warn-soft);color:var(--warn-ink)}
+          .pk-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:12.5px;color:var(--pd-muted)}
+          .pk-overlay{position:fixed;inset:0;background:rgba(20,22,28,.45);display:none;align-items:center;justify-content:center;z-index:60;padding:16px} .pk-overlay.open{display:flex}
+          .pk-modal{background:#fff;border-radius:14px;width:100%;max-width:600px;box-shadow:0 24px 64px rgba(20,22,28,.25);max-height:92vh;overflow:auto}
+          .pk-mhead{padding:18px 20px 6px} .pk-mhead h3{margin:0;font-size:17px;font-weight:800} .pk-mhead p{margin:6px 0 0;font-size:12.5px;color:var(--pd-muted)}
+          .pk-mbody{padding:14px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px} .pk-mbody .full{grid-column:1 / -1}
+          .pk-field label{display:block;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--pd-muted);margin-bottom:5px}
+          .pk-field input,.pk-field textarea{width:100%;font:inherit;font-size:13px;padding:9px 10px;border:1px solid #eceef3;border-radius:8px;background:#fff;color:#222633;box-sizing:border-box}
+          .pk-field input:focus,.pk-field textarea:focus{border-color:#4364dc;box-shadow:0 0 0 3px #ebf0fe;outline:none}
+          .pk-docs{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;border:1px solid #eceef3;border-radius:8px;padding:10px} .pk-docs label{display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer} .pk-docs input{width:auto}
+          .pk-err{grid-column:1 / -1;color:#A8382B;background:var(--warn-soft);border-radius:8px;padding:8px 10px;font-size:13px;display:none} .pk-err.show{display:block}
+          .pk-mfoot{padding:12px 20px 18px;display:flex;justify-content:flex-end;gap:8px}
+          @media (max-width:600px){ .pk-mbody{grid-template-columns:1fr} }
           .pd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
           .pd-h1{margin:0;font-size:21px;font-weight:700}.pd-sub{color:var(--pd-muted);font-size:12.5px;margin-top:3px}
           .pd-ic{width:15px;height:15px;flex:none}
@@ -1456,6 +1478,7 @@
             <button class="pd-upload" id="pd-upload-btn"><svg class="pd-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 20h16"/></svg>Upload</button>
           </div>
           <div class="pd-hero" id="pd-hero"><div class="pd-empty" style="margin:0">Loading documents…</div></div>
+          <div class="pk-card" id="pd-package" hidden></div>
           <div class="pd-bulkbar pd-hide" id="pd-bulkbar">
             <span id="pd-bb-count">0 selected</span>
             <button class="pd-bb-share" id="pd-bb-share" type="button">Share selected with client</button>
@@ -1464,6 +1487,16 @@
           </div>
           <div id="pd-checklist"></div>
         </div>
+        <div class="pk-overlay" id="pk-overlay"><form class="pk-modal" id="pk-form" novalidate>
+          <div class="pk-mhead"><h3>Send permits &amp; insurance to the client</h3><p id="pk-sub">One email with a private link where the client views and downloads each document.</p></div>
+          <div class="pk-mbody">
+            <div class="pk-field"><label for="pk-name">Recipient name</label><input id="pk-name" autocomplete="off"></div>
+            <div class="pk-field"><label for="pk-email">Recipient email</label><input id="pk-email" type="email" autocomplete="off" list="pk-list"><datalist id="pk-list"></datalist></div>
+            <div class="pk-field full"><label for="pk-msg">Message (optional)</label><textarea id="pk-msg" rows="3" placeholder="A short note above the document list"></textarea></div>
+            <div class="pk-field full"><label>Documents to include</label><div class="pk-docs" id="pk-docs"></div></div>
+            <label class="full" style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="pk-share" checked style="width:auto"> Also show these in the client's portal (Documents section)</label>
+            <div class="pk-err" id="pk-err"></div></div>
+          <div class="pk-mfoot"><button type="button" class="pk-btn" id="pk-cancel">Cancel</button><button type="submit" class="pk-btn primary" id="pk-go">Send</button></div></form></div>
         <div class="pd-overlay" id="pd-modal">
           <div class="pd-modal">
             <div class="pd-mhead"><h3 id="pd-modal-title">Upload document</h3><button class="pd-mx" id="pd-modal-close">&times;</button></div>
@@ -7642,7 +7675,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     try{
       var j=await jget('/api/projects/'+encodeURIComponent(PROJECT_CODE)+'/documents');
       PD.data=(j&&j.data)||{categories:[],readiness:{}};
-      renderHero(); renderChecklist();
+      renderHero(); renderChecklist(); renderPackage();
     }catch(e){console.warn('[projdocs] load failed',e);var h=$('pd-checklist');if(h)h.innerHTML='<div class="pd-empty">Could not load documents.</div>';}
   }
 
@@ -7793,6 +7826,52 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       +'<div class="pd-bar"><i style="width:'+seg(on)+'%;background:'+GRAD.on+'"></i><i style="width:'+seg(miss)+'%;background:'+GRAD.miss+'"></i><i style="width:'+seg(att)+'%;background:'+GRAD.warn+'"></i></div>'
       +'<div class="pd-legend"><span><span class="pd-dot" style="background:#15a07e"></span>'+on+' on file</span><span><span class="pd-dot" style="background:#cabfad"></span>'+miss+' missing</span><span><span class="pd-dot" style="background:#e9685a"></span>'+att+' expiring / expired</span></div></div>';
   }
+
+  // ---------- #327 — permits & insurance package + send to client ----------
+  var PK={data:null};
+  async function renderPackage(){
+    var host=$('pd-package'); if(!host) return;
+    try{
+      var j=await jget('/api/projects/'+encodeURIComponent(PROJECT_CODE)+'/documents/package');
+      if(!j||!j.data){ host.hidden=true; return; }
+      PK.data=j.data; var d=j.data, s=d.summary; host.hidden=false;
+      var pill=function(st){ return st==='missing'?'<span class="pk-pill miss">missing</span>':(st==='expired'?'<span class="pk-pill warn">expired</span>':(st==='expiring'?'<span class="pk-pill warn">expiring</span>':'<span class="pk-pill on">on file</span>')); };
+      var items=d.items.map(function(it){ var doc=it.doc; return '<div class="pk-item"><div class="lbl">'+esc(it.label)+(doc?'<small>'+esc(doc.title)+(doc.expiry_date?' · exp '+mdy(doc.expiry_date):'')+(doc.shared_client?' · in portal':'')+'</small>':'<small>not uploaded yet</small>')+'</div>'+pill(it.status)+'</div>'; }).join('');
+      var extras=d.extras.length?'<div class="pk-item"><div class="lbl">'+d.extras.length+' other permit document'+(d.extras.length===1?'':'s')+'<small>'+esc(d.extras.map(function(x){return x.title;}).join(' · '))+'</small></div><span class="pk-pill on">on file</span></div>':'';
+      var canSend=d.items.some(function(it){return it.doc&&!it.doc.flagged;})||d.extras.some(function(x){return !x.flagged;});
+      var last=d.last_sent?('Last sent to '+esc(d.last_sent.sent_name?d.last_sent.sent_name+' · ':'')+esc(d.last_sent.sent_to||'')+' on '+mdy(d.last_sent.sent_at)+(d.last_sent.viewed_at?' · opened '+mdy(d.last_sent.viewed_at):' · not opened yet')+(d.sends>1?' · '+d.sends+' sends':'')):'Not sent to the client yet.';
+      host.innerHTML='<div class="pk-head"><div><div class="pk-h">Permits &amp; insurance — what secures this job</div><div class="pk-sub">'+s.on_file+' of '+s.required+' on file'+(s.attention?' · '+s.attention+' need attention':'')+(s.missing?' · '+s.missing+' missing':'')+(d.client?' · client: '+esc(d.client.name):'')+'</div></div>'
+        +'<button type="button" class="pk-btn primary" id="pk-send" '+(canSend?'':'disabled title="Upload the permits and the COI first"')+'>Send to client…</button></div>'
+        +'<div class="pk-grid">'+items+extras+'</div><div class="pk-foot"><span>'+last+'</span><span>Broker sends the COI → upload it under Contracts &amp; Financial → send the package.</span></div>';
+      var b=$('pk-send'); if(b) b.addEventListener('click', openPackageModal);
+    }catch(e){ host.hidden=true; console.warn('[docpkg] load failed', e); }
+  }
+  function openPackageModal(){
+    var d=PK.data; if(!d) return; var err=$('pk-err'); err.className='pk-err';
+    $('pk-list').innerHTML=(d.contacts||[]).map(function(c){ return '<option value="'+esc(c.email)+'">'+esc(c.full_name||'')+'</option>'; }).join('');
+    var first=(d.contacts||[])[0]; $('pk-email').value=d.last_sent?(d.last_sent.sent_to||''):(first?first.email:''); $('pk-name').value=d.last_sent?(d.last_sent.sent_name||''):(first?(first.full_name||''):''); $('pk-msg').value='';
+    var docs=[]; d.items.forEach(function(it){ if(it.doc&&!it.doc.flagged) docs.push({id:it.doc.id,label:it.label,title:it.doc.title,status:it.status}); }); d.extras.forEach(function(x){ if(!x.flagged) docs.push({id:x.id,label:x.title,title:x.file_name||'',status:x.status}); });
+    $('pk-docs').innerHTML=docs.map(function(x){ return '<label><input type="checkbox" value="'+x.id+'" '+(x.status==='expired'?'':'checked')+'><span>'+esc(x.label)+' <span style="color:var(--pd-muted)">· '+esc(x.title)+(x.status==='expired'?' · expired':'')+'</span></span></label>'; }).join('')||'<div style="color:var(--pd-muted)">Nothing on file yet.</div>';
+    $('pk-share').checked=true; $('pk-overlay').classList.add('open'); setTimeout(function(){ $('pk-email').focus(); },30);
+  }
+  (function wirePackage(){
+    var ov=$('pk-overlay'); if(!ov||ov.dataset.wired) return; ov.dataset.wired='1';
+    $('pk-cancel').addEventListener('click', function(){ ov.classList.remove('open'); });
+    ov.addEventListener('click', function(e){ if(e.target===ov) ov.classList.remove('open'); });
+    $('pk-form').addEventListener('submit', async function(e){
+      e.preventDefault(); var err=$('pk-err'); err.className='pk-err';
+      var email=$('pk-email').value.trim(); if(email.indexOf('@')<0){ err.textContent='Enter the recipient email.'; err.className='pk-err show'; return; }
+      var ids=Array.prototype.map.call($('pk-docs').querySelectorAll('input:checked'), function(i){ return Number(i.value); });
+      if(!ids.length){ err.textContent='Tick at least one document.'; err.className='pk-err show'; return; }
+      $('pk-go').disabled=true;
+      try{
+        var r=await fetch('/api/projects/'+encodeURIComponent(PROJECT_CODE)+'/documents/package/send',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({to_email:email,to_name:$('pk-name').value.trim(),message:$('pk-msg').value,document_ids:ids,share_in_portal:$('pk-share').checked})});
+        var j=await r.json().catch(function(){return {};}); if(!r.ok) throw new Error(j.error||('Request failed ('+r.status+')'));
+        ov.classList.remove('open'); loadDocs();
+      }catch(ex){ err.textContent=ex.message; err.className='pk-err show'; }
+      finally{ $('pk-go').disabled=false; }
+    });
+  })();
 
   function renderChecklist(){
     var host=$('pd-checklist');if(!host)return;
