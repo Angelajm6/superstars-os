@@ -188,6 +188,8 @@ except Exception as _e:
 # is set before the scoping hook runs.
 import pm_scoping  # noqa: E402
 pm_scoping.register(app)
+import project_onboard  # noqa: E402
+project_onboard.register(app)   # #324 — onboard an already-won job
 
 # #264 — the per-item VISIBILITY ENGINE (default-deny) + the read-only CLIENT portal.
 # client_portal registers a default-deny before_request gate (a `client` reaches ONLY the

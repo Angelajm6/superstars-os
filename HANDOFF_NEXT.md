@@ -21,6 +21,35 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #324 — "+ New project": onboard an already-won job (Bookore, 2026-09-19)
+
+* **Ask (Angela, 2026-09-19):** "figure out how to add / onboard more jobs." Until
+  now every project had to travel estimate → approved → convert — right for a
+  bid, four screens and a fake estimate for a job won before the dashboard
+  existed or agreed verbally.
+* **What:** `project_onboard.py` — `POST /api/admin/projects/onboard` (+
+  `GET …/onboard-meta` for the selects), admin / c_suite via
+  `requires_company`. One call: (1) `estimates.create_estimate` in the job's
+  series so numbering stays consistent, (2) stamped approved on the start date
+  with the contract value and the note "Onboarded directly as an already-won
+  job" so Finance's won / pipeline figures stay truthful, (3)
+  `estimates.convert_to_project` (building auto-link, IRA checklist row), (4)
+  the operator's project name + start date and the chosen PM written to
+  `pm_project_assignment`; a CRM activity row on the client. Client is an
+  existing active org or a new name (creates the org as a client). Validation
+  rejects before anything is written.
+* **Page:** Projects & assignments gains "+ New project" (head row) and a modal
+  (client / new client, job type, borough, address, name, contract value, start
+  date, PM, notes); success toasts the code and reloads the lists. The head
+  copy now says new bids start in Estimates and won jobs onboard here.
+* **Test** `tests/smoke_project_onboard_324.py` (gate + CI): gates, meta
+  filters (active clients, real active PMs), validation with nothing left
+  behind, the happy path end to end, PM visibility via `pm_scoping`, numbering
+  in both directions, new client, IRA row, page markup.
+* **Not in this ticket:** editing a project's name / dates after creation (the
+  console's project settings are unchanged); bulk import from a spreadsheet —
+  worth adding if the C-suite has more than a handful to onboard at once.
+
 ### #323 — Project-health buttons washed out on hover (Bookore, 2026-09-19)
 
 * **Reported by Angela on preprod:** hovering "Drop Plan" under Project Health
