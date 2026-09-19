@@ -21,7 +21,8 @@
      colourway change updates brand.py + these tokens and propagates everywhere
      (UI chrome + report letterheads). The LOGO is a swappable asset (static/brand/). */
   --brand-red:#B11E2E; --brand-red-deep:#8B1623; --cream:#FAF7F1;
-  --ui:#24418C; --ui-deep:#1B3272; --ui-soft:#E8EDF8; --ui-edge:rgba(36,65,140,.35);   /* #313 — interactive accent (nav, links, primary actions); brand red = identity + errors */
+  --ui:#24418C; --ui-deep:#1B3272; --ui-soft:#E8EDF8; --ui-edge:rgba(36,65,140,.35);
+  --side-bg:#F3F4F6; --side-edge:#E3E5EA; --side-ink:#2B2F38; --side-muted:#8A8F99; --side-hover:rgba(20,22,28,.05);   /* #321 — the light sidebar (option A) */   /* #313 — interactive accent (nav, links, primary actions); brand red = identity + errors */
   /* Lumen+Oat STATUS tokens — status meaning ONLY (never decoration) */
   --status-complete:#15a07e; --status-complete-soft:#e7f6f0;
   --status-active:#4364dc;   --status-active-soft:#ebf0fe;
@@ -442,9 +443,9 @@ tbody tr { transition: background var(--ssc-t-fast) ease; }
    the two sidebar families; shell.js creates the button and toggles .nav-open).
    Desktop is untouched: the button does not exist above 860 px. ===== */
 .ssc-menu-btn { display: none; margin-left: auto; align-items: center; gap: 8px; font: inherit; font-size: 12px; font-weight: 700;
-  letter-spacing: .3px; color: #fff; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); border-radius: 9px;
-  padding: 7px 11px; cursor: pointer; transition: background var(--ssc-t-fast, .12s) ease, border-color var(--ssc-t-fast, .12s) ease; }
-.ssc-menu-btn:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.4); }
+  letter-spacing: .3px; color: var(--side-ink, #2B2F38); background: #fff; border: 1px solid var(--side-edge, #E3E5EA); border-radius: 9px;
+  padding: 7px 11px; cursor: pointer; transition: background var(--ssc-t-fast, .12s) ease, border-color var(--ssc-t-fast, .12s) ease; }   /* #321 light */
+.ssc-menu-btn:hover { background: var(--ui-soft, #E8EDF8); border-color: var(--ui-edge, rgba(36,65,140,.35)); color: var(--ui, #24418C); }
 .ssc-menu-bars { display: inline-flex; flex-direction: column; gap: 3px; width: 14px; }
 .ssc-menu-bars i { display: block; height: 2px; border-radius: 2px; background: currentColor; transition: transform var(--ssc-t, .18s) var(--ssc-ease, ease), opacity var(--ssc-t, .18s) ease; transform-origin: center; }
 [aria-expanded="true"] .ssc-menu-bars i:nth-child(1) { transform: translateY(5px) rotate(45deg); }
