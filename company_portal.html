@@ -149,7 +149,7 @@
       <a href="#expenses" data-view="expenses"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Expenses</a>
       <div class="ssc-nav-label">People &amp; Risk</div>
       <a href="#workforce" data-view="workforce"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15 14.5a5 5 0 0 1 6.5 5"/></svg>Workforce &amp; Pay</a>
-      <a href="#compliance" data-view="compliance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>Compliance</a>
+      <a href="#compliance" data-view="compliance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>Compliance &amp; Vault</a>
     </nav>
     <div class="ssc-side-foot">
       <a href="/">← Office Console</a>
@@ -329,8 +329,14 @@
       <section class="cp-view" id="view-compliance" hidden>
         <div class="cp-kpis" id="co-kpis"></div>
         <div class="cp-card">
-          <div class="cp-card-head"><h2>Company licenses, insurance &amp; bonds</h2>
+          <div class="cp-card-head"><h2>Vehicles</h2><span class="hint">registration · insurance · inspection per vehicle</span>
+            <button class="btn-primary btn-sm" id="vh-add" type="button">+ Add vehicle</button></div>
+          <div class="cp-table-wrap"><table class="cp-table" id="vh-table"></table></div>
+        </div>
+        <div class="cp-card">
+          <div class="cp-card-head"><h2>Company vault</h2><span class="hint">licenses, insurance, bonds, vehicle paper, tax returns, filings, records</span>
             <button class="btn-primary btn-sm" id="cd-add" type="button">+ Add document</button></div>
+          <div class="cp-toolbar" id="cd-chips"></div>
           <div class="cp-table-wrap"><table class="cp-table" id="cd-table"></table></div>
         </div>
         <div class="cp-card">
@@ -419,6 +425,27 @@
   </div>
 </div>
 
+<!-- vehicle modal (#318) -->
+<div class="cp-overlay" id="vh-overlay" role="dialog" aria-modal="true" aria-labelledby="vh-title">
+  <form class="cp-modal" id="vh-form" novalidate>
+    <div class="cp-modal-head"><h2 id="vh-title">Add vehicle</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Registration, insurance and inspection are added as vault documents linked to the vehicle; their renewals show up in Compliance.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><label for="vh-label">Label</label><input id="vh-label" required placeholder="e.g. Van 2 — Ford Transit" autocomplete="off"></div>
+      <div class="cp-field"><label for="vh-year">Year</label><input id="vh-year" inputmode="numeric" placeholder="2021"></div>
+      <div class="cp-field"><label for="vh-make">Make</label><input id="vh-make" placeholder="Ford"></div>
+      <div class="cp-field"><label for="vh-model">Model</label><input id="vh-model" placeholder="Transit 250"></div>
+      <div class="cp-field"><label for="vh-color">Color</label><input id="vh-color"></div>
+      <div class="cp-field"><label for="vh-plate">Plate</label><input id="vh-plate" autocomplete="off" style="text-transform:uppercase"></div>
+      <div class="cp-field"><label for="vh-vin">VIN</label><input id="vh-vin" autocomplete="off" style="text-transform:uppercase"></div>
+      <div class="cp-field"><label for="vh-driver">Assigned driver</label><select id="vh-driver"><option value="">— none —</option></select></div>
+      <div class="cp-field"><label for="vh-status">Status</label><select id="vh-status"><option value="active">Active</option><option value="retired">Retired</option></select></div>
+      <div class="cp-field full"><label for="vh-notes">Notes</label><textarea id="vh-notes"></textarea></div>
+      <div class="cp-form-err" id="vh-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button type="button" class="btn-ghost" id="vh-cancel">Cancel</button><button type="submit" class="btn-primary" id="vh-save">Save vehicle</button></div>
+  </form>
+</div>
+
 <!-- building modal (#304) -->
 <div class="cp-overlay" id="bd-overlay" role="dialog" aria-modal="true" aria-labelledby="bd-title">
   <form class="cp-modal" id="bd-form" novalidate>
@@ -453,7 +480,13 @@
       <div class="cp-field"><label for="cd-effective">Effective date</label><input id="cd-effective" type="date" class="ssc-date"></div>
       <div class="cp-field"><label for="cd-expiry">Expiry date</label><input id="cd-expiry" type="date" class="ssc-date"></div>
       <div class="cp-field"><label for="cd-amount">Amount / coverage (USD)</label><input id="cd-amount" inputmode="decimal" placeholder="optional"></div>
+      <div class="cp-field" id="cd-vehicle-wrap" hidden><label for="cd-vehicle">Vehicle</label><select id="cd-vehicle"><option value="">— none —</option></select></div>
+      <div class="cp-field" id="cd-year-wrap" hidden><label for="cd-year">Tax / filing year</label><input id="cd-year" inputmode="numeric" placeholder="2025"></div>
       <div class="cp-field full"><label for="cd-notes">Notes</label><textarea id="cd-notes"></textarea></div>
+      <div class="cp-field full" id="cd-files-wrap" hidden><label>Files</label>
+        <ul class="cp-list" id="cd-files"></ul>
+        <div class="cp-toolbar" style="margin:8px 0 0"><input type="file" id="cd-file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.xlsx,.docx" style="font-size:13px"><button class="btn-ghost btn-sm" type="button" id="cd-upload">Upload</button><span class="cp-muted" style="font-size:12px">PDF, JPG, PNG, HEIC, XLSX or DOCX · 25 MB max</span></div>
+      </div>
       <div class="cp-form-err" id="cd-err" role="alert"></div>
     </div>
     <div class="cp-modal-foot">
@@ -1072,20 +1105,24 @@
   }
 
   // ---------- COMPLIANCE ----------
-  const KIND_LABEL = { worker_cert: 'Worker cert', permit: 'Permit', project_document: 'Project document', estimate_document: 'Estimate document', company_document: 'Company document' };
+  const KIND_LABEL = { worker_cert: 'Worker cert', permit: 'Permit', project_document: 'Project document', estimate_document: 'Estimate document', company_document: 'Company document', vehicle: 'Vehicle' };
+  const cdFilter = { group: 'all' };
   const coFilter = { state: 'all', kind: 'all' };
   async function loadCompliance() {
     skeleton($('co-kpis'), 1); skeleton($('co-table'), 5); skeleton($('cd-table'), 3);
     try {
-      const [{ data: d }, docs] = await Promise.all([api('/compliance?days=' + $('co-days').value), api('/company-documents')]);
-      state.cache.compliance = d; state.cache.docCategories = docs.meta.categories || {};
+      const [{ data: d }, docs, veh] = await Promise.all([api('/compliance?days=' + $('co-days').value), api('/company-documents'), api('/vehicles')]);
+      state.cache.compliance = d; state.cache.docCategories = docs.meta.categories || {}; state.cache.docGroups = docs.meta.groups || {}; state.cache.catGroups = docs.meta.category_groups || {};
+      state.cache.vehicles = veh.data; state.cache.drivers = veh.meta.drivers || [];
       const s = d.summary;
+      const gaps = veh.data.reduce((n, v) => n + v.missing.length, 0);
       $('co-kpis').innerHTML =
         kpi('Expired', s.expired, 'needs action now', s.expired ? 'warn' : 'good') +
         kpi('Due ≤ 30 days', s.due_30, '', s.due_30 ? 'warn' : '') +
         kpi('Due 31–60 days', s.due_60, '') + kpi('Due 61–90 days', s.due_90, '') +
-        kpi('Company documents', docs.data.length, 'licenses, insurance, bonds');
-      renderCompanyDocs(docs.data);
+        kpi('Vault documents', docs.data.length, `${docs.data.reduce((n, x) => n + x.file_count, 0)} file(s) attached`) +
+        kpi('Vehicles', veh.data.filter(v => v.status === 'active').length, gaps ? `${gaps} document(s) missing` : 'paper complete', gaps ? 'warn' : '');
+      renderVehicles(); renderCompanyDocs(docs.data); renderDocChips();   // docs cache first, then the shelf counts
       renderComplianceChips(); renderComplianceTable();
     } catch (e) { toast(e.message, true); $('co-kpis').innerHTML = empty('Could not load compliance', e.message); }
   }
@@ -1107,18 +1144,27 @@
       { key: 'subject', label: 'For', render: r => r.kind === 'worker_cert' ? `<span class="cp-id">${esc((r.subject || '').split(' — ')[0])}</span>${esc((r.subject || '').slice((r.subject || '').indexOf(' — ')))}` : esc(r.subject || '—') },
     ], rows, { defaultSort: { key: 'expires_on', dir: 'asc' }, emptyTitle: 'Nothing expiring in this window', emptySub: 'Certs, permits, project documents and company documents with an expiry date appear here.' });
   }
+  function renderDocChips() {
+    const docs = state.cache.docs || [], groups = state.cache.docGroups || {};
+    const chips = [['all', 'All', docs.length]].concat(Object.entries(groups).map(([k, v]) => [k, v, docs.filter(d => d.group === k).length]));
+    $('cd-chips').innerHTML = chips.map(c => `<button type="button" class="cp-chip ${cdFilter.group === c[0] ? 'on' : ''}" data-g="${esc(c[0])}">${esc(c[1])}<span class="n">${c[2]}</span></button>`).join('');
+    $('cd-chips').querySelectorAll('.cp-chip').forEach(b => b.addEventListener('click', () => { cdFilter.group = b.dataset.g; renderDocChips(); renderCompanyDocs(state.cache.docs); }));
+  }
   function renderCompanyDocs(docs) {
     state.cache.docs = docs;
+    if ($('cd-chips').children.length === 0) renderDocChips();
+    const rows = cdFilter.group === 'all' ? docs : docs.filter(d => d.group === cdFilter.group);
     table($('cd-table'), [
-      { key: 'category_label', label: 'Category' },
+      { key: 'category_label', label: 'Category', render: r => `${esc(r.category_label)}${r.doc_year ? `<div class="cp-muted" style="font-size:12px">${r.doc_year}</div>` : ''}` },
       { key: 'title', label: 'Document', render: r => `<strong>${esc(r.title)}</strong>${r.doc_number ? `<div class="cp-muted" style="font-size:12px">${esc(r.doc_number)}</div>` : ''}` },
       { key: 'issuer', label: 'Issuer', render: r => esc(r.issuer || '—') },
-      { key: 'holder', label: 'Holder', render: r => esc(r.holder || '—') },
+      { key: 'holder', label: 'Holder / vehicle', render: r => r.vehicle_label ? `<span class="cp-pill">${esc(r.vehicle_label)}</span>` : esc(r.holder || '—') },
       { key: 'effective_date', label: 'Effective', render: r => fmtDate(r.effective_date) },
       { key: 'expiry_date', label: 'Expires', render: r => `${fmtDate(r.expiry_date)} ${r.expiry_date ? daysPill(r.days_left) : ''}` },
       { key: 'amount', label: 'Amount', num: true, render: r => r.amount ? money.format(r.amount) : '—' },
+      { key: 'file_count', label: 'Files', render: r => r.file_count ? r.files.map(f => `<a class="cp-link" href="${esc(f.file_url)}" target="_blank" rel="noopener" title="${esc(f.file_name)}">📎</a>`).join(' ') + ` <span class="cp-muted">${r.file_count}</span>` : '<span class="cp-muted">—</span>' },
       { key: 'id', label: '', render: r => `<div class="cp-actions"><button type="button" class="cp-link" data-edit="${r.id}">Edit</button><button type="button" class="cp-link" data-archive="${r.id}" style="color:#A8382B">Archive</button></div>` },
-    ], docs, { defaultSort: { key: 'expiry_date', dir: 'asc' }, emptyTitle: 'No company documents yet', emptySub: 'Add the GL and workers’ comp policies, contractor licenses and bonds so renewals show up here and in Overview.' });
+    ], rows, { defaultSort: { key: 'expiry_date', dir: 'asc' }, emptyTitle: cdFilter.group === 'all' ? 'No vault documents yet' : 'Nothing on this shelf yet', emptySub: 'Add the GL and workers’ comp policies, contractor licenses, bonds, vehicle paper and tax filings so renewals show up here and in Overview.' });
     $('cd-table').querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openDocModal(docs.find(x => String(x.id) === b.dataset.edit))));
     $('cd-table').querySelectorAll('[data-archive]').forEach(b => b.addEventListener('click', async () => {
       const doc = docs.find(x => String(x.id) === b.dataset.archive);
@@ -1141,10 +1187,45 @@
     $('cd-title-in').value = doc ? doc.title : ''; $('cd-holder').value = doc ? (doc.holder || '') : 'Superstars Contracting Inc.';
     $('cd-number').value = doc ? (doc.doc_number || '') : ''; $('cd-issuer').value = doc ? (doc.issuer || '') : '';
     $('cd-amount').value = doc && doc.amount ? doc.amount : ''; $('cd-notes').value = doc ? (doc.notes || '') : '';
-    wireDates(); dateSet($('cd-effective'), doc ? doc.effective_date : ''); dateSet($('cd-expiry'), doc ? doc.expiry_date : '');
+    $('cd-vehicle').innerHTML = '<option value="">— none —</option>' + (state.cache.vehicles || []).map(v => `<option value="${v.id}">${esc(v.label)}${v.plate ? ' · ' + esc(v.plate) : ''}</option>`).join('');
+    $('cd-vehicle').value = doc && doc.vehicle_id ? String(doc.vehicle_id) : (openDocModal.presetVehicle || '');
+    $('cd-year').value = doc && doc.doc_year ? doc.doc_year : '';
+    cdFieldsForCategory();
+    $('cd-files-wrap').hidden = !doc; if (doc) renderDocFiles(doc); $('cd-file').value = '';
     $('cd-err').className = 'cp-form-err'; $('cd-overlay').classList.add('open'); setTimeout(() => $('cd-title-in').focus(), 30);
   }
-  function closeDocModal() { $('cd-overlay').classList.remove('open'); $('cd-form').reset(); dateSet($('cd-effective'), ''); dateSet($('cd-expiry'), ''); $('cd-form').dataset.id = ''; }
+  function cdFieldsForCategory() {
+    const g = (state.cache.catGroups || {})[$('cd-category').value] || 'insurance';
+    $('cd-vehicle-wrap').hidden = g !== 'vehicles'; $('cd-year-wrap').hidden = g !== 'tax';
+    if (g !== 'vehicles') $('cd-vehicle').value = '';
+    if (g === 'vehicles') $('cd-holder').value = ''; else if (!$('cd-holder').value) $('cd-holder').value = 'Superstars Contracting Inc.';
+  }
+  $('cd-category').addEventListener('change', cdFieldsForCategory);
+  function renderDocFiles(doc) {
+    const files = doc.files || [];
+    $('cd-files').innerHTML = files.length ? files.map(f => `<li><span><a class="cp-link" href="${esc(f.file_url)}" target="_blank" rel="noopener">${esc(f.file_name)}</a> <span class="cp-muted">· ${f.file_size ? Math.round(f.file_size / 1024) + ' KB' : ''} · ${fmtDate(f.uploaded_at)}</span></span><button type="button" class="cp-link" data-delfile="${f.id}" style="color:#A8382B">Remove</button></li>`).join('') : '<li><span class="cp-muted">No files attached yet.</span></li>';
+    $('cd-files').querySelectorAll('[data-delfile]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Remove this file from the vault?')) return;
+      try { await api('/company-documents/files/' + b.dataset.delfile, { method: 'DELETE' }); toast('File removed'); await refreshDocInModal(); } catch (e) { toast(e.message, true); }
+    }));
+  }
+  async function refreshDocInModal() {
+    const id = $('cd-form').dataset.id; if (!id) return;
+    const { data } = await api('/company-documents'); state.cache.docs = data; renderCompanyDocs(data); renderDocChips();
+    const doc = data.find(x => String(x.id) === String(id)); if (doc) renderDocFiles(doc);
+  }
+  $('cd-upload').addEventListener('click', async () => {
+    const id = $('cd-form').dataset.id, f = $('cd-file').files[0]; const err = $('cd-err'); err.className = 'cp-form-err';
+    if (!id) return; if (!f) { err.textContent = 'Choose a file first.'; err.className = 'cp-form-err show'; return; }
+    const fd = new FormData(); fd.append('file', f); $('cd-upload').disabled = true;
+    try {
+      const res = await fetch(API + '/company-documents/' + id + '/files', { method: 'POST', body: fd, credentials: 'same-origin' });
+      const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || 'Upload failed');
+      toast('File attached'); $('cd-file').value = ''; await refreshDocInModal();
+    } catch (e) { err.textContent = e.message; err.className = 'cp-form-err show'; }
+    finally { $('cd-upload').disabled = false; }
+  });
+  function closeDocModal() { $('cd-overlay').classList.remove('open'); $('cd-form').reset(); dateSet($('cd-effective'), ''); dateSet($('cd-expiry'), ''); $('cd-form').dataset.id = ''; openDocModal.presetVehicle = ''; }
   $('cd-add').addEventListener('click', () => openDocModal(null));
   $('cd-cancel').addEventListener('click', closeDocModal);
   $('cd-overlay').addEventListener('click', (e) => { if (e.target === $('cd-overlay')) closeDocModal(); });
@@ -1153,7 +1234,9 @@
     e.preventDefault();
     const err = $('cd-err'); err.className = 'cp-form-err';
     const payload = { category: $('cd-category').value, title: $('cd-title-in').value.trim(), holder: $('cd-holder').value.trim(), doc_number: $('cd-number').value.trim(), issuer: $('cd-issuer').value.trim(),
-      effective_date: dateGet($('cd-effective')), expiry_date: dateGet($('cd-expiry')), amount: $('cd-amount').value.trim() || null, notes: $('cd-notes').value.trim() };
+      effective_date: dateGet($('cd-effective')), expiry_date: dateGet($('cd-expiry')), amount: $('cd-amount').value.trim() || null, notes: $('cd-notes').value.trim(),
+      vehicle_id: $('cd-vehicle-wrap').hidden ? null : ($('cd-vehicle').value || null), doc_year: $('cd-year-wrap').hidden ? null : ($('cd-year').value.trim() || null) };
+    if (!$('cd-vehicle-wrap').hidden && !payload.vehicle_id) { err.textContent = 'Pick the vehicle this document belongs to.'; err.className = 'cp-form-err show'; return; }
     if (!payload.title) { err.textContent = 'Give the document a title.'; err.className = 'cp-form-err show'; return; }
     if (payload.effective_date && payload.expiry_date && payload.expiry_date < payload.effective_date) { err.textContent = 'Expiry date is before the effective date.'; err.className = 'cp-form-err show'; return; }
     const id = $('cd-form').dataset.id; $('cd-save').disabled = true;
@@ -1163,6 +1246,55 @@
       toast(id ? 'Document updated' : 'Document added'); closeDocModal(); loadCompliance();
     } catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
     finally { $('cd-save').disabled = false; }
+  });
+
+  // ---------- VEHICLES (#318) ----------
+  function vhDocCell(v, cat) {
+    const d = v.documents[cat];
+    if (!d) return v.status === 'active' ? '<span class="cp-pill bad">missing</span>' : '<span class="cp-muted">—</span>';
+    return `${d.expiry_date ? fmtDate(d.expiry_date) : esc(d.title)}<div>${d.expiry_date ? daysPill(d.days_left) : '<span class="cp-pill">no expiry</span>'}</div>`;
+  }
+  function renderVehicles() {
+    const rows = state.cache.vehicles || [];
+    table($('vh-table'), [
+      { key: 'label', label: 'Vehicle', render: v => `<strong>${esc(v.label)}</strong><div class="cp-muted" style="font-size:12px">${esc([v.year, v.make, v.model].filter(Boolean).join(' '))}${v.color ? ' · ' + esc(v.color) : ''}</div>` },
+      { key: 'plate', label: 'Plate', render: v => v.plate ? `<span class="cp-id">${esc(v.plate)}</span>` : '—' },
+      { key: 'driver', label: 'Driver', render: v => esc(v.driver || '—') },
+      { key: 'status', label: 'Status', render: v => `<span class="cp-pill ${v.status === 'active' ? 'ok' : ''}">${esc(v.status)}</span>` },
+      { key: 'next_expiry_days', label: 'Registration', sortVal: v => (v.documents.vehicle_registration || {}).days_left, render: v => vhDocCell(v, 'vehicle_registration') },
+      { key: 'ins', label: 'Insurance', sortVal: v => (v.documents.vehicle_insurance || {}).days_left, render: v => vhDocCell(v, 'vehicle_insurance') },
+      { key: 'insp', label: 'Inspection', sortVal: v => (v.documents.vehicle_inspection || {}).days_left, render: v => vhDocCell(v, 'vehicle_inspection') },
+      { key: 'id', label: '', render: v => `<div class="cp-actions"><button type="button" class="cp-link" data-vdoc="${v.id}">+ Paper</button><button type="button" class="cp-link" data-vedit="${v.id}">Edit</button>${v.status === 'active' ? `<button type="button" class="cp-link" data-vretire="${v.id}" style="color:#A8382B">Retire</button>` : ''}</div>` },
+    ], rows, { defaultSort: { key: 'label', dir: 'asc' }, emptyTitle: 'No vehicles yet', emptySub: 'Add the six trucks and vans; then attach each one’s registration, insurance and inspection so renewals show up here.' });
+    $('vh-table').querySelectorAll('[data-vedit]').forEach(b => b.addEventListener('click', () => openVehicleModal(rows.find(v => String(v.id) === b.dataset.vedit))));
+    $('vh-table').querySelectorAll('[data-vdoc]').forEach(b => b.addEventListener('click', () => { openDocModal.presetVehicle = b.dataset.vdoc; openDocModal(null); $('cd-category').value = 'vehicle_registration'; cdFieldsForCategory(); $('cd-vehicle').value = b.dataset.vdoc; }));
+    $('vh-table').querySelectorAll('[data-vretire]').forEach(b => b.addEventListener('click', async () => {
+      const v = rows.find(x => String(x.id) === b.dataset.vretire);
+      if (!confirm(`Retire "${v.label}"? Its documents stay in the vault but stop being flagged.`)) return;
+      try { await api('/vehicles/' + v.id, { method: 'DELETE' }); toast('Vehicle retired'); loadCompliance(); } catch (e) { toast(e.message, true); }
+    }));
+  }
+  function openVehicleModal(v) {
+    $('vh-form').dataset.id = v ? v.id : ''; $('vh-title').textContent = v ? 'Edit vehicle' : 'Add vehicle';
+    $('vh-label').value = v ? v.label : ''; $('vh-year').value = v && v.year ? v.year : ''; $('vh-make').value = v ? (v.make || '') : ''; $('vh-model').value = v ? (v.model || '') : '';
+    $('vh-color').value = v ? (v.color || '') : ''; $('vh-plate').value = v ? (v.plate || '') : ''; $('vh-vin').value = v ? (v.vin || '') : ''; $('vh-notes').value = v ? (v.notes || '') : '';
+    $('vh-driver').innerHTML = '<option value="">— none —</option>' + (state.cache.drivers || []).map(d => `<option value="${esc(d.employee_id)}">${esc(d.label)}</option>`).join('');
+    $('vh-driver').value = v && v.driver_employee_id ? v.driver_employee_id : ''; $('vh-status').value = v ? v.status : 'active';
+    $('vh-err').className = 'cp-form-err'; $('vh-overlay').classList.add('open'); setTimeout(() => $('vh-label').focus(), 30);
+  }
+  $('vh-add').addEventListener('click', () => openVehicleModal(null));
+  $('vh-cancel').addEventListener('click', () => closeOverlay('vh-overlay'));
+  $('vh-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('vh-err'); err.className = 'cp-form-err';
+    const payload = { label: $('vh-label').value.trim(), year: $('vh-year').value.trim() || null, make: $('vh-make').value.trim(), model: $('vh-model').value.trim(), color: $('vh-color').value.trim(),
+      plate: $('vh-plate').value.trim(), vin: $('vh-vin').value.trim(), driver_employee_id: $('vh-driver').value || null, status: $('vh-status').value, notes: $('vh-notes').value.trim() };
+    if (!payload.label) { err.textContent = 'Give the vehicle a label.'; err.className = 'cp-form-err show'; return; }
+    const id = $('vh-form').dataset.id; $('vh-save').disabled = true;
+    try {
+      if (id) await api('/vehicles/' + id, { method: 'PATCH', body: JSON.stringify(payload) }); else await api('/vehicles', { method: 'POST', body: JSON.stringify(payload) });
+      toast(id ? 'Vehicle updated' : 'Vehicle added'); closeOverlay('vh-overlay'); loadCompliance();
+    } catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('vh-save').disabled = false; }
   });
 
   // ---------- INVOICES & RECEIVABLES (#315) ----------
@@ -1282,7 +1414,7 @@
   document.querySelectorAll('.cp-overlay').forEach(o => o.addEventListener('click', (e) => { if (e.target === o) o.classList.remove('open'); }));
 
   // ---------- router ----------
-  const TITLES = { overview: 'Overview', clients: 'Clients', buildings: 'Buildings', proposals: 'Proposals', finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce & Pay', compliance: 'Compliance' };
+  const TITLES = { overview: 'Overview', clients: 'Clients', buildings: 'Buildings', proposals: 'Proposals', finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce & Pay', compliance: 'Compliance & Vault' };
   const LOADERS = { overview: loadOverview, clients: loadClients, buildings: loadBuildings, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, compliance: loadCompliance };
   function route() {
     const h = (location.hash || '#overview').slice(1);

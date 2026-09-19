@@ -67,9 +67,33 @@ COMPANY_DOC_CATEGORIES = {
     "bond": "Bond",
     "registration": "Registration / Filing",
     "other": "Other",
+    # #318 — the company vault: vehicles, tax, filings, generic records
+    "vehicle_registration": "Vehicle Registration",
+    "vehicle_insurance": "Vehicle Insurance",
+    "vehicle_inspection": "Vehicle Inspection",
+    "vehicle_title": "Vehicle Title",
+    "vehicle_other": "Vehicle — Other",
+    "tax_return_federal": "Tax Return — Federal",
+    "tax_return_state": "Tax Return — State / City",
+    "tax_filing_receipt": "Tax Filing Receipt",
+    "payroll_filing": "Payroll Filing (941 / NYS-45)",
+    "company_record": "Company Record",
 }
+# #318 — which vault shelf a category sits on (the portal's group chips)
+COMPANY_DOC_GROUPS = {
+    "insurance": "Insurance & licenses", "vehicles": "Vehicles", "tax": "Tax & filings", "records": "Records",
+}
+def doc_group(category: str) -> str:
+    if category.startswith("vehicle_"):
+        return "vehicles"
+    if category.startswith(("tax_", "payroll_")):
+        return "tax"
+    if category in ("company_record", "other"):
+        return "records"
+    return "insurance"
+VEHICLE_DOC_CATEGORIES = ("vehicle_registration", "vehicle_insurance", "vehicle_inspection")   # the three every vehicle needs
 COMPANY_DOC_EDITABLE = ("category", "title", "holder", "doc_number", "issuer",
-                       "effective_date", "expiry_date", "amount", "notes")
+                       "effective_date", "expiry_date", "amount", "notes", "vehicle_id", "doc_year")
 
 
 # ============================ helpers ============================
@@ -174,6 +198,9 @@ def ensure_schema(conn) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_company_document_expiry "
                  "ON company_document(archived_at, expiry_date)")
     conn.commit()
+    # #318 — the vault: vehicles, per-document files, and the two link columns
+    import company_vault
+    company_vault.ensure_schema(conn)
 
 
 # ============================ buildings (#304: the table) ============================
@@ -792,11 +819,15 @@ def compliance(conn, *, today: Optional[date] = None, horizon_days: int = 90) ->
                       "group": r.get("category"), "subject": r.get("code"),
                       "subject_ref": r.get("estimate_id"), "expires_on": r["expiry_date"]})
     for r in _rows(conn.execute(
-            "SELECT id, category, title, holder, doc_number, issuer, expiry_date FROM company_document "
-            "WHERE archived_at IS NULL AND expiry_date IS NOT NULL AND expiry_date <= ?", (horizon,))):
-        items.append({"kind": "company_document", "id": r["id"], "title": r["title"],
+            "SELECT d.id, d.category, d.title, d.holder, d.doc_number, d.issuer, d.expiry_date, d.vehicle_id, "
+            "       v.label AS vehicle_label "
+            "FROM company_document d LEFT JOIN vehicle v ON v.id = d.vehicle_id "
+            "WHERE d.archived_at IS NULL AND d.expiry_date IS NOT NULL AND d.expiry_date <= ?", (horizon,))):
+        vehicle = r.get("vehicle_label")
+        items.append({"kind": "vehicle" if r.get("vehicle_id") else "company_document", "id": r["id"], "title": r["title"],
                       "group": COMPANY_DOC_CATEGORIES.get(r["category"], r["category"]),
-                      "subject": r.get("holder") or r.get("issuer") or "Company", "subject_ref": None,
+                      "subject": vehicle or r.get("holder") or r.get("issuer") or "Company",
+                      "subject_ref": r.get("vehicle_id"),
                       "number": r.get("doc_number"), "expires_on": r["expiry_date"]})
 
     for it in items:
@@ -820,16 +851,23 @@ def compliance(conn, *, today: Optional[date] = None, horizon_days: int = 90) ->
 
 def list_company_documents(conn, *, include_archived: bool = False, today: Optional[date] = None) -> list:
     today = today or _today()
-    sql = ("SELECT id, category, title, holder, doc_number, issuer, effective_date, expiry_date, amount, "
-           "       notes, created_at, updated_at, archived_at FROM company_document")
+    sql = ("SELECT d.id, d.category, d.title, d.holder, d.doc_number, d.issuer, d.effective_date, d.expiry_date, "
+           "       d.amount, d.notes, d.created_at, d.updated_at, d.archived_at, d.vehicle_id, d.doc_year, "
+           "       v.label AS vehicle_label "
+           "FROM company_document d LEFT JOIN vehicle v ON v.id = d.vehicle_id")
     if not include_archived:
-        sql += " WHERE archived_at IS NULL"
-    sql += " ORDER BY COALESCE(expiry_date,'9999'), category, title"
+        sql += " WHERE d.archived_at IS NULL"
+    sql += " ORDER BY COALESCE(d.expiry_date,'9999'), d.category, d.title"
     out = _rows(conn.execute(sql))
+    import company_vault
+    files = company_vault.files_by_document(conn, [d["id"] for d in out])
     for d in out:
         d["category_label"] = COMPANY_DOC_CATEGORIES.get(d["category"], d["category"])
+        d["group"] = doc_group(d["category"])
         d["days_left"] = _days_until(d.get("expiry_date"), today)
         d["amount"] = _num(d.get("amount")) or None
+        d["files"] = files.get(d["id"], [])
+        d["file_count"] = len(d["files"])
     return out
 
 
@@ -857,6 +895,17 @@ def _validate_company_doc(payload: dict, *, partial: bool) -> tuple:
             d[k] = str(d[k]).strip()[:500] or None
     if "title" in d and not d["title"]:
         return None, "title cannot be blank"
+    for k in ("vehicle_id", "doc_year"):   # #318
+        if k in d:
+            if d[k] in (None, ""):
+                d[k] = None
+            else:
+                try:
+                    d[k] = int(d[k])
+                except (TypeError, ValueError):
+                    return None, f"{k} must be a whole number"
+    if d.get("doc_year") is not None and not (1990 <= d["doc_year"] <= 2100):
+        return None, "doc_year must be a four-digit year"
     return d, None
 
 
@@ -864,13 +913,17 @@ def create_company_document(conn, payload: dict, *, actor_id=None) -> tuple:
     d, err = _validate_company_doc(payload, partial=False)
     if err:
         return None, err
+    import company_vault
+    if d.get("vehicle_id") and not company_vault.get_vehicle(conn, d["vehicle_id"]):
+        return None, "vehicle not found"
     now = _now_iso()
     conn.execute(
         "INSERT INTO company_document (category, title, holder, doc_number, issuer, effective_date, "
-        "  expiry_date, amount, notes, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        "  expiry_date, amount, notes, vehicle_id, doc_year, created_by, created_at, updated_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (d["category"], d["title"], d.get("holder"), d.get("doc_number"), d.get("issuer"),
          d.get("effective_date") or None, d.get("expiry_date") or None, d.get("amount"),
-         d.get("notes"), actor_id, now, now))
+         d.get("notes"), d.get("vehicle_id"), d.get("doc_year"), actor_id, now, now))
     conn.commit()
     new_id = conn.execute("SELECT MAX(id) AS m FROM company_document").fetchone()["m"]
     return new_id, None
@@ -882,6 +935,10 @@ def update_company_document(conn, doc_id: int, payload: dict) -> tuple:
         return False, err
     if not d:
         return False, "nothing to update"
+    if d.get("vehicle_id"):
+        import company_vault
+        if not company_vault.get_vehicle(conn, d["vehicle_id"]):
+            return False, "vehicle not found"
     sets = ", ".join(f"{k} = ?" for k in d)
     params = [d[k] if d[k] != "" else None for k in d] + [_now_iso(), doc_id]
     cur = conn.execute(f"UPDATE company_document SET {sets}, updated_at = ? WHERE id = ? AND archived_at IS NULL",
@@ -998,7 +1055,14 @@ def register(app) -> None:
     @gate
     def company_documents_list():
         rows = _with_conn(lambda c: list_company_documents(c, include_archived=request.args.get("archived") == "1"))
-        return _wrap(rows, categories=COMPANY_DOC_CATEGORIES)
+        g = (request.args.get("group") or "").strip().lower()
+        if g in COMPANY_DOC_GROUPS:
+            rows = [r for r in rows if r["group"] == g]
+        v = (request.args.get("vehicle_id") or "").strip()
+        if v.isdigit():
+            rows = [r for r in rows if r.get("vehicle_id") == int(v)]
+        return _wrap(rows, categories=COMPANY_DOC_CATEGORIES, groups=COMPANY_DOC_GROUPS,
+                     category_groups={k: doc_group(k) for k in COMPANY_DOC_CATEGORIES})
 
     @app.route("/api/company/portal/company-documents", methods=["POST"])
     @gate
@@ -1028,3 +1092,6 @@ def register(app) -> None:
         if not ok:
             return _err("document not found", 404)
         return _wrap({"id": doc_id, "archived": True})
+
+    import company_vault
+    company_vault.register_routes(app, gate)   # #318 — vehicles + document files

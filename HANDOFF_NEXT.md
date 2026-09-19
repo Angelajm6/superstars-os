@@ -21,6 +21,49 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #318 — Company vault (Bookore, 2026-09-19)
+
+* **What:** ROADMAP Phase C "Company vault" — Amit's "everything that has to do
+  with the company" (2026-09-11 notes). `company_vault.py` adds `vehicle` and
+  `company_document_file`, and `vehicle_id` / `doc_year` on `company_document`
+  (idempotent ADD COLUMN on both backends). Migration
+  `apply_company_vault_318.py` (appended to `DUAL_BACKEND_MIGRATIONS`); boot
+  heals through `company_portal.ensure_schema`, which now calls the vault's.
+* **Categories:** `COMPANY_DOC_CATEGORIES` grew vehicle_registration /
+  vehicle_insurance / vehicle_inspection / vehicle_title / vehicle_other,
+  tax_return_federal / tax_return_state / tax_filing_receipt / payroll_filing,
+  and company_record. `doc_group()` maps every category onto one of four
+  shelves (insurance, vehicles, tax, records) — the portal's chips; the
+  documents list carries `group`, `vehicle_label`, `doc_year`, `files`,
+  `file_count`, and accepts `?group=` / `?vehicle_id=`.
+* **Vehicles:** label, year/make/model/color, plate (normalised), VIN, status
+  active|retired, driver = `employees.employee_id` (active roster only, offered
+  as "W-#### — Name" in `meta.drivers`). The list rolls up the newest
+  registration / insurance / inspection per vehicle with days left, `missing`
+  for an active vehicle with no such document, and `next_expiry_days`. Retire
+  is single-shot and makes the row read-only; its paper stays in the vault.
+* **Files:** `POST …/company-documents/<id>/files` (multipart `file`; PDF /
+  JPG / PNG / HEIC / XLSX / DOCX, 25 MB, empty rejected, archived document →
+  404), stored as `data_room/company_vault/<doc id>/<uuid>.<ext>` (original
+  name never in the path), read ONLY through the gated
+  `…/company-documents/files/<id>` (inline, no-store, path-contained), delete
+  removes row + disk file. `file_path` never leaves the server.
+* **Compliance:** a vehicle document expiring shows as kind `vehicle` with the
+  vehicle label as subject (`subject_ref` = vehicle id); other company paper
+  keeps kind `company_document`. Overview's expiring counts include both.
+* **Portal (Compliance & Vault):** KPI row gains Vault documents (+ files
+  attached) and Vehicles (+ documents missing); a Vehicles card (plate, driver,
+  status, the three document columns with pills, "+ Paper" pre-selects the
+  vehicle in the document modal, Edit, Retire); the vault card gets shelf chips
+  and a Files column. The document modal shows Vehicle for vehicle categories,
+  Tax / filing year for tax ones, and, when editing, the attached files with
+  Upload / Remove.
+* **Test** `tests/smoke_company_vault_318.py` (gate + CI). `#302`'s suite is
+  unchanged and still passes on the extended schema.
+* **Not in this ticket:** no reminder emails for vehicle renewals (the
+  compliance digest is a separate item); mileage / maintenance logs; a per-file
+  expiry (expiry lives on the document, not the file).
+
 ### #315 — Invoices & receivables (Bookore, 2026-09-19)
 
 * **What:** ROADMAP Phase B "invoices & receivables model" (the roadmap's old #310;
