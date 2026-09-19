@@ -69,7 +69,119 @@ def meta(conn) -> dict:
         "boroughs": list(estimates.BOROUGHS),
         "clients": clients,
         "pms": [{"user_id": p["id"], "name": p.get("display_name") or p.get("full_name") or p.get("email")} for p in pms],
+        "workers": active_workers(conn),   # #325 — the crew picker
+        "geofence_default_m": GEOFENCE_DEFAULT,
     }
+
+
+GEOFENCE_DEFAULT = 200
+
+
+def active_workers(conn) -> list:
+    """The canonical active roster (CLAUDE.md roster rule) for the crew pickers."""
+    try:
+        rows = _rows(conn.execute("SELECT employee_id, worker_id, name, trade FROM v_active_workers ORDER BY worker_id, name"))
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        rows = _rows(conn.execute("SELECT employee_id, worker_id, name, trade FROM employees WHERE archived_at IS NULL "
+                                  "ORDER BY worker_id, name"))
+    return [{"employee_id": r["employee_id"], "worker_id": r.get("worker_id"), "name": r.get("name"),
+             "trade": r.get("trade")} for r in rows]
+
+
+def _site_fields(p: dict, *, partial: bool = False) -> dict:
+    """site_lat / site_lng (both or neither) + geofence_m. Returns only the keys present."""
+    out = {}
+    lat, lng = p.get("site_lat"), p.get("site_lng")
+    if "site_lat" in p or "site_lng" in p or not partial:
+        if lat in (None, "") and lng in (None, ""):
+            if "site_lat" in p or "site_lng" in p:
+                out["site_lat"] = None
+                out["site_lng"] = None
+        else:
+            try:
+                lat, lng = float(lat), float(lng)
+            except (TypeError, ValueError):
+                raise ValueError("site latitude and longitude must both be numbers")
+            if not (-90 <= lat <= 90 and -180 <= lng <= 180) or (lat == 0 and lng == 0):
+                raise ValueError("site coordinates look wrong")
+            out["site_lat"], out["site_lng"] = round(lat, 6), round(lng, 6)
+    if "geofence_m" in p and p.get("geofence_m") not in (None, ""):
+        try:
+            m = int(float(p["geofence_m"]))
+        except (TypeError, ValueError):
+            raise ValueError("geofence radius must be a whole number of meters")
+        if not (25 <= m <= 5000):
+            raise ValueError("geofence radius must be between 25 and 5000 meters")
+        out["geofence_m"] = m
+    return out
+
+
+def _crew_ids(conn, p: dict) -> Optional[list]:
+    ids = p.get("crew")
+    if ids is None:
+        return None
+    if not isinstance(ids, list):
+        raise ValueError("crew must be a list of employee ids")
+    ids = [str(i).strip() for i in ids if str(i).strip()]
+    if not ids:
+        return []
+    active = {w["employee_id"] for w in active_workers(conn)}
+    bad = [i for i in ids if i not in active]
+    if bad:
+        raise LookupError("crew includes a worker who is not on the active roster")
+    return sorted(set(ids))
+
+
+def _apply_crew(conn, code: str, ids: list, *, today: Optional[str] = None) -> dict:
+    """Make the ACTIVE assignments of `code` equal to `ids`: new ones start today,
+    dropped ones are off-rolled with an end date (never deleted — hours history)."""
+    today = today or date.today().isoformat()
+    current = {r["employee_id"] for r in _rows(conn.execute(
+        "SELECT employee_id FROM project_assignments WHERE project_code = ? AND status = 'active'", (code,)))}
+    added = [i for i in ids if i not in current]
+    removed = [i for i in current if i not in ids]
+    for eid in added:
+        conn.execute("INSERT INTO project_assignments (project_code, employee_id, role_on_project, start_date, status) "
+                     "VALUES (?,?,?,?,'active')", (code, eid, None, today))
+    for eid in removed:
+        conn.execute("UPDATE project_assignments SET status = 'off-rolled', end_date = ?, updated_at = CURRENT_TIMESTAMP "
+                     "WHERE project_code = ? AND employee_id = ? AND status = 'active'", (today, code, eid))
+    conn.commit()
+    return {"added": added, "removed": removed}
+
+
+def crew(conn, code: str) -> Optional[dict]:
+    p = _one(conn.execute("SELECT project_code, name, status, site_lat, site_lng, geofence_m FROM projects WHERE project_code = ?", (code,)))
+    if not p:
+        return None
+    assigned = {r["employee_id"] for r in _rows(conn.execute(
+        "SELECT employee_id FROM project_assignments WHERE project_code = ? AND status = 'active'", (code,)))}
+    workers = active_workers(conn)
+    for w in workers:
+        w["assigned"] = w["employee_id"] in assigned
+    return {"project": p, "workers": workers, "assigned_count": len(assigned),
+            "site": {"site_lat": p.get("site_lat"), "site_lng": p.get("site_lng"),
+                     "geofence_m": p.get("geofence_m") or GEOFENCE_DEFAULT}}
+
+
+def set_crew(conn, code: str, payload: dict, *, actor=None) -> dict:
+    p = payload or {}
+    if not _one(conn.execute("SELECT project_code FROM projects WHERE project_code = ?", (code,))):
+        raise LookupError("project not found")
+    site = _site_fields(p, partial=True)
+    ids = _crew_ids(conn, p)
+    if site:
+        sets = ", ".join(f"{k} = ?" for k in site)
+        conn.execute(f"UPDATE projects SET {sets}, updated_at = CURRENT_TIMESTAMP WHERE project_code = ?", (*site.values(), code))
+        conn.commit()
+    change = _apply_crew(conn, code, ids) if ids is not None else {"added": [], "removed": []}
+    out = crew(conn, code)
+    out["change"] = change
+    return out
 
 
 def onboard(conn, payload: dict, *, actor=None) -> dict:
@@ -96,6 +208,8 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
             raise ValueError("contract value cannot be negative")
     start = _valid_date(p.get("start_date")) or date.today().isoformat()
     notes = (p.get("notes") or "").strip()[:2000]
+    site = _site_fields(p, partial=True)          # #325 — validated before anything is written
+    crew_ids = _crew_ids(conn, p)
 
     # ---- client: existing org or a new one
     org_id = p.get("client_org_id")
@@ -157,6 +271,11 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
             except Exception:
                 pass
     conn.commit()
+    if site:                                        # #325 — the worker app's geofence for this job
+        sets = ", ".join(f"{k} = ?" for k in site)
+        conn.execute(f"UPDATE projects SET {sets} WHERE project_code = ?", (*site.values(), code))
+        conn.commit()
+    crew_change = _apply_crew(conn, code, crew_ids, today=start) if crew_ids else {"added": [], "removed": []}
     try:
         crm.add_activity(conn, entity_type="organization", entity_id=org_id, activity_type="system",
                          author_user_id=actor, function_tag="sales",
@@ -164,10 +283,11 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
                                  + (f" ({'${:,.0f}'.format(contract)})" if contract else ""))
     except Exception as e:
         log.info("#324 activity not logged: %s", e)
-    project = _one(conn.execute("SELECT project_code, name, address, status, client_org_id, building_id "
-                                "FROM projects WHERE project_code = ?", (code,)))
+    project = _one(conn.execute("SELECT project_code, name, address, status, client_org_id, building_id, "
+                                "site_lat, site_lng, geofence_m FROM projects WHERE project_code = ?", (code,)))
     return {"project_code": code, "project": project, "estimate_id": est["id"], "estimate_code": est["code"],
-            "client_org_id": org_id, "pm_user_id": pm_user_id, "start_date": start, "contract_value": contract}
+            "client_org_id": org_id, "pm_user_id": pm_user_id, "start_date": start, "contract_value": contract,
+            "crew": crew_change["added"]}
 
 
 # ---------------------------------------------------------------- routes
@@ -196,6 +316,42 @@ def _api_onboard():
         conn.close()
 
 
+@requires_company
+def _api_crew_get(project_code):
+    conn = db_layer.connect()
+    try:
+        d = crew(conn, project_code)
+        return (jsonify({"data": d}) if d else (jsonify({"error": "project not found"}), 404))
+    finally:
+        conn.close()
+
+
+@requires_company
+def _api_crew_set(project_code):
+    body = request.get_json(silent=True) or {}
+    u = current_user() or {}
+    conn = db_layer.connect()
+    try:
+        try:
+            return jsonify({"data": set_crew(conn, project_code, body, actor=u.get("id"))})
+        except LookupError as e:
+            return jsonify({"error": str(e)}), 404
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+    finally:
+        conn.close()
+
+
 def register(app) -> None:
+    conn = db_layer.connect()
+    try:
+        import apply_project_site_325
+        apply_project_site_325.ensure(conn)          # #325 — site columns heal at boot
+    except Exception as e:   # a fresh preprod DB may migrate later; never block boot
+        log.warning("#325 project site columns ensure skipped: %s", e)
+    finally:
+        conn.close()
     app.add_url_rule("/api/admin/projects/onboard-meta", "projects_onboard_meta", _api_meta, methods=["GET"])
     app.add_url_rule("/api/admin/projects/onboard", "projects_onboard", _api_onboard, methods=["POST"])
+    app.add_url_rule("/api/admin/projects/<project_code>/crew", "projects_crew_get", _api_crew_get, methods=["GET"])
+    app.add_url_rule("/api/admin/projects/<project_code>/crew", "projects_crew_set", _api_crew_set, methods=["PUT"])

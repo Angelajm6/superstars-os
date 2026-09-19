@@ -80,6 +80,7 @@ GATE = [
     "smoke_password_reset_flow_301.py",# #301 guard — reset BEHAVIOR: no-enum, hashed single-use tokens, session revoke, expiry, throttle
     "smoke_company_portal_302.py",     # #302 guard — company portal: company-axis gating, clients/buildings rollups, finance, compliance, company documents CRUD
     "smoke_migrations_306.py",         # #306 guard — migration ledger: baseline, pending, apply/record, drift, health count
+    "smoke_crew_sites_325.py",       # #325 guard — crews + site coordinates + worker-app job picker: per-job geofence, chooser, shift start validation
     "smoke_project_onboard_324.py",  # #324 guard — onboard an already-won job: gates, validation, estimate→approved→convert in one step, PM assignment, numbering
     "smoke_worker_history_320.py",   # #320 guard — worker job history: hours by project/month/matrix, rate-on-date cost, assignments, certs, credentials, rate audit, gates
     "smoke_company_vault_318.py",     # #318 guard — company vault: vehicles CRUD + driver roster, vehicle/tax categories, file upload/serve/delete (gated, path-contained), compliance rollup

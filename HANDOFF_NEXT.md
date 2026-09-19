@@ -21,6 +21,48 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #325 — Crews, site coordinates, and the worker app's job picker (Bookore, 2026-09-19)
+
+* **Ask (C-suite via Angela, 2026-09-19, priority item 1):** once a job is added, the
+  daily report and the labor portal must work for it immediately.
+* **What was wrong:** the worker app was single-site by construction — the login
+  geofenced every worker against the first Bronx job's hard-coded coordinates and
+  returned `FR-BX-001` as the project; shift start trusted whatever project code
+  the client sent. Nothing about a new job could reach the field.
+* **Schema:** `apply_project_site_325.py` adds `projects.site_lat / site_lng /
+  geofence_m` (dual-backend, in `DUAL_BACKEND_MIGRATIONS`; boot heals through
+  `project_onboard.register`) and seeds the legacy Bronx coordinates onto
+  FR-BX-001 when it has none — production's existing control is unchanged the
+  day this lands.
+* **Worker login (`/api/worker/login`):** `_worker_projects()` = the worker's
+  ACTIVE assignments on active projects (a worker with no assignment at all is
+  offered every active project — the office tightens this by assigning crews),
+  each geofenced against ITS OWN coordinates (default radius 200 m; a project
+  with no coordinates on file is eligible as is). No candidates → 403 "No job
+  assigned — see the office"; none in range → 403 "Not on site". Exactly one
+  eligible → `project_code` auto-picked; several → `project_code: null` and
+  `projects: [...]` (code, name, distance, in_range) for the chooser. The
+  session row stores `''` until the worker picks.
+* **Shift start (`/api/worker/session/start`):** `project_code` is required and
+  must be one of the worker's jobs (403 otherwise); the pick is written to the
+  session row; an auto-picked session cannot be redirected to another job.
+* **Worker app:** a "Choose your job" screen (EN/ES) between PIN and the shift
+  when more than one job is in range; the working screen shows the job name.
+* **Office:** the New project modal gains Site location (lat / lng / radius,
+  "Use my location" reads the phone's GPS — the PM taps it standing on site) and
+  a Crew checkbox list (active roster, W-#### — Name). Every project row on
+  Projects & assignments gains "Crew & site" (`GET/PUT
+  /api/admin/projects/<code>/crew`, admin / c_suite): PUT makes the active
+  assignments equal to the list — new ones start today, dropped ones are
+  off-rolled with an end date, never deleted (hours history).
+* **Test** `tests/smoke_crew_sites_325.py` (gate + CI) boots the real app.
+* **Preprod note:** its workers had no assignments until #322 created the
+  table today, so on preprod every worker is currently offered every active
+  project; assign crews there before demoing the picker.
+* **Not in this ticket:** address → coordinates lookup (no geocoding key on
+  file; "Use my location" covers the field case); a crew editor on the
+  Workforce tab (the per-worker project checklist at onboarding still exists).
+
 ### #324 — "+ New project": onboard an already-won job (Bookore, 2026-09-19)
 
 * **Ask (Angela, 2026-09-19):** "figure out how to add / onboard more jobs." Until

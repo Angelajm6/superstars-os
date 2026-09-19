@@ -4192,9 +4192,50 @@ def _worker_session(conn, token, *, employee_id=None, project_code=None):
         return None
     if employee_id and row["employee_id"] != employee_id:
         return None
-    if project_code and row["project_code"] != project_code:
+    if project_code and row["project_code"] and row["project_code"] != project_code:   # #325: NULL = not picked yet
         return None
     return row
+
+def _haversine_m(lat1, lng1, lat2, lng2):
+    R = 6371000  # Earth radius meters
+    d_lat = (lat1 - lat2) * math.pi / 180
+    d_lng = (lng1 - lng2) * math.pi / 180 * math.cos(math.radians(lat2))   # #305 — E-W was overstated ~32%
+    a = (d_lat / 2) ** 2 + (d_lng / 2) ** 2
+    return R * 2 * (a ** 0.5)
+
+
+def _worker_projects(conn, employee_id, latitude=None, longitude=None):
+    """#325 — the jobs a worker may check in to, each geofenced against ITS OWN site.
+
+    Active assignments on active projects; a worker with no assignment at all is
+    offered every active project (the office tightens this by assigning crews).
+    With a location: a project with coordinates is `eligible` only inside its
+    radius (default 200 m); a project with no coordinates on file is eligible as
+    is. Without a location (shift start, after the login already checked it)
+    every candidate is eligible."""
+    rows = conn.execute(
+        "SELECT p.project_code, p.name, p.site_lat, p.site_lng, p.geofence_m FROM projects p "
+        "JOIN project_assignments a ON a.project_code = p.project_code "
+        "WHERE a.employee_id = ? AND a.status = 'active' AND COALESCE(p.status, 'active') <> 'closed' "
+        "ORDER BY p.name, p.project_code", (employee_id,)).fetchall()
+    assigned = bool(rows)
+    if not rows:
+        rows = conn.execute(
+            "SELECT project_code, name, site_lat, site_lng, geofence_m FROM projects "
+            "WHERE COALESCE(status, 'active') <> 'closed' ORDER BY name, project_code").fetchall()
+    out = []
+    for r in rows:
+        has = r["site_lat"] is not None and r["site_lng"] is not None
+        dist = in_range = None
+        if has and latitude is not None and longitude is not None:
+            dist = _haversine_m(float(latitude), float(longitude), float(r["site_lat"]), float(r["site_lng"]))
+            in_range = dist <= float(r["geofence_m"] or 200)
+        out.append({"project_code": r["project_code"], "name": r["name"] or r["project_code"],
+                    "has_geofence": has, "distance_m": (round(dist) if dist is not None else None),
+                    "in_range": in_range, "assigned": assigned,
+                    "eligible": (not has) or (in_range if in_range is not None else True)})
+    return out
+
 
 @app.route('/api/worker/login', methods=['POST'])
 def worker_login():
@@ -4274,18 +4315,18 @@ def worker_login():
                 return jsonify({"error": "This device isn't set up yet — ask the office to add it",
                                 "device_required": True}), 403
 
-        # Validate geofence (Bronx project: 40.8083, -73.9162).  There is no
-        # client-controlled test bypass: staging uses a separate test project.
-        PROJECT_LAT, PROJECT_LNG = 40.8083, -73.9162
-        R = 6371000  # Earth radius meters
-        dLat = (latitude - PROJECT_LAT) * math.pi / 180
-        dLng = (longitude - PROJECT_LNG) * math.pi / 180 * math.cos(math.radians(PROJECT_LAT))   # #305 — E-W was overstated ~32%
-        a = (dLat/2)**2 + (dLng/2)**2
-        distance = R * 2 * (a**0.5)
-
-        if distance > 200:
+        # #325 — geofence PER JOB: the worker's projects (assignments, or every active
+        # project when unassigned), each checked against its own coordinates. No
+        # client-controlled bypass: a project's coordinates live on the projects row.
+        candidates = _worker_projects(conn, emp['employee_id'], latitude, longitude)
+        eligible = [p for p in candidates if p["eligible"]]
+        if not candidates:
+            conn.close()
+            return jsonify({"error": "No job assigned — see the office"}), 403
+        if not eligible:
             conn.close()
             return jsonify({"error": "Not on site"}), 403
+        auto_code = eligible[0]["project_code"] if len(eligible) == 1 else None
 
         cert_rows = conn.execute(
             "SELECT c.*, ct.name as cert_name FROM certifications c "
@@ -4315,7 +4356,7 @@ def worker_login():
         conn.execute(
             "INSERT INTO worker_app_session "
             "(token_hash, employee_id, project_code, issued_at, expires_at) VALUES (?,?,?,?,?)",
-            (_worker_token_hash(session_token), emp['employee_id'], "FR-BX-001", now, expires),
+            (_worker_token_hash(session_token), emp['employee_id'], auto_code or '', now, expires),   # '' = not picked yet (#325)
         )
         conn.commit()
         conn.close()
@@ -4324,7 +4365,8 @@ def worker_login():
             "employee_id": emp['employee_id'],
             "name": emp['name'],
             "session_token": session_token,
-            "project_code": "FR-BX-001",
+            "project_code": auto_code,          # None -> the app shows the job chooser
+            "projects": eligible,               # #325 — what the chooser offers
             "certifications": certs
         })
     except Exception as e:
@@ -4340,7 +4382,7 @@ def worker_session_start():
     try:
         data = request.get_json(silent=True) or {}
         employee_id = data.get('employee_id')
-        project_code = data.get('project_code') or 'FR-BX-001'
+        project_code = (data.get('project_code') or '').strip()
         session_token = data.get('session_token') or ''
         if not employee_id:
             return jsonify({"error": "employee_id required"}), 400
@@ -4349,13 +4391,21 @@ def worker_session_start():
 
         conn = db()
         session = _worker_session(conn, session_token, employee_id=employee_id,
-                                  project_code=project_code)
+                                  project_code=project_code or None)
         if not session:
             conn.close()
             return jsonify({"error": "valid worker session required"}), 401
         if session["started_sign_in_id"] is not None or session["ended_at"] is not None:
             conn.close()
             return jsonify({"error": "worker session already used"}), 409
+        # #325 — the shift lands on one of THIS worker's jobs, never an arbitrary code
+        allowed = {p["project_code"] for p in _worker_projects(conn, employee_id)}
+        if not project_code or project_code not in allowed:
+            conn.close()
+            return jsonify({"error": "pick one of your jobs"}), 403
+        if not session["project_code"]:
+            conn.execute("UPDATE worker_app_session SET project_code=? WHERE token_hash=?",
+                         (project_code, session["token_hash"]))
         cursor = conn.execute(
             "INSERT INTO sign_in_log (date, employee_id, project_code, time_in, created_at, updated_at) "
             "VALUES (?, ?, ?, ?, ?, ?)",
