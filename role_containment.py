@@ -18,7 +18,7 @@ from flask import jsonify, redirect, request
 
 from auth import current_user
 
-_COMMON_PREFIXES = ("/api/auth/", "/files/static/", "/auth/google/", "/p/", "/api/p/")   # #307 — proposal links
+_COMMON_PREFIXES = ("/api/auth/", "/files/static/", "/auth/google/", "/p/", "/api/p/", "/i/")   # #307 proposal + #326 invoice links
 _COMMON_EXACT = {"/login", "/set-password", "/forgot-password", "/reset-password",
                  "/api/health", "/api/today"}
 

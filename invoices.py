@@ -108,8 +108,19 @@ def _wrap(data, **meta):
     m = {"generated_at": _now()}
     if isinstance(data, list):
         m["count"] = len(data)
+        data = [_scrub(d) for d in data]
+    elif isinstance(data, dict):
+        data = _scrub(data)
     m.update(meta)
     return jsonify({"data": data, "meta": m})
+
+
+def _scrub(d: dict) -> dict:
+    """#326 — the document columns are server-only; the API carries flags instead."""
+    if not isinstance(d, dict) or "number" not in d:
+        return d
+    import invoice_docs
+    return invoice_docs.public(d)
 
 
 def _uid():
@@ -169,6 +180,8 @@ def ensure_schema(conn) -> None:
         f")")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_invoice_payment_inv ON invoice_payment(invoice_id, paid_on)")
     conn.commit()
+    import invoice_docs                     # #326 — sent / viewed / pdf / link columns
+    invoice_docs.ensure_columns(conn)
 
 
 # ---------------------------------------------------------------- reads
