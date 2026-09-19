@@ -23,8 +23,9 @@
 | Invoices & receivables: Finance → Receivables, deposit invoice drafted on signature | Preprod (#315) |
 | Company vault: vehicles with registration / insurance / inspection, tax returns by year, filings, records, file attachments | Preprod (#318) |
 | Worker job history + payroll view: projects, hours by month, rate-on-date cost, certs, credentials, rate history | Preprod (#320) |
+| Light sidebar; onboard an already-won job with "+ New project" on Projects & assignments | Preprod (#321, #324) |
 
-Production promotion of #302–#320 (except the #310 payroll-week hotfix, already live) waits on the C-suite's yes on preprod.
+Production promotion of #302–#324 (except the #310 payroll-week hotfix, already live) waits on the C-suite's yes on preprod.
 
 ---
 
