@@ -21,6 +21,23 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #322 — project_assignments missing on preprod Postgres (Bookore, 2026-09-19)
+
+* **Found in the Render logs** after the #321 deploy: `GET /api/payroll/hours:
+  relation "project_assignments" does not exist`, repeatedly between 09:12 and
+  09:23 ET on 2026-09-19 — the console loads that endpoint on every visit, so
+  the Labor Rate Tracker showed an error to whoever was on preprod.
+* **Why:** `apply_assignments_schema.py` opens superstars.db with sqlite3
+  directly (LEGACY list) and so never ran on the Postgres database; #310 only
+  added it to the SQLite fixture. Everything else the payroll pool needs
+  (`v_worker_roster`, `worker_rates`, `labor_worker_state`) is present.
+* **Fix:** `apply_assignments_322.py` — dual-backend, idempotent, no FKs —
+  appended to `DUAL_BACKEND_MIGRATIONS`; `SSC_AUTO_MIGRATE=1` applies it at
+  the next preprod boot and the #306 ledger records it. A no-op on SQLite.
+* **Lesson:** a table that lives only in a LEGACY (sqlite3-direct) migration is
+  invisible to Postgres. When a feature starts depending on one, add a dual-
+  backend twin the same day.
+
 ### #321 — Light sidebar (Bookore, 2026-09-19)
 
 * **Decision (Angela, 2026-09-19):** the ink-black sidebar was the heaviest element
