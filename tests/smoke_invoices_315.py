@@ -194,6 +194,11 @@ def main() -> int:
     admin = _login(app, "admin")
     cs = _login(app, "c_suite")
     assert cs.get("/api/invoices").status_code == 200
+    # the CI Postgres gate shares one database across suites (#307 leaves deposit
+    # drafts behind while it runs): every summary assertion below is a DELTA
+    base = _j(admin.get("/api/invoices"))["meta"]["summary"]
+    def delta(sm, k):
+        return round(sm[k] - base[k], 2)
     checks += 1
 
     # ---- create: validation + numbering
@@ -297,18 +302,18 @@ def main() -> int:
     assert late["overdue"] is True and late["days_overdue"] == 10 and late["days_to_due"] == -10
     r = admin.get("/api/invoices?overdue=1")
     j = _j(r)
-    assert [x["id"] for x in j["data"]] == [late["id"]], j["data"]
+    assert late["id"] in [x["id"] for x in j["data"]] and all(x["overdue"] for x in j["data"]), j["data"]
     s = j["meta"]["summary"]
-    assert s["overdue_count"] == 1 and s["overdue_value"] == 3000
-    assert s["open_count"] == 2 and s["open_value"] == 3900, s          # b (900, deposit) + late (3000)
-    assert s["awaiting_deposit_count"] == 1 and s["awaiting_deposit_value"] == 900
-    assert s["due_soon_count"] == 1 and s["due_soon_value"] == 900, s   # the deposit, due in 7 days
-    assert s["collected_ytd_value"] == 2000 and s["collected_ytd_count"] == 2
-    assert s["draft_count"] == 0
+    assert delta(s, "overdue_count") == 1 and delta(s, "overdue_value") == 3000
+    assert delta(s, "open_count") == 2 and delta(s, "open_value") == 3900, s          # b (900, deposit) + late (3000)
+    assert delta(s, "awaiting_deposit_count") == 1 and delta(s, "awaiting_deposit_value") == 900
+    assert delta(s, "due_soon_count") == 1 and delta(s, "due_soon_value") == 900, s   # the deposit, due in 7 days
+    assert delta(s, "collected_ytd_value") == 2000 and delta(s, "collected_ytd_count") == 2
+    assert delta(s, "draft_count") == 0
     r = admin.get("/api/invoices?status=open")
-    assert {x["id"] for x in _j(r)["data"]} == {b["id"], late["id"]}
+    assert {x["id"] for x in _j(r)["data"]} >= {b["id"], late["id"]} and all(x["status"] == "issued" for x in _j(r)["data"])
     r = admin.get("/api/invoices?status=paid&kind=progress")
-    assert [x["id"] for x in _j(r)["data"]] == [a["id"]]
+    assert a["id"] in [x["id"] for x in _j(r)["data"]] and all(x["status"] == "paid" and x["kind"] == "progress" for x in _j(r)["data"])
     r = admin.get("/api/invoices?search=late+one")
     assert [x["id"] for x in _j(r)["data"]] == [late["id"]]
     assert admin.get("/api/invoices?status=bogus").status_code == 400
@@ -316,7 +321,7 @@ def main() -> int:
     r = admin.post(f"/api/invoices/{late['id']}/void", json={"reason": "billed under the wrong client"})
     assert r.status_code == 200 and _j(r)["data"]["status"] == "void" and "Voided: billed" in _j(r)["data"]["notes"]
     s = _j(admin.get("/api/invoices"))["meta"]["summary"]
-    assert s["overdue_count"] == 0 and s["open_count"] == 1
+    assert delta(s, "overdue_count") == 0 and delta(s, "open_count") == 1
     checks += 1
 
     # ---- THE TRIGGER: signed proposal with deposit terms -> deposit invoice draft
@@ -343,7 +348,7 @@ def main() -> int:
         # issue + pay it -> the IRA job's deposit flag flips
         invoices.issue(conn, dep["id"])
         s = invoices.receivables_summary(conn)
-        assert s["awaiting_deposit_count"] == 2 and s["awaiting_deposit_value"] == 15900.0, s
+        assert delta(s, "awaiting_deposit_count") == 2 and delta(s, "awaiting_deposit_value") == 15900.0, s
         paid = invoices.record_payment(conn, dep["id"], amount=15000, method="wire")
         assert paid["status"] == "paid"
         if ids["ira"]:
@@ -354,11 +359,11 @@ def main() -> int:
         assert [x["id"] for x in _j(r)["data"]] == [dep["id"]]
         # company portal payloads carry the new keys and keep the old ones
         ov = company_portal.overview(conn)
-        assert ov["invoices"]["open_count"] == 1 and "awaiting_deposit" in ov["receivables"], ov["invoices"]
+        assert delta(ov["invoices"], "open_count") == 1 and "awaiting_deposit" in ov["receivables"], ov["invoices"]
         fin = company_portal.finance(conn)
         assert isinstance(fin["receivables"], list) and isinstance(fin["invoices"], list)
         assert {x["id"] for x in fin["invoices"]} >= {a["id"], b["id"], dep["id"]}
-        assert fin["invoice_summary"]["collected_ytd_value"] == 17000.0, fin["invoice_summary"]
+        assert delta(fin["invoice_summary"], "collected_ytd_value") == 17000.0, fin["invoice_summary"]
         _no_paths(ov); _no_paths(fin)
     finally:
         conn.close()

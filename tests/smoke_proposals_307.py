@@ -117,6 +117,13 @@ def _cleanup():
         est_ids = [r["id"] for r in conn.execute("SELECT id FROM estimate WHERE building_address LIKE '% Prop307 %'").fetchall()]
         pids = [r["id"] for r in conn.execute(
             f"SELECT id FROM proposal WHERE estimate_id IN ({','.join('?' * len(est_ids)) or 'NULL'})", est_ids).fetchall()]
+        try:
+            inv_ids = [r["id"] for r in conn.execute(
+                f"SELECT id FROM invoice WHERE proposal_id IN ({','.join('?' * len(pids)) or 'NULL'})", pids).fetchall()] if pids else []
+        except Exception:   # invoice table absent on an older fixture
+            conn.rollback(); inv_ids = []
+        purge(conn, "invoice_payment", "invoice_id", inv_ids)   # #315: signatures draft deposit invoices
+        purge(conn, "invoice", "id", inv_ids)
         purge(conn, "proposal_line", "proposal_id", pids)
         purge(conn, "proposal_event", "proposal_id", pids)
         purge(conn, "proposal", "id", pids)
