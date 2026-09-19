@@ -21,8 +21,9 @@
 | Mon–Sun payroll week on the Labor Rate Tracker | Production (#310) |
 | Shared shell on the admin pages, motion layer, mobile menu, dark-blue accent, gradients + hovers | Preprod (#311–#314) |
 | Invoices & receivables: Finance → Receivables, deposit invoice drafted on signature | Preprod (#315) |
+| Company vault: vehicles with registration / insurance / inspection, tax returns by year, filings, records, file attachments | Preprod (#318) |
 
-Production promotion of #302–#315 (except the #310 payroll-week hotfix, already live) waits on the C-suite's yes on preprod.
+Production promotion of #302–#318 (except the #310 payroll-week hotfix, already live) waits on the C-suite's yes on preprod.
 
 ---
 
@@ -131,7 +132,7 @@ per issue into `preprod`, then a release PR into the client repo once approved.
   and a G702 + G703 render (HTML → PDF, matching the AIA layout, with the
   company's own numbering). Each application becomes a `progress` invoice
   (#315) and, with #316 phase 2, a QuickBooks invoice.
-- **#318 Company vault.** Extend `company_document` with: vehicles (6 cars:
+- **#318 Company vault — SHIPPED to preprod 2026-09-19.** Extend `company_document` with: vehicles (6 cars:
   registration, insurance, inspection, plate, assigned driver), tax returns by
   year, filing receipts, and a generic "company record" with expiry — all in
   the Compliance view's expiry buckets. File attachments on company documents

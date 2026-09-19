@@ -80,6 +80,7 @@ GATE = [
     "smoke_password_reset_flow_301.py",# #301 guard — reset BEHAVIOR: no-enum, hashed single-use tokens, session revoke, expiry, throttle
     "smoke_company_portal_302.py",     # #302 guard — company portal: company-axis gating, clients/buildings rollups, finance, compliance, company documents CRUD
     "smoke_migrations_306.py",         # #306 guard — migration ledger: baseline, pending, apply/record, drift, health count
+    "smoke_company_vault_318.py",     # #318 guard — company vault: vehicles CRUD + driver roster, vehicle/tax categories, file upload/serve/delete (gated, path-contained), compliance rollup
     "smoke_invoices_315.py",          # #315 guard — invoices & receivables: numbering, draft→issued→paid, payments, void, overdue math, proposal-signed deposit draft, gates
     "smoke_payroll_week_310.py",       # #310 guard — Mon–Sun payroll week: 7 dates/totals, weekend hours counted + priced, CSV, divergence window, default week
     "smoke_csuite_reset_309.py",       # #309 guard — c_suite reset-only view of client accounts; admin unchanged; strong-password suggester wired on both set-password pages
