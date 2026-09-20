@@ -203,12 +203,16 @@ def render_project_identity(html: str, project) -> str:
     code = _esc(project.get("project_code"))
     name = _esc(project.get("name"))
     client = _esc(project.get("client_name"))
+    address = _esc(project.get("address"))
+    if address and name and address.strip().lower() == name.strip().lower():
+        address = ""          # #328 — the name IS the address; don't print it twice
     fills = {
         "data-project-title":  " · ".join(x for x in (name, code) if x),
         "data-project-client": client,
         "data-project-line":   " · ".join(x for x in (code, name) if x),
         "data-project-code":   code,
-        "data-project-name":   name,
+        "data-project-name":   name or code,
+        "data-project-address": address,   # #328 — sidebar identity block
     }
     for attr, value in fills.items():
         # <tag ... attr ...>ANYTHING</tag>  ->  same tag with `value` as its text.

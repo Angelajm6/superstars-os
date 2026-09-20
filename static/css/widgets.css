@@ -456,7 +456,11 @@ tbody tr { transition: background var(--ssc-t-fast) ease; }
   /* project dashboard + client portal (.sidebar family): compact bar, menu slides in */
   .sidebar { width: 100%; height: auto; position: sticky; top: 0; z-index: 6; padding: 10px 12px; }
   .sidebar .sidebar-header { padding: 4px 6px 8px; margin-bottom: 0; border-bottom: 0; }
-  .sidebar .nav, .sidebar .proj-line, .sidebar .sidebar-grow, .sidebar .sidebar-footer, .sidebar .nav-group { display: none; }
+  .sidebar .nav, .sidebar .sidebar-grow, .sidebar .sidebar-footer, .sidebar .nav-group { display: none; }
+  /* #328 — the project identity line stays visible in the compact bar (one row) */
+  .sidebar .proj-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 0 6px 8px; margin: 0; border-bottom: 0; }
+  .sidebar .proj-line .proj-code { margin-bottom: 0; }
+  .sidebar .proj-line .proj-addr { display: none; }
   .sidebar.nav-open .nav, .sidebar.nav-open .proj-line, .sidebar.nav-open .sidebar-footer, .sidebar.nav-open .nav-group { display: block; animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }
   .sidebar.nav-open .nav { display: flex; flex-direction: column; }
 }

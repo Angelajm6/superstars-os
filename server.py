@@ -480,7 +480,15 @@ def _project_identity(code):
             "SELECT project_code, name FROM projects WHERE project_code = ?", (code,)).fetchone()
         if row is None:
             return None
-        out = {"project_code": row["project_code"], "name": row["name"], "client_name": None}
+        out = {"project_code": row["project_code"], "name": row["name"], "client_name": None,
+               "address": None}
+        # #328 — the sidebar identity block shows the site address when the column exists
+        try:
+            arow = conn.execute("SELECT address FROM projects WHERE project_code = ?", (code,)).fetchone()
+            if arow and arow["address"]:
+                out["address"] = arow["address"]
+        except Exception:
+            pass
         # client org is optional (#266 added projects.client_org_id); absent is fine.
         try:
             crow = conn.execute(

@@ -21,6 +21,37 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #328 — Navigation clarity (Bookore, 2026-09-20)
+
+* **Ask (Angela, 2026-09-20):** too many tabs; the company portal's "Buildings"
+  should read "Projects"; "Labor Rates" (console) vs "Labor Rate Tracker" (project
+  sidebar) was two names for two different things; inside a project you could not
+  tell which job you were in once you left Project Health.
+* **Project identity block** (`dashboard-static.html`, `.proj-line` under the brand):
+  code chip (brand red, it is an ID), name, address, client — on EVERY view. Filled
+  server-side by `access.render_project_identity`, which gained a
+  `data-project-address` fill (`server._project_identity` reads `projects.address`
+  defensively; the address is dropped when it equals the name). The browser tab is
+  named `CODE · Name — Superstars Contracting`. On phones (#312 compact bar) the
+  line stays visible as one row (`widgets.css`, `?v=328`).
+* **Pay Rates vs Weekly Payroll.** `/admin/labor-rates` is now "Pay Rates" (set and
+  audit each worker's hourly rate) on the console nav and on every admin page's own
+  sidebar. The sheet formerly called "Labor Rate Tracker" (hours × rate per week,
+  the check-cutting view) is "Weekly Payroll" (ES "Nómina Semanal") with its own
+  visible console tab under Workforce next to Hours Log — admin / c_suite only,
+  revealed together with Pay Rates. Its link is GONE from the project sidebar: it is
+  company-wide, not per project. `#labor-rate` hash and every API path unchanged.
+* **Company portal:** the "Buildings" tab / title / links read "Projects"; the
+  address entity itself is worded "job site" (columns, buttons, empty states). Hash
+  routes (`#buildings`, `#buildings/<id>`), `/api/company/portal/buildings*` and the
+  `building` table are unchanged — labels only.
+* **Test** `tests/smoke_nav_clarity_328.py` (gate + CI): boots the real app; served
+  project page carries the filled identity block for c_suite and pm and no LRT link;
+  console has the Weekly Payroll tab + Pay Rates and no old labels; portal nav says
+  Projects; Pay Rates page heading; renderer unit checks.
+* **Not in this ticket:** condensing the Office Console tabs (proposal sent to
+  Angela for the C-suite to pick).
+
 ### Release to production — 2026-09-20 (Bookore)
 
 * **What:** the whole preprod stack #302–#327 (26 fork PRs #15–#40) promoted to
