@@ -164,6 +164,15 @@ def _link_state(inv: dict) -> str:
 
 # ---------------------------------------------------------------- document
 def render_document(conn, inv: dict) -> str:
+    # #317 — an invoice born from an AIA application IS the G702 + G703
+    try:
+        import aia_billing
+        app = aia_billing.for_invoice(conn, inv["id"])
+    except Exception as ex:
+        log.warning("#317 application lookup failed for invoice %s: %s", inv.get("id"), ex)
+        app = None
+    if app:
+        return aia_billing.render_document(conn, app, inv)
     from proposals import _DOC_CSS
     e = _html.escape
     facts = _company_facts(conn)

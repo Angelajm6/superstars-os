@@ -21,6 +21,49 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #317 — AIA progress billing, G702 + G703 (Bookore, 2026-09-20)
+
+* **Ask (C-suite 2026-09-11 item 5, priority list item 3 "AIA payments"):** the
+  official application-for-payment documents, on top of the invoice model.
+* **Module** `aia_billing.py`; tables in `apply_aia_317.py` (dual-backend list; boot
+  heals): `billing_sov` (the BILLING schedule of values per job: item no, description,
+  scheduled value, kind base | change_order, approved_on), `pay_application` (number per
+  job, period, application date, retainage % work / stored, `invoice_id`),
+  `pay_application_line` (this_period + stored per SOV item). The drop-plan
+  `sov_line_items` (unit rates) is untouched; "Import drop-plan lines" copies its
+  descriptions in at $0.
+* **Arithmetic** (`compute`): G703 columns C–I per line; G702 lines 1–9. "From previous
+  application" (D) and line 7 are recomputed from the earlier issued / paid applications
+  every time — a voided application drops out. Retainage on the invoice = total
+  retainage now − previous certificate's retainage.
+* **Rules:** one draft per job; D+E+F ≤ C per line (400 "exceeds its scheduled value");
+  an SOV line on any application cannot be removed (set it to 0); an application with
+  an invoice is read-only; delete = draft only; void = through the invoice
+  (`POST /api/invoices/<id>/void`) and the application reads `void`.
+* **Issue** = `invoices.create(kind='progress', amount=line 8, retainage=period
+  retainage, source_doc='AIA G702/G703 · Application #n')` + `invoices.issue` on the
+  application date. **The invoice document IS the G702 + G703**:
+  `invoice_docs.render_document` delegates to `aia_billing.render_document` when the
+  invoice belongs to an application, so preview / PDF / email / `/i/<token>` / view
+  tracking / Payments / Receivables are all the #326 paths. `/api/billing/applications/<id>/preview`
+  renders any status (draft watermark).
+* **Routes** (`requires_company` = admin / c_suite): `GET /api/projects/<code>/billing`,
+  `PUT …/billing/sov` (replace-by-id), `POST …/billing/sov/import`,
+  `POST …/billing/applications`, `GET | PUT | DELETE /api/billing/applications/<id>`,
+  `POST …/<id>/issue`, `GET …/<id>/preview`.
+* **UI (`dashboard-static.html`, Financial group — server-stripped for pm/super):**
+  Schedule of Values view = the billing SOV editor (lines, change orders, import, save;
+  contract sums) with the drop-plan unit rates below it. Payments view = "AIA progress
+  billing" card (contract to date, completed & stored, retainage held, balance to
+  finish; applications table; G702/G703 + PDF links) and the application modal: period,
+  dates, retainage %, the G703 grid with editable E / F and live G / % / H / I, live
+  G702 lines 1–9, Save draft / Save & issue invoice / Delete draft.
+* **Test** `tests/smoke_aia_billing_317.py` (gate + CI): fixed-number arithmetic for two
+  applications, carry-forward, void, over-billing, documents, gates.
+* **Not in this ticket:** the client-portal view of applications (they get the email +
+  link); lien waivers; a G702 "amount certified" that differs from the amount applied
+  (the owner marks that on paper today); QuickBooks sync (#316 phase 2).
+
 ### #329 — Office Console condensed (Bookore, 2026-09-20)
 
 * **Ask (Angela, 2026-09-20, "go with the list"):** fewer sidebar entries on the
