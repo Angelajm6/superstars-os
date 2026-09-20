@@ -385,7 +385,7 @@
     <a class="ssc-nav-ext" href="/company" title="Clients &amp; buildings, finance, workforce &amp; pay, compliance">Company Portal</a>
     <a class="nav-tab" data-panel="crm" href="#crm">CRM</a>
     <a class="nav-tab" data-panel="estimates" href="#estimates" data-i18n="tab-estimates">Estimates</a>
-    <a class="ssc-nav-ext" href="/estimating">Estimating queue</a>
+    <!-- #329 — the Estimating queue link lives inside the Estimates page now -->
     <div class="ssc-nav-label">Workforce</div>
     <a class="nav-tab" data-panel="workforce" href="#workforce" data-i18n="tab-workforce">Workforce</a>
     <a class="nav-tab" data-panel="hours" href="#hours">Hours Log</a>
@@ -393,17 +393,16 @@
          per week) now has its own visible tab here, admin / c_suite only (revealed with the
          Pay Rates tab below). It used to be reachable only by hash from a project's sidebar. -->
     <a class="nav-tab" id="nav-labor-rate-tab" data-panel="labor-rate" href="#labor-rate" data-i18n="tab-labor-rate" style="display:none;">Weekly Payroll</a>
-    <a class="nav-tab" data-panel="cert-health" href="#cert-health" data-i18n="tab-cert-health">Cert Health</a>
-    <a class="nav-tab" data-panel="cert-library" href="#cert-library" data-i18n="tab-cert-library">Cert Library</a>
+    <!-- #329 — one Certifications entry (Cert Health was a placeholder; #cert-health aliases here) -->
+    <a class="nav-tab" data-panel="cert-library" data-panels="cert-health,cert-library" href="#cert-library" data-i18n="tab-cert-library">Certifications</a>
     <a class="ssc-nav-ext" id="nav-labor-rates-admin" href="/admin/labor-rates" title="Set &amp; audit each worker's hourly pay rate">Pay Rates</a>
     <div class="ssc-nav-label">Operations</div>
     <a class="ssc-nav-ext" href="/admin/projects">Projects &amp; assignments</a>
-    <a class="nav-tab" data-panel="compliance" href="#compliance" data-i18n="tab-compliance">Compliance</a>
-    <a class="nav-tab" data-panel="specs" href="#specs" data-i18n="tab-specs">Specs Library</a>
-    <a class="ssc-nav-ext" href="/dropplan">Drop Plan</a>
+    <!-- #329 — Specs Library is a tab inside Compliance; Drop Plan is reached from each
+         project (sidebar + Overview cards), not from here -->
+    <a class="nav-tab" data-panel="compliance" data-panels="compliance,specs" href="#compliance" data-i18n="tab-compliance">Compliance</a>
     <div class="ssc-nav-label">Admin</div>
     <a class="nav-tab" data-panel="settings" href="#settings" data-i18n="tab-settings">Settings</a>
-    <a class="ssc-nav-ext" href="/settings/interface">Interface</a>
   </nav>
   <div class="ssc-side-foot">
     <a href="/projects">My projects view</a>
@@ -749,14 +748,6 @@
   </div>
 
   <!-- CERT HEALTH -->
-  <div class="panel" data-panel="cert-health">
-    <div class="section">
-      <h2 data-i18n="p-cert-health-title">Certification Health</h2>
-      <div class="h2-sub" data-i18n="p-cert-health-sub">Company-wide cert status with per-project drill-down.</div>
-      <div class="placeholder" data-i18n="p-cert-health-placeholder">Detailed cert health view — coming with Phase B. The metrics at top of page already reflect company-wide cert health.</div>
-    </div>
-  </div>
-
   <!-- CERT LIBRARY -->
   <!-- #249 — Lumen+Oat crafted card (the #244 treatment). The CoF-prereq
        column is display-removed (operator decision 2026-06-12): the flag is
@@ -765,8 +756,8 @@
   <div class="panel" data-panel="cert-library">
     <div class="cl-card">
       <div class="cl-head">
-        <h2 data-i18n="p-cert-lib-title">Certification Library</h2>
-        <div class="h2-sub" data-i18n="p-cert-lib-sub">Catalog of cert types the system recognizes. New ones get added automatically when workers bring in unfamiliar certs.</div>
+        <h2 data-i18n="p-cert-lib-title">Certifications</h2>
+        <div class="h2-sub" data-i18n="p-cert-lib-sub">Catalog of cert types the system recognizes — new ones are added automatically when workers bring in unfamiliar certs. Company-wide cert status is on Overview; each worker's certs are under Workforce.</div>
       </div>
       <div class="cl-body">
         <table class="roster">
@@ -783,6 +774,7 @@
 
   <!-- COMPLIANCE -->
   <div class="panel" data-panel="compliance">
+    <div class="ssc-subtabs" role="tablist"><a class="ssc-subtab active" href="#compliance" data-i18n="tab-compliance">Compliance</a><a class="ssc-subtab" href="#specs" data-i18n="tab-specs">Specs Library</a></div>
     <div class="section">
       <h2 data-i18n="p-compliance-title">Compliance (Company-Wide)</h2>
       <div class="h2-sub" data-i18n="p-compliance-sub">NYC DOB permits, violations, and complaints across all your active job sites.</div>
@@ -800,6 +792,11 @@
     .est-sub { font-size:12px; color:var(--muted); margin-top:3px; }
     .est-actions { display:flex; gap:8px; flex:none; }
     .est-subtabs { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+    /* #329 — page-level sub-tabs for a nav entry that owns several panels */
+    .ssc-subtabs { display:flex; gap:6px; margin:0 0 14px; flex-wrap:wrap; }
+    .ssc-subtab { padding:7px 14px; font-size:12.5px; font-weight:700; color:var(--muted); border-radius:8px; text-decoration:none; }
+    .ssc-subtab:hover { background:var(--ui-soft,#E8EDF8); color:var(--ui,#24418C); }
+    .ssc-subtab.active { color:#fff; background:var(--accent); }
     .est-subtab { padding:7px 14px; font-size:12.5px; font-weight:700; color:var(--muted); cursor:pointer; border-radius:8px; }
     .est-subtab.active { color:#fff; background:var(--accent); }
     .est-group { margin-bottom:18px; }
@@ -992,6 +989,7 @@
           <div class="est-sub">Every inquiry the company bids — intake to approved, then one click into Active Projects.</div>
         </div>
         <div class="est-actions">
+          <a class="est-mini-btn" href="/estimating" style="text-decoration:none;" title="The estimator's work queue">Estimating queue →</a>
           <button type="button" class="btn-primary" id="est-btn-new">+ New estimate</button>
         </div>
       </div>
@@ -1165,6 +1163,7 @@
 
   <!-- SPECS LIBRARY (manufacturer-agnostic specifications catalog) -->
   <div class="panel" data-panel="specs">
+    <div class="ssc-subtabs" role="tablist"><a class="ssc-subtab" href="#compliance" data-i18n="tab-compliance">Compliance</a><a class="ssc-subtab active" href="#specs" data-i18n="tab-specs">Specs Library</a></div>
     <div class="section">
       <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap;gap:12px;">
         <div>
@@ -1628,6 +1627,12 @@
       <div class="h2-sub" data-i18n="p-settings-sub">Company info, issuer signature, integrations.</div>
       <div class="placeholder" data-i18n="p-settings-placeholder">Settings UI — coming next. Today, edit api-keys.txt directly.</div>
     </div>
+    <!-- #329 — Interface preferences folded in here (was its own sidebar entry) -->
+    <div class="section" id="interface-section" style="margin-top:16px;">
+      <h2 data-i18n="p-interface-title">Interface</h2>
+      <div class="h2-sub" data-i18n="p-interface-sub">Layout and display preferences for this browser.</div>
+      <p style="margin:12px 0 0;"><a class="est-mini-btn" href="/settings/interface" style="text-decoration:none;" data-i18n="p-interface-open">Open interface preferences →</a></p>
+    </div>
     <!-- #289 — Two-factor (TOTP) self-enrollment for the signed-in staff account. -->
     <div class="section" id="twofa-section" style="margin-top:16px;">
       <h2>Two-Factor Authentication (TOTP)</h2>
@@ -1944,7 +1949,7 @@ const I18N = {
     'tab-projects': 'Overview',
     'tab-workforce': 'Workforce',
     'tab-cert-health': 'Cert Health',
-    'tab-cert-library': 'Cert Library',
+    'tab-cert-library': 'Certifications',
     'tab-compliance': 'Compliance',
     'tab-estimates': 'Estimates',
     'tab-labor-rate': 'Weekly Payroll',
@@ -1994,7 +1999,7 @@ const I18N = {
     'p-cert-health-title': 'Certification Health',
     'p-cert-health-sub': 'Company-wide cert status with per-project drill-down.',
     'p-cert-health-placeholder': 'Detailed cert health view — coming soon. The metrics at top of page already reflect company-wide cert health.',
-    'p-cert-lib-title': 'Certification Library',
+    'p-cert-lib-title': 'Certifications',
     'p-cert-lib-sub': 'Catalog of cert types the system recognizes. New ones get added automatically when workers bring in unfamiliar certs.',
     'p-compliance-title': 'Compliance (Company-Wide)',
     'p-compliance-sub': 'NYC DOB permits, violations, and complaints across all your active job sites.',
@@ -2099,7 +2104,7 @@ const I18N = {
     'tab-projects': 'Resumen',
     'tab-workforce': 'Personal',
     'tab-cert-health': 'Estado de Certificaciones',
-    'tab-cert-library': 'Catálogo de Cert.',
+    'tab-cert-library': 'Certificaciones',
     'tab-compliance': 'Cumplimiento',
     'tab-estimates': 'Presupuestos',
     'tab-labor-rate': 'Nómina Semanal',
@@ -2149,7 +2154,7 @@ const I18N = {
     'p-cert-health-title': 'Estado de Certificaciones',
     'p-cert-health-sub': 'Estado de certificaciones de toda la empresa con desglose por proyecto.',
     'p-cert-health-placeholder': 'Vista detallada del estado de certificaciones — próximamente. Las métricas en la parte superior ya reflejan el estado de toda la empresa.',
-    'p-cert-lib-title': 'Catálogo de Certificaciones',
+    'p-cert-lib-title': 'Certificaciones',
     'p-cert-lib-sub': 'Catálogo de tipos de certificación que el sistema reconoce. Se agregan automáticamente cuando los trabajadores presentan certificaciones nuevas.',
     'p-compliance-title': 'Cumplimiento (Toda la Empresa)',
     'p-compliance-sub': 'Permisos, infracciones y quejas del NYC DOB para todos tus sitios activos.',
@@ -2394,11 +2399,20 @@ applyLanguage();
   $('#today-date').textContent = new Date().toLocaleDateString(currentLang === 'es' ? 'es-MX' : 'en-US', {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'});
 
   // Tabs
+  // #329 — a nav tab may own several panels (data-panels="a,b"): the tab stays lit for
+  // any of them and the page title is the tab's. #cert-health folded into Certifications.
+  function _tabOwns(tab, target) {
+    if (tab.getAttribute('data-panel') === target) return true;
+    var many = (tab.getAttribute('data-panels') || '').split(',');
+    return many.indexOf(target) !== -1;
+  }
   function activatePanel(target) {
-    $$('.nav-tab').forEach(x => x.classList.toggle('active', x.getAttribute('data-panel') === target));
-    var _h1 = document.getElementById('ssc-top-h1'), _src = document.querySelector('.ssc-nav .nav-tab[data-panel="' + target + '"]');
+    if (target === 'cert-health') target = 'cert-library';
+    $$('.nav-tab').forEach(x => x.classList.toggle('active', _tabOwns(x, target)));
+    var _h1 = document.getElementById('ssc-top-h1'), _src = Array.prototype.filter.call($$('.ssc-nav .nav-tab'), function (t) { return _tabOwns(t, target); })[0];
     if (_h1 && _src) _h1.textContent = _src.textContent.trim();
     $$('.panel').forEach(p => p.classList.toggle('active', p.getAttribute('data-panel') === target));
+    $$('.ssc-subtab').forEach(a => a.classList.toggle('active', (a.getAttribute('href') || '') === '#' + target));
     if (target === 'workforce') loadWorkforce();
     if (target === 'cert-library') loadCertLibrary();
     if (target === 'labor-rate' && typeof window.LRT_loadGrid === 'function') window.LRT_loadGrid(null);
@@ -2417,6 +2431,7 @@ applyLanguage();
   function maybeActivateFromHash() {
     var hash = (window.location.hash || '').replace(/^#/, '').trim();
     if (!hash) return;
+    if (hash === 'cert-health') hash = 'cert-library';   // #329 — old bookmarks / admin-page links
     var panel = document.querySelector('.panel[data-panel="' + hash + '"]');
     if (panel) activatePanel(hash);
   }
