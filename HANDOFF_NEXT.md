@@ -21,6 +21,38 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #330 — Company Portal → Projects = jobs; a job's own page (Bookore, 2026-09-20)
+
+* **Ask (Angela, 2026-09-20, screenshot):** inside a project in the portal, none of the
+  containers were about that project (open estimates, won value, other projects at the
+  address). Cause: the tab was the #304 job-site (building) roll-up, renamed "Projects"
+  in #328. A new job's page must show only that job.
+* **Module** `portal_projects.py` (read-only, company-portal section):
+  `GET /api/company/portal/projects?status=active|closed|all&search=` — one row per job:
+  client, PMs (`pm_project_assignment`), crew count (active `project_assignments`),
+  contract (`billing_sov` sum when it exists, else the converted estimate's
+  `final_amount`), invoiced / open / overdue / collected (`invoice`), last DCR
+  (`report_index`), open RFIs (`rfi_log`). `GET …/projects/<code>` — the page: identity,
+  client + contacts, PMs, crew (name / trade via `v_active_workers`, no paths), job site
+  row, contract, money (`invoice_docs.project_payments`), AIA summary + applications
+  (`aia_billing.billing`), permits & insurance readiness (`doc_packages.package`, with
+  days_left computed here), documents with expiry dates, activity (DCRs in 30 days, last
+  DCR, open RFIs, photos, documents), links (dashboard `/projects/<code>`, crew & site,
+  `#buildings/<id>`, `#clients/<id>`). Every optional piece is read through `_safe` so a
+  missing table blanks one card, never the page.
+* **UI (`company_portal.html`):** nav "Projects" → `#projects` (list: job, address,
+  client, PM, crew, contract, open invoices, last report, status; Active / Closed / All;
+  "Job sites" and "+ New project" buttons). `#projects/<code>` = the job page: toolbar
+  (status, type, Crew & site, Open job dashboard →), KPIs (contract, invoiced,
+  collected, open, balance-to-finish or crew), Money / Permits & insurance / Documents
+  expiring / Crew cards, Job facts, Activity, Client contacts. `#buildings` (job sites)
+  keeps its pages, titled "Job sites", lit under Projects in the nav.
+* **Test** `tests/smoke_portal_projects_330.py` (gate + CI): two jobs at one address,
+  the page for one never shows the other's invoices or documents. `smoke_nav_clarity_328`
+  updated for the new hash.
+* **Not in this ticket:** editing a project from the portal (Crew & site stays on the
+  console); daily-report list on the page (the job dashboard has it).
+
 ### Release to production — 2026-09-20, third of the day (Bookore)
 
 * Upstream PR `superstars-contracting/dashboard#6`: #317 AIA billing + the Payments

@@ -109,6 +109,8 @@ import aia_billing
 aia_billing.register(app)    # #317 — AIA G702/G703 progress billing on the invoice model
 import payables
 payables.register(app)       # #319 — accounts payable + the 30-day cash view
+import portal_projects
+portal_projects.register(app)   # #330 — Company Portal Projects tab = jobs; a job's own page
 
 # #279 (UI v2 phase 0) — the interface toggle. MUST follow apply_auth_gate: the
 # stored per-user preference is read off current_user(). Sets g.ui_version on page
