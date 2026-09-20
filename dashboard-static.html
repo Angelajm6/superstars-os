@@ -4532,8 +4532,220 @@
             <div class="pay-toolbar"><button type="button" class="pay-btn primary" id="pay-new">+ New invoice</button></div></div>
           <div class="pay-kpis" id="pay-kpis"></div>
           <div class="pay-card"><div style="overflow:auto"><table class="pay-table" id="pay-table"><tbody><tr><td class="pay-empty">Loading…</td></tr></tbody></table></div>
-            <div class="pay-muted" style="margin-top:10px">Deposit invoices draft themselves when a proposal is signed. AIA progress billing (G702 / G703) fills a progress invoice — coming next. Amounts here are what the client owes, not labor cost.</div></div>
+            <div class="pay-muted" style="margin-top:10px">Deposit invoices draft themselves when a proposal is signed. AIA applications for payment (below) issue their own progress invoices. Amounts here are what the client owes, not labor cost.</div></div>
         </div>
+        <!-- #317 — AIA progress billing: applications for payment (G702 / G703) -->
+        <style>
+          .aia-grid input{font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid #eceef3;border-radius:6px;width:112px;text-align:right;background:#fff;color:#222633}
+          .aia-grid input:focus{outline:none;border-color:var(--ui,#24418C);box-shadow:0 0 0 3px var(--ui-soft,#E8EDF8)}
+          .aia-grid td.num{font-variant-numeric:tabular-nums} .aia-grid tfoot td{font-weight:800;border-top:2px solid #14161C;border-bottom:0}
+          .aia-modal{max-width:1040px}
+          .aia-g702{display:grid;grid-template-columns:1fr auto;gap:4px 16px;font-size:13px;background:#FAF7F1;border-radius:12px;padding:12px 16px;margin:0 20px 6px}
+          .aia-g702 .n{color:#8c92a0;font-size:11px;margin-right:6px} .aia-g702 .v{text-align:right;font-variant-numeric:tabular-nums}
+          .aia-g702 .big{font-weight:800;font-size:15px;border-top:2px solid #14161C;padding-top:5px}
+          .aia-sov input,.aia-sov select{font:inherit;font-size:13px;padding:7px 9px;border:1px solid #eceef3;border-radius:6px;background:#fff;color:#222633;box-sizing:border-box;width:100%}
+          .aia-sov input.num{text-align:right;font-variant-numeric:tabular-nums} .aia-sov td{padding:6px 6px}
+          .aia-sov .x{font:inherit;font-size:12px;border:0;background:none;color:#A8382B;cursor:pointer;font-weight:700}
+          .aia-sov thead th,.aia-grid thead th{background:transparent;color:#8c92a0} .aia-sov td:nth-child(2){min-width:260px}
+        </style>
+        <div class="pay-wrap">
+          <div class="pay-card" id="aia-card">
+            <div class="pay-head" style="margin-bottom:8px"><div><h2 style="margin:0;font-size:16px;font-weight:800">AIA progress billing</h2><div class="pay-sub" id="aia-sub">G702 Application for Payment + G703 Continuation Sheet, billed against the Schedule of Values</div></div>
+              <div class="pay-toolbar"><a class="pay-btn" data-view="sov" href="#" id="aia-goto-sov">Schedule of Values</a><button type="button" class="pay-btn primary" id="aia-new">+ New application</button></div></div>
+            <div class="pay-kpis" id="aia-kpis"></div>
+            <div style="overflow:auto"><table class="pay-table" id="aia-table"><tbody><tr><td class="pay-empty">Loading…</td></tr></tbody></table></div>
+          </div>
+        </div>
+        <div class="pay-overlay" id="aia-overlay"><form class="pay-modal aia-modal" id="aia-form" novalidate>
+          <div class="pay-mhead"><h3 id="aia-title">Application for Payment</h3><p id="aia-msub"></p></div>
+          <div class="pay-mbody" style="grid-template-columns:repeat(5,1fr)">
+            <div class="pay-field"><label for="aia-from">Period from</label><input id="aia-from" type="date"></div>
+            <div class="pay-field"><label for="aia-to">Period to</label><input id="aia-to" type="date"></div>
+            <div class="pay-field"><label for="aia-date">Application date</label><input id="aia-date" type="date"></div>
+            <div class="pay-field"><label for="aia-ret">Retainage % (work)</label><input id="aia-ret" inputmode="decimal" autocomplete="off"></div>
+            <div class="pay-field"><label for="aia-rets">Retainage % (stored)</label><input id="aia-rets" inputmode="decimal" autocomplete="off"></div>
+          </div>
+          <div style="padding:0 20px;overflow:auto"><table class="pay-table aia-grid" id="aia-grid"></table></div>
+          <div class="aia-g702" id="aia-g702" style="margin-top:12px"></div>
+          <div class="pay-err" id="aia-err" style="margin:0 20px"></div>
+          <div class="pay-mfoot"><button type="button" class="pay-btn" id="aia-delete" style="margin-right:auto;color:#A8382B">Delete draft</button><a class="pay-btn" id="aia-preview" href="#" target="_blank" rel="noopener">Preview</a><button type="button" class="pay-btn" id="aia-cancel">Close</button><button type="button" class="pay-btn" id="aia-save">Save draft</button><button type="submit" class="pay-btn primary" id="aia-issue">Save &amp; issue invoice</button></div></form></div>
+        <script>
+        (function(){
+          const $a = id => document.getElementById(id);
+          const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+          const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+          const fmtDate = iso => { if (!iso) return '—'; const [y,m,d] = String(iso).slice(0,10).split('-'); return (m && d) ? `${m}/${d}/${y}` : esc(iso); };
+          const num = v => { const n = parseFloat(String(v == null ? '' : v).replace(/[$,\s]/g, '')); return isFinite(n) ? n : 0; };
+          const r2 = v => Math.round(v * 100) / 100;
+          const dGet = el => { const p = window.SSCDatePicker; if (p && typeof p.getISO === 'function') { const v = p.getISO(el); if (v !== undefined && v !== null) return v; } return el.value || ''; };
+          const dSet = (el, iso) => { const p = window.SSCDatePicker; if (p && typeof p.setISO === 'function') { try { p.setISO(el, iso || ''); return; } catch (e) {} } el.value = iso || ''; };
+          const todayLocal = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+          const code = () => (typeof getProjectCode === 'function') ? getProjectCode() : (window.SSC_PROJECT_CODE || '');
+          const S = { data: null, app: null, sov: null };
+          async function api(path, opts) {
+            const res = await fetch(path, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' } }, opts || {}));
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error((j && j.error) || ('Request failed (' + res.status + ')'));
+            return j;
+          }
+          function toast(msg, bad) { const t = document.createElement('div'); t.textContent = msg; t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:' + (bad ? '#A8382B' : '#14161C') + ';color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.25)'; document.body.appendChild(t); setTimeout(() => t.remove(), 3200); }
+          function kpi(k, v, s, cls) { return `<div class="pay-kpi ${cls || ''}"><div class="k">${esc(k)}</div><div class="v">${v}</div><div class="s">${esc(s || '')}</div></div>`; }
+          function pill(st) { const c = { draft: '', issued: 'active', paid: 'ok', void: 'bad' }[st] || ''; return `<span class="pay-pill ${c}">${esc(st)}</span>`; }
+
+          // ---------- Payments card: applications
+          function renderCard() {
+            const d = S.data, s = d.summary;
+            $a('aia-kpis').innerHTML = kpi('Contract to date', money.format(s.contract_sum_to_date), `${money.format(s.original_contract_sum)} + ${money.format(s.net_change_orders)} change orders`) +
+              kpi('Completed & stored', money.format(s.completed_stored), 'certified so far') + kpi('Retainage held', money.format(s.retainage_held), 'released at closeout') +
+              kpi('Balance to finish', money.format(s.balance_to_finish), 'including retainage', s.balance_to_finish > 0 ? '' : 'good');
+            $a('aia-new').disabled = !d.sov.length || !!s.open_draft;
+            $a('aia-new').title = !d.sov.length ? 'Set up the Schedule of Values first' : (s.open_draft ? 'Finish or delete the open draft first' : '');
+            const rows = d.applications;
+            if (!rows.length) { $a('aia-table').innerHTML = `<tbody><tr><td class="pay-empty">${d.sov.length ? '<b>No applications yet.</b><br>Start the first Application for Payment for this period.' : '<b>No Schedule of Values yet.</b><br>Add the approved line items under Schedule of Values, then bill against them here.'}</td></tr></tbody>`; return; }
+            $a('aia-table').innerHTML = '<thead><tr><th>App.</th><th>Period</th><th class="num">Completed & stored</th><th class="num">Retainage</th><th class="num">Current due</th><th>Invoice</th><th>Status</th><th></th></tr></thead><tbody>' + rows.map(a => `<tr>
+              <td><span class="pay-id">#${a.number}</span><div class="pay-muted">${fmtDate(a.application_date)}</div></td>
+              <td>${a.period_from ? fmtDate(a.period_from) + ' – ' : 'through '}${fmtDate(a.period_to)}</td>
+              <td class="num">${money.format(a.g702.total_completed_stored)}<div class="pay-muted">${a.g702.pct_complete}% of contract</div></td>
+              <td class="num">${money.format(a.g702.total_retainage)}</td><td class="num"><b>${money.format(a.g702.current_payment_due)}</b></td>
+              <td>${a.invoice_number ? `<span class="pay-id">${esc(a.invoice_number)}</span><div class="pay-muted">${a.sent_at ? (a.viewed_at ? 'opened ' + fmtDate(a.viewed_at) : 'sent ' + fmtDate(a.sent_at)) : 'not sent'}</div>` : '<span class="pay-muted">—</span>'}</td>
+              <td>${pill(a.status)}</td>
+              <td><div class="pay-acts">${a.status === 'draft' ? `<button type="button" class="pay-btn primary" data-edit="${a.id}">Edit</button>` : ''}<a class="pay-btn" href="/api/billing/applications/${a.id}/preview" target="_blank" rel="noopener">G702 / G703</a>${a.invoice_id && a.status !== 'draft' ? `<a class="pay-btn" href="/api/invoices/${a.invoice_id}/pdf" target="_blank" rel="noopener">PDF</a>` : ''}</div></td></tr>`).join('') + '</tbody>';
+            $a('aia-table').querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openApp(Number(b.dataset.edit))));
+          }
+          async function loadCard() {
+            try { const { data } = await api('/api/projects/' + encodeURIComponent(code()) + '/billing'); S.data = data; renderCard(); }
+            catch (e) { $a('aia-table').innerHTML = '<tbody><tr><td class="pay-empty">' + esc(e.message) + '</td></tr></tbody>'; }
+          }
+          window.AIA_pay_load = loadCard;
+          $a('aia-goto-sov').addEventListener('click', (e) => { e.preventDefault(); const link = document.querySelector('.nav-link[data-view="sov"]'); if (link) link.click(); });
+
+          // ---------- the application editor (G703 grid + live G702)
+          function computeLocal() {
+            const a = S.app; const pw = num($a('aia-ret').value), ps = num($a('aia-rets').value);
+            const t = { c: 0, d: 0, e: 0, f: 0, g: 0, h: 0, i: 0 };
+            a.lines.forEach(ln => {
+              const row = $a('aia-grid').querySelector(`tr[data-sov="${ln.sov_id}"]`); if (!row) return;
+              const e = r2(num(row.querySelector('[data-e]').value)), f = r2(num(row.querySelector('[data-f]').value));
+              const g = r2(ln.previous + e + f), h = r2(ln.scheduled_value - g), i = r2((ln.previous + e) * pw / 100 + f * ps / 100);
+              const pct = ln.scheduled_value ? Math.round(g / ln.scheduled_value * 1000) / 10 : 0;
+              row.querySelector('[data-g]').textContent = money.format(g); row.querySelector('[data-pct]').textContent = pct.toFixed(1) + '%';
+              row.querySelector('[data-h]').textContent = money.format(h); row.querySelector('[data-i]').textContent = money.format(i);
+              row.querySelector('[data-h]').style.color = h < -0.005 ? '#A8382B' : '';
+              t.c += ln.scheduled_value; t.d += ln.previous; t.e += e; t.f += f; t.g += g; t.h += h; t.i += i;
+            });
+            const l1 = r2(a.lines.filter(l => l.kind === 'base').reduce((s, l) => s + l.scheduled_value, 0));
+            const l2 = r2(a.lines.filter(l => l.kind === 'change_order').reduce((s, l) => s + l.scheduled_value, 0));
+            const l3 = r2(l1 + l2), l4 = r2(t.g), l5a = r2((t.d + t.e) * pw / 100), l5b = r2(t.f * ps / 100), l5 = r2(l5a + l5b);
+            const l6 = r2(l4 - l5), l7 = a.g702.previous_certificates, l8 = r2(l6 - l7), l9 = r2(l3 - l6);
+            const foot = $a('aia-grid').querySelector('tfoot'); if (foot) foot.innerHTML = `<tr><td></td><td>Grand totals</td><td class="num">${money.format(t.c)}</td><td class="num">${money.format(t.d)}</td><td class="num">${money.format(t.e)}</td><td class="num">${money.format(t.f)}</td><td class="num">${money.format(t.g)}</td><td class="num">${l3 ? (Math.round(l4 / l3 * 1000) / 10).toFixed(1) : '0.0'}%</td><td class="num">${money.format(t.h)}</td><td class="num">${money.format(t.i)}</td></tr>`;
+            const line = (n, k, v, big) => `<div class="${big ? 'big' : ''}"><span class="n">${n}</span>${k}</div><div class="v ${big ? 'big' : ''}">${money.format(v)}</div>`;
+            $a('aia-g702').innerHTML = line(1, 'Original contract sum', l1) + line(2, 'Net change by change orders', l2) + line(3, 'Contract sum to date', l3) + line(4, 'Total completed & stored to date', l4) +
+              line(5, `Retainage (${pw}% work + ${ps}% stored)`, l5) + line(6, 'Total earned less retainage', l6) + line(7, 'Less previous certificates for payment', l7) + line(8, 'Current payment due', l8, true) + line(9, 'Balance to finish, including retainage', l9);
+            return l8;
+          }
+          function renderApp() {
+            const a = S.app;
+            $a('aia-title').textContent = `Application for Payment #${a.number}`;
+            $a('aia-msub').textContent = (S.data && S.data.client ? S.data.client.name + ' · ' : '') + a.project_code + (a.status !== 'draft' ? ' · ' + a.status + ' — read only' : '');
+            dSet($a('aia-from'), a.period_from || ''); dSet($a('aia-to'), a.period_to || ''); dSet($a('aia-date'), a.application_date || todayLocal());
+            $a('aia-ret').value = a.retainage_pct; $a('aia-rets').value = a.retainage_stored_pct;
+            const ro = a.status !== 'draft';
+            $a('aia-grid').innerHTML = '<thead><tr><th>A · Item</th><th>B · Description</th><th class="num">C · Scheduled</th><th class="num">D · Previous</th><th class="num">E · This period</th><th class="num">F · Stored</th><th class="num">G · Completed & stored</th><th class="num">%</th><th class="num">H · Balance</th><th class="num">I · Retainage</th></tr></thead><tbody>' +
+              a.lines.map(ln => `<tr data-sov="${ln.sov_id}"><td class="pay-id">${esc(ln.item_no)}</td><td>${esc(ln.description)}${ln.kind === 'change_order' ? ' <span class="pay-pill">change order</span>' : ''}</td>
+                <td class="num">${money.format(ln.scheduled_value)}</td><td class="num">${money.format(ln.previous)}</td>
+                <td class="num"><input data-e inputmode="decimal" value="${ln.this_period ? ln.this_period.toFixed(2) : ''}" placeholder="0.00" ${ro ? 'readonly' : ''}></td>
+                <td class="num"><input data-f inputmode="decimal" value="${ln.stored ? ln.stored.toFixed(2) : ''}" placeholder="0.00" ${ro ? 'readonly' : ''}></td>
+                <td class="num" data-g></td><td class="num" data-pct></td><td class="num" data-h></td><td class="num" data-i></td></tr>`).join('') + '</tbody><tfoot></tfoot>';
+            $a('aia-grid').querySelectorAll('input').forEach(i => i.addEventListener('input', computeLocal));
+            ['aia-ret', 'aia-rets'].forEach(id => $a(id).oninput = computeLocal);
+            $a('aia-preview').href = '/api/billing/applications/' + a.id + '/preview';
+            $a('aia-delete').style.display = ro ? 'none' : ''; $a('aia-save').style.display = ro ? 'none' : ''; $a('aia-issue').style.display = ro ? 'none' : '';
+            ['aia-from', 'aia-to', 'aia-date', 'aia-ret', 'aia-rets'].forEach(id => { $a(id).readOnly = ro; });
+            computeLocal();
+            $a('aia-err').className = 'pay-err';
+            $a('aia-overlay').classList.add('open');
+          }
+          async function openApp(id) {
+            try { const { data } = await api('/api/billing/applications/' + id); S.app = data; renderApp(); } catch (e) { toast(e.message, true); }
+          }
+          function payload() {
+            return { period_from: dGet($a('aia-from')) || null, period_to: dGet($a('aia-to')) || null, application_date: dGet($a('aia-date')) || null,
+              retainage_pct: $a('aia-ret').value, retainage_stored_pct: $a('aia-rets').value,
+              lines: S.app.lines.map(ln => { const row = $a('aia-grid').querySelector(`tr[data-sov="${ln.sov_id}"]`); return { sov_id: ln.sov_id, this_period: num(row.querySelector('[data-e]').value), stored: num(row.querySelector('[data-f]').value) }; }) };
+          }
+          async function save() {
+            const err = $a('aia-err'); err.className = 'pay-err';
+            const { data } = await api('/api/billing/applications/' + S.app.id, { method: 'PUT', body: JSON.stringify(payload()) });
+            S.app = data; return data;
+          }
+          $a('aia-new').addEventListener('click', async () => {
+            if (!S.data) return;
+            try {
+              const last = S.data.applications.filter(a => a.status !== 'void').slice(-1)[0];
+              const from = last && last.period_to ? (() => { const d = new Date(last.period_to + 'T00:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })() : null;
+              const { data } = await api('/api/projects/' + encodeURIComponent(code()) + '/billing/applications', { method: 'POST', body: JSON.stringify({ period_from: from, period_to: todayLocal(), retainage_pct: last ? last.retainage_pct : S.data.retainage_default, retainage_stored_pct: last ? last.retainage_stored_pct : S.data.retainage_default }) });
+              S.app = data; renderApp(); loadCard();
+            } catch (e) { toast(e.message, true); }
+          });
+          $a('aia-save').addEventListener('click', async () => { try { await save(); toast('Draft saved'); renderApp(); loadCard(); } catch (e) { $a('aia-err').textContent = e.message; $a('aia-err').className = 'pay-err show'; } });
+          $a('aia-form').addEventListener('submit', async (e) => {
+            e.preventDefault(); if (S.app.status !== 'draft') return;
+            const due = computeLocal();
+            if (!confirm(`Issue Application #${S.app.number} as an invoice for ${money.format(due)}? It becomes a receivable and can no longer be edited.`)) return;
+            $a('aia-issue').disabled = true;
+            try { await save(); const { data } = await api('/api/billing/applications/' + S.app.id + '/issue', { method: 'POST', body: '{}' }); $a('aia-overlay').classList.remove('open'); toast(`Application #${data.number} issued as ${data.invoice_number}`); loadCard(); if (typeof window.PAY_load === 'function') window.PAY_load(); }
+            catch (ex) { $a('aia-err').textContent = ex.message; $a('aia-err').className = 'pay-err show'; } finally { $a('aia-issue').disabled = false; }
+          });
+          $a('aia-delete').addEventListener('click', async () => {
+            if (!confirm(`Delete draft application #${S.app.number}?`)) return;
+            try { await api('/api/billing/applications/' + S.app.id, { method: 'DELETE' }); $a('aia-overlay').classList.remove('open'); toast('Draft deleted'); loadCard(); } catch (e) { toast(e.message, true); }
+          });
+          $a('aia-cancel').addEventListener('click', () => $a('aia-overlay').classList.remove('open'));
+          $a('aia-overlay').addEventListener('click', ev => { if (ev.target === $a('aia-overlay')) $a('aia-overlay').classList.remove('open'); });
+
+          // ---------- Schedule of Values editor (lives on the SOV view)
+          function sovRow(r, i) {
+            const co = r.kind === 'change_order';
+            return `<tr data-i="${i}"><td style="width:90px"><input data-k="item_no" value="${esc(r.item_no)}" placeholder="${i + 1}"></td>
+              <td><input data-k="description" value="${esc(r.description)}" placeholder="Description of work"></td>
+              <td style="width:150px"><input class="num" data-k="scheduled_value" inputmode="decimal" value="${r.scheduled_value ? Number(r.scheduled_value).toFixed(2) : ''}" placeholder="0.00"></td>
+              <td style="width:140px"><select data-k="kind"><option value="base" ${co ? '' : 'selected'}>Base contract</option><option value="change_order" ${co ? 'selected' : ''}>Change order</option></select></td>
+              <td style="width:150px"><input data-k="approved_on" type="date" value="${esc(r.approved_on || '')}" ${co ? '' : 'disabled'} title="Change order approval date"></td>
+              <td style="width:40px"><button type="button" class="x" data-del="${i}" title="Remove line">✕</button></td></tr>`;
+          }
+          function readSov() {
+            return Array.from($a('aia-sov-table').querySelectorAll('tbody tr[data-i]')).map(tr => { const i = Number(tr.dataset.i); const base = S.sov[i] || {}; const o = { id: base.id || null };
+              tr.querySelectorAll('[data-k]').forEach(el => { o[el.dataset.k] = (el.type === 'date') ? dGet(el) : el.value; }); return o; });
+          }
+          function renderSov() {
+            const rows = S.sov;
+            const l1 = rows.filter(r => r.kind !== 'change_order').reduce((s, r) => s + num(r.scheduled_value), 0), l2 = rows.filter(r => r.kind === 'change_order').reduce((s, r) => s + num(r.scheduled_value), 0);
+            $a('aia-sov-summary').innerHTML = kpi('Original contract sum', money.format(l1), `${rows.filter(r => r.kind !== 'change_order').length} line(s)`) + kpi('Change orders', money.format(l2), `${rows.filter(r => r.kind === 'change_order').length} approved`) + kpi('Contract sum to date', money.format(l1 + l2), 'what applications bill against');
+            $a('aia-sov-table').innerHTML = '<thead><tr><th>Item</th><th>Description of work</th><th class="num">Scheduled value</th><th>Kind</th><th>Approved</th><th></th></tr></thead><tbody>' + (rows.length ? rows.map(sovRow).join('') : '<tr><td colspan="6" class="pay-empty">No lines yet — add the approved breakdown, or import the drop-plan lines and fill in the dollars.</td></tr>') + '</tbody>';
+            $a('aia-sov-table').querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => { S.sov = readSov(); S.sov.splice(Number(b.dataset.del), 1); renderSov(); }));
+            $a('aia-sov-table').querySelectorAll('select[data-k="kind"]').forEach(sel => sel.addEventListener('change', () => { S.sov = readSov(); renderSov(); }));
+            $a('aia-sov-table').querySelectorAll('input[data-k="scheduled_value"]').forEach(i => i.addEventListener('input', () => { const rows = readSov(); const l1 = rows.filter(r => r.kind !== 'change_order').reduce((s, r) => s + num(r.scheduled_value), 0), l2 = rows.filter(r => r.kind === 'change_order').reduce((s, r) => s + num(r.scheduled_value), 0); $a('aia-sov-summary').innerHTML = kpi('Original contract sum', money.format(l1), '') + kpi('Change orders', money.format(l2), '') + kpi('Contract sum to date', money.format(l1 + l2), 'what applications bill against'); }));
+          }
+          async function loadSov() {
+            if (!$a('aia-sov-table')) return;
+            if (!S.wired) { wireSov(); S.wired = true; }   // the SOV view is later in the document than this script
+            try { const { data } = await api('/api/projects/' + encodeURIComponent(code()) + '/billing'); S.sov = data.sov.map(r => Object.assign({}, r)); renderSov(); }
+            catch (e) { $a('aia-sov-table').innerHTML = '<tbody><tr><td class="pay-empty">' + esc(e.message) + '</td></tr></tbody>'; }
+          }
+          window.AIA_sov_load = loadSov;
+          function wireSov() {
+            if (!$a('aia-sov-save')) return;
+            $a('aia-sov-add').addEventListener('click', () => { S.sov = readSov(); S.sov.push({ item_no: '', description: '', scheduled_value: '', kind: 'base' }); renderSov(); $a('aia-sov-table').querySelector('tbody tr:last-child input').focus(); });
+            $a('aia-sov-addco').addEventListener('click', () => { S.sov = readSov(); S.sov.push({ item_no: 'CO-' + (S.sov.filter(r => r.kind === 'change_order').length + 1), description: '', scheduled_value: '', kind: 'change_order', approved_on: todayLocal() }); renderSov(); });
+            $a('aia-sov-import').addEventListener('click', async () => { try { const j = await api('/api/projects/' + encodeURIComponent(code()) + '/billing/sov/import', { method: 'POST', body: '{}' }); toast(j.meta.imported + ' line(s) imported — fill in the dollars'); loadSov(); } catch (e) { toast(e.message, true); } });
+            $a('aia-sov-save').addEventListener('click', async () => {
+              const err = $a('aia-sov-err'); err.className = 'pay-err'; $a('aia-sov-save').disabled = true;
+              try { const { data } = await api('/api/projects/' + encodeURIComponent(code()) + '/billing/sov', { method: 'PUT', body: JSON.stringify({ rows: readSov() }) }); S.sov = data; renderSov(); toast('Schedule of Values saved'); }
+              catch (e) { err.textContent = e.message; err.className = 'pay-err show'; } finally { $a('aia-sov-save').disabled = false; }
+            });
+          }
+        })();
+        </script>
         <div class="pay-overlay" id="pay-new-overlay"><form class="pay-modal" id="pay-new-form" novalidate>
           <div class="pay-mhead"><h3>New invoice</h3><p id="pay-new-sub"></p></div>
           <div class="pay-mbody">
@@ -4604,9 +4816,11 @@
             $p('pay-table').querySelectorAll('[data-pay]').forEach(b => b.addEventListener('click', () => openPay(rows.find(x => String(x.id) === b.dataset.pay))));
           }
           async function load() {
-            S.code = (typeof getProjectCode === 'function') ? getProjectCode() : (new URLSearchParams(location.search).get('project') || '');
+            // #317 fix — on the real /projects/<code> URL there is no ?project= and getProjectCode is not global: read the server-stamped code
+            S.code = (typeof getProjectCode === 'function') ? getProjectCode() : (window.SSC_PROJECT_CODE || decodeURIComponent((location.pathname.match(/\/projects\/([^\/]+)/) || [])[1] || '') || new URLSearchParams(location.search).get('project') || '');
             try { const { data } = await api('/api/projects/' + encodeURIComponent(S.code) + '/payments'); S.data = data; render(); }
             catch (e) { $p('pay-table').innerHTML = '<tbody><tr><td class="pay-empty">' + esc(e.message) + '</td></tr></tbody>'; }
+            if (typeof window.AIA_pay_load === 'function') window.AIA_pay_load();   // #317
           }
           window.PAY_load = load;
           async function openMail(r) {
@@ -4659,9 +4873,20 @@
         </script>
       </section>
       <section class="view" data-view="sov">
-        <div class="section">
+        <!-- #317 — the BILLING schedule of values (what applications for payment bill
+             against). Editor + contract sums; the drop-plan unit rates stay below. -->
+        <div class="section pay-wrap">
           <h2>Schedule of Values</h2>
-          <div id="sov-body" class="placeholder-card">Loading Schedule of Values…</div>
+          <div class="pay-muted" style="margin:-4px 0 12px">The approved billing breakdown for this job. Applications for Payment (AIA G702 / G703, under Payments) bill against these lines. Change orders sit as their own lines.</div>
+          <div class="pay-kpis" id="aia-sov-summary"></div>
+          <div class="pay-toolbar"><button type="button" class="pay-btn" id="aia-sov-add">+ Line</button><button type="button" class="pay-btn" id="aia-sov-addco">+ Change order</button><button type="button" class="pay-btn" id="aia-sov-import" title="Copy the drop-plan line descriptions in, then fill in the dollars">Import drop-plan lines</button><span style="flex:1"></span><button type="button" class="pay-btn primary" id="aia-sov-save">Save</button></div>
+          <div style="overflow:auto"><table class="pay-table aia-sov" id="aia-sov-table"><tbody><tr><td class="pay-empty">Loading…</td></tr></tbody></table></div>
+          <div class="pay-err" id="aia-sov-err" style="margin-top:10px"></div>
+        </div>
+        <div class="section">
+          <h2>Drop-plan unit rates</h2>
+          <div class="pay-muted" style="margin:-4px 0 12px">Field-tracking rates behind the Drop Plan quantities — not the billing breakdown above.</div>
+          <div id="sov-body" class="placeholder-card">Loading…</div>
         </div>
       </section>
       <script>
@@ -4670,6 +4895,7 @@
         // block is server-stripped for pm/super, so window.SOV_load is undefined for
         // them (the view-switch hook guards on its presence).
         window.SOV_load = function () {
+          if (typeof window.AIA_sov_load === 'function') window.AIA_sov_load();   // #317
           var body = document.getElementById('sov-body');
           if (!body) return;
           function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }

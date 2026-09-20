@@ -331,6 +331,7 @@ def overview(conn, today: Optional[date] = None) -> dict:
                         "open_value": round(_num(receivables.get("v")), 2),
                         "awaiting_deposit": int(receivables.get("no_deposit") or 0)},
         "invoices": _safe_invoice_summary(conn, today),   # #315
+        "payables": _safe_payables_summary(conn, today),  # #319
         "expiring": expiring,
     }
 
@@ -532,6 +533,15 @@ def finance(conn, *, months: int = 12, today: Optional[date] = None) -> dict:
         "labor_last_30_days": labor,
         "subscriptions": subscriptions(conn, today=today),
     }
+
+
+def _safe_payables_summary(conn, today) -> dict:
+    try:
+        import payables
+        return payables.summary(conn, today=today)
+    except Exception as e:
+        log.info("#319 payables unavailable: %s", e)
+        return {"payables": {}, "receivables": {}, "cash_30": {}, "upcoming": []}
 
 
 def _safe_invoice_list(conn, today) -> list:
