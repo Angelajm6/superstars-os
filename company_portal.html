@@ -141,7 +141,7 @@
     </div>
     <nav class="ssc-nav" id="cp-nav">
       <div class="ssc-nav-label">Company</div>
-      <a href="#overview" data-view="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Overview</a>
+      <a href="#overview" data-view="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</a>
       <a href="#clients" data-view="clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Clients</a>
       <a href="#buildings" data-view="buildings" title="Job sites: every address we have a project or estimate at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l7-4v18M10 21h11V11l-4-2v12"/><path d="M6 9h1M6 13h1M6 17h1M14 13h1M14 17h1"/></svg>Projects</a>
       <a href="#proposals" data-view="proposals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>Proposals</a>
@@ -162,7 +162,7 @@
     <header class="ssc-top">
       <div>
         <div class="ssc-crumb" id="cp-crumb">Company Portal</div>
-        <h1 id="cp-title">Overview</h1>
+        <h1 id="cp-title">Dashboard</h1>
       </div>
       <div class="ssc-top-right">
         <span id="cp-date"></span>
@@ -245,6 +245,23 @@
 
       <section class="cp-view" id="view-finance" hidden>
         <div class="cp-kpis" id="fin-kpis"></div>
+        <!-- #319 — accounts payable + the 30-day cash view -->
+        <div class="cp-card" id="pb-card">
+          <div class="cp-card-head"><h2>What needs to get paid</h2><span class="hint">bills we owe and invoices owed to us · next 30 days</span></div>
+          <div class="cp-kpis" id="pb-kpis" style="margin-bottom:12px"></div>
+          <div class="cp-toolbar">
+            <select class="cp-select" id="pb-status"><option value="open">Open bills</option><option value="overdue">Overdue</option><option value="paid">Paid</option><option value="void">Void</option><option value="all">All</option></select>
+            <input class="cp-input search" id="pb-search" placeholder="Search vendor, doc, project or category…" autocomplete="off">
+            <span style="flex:1"></span>
+            <button class="btn-ghost btn-sm" id="pb-from-receipt" type="button" title="A scanned receipt bought on account">From a receipt…</button>
+            <button class="btn-ghost btn-sm" id="pb-from-renewal" type="button" title="A subscription renewal coming up">Log a renewal…</button>
+            <button class="btn-primary btn-sm" id="pb-new" type="button">+ New bill</button>
+          </div>
+          <div class="cp-grid2">
+            <div><div class="cp-card-head"><h2>Bills</h2><span class="hint" id="pb-count"></span></div><div class="cp-table-wrap"><table class="cp-table" id="pb-table"></table></div></div>
+            <div><div class="cp-card-head"><h2>Coming up</h2><span class="hint">bills, renewals and client invoices due in 30 days</span></div><div class="cp-table-wrap"><table class="cp-table" id="pb-upcoming"></table></div></div>
+          </div>
+        </div>
         <div class="cp-grid3">
           <div class="cp-card">
             <div class="cp-card-head"><h2>Won vs spend by month</h2>
@@ -462,6 +479,44 @@
   </form>
 </div>
 
+<!-- #319 payables modals -->
+<div class="cp-overlay" id="pb-new-overlay" role="dialog" aria-modal="true" aria-labelledby="pb-new-title">
+  <form class="cp-modal" id="pb-new-form" novalidate>
+    <div class="cp-modal-head"><h2 id="pb-new-title">New bill</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Something the company owes. It shows under "what needs to get paid" until you record the payment.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="pb-new-vendor">Vendor</label><input id="pb-new-vendor" required placeholder="e.g. ABC Scaffolding" autocomplete="off"></div>
+      <div class="cp-field"><label for="pb-new-doc">Invoice / doc number</label><input id="pb-new-doc" autocomplete="off"></div>
+      <div class="cp-field"><label for="pb-new-amount">Amount (USD)</label><input id="pb-new-amount" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
+      <div class="cp-field"><label for="pb-new-due">Due date</label><input id="pb-new-due" type="date"></div>
+      <div class="cp-field"><label for="pb-new-project">Project (optional)</label><select id="pb-new-project"><option value="">— company overhead —</option></select></div>
+      <div class="cp-field"><label for="pb-new-category">Category</label><select id="pb-new-category"></select></div>
+      <div class="cp-field full"><label for="pb-new-desc">What for</label><input id="pb-new-desc" placeholder="e.g. Pipe scaffold rental, September" autocomplete="off"></div>
+      <div class="cp-field full"><label for="pb-new-notes">Notes</label><textarea id="pb-new-notes" rows="2"></textarea></div>
+      <div class="cp-form-err" id="pb-new-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pb-new-cancel">Cancel</button><button class="btn-primary" type="submit" id="pb-new-go">Add bill</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="pb-pay-overlay" role="dialog" aria-modal="true" aria-labelledby="pb-pay-title">
+  <form class="cp-modal" id="pb-pay-form" novalidate>
+    <div class="cp-modal-head"><h2 id="pb-pay-title">Record a payment</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="pb-pay-sub"></p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="pb-pay-amount">Amount paid (USD)</label><input id="pb-pay-amount" inputmode="decimal" autocomplete="off"></div>
+      <div class="cp-field"><label for="pb-pay-date">Paid on</label><input id="pb-pay-date" type="date"></div>
+      <div class="cp-field"><label for="pb-pay-method">Method</label><select id="pb-pay-method"></select></div>
+      <div class="cp-field"><label for="pb-pay-ref">Reference</label><input id="pb-pay-ref" placeholder="check no., confirmation…" autocomplete="off"></div>
+      <div class="cp-form-err" id="pb-pay-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pb-pay-cancel">Cancel</button><button class="btn-primary" type="submit" id="pb-pay-go">Record payment</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="pb-pick-overlay" role="dialog" aria-modal="true" aria-labelledby="pb-pick-title">
+  <div class="cp-modal" style="max-width:760px">
+    <div class="cp-modal-head"><h2 id="pb-pick-title">Log as a bill</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="pb-pick-sub"></p></div>
+    <div class="cp-modal-body" style="display:block"><div class="cp-table-wrap"><table class="cp-table" id="pb-pick-table"></table></div></div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pb-pick-cancel">Close</button></div>
+  </div>
+</div>
 <!-- building modal (#304) -->
 <div class="cp-overlay" id="bd-overlay" role="dialog" aria-modal="true" aria-labelledby="bd-title">
   <form class="cp-modal" id="bd-form" novalidate>
@@ -594,6 +649,8 @@
         ['Expense ledger this month', money2.format(d.spend.ledger_mtd)],
         ['Open invoices', `${money2.format(d.invoices.open_value)} <span class="cp-muted">· ${d.invoices.open_count} open${d.invoices.overdue_count ? ' · <span class="cp-pill bad">' + d.invoices.overdue_count + ' overdue</span>' : ''}</span>`],
         ['Collected year to date', money2.format(d.invoices.collected_ytd_value)],
+        ['Bills to pay', d.payables && d.payables.payables && d.payables.payables.open_count != null ? `${money2.format(d.payables.payables.open_value)} <span class="cp-muted">· ${d.payables.payables.open_count} open${d.payables.payables.overdue_count ? ' · <span class="cp-pill bad">' + d.payables.payables.overdue_count + ' overdue</span>' : ''} · <a class="cp-link" href="#finance">what needs to get paid →</a></span>` : '—'],
+        ['Cash, next 30 days', d.payables && d.payables.cash_30 && d.payables.cash_30.net != null ? `<span class="${d.payables.cash_30.net < 0 ? 'cp-pill bad' : 'cp-pill ok'}">${d.payables.cash_30.net < 0 ? '−' : '+'}${money2.format(Math.abs(d.payables.cash_30.net))}</span> <span class="cp-muted">· ${money2.format(d.payables.cash_30.in)} in · ${money2.format(d.payables.cash_30.out)} out</span>` : '—'],
         ['IRA job deposits', `${money2.format(d.receivables.open_value)} <span class="cp-muted">· ${d.receivables.open_jobs} open · ${d.receivables.awaiting_deposit} awaiting deposit</span>`],
         ['Receipts needing review', `${d.spend.receipts_needing_review}`],
       ].map(([k, v]) => `<li><span>${esc(k)}</span><strong>${v}</strong></li>`).join('');
@@ -1055,10 +1112,114 @@
         { key: 'qb_invoice_ref', label: 'QB invoice', render: r => esc(r.qb_invoice_ref || '—') },
       ], d.receivables, { emptyTitle: 'No IRA jobs tracked', emptySub: 'Receivables come from converted rope-access estimates.' });
       state.cache.invoices = d.invoices || []; renderInvoices(d.invoice_summary);
+      loadPayables();   // #319
       const l = d.labor_last_30_days;
       $('fin-labor').innerHTML = l.by_trade.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Trade</th><th class="num">Worked hours</th><th class="num">Est. cost</th></tr></thead><tbody>${l.by_trade.map(t => `<tr><td>${esc(t.trade)}</td><td class="num">${t.hours}</td><td class="num">${money2.format(t.cost)}</td></tr>`).join('')}</tbody></table></div>${l.unrated_hours ? `<div class="cp-note">${l.unrated_hours} worked hours have no rate on file and are excluded from the cost. Set rates under Workforce &amp; Pay.</div>` : ''}` : empty('No hours logged in the last 30 days');
     } catch (e) { toast(e.message, true); $('fin-kpis').innerHTML = empty('Could not load finance', e.message); }
   }
+
+  // ---------- PAYABLES (#319) ----------
+  const PB = { data: null };
+  function pbPill(r) { if (r.status === 'open' && r.overdue) return `<span class="cp-pill bad">overdue ${r.days_overdue}d</span>`; return `<span class="cp-pill ${r.status === 'paid' ? 'ok' : (r.status === 'open' ? 'active' : '')}">${esc(r.status)}</span>`; }
+  async function loadPayables() {
+    if (!$('pb-table')) return;
+    try {
+      const q = new URLSearchParams(); q.set('status', $('pb-status').value); if ($('pb-search').value.trim()) q.set('search', $('pb-search').value.trim());
+      const { data: d } = await api('/payables?' + q.toString()); PB.data = d; renderPayables();
+    } catch (e) { toast(e.message, true); $('pb-table').innerHTML = empty('Could not load payables', e.message); }
+  }
+  function renderPayables() {
+    const d = PB.data, s = d.summary, p = s.payables, c = s.cash_30;
+    $('pb-kpis').innerHTML =
+      kpi('Bills open', money2.format(p.open_value), `${p.open_count} open`) +
+      kpi('Overdue', money2.format(p.overdue_value), `${p.overdue_count} past due`, p.overdue_count ? 'warn' : '') +
+      kpi('Due in 7 days', money2.format(p.due_7_value), `${p.due_7_count} bill(s)`) +
+      kpi('Out, next 30 days', money2.format(c.out), `${money2.format(p.due_30_value)} bills · ${money2.format(p.renewals_30_value)} renewals`) +
+      kpi('In, next 30 days', money2.format(c.in), `${s.receivables.due_30_count} client invoice(s) due`, 'good') +
+      kpi('Net, next 30 days', `${c.net < 0 ? '−' : '+'}${money2.format(Math.abs(c.net))}`, 'in minus out', c.net < 0 ? 'warn' : 'good');
+    $('pb-count').textContent = `${d.items.length} shown`;
+    table($('pb-table'), [
+      { key: 'vendor', label: 'Vendor', render: r => `<span class="cp-id">${esc(r.vendor)}</span><div class="cp-muted" style="font-size:12px">${esc(r.doc_number || '')}${r.source !== 'bill' ? (r.doc_number ? ' · ' : '') + esc(r.source) : ''}</div>` },
+      { key: 'description', label: 'What for', render: r => `${esc(r.description || '—')}<div class="cp-muted" style="font-size:12px">${esc(r.project_code || 'overhead')}${r.category ? ' · ' + esc(r.category) : ''}</div>` },
+      { key: 'amount', label: 'Amount', num: true, render: r => money2.format(r.amount) },
+      { key: 'balance', label: 'Owed', num: true, render: r => r.status === 'open' ? `<strong>${money2.format(r.balance)}</strong>` : '—' },
+      { key: 'due_at', label: 'Due', render: r => r.status === 'paid' ? `<span class="cp-muted">paid ${fmtDate(r.paid_at)}</span>` : fmtDate(r.due_at) },
+      { key: 'status', label: 'Status', render: r => pbPill(r) },
+      { key: 'id', label: '', render: r => r.status === 'open' ? `<span style="white-space:nowrap"><button class="btn-primary btn-sm" type="button" data-pb-pay="${r.id}">Pay…</button> <button class="btn-ghost btn-sm" type="button" data-pb-void="${r.id}">Void</button></span>` : '' },
+    ], d.items, { defaultSort: { key: 'due_at', dir: 'asc' }, emptyTitle: 'No bills here', emptySub: 'Add one, log a receipt bought on account, or a subscription renewal.' });
+    $('pb-table').querySelectorAll('[data-pb-pay]').forEach(b => b.addEventListener('click', () => openPbPay(d.items.find(x => String(x.id) === b.dataset.pbPay))));
+    $('pb-table').querySelectorAll('[data-pb-void]').forEach(b => b.addEventListener('click', async () => {
+      const r = d.items.find(x => String(x.id) === b.dataset.pbVoid); const why = prompt(`Void the ${money2.format(r.amount)} bill from ${r.vendor}? Reason (optional):`); if (why === null) return;
+      try { await api('/payables/' + r.id + '/void', { method: 'POST', body: JSON.stringify({ reason: why }) }); toast('Bill voided'); loadPayables(); } catch (e) { toast(e.message, true); }
+    }));
+    table($('pb-upcoming'), [
+      { key: 'when', label: 'When', render: r => `${fmtDate(r.when)}${r.overdue ? ' <span class="cp-pill bad">late</span>' : ''}` },
+      { key: 'who', label: 'Who', render: r => `${esc(r.who)}<div class="cp-muted" style="font-size:12px">${esc(r.what)}${r.kind !== 'payable' ? ' · ' + esc(r.kind) : ''}</div>` },
+      { key: 'amount', label: 'Amount', num: true, render: r => `<span class="${r.direction === 'in' ? 'cp-pill ok' : ''}">${r.direction === 'in' ? '+' : '−'}${money2.format(r.amount)}</span>` },
+    ], s.upcoming, { emptyTitle: 'Nothing due in the next 30 days' });
+  }
+  function openPbPay(r) {
+    $('pb-pay-form').dataset.id = r.id; $('pb-pay-sub').textContent = `${r.vendor} · ${money2.format(r.balance)} owed`; $('pb-pay-err').className = 'cp-form-err';
+    $('pb-pay-amount').value = Number(r.balance).toFixed(2); $('pb-pay-date').value = todayLocal(); $('pb-pay-ref').value = '';
+    $('pb-pay-method').innerHTML = '<option value="">—</option>' + PB.data.methods.map(m => `<option value="${m}">${m.toUpperCase()}</option>`).join('');
+    $('pb-pay-overlay').classList.add('open'); setTimeout(() => $('pb-pay-amount').focus(), 30);
+  }
+  function openPbPick(kind) {
+    const d = PB.data; const rows = kind === 'receipt' ? d.candidates.receipts : d.candidates.renewals;
+    $('pb-pick-title').textContent = kind === 'receipt' ? 'Log a receipt as a bill' : 'Log a subscription renewal';
+    $('pb-pick-sub').textContent = kind === 'receipt' ? 'Scanned receipts from the last 90 days that are not logged yet. Pick the ones bought on account — a receipt paid at the counter is not a bill.' : 'Active subscriptions renewing in the next 45 days that are not logged yet.';
+    if (kind === 'receipt') table($('pb-pick-table'), [
+        { key: 'expense_date', label: 'Date', render: r => fmtDate(r.expense_date) },
+        { key: 'vendor', label: 'Vendor', render: r => `${esc(r.vendor || '—')}<div class="cp-muted" style="font-size:12px">${esc(r.doc_type || '')} ${esc(r.doc_number || '')} · ${esc(r.project_code || '')}</div>` },
+        { key: 'total', label: 'Total', num: true, render: r => money2.format(r.total) },
+        { key: 'id', label: '', render: r => `<button class="btn-primary btn-sm" type="button" data-pick="${r.id}">Add</button>` },
+      ], rows, { emptyTitle: 'No unlogged receipts', emptySub: 'Everything scanned in the last 90 days is already a bill or was paid on the spot.' });
+    else table($('pb-pick-table'), [
+        { key: 'renewal_date', label: 'Renews', render: r => `${fmtDate(r.renewal_date)} <span class="cp-muted">in ${r.days_until_renewal}d</span>` },
+        { key: 'service_name', label: 'Service', render: r => `${esc(r.service_name)}<div class="cp-muted" style="font-size:12px">${esc(r.provider || '')} · ${esc(r.billing_cycle || '')}</div>` },
+        { key: 'amount', label: 'Amount', num: true, render: r => money2.format(r.amount) },
+        { key: 'id', label: '', render: r => `<button class="btn-primary btn-sm" type="button" data-pick="${r.id}" data-rd="${esc(r.renewal_date)}">Add</button>` },
+      ], rows, { emptyTitle: 'No renewals coming up', emptySub: 'Nothing in the subscriptions register renews in the next 45 days.' });
+    $('pb-pick-table').querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', async () => {
+      b.disabled = true;
+      try { await api(kind === 'receipt' ? '/payables/from-receipt/' + b.dataset.pick : '/payables/from-subscription/' + b.dataset.pick, { method: 'POST', body: JSON.stringify(kind === 'receipt' ? {} : { renewal_date: b.dataset.rd }) }); toast('Bill added'); await loadPayables(); openPbPick(kind); }
+      catch (e) { toast(e.message, true); b.disabled = false; }
+    }));
+    $('pb-pick-overlay').classList.add('open');
+  }
+  function wirePayables() {
+    if (!$('pb-new')) return;
+    $('pb-status').addEventListener('change', loadPayables); $('pb-search').addEventListener('input', () => { clearTimeout(PB._t); PB._t = setTimeout(loadPayables, 250); });
+    $('pb-new').addEventListener('click', () => {
+      const d = PB.data; if (!d) return; $('pb-new-err').className = 'cp-form-err';
+      $('pb-new-project').innerHTML = '<option value="">— company overhead —</option>' + d.projects.map(p => `<option value="${esc(p.project_code)}">${esc(p.project_code)} · ${esc(p.name || '')}</option>`).join('');
+      $('pb-new-category').innerHTML = d.categories.map(c => `<option value="${c}" ${c === 'other' ? 'selected' : ''}>${c}</option>`).join('');
+      ['pb-new-vendor', 'pb-new-doc', 'pb-new-amount', 'pb-new-desc', 'pb-new-notes'].forEach(id => { $(id).value = ''; }); $('pb-new-due').value = '';
+      $('pb-new-overlay').classList.add('open'); setTimeout(() => $('pb-new-vendor').focus(), 30);
+    });
+    $('pb-new-cancel').addEventListener('click', () => closeOverlay('pb-new-overlay'));
+    $('pb-new-form').addEventListener('submit', async (e) => {
+      e.preventDefault(); const err = $('pb-new-err'); err.className = 'cp-form-err';
+      const payload = { vendor: $('pb-new-vendor').value, doc_number: $('pb-new-doc').value, amount: $('pb-new-amount').value, due_at: $('pb-new-due').value || null,
+        project_code: $('pb-new-project').value || null, category: $('pb-new-category').value, description: $('pb-new-desc').value, notes: $('pb-new-notes').value };
+      $('pb-new-go').disabled = true;
+      try { await api('/payables', { method: 'POST', body: JSON.stringify(payload) }); closeOverlay('pb-new-overlay'); toast('Bill added'); loadPayables(); }
+      catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; } finally { $('pb-new-go').disabled = false; }
+    });
+    $('pb-pay-cancel').addEventListener('click', () => closeOverlay('pb-pay-overlay'));
+    $('pb-pay-form').addEventListener('submit', async (e) => {
+      e.preventDefault(); const err = $('pb-pay-err'); err.className = 'cp-form-err'; const id = $('pb-pay-form').dataset.id;
+      $('pb-pay-go').disabled = true;
+      try { const { data } = await api('/payables/' + id + '/pay', { method: 'POST', body: JSON.stringify({ amount: $('pb-pay-amount').value, paid_on: $('pb-pay-date').value || null, method: $('pb-pay-method').value || null, reference: $('pb-pay-ref').value }) });
+        closeOverlay('pb-pay-overlay'); toast(data.status === 'paid' ? 'Paid in full' : `Payment recorded · ${money2.format(data.balance)} still owed`); loadPayables(); if (state.view === 'overview') loadOverview(); }
+      catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; } finally { $('pb-pay-go').disabled = false; }
+    });
+    $('pb-from-receipt').addEventListener('click', () => PB.data && openPbPick('receipt'));
+    $('pb-from-renewal').addEventListener('click', () => PB.data && openPbPick('renewal'));
+    $('pb-pick-cancel').addEventListener('click', () => closeOverlay('pb-pick-overlay'));
+    ['pb-new-overlay', 'pb-pay-overlay', 'pb-pick-overlay'].forEach(id => $(id).addEventListener('click', ev => { if (ev.target === $(id)) closeOverlay(id); }));
+  }
+  wirePayables();
 
   // ---------- EXPENSES ----------
   async function loadExpenses() {
@@ -1527,7 +1688,7 @@
   document.querySelectorAll('.cp-overlay').forEach(o => o.addEventListener('click', (e) => { if (e.target === o) o.classList.remove('open'); }));
 
   // ---------- router ----------
-  const TITLES = { overview: 'Overview', clients: 'Clients', buildings: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce & Pay', compliance: 'Compliance & Vault' };
+  const TITLES = { overview: 'Dashboard', clients: 'Clients', buildings: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce & Pay', compliance: 'Compliance & Vault' };
   const LOADERS = { overview: loadOverview, clients: loadClients, buildings: loadBuildings, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, compliance: loadCompliance };
   function route() {
     const h = (location.hash || '#overview').slice(1);
