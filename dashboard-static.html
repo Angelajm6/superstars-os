@@ -380,6 +380,15 @@
       color: #76777E;
       font-weight: 600;
     }
+    /* #328 — project identity block: the job you are in, on every view */
+    .proj-line { padding: 10px 10px 14px; margin: 0 0 8px; border-bottom: 1px solid #E8E4DD; }
+    .proj-code { display: inline-block; font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #B11E2E;
+      background: rgba(177,30,46,.08); border: 1px solid rgba(177,30,46,.22); border-radius: 6px; padding: 2px 8px; margin-bottom: 6px; }
+    .proj-name { font-size: 14px; font-weight: 700; line-height: 1.3; color: #14161C; }
+    .proj-addr { font-size: 11.5px; color: #4A4E57; margin-top: 3px; line-height: 1.35; }
+    .proj-addr:empty { display: none; }
+    .proj-client { font-size: 11px; color: #76777E; margin-top: 3px; }
 
     /* Navigation */
     .nav { }
@@ -434,6 +443,7 @@
     .sidebar { background: var(--side-bg, #F3F4F6); border-right: 1px solid var(--side-edge, #E3E5EA); }
     .sidebar-header { border-bottom-color: var(--side-edge, #E3E5EA); }
     .sidebar .brand-name { color: #14161C; } .sidebar .brand-sub { color: var(--side-muted, #8A8F99); }
+    .sidebar .proj-line { border-bottom-color: var(--side-edge, #E3E5EA); }
     .nav-group-label { color: var(--side-muted, #8A8F99); } .nav-group-label:hover { color: #14161C; } .nav-chev { color: var(--side-muted, #8A8F99); }
     .nav-link { color: var(--side-ink, #2B2F38); border-left-color: transparent; position: relative;
                 transition: background var(--ssc-t-fast, .12s) ease, color var(--ssc-t-fast, .12s) ease, transform var(--ssc-t, .18s) var(--ssc-ease, ease); }
@@ -821,7 +831,7 @@
 <!-- #211 calm-blue widget accent — applied via the SHARED widgets.css, loaded
      AFTER the inline #208 styles so the accent (blue band + inward shading + blue
      rings) wins, giving the project page + the company console one source of truth. -->
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=321">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=328">
 <script src="/files/static/js/shell.js?v=312" defer></script>
 </head>
 <body>
@@ -889,6 +899,15 @@
         <div class="brand-sub">Project Dashboard</div>
       </div>
     </div>
+    <!-- #328 — WHICH job you are in, on every view. Filled server-side by
+         access.render_project_identity (same fills as the hero); the hero only
+         shows on Project Health, this block stays put while you move between views. -->
+    <div class="proj-line" id="proj-line">
+      <div class="proj-code" data-project-code>&nbsp;</div>
+      <div class="proj-name" data-project-name>&nbsp;</div>
+      <div class="proj-addr" data-project-address></div>
+      <div class="proj-client" data-project-client>&nbsp;</div>
+    </div>
     <!-- #263 — role-aware back-link. The server (access.render_role_nav) keeps exactly
          ONE of the two blocks below per role: company roles keep the company link (to /),
          a pm keeps the projects link (to /projects, their assigned list). A pm is never
@@ -952,7 +971,7 @@
         </div>
       </div>
       <!-- SECTION:financial:start -->
-      <!-- #262 — Financial group (Schedule of Values + Labor Rate Tracker). Gated to
+      <!-- #262 — Financial group (Schedule of Values + Payments). Gated to
            admin/c_suite via the central access.SECTION_ACCESS map: the server STRIPS
            this whole block from the served HTML for pm/super (absent, not just hidden),
            and the Financial endpoints 403 too. -->
@@ -961,17 +980,9 @@
         <div class="nav-items">
           <a class="nav-link" data-view="sov"><svg class="nav-ic"><use href="#i-dollar"/></svg>Schedule of Values</a>
           <a class="nav-link" data-view="payments"><svg class="nav-ic"><use href="#i-dollar"/></svg>Payments</a>
-          <!-- Labor Rate Tracker — routes to the LRT view on the company console. The
-               whole Financial group is server-stripped for non-admin/c_suite, so this
-               only reaches admin/c_suite; the inline reveal stays as belt-and-suspenders
-               (the company-console rate APIs are 403-gated too). -->
-          <a id="proj-lrt-nav-link" class="nav-link"
-             style="display:none;"
-             href="/company-dashboard.html#labor-rate"
-             title="Per-week hours worked × rate · check-cutting view (admin / c-suite only)">
-            <svg class="nav-ic"><use href="#i-dollar"/></svg>Labor Rate Tracker
-            <span style="font-size:9px;font-weight:700;color:#76777E;letter-spacing:0.5px;margin-left:6px;padding:1px 5px;border:1px solid #D5D2C9;border-radius:2px;text-transform:uppercase;">Admin</span>
-          </a>
+          <!-- #328 — the company-wide Weekly Payroll (was "Labor Rate Tracker") no longer
+               sits in a project's sidebar: it is not per project. It lives on the Office
+               Console under Workforce, next to Hours Log and Pay Rates. -->
         </div>
       </div>
       <!-- SECTION:financial:end -->
@@ -1040,25 +1051,16 @@
       return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
     });
   }
-      // #193 — reveal the Labor Rate Tracker entry surfaces (nav link
-      // + dashboard card) for admin / c_suite only. Server-side gate
-      // on /api/payroll/hours is the real authority — non-admin roles
-      // still get rate/amount fields entirely OMITTED from the API
-      // response (#158 / CLAUDE.md comp-data rule). This is UX-only.
-      (function maybeRevealLrt() {
-        function applyForRole(user) {
-          if (!user) return;
-          if (user.role !== 'admin' && user.role !== 'c_suite') return;
-          var link = document.getElementById('proj-lrt-nav-link');
-          var card = document.getElementById('proj-lrt-entry-card');
-          if (link) link.style.display = '';
-          if (card) card.style.display = '';
-        }
-        document.addEventListener('ssc:user-loaded', function (e) {
-          applyForRole(e.detail);
-        });
-        // Late-arrival: auth_menu may have fired before our listener attached.
-        if (window.__SSC_USER) applyForRole(window.__SSC_USER);
+      // #328 — the browser tab names the job too (the server filled the sidebar
+      // identity block; read it back rather than fetching again).
+      (function nameTheTab() {
+        var line = document.getElementById('proj-line');
+        if (!line) return;
+        var code = (line.querySelector('[data-project-code]') || {}).textContent || '';
+        var name = (line.querySelector('[data-project-name]') || {}).textContent || '';
+        var parts = [code.trim(), name.trim()].filter(function (x) { return x && x !== '\u00a0'; });
+        if (parts.length) document.title = parts.join(' · ') + ' — Superstars Contracting';
+        if (!code.trim() || code.trim() === '\u00a0') line.style.display = 'none';
       })();
     </script>
 
@@ -1089,8 +1091,6 @@
             </div>
           </div>
 
-          <!-- hidden stub kept so lrt_nav_gate.js (admin/c-suite reveal) never null-throws -->
-          <div id="proj-lrt-entry-card" style="display:none;"></div>
 
           <!-- WIDGET: KPI tiles (live) -->
           <div class="ph-kpis" data-widget="kpis">

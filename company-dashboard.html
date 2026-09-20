@@ -9,7 +9,7 @@
      vendored GridStack (offline-safe, no CDN) + the shared widget design language
      + the shared per-user layout helper (DashLayout → /api/dashboard/layout). -->
 <link rel="stylesheet" href="/files/static/vendor/gridstack.min.css">
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=321">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=328">
 <script src="/files/static/js/shell.js?v=312" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=321">
 <script src="/files/static/vendor/gridstack-all.js"></script>
@@ -389,9 +389,13 @@
     <div class="ssc-nav-label">Workforce</div>
     <a class="nav-tab" data-panel="workforce" href="#workforce" data-i18n="tab-workforce">Workforce</a>
     <a class="nav-tab" data-panel="hours" href="#hours">Hours Log</a>
+    <!-- #328 — Weekly Payroll (the sheet formerly called "Labor Rate Tracker": hours × rate
+         per week) now has its own visible tab here, admin / c_suite only (revealed with the
+         Pay Rates tab below). It used to be reachable only by hash from a project's sidebar. -->
+    <a class="nav-tab" id="nav-labor-rate-tab" data-panel="labor-rate" href="#labor-rate" data-i18n="tab-labor-rate" style="display:none;">Weekly Payroll</a>
     <a class="nav-tab" data-panel="cert-health" href="#cert-health" data-i18n="tab-cert-health">Cert Health</a>
     <a class="nav-tab" data-panel="cert-library" href="#cert-library" data-i18n="tab-cert-library">Cert Library</a>
-    <a class="ssc-nav-ext" id="nav-labor-rates-admin" href="/admin/labor-rates" title="Set &amp; audit per-worker hourly rates">Labor Rates</a>
+    <a class="ssc-nav-ext" id="nav-labor-rates-admin" href="/admin/labor-rates" title="Set &amp; audit each worker's hourly pay rate">Pay Rates</a>
     <div class="ssc-nav-label">Operations</div>
     <a class="ssc-nav-ext" href="/admin/projects">Projects &amp; assignments</a>
     <a class="nav-tab" data-panel="compliance" href="#compliance" data-i18n="tab-compliance">Compliance</a>
@@ -400,8 +404,6 @@
     <div class="ssc-nav-label">Admin</div>
     <a class="nav-tab" data-panel="settings" href="#settings" data-i18n="tab-settings">Settings</a>
     <a class="ssc-nav-ext" href="/settings/interface">Interface</a>
-    <!-- #193 — the Labor Rate Tracker panel is reached by hash only; keep its tab for activatePanel() -->
-    <a class="nav-tab" data-panel="labor-rate" href="#labor-rate" data-i18n="tab-labor-rate" style="display:none;">Labor Rate</a>
   </nav>
   <div class="ssc-side-foot">
     <a href="/projects">My projects view</a>
@@ -1371,7 +1373,7 @@
     <div class="section lrt-card">
       <div class="lrt-hero">
         <div class="lrt-hero-left">
-          <h2 data-i18n="p-labor-rate-title">Labor Rate Tracker</h2>
+          <h2 data-i18n="p-labor-rate-title">Weekly Payroll</h2>
           <div class="h2-sub" data-i18n="p-labor-rate-sub">Check-cutting sheet: weekly hours worked × hourly rate. Hours auto-populate from the daily reports — same source as the Hours Log.</div>
           <div class="lrt-money-label" id="lrt-money-label" data-i18n="lrt-week-payroll">Week Payroll</div>
           <div class="lrt-money" id="lrt-payroll">—</div>
@@ -1395,7 +1397,7 @@
       <!-- Audit / source notice — lumen-ghost info box (#244). Operator can
            set / change rates via /admin/labor-rates (admin/c_suite only). -->
       <div id="lrt-source-notice" class="lrt-note">
-        <span data-i18n="p-labor-rate-source">Rates from <strong>worker_rates</strong> (effective on this week's Monday). Edit at <a href="/admin/labor-rates">/admin/labor-rates</a>. All changes are audit-logged.</span>
+        <span data-i18n="p-labor-rate-source">Rates from <strong>worker_rates</strong> (effective on this week's Monday). Edit them under <a href="/admin/labor-rates">Pay Rates</a>. All changes are audit-logged.</span>
       </div>
       <!-- #191 — sign_in_log ↔ DCR-artifact divergence banner.
            Hidden when the displayed week has no divergence. Surfaces
@@ -1945,7 +1947,7 @@ const I18N = {
     'tab-cert-library': 'Cert Library',
     'tab-compliance': 'Compliance',
     'tab-estimates': 'Estimates',
-    'tab-labor-rate': 'Labor Rate',
+    'tab-labor-rate': 'Weekly Payroll',
     'tab-specs': 'Specs Library',
     'p-specs-title': 'Specifications Library',
     'p-specs-sub': 'Manufacturer specs catalog. Each row links to the official TDS; the "Attach to Project" action files the spec under Project Documents (Specifications subsection) for that project.',
@@ -1997,7 +1999,7 @@ const I18N = {
     'p-compliance-title': 'Compliance (Company-Wide)',
     'p-compliance-sub': 'NYC DOB permits, violations, and complaints across all your active job sites.',
     'p-compliance-placeholder': 'Company-wide compliance rollup — coming soon. Per-project compliance lives inside each project dashboard.',
-    'p-labor-rate-title': 'Labor Rate Tracker',
+    'p-labor-rate-title': 'Weekly Payroll',
     'p-labor-rate-sub': 'Check-cutting sheet: weekly hours worked × hourly rate. Hours auto-populate from the daily reports — same source as the Hours Log.',
     'p-labor-rate-sample': 'SAMPLE DATA — placeholder rates only. Real rate entry + secure storage arrive with the auth/governance phase. Do not use these numbers for payroll.',
     'p-labor-rate-help': 'Straight wages — Amount Owed = Total Hours × Rate. Not burdened (no taxes / comp / insurance). The Hours Log is the editable source — daily hours appear here automatically once a worker has signed in.',
@@ -2100,7 +2102,7 @@ const I18N = {
     'tab-cert-library': 'Catálogo de Cert.',
     'tab-compliance': 'Cumplimiento',
     'tab-estimates': 'Presupuestos',
-    'tab-labor-rate': 'Tarifa Laboral',
+    'tab-labor-rate': 'Nómina Semanal',
     'tab-specs': 'Especificaciones',
     'p-specs-title': 'Biblioteca de Especificaciones',
     'p-specs-sub': 'Catálogo de especificaciones del fabricante. Cada fila enlaza a la TDS oficial; la acción "Adjuntar a Proyecto" añade la especificación a los Documentos del Proyecto.',
@@ -2152,7 +2154,7 @@ const I18N = {
     'p-compliance-title': 'Cumplimiento (Toda la Empresa)',
     'p-compliance-sub': 'Permisos, infracciones y quejas del NYC DOB para todos tus sitios activos.',
     'p-compliance-placeholder': 'Resumen de cumplimiento de toda la empresa — próximamente. El cumplimiento por proyecto está dentro de cada tablero de proyecto.',
-    'p-labor-rate-title': 'Seguimiento de Tarifa Laboral',
+    'p-labor-rate-title': 'Nómina Semanal',
     'p-labor-rate-sub': 'Hoja de pagos: horas trabajadas semanales × tarifa por hora. Las horas se completan automáticamente desde los reportes diarios.',
     'p-labor-rate-sample': 'DATOS DE MUESTRA — tarifas ficticias solamente. La entrada real de tarifas + almacenamiento seguro llega con la fase de autenticación. No usar estos números para nómina.',
     'p-labor-rate-help': 'Salarios directos — Monto Adeudado = Horas Totales × Tarifa. Sin cargas (impuestos / seguro). El Registro de Horas es la fuente editable — las horas diarias aparecen aquí automáticamente.',
@@ -4708,11 +4710,13 @@ applyLanguage();
   // 'ssc:user-loaded' with the user dict once /api/auth/me resolves.
   // Server-side @requires_role is the real authority — this is UX.
   function _maybeRevealAdminTab(user) {
-    const tab = document.getElementById('nav-labor-rates-admin');
-    if (!tab || !user) return;
-    if (user.role === 'admin' || user.role === 'c_suite') {
-      tab.style.display = '';
-    }
+    if (!user) return;
+    if (user.role !== 'admin' && user.role !== 'c_suite') return;
+    // #328 — Pay Rates (set them) and Weekly Payroll (hours × rate) reveal together
+    ['nav-labor-rates-admin', 'nav-labor-rate-tab'].forEach(function (id) {
+      const tab = document.getElementById(id);
+      if (tab) tab.style.display = '';
+    });
   }
   document.addEventListener('ssc:user-loaded', (e) => _maybeRevealAdminTab(e.detail));
   // Late-arrival case: if auth_menu already fired before we hooked in.

@@ -27,8 +27,9 @@
 | Crews + site coordinates per job; worker app job picker with per-job geofence | Production (#325) |
 | Invoice documents: PDF, email to client with a private link, per-project Payments section | Production (#326) |
 | Permits & insurance package per job with send-to-client link and portal share | Production (#327) |
+| Navigation clarity: project identity block on every project view, Pay Rates vs Weekly Payroll, company portal Buildings → Projects | Preprod (#328) |
 
-Everything through #327 is in production as of 2026-09-20 (upstream PR #4, C-suite approved on preprod). Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app; AIA G702/G703 (#317).
+Everything through #327 is in production as of 2026-09-20 (upstream PR #4, C-suite approved on preprod). #328 is on preprod awaiting review. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app; AIA G702/G703 (#317).
 
 ---
 
