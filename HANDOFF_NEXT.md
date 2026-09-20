@@ -21,6 +21,32 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Release to production — 2026-09-20 (Bookore)
+
+* **What:** the whole preprod stack #302–#327 (26 fork PRs #15–#40) promoted to
+  production after the C-suite's yes. Upstream PR
+  `superstars-contracting/dashboard#4`, branch `release/prod-2026-09-20` =
+  `preprod` + a merge of `main` (the #310 / #310b hotfixes were on both under
+  different SHAs; the three conflicts were resolved with the preprod side and the
+  result is content-identical to preprod). Gate passed on SQLite and Postgres in
+  the upstream repo (first run of `gate.yml` there). Merged `d6d40a8`; Render
+  deploy `dep-danqruqjnfac7393dkr0` live 09:58 UTC; `/api/health` →
+  `migrations_pending: 0`; boot logs clean; new public/gated routes answer
+  (`/d/`, `/i/` → 404 on bad tokens, package / invoices / portal APIs → 401 anon).
+* **Schema on production:** no manual migration was run and none was needed —
+  every migration new to production (#304, #307, #315, #318, #325, #327) is a
+  wrapper around a module ensure that also runs at boot; #322
+  `project_assignments` already existed there. The #306 ledger was created and
+  baselined on that first boot, so its `baseline` rows for those seven are
+  truthful only because of the boot ensures. **Rule going forward:** a migration
+  whose module does NOT ensure at boot must be applied to production by hand
+  (`python migrations.py apply` from the allow-listed SSC workstation) BEFORE the
+  release boots, or the baseline will silently mark it applied.
+* `preprod` was fast-forwarded to `main` (`d6d40a8`) so the two are identical;
+  branch new work from `preprod` as usual.
+* `app.superstarscontracting.com` answered 200 over HTTPS again at release time
+  (the 2026-09-19 Cloudflare edge failure had cleared).
+
 ### #327 — Permits & insurance package, send to client (Bookore, 2026-09-19)
 
 * **Ask (C-suite via Angela, 2026-09-19, priority item 2):** a section within each
