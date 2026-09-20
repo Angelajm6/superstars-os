@@ -1,6 +1,7 @@
 # Handoff to the next Claude Code session
 
-> **Read this + `CLAUDE.md` at the start of every new session.** Together
+> **Read this + `CLAUDE.md` + `ROADMAP.md` at the start of every new session.**
+> `ROADMAP.md` is what is PLANNED (C-suite asks + engineering order); this file is what has SHIPPED. Together
 > they orient you in ~2 minutes. This doc is the operational snapshot;
 > CLAUDE.md is the pinned rules.
 
@@ -20,23 +21,743 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
-### #310 — The payroll week is Monday through Sunday (Bookore, 2026-09-18 — production hotfix)
+### #327 — Permits & insurance package, send to client (Bookore, 2026-09-19)
 
-Shipped to production ahead of the preprod stack because weekend payroll could not
-wait: crews now work weekends and the Labor Rate Tracker / Hours Log only showed
-Mon–Fri. `payroll_hours.WEEK_DAYS = 7`; `week_dates()` is Mon..Sun;
-`last_completed_week()` resolves to the prior Mon..Sun from ANY day of the current
-week (Sunday included); `totals_by_day` sized from the dates. Every consumer (grid,
-CSV, PDF timesheet, per-day comp overlay) iterates `dates`, so weekend hours are
-counted, totalled and priced like any other day. The sign-in/DCR divergence and
-reconcile windows for a `week_start` run Mon..Sun. Console: seven day labels
-(EN + ES), range labels end on Sunday, LRT colgroup sized from the dates, Sat/Sun
-headers tinted; **"Full week" still fills Mon–Fri only** — weekend hours are entered
-on purpose. Fixture: `apply_assignments_schema.py` joins `LEGACY_MIGRATIONS`
-(`project_assignments` was missing on every fixture DB). Test:
-`tests/smoke_payroll_week_310.py` (+ the shared `tests/_isolated_db.py` helper);
-`tests/smoke_weekly_hours.py` updated to the seven-day contract. The same change is
-on preprod as PR #25 and comes back with the full release.
+* **Ask (C-suite via Angela, 2026-09-19, priority item 2):** a section within each
+  job for the permits and insurance documents (from the broker) that secure the
+  job, delivered to the client.
+* **What existed:** Project Documents (#229 / #271) — categories, a required-docs
+  checklist per category, uploads, versions, per-document client sharing
+  (#270 visibility engine). What was missing: the job-securing subset as one
+  readiness view, and a way to hand it to the client in one go.
+* **Module** `doc_packages.py`. `PACKAGE_KEYS` = COI + bond (CONTRACTS) and every
+  PERMITS requirement; un-keyed PERMITS documents ride along as extras.
+  `GET /api/projects/<code>/documents/package` (admin / c_suite / pm / super):
+  items with missing / on_file / expiring / expired, extras, summary, the
+  client + contacts, `last_sent` (sent_to, viewed_at, view_count, link_active)
+  and `sends`. `POST …/package/send` (admin / c_suite / pm): recipient (body,
+  else the client's first contact), message, `document_ids` (default = every
+  deliverable document; a red-flagged or out-of-package id → 400),
+  `share_in_portal` (default true → `visibility.share(...'client')` so the
+  portal's Documents section shows them). Each send is its own
+  `document_package` row + items with a 90-day link `/d/<token>`; older links
+  keep working until they expire. Email lists the documents; CRM activity row.
+* **Public** `/d/<token>` and `/d/<token>/file/<id>`: no login, no-store,
+  noindex, first open recorded; a file is served only if it is in the package,
+  not superseded and not red-flagged — a flag pulls a document from every sent
+  package at once. `/d/` added to the public, containment and client allowlists.
+  Tables in `apply_doc_packages_327.py` (dual-backend list; boot heals).
+* **Project dashboard → Project Documents:** a "Permits & insurance — what
+  secures this job" card under the readiness hero (per-item pills, extras, last
+  sent / opened, "Send to client…" modal with the client's contacts as
+  suggestions, checkboxes per document (expired ones unticked), "also show in
+  the client's portal").
+* **Test** `tests/smoke_doc_package_327.py` (gate + CI) boots the real app and
+  uploads through the real endpoint.
+* **Not in this ticket:** editing the package definition per job (it is the
+  taxonomy's PERMITS + COI + bond); reminders when the COI nears expiry (the
+  Compliance view already lists it); requesting the COI from the broker by email.
+
+### #326 — Invoice documents, email to client, project Payments (Bookore, 2026-09-19)
+
+* **Ask (C-suite via Angela, 2026-09-19, priority item 3, without QuickBooks):** a
+  payment section per job holding invoices, emailed straight to the client.
+* **Module** `invoice_docs.py` on top of #315. Columns added to `invoice`
+  (idempotent via `invoices.ensure_schema`): sent_at, sent_to, sent_name,
+  sent_count, viewed_at, view_count, pdf_path, pdf_rendered_at, token_hash,
+  token_expires_at, last_message. `pdf_path` / `token_hash` never leave the
+  server — `invoices._wrap` scrubs every payload through `invoice_docs.public`
+  (flags `has_pdf`, `link_active` instead).
+* **Document:** `render_document` — the proposal sheet (same `_DOC_CSS`), kind
+  heading, bill-to, project, amount / retainage / paid / balance due, payments
+  received, "How to pay" (app_settings `payment_instructions`, else the default
+  check / ACH line), a paid / void / draft stamp. `render_pdf` uses the app's
+  engine (best effort; absent on macOS, present on Render); the gated
+  `/api/invoices/<id>/pdf` renders on demand and 503s without an engine;
+  `/api/invoices/<id>/preview` is the HTML.
+* **Send** (`POST /api/invoices/<id>/send`, admin / c_suite): issued or paid
+  only (draft → 409 "issue it first", void → 409). Recipient = body, else the
+  last send, else the proposal's recipient, else the client's first contact
+  with an email (`GET …/recipient`). EVERY send mints a fresh 180-day link
+  `/i/<token>` and the previous one dies; email (SendGrid live, fake dir in
+  tests) carries the link, amount due and due date; a CRM activity row.
+* **Public** `/i/<token>` (+ `/pdf`): no login, no-store, noindex; first open
+  recorded (`viewed_at`, `view_count`); void → 410, expired → 410. Prefix `/i/`
+  added to `auth._PUBLIC_PREFIXES`, `role_containment._COMMON_PREFIXES` and
+  `client_portal._CLIENT_ALLOW_PREFIXES` (a logged-in client / estimator reaches
+  it too).
+* **Project dashboard → Financial → Payments** (`GET /api/projects/<code>/payments`,
+  `requires_company`; the whole Financial group is server-stripped for
+  pm / super): KPIs (invoiced, open, overdue, collected, drafts), the job's
+  invoices with Preview / PDF / Issue / Email client / Resend / Payment /
+  Email receipt, New invoice (prefilled with the job + client), send modal with
+  the client's contacts as suggestions, payment modal.
+* **Company Portal:** the invoice detail modal gains Preview / PDF / Email to
+  client / Resend / Email receipt and shows sent / opened; the receivables table
+  shows sent / opened under the status.
+* **Test** `tests/smoke_project_payments_326.py` (gate + CI).
+* **Not in this ticket:** a client-portal Payments tab (the link is the client's
+  copy for now); QuickBooks (#316 — blocked on the QBO admin app);
+  AIA G702 / G703 (#317 — fills a `progress` invoice); online card / ACH payment.
+
+### #325 — Crews, site coordinates, and the worker app's job picker (Bookore, 2026-09-19)
+
+* **Ask (C-suite via Angela, 2026-09-19, priority item 1):** once a job is added, the
+  daily report and the labor portal must work for it immediately.
+* **What was wrong:** the worker app was single-site by construction — the login
+  geofenced every worker against the first Bronx job's hard-coded coordinates and
+  returned `FR-BX-001` as the project; shift start trusted whatever project code
+  the client sent. Nothing about a new job could reach the field.
+* **Schema:** `apply_project_site_325.py` adds `projects.site_lat / site_lng /
+  geofence_m` (dual-backend, in `DUAL_BACKEND_MIGRATIONS`; boot heals through
+  `project_onboard.register`) and seeds the legacy Bronx coordinates onto
+  FR-BX-001 when it has none — production's existing control is unchanged the
+  day this lands.
+* **Worker login (`/api/worker/login`):** `_worker_projects()` = the worker's
+  ACTIVE assignments on active projects (a worker with no assignment at all is
+  offered every active project — the office tightens this by assigning crews),
+  each geofenced against ITS OWN coordinates (default radius 200 m; a project
+  with no coordinates on file is eligible as is). No candidates → 403 "No job
+  assigned — see the office"; none in range → 403 "Not on site". Exactly one
+  eligible → `project_code` auto-picked; several → `project_code: null` and
+  `projects: [...]` (code, name, distance, in_range) for the chooser. The
+  session row stores `''` until the worker picks.
+* **Shift start (`/api/worker/session/start`):** `project_code` is required and
+  must be one of the worker's jobs (403 otherwise); the pick is written to the
+  session row; an auto-picked session cannot be redirected to another job.
+* **Worker app:** a "Choose your job" screen (EN/ES) between PIN and the shift
+  when more than one job is in range; the working screen shows the job name.
+* **Office:** the New project modal gains Site location (lat / lng / radius,
+  "Use my location" reads the phone's GPS — the PM taps it standing on site) and
+  a Crew checkbox list (active roster, W-#### — Name). Every project row on
+  Projects & assignments gains "Crew & site" (`GET/PUT
+  /api/admin/projects/<code>/crew`, admin / c_suite): PUT makes the active
+  assignments equal to the list — new ones start today, dropped ones are
+  off-rolled with an end date, never deleted (hours history).
+* **Test** `tests/smoke_crew_sites_325.py` (gate + CI) boots the real app.
+* **Preprod note:** its workers had no assignments until #322 created the
+  table today, so on preprod every worker is currently offered every active
+  project; assign crews there before demoing the picker.
+* **Not in this ticket:** address → coordinates lookup (no geocoding key on
+  file; "Use my location" covers the field case); a crew editor on the
+  Workforce tab (the per-worker project checklist at onboarding still exists).
+
+### #324 — "+ New project": onboard an already-won job (Bookore, 2026-09-19)
+
+* **Ask (Angela, 2026-09-19):** "figure out how to add / onboard more jobs." Until
+  now every project had to travel estimate → approved → convert — right for a
+  bid, four screens and a fake estimate for a job won before the dashboard
+  existed or agreed verbally.
+* **What:** `project_onboard.py` — `POST /api/admin/projects/onboard` (+
+  `GET …/onboard-meta` for the selects), admin / c_suite via
+  `requires_company`. One call: (1) `estimates.create_estimate` in the job's
+  series so numbering stays consistent, (2) stamped approved on the start date
+  with the contract value and the note "Onboarded directly as an already-won
+  job" so Finance's won / pipeline figures stay truthful, (3)
+  `estimates.convert_to_project` (building auto-link, IRA checklist row), (4)
+  the operator's project name + start date and the chosen PM written to
+  `pm_project_assignment`; a CRM activity row on the client. Client is an
+  existing active org or a new name (creates the org as a client). Validation
+  rejects before anything is written.
+* **Page:** Projects & assignments gains "+ New project" (head row) and a modal
+  (client / new client, job type, borough, address, name, contract value, start
+  date, PM, notes); success toasts the code and reloads the lists. The head
+  copy now says new bids start in Estimates and won jobs onboard here.
+* **Test** `tests/smoke_project_onboard_324.py` (gate + CI): gates, meta
+  filters (active clients, real active PMs), validation with nothing left
+  behind, the happy path end to end, PM visibility via `pm_scoping`, numbering
+  in both directions, new client, IRA row, page markup.
+* **Not in this ticket:** editing a project's name / dates after creation (the
+  console's project settings are unchanged); bulk import from a spreadsheet —
+  worth adding if the C-suite has more than a handful to onboard at once.
+
+### #323 — Project-health buttons washed out on hover (Bookore, 2026-09-19)
+
+* **Reported by Angela on preprod:** hovering "Drop Plan" under Project Health
+  faded the button to a pale box with unreadable text.
+* **Why:** `[data-link]:hover { background: rgba(177,30,46,.04) }` (a generic
+  row-hover rule in `dashboard-static.html`) has the same specificity as
+  `.ph-actions .ph-btn` and comes later, so it replaced the button's solid blue
+  with a near-transparent wash under white text.
+* **Fix:** `.ph-actions .ph-btn[data-link]:hover` → `--ui-deep` with white text;
+  the ghost variant fills `--ui-soft` with blue text. The hero's
+  `.hero-btn-primary:hover` still carried a #313-era red; it is `--ui-deep` now.
+
+### #322 — project_assignments missing on preprod Postgres (Bookore, 2026-09-19)
+
+* **Found in the Render logs** after the #321 deploy: `GET /api/payroll/hours:
+  relation "project_assignments" does not exist`, repeatedly between 09:12 and
+  09:23 ET on 2026-09-19 — the console loads that endpoint on every visit, so
+  the Labor Rate Tracker showed an error to whoever was on preprod.
+* **Why:** `apply_assignments_schema.py` opens superstars.db with sqlite3
+  directly (LEGACY list) and so never ran on the Postgres database; #310 only
+  added it to the SQLite fixture. Everything else the payroll pool needs
+  (`v_worker_roster`, `worker_rates`, `labor_worker_state`) is present.
+* **Fix:** `apply_assignments_322.py` — dual-backend, idempotent, no FKs —
+  appended to `DUAL_BACKEND_MIGRATIONS`; `SSC_AUTO_MIGRATE=1` applies it at
+  the next preprod boot and the #306 ledger records it. A no-op on SQLite.
+* **Lesson:** a table that lives only in a LEGACY (sqlite3-direct) migration is
+  invisible to Postgres. When a feature starts depending on one, add a dual-
+  backend twin the same day.
+
+### #321 — Light sidebar (Bookore, 2026-09-19)
+
+* **Decision (Angela, 2026-09-19):** the ink-black sidebar was the heaviest element
+  on every screen; of three tones shown (light grey, soft blue, brand paper) she
+  chose **light grey**. Tokens in `widgets.css` `:root`: `--side-bg:#F3F4F6`,
+  `--side-edge:#E3E5EA`, `--side-ink:#2B2F38`, `--side-muted:#8A8F99`,
+  `--side-hover:rgba(20,22,28,.05)`.
+* **One language, four families:** `shell.css` (`.ssc-side` — console, Company
+  Portal, admin Users / Projects / Labor Rates, Estimating), the project
+  dashboard's and the client portal's `.sidebar` re-skin blocks. Brand name in
+  ink, section labels muted, links in `--side-ink`, hover = faint ink wash +
+  2px nudge, **active = `--ui-soft` fill, `--ui` text and a 3px `--ui` left
+  edge** (the indicator was white on ink). A 1px `--side-edge` border replaces
+  the dark block's hard edge; at phone width it moves to the bottom of the
+  brand bar. The `.ssc-menu-btn` is now white with an ink label and turns
+  `--ui-soft` on hover. The client portal's Sign out button is white with the
+  blue text. Cache versions bumped to `?v=321`.
+* **Unchanged:** the red star, every top bar / page head, the LRT hero and
+  everything inside the content column; the login page.
+
+### #320 — Worker job history + payroll view (Bookore, 2026-09-19)
+
+* **What:** ROADMAP Phase C — one read model per worker in `worker_history.py`,
+  served at `GET /api/company/portal/workers/<employee_id>?months=12` (1..36,
+  clamped) behind the company-portal gate (admin / c_suite). Company-only per the
+  comp-data rule: never linked from the project dashboard, worker app or any
+  client surface.
+* **Payload:** `worker` (id, W-####, name, trade, status active | inactive |
+  archived, current rate + its effective date), `summary` (hours in the window /
+  YTD / all time, days on site, est. labor cost + unrated hours in the window,
+  projects total / active, first + last on site, certs total / expired /
+  expiring, credentials issued, pending rate changes, hours corrections),
+  `projects` (per project: hours, distinct days, first / last date, est. cost,
+  unrated hours, plus the assignment's role / status / dates merged in — an
+  assignment with no sign-ins still shows), `by_month`, `matrix` (project ×
+  month hours), `recent_days` (last 30 days of sign-ins with the rate applied),
+  `certifications` (with expired / expiring / valid state), `credentials`
+  (Certificate of Fitness cards — no path columns), `rate_history`
+  (`worker_rates`, `current` flag) and `rate_changes` (the approval audit).
+* **Money rule:** worked hours × the rate effective ON THE WORK DATE via
+  `company_portal._rate_on` — the same rule as the Finance view's labor cost: a
+  raise splits the cost at its boundary; a worker with a rate on file but a
+  sign-in older than every effective-dated row prices at the current rate (the
+  fallback, deliberately shared); a worker with no rate at all reports unrated
+  hours and no cost. It is an estimate of labor cost, never payroll; labels say
+  "worked" and "est. cost".
+* **Portal (Workforce & Pay):** every worker row links to `#workforce/<id>`;
+  the detail page has six KPIs, a months selector (6 / 12 / 24 / 36), Projects
+  worked, Hours by month (bars + table), Hours by project and month (matrix),
+  Last 30 days, Rate history + Rate changes, Certifications, Credentials issued.
+* **Test** `tests/smoke_worker_history_320.py` (gate + CI). Optional sources
+  (`worker_rates`, `project_assignments`, `cof_cards`, `labor_rate_change`,
+  `sign_in_edit`) degrade to empty when a fixture lacks the table.
+* **Not in this ticket:** CSV export of the per-worker history; a payroll-period
+  view (the Labor Rate Tracker on the console remains the check-cutting sheet);
+  edits — everything here is read-only.
+
+### #318 — Company vault (Bookore, 2026-09-19)
+
+* **What:** ROADMAP Phase C "Company vault" — Amit's "everything that has to do
+  with the company" (2026-09-11 notes). `company_vault.py` adds `vehicle` and
+  `company_document_file`, and `vehicle_id` / `doc_year` on `company_document`
+  (idempotent ADD COLUMN on both backends). Migration
+  `apply_company_vault_318.py` (appended to `DUAL_BACKEND_MIGRATIONS`); boot
+  heals through `company_portal.ensure_schema`, which now calls the vault's.
+* **Categories:** `COMPANY_DOC_CATEGORIES` grew vehicle_registration /
+  vehicle_insurance / vehicle_inspection / vehicle_title / vehicle_other,
+  tax_return_federal / tax_return_state / tax_filing_receipt / payroll_filing,
+  and company_record. `doc_group()` maps every category onto one of four
+  shelves (insurance, vehicles, tax, records) — the portal's chips; the
+  documents list carries `group`, `vehicle_label`, `doc_year`, `files`,
+  `file_count`, and accepts `?group=` / `?vehicle_id=`.
+* **Vehicles:** label, year/make/model/color, plate (normalised), VIN, status
+  active|retired, driver = `employees.employee_id` (active roster only, offered
+  as "W-#### — Name" in `meta.drivers`). The list rolls up the newest
+  registration / insurance / inspection per vehicle with days left, `missing`
+  for an active vehicle with no such document, and `next_expiry_days`. Retire
+  is single-shot and makes the row read-only; its paper stays in the vault.
+* **Files:** `POST …/company-documents/<id>/files` (multipart `file`; PDF /
+  JPG / PNG / HEIC / XLSX / DOCX, 25 MB, empty rejected, archived document →
+  404), stored as `data_room/company_vault/<doc id>/<uuid>.<ext>` (original
+  name never in the path), read ONLY through the gated
+  `…/company-documents/files/<id>` (inline, no-store, path-contained), delete
+  removes row + disk file. `file_path` never leaves the server.
+* **Compliance:** a vehicle document expiring shows as kind `vehicle` with the
+  vehicle label as subject (`subject_ref` = vehicle id); other company paper
+  keeps kind `company_document`. Overview's expiring counts include both.
+* **Portal (Compliance & Vault):** KPI row gains Vault documents (+ files
+  attached) and Vehicles (+ documents missing); a Vehicles card (plate, driver,
+  status, the three document columns with pills, "+ Paper" pre-selects the
+  vehicle in the document modal, Edit, Retire); the vault card gets shelf chips
+  and a Files column. The document modal shows Vehicle for vehicle categories,
+  Tax / filing year for tax ones, and, when editing, the attached files with
+  Upload / Remove.
+* **Test** `tests/smoke_company_vault_318.py` (gate + CI). `#302`'s suite is
+  unchanged and still passes on the extended schema.
+* **Not in this ticket:** no reminder emails for vehicle renewals (the
+  compliance digest is a separate item); mileage / maintenance logs; a per-file
+  expiry (expiry lives on the document, not the file).
+
+### #315 — Invoices & receivables (Bookore, 2026-09-19)
+
+* **What:** ROADMAP Phase B "invoices & receivables model" (the roadmap's old #310;
+  renumbered — #309–#314 were consumed by the September UI / ops tickets).
+  Money-in only: `invoice` + `invoice_payment` in `invoices.py`, migration
+  `apply_invoices_315.py` (appended to `DUAL_BACKEND_MIGRATIONS`; boot ensures
+  the schema too). Numbers are `INV-YYYY-####` with a numeric max (CLAUDE.md ID
+  rule). Lifecycle draft → issued → paid, or draft / issued → void; `overdue`
+  and `days_overdue` are derived at read time, never stored.
+* **Rules that matter:** payments land only on an issued invoice and never
+  exceed the open balance; the invoice flips to paid when they cover it; a paid
+  deposit flags the IRA job's `deposit_received` when the project is known;
+  void refuses anything with payments; delete is draft-only; issued invoices
+  accept only due date / notes / description edits (amount is frozen). Default
+  terms on issue: net 30, deposits net 7.
+* **The trigger:** `proposals._on_signed` now calls
+  `invoices.create_from_proposal` (idempotent per proposal) so the "Issue deposit
+  invoice" CRM task names a real draft. Signature → estimate approved → COI task
+  → deposit invoice draft, all in one commit path; failures there are logged and
+  never block the signature.
+* **API** (`requires_section('company_portal')`, admin / c_suite): `GET/POST
+  /api/invoices` (list carries `meta.summary`), `GET/PATCH/DELETE
+  /api/invoices/<id>`, `POST …/issue`, `POST …/payments`, `POST …/void`.
+  Filters: status (open|draft|issued|paid|void), kind, client_org_id, project,
+  proposal_id, overdue=1, search.
+* **Company Portal:** Finance gains "Receivables — invoices" above the IRA card
+  (six KPIs, search / status / kind filters, New invoice, row → detail modal
+  with Issue / Record payment / Void / Delete draft). Overview's money list
+  shows Open invoices + Collected YTD; needs-attention lists overdue, drafts
+  waiting to be issued and due-within-30. `#finance/overdue` and
+  `#finance/draft` preselect the filter. A signed proposal's detail links its
+  deposit invoice. `overview()` / `finance()` payloads gained `invoices` /
+  `invoice_summary`; the IRA `receivables` keys are unchanged (#302 test pins
+  them). Both helpers degrade to empty when the tables are missing.
+* **Test** `tests/smoke_invoices_315.py` (gate + CI): gates, validation,
+  numbering, issue terms, edit rules, payments, overdue math + summary buckets,
+  void / delete, the proposal trigger, the IRA flag, portal payloads, no
+  `*_path` keys.
+* **Not in this ticket:** the client portal does not show invoices yet (needs a
+  grant section like proposals); no PDF / email for invoices (QuickBooks sends
+  them in #316); no payables (#319).
+
+### #314 — Gradients and clean hovers on every surface (Bookore, 2026-09-18)
+
+* **Ask (Angela, 2026-09-18):** the production Labor Rate Tracker hero (3px accent
+  bar + a soft blue radial wash fading to white) is the look to carry everywhere,
+  plus the three hover behaviours from the CSS options reviewed the same day.
+* **Shared classes in `widgets.css`:** `.ssc-hero` (wash + bar), `.ssc-tile`
+  (calm-blue inward vignette, same recipe as `.ph-tile` / `.shc-tile`), and the
+  hover set — **lift** (`.hv-lift`: -2px translate + layered shadow) for tiles and
+  cards, **edge** (`.hv-edge`: 3px `--ui` indicator growing to 60% + `--ui-soft`
+  tint) for link rows, **tint** (`.hv-fill`: `--ui-soft` cell background, no
+  movement) for dense table rows. Selector lists opt existing markup in without
+  touching HTML: `.cp-kpi`, `.prp-card`, `.pm-card`, `.shc-tile`, `.kpis .tile`,
+  `.project-card` lift; `.cp-list li:has(a)` and `.doc-row` edge; `#lrt-grid`,
+  `#hrs-table`, `.shc-dcr-table`, `.cp-table` and the admin `.wrap table` rows
+  tint. `@media (hover:none)` removes lift/edge on touch; reduced-motion already
+  zeroes the motion tokens.
+* **Hero bands applied:** Company Portal first card per view (`.cp-view` rules) +
+  KPI vignette; client portal `.v-head`; the admin `.head-row` on Users / Projects
+  (`shell.css`); Labor Rates `#lr-admin-only` frame + its KPI tiles; Estimating
+  `.hero`; project dashboard `.hero` (wash over the cream band, gradient top
+  border). LRT itself is unchanged. Cache versions bumped to `?v=314`.
+* **Verified:** browser on all seven surfaces; CI gate 16/16; perf budget 41/42
+  (the one failure is the known local `/api/weather` 400 — macOS SSL).
+
+### #313 — Interactive accent moves from brand red to a dark blue (Bookore, 2026-09-18)
+
+* **Decision (Angela, 2026-09-18):** navigation and interactive accents are a dark
+  blue; brand red stays for identity (the star, worker IDs and codes, top bars on
+  documents and emails) and for error / danger states. New tokens in `widgets.css`
+  `:root`: `--ui:#24418C`, `--ui-deep:#1B3272`, `--ui-soft:#E8EDF8`, `--ui-edge`.
+  The auth pages (login / forgot / reset / set-password) carry their own `:root` and
+  received the two tokens too.
+* **Switched:** shell nav active pill + top-bar user-chip links (`shell.css`); the
+  client portal's nav active/hover, sign-out, Open buttons and the proposal Accept
+  button; the project dashboard's nav active, avatar, header CTAs, sign-out; the
+  console's legacy tab underline, `.btn`, language toggle, project-card hover, Hours
+  Log week buttons and cell-editor buttons, onboarding camera / save buttons, spec
+  add button; the auth pages' primary buttons, links, focus rings and the
+  password suggester; the public proposal page's Accept button and the two email
+  CTA buttons (reset + proposal). Cache versions bumped to `?v=313`.
+* **Deliberately unchanged:** `.cp-id`, `.cc-wid`, `.ph-wid`, estimate codes and
+  CRM names (identifier red per the design rule), status reds (`--bad`, behind,
+  no-work banners), the Hours Log red table header + grand-total cell, and the red
+  top bars on the proposal document / emails.
+
+### #312 — Collapsible menu at phone width (Bookore, 2026-09-18)
+
+* Below 860 px every sidebar is a compact brand bar with a **Menu** button; the nav
+  and footer stay hidden until tapped, rise in, and close on a nav tap, Escape, or
+  when the window widens. `static/js/shell.js` (one small deferred script, loaded by
+  all eight sidebar surfaces) creates the button and toggles `.nav-open`; it handles
+  both families — the shell (`aside.ssc-side` + `.brand`) and the project dashboard /
+  client portal (`.sidebar` + `.sidebar-header`) — without touching their markup.
+* Styles: `.ssc-menu-btn` + the `.sidebar` phone rules in `widgets.css`; the shell's
+  phone block in `shell.css` replaced the old wrapping strip. The project dashboard's
+  own sidebar breakpoint moved from 768 to 860 px to match.
+* Budgets: +1 static request per surface, all inside the existing ceilings (no
+  changes to `smoke_perf_budget_292`).
+
+### #311 — UI coherence: one shell, one motion language (Bookore, 2026-09-18)
+
+* **Every operator page is now on the shared shell.** `admin_users.html`,
+  `admin_projects.html`, `estimating.html` and `admin_labor_rates.html` dropped their
+  one-off header rows for the same ink sidebar + top bar the Office Console and the
+  Company Portal use (`shell.css`). The sidebar markup is inline per page (no extra
+  request beyond `shell.css`); links carry `data-roles`, and a tiny inline
+  `sscNavForRole(role)` hides what the signed-in role cannot open (the server gates
+  remain the control — this is navigation hygiene, not access control). Labor Rates
+  had no shared tokens at all; it now loads `typography.css` + `widgets.css` too, its
+  local palette still applying inside the content column. Stale build stamps hidden.
+* **Project dashboard + client portal** keep their markup and JS; CSS-only re-skins
+  give them the same sidebar language (ink background, brand-red active pill with the
+  white indicator, quiet hover). The blue stays the widget accent inside content.
+* **Motion layer** (`widgets.css`, so every page has it): `ssc-rise` view/panel enter
+  (220 ms), hover lift + press sink on `.btn-primary/.btn-ghost`, card hover shadow,
+  table-row hover, focus rings, `.ssc-skel` shimmer, `.ssc-pill` variants, and a
+  `prefers-reduced-motion` switch that zeroes every duration. Console panels,
+  Company Portal views, client portal views and project-dashboard views all rise in.
+* **Shell additions** (`shell.css`): nav active indicator + hover nudge, `.ssc-user`
+  top-bar chip (name · role pill · sign out), `.ssc-page-head`, and the `.wrap`
+  rhythm so a legacy content column matches the console.
+* **Budgets**: `smoke_perf_budget_292` ceilings raised by exactly the new static
+  requests (users/projects/estimating 5→6; labor rates 6→9 + 60 KB). API sets are
+  unchanged. Design guard: logo images on the four pages declare their box.
+
+### #310 — The payroll week is Monday through Sunday (Bookore, 2026-09-18)
+
+* **Why:** crews now work weekends; the Labor Rate Tracker / Hours Log only showed
+  Mon–Fri, so Saturday and Sunday hours had nowhere to be logged or paid.
+* **`payroll_hours.py`:** `WEEK_DAYS = 7`; `week_dates()` returns Mon..Sun;
+  `last_completed_week()` resolves to the prior Mon..Sun from ANY day of the
+  current week (Sunday included — the week is still in progress); `totals_by_day`
+  sized from the dates. `build_week_grid` is otherwise unchanged: every consumer
+  (grid, CSV, PDF timesheet, comp overlay) iterates `dates`, so weekend hours are
+  counted, totalled and priced at the per-day rate like any other day.
+* **`server.py`:** the sign-in/DCR divergence + reconcile windows for a `week_start`
+  now run Monday..Sunday (were Mon..Fri). Docstrings updated.
+* **`company-dashboard.html`:** day labels are seven (EN + ES), both week-range
+  labels end on Sunday, the LRT colgroup is sized from the dates, Sat/Sun header
+  cells are tinted (`.lrt-weekend`; Hours Log shows a small WEEKEND caption) and
+  edit exactly like weekdays. **"Full week" still fills Mon–Fri only** — weekend
+  hours are entered on purpose, cell by cell or with that day's "All full day".
+* **Untouched by design:** the weekly summary report keeps its own Mon..Sun date
+  list; the look-ahead's working-day math (Mon–Fri) is a schedule concern, not
+  payroll.
+* **Tests:** `tests/smoke_payroll_week_310.py` (both gates; boots `server.app`) —
+  helpers, 7-day grid with weekend hours counted + priced, default week, CSV
+  columns, divergence window, non-Monday 400. `tests/smoke_weekly_hours.py`
+  updated to the seven-day contract (operator gate).
+
+### #309 — C-suite can reset a client's password; strong-password suggester (Bookore, 2026-09-18)
+
+* **Why:** a customer was locked out and the only account able to issue a one-time
+  password was the single production admin login. `auth_admin.CSUITE_RESET_ROLES =
+  ('client',)`: `/admin/users`, the list and `…/reset-password` now accept `c_suite`;
+  the list is filtered to client accounts for them and the reset handler refuses any
+  other target role (403). Creating accounts, changing roles and deactivating remain
+  admin-only; the admin row is never reset from the page by anyone. The page renders a
+  "Client accounts" reset-only view for c_suite (no Create, no role/deactivate buttons).
+* **Strong-password suggester:** `static/js/pw_suggest.js` (`SSCPasswordSuggest.generate
+  / wire`) — three random dictionary words + two digits (`Harbor-Copper-Stone-47`,
+  always ≥ 12 chars with a letter and a digit, from `crypto.getRandomValues`). Wired on
+  `reset_password.html` and `set_password.html`: the button fills both fields, reveals
+  them through the existing eye toggles, re-runs the checklist and shows a "save it"
+  hint. No server involvement.
+* **Test** `tests/smoke_csuite_reset_309.py` (both gates): role matrix on every users
+  endpoint, c_suite list filtering, reset allowed/denied by target role, page wiring +
+  generator contract (node when available).
+
+### Ops — warnings mirrored to the host log stream (Bookore, 2026-09-18)
+
+`server.py` logging: the file under the data root (`/var/data/server.log` on Render)
+remains the full INFO record; WARNING and above are now ALSO written to stderr, which
+Render collects into the service's Logs tab. Motivation: a customer's password-reset
+email never arrived and the only record ("password reset email not sent via
+sendgrid …" or "delivery failed") lived on the disk, unreadable without a shell.
+From this build, Render's log search for `password reset` answers it. No new data
+leaves the building: the warnings never carry an email address (PII rule).
+
+### #308 — The client's Proposals tab (Bookore, 2026-09-15)
+
+The C-suite's "store proposals in the client's view" — the #307 rows, projected for
+the client, inside the grant-gated portal shell.
+
+* **Catalog:** `proposals` joined `client_grants.SECTIONS` / `SERVED_SECTIONS` /
+  `SECTION_LABELS`, the client row of `portal_matrix.ROLE_SECTION_MATRIX`, and the
+  FULL preset (by decision; Standard/Minimal unchanged). Default OFF like every
+  grant — the admin toggle appears on its own (the grants UI is data-driven).
+* **Registry:** `client_registry.DATASETS["portal.proposal"]` — id, number,
+  version, title, status (CLIENT key `open | signed | declined | expired`, never
+  the lifecycle word), status_label, price, deposit_amount, deposit_pct,
+  valid_until, sent_at, signed_at, signed_name, declined_at, building, view_url,
+  pdf_url, can_accept. Absent by provenance: decline_reason, signed_ip, recipient
+  email, estimate code/status, any internal note.
+* **Payloads** (`portal_sections.py`, all `require_portal_section("proposals")`):
+  `GET /api/portal/<code>/proposals` (the organization that owns the bound
+  project — `projects.client_org_id`; sent/viewed/signed/declined only, never a
+  draft or a superseded version; each labelled with its building), `…/<id>/view`
+  (the document; a real client's first open flips sent → viewed, a preview never
+  does), `…/<id>/pdf`, and — the portal's first write endpoints, by the C-suite's
+  ask — `POST …/<id>/accept {name, title, agreed}` and `POST …/<id>/decline
+  {reason}`. Both reuse `proposals.accept / decline`, so the #307 trigger (estimate
+  approved, COI + deposit tasks, VP notification, activity) is the same code path
+  as the emailed link. An admin preview gets 403 on both writes. By-id access to a
+  foreign organization's proposal, a draft, or a superseded version is 404.
+* **Shell** (`portal_shell.html`): `PORTAL_SECTION:proposals` nav + view; cards
+  with status pill, price, deposit, Open / Download PDF, and — when open — the
+  typed-name signature form with the consent box (hidden in preview with a note).
+  Accepting re-fetches the list (and purges the #291 boot cache for it).
+* **Test** `tests/smoke_client_proposals_308.py` (both gates; boots `server.app`):
+  catalog + registry, shell nav from grants, per-request grant toggle, org
+  scoping + project binding, roles, preview read-only, registry-only payload, view
+  → viewed, accept → trigger, decline. `smoke_portal_flip_284`'s matrix pin now
+  includes `proposals`.
+
+Next: #309 (QuickBooks deposit invoice on `proposal.signed`) and #310 (invoice
+model), so the "Accepted" card can show the deposit invoice status.
+
+### #307 — Proposals: generated from an estimate, sent with a signed link, accepted online (Bookore, 2026-09-15)
+
+The first piece of the C-suite's "proposals → signature → deposit invoice" flow
+(ROADMAP items 1, 2, 4). A proposal is now a record, not an attachment.
+
+* **`proposals.py`** — tables `proposal` (one per estimate *version*; number
+  `<estimate code>-P<version>`), `proposal_line` (schedule-of-values seed) and
+  `proposal_event` (audit). Status `draft → sent → viewed → signed | declined`;
+  a new version marks the old one `superseded` and kills its link. Only a draft
+  is editable. Price follows the line items when no explicit price is given;
+  deposit amount is derived from `deposit_pct` (default 30 %).
+* **The document** — `render_document()` is self-contained branded HTML (letterhead
+  from `app_settings` keys `company_address / company_phone / company_email /
+  company_license` when present). `render_pdf()` runs it through
+  `pdf_export.render_html_to_pdf` (chromium on Render, `SSC_PDF_ENGINE`), stores
+  the file under `data_room/proposals/` and a row in `estimate_document`
+  (new category `proposal`). Best effort: when the engine is missing the
+  proposal still sends and the public page is the reference copy; the PDF route
+  answers 503 with a plain message.
+* **Send** — `send()` needs a price and a valid recipient; issues a 32-byte
+  random token (sha256 stored, never the token), expiring at `valid_until`
+  23:59:59; emails the branded message via `notifications._send_live`
+  (`track_clicks=False` so the link is not rewritten). Test seam
+  `SSC_MAIL_FAKE_DIR` (falls back to `SSC_RESET_MAIL_FAKE_DIR`). A failed
+  delivery rolls the row back to draft and records `send_failed`. Resend
+  issues a fresh link (also the fix for an expired one).
+* **Public page** `/p/<token>` (+ `/p/<token>/pdf`, `POST /api/p/<token>/accept
+  | /decline`) — public by token (`auth._PUBLIC_PREFIXES`, and admitted by the
+  client-portal, estimator/vendor and architect containment gates so a
+  signed-in user can open the link too). First open flips `sent → viewed`;
+  accept requires a typed name + the consent box and records name, title, IP,
+  timestamp; `no-store` + `noindex` on every response. Bad/expired/superseded
+  links get a branded 404/410-style page, never a stack trace.
+* **THE TRIGGER (`_on_signed`)** — the estimate moves to `approved` with the
+  proposal price as `final_amount` (the manual approve modal still requires a
+  QuickBooks ref; a signed proposal is the stronger evidence, so it is applied
+  directly); CRM tasks open for the Certificate of Insurance (7 days, high)
+  and the deposit invoice (2 days, high — #309 automates it); c_suite users get
+  a `proposal_signed` notification; every step writes a CRM activity row.
+  `mark_signed_offline()` (paper / email signature) fires the same trigger.
+  Decline opens a follow-up task and leaves the estimate untouched.
+* **Company Portal → Proposals**: list (KPIs, search, status filter), "New
+  proposal" from any open estimate, detail with editor (fields + line items),
+  Preview / PDF / Send… / Resend… / New version / Mark signed offline / Delete
+  draft, who-and-where facts and the event timeline. Building detail's estimate
+  rows gained a "Proposal" action. Date inputs go through the app's
+  `SSCDatePicker` (`dateGet` / `dateSet`) — the picker rewrites
+  `type=date` inputs to MM-DD-YYYY text, so read `dataset.iso`, never `.value`.
+* **Migration** `apply_proposals_307.py` appended to `DUAL_BACKEND_MIGRATIONS`
+  (the #306 ledger picks it up; boot ensures the schema regardless).
+* **Test** `tests/smoke_proposals_307.py` (gate + CI): gates, prefill, edit
+  rules, send + link extraction from the fake mailbox, public view/accept/
+  decline, the trigger, versions, expiry + resend, offline signature, delete,
+  no-secrets payloads. Tolerates a missing PDF engine.
+
+Internal endpoints are `requires_section('estimates')` (admin / c_suite).
+Next: #308 (client portal Proposals tab reading the same rows) and #309
+(QuickBooks deposit invoice from `proposal.signed`).
+
+### #306 — Migration ledger + CI gate on Postgres (Bookore, 2026-09-11)
+
+Two of the audit's three structural fixes (the third, route default-deny, is now
+partly covered by the strict duplicate-route boot check from #305).
+
+* **`migrations.py` — the ledger.** Table `schema_migrations(name, checksum,
+  applied_at, note)`. The ordered list of migrations IS
+  `preprod_fixture_bootstrap.DUAL_BACKEND_MIGRATIONS` (one list, two readers).
+  `status / pending / apply / baseline_if_needed / boot / pending_count`.
+  Existing databases are **baselined** the first time the ledger appears (every
+  listed migration recorded with note=baseline) — they were migrated by hand or
+  by the fixture builder. From then on only NEW entries are pending.
+  `python migrations.py status|apply [--dry-run]`.
+* **Boot**: server.py ensures the ledger, baselines, and logs what is pending.
+  `SSC_AUTO_MIGRATE=1` (set on preprod) applies pending migrations at boot;
+  production only reports (log + `/api/health.migrations_pending`, 0 = healthy,
+  -1 = ledger unreadable). **Adding a migration = append a dual-backend
+  `apply_*.py` to DUAL_BACKEND_MIGRATIONS.** Nothing else.
+* **`tests/run_gate_ci.py` — the PR gate**, cross-platform: compile every file,
+  strict boot (duplicate routes refuse to start) + ledger clean, the #297–#300
+  static contracts, the #301/#302/#304/#305/#306 behavioral suites, and the
+  design-conventions guard against a live server. `--backend sqlite` (each
+  suite builds its own fixture) or `--backend postgres` (SSC_DB_URL at a
+  fixture-built Postgres). ~45 s on SQLite.
+* **`.github/workflows/gate.yml`**: on every PR / push to `preprod` and `main`,
+  a matrix of sqlite + postgres:16 (service container). The Postgres leg builds
+  the fixture through `preprod_fixture_bootstrap.py` — the same path as the
+  preprod bring-up — so the CI database is shaped exactly like preprod.
+* The #260 gate (`run_gate_260.py`) remains the operator's full census on the
+  Windows workstation; CI runs the subset every PR must pass.
+
+Next: require the `gate` checks in branch protection on the client repo's `main`
+(and on the fork's `preprod`) once a few runs are green.
+
+### #304 — Buildings as a first-class entity (Bookore, 2026-09-11)
+
+`buildings.py` + `apply_buildings_304.py`. A client owns buildings; projects and
+estimates happen at a building.
+
+* **Table** `building(id, client_org_id, name, address_line, address_key, borough,
+  city, state, zip, bin, block, lot, lat, lng, stories, year_built, notes, …,
+  archived_at)`; `projects.building_id` + `estimate.building_id`. Identity =
+  `address_key` (unique): '890 East 135th Street' == '890 E 135th St, Bronx'.
+  The matcher moved from company_portal to `buildings.address_key` (one owner).
+* **Auto-link**: `estimates.create_estimate`, estimate → project convert, and
+  `crm.link_project` call `buildings.autolink_*`; `backfill()` links everything
+  older, creating rows on first sight, and runs at boot (idempotent) so preprod /
+  prod heal on deploy. Projects with no address stay visible in the portal under
+  a "No address on file" bucket.
+* **Endpoints** (`requires_section('crm')` = admin/c_suite): list (search /
+  client / archived), create (duplicate address refused; borough codes
+  normalized; validation), get (projects, estimates, expiring docs, RFI + photo
+  counts), patch (key follows the address; clash refused), archive/restore,
+  link/unlink project or estimate, `unlinked` pickers, `backfill`.
+* **Portal**: sidebar "Clients" + "Buildings"; Buildings list with search /
+  client filter / archived toggle / re-run matcher / add; building page with
+  KPIs, projects, estimates, expiring documents, facts, edit modal, archive,
+  link/unlink pickers. Client page's building cards link to the building page.
+* Guard: `tests/smoke_buildings_304.py`. Fixture: `apply_buildings_304.py` in
+  DUAL_BACKEND_MIGRATIONS.
+* Not yet: the client-portal building view (grant-gated; lands with #308),
+  lat/lng geocoding, DOB BIN lookup.
+
+### #305 — Security release (Bookore, 2026-09-11)
+
+Every critical and high finding of the 2026-09-10 audit, plus the mechanical
+mediums, in one branch with a commit per fix. Behavioral guard:
+`tests/smoke_security_release_305.py` (boots `server.app` in-process on an
+isolated DB + scratch data root, one user per role).
+
+* **Worker PIN throttle was inert** — the PIN path audits `pin_fail`, the
+  per-source counter only counted `login_fail`. `auth._recent_ip_fails` now counts
+  both; 20 failures from one source -> 429 on the public `/api/worker/login`.
+* **Credential card render** `/api/cards/<id>/<type>/live` (live PIN) ->
+  `@requires_company`.
+* **Worker PII** — `/api/employees` (+detail, `/api/certifications`,
+  `/api/sign-ins`, per-worker certs, face-photo GET) -> `requires_section('internal_ops')`,
+  and `server.strip_worker_pii()` drops `pin` for everyone and dob/phone/email/
+  emergency-contact/address/license fields for non-company roles.
+* **SQL injection** in the site-closure checklist PATCH: column name allow-listed
+  (`SITE_CLOSURE_CHECKLIST_KEYS`), value Y/N; all four closure routes gated.
+* **Route collisions** — `/api/rfis` GET/POST were registered by elevation.py
+  BEFORE server.py's decorators ran, so the project RFI form + list were dead.
+  server.py owns both now and dispatches to `elevation._api_rfi_*` when an
+  `elevation_id` is present. A second collision surfaced the same way: two
+  GET `/api/projects` handlers (the older one shadowed the console's, dropping
+  `assigned_workers`); the shadowed one is gone. `server._duplicate_routes()`
+  reports duplicates at boot; `SSC_STRICT_ROUTES=1` refuses to start (the gate
+  runs strict).
+* **Containment for estimator + vendor** (`role_containment.py`): estimator lives
+  in `/estimating` + its API; vendor gets nothing and is no longer in
+  `auth_admin.ASSIGNABLE_ROLES`.
+* **Worker create**: caller-supplied `employee_id` must match `E-\d{5}`; the
+  folder is containment-checked; `INSERT OR IGNORE` replaced by INSERT + retry on
+  id collision (a concurrent onboard no longer returns 200 with no row).
+* **/project-files** is project-scoped for pm/super via `pm_can_access_project`.
+* **Preview blueprint** gated to admin/c_suite; root serve allow-listed to report
+  prefixes (the company console was previewable unstripped).
+* **Stored XSS**: `escapeHtml()` on issue descriptions (project dashboard) and
+  project name/address (console cards).
+* Mediums: `INSERT OR REPLACE` -> `ON CONFLICT DO UPDATE` in nyc_compliance
+  (Postgres-safe); UTC "today" in cert-expiry math -> local; projdoc + receipt
+  byte routes use `ssc_paths.resolve_data_path`; worker-file containment via
+  `is_relative_to`; geofence longitude scaled by cos(lat); `/login?next=` quoted;
+  83 handlers stop echoing driver text (`_server_error`, logged with a ref);
+  reset-token burn gated on rowcount; `toISOString().slice(0,10)` -> `todayLocal()`
+  on the facade dashboards; audit/counter failures now log a warning.
+* **Fixture drift found by the guard**: `apply_roster_views_schema.py` and
+  `apply_worker_intake_schema.py` were never in the preprod fixture lists, so
+  fixture DBs (preprod!) had no `v_worker_roster` / `v_active_workers` views and
+  no `certifications.card_number` — Workforce said "No workers yet" and several
+  routes 500ed. Both are in `LEGACY_MIGRATIONS` now, and server.py ensures the
+  two views at boot on both backends.
+
+Not done (tracked): CSP `script-src` (needs the inline-script sweep), worker-app
+hard-coded project + geofence-from-projects, `(project_code, rfi_number)` unique
+index, `GET /api/projects/<code>` explicit field list.
+
+### #303 — The shared shell: Office Console on the sidebar layout (Bookore, 2026-09-10)
+
+`static/css/shell.css` is now THE application chrome: dark left sidebar (brand
+lockup, grouped nav, foot links) + white sticky top bar (page title, chrome
+right). The Company Portal (#302) and the Office Console (`/`) both use it; every
+operator page migrates onto it over time (the audit's "shared shell" plan).
+
+Console changes, chrome only — no panel logic touched:
+* The horizontal tab strip became the sidebar. In-page panels keep their
+  `.nav-tab` + `data-panel` contract (now real `<a href="#panel">` links, so
+  hash routing and keyboard navigation work); the tabs are grouped Company /
+  Workforce / Operations / Admin and the pages that were URL-only (`/estimating`,
+  `/admin/projects`, `/admin/labor-rates`, `/dropplan`, `/settings/interface`,
+  `/company`) got entry points. `#hours` (Hours Log) got a tab for the first time.
+* First tab renamed Projects → **Overview** (EN/ES dict updated); the KPI tiles
+  moved INSIDE the Overview panel instead of sitting above every tab; the
+  always-visible "Company Overview" heading and the build-stamp footer line are
+  gone from user-facing copy (the stamp element remains, hidden, for tooling).
+* Shell rules are `.ssc-side .ssc-nav …` (0,3,0) on purpose so a page's legacy
+  `.nav-tab` rules never win. Console-only overrides sit at the END of its inline
+  style block.
+
+Guards unchanged and green: design conventions 139/139 (console buttons still
+resolve to the accent), #299 static contract, #302 portal behavioral. Perf budget
+unaffected (one extra static stylesheet, cached). Next surfaces to migrate:
+`admin_users.html`, `admin_projects.html`, `estimating.html`, `admin_labor_rates.html`.
+Buildings-as-a-table moves to **#304**.
+
+### #302 — Company Portal (Bookore, 2026-09-10)
+
+`/company` — the C-suite's whole-company view, a new standalone page
+(`company_portal.html`) + module (`company_portal.py`) gated by the new
+`company_portal` section (admin/c_suite; everyone else 403 on the page and every
+endpoint). Six views, one aggregate request each, hash-routed: Overview · Clients
+& Buildings · Finance · Expenses · Workforce & Pay · Compliance.
+
+* **Buildings are DERIVED** (no buildings table yet — #303): the distinct
+  normalized addresses across `projects` + `estimate` linked to a client
+  (`company_portal.address_key`: '890 East 135th Street' == '890 E 135th St, Bronx').
+  Each building groups its projects and estimates.
+* **Finance** rolls up: estimate pipeline/won/lost by month and status, spend from
+  BOTH ledgers (`expenses` receipts + `project_expense`, reported separately —
+  they can overlap), by category/project, receivables from `ira_job`, labor cost =
+  worked hours × the rate effective on the work date (`worker_rates`, fallback
+  `labor_worker_state`) with an explicit UNRATED bucket, QuickBooks sync counts,
+  and the `subscriptions` ledger when the table exists (`available:false` when not).
+* **Compliance** sweeps everything with an expiry: worker certs, `permits_library`,
+  `project_documents`, `estimate_document`, and the NEW `company_document` table
+  (company licenses / insurance / bonds — created at boot, idempotent) into
+  expired / ≤30 / 31–60 / 61–90 buckets. CRUD for company documents lives on the
+  page (add / edit / archive; archive is soft).
+* Comp-class data (rates, labor cost) appears here ON PURPOSE: this is a
+  company-only surface (CLAUDE.md comp-data rule), never field-reachable.
+* Perf budget declared (`company_portal`: reqs 6 / kb 60); design guard registry
+  updated; no build stamps or issue numbers in visible copy.
+
+Guard: `tests/smoke_company_portal_302.py` (behavioral, isolated DB: gating for
+six roles, address de-dup, rollup math, both ledgers + filters, expiry buckets,
+company-document CRUD, no `*_path` keys). Next: #303 first-class `building`
+table + `projects.building_id` / `estimate.building_id`; company-level expense
+ledger; Subscriptions CRUD.
 
 ### #301 — self-service password reset + password visibility (Bookore, 2026-09-08)
 

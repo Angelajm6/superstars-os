@@ -129,7 +129,7 @@ _HTML = """\
           <td align="left" style="padding:24px 36px 0 36px;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td align="center" style="background:#B11E2E;border-radius:9px;">
+                <td align="center" style="background:#24418C;border-radius:9px;">
                   <a href="{url}" style="display:inline-block;padding:13px 26px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;letter-spacing:0.3px;color:#FFFFFF;text-decoration:none;border-radius:9px;">Choose a new password</a>
                 </td>
               </tr>
@@ -451,10 +451,15 @@ def confirm_reset():
         if not row or not _eligible(account):
             return jsonify({"error": INVALID_TOKEN_MESSAGE, "code": "invalid_token"}), 400
         uid = row["user_id"]
-        conn.execute(
+        burned = conn.execute(
             "UPDATE password_reset_token SET used_at = ? WHERE id = ? AND used_at IS NULL",
             (now, row["token_id"]),
         )
+        # #305 — single use under concurrency: only the request that actually burned
+        # the token may set the password.
+        if getattr(burned, "rowcount", 1) == 0:
+            conn.rollback()
+            return jsonify({"error": INVALID_TOKEN_MESSAGE, "code": "invalid_token"}), 400
         conn.execute(
             "UPDATE users SET password_hash = ?, must_reset_password = 0 WHERE id = ?",
             (auth.hash_password(new_password), uid),

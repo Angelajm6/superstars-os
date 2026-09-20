@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Superstars Contracting — Project Portal</title>
   <link rel="stylesheet" href="/files/static/fonts/typography.css">
-  <link rel="stylesheet" href="/files/static/css/widgets.css?v=286">
+  <link rel="stylesheet" href="/files/static/css/widgets.css?v=321">
+  <script src="/files/static/js/shell.js?v=312" defer></script>
   <script src="/files/static/vendor/chart.umd.min.js"></script>
   <!-- #286 — the REAL grid engine, the same shared assets the internal dashboards
        consume: vendored GridStack + the DashLayout framework (per-user layout
@@ -44,8 +45,8 @@
     .nav-link { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:8px;
                 font-size:13.5px; font-weight:600; color:var(--soft); text-decoration:none;
                 cursor:pointer; border-left:3px solid transparent; }
-    .nav-link:hover { color:var(--brand-red); background:var(--paper); }
-    .nav-link.active { color:var(--brand-red); background:#fbeceb; border-left-color:var(--brand-red); }
+    .nav-link:hover { color:var(--ui); background:var(--paper); }
+    .nav-link.active { color:var(--ui); background:var(--ui-soft); border-left-color:var(--ui); }
     .nav-ic { width:16px; height:16px; flex:none; stroke:currentColor; fill:none;
               stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
     .sidebar-grow { flex:1; min-height:8px; }
@@ -53,9 +54,9 @@
     .acct-name { font-size:12.5px; font-weight:700; }
     .acct-role { font-size:10px; color:var(--mute); text-transform:uppercase; letter-spacing:.08em; }
     .signout { margin-top:8px; display:inline-block; font-size:12px; font-weight:700;
-               color:var(--brand-red); background:none; border:1px solid var(--hairline);
+               color:var(--ui); background:none; border:1px solid var(--hairline);
                border-radius:8px; padding:6px 12px; cursor:pointer; }
-    .signout:hover { border-color:var(--brand-red); }
+    .signout:hover { border-color:var(--ui); }
 
     /* ---- main pane ---- */
     .main { flex:1; min-width:0; display:flex; flex-direction:column; }
@@ -68,22 +69,67 @@
                       padding:8px 22px; letter-spacing:.03em; }
     .content { padding:22px; max-width:1120px; width:100%; }
     .view { display:none; }
-    .view.active { display:block; }
-    .v-head { margin:2px 0 16px; }
+    .view.active { display:block; animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }   /* #311 */
+    .v-head { margin:2px 0 16px; position:relative; overflow:hidden; padding:16px 18px; border:1px solid var(--hairline); border-radius:12px;
+              background:radial-gradient(520px 170px at 14% 0%, rgba(67,100,220,.14) 0%, rgba(255,255,255,0) 60%), #fff; }   /* #314 hero band */
+    .v-head::before { content:""; position:absolute; left:0; right:0; top:0; height:3px; background:linear-gradient(90deg, #4364dc, #ebf0fe); }
     .v-eyebrow { font-size:11px; color:var(--mute); text-transform:uppercase; letter-spacing:.12em; font-weight:700; }
     .v-head h1 { font-size:22px; line-height:1.25; margin-top:2px; }
     .loading { color:var(--mute); font-size:13px; padding:10px 0; }
 
     /* documents (unchanged this build — local look) */
-    .doc-row { display:flex; align-items:center; gap:14px; padding:12px 4px;
+    .doc-row { display:flex; align-items:center; gap:14px; padding:12px 10px;
                border-bottom:1px solid #F2EFE7; }
     .doc-main { min-width:0; flex:1; }
     .doc-title { font-size:13.5px; font-weight:700; }
     .doc-meta { font-size:11px; color:var(--mute); text-transform:uppercase; letter-spacing:.04em; margin-top:1px; }
-    .doc-open { flex:none; font-size:12px; font-weight:700; color:var(--brand-red); text-decoration:none;
+    .doc-open { flex:none; font-size:12px; font-weight:700; color:var(--ui); text-decoration:none;
                 border:1px solid var(--hairline); border-radius:8px; padding:6px 12px; }
-    .doc-open:hover { border-color:var(--brand-red); }
+    .doc-open:hover { border-color:var(--ui); }
     .doc-pad { padding:18px; }
+    /* #308 proposals */
+    .prp-card { background:#fff; border:1px solid var(--hairline); border-radius:12px; padding:18px 20px; margin-bottom:14px; }
+    .prp-head { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; flex-wrap:wrap; }
+    .prp-title { font-size:15px; font-weight:800; }
+    .prp-meta { font-size:12px; color:var(--mute); margin-top:3px; }
+    .prp-price { font-size:22px; font-weight:800; text-align:right; }
+    .prp-price s { display:block; font-size:11px; color:var(--mute); text-decoration:none; font-weight:600; }
+    .prp-pill { display:inline-block; font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; background:#F3F0E9; color:#6b6455; }
+    .prp-pill.open { background:#FFF4E5; color:#9A5B00; }
+    .prp-pill.signed { background:#e7f6f0; color:#0c7a5f; }
+    .prp-pill.declined, .prp-pill.expired { background:#fceeec; color:#A8382B; }
+    .prp-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; align-items:center; }
+    .prp-btn { font:inherit; font-size:12px; font-weight:700; padding:8px 14px; border-radius:8px; border:1px solid var(--hairline); background:#fff; color:var(--ink); cursor:pointer; text-decoration:none; }
+    .prp-btn.primary { background:var(--ui); border-color:var(--ui); color:#fff; }
+    .prp-btn:disabled { opacity:.6; cursor:default; }
+    .prp-sign { margin-top:14px; border-top:1px solid #F2EFE7; padding-top:14px; }
+    .prp-sign label { display:block; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--mute); margin:10px 0 5px; }
+    .prp-sign input, .prp-sign textarea { width:100%; font:inherit; font-size:13px; padding:9px 10px; border:1px solid var(--hairline); border-radius:8px; background:#fff; box-sizing:border-box; }
+    .prp-sign .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .prp-sign .chk { display:flex; gap:9px; align-items:flex-start; font-size:13px; color:#384152; margin-top:12px; text-transform:none; letter-spacing:0; font-weight:500; }
+    .prp-sign .chk input { width:auto; margin-top:3px; }
+    .prp-err { display:none; color:#A8382B; background:#fceeec; border-radius:8px; padding:8px 10px; font-size:12.5px; margin-top:10px; }
+    .prp-err.show { display:block; }
+    @media (max-width:600px) { .prp-sign .row { grid-template-columns:1fr; } .prp-price { text-align:left; } }
+    /* #311 / #321 — ONE sidebar language across the product (mirrors shell.css): light
+       grey sidebar, ink text, soft-blue active row with a blue edge, quiet hover. Markup + JS untouched. */
+    .sidebar { background:var(--side-bg,#F3F4F6); border-right:1px solid var(--side-edge,#E3E5EA); }
+    .sidebar-header { border-bottom-color:var(--side-edge,#E3E5EA); }
+    .brand-name { color:#14161C; } .brand-sub { color:var(--side-muted,#8A8F99); }
+    .proj-line { border-bottom-color:var(--side-edge,#E3E5EA); } .proj-name { color:#14161C; } .proj-client { color:var(--side-muted,#8A8F99); }
+    .nav-label { color:var(--side-muted,#8A8F99); }
+    .nav-link { color:var(--side-ink,#2B2F38); border-left-color:transparent; position:relative;
+                transition:background var(--ssc-t-fast,.12s) ease, color var(--ssc-t-fast,.12s) ease, transform var(--ssc-t,.18s) var(--ssc-ease,ease); }
+    .nav-link:hover { background:var(--side-hover,rgba(20,22,28,.05)); color:#14161C; transform:translateX(2px); }
+    .nav-link.active { background:var(--ui-soft,#E8EDF8); color:var(--ui,#24418C); border-left-color:transparent; transform:none; }
+    .nav-link::before { content:""; position:absolute; left:0; top:50%; width:3px; height:0; border-radius:3px; background:var(--ui,#24418C);
+                        transform:translateY(-50%); transition:height var(--ssc-t,.18s) var(--ssc-ease,ease); }
+    .nav-link.active::before { height:18px; }
+    .sidebar-footer { border-top-color:var(--side-edge,#E3E5EA); }
+    .acct-name { color:#14161C; } .acct-role { color:var(--side-muted,#8A8F99); }
+    .signout { color:var(--ui,#24418C); background:#fff; border-color:var(--side-edge,#E3E5EA); }
+    .signout:hover { border-color:var(--ui,#24418C); }
+    @media (max-width:860px) { .sidebar { border-right:0; border-bottom:1px solid var(--side-edge,#E3E5EA); } }
 
     @media (max-width:860px) {
       .app-shell { flex-direction:column; }
@@ -100,6 +146,7 @@
   <symbol id="pi-file" viewBox="0 0 24 24"><path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/></symbol>
   <symbol id="pi-camera" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></symbol>
   <symbol id="pi-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="pi-sign" viewBox="0 0 24 24"><path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 16c1.5-3 2.5-3 3 0s1.5 3 3 0"/></symbol>
   <symbol id="pi-pencil" viewBox="0 0 24 24"><path d="M4 20l4-1L20 7l-3-3L5 16z"/></symbol>
   <!-- weather glyphs — the internal widget's vocabulary, carried verbatim -->
   <symbol id="w-sun" viewBox="0 0 24 24"><g stroke="#F6A609" stroke-width="2" stroke-linecap="round"><path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M19.4 4.6l-1.7 1.7M6.3 17.7l-1.7 1.7"/></g><circle cx="12" cy="12" r="4.6" fill="#FDB813" stroke="#F6A609" stroke-width="1"/></symbol>
@@ -136,6 +183,9 @@
 <!-- PORTAL_SECTION:documents:start -->
       <a class="nav-link" data-portal-nav="documents"><svg class="nav-ic"><use href="#pi-file"/></svg>Documents</a>
 <!-- PORTAL_SECTION:documents:end -->
+<!-- PORTAL_SECTION:proposals:start -->
+      <a class="nav-link" data-portal-nav="proposals"><svg class="nav-ic"><use href="#pi-sign"/></svg>Proposals</a>
+<!-- PORTAL_SECTION:proposals:end -->
 <!-- PORTAL_SECTION:daily:start -->
       <a class="nav-link" data-portal-nav="daily"><svg class="nav-ic"><use href="#pi-file"/></svg>Daily Reports</a>
 <!-- PORTAL_SECTION:daily:end -->
@@ -242,6 +292,12 @@
         <div class="shc-card doc-pad" id="doc-list"><div class="loading">Loading documents…</div></div>
       </section>
 <!-- PORTAL_SECTION:documents:end -->
+<!-- PORTAL_SECTION:proposals:start -->
+      <section class="view" data-portal-view="proposals">
+        <div class="v-head"><div class="v-eyebrow">Sent to your organization</div><h1>Proposals</h1></div>
+        <div id="prp-list"><div class="loading">Loading proposals…</div></div>
+      </section>
+<!-- PORTAL_SECTION:proposals:end -->
 <!-- PORTAL_SECTION:daily:start -->
       <section class="view" data-portal-view="daily">
         <!-- #286 — the internal Daily Construction Reports page anatomy: head with
@@ -790,6 +846,33 @@
       });
     },
 
+    proposals: function () {
+      var host = document.getElementById('prp-list');
+      getJSON(API_BASE + '/proposals').then(function (j) {
+        var rows = (j.data && j.data.proposals) || [];
+        if (!rows.length) {
+          emptyState(host, 'No proposals yet',
+            'Proposals sent to your organization will appear here for review and signature.');
+          return;
+        }
+        host.innerHTML = rows.map(prpCard).join('');
+        host.querySelectorAll('[data-prp-accept]').forEach(function (b) {
+          b.addEventListener('click', function () { prpAccept(b.getAttribute('data-prp-accept')); });
+        });
+        host.querySelectorAll('[data-prp-decline]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            var box = document.getElementById('prp-dec-' + b.getAttribute('data-prp-decline'));
+            box.style.display = box.style.display === 'block' ? 'none' : 'block';
+          });
+        });
+        host.querySelectorAll('[data-prp-decline-go]').forEach(function (b) {
+          b.addEventListener('click', function () { prpDecline(b.getAttribute('data-prp-decline-go')); });
+        });
+      }).catch(function () {
+        emptyState(host, 'Proposals are unavailable right now', 'Please try again shortly.');
+      });
+    },
+
     schedule: function () {
       var startEl = document.getElementById('pla-start');
       if (window.SSCDatePicker) {
@@ -800,6 +883,59 @@
       plaLoad();
     }
   };
+
+  // ---- #308: proposal cards + the client's accept / decline ----
+  function money(v) { return v == null ? '—' : '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function prpCard(p) {
+    var sub = p.status === 'signed' ? 'Accepted by ' + esc(p.signed_name || '') + ' on ' + esc(mdy(p.signed_at))
+      : p.status === 'declined' ? 'Declined on ' + esc(mdy(p.declined_at))
+      : p.status === 'expired' ? 'Was valid until ' + esc(mdy(p.valid_until)) + ' — ask us for a refreshed version'
+      : 'Valid until ' + esc(mdy(p.valid_until));
+    var deposit = p.deposit_amount != null ? '<s>Deposit to start ' + esc(money(p.deposit_amount)) + (p.deposit_pct != null ? ' (' + esc(p.deposit_pct) + '%)' : '') + '</s>' : '';
+    var sign = '';
+    if (p.can_accept && PREVIEW_ID) {
+      sign = '<div class="prp-sign" style="font-size:12.5px;color:var(--mute)">The client signs here — the signature form is theirs alone, so a preview only shows that it is open.</div>';
+    } else if (p.can_accept) {
+      sign = '<div class="prp-sign" id="prp-sign-' + p.id + '">' +
+        '<div class="row"><div><label for="prp-nm-' + p.id + '">Full name</label><input id="prp-nm-' + p.id + '" autocomplete="name" placeholder="Type your full name to sign"></div>' +
+        '<div><label for="prp-tt-' + p.id + '">Title (optional)</label><input id="prp-tt-' + p.id + '" placeholder="e.g. Property manager"></div></div>' +
+        '<label class="chk"><input type="checkbox" id="prp-ag-' + p.id + '"> I have read the scope, price, exclusions and terms in proposal ' + esc(p.number) + ' and accept it on behalf of my organization.</label>' +
+        '<div class="prp-err" id="prp-err-' + p.id + '"></div>' +
+        '<div class="prp-actions"><button type="button" class="prp-btn primary" data-prp-accept="' + p.id + '">Accept proposal</button>' +
+        '<button type="button" class="prp-btn" data-prp-decline="' + p.id + '">Decline</button></div>' +
+        '<div id="prp-dec-' + p.id + '" style="display:none"><label for="prp-rs-' + p.id + '">Let us know why (optional)</label><textarea id="prp-rs-' + p.id + '" rows="2"></textarea>' +
+        '<div class="prp-actions"><button type="button" class="prp-btn" data-prp-decline-go="' + p.id + '">Confirm decline</button></div></div></div>';
+    }
+    return '<div class="prp-card"><div class="prp-head"><div>' +
+      '<span class="prp-pill ' + esc(p.status) + '">' + esc(p.status_label) + '</span>' +
+      '<div class="prp-title" style="margin-top:8px">' + esc(p.title || 'Proposal') + '</div>' +
+      '<div class="prp-meta">' + esc(p.number) + (p.building ? ' · ' + esc(p.building) : '') + ' · ' + sub + '</div></div>' +
+      '<div class="prp-price">' + esc(money(p.price)) + deposit + '</div></div>' +
+      '<div class="prp-actions"><a class="prp-btn" target="_blank" rel="noopener" href="' + esc(u(p.view_url)) + '">Open proposal</a>' +
+      '<a class="prp-btn" target="_blank" rel="noopener" href="' + esc(u(p.pdf_url)) + '">Download PDF</a></div>' + sign + '</div>';
+  }
+  function prpErr(id, msg) { var e = document.getElementById('prp-err-' + id); if (!e) return; e.textContent = msg || ''; e.className = 'prp-err' + (msg ? ' show' : ''); }
+  function prpPost(url, body) {
+    return fetch(u(url), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (x) { if (!r.ok) throw new Error(x.error || ('Request failed (' + r.status + ')')); return x; }); });
+  }
+  function prpReload() { loaded.proposals = false; try { sessionStorage.removeItem('ssc.boot.portal.' + API_BASE + '/proposals'); } catch (e) { } show('proposals'); }
+  function prpAccept(id) {
+    var nm = (document.getElementById('prp-nm-' + id).value || '').trim();
+    var tt = (document.getElementById('prp-tt-' + id).value || '').trim();
+    if (nm.length < 2) return prpErr(id, 'Please type your full name.');
+    if (!document.getElementById('prp-ag-' + id).checked) return prpErr(id, 'Please tick the box to confirm you accept the terms.');
+    prpErr(id, '');
+    var btn = document.querySelector('[data-prp-accept="' + id + '"]'); if (btn) btn.disabled = true;
+    prpPost(API_BASE + '/proposals/' + id + '/accept', { name: nm, title: tt, agreed: true })
+      .then(prpReload).catch(function (x) { prpErr(id, x.message); if (btn) btn.disabled = false; });
+  }
+  function prpDecline(id) {
+    if (!window.confirm('Decline this proposal?')) return;
+    var btn = document.querySelector('[data-prp-decline-go="' + id + '"]'); if (btn) btn.disabled = true;
+    prpPost(API_BASE + '/proposals/' + id + '/decline', { reason: (document.getElementById('prp-rs-' + id).value || '') })
+      .then(prpReload).catch(function (x) { prpErr(id, x.message); if (btn) btn.disabled = false; });
+  }
 
   // ---- #286: the read-only Look-Ahead board (internal anatomy, curated data) ----
   function plaStartISO() {

@@ -557,6 +557,162 @@ def _sec_lookahead():
     }}))
 
 
+# ============= SECTION: proposals (#308) =============
+# The #307 proposal rows, projected for the CLIENT. Scope = the organization that owns
+# the client's ONE bound project (projects.client_org_id): every proposal that was SENT
+# to that organization (never a draft, never a superseded version), each one labelled
+# with its building because an organization can own several. The client can open the
+# document, download the PDF, and — the C-suite's ask — accept with a typed signature or
+# decline, from inside the portal. Accept/decline reuse proposals.accept/decline, so the
+# trigger (#307: estimate approved, COI + deposit tasks, VP notification) is the same code
+# path as the emailed link. An ADMIN PREVIEW is read-only: the write endpoints refuse it.
+
+def _client_org_id(conn, code):
+    r = conn.execute("SELECT client_org_id FROM projects WHERE project_code = ?", (code,)).fetchone()
+    return (r["client_org_id"] if r else None) or None
+
+
+def _client_status(r) -> tuple:
+    """(client key, label). Internal lifecycle words never leave the building."""
+    import proposals
+    st = proposals._link_state(r)
+    return {
+        "open": ("open", "Awaiting your signature"),
+        "signed": ("signed", "Accepted"),
+        "declined": ("declined", "Declined"),
+        "expired": ("expired", "Expired"),
+    }.get(st, ("expired", "No longer available"))
+
+
+def _proposal_row(r, code) -> dict:
+    key, label = _client_status(r)
+    base = f"/api/portal/{code}/proposals/{r['id']}"
+    return reg.client_payload("portal.proposal", {
+        "id": r["id"], "number": r["number"], "version": r["version"], "title": r.get("title"),
+        "status": key, "status_label": label,
+        "price": r.get("price"), "deposit_amount": r.get("deposit_amount"), "deposit_pct": r.get("deposit_pct"),
+        "valid_until": r.get("valid_until"), "sent_at": r.get("sent_at"),
+        "signed_at": r.get("signed_at"), "signed_name": r.get("signed_name"), "declined_at": r.get("declined_at"),
+        "building": r.get("building_address_line") or r.get("building_address"),
+        "view_url": base + "/view", "pdf_url": base + "/pdf", "can_accept": key == "open",
+    })
+
+
+def _own_proposal(conn, code, proposal_id):
+    """The proposal ONLY if it belongs to the bound project's organization and was sent
+    (draft / superseded rows do not exist for the client). None otherwise -> 404."""
+    import proposals
+    org = _client_org_id(conn, code)
+    if not org:
+        return None
+    r = proposals.get(conn, proposal_id)
+    if not r or r["client_org_id"] != org or r["status"] in ("draft", "superseded"):
+        return None
+    return r
+
+
+@require_portal_section("proposals")
+def _sec_proposals():
+    import proposals
+    project_code = g.client_project_code
+    conn = _db()
+    try:
+        org = _client_org_id(conn, project_code)
+        rows = []
+        if org:
+            for r in conn.execute(proposals._JOIN + "WHERE p.client_org_id = ? AND p.status IN ('sent','viewed','signed','declined') "
+                                  "ORDER BY p.sent_at DESC, p.id DESC", (org,)).fetchall():
+                rows.append(_proposal_row(dict(r), project_code))
+        return _no_store(jsonify({"data": {"proposals": rows,
+                                          "open_count": sum(1 for x in rows if x["status"] == "open")}}))
+    finally:
+        conn.close()
+
+
+@require_portal_section("proposals")
+def _sec_proposal_view(proposal_id):
+    """The document itself (no acceptance UI — the portal card carries it). A real
+    client's first open flips sent -> viewed exactly like the emailed link."""
+    import proposals
+    project_code = g.client_project_code
+    conn = _db()
+    try:
+        r = _own_proposal(conn, project_code, proposal_id)
+        if not r:
+            return jsonify({"error": "not found"}), 404
+        if not g.portal_is_preview and proposals._link_state(r) == "open":
+            r = proposals.record_view(conn, r, ip=proposals._client_ip())
+        from flask import make_response
+        return _no_store(make_response(proposals.render_document(conn, r, mode="page"), 200))
+    finally:
+        conn.close()
+
+
+@require_portal_section("proposals")
+def _sec_proposal_pdf(proposal_id):
+    import proposals
+    project_code = g.client_project_code
+    conn = _db()
+    try:
+        r = _own_proposal(conn, project_code, proposal_id)
+        if not r:
+            return jsonify({"error": "not found"}), 404
+        p = proposals.pdf_file(conn, r["id"])
+        if not p:
+            return jsonify({"error": "the PDF is not available right now — open the proposal instead"}), 503
+        from flask import make_response
+        return _no_store(make_response(send_file(str(p), mimetype="application/pdf", as_attachment=True,
+                                                 download_name=f"{r['number']}.pdf")))
+    finally:
+        conn.close()
+
+
+@require_portal_section("proposals")
+def _sec_proposal_accept(proposal_id):
+    import proposals
+    if g.portal_is_preview:
+        return jsonify({"error": "read-only preview"}), 403
+    body = request.get_json(silent=True) or {}
+    if not body.get("agreed"):
+        return jsonify({"error": "please confirm you accept the terms"}), 400
+    project_code = g.client_project_code
+    conn = _db()
+    try:
+        r = _own_proposal(conn, project_code, proposal_id)
+        if not r:
+            return jsonify({"error": "not found"}), 404
+        try:
+            r = proposals.accept(conn, r, name=body.get("name"), title=body.get("title"), ip=proposals._client_ip())
+        except ValueError as e:
+            return jsonify({"error": str(e)}), (409 if "no longer" in str(e) else 400)
+        logging.info(f"portal_sections: proposal accepted id={r['id']} client={g.portal_client_id}")
+        return _no_store(jsonify({"data": _proposal_row(r, project_code)}))
+    finally:
+        conn.close()
+
+
+@require_portal_section("proposals")
+def _sec_proposal_decline(proposal_id):
+    import proposals
+    if g.portal_is_preview:
+        return jsonify({"error": "read-only preview"}), 403
+    body = request.get_json(silent=True) or {}
+    project_code = g.client_project_code
+    conn = _db()
+    try:
+        r = _own_proposal(conn, project_code, proposal_id)
+        if not r:
+            return jsonify({"error": "not found"}), 404
+        try:
+            r = proposals.decline(conn, r, reason=body.get("reason"), ip=proposals._client_ip())
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 409
+        logging.info(f"portal_sections: proposal declined id={r['id']} client={g.portal_client_id}")
+        return _no_store(jsonify({"data": _proposal_row(r, project_code)}))
+    finally:
+        conn.close()
+
+
 def register(app) -> None:
     """Wire the four section payloads. Call AFTER client_portal.register (the client
     gate must already be routing /api/portal/* for the session role)."""
@@ -572,3 +728,14 @@ def register(app) -> None:
                      "portal_sec_daily_view", _sec_daily_view, methods=["GET"])
     app.add_url_rule("/api/portal/<project_code>/lookahead", "portal_sec_lookahead",
                      _sec_lookahead, methods=["GET"])
+    # #308 — proposals (read + the client's accept / decline)
+    app.add_url_rule("/api/portal/<project_code>/proposals", "portal_sec_proposals",
+                     _sec_proposals, methods=["GET"])
+    app.add_url_rule("/api/portal/<project_code>/proposals/<int:proposal_id>/view",
+                     "portal_sec_proposal_view", _sec_proposal_view, methods=["GET"])
+    app.add_url_rule("/api/portal/<project_code>/proposals/<int:proposal_id>/pdf",
+                     "portal_sec_proposal_pdf", _sec_proposal_pdf, methods=["GET"])
+    app.add_url_rule("/api/portal/<project_code>/proposals/<int:proposal_id>/accept",
+                     "portal_sec_proposal_accept", _sec_proposal_accept, methods=["POST"])
+    app.add_url_rule("/api/portal/<project_code>/proposals/<int:proposal_id>/decline",
+                     "portal_sec_proposal_decline", _sec_proposal_decline, methods=["POST"])

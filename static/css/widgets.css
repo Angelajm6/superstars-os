@@ -21,6 +21,8 @@
      colourway change updates brand.py + these tokens and propagates everywhere
      (UI chrome + report letterheads). The LOGO is a swappable asset (static/brand/). */
   --brand-red:#B11E2E; --brand-red-deep:#8B1623; --cream:#FAF7F1;
+  --ui:#24418C; --ui-deep:#1B3272; --ui-soft:#E8EDF8; --ui-edge:rgba(36,65,140,.35);
+  --side-bg:#F3F4F6; --side-edge:#E3E5EA; --side-ink:#2B2F38; --side-muted:#8A8F99; --side-hover:rgba(20,22,28,.05);   /* #321 — the light sidebar (option A) */   /* #313 — interactive accent (nav, links, primary actions); brand red = identity + errors */
   /* Lumen+Oat STATUS tokens — status meaning ONLY (never decoration) */
   --status-complete:#15a07e; --status-complete-soft:#e7f6f0;
   --status-active:#4364dc;   --status-active-soft:#ebf0fe;
@@ -116,7 +118,7 @@ textarea.ssc-field,
 /* layout controls */
 .ph-gridbar { display:flex; align-items:center; gap:12px; margin:8px 0 4px; }
 .ph-reset { background:#fff; color:#54505A; border:1px solid #E8E4DD; border-radius:8px; padding:7px 12px; font-size:12px; font-weight:700; cursor:pointer; }
-.ph-reset:hover { border-color:#B11E2E; color:#B11E2E; }
+.ph-reset:hover { border-color:var(--ui); color:var(--ui); }
 .ph-gridbar-hint { font-size:11px; color:#76777E; }
 
 /* circular ring */
@@ -142,7 +144,7 @@ textarea.ssc-field,
 .cc-active-name { font-weight:800; font-size:17px; }
 .cc-active-client { font-size:12px; color:#B11E2E; text-transform:uppercase; letter-spacing:.08em; font-weight:700; margin-top:2px; }
 .cc-active-sub { font-size:12px; color:#54505A; margin-top:6px; }
-.cc-open { display:inline-block; margin-top:10px; font-size:12px; font-weight:700; color:#B11E2E; text-decoration:none; }
+.cc-open { display:inline-block; margin-top:10px; font-size:12px; font-weight:700; color:var(--ui); text-decoration:none; }
 
 .cc-light { display:inline-flex; align-items:center; gap:8px; font-weight:700; font-size:13px; }
 .cc-dot { width:11px; height:11px; border-radius:50%; flex-shrink:0; }
@@ -160,7 +162,7 @@ textarea.ssc-field,
 
 .cc-actions { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
 .cc-action { display:block; text-align:center; background:#FCFBF8; border:1px solid #E8E4DD; border-radius:9px; padding:12px 10px; font-size:12px; font-weight:700; color:#14161C; text-decoration:none; }
-.cc-action:hover { border-color:#B11E2E; color:#B11E2E; }
+.cc-action:hover { border-color:var(--ui); color:var(--ui); }
 
 .cc-feed { display:flex; flex-direction:column; }
 .cc-feed-item { display:flex; align-items:baseline; gap:10px; padding:7px 0; border-bottom:1px solid #F2EFE7; font-size:12px; }
@@ -388,3 +390,107 @@ textarea.ssc-field,
 .shc-la-mile.insp { border-color:#15a07e; }
 .shc-la-mile span { transform:rotate(-45deg); font-size:9px; display:flex; }
 .shc-la-hint { color:#8c92a0; font-size:12px; margin-top:13px; }
+
+/* ===== Motion & interaction layer (#311) — ONE vocabulary for every surface.
+   Views/panels rise in (180 ms), controls answer the pointer (hover lift, press
+   sink), loading placeholders shimmer, and everything collapses to instant when
+   the person asked their OS for reduced motion. Pages opt a view in by adding
+   `animation: ssc-rise var(--ssc-t-view) var(--ssc-ease) both` to its active
+   state; nothing here changes layout. ===== */
+:root {
+  --ssc-t-fast: .12s; --ssc-t: .18s; --ssc-t-view: .22s;
+  --ssc-ease: cubic-bezier(.2, .7, .2, 1);
+  --ssc-shadow-hover: 0 6px 18px rgba(20,22,28,.08);
+}
+@keyframes ssc-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ssc-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ssc-shimmer { from { background-position: -400px 0; } to { background-position: 400px 0; } }
+.ssc-rise { animation: ssc-rise var(--ssc-t-view) var(--ssc-ease) both; }
+.ssc-skel, .cp-skel, .lr-card-loading.skel {
+  position: relative; overflow: hidden; border-radius: 10px; min-height: 14px;
+  background: linear-gradient(90deg, #f1f2f5 0px, #f8f9fb 40%, #f1f2f5 80%) 0 0 / 800px 100%;
+  animation: ssc-shimmer 1.3s linear infinite;
+}
+.btn-primary, .btn-ghost, .btn-sm, .prp-btn, .shc-apply, .doc-open, .cp-link, .nav-tab, .ssc-nav a {
+  transition: background var(--ssc-t-fast) ease, color var(--ssc-t-fast) ease, border-color var(--ssc-t-fast) ease,
+              box-shadow var(--ssc-t) var(--ssc-ease), transform var(--ssc-t) var(--ssc-ease);
+}
+.btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(67,100,220,.28); }
+.btn-primary:active:not(:disabled) { transform: translateY(0) scale(.985); box-shadow: 0 1px 4px rgba(67,100,220,.25); }
+.btn-ghost:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--ssc-shadow-hover); }
+.btn-ghost:active:not(:disabled) { transform: translateY(0) scale(.985); box-shadow: none; }
+.ph-card, .cp-card, .shc-card, .frame, .section, .lrt-card, .prp-card {
+  transition: box-shadow var(--ssc-t) var(--ssc-ease), transform var(--ssc-t) var(--ssc-ease);
+}
+.cp-card:hover, .prp-card:hover, .frame:hover { box-shadow: var(--ssc-shadow-hover); }
+tbody tr { transition: background var(--ssc-t-fast) ease; }
+.cp-table tbody tr:hover td, table.ssc-table tbody tr:hover td { background: #f7f8fb; }
+:where(button, a, input, select, textarea, [tabindex]):focus-visible { outline: 2px solid var(--accent, #4364dc); outline-offset: 2px; border-radius: 6px; }
+.ssc-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+  background: var(--status-oat-soft, #f3f0e9); color: #6b6455; white-space: nowrap; line-height: 1.4; }
+.ssc-pill.ok { background: var(--status-complete-soft); color: var(--status-complete-deep); }
+.ssc-pill.info { background: var(--status-active-soft); color: var(--accent-ink); }
+.ssc-pill.warn { background: #FFF4E5; color: #9A5B00; }
+.ssc-pill.bad { background: var(--status-behind-soft); color: #A8382B; }
+.ssc-pill.brand { background: var(--ui-soft); color: var(--ui); }
+@media (prefers-reduced-motion: reduce) {
+  :root { --ssc-t-fast: 0s; --ssc-t: 0s; --ssc-t-view: 0s; }
+  .ssc-rise, .ssc-skel, .cp-skel { animation: none; }
+  *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; }
+}
+
+/* ===== #312 — collapsible menu at phone width (button + open/closed rules for
+   the two sidebar families; shell.js creates the button and toggles .nav-open).
+   Desktop is untouched: the button does not exist above 860 px. ===== */
+.ssc-menu-btn { display: none; margin-left: auto; align-items: center; gap: 8px; font: inherit; font-size: 12px; font-weight: 700;
+  letter-spacing: .3px; color: var(--side-ink, #2B2F38); background: #fff; border: 1px solid var(--side-edge, #E3E5EA); border-radius: 9px;
+  padding: 7px 11px; cursor: pointer; transition: background var(--ssc-t-fast, .12s) ease, border-color var(--ssc-t-fast, .12s) ease; }   /* #321 light */
+.ssc-menu-btn:hover { background: var(--ui-soft, #E8EDF8); border-color: var(--ui-edge, rgba(36,65,140,.35)); color: var(--ui, #24418C); }
+.ssc-menu-bars { display: inline-flex; flex-direction: column; gap: 3px; width: 14px; }
+.ssc-menu-bars i { display: block; height: 2px; border-radius: 2px; background: currentColor; transition: transform var(--ssc-t, .18s) var(--ssc-ease, ease), opacity var(--ssc-t, .18s) ease; transform-origin: center; }
+[aria-expanded="true"] .ssc-menu-bars i:nth-child(1) { transform: translateY(5px) rotate(45deg); }
+[aria-expanded="true"] .ssc-menu-bars i:nth-child(2) { opacity: 0; }
+[aria-expanded="true"] .ssc-menu-bars i:nth-child(3) { transform: translateY(-5px) rotate(-45deg); }
+@media (max-width: 860px) {
+  .ssc-menu-btn { display: inline-flex; }
+  /* project dashboard + client portal (.sidebar family): compact bar, menu slides in */
+  .sidebar { width: 100%; height: auto; position: sticky; top: 0; z-index: 6; padding: 10px 12px; }
+  .sidebar .sidebar-header { padding: 4px 6px 8px; margin-bottom: 0; border-bottom: 0; }
+  .sidebar .nav, .sidebar .proj-line, .sidebar .sidebar-grow, .sidebar .sidebar-footer, .sidebar .nav-group { display: none; }
+  .sidebar.nav-open .nav, .sidebar.nav-open .proj-line, .sidebar.nav-open .sidebar-footer, .sidebar.nav-open .nav-group { display: block; animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }
+  .sidebar.nav-open .nav { display: flex; flex-direction: column; }
+}
+
+/* ===== #314 — the production Labor Rate Tracker look, shared: a 3px accent bar +
+   a soft blue wash fading to white on hero areas (.ssc-hero), the calm-blue inward
+   vignette on KPI tiles (.ssc-tile), and three hover behaviours — lift for tiles and
+   cards, edge for link rows, tint for table rows. Pages opt in by class or by the
+   selector lists below. ===== */
+.ssc-hero { position: relative; background: radial-gradient(520px 170px at 14% 0%, var(--accent-in) 0%, rgba(255,255,255,0) 60%), #fff; }
+.ssc-hero::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; border-radius: inherit; border-bottom-left-radius: 0; border-bottom-right-radius: 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent-soft)); }
+.ssc-tile { border-color: var(--accent-edge); box-shadow: inset 0 0 12px var(--accent-in), 0 1px 4px rgba(0,0,0,.04); }
+
+/* lift: tiles + cards that open something */
+.hv-lift, .cp-kpis .cp-kpi, .prp-card, .pm-card, .shc-tile, .kpis .tile, .project-card {
+  transition: transform var(--ssc-t, .18s) var(--ssc-ease, ease), box-shadow var(--ssc-t, .18s) var(--ssc-ease, ease), border-color var(--ssc-t-fast, .12s) ease; }
+.hv-lift:hover, .cp-kpis .cp-kpi:hover, .prp-card:hover, .pm-card:hover, .shc-tile:hover, .kpis .tile:hover, .project-card:hover {
+  transform: translateY(-2px); box-shadow: 0 10px 28px rgba(20,22,28,.10), 0 2px 6px rgba(20,22,28,.06); }
+.hv-lift:active, .cp-kpis .cp-kpi:active, .prp-card:active, .pm-card:active { transform: translateY(0) scale(.995); }
+
+/* edge: rows that are links or pickers */
+.hv-edge, .cp-list li:has(a), .doc-row { position: relative; border-radius: 8px;
+  transition: background-color var(--ssc-t-fast, .12s) ease, border-color var(--ssc-t-fast, .12s) ease; }
+.hv-edge::before, .cp-list li:has(a)::before, .doc-row::before { content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 0; border-radius: 3px;
+  background: var(--ui, #24418C); transform: translateY(-50%); transition: height var(--ssc-t, .18s) var(--ssc-ease, ease); }
+.hv-edge:hover, .cp-list li:has(a):hover, .doc-row:hover { background-color: var(--ui-soft, #E8EDF8); }
+.hv-edge:hover::before, .cp-list li:has(a):hover::before, .doc-row:hover::before { height: 60%; }
+
+/* tint: dense table rows (no movement) */
+.hv-fill:hover td, #lrt-grid tbody tr:hover td, #hrs-table tbody tr:hover td, .shc-dcr-table tbody tr:hover td,
+.ssc-main > .wrap table tbody tr:hover td, .cp-table tbody tr:hover td { background-color: var(--ui-soft, #E8EDF8); }
+
+@media (hover: none) {
+  .hv-lift:hover, .cp-kpis .cp-kpi:hover, .prp-card:hover, .pm-card:hover, .shc-tile:hover, .kpis .tile:hover, .project-card:hover { transform: none; box-shadow: none; }
+  .hv-edge:hover::before, .cp-list li:has(a):hover::before, .doc-row:hover::before { height: 0; }
+}

@@ -1,0 +1,1567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Company Portal · Superstars Contracting</title>
+<link rel="stylesheet" href="/files/static/fonts/typography.css">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=321">
+<script src="/files/static/js/shell.js?v=312" defer></script>
+<link rel="stylesheet" href="/files/static/css/shell.css?v=321">
+<script src="/files/static/js/datepicker.js?v=302" defer></script>
+<script src="/files/static/js/auth_menu.js?v=302" defer></script>
+<style>
+  /* #302 Company Portal — tokens come from widgets.css :root (accent, ink, muted, line,
+     canvas, brand-red, status-*). This block only lays out the shell + portal components. */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--canvas, #fafbfd); color: var(--ink, #222633);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+
+
+  #user-menu { display: flex; align-items: center; gap: 10px; }
+  .cp-content { padding: 22px 28px 48px; max-width: 1360px; }
+  .cp-view[hidden] { display: none !important; }
+  .cp-view:not([hidden]) { animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }   /* #311 — views rise in */
+
+  /* ---- components ---- */
+  .cp-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .cp-kpi { background: #fff; border: 1px solid var(--accent-edge); border-radius: 12px; padding: 14px 16px;
+    box-shadow: inset 0 0 12px var(--accent-in), 0 1px 4px rgba(0,0,0,.04); }   /* #314 — the calm-blue tile vignette */
+  .cp-view > :first-child.cp-card, .cp-view > :first-child > .cp-card:first-child, .cp-view > .cp-kpis + .cp-card, .cp-view > .cp-kpis + * > .cp-card:first-child { position: relative; background: radial-gradient(520px 170px at 14% 0%, var(--accent-in) 0%, rgba(255,255,255,0) 60%), #fff; }
+  .cp-view > :first-child.cp-card::before, .cp-view > :first-child > .cp-card:first-child::before, .cp-view > .cp-kpis + .cp-card::before, .cp-view > .cp-kpis + * > .cp-card:first-child::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; border-radius: 12px 12px 0 0;
+    background: linear-gradient(90deg, var(--accent), var(--accent-soft)); }   /* #314 — hero band on each view's first card */
+  .cp-kpi-k { font-size: 11px; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .cp-kpi-v { font-size: 24px; font-weight: 700; margin-top: 6px; letter-spacing: -.3px; }
+  .cp-kpi-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .cp-kpi.warn .cp-kpi-v { color: var(--status-behind, #e9685a); }
+  .cp-kpi.good .cp-kpi-v { color: var(--status-complete, #15a07e); }
+  .cp-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .cp-grid3 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .cp-grid2, .cp-grid3 { grid-template-columns: 1fr; } }
+  .cp-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; min-width: 0; }
+  .cp-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .cp-card-head h2 { margin: 0; font-size: 15px; font-weight: 700; }
+  .cp-card-head .hint { font-size: 12px; color: var(--muted); }
+  .cp-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .cp-input, .cp-select { font: inherit; font-size: 13px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); outline: none; min-width: 0; }
+  .cp-input:focus, .cp-select:focus { border-color: var(--accent, #4364dc); box-shadow: 0 0 0 3px var(--accent-soft, #ebf0fe); }
+  .cp-input.search { min-width: 240px; }
+  .cp-chip { font: inherit; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
+  .cp-chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .cp-chip .n { opacity: .7; margin-left: 4px; }
+  .cp-table-wrap { overflow-x: auto; }
+  table.cp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .cp-table th { text-align: left; font-size: 11px; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); font-weight: 700; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; cursor: pointer; user-select: none; }
+  .cp-table th.num, .cp-table td.num { text-align: right; }
+  .cp-table th .arrow { opacity: .4; margin-left: 4px; font-size: 10px; }
+  .cp-table th.sorted .arrow { opacity: 1; }
+  .cp-table td { padding: 10px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .cp-table tr:last-child td { border-bottom: 0; }
+  .cp-table tr.row-link { cursor: pointer; }
+  .cp-table tr.row-link:hover td { background: #FAFAFC; }
+  .cp-id { font-weight: 700; color: var(--brand-red, #B11E2E); }
+  .cp-muted { color: var(--muted); }
+  .cp-pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--status-oat-soft, #f3f0e9); color: #6b6455; white-space: nowrap; }
+  .cp-pill.ok { background: var(--status-complete-soft, #e7f6f0); color: var(--status-complete-deep, #0c7a5f); }
+  .cp-pill.active { background: var(--status-active-soft, #ebf0fe); color: var(--accent-ink, #3a5fd0); }
+  .cp-pill.warn { background: #FFF4E5; color: #9A5B00; }
+  .cp-pill.bad { background: var(--status-behind-soft, #fceeec); color: #A8382B; }
+  .pr-lines td { padding: 4px 4px; }
+  .pr-lines input { width: 100%; font: inherit; font-size: 13px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 7px; background: #fff; }
+  .pr-lines input:disabled, .pr-form input:disabled, .pr-form select:disabled, .pr-form textarea:disabled { background: #FAF7F1; color: var(--ink); }
+  .pr-lines .num input { text-align: right; }
+  .pr-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .pr-form .full { grid-column: 1 / -1; }
+  .pr-timeline li { display: block; }
+  .pr-timeline .when { font-size: 11px; color: var(--muted); }
+  @media (max-width: 720px) { .pr-form { grid-template-columns: 1fr; } }
+  .cp-empty { padding: 26px 12px; text-align: center; color: var(--muted); font-size: 13px; }
+  .cp-empty strong { display: block; color: var(--ink); margin-bottom: 4px; }
+  .cp-skel { height: 14px; border-radius: 6px; background: linear-gradient(90deg,#eef0f4 25%,#f7f8fa 50%,#eef0f4 75%); background-size: 200% 100%; animation: sk 1.1s infinite; margin: 8px 0; }
+  @keyframes sk { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+  .cp-bars { display: flex; align-items: flex-end; gap: 6px; height: 150px; padding-top: 8px; }
+  .cp-bar { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 2px; min-width: 0; position: relative; }
+  .cp-bar .b { border-radius: 4px 4px 0 0; min-height: 2px; }
+  .cp-bar .b.won { background: var(--status-complete, #15a07e); }
+  .cp-bar .b.spend { background: var(--brand-red, #B11E2E); opacity: .85; }
+  .cp-bar .lbl { font-size: 10px; color: var(--muted); text-align: center; margin-top: 4px; white-space: nowrap; overflow: hidden; }
+  .cp-legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .cp-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .cp-list { list-style: none; margin: 0; padding: 0; }
+  .cp-list li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }   /* #314 — room for the edge indicator */
+  .cp-list li:last-child { border-bottom: 0; }
+  .cp-link { color: var(--accent-ink, #3a5fd0); font-weight: 600; text-decoration: none; cursor: pointer; background: none; border: 0; padding: 0; font: inherit; }
+  .cp-link:hover { text-decoration: underline; }
+  .cp-actions { display: flex; gap: 8px; align-items: center; }
+  .btn-sm { padding: 6px 10px !important; font-size: 12px !important; }
+  .cp-building { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .cp-building h3 { margin: 0 0 6px; font-size: 14px; }
+  .cp-building .meta { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .cp-tags span { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #F3F4F7; margin: 0 6px 6px 0; }
+  .cp-note { font-size: 12px; color: var(--muted); background: #F7F8FA; border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
+
+  /* ---- modal ---- */
+  .cp-overlay { position: fixed; inset: 0; background: rgba(20,22,28,.45); display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+  .cp-overlay.open { display: flex; }
+  .cp-modal { background: #fff; border-radius: 14px; width: 100%; max-width: 560px; box-shadow: 0 24px 64px rgba(20,22,28,.25); max-height: 92vh; overflow: auto; }
+  .cp-modal-head { padding: 18px 20px 0; }
+  .cp-modal-head h2 { margin: 0; font-size: 16px; }
+  .cp-modal-body { padding: 14px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .cp-modal-body .full { grid-column: 1 / -1; }
+  .cp-field label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+  .cp-field input, .cp-field select, .cp-field textarea { width: 100%; font: inherit; font-size: 13px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); outline: none; }
+  .cp-field input:focus, .cp-field select:focus, .cp-field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .cp-field textarea { min-height: 70px; resize: vertical; }
+  .cp-modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 6px 20px 18px; }
+  .cp-form-err { grid-column: 1 / -1; color: #A8382B; background: var(--status-behind-soft, #fceeec); border-radius: 8px; padding: 8px 10px; font-size: 13px; display: none; }
+  .cp-form-err.show { display: block; }
+
+  /* ---- toast ---- */
+  .cp-toast { position: fixed; right: 20px; bottom: 20px; background: var(--ink); color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 13px; box-shadow: 0 12px 32px rgba(0,0,0,.25); opacity: 0; transform: translateY(8px); transition: all .2s; pointer-events: none; z-index: 60; }
+  .cp-toast.show { opacity: 1; transform: none; }
+  .cp-toast.err { background: #A8382B; }
+
+  @media (max-width: 860px) {
+    .cp-content { padding: 16px; }
+    .cp-modal-body { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="ssc-shell">
+  <aside class="ssc-side">
+    <div class="brand">
+      <img class="brand-mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
+      <div>
+        <div class="brand-name">Superstars Contracting</div>
+        <div class="brand-sub">Company Portal</div>
+      </div>
+    </div>
+    <nav class="ssc-nav" id="cp-nav">
+      <div class="ssc-nav-label">Company</div>
+      <a href="#overview" data-view="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Overview</a>
+      <a href="#clients" data-view="clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Clients</a>
+      <a href="#buildings" data-view="buildings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l7-4v18M10 21h11V11l-4-2v12"/><path d="M6 9h1M6 13h1M6 17h1M14 13h1M14 17h1"/></svg>Buildings</a>
+      <a href="#proposals" data-view="proposals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>Proposals</a>
+      <a href="#finance" data-view="finance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 8-8"/><path d="M14 8h6v6"/></svg>Finance</a>
+      <a href="#expenses" data-view="expenses"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Expenses</a>
+      <div class="ssc-nav-label">People &amp; Risk</div>
+      <a href="#workforce" data-view="workforce"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15 14.5a5 5 0 0 1 6.5 5"/></svg>Workforce &amp; Pay</a>
+      <a href="#compliance" data-view="compliance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>Compliance &amp; Vault</a>
+    </nav>
+    <div class="ssc-side-foot">
+      <a href="/">← Office Console</a>
+      <a href="/admin/users">Users &amp; roles</a>
+      <a href="/estimating">Estimating queue</a>
+    </div>
+  </aside>
+
+  <main class="ssc-main">
+    <header class="ssc-top">
+      <div>
+        <div class="ssc-crumb" id="cp-crumb">Company Portal</div>
+        <h1 id="cp-title">Overview</h1>
+      </div>
+      <div class="ssc-top-right">
+        <span id="cp-date"></span>
+        <div id="user-menu"></div>
+      </div>
+    </header>
+
+    <div class="cp-content">
+      <!-- ================= OVERVIEW ================= -->
+      <section class="cp-view" id="view-overview" hidden>
+        <div class="cp-kpis" id="ov-kpis"></div>
+        <div class="cp-grid2">
+          <div class="cp-card">
+            <div class="cp-card-head"><h2>Money at a glance</h2><span class="hint" id="ov-asof"></span></div>
+            <ul class="cp-list" id="ov-money"></ul>
+          </div>
+          <div class="cp-card">
+            <div class="cp-card-head"><h2>Needs attention</h2><a class="cp-link" href="#compliance">Open compliance →</a></div>
+            <ul class="cp-list" id="ov-attention"></ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= CLIENTS ================= -->
+      <section class="cp-view" id="view-clients" hidden>
+        <div id="clients-list">
+          <div class="cp-card">
+            <div class="cp-toolbar">
+              <input class="cp-input search" id="cl-search" placeholder="Search clients…" autocomplete="off">
+              <select class="cp-select" id="cl-type">
+                <option value="client">Clients</option>
+                <option value="lead">Leads</option>
+                <option value="architect">Architects</option>
+                <option value="vendor">Vendors</option>
+                <option value="all">All organizations</option>
+              </select>
+              <label class="cp-muted" style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="cl-inactive"> include inactive</label>
+              <span style="flex:1"></span>
+              <a class="btn-ghost btn-sm" href="/#crm" style="text-decoration:none;">Manage in CRM</a>
+            </div>
+            <div class="cp-table-wrap"><table class="cp-table" id="cl-table"></table></div>
+          </div>
+        </div>
+        <div id="client-detail" hidden></div>
+      </section>
+
+      <!-- ================= FINANCE ================= -->
+      <section class="cp-view" id="view-buildings" hidden>
+        <div id="buildings-list">
+          <div class="cp-card">
+            <div class="cp-toolbar">
+              <input class="cp-input search" id="bd-search" placeholder="Search address, name, client or BIN…" autocomplete="off">
+              <select class="cp-select" id="bd-client"><option value="">All clients</option></select>
+              <label class="cp-muted" style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="bd-archived"> include archived</label>
+              <span style="flex:1"></span>
+              <button class="btn-ghost btn-sm" id="bd-rematch" type="button" title="Link any project or estimate that has an address but no building yet">Re-run matcher</button>
+              <button class="btn-primary btn-sm" id="bd-add" type="button">+ Add building</button>
+            </div>
+            <div class="cp-table-wrap"><table class="cp-table" id="bd-table"></table></div>
+          </div>
+        </div>
+        <div id="building-detail" hidden></div>
+      </section>
+
+      <section class="cp-view" id="view-proposals" hidden>
+        <div id="proposals-list">
+          <div class="cp-kpis" id="pr-kpis"></div>
+          <div class="cp-card">
+            <div class="cp-toolbar">
+              <input class="cp-input search" id="pr-search" placeholder="Search number, title, client or address…" autocomplete="off">
+              <select class="cp-select" id="pr-status"><option value="">All statuses</option><option value="draft">Draft</option><option value="sent">Sent</option><option value="viewed">Viewed</option><option value="signed">Signed</option><option value="declined">Declined</option><option value="superseded">Superseded</option></select>
+              <span style="flex:1"></span>
+              <button class="btn-primary btn-sm" id="pr-new" type="button">+ New proposal</button>
+            </div>
+            <div class="cp-table-wrap"><table class="cp-table" id="pr-table"></table></div>
+          </div>
+        </div>
+        <div id="proposal-detail" hidden></div>
+      </section>
+
+      <section class="cp-view" id="view-finance" hidden>
+        <div class="cp-kpis" id="fin-kpis"></div>
+        <div class="cp-grid3">
+          <div class="cp-card">
+            <div class="cp-card-head"><h2>Won vs spend by month</h2>
+              <select class="cp-select" id="fin-months"><option value="6">6 months</option><option value="12" selected>12 months</option><option value="24">24 months</option></select></div>
+            <div id="fin-chart"></div>
+          </div>
+          <div class="cp-card">
+            <div class="cp-card-head"><h2>Pipeline by status</h2></div>
+            <ul class="cp-list" id="fin-pipeline"></ul>
+          </div>
+        </div>
+        <div class="cp-grid2">
+          <div class="cp-card">
+            <div class="cp-card-head"><h2>Spend by category</h2><span class="hint">receipts + ledger, period shown above</span></div>
+            <div class="cp-table-wrap"><table class="cp-table" id="fin-cat"></table></div>
+          </div>
+          <div class="cp-card">
+            <div class="cp-card-head"><h2>Spend by project</h2></div>
+            <div class="cp-table-wrap"><table class="cp-table" id="fin-proj"></table></div>
+          </div>
+        </div>
+        <div class="cp-card" id="fin-inv-card">
+          <div class="cp-card-head"><h2>Receivables — invoices</h2><span class="hint">what needs to get paid · deposits draft themselves when a proposal is signed</span></div>
+          <div class="cp-kpis" id="inv-kpis" style="margin-bottom:12px"></div>
+          <div class="cp-toolbar">
+            <input class="cp-input search" id="inv-search" placeholder="Search number, client, project or description…" autocomplete="off">
+            <select class="cp-select" id="inv-status"><option value="">All statuses</option><option value="issued">Open (issued)</option><option value="overdue">Overdue</option><option value="draft">Draft</option><option value="paid">Paid</option><option value="void">Void</option></select>
+            <select class="cp-select" id="inv-kind"><option value="">All kinds</option><option value="deposit">Deposit</option><option value="progress">Progress</option><option value="final">Final</option><option value="change_order">Change order</option><option value="other">Other</option></select>
+            <span style="flex:1"></span>
+            <button class="btn-primary btn-sm" id="inv-new" type="button">+ New invoice</button>
+          </div>
+          <div class="cp-table-wrap"><table class="cp-table" id="inv-table"></table></div>
+        </div>
+        <div class="cp-grid2">
+          <div class="cp-card">
+            <div class="cp-card-head"><h2>IRA job deposits</h2><span class="hint">deposit + balance status per rope-access job</span></div>
+            <div class="cp-table-wrap"><table class="cp-table" id="fin-recv"></table></div>
+          </div>
+          <div class="cp-card">
+            <div class="cp-card-head"><h2>Labor cost, last 30 days</h2><span class="hint">worked hours × current rate · estimate</span></div>
+            <div id="fin-labor"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= EXPENSES ================= -->
+      <section class="cp-view" id="view-expenses" hidden>
+        <div class="cp-card">
+          <div class="cp-toolbar">
+            <select class="cp-select" id="ex-project"><option value="">All projects</option></select>
+            <select class="cp-select" id="ex-category"><option value="">All categories</option></select>
+            <input class="cp-input" id="ex-month" type="month" title="Month">
+            <select class="cp-select" id="ex-source"><option value="all">Receipts + ledger</option><option value="receipts">Scanned receipts</option><option value="ledger">Expense ledger</option></select>
+            <select class="cp-select" id="ex-status"><option value="">Any status</option><option value="needs_review">Needs review</option><option value="reviewed">Reviewed</option><option value="draft">Draft</option><option value="booked">Booked (ledger)</option></select>
+            <button class="btn-ghost btn-sm" id="ex-clear" type="button">Clear</button>
+            <span style="flex:1"></span>
+            <span class="cp-muted" id="ex-total"></span>
+          </div>
+          <div class="cp-table-wrap"><table class="cp-table" id="ex-table"></table></div>
+          <div class="cp-note">Two ledgers feed this list: <strong>scanned receipts</strong> (with line items and QuickBooks sync status) and the simpler <strong>project expense ledger</strong>. The same purchase can appear in both if it was scanned and also logged by hand; totals are shown per source in Finance.</div>
+        </div>
+      </section>
+
+      <!-- ================= WORKFORCE ================= -->
+      <section class="cp-view" id="view-workforce" hidden>
+        <div id="workforce-list">
+        <div class="cp-kpis" id="wf-kpis"></div>
+        <div class="cp-grid3">
+          <div class="cp-card">
+            <div class="cp-card-head"><h2>Workers</h2><span class="hint">rates are company-confidential · never shown on field surfaces</span></div>
+            <div class="cp-toolbar"><input class="cp-input search" id="wf-search" placeholder="Search by worker ID, name or trade…" autocomplete="off">
+              <span style="flex:1"></span><a class="btn-ghost btn-sm" href="/admin/labor-rates" style="text-decoration:none;">Manage rates</a></div>
+            <div class="cp-table-wrap"><table class="cp-table" id="wf-table"></table></div>
+          </div>
+          <div class="cp-card">
+            <div class="cp-card-head"><h2>By trade</h2></div>
+            <div class="cp-table-wrap"><table class="cp-table" id="wf-trades"></table></div>
+          </div>
+        </div>
+        </div>
+        <div id="worker-detail" hidden></div>
+      </section>
+
+      <!-- ================= COMPLIANCE ================= -->
+      <section class="cp-view" id="view-compliance" hidden>
+        <div class="cp-kpis" id="co-kpis"></div>
+        <div class="cp-card">
+          <div class="cp-card-head"><h2>Vehicles</h2><span class="hint">registration · insurance · inspection per vehicle</span>
+            <button class="btn-primary btn-sm" id="vh-add" type="button">+ Add vehicle</button></div>
+          <div class="cp-table-wrap"><table class="cp-table" id="vh-table"></table></div>
+        </div>
+        <div class="cp-card">
+          <div class="cp-card-head"><h2>Company vault</h2><span class="hint">licenses, insurance, bonds, vehicle paper, tax returns, filings, records</span>
+            <button class="btn-primary btn-sm" id="cd-add" type="button">+ Add document</button></div>
+          <div class="cp-toolbar" id="cd-chips"></div>
+          <div class="cp-table-wrap"><table class="cp-table" id="cd-table"></table></div>
+        </div>
+        <div class="cp-card">
+          <div class="cp-card-head"><h2>Everything that expires</h2>
+            <select class="cp-select" id="co-days"><option value="30">next 30 days</option><option value="60">next 60 days</option><option value="90" selected>next 90 days</option><option value="180">next 180 days</option><option value="365">next year</option></select></div>
+          <div class="cp-toolbar" id="co-chips"></div>
+          <div class="cp-table-wrap"><table class="cp-table" id="co-table"></table></div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- proposal modals (#307) -->
+<div class="cp-overlay" id="pr-new-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-new-title">
+  <form class="cp-modal" id="pr-new-form" novalidate>
+    <div class="cp-modal-head"><h2 id="pr-new-title">New proposal</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">A proposal is generated from an estimate: client, contact, building and price come across; you edit the scope and terms before sending.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><label for="pr-new-est">Estimate</label><select id="pr-new-est"><option value="">Loading…</option></select></div>
+      <div class="cp-form-err" id="pr-new-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-new-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-new-go">Create draft</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="pr-send-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-send-title">
+  <form class="cp-modal" id="pr-send-form" novalidate>
+    <div class="cp-modal-head"><h2 id="pr-send-title">Send proposal</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="pr-send-sub"></p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="pr-send-name">Recipient name</label><input id="pr-send-name" autocomplete="off"></div>
+      <div class="cp-field"><label for="pr-send-email">Recipient email</label><input id="pr-send-email" type="email" autocomplete="off"></div>
+      <div class="cp-field full"><label for="pr-send-msg">Personal note (optional)</label><textarea id="pr-send-msg" placeholder="Thanks for walking the building with us on Tuesday…"></textarea></div>
+      <p class="cp-muted full" style="margin:0;font-size:12px">The email carries a private link where the client reviews the proposal, downloads the PDF, and accepts with a typed signature. The link expires on the proposal's valid-until date. Sending again issues a fresh link.</p>
+      <div class="cp-form-err" id="pr-send-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-send-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-send-go">Send</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="pr-sign-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-sign-title">
+  <form class="cp-modal" id="pr-sign-form" novalidate>
+    <div class="cp-modal-head"><h2 id="pr-sign-title">Record a signature received outside the app</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Use this when the client signed on paper or replied by email. It fires the same follow-ups as an online acceptance: the estimate is approved and the COI + deposit tasks open.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="pr-sign-name">Signed by</label><input id="pr-sign-name" autocomplete="off" placeholder="Full name"></div>
+      <div class="cp-field"><label for="pr-sign-date">Signed on</label><input id="pr-sign-date" type="date"></div>
+      <div class="cp-form-err" id="pr-sign-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-sign-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-sign-go">Mark signed</button></div>
+  </form>
+</div>
+
+<!-- invoice modals (#315) -->
+<div class="cp-overlay" id="inv-new-overlay" role="dialog" aria-modal="true" aria-labelledby="inv-new-title">
+  <form class="cp-modal" id="inv-new-form" novalidate>
+    <div class="cp-modal-head"><h2 id="inv-new-title">New invoice</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Drafts do not count as receivables until you issue them. Deposit invoices draft themselves when a proposal is signed.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="inv-new-client">Client</label><select id="inv-new-client"><option value="">— choose a client —</option></select></div>
+      <div class="cp-field"><label for="inv-new-kind">Kind</label><select id="inv-new-kind"><option value="deposit">Deposit</option><option value="progress">Progress</option><option value="final">Final</option><option value="change_order">Change order</option><option value="other" selected>Other</option></select></div>
+      <div class="cp-field"><label for="inv-new-project">Project (optional)</label><select id="inv-new-project"><option value="">— none —</option></select></div>
+      <div class="cp-field"><label for="inv-new-amount">Amount (USD)</label><input id="inv-new-amount" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
+      <div class="cp-field"><label for="inv-new-retainage">Retainage held (USD)</label><input id="inv-new-retainage" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
+      <div class="cp-field"><label for="inv-new-due">Due date (optional)</label><input id="inv-new-due" type="date"></div>
+      <div class="cp-field full"><label for="inv-new-desc">Description</label><input id="inv-new-desc" placeholder="e.g. Progress billing #2 — parapet rebuild" autocomplete="off"></div>
+      <div class="cp-form-err" id="inv-new-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="inv-new-cancel">Cancel</button><button class="btn-primary" type="submit" id="inv-new-go">Create draft</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="inv-pay-overlay" role="dialog" aria-modal="true" aria-labelledby="inv-pay-title">
+  <form class="cp-modal" id="inv-pay-form" novalidate>
+    <div class="cp-modal-head"><h2 id="inv-pay-title">Record a payment</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="inv-pay-sub"></p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="inv-pay-amount">Amount received (USD)</label><input id="inv-pay-amount" inputmode="decimal" autocomplete="off"></div>
+      <div class="cp-field"><label for="inv-pay-date">Received on</label><input id="inv-pay-date" type="date"></div>
+      <div class="cp-field"><label for="inv-pay-method">Method</label><select id="inv-pay-method"><option value="">—</option><option value="check">Check</option><option value="ach">ACH</option><option value="wire">Wire</option><option value="card">Card</option><option value="cash">Cash</option><option value="quickbooks">QuickBooks payment</option><option value="other">Other</option></select></div>
+      <div class="cp-field"><label for="inv-pay-ref">Reference (check # etc.)</label><input id="inv-pay-ref" autocomplete="off"></div>
+      <div class="cp-field full"><label for="inv-pay-notes">Notes</label><input id="inv-pay-notes" autocomplete="off"></div>
+      <div class="cp-form-err" id="inv-pay-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="inv-pay-cancel">Cancel</button><button class="btn-primary" type="submit" id="inv-pay-go">Record payment</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="inv-mail-overlay" role="dialog" aria-modal="true" aria-labelledby="inv-mail-title">
+  <form class="cp-modal" id="inv-mail-form" novalidate>
+    <div class="cp-modal-head"><h2 id="inv-mail-title">Email invoice to the client</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="inv-mail-sub"></p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="inv-mail-name">Recipient name</label><input id="inv-mail-name" autocomplete="off"></div>
+      <div class="cp-field"><label for="inv-mail-email">Recipient email</label><input id="inv-mail-email" type="email" autocomplete="off"></div>
+      <div class="cp-field full"><label for="inv-mail-msg">Message (optional)</label><textarea id="inv-mail-msg" placeholder="A short note above the invoice details"></textarea></div>
+      <div class="cp-note full">The email carries a private link where the client views the invoice, downloads the PDF, and sees how to pay. Each send mints a fresh link; the previous one stops working.</div>
+      <div class="cp-form-err" id="inv-mail-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="inv-mail-cancel">Cancel</button><button class="btn-primary" type="submit" id="inv-mail-go">Send</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="inv-view-overlay" role="dialog" aria-modal="true" aria-labelledby="inv-view-title">
+  <div class="cp-modal" id="inv-view-modal" style="max-width:640px">
+    <div class="cp-modal-head"><h2 id="inv-view-title">Invoice</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="inv-view-sub"></p></div>
+    <div class="cp-modal-body" style="display:block" id="inv-view-body"></div>
+    <div class="cp-modal-foot" id="inv-view-foot"></div>
+  </div>
+</div>
+
+<!-- vehicle modal (#318) -->
+<div class="cp-overlay" id="vh-overlay" role="dialog" aria-modal="true" aria-labelledby="vh-title">
+  <form class="cp-modal" id="vh-form" novalidate>
+    <div class="cp-modal-head"><h2 id="vh-title">Add vehicle</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Registration, insurance and inspection are added as vault documents linked to the vehicle; their renewals show up in Compliance.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><label for="vh-label">Label</label><input id="vh-label" required placeholder="e.g. Van 2 — Ford Transit" autocomplete="off"></div>
+      <div class="cp-field"><label for="vh-year">Year</label><input id="vh-year" inputmode="numeric" placeholder="2021"></div>
+      <div class="cp-field"><label for="vh-make">Make</label><input id="vh-make" placeholder="Ford"></div>
+      <div class="cp-field"><label for="vh-model">Model</label><input id="vh-model" placeholder="Transit 250"></div>
+      <div class="cp-field"><label for="vh-color">Color</label><input id="vh-color"></div>
+      <div class="cp-field"><label for="vh-plate">Plate</label><input id="vh-plate" autocomplete="off" style="text-transform:uppercase"></div>
+      <div class="cp-field"><label for="vh-vin">VIN</label><input id="vh-vin" autocomplete="off" style="text-transform:uppercase"></div>
+      <div class="cp-field"><label for="vh-driver">Assigned driver</label><select id="vh-driver"><option value="">— none —</option></select></div>
+      <div class="cp-field"><label for="vh-status">Status</label><select id="vh-status"><option value="active">Active</option><option value="retired">Retired</option></select></div>
+      <div class="cp-field full"><label for="vh-notes">Notes</label><textarea id="vh-notes"></textarea></div>
+      <div class="cp-form-err" id="vh-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button type="button" class="btn-ghost" id="vh-cancel">Cancel</button><button type="submit" class="btn-primary" id="vh-save">Save vehicle</button></div>
+  </form>
+</div>
+
+<!-- building modal (#304) -->
+<div class="cp-overlay" id="bd-overlay" role="dialog" aria-modal="true" aria-labelledby="bd-title">
+  <form class="cp-modal" id="bd-form" novalidate>
+    <div class="cp-modal-head"><h2 id="bd-title">Add building</h2></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><label for="bd-address">Street address</label><input id="bd-address" required placeholder="e.g. 890 E 135th St"></div>
+      <div class="cp-field"><label for="bd-name">Building name (optional)</label><input id="bd-name" placeholder="e.g. Compass Point Tower"></div>
+      <div class="cp-field"><label for="bd-client-sel">Client</label><select id="bd-client-sel"><option value="">— none yet —</option></select></div>
+      <div class="cp-field"><label for="bd-borough">Borough</label><select id="bd-borough"><option value="">—</option><option>Manhattan</option><option>Bronx</option><option>Brooklyn</option><option>Queens</option><option>Staten Island</option></select></div>
+      <div class="cp-field"><label for="bd-zip">ZIP</label><input id="bd-zip" inputmode="numeric" placeholder="10454"></div>
+      <div class="cp-field"><label for="bd-bin">DOB BIN</label><input id="bd-bin" inputmode="numeric" placeholder="7-digit BIN"></div>
+      <div class="cp-field"><label for="bd-blocklot">Block / lot</label><input id="bd-blocklot" placeholder="e.g. 2543 / 12"></div>
+      <div class="cp-field"><label for="bd-stories">Stories</label><input id="bd-stories" inputmode="numeric"></div>
+      <div class="cp-field"><label for="bd-year">Year built</label><input id="bd-year" inputmode="numeric"></div>
+      <div class="cp-field full"><label for="bd-notes">Notes</label><textarea id="bd-notes"></textarea></div>
+      <div class="cp-form-err" id="bd-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="bd-cancel">Cancel</button><button class="btn-primary" type="submit" id="bd-save">Save building</button></div>
+  </form>
+</div>
+
+<!-- company document modal -->
+<div class="cp-overlay" id="cd-overlay" role="dialog" aria-modal="true" aria-labelledby="cd-title">
+  <form class="cp-modal" id="cd-form" novalidate>
+    <div class="cp-modal-head"><h2 id="cd-title">Add company document</h2></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="cd-category">Category</label><select id="cd-category" required></select></div>
+      <div class="cp-field"><label for="cd-holder">Holder / insured</label><input id="cd-holder" placeholder="Superstars Contracting Inc."></div>
+      <div class="cp-field full"><label for="cd-title-in">Title</label><input id="cd-title-in" required placeholder="e.g. General Liability policy 2026"></div>
+      <div class="cp-field"><label for="cd-number">Policy / license number</label><input id="cd-number"></div>
+      <div class="cp-field"><label for="cd-issuer">Issuer / carrier / agency</label><input id="cd-issuer"></div>
+      <div class="cp-field"><label for="cd-effective">Effective date</label><input id="cd-effective" type="date" class="ssc-date"></div>
+      <div class="cp-field"><label for="cd-expiry">Expiry date</label><input id="cd-expiry" type="date" class="ssc-date"></div>
+      <div class="cp-field"><label for="cd-amount">Amount / coverage (USD)</label><input id="cd-amount" inputmode="decimal" placeholder="optional"></div>
+      <div class="cp-field" id="cd-vehicle-wrap" hidden><label for="cd-vehicle">Vehicle</label><select id="cd-vehicle"><option value="">— none —</option></select></div>
+      <div class="cp-field" id="cd-year-wrap" hidden><label for="cd-year">Tax / filing year</label><input id="cd-year" inputmode="numeric" placeholder="2025"></div>
+      <div class="cp-field full"><label for="cd-notes">Notes</label><textarea id="cd-notes"></textarea></div>
+      <div class="cp-field full" id="cd-files-wrap" hidden><label>Files</label>
+        <ul class="cp-list" id="cd-files"></ul>
+        <div class="cp-toolbar" style="margin:8px 0 0"><input type="file" id="cd-file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.xlsx,.docx" style="font-size:13px"><button class="btn-ghost btn-sm" type="button" id="cd-upload">Upload</button><span class="cp-muted" style="font-size:12px">PDF, JPG, PNG, HEIC, XLSX or DOCX · 25 MB max</span></div>
+      </div>
+      <div class="cp-form-err" id="cd-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot">
+      <button type="button" class="btn-ghost" id="cd-cancel">Cancel</button>
+      <button type="submit" class="btn-primary" id="cd-save">Save document</button>
+    </div>
+  </form>
+</div>
+<div class="cp-toast" id="cp-toast"></div>
+
+<script>
+(function () {
+  'use strict';
+  const API = '/api/company/portal';
+  const $ = (id) => document.getElementById(id);
+  const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  const money2 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+  const num = new Intl.NumberFormat('en-US');
+  const state = { view: 'overview', clientId: null, cache: {}, sort: {} };
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function fmtDate(iso) { if (!iso) return '—'; const [y,m,d] = String(iso).slice(0,10).split('-'); return (m && d) ? `${m}/${d}/${y}` : esc(iso); }
+  function fmtMonth(ym) { const [y,m] = ym.split('-'); return new Date(+y, +m-1, 1).toLocaleString('en-US', { month: 'short', year: '2-digit' }); }
+  function todayLocal() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+  function toast(msg, isErr) { const t = $('cp-toast'); t.textContent = msg; t.className = 'cp-toast show' + (isErr ? ' err' : ''); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3200); }
+  function skeleton(el, n) { el.innerHTML = Array.from({length: n || 4}, () => '<div class="cp-skel"></div>').join(''); }
+  function empty(title, sub) { return `<div class="cp-empty"><strong>${esc(title)}</strong>${esc(sub || '')}</div>`; }
+
+  async function api(path, opts, absolute) {
+    const res = await fetch((absolute ? '/api' : API) + path, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' } }, opts || {}));
+    const j = await res.json().catch(() => ({}));
+    if (res.status === 401) { window.location.href = '/login?next=' + encodeURIComponent('/company'); throw new Error('unauthenticated'); }
+    if (!res.ok) throw new Error((j && j.error) || ('Request failed (' + res.status + ')'));
+    return j;
+  }
+
+  // ---------- tables with sort ----------
+  function table(el, cols, rows, opts) {
+    opts = opts || {};
+    const key = el.id;
+    const s = state.sort[key] || opts.defaultSort || null;
+    let data = rows.slice();
+    if (s) {
+      const col = cols.find(c => c.key === s.key);
+      data.sort((a, b) => {
+        let va = col && col.sortVal ? col.sortVal(a) : a[s.key], vb = col && col.sortVal ? col.sortVal(b) : b[s.key];
+        if (va == null) va = ''; if (vb == null) vb = '';
+        if (typeof va === 'number' && typeof vb === 'number') return s.dir === 'asc' ? va - vb : vb - va;
+        va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
+        return s.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      });
+    }
+    if (!data.length) { el.innerHTML = `<tbody><tr><td colspan="${cols.length}">${empty(opts.emptyTitle || 'Nothing here yet', opts.emptySub || '')}</td></tr></tbody>`; return; }
+    const head = cols.map(c => `<th class="${c.num ? 'num' : ''} ${s && s.key === c.key ? 'sorted' : ''}" data-key="${esc(c.key)}">${esc(c.label)}<span class="arrow">${s && s.key === c.key ? (s.dir === 'asc' ? '▲' : '▼') : '↕'}</span></th>`).join('');
+    const body = data.map(r => `<tr ${opts.rowAttr ? opts.rowAttr(r) : ''}>` + cols.map(c => `<td class="${c.num ? 'num' : ''}">${c.render ? c.render(r) : esc(r[c.key])}</td>`).join('') + '</tr>').join('');
+    el.innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
+    el.querySelectorAll('th').forEach(th => th.addEventListener('click', () => {
+      const k = th.dataset.key; const cur = state.sort[key];
+      state.sort[key] = { key: k, dir: cur && cur.key === k && cur.dir === 'asc' ? 'desc' : 'asc' };
+      table(el, cols, rows, opts);
+    }));
+    if (opts.onRow) el.querySelectorAll('tbody tr').forEach((tr, i) => tr.addEventListener('click', (e) => { if (e.target.closest('a,button')) return; opts.onRow(data[i]); }));
+  }
+  function kpi(k, v, sub, cls) { return `<div class="cp-kpi ${cls || ''}"><div class="cp-kpi-k">${esc(k)}</div><div class="cp-kpi-v">${v}</div><div class="cp-kpi-sub">${esc(sub || '')}</div></div>`; }
+  function daysPill(d) {
+    if (d == null) return '<span class="cp-pill">no date</span>';
+    if (d < 0) return `<span class="cp-pill bad">expired ${Math.abs(d)}d ago</span>`;
+    if (d <= 30) return `<span class="cp-pill warn">${d}d left</span>`;
+    return `<span class="cp-pill ok">${d}d left</span>`;
+  }
+
+  // ---------- OVERVIEW ----------
+  async function loadOverview() {
+    skeleton($('ov-kpis'), 1); skeleton($('ov-money'), 4); skeleton($('ov-attention'), 4);
+    try {
+      const { data: d } = await api('/overview');
+      $('ov-asof').textContent = 'as of ' + fmtDate(d.as_of);
+      $('ov-kpis').innerHTML =
+        kpi('Active projects', num.format(d.projects.active), `${num.format(d.clients.active)} active clients · ${num.format(d.clients.buildings)} buildings`) +
+        kpi('Open pipeline', money.format(d.pipeline.open_value), `${d.pipeline.open_count} open estimates`) +
+        kpi('Won this year', money.format(d.pipeline.won_value_ytd), `${d.pipeline.won_count_ytd} won · ${d.pipeline.lost_count_ytd} lost`, 'good') +
+        kpi('Spend this month', money.format(d.spend.receipts_mtd + d.spend.ledger_mtd), `${money.format(d.spend.receipts_ytd + d.spend.ledger_ytd)} year to date`) +
+        kpi('Workforce', num.format(d.workforce.headcount), `${d.workforce.on_site_today} on site today · ${d.workforce.worked_hours_this_week} h worked this week`) +
+        kpi('Expiring soon', num.format(d.expiring.next_30), `${d.expiring.expired} already expired`, d.expiring.expired ? 'warn' : '');
+      $('ov-money').innerHTML = [
+        ['Open pipeline value', money2.format(d.pipeline.open_value)],
+        ['Won year to date', money2.format(d.pipeline.won_value_ytd)],
+        ['Receipts this month', money2.format(d.spend.receipts_mtd)],
+        ['Expense ledger this month', money2.format(d.spend.ledger_mtd)],
+        ['Open invoices', `${money2.format(d.invoices.open_value)} <span class="cp-muted">· ${d.invoices.open_count} open${d.invoices.overdue_count ? ' · <span class="cp-pill bad">' + d.invoices.overdue_count + ' overdue</span>' : ''}</span>`],
+        ['Collected year to date', money2.format(d.invoices.collected_ytd_value)],
+        ['IRA job deposits', `${money2.format(d.receivables.open_value)} <span class="cp-muted">· ${d.receivables.open_jobs} open · ${d.receivables.awaiting_deposit} awaiting deposit</span>`],
+        ['Receipts needing review', `${d.spend.receipts_needing_review}`],
+      ].map(([k, v]) => `<li><span>${esc(k)}</span><strong>${v}</strong></li>`).join('');
+      const att = [];
+      if (d.expiring.expired) att.push([`${d.expiring.expired} expired item(s)`, '<a class="cp-link" href="#compliance">review</a>']);
+      if (d.expiring.next_30) att.push([`${d.expiring.next_30} item(s) expire within 30 days`, '<a class="cp-link" href="#compliance">review</a>']);
+      if (d.spend.receipts_needing_review) att.push([`${d.spend.receipts_needing_review} receipt(s) need review`, '<a class="cp-link" href="#expenses">open</a>']);
+      if (d.invoices.overdue_count) att.push([`${d.invoices.overdue_count} invoice(s) overdue · ${money2.format(d.invoices.overdue_value)}`, '<a class="cp-link" href="#finance/overdue">collect</a>']);
+      if (d.invoices.draft_count) att.push([`${d.invoices.draft_count} draft invoice(s) waiting to be issued · ${money2.format(d.invoices.draft_value)}`, '<a class="cp-link" href="#finance/draft">issue</a>']);
+      if (d.invoices.due_soon_count) att.push([`${d.invoices.due_soon_count} invoice(s) due within ${d.invoices.horizon_days} days · ${money2.format(d.invoices.due_soon_value)}`, '<a class="cp-link" href="#finance">open</a>']);
+      if (d.receivables.awaiting_deposit) att.push([`${d.receivables.awaiting_deposit} job(s) awaiting deposit`, '<a class="cp-link" href="#finance">open</a>']);
+      if (!d.pipeline.open_count) att.push(['No open estimates in the pipeline', '<a class="cp-link" href="/#estimates">estimates</a>']);
+      $('ov-attention').innerHTML = att.length ? att.map(([k, v]) => `<li><span>${esc(k)}</span>${v}</li>`).join('') : `<li><span class="cp-muted">All clear. Nothing needs attention right now.</span></li>`;
+    } catch (e) { toast(e.message, true); $('ov-kpis').innerHTML = empty('Could not load the overview', e.message); }
+  }
+
+  // ---------- CLIENTS ----------
+  async function loadClients() {
+    $('client-detail').hidden = true; $('clients-list').hidden = false;
+    const q = new URLSearchParams({ type: $('cl-type').value, search: $('cl-search').value.trim() });
+    if ($('cl-inactive').checked) q.set('inactive', '1');
+    skeleton($('cl-table'), 5);
+    try {
+      const { data: rows } = await api('/clients?' + q.toString());
+      table($('cl-table'), [
+        { key: 'name', label: 'Organization', render: r => `<span class="cp-id">${esc(r.name)}</span>${r.status !== 'active' ? ' <span class="cp-pill">inactive</span>' : ''}<div class="cp-muted" style="font-size:12px">${esc(r.relationship_type)}${r.stage ? ' · ' + esc(r.stage) : ''}</div>` },
+        { key: 'buildings', label: 'Buildings', num: true },
+        { key: 'projects_active', label: 'Active projects', num: true, render: r => `${r.projects_active}<span class="cp-muted"> / ${r.projects_total}</span>` },
+        { key: 'estimates_open', label: 'Open estimates', num: true, render: r => `${r.estimates_open}<div class="cp-muted" style="font-size:12px">${money.format(r.pipeline_value)}</div>` },
+        { key: 'won_value', label: 'Won value', num: true, render: r => money.format(r.won_value) },
+        { key: 'contacts', label: 'Contacts', num: true },
+        { key: 'open_tasks', label: 'Open tasks', num: true },
+        { key: 'last_activity_at', label: 'Last activity', render: r => fmtDate(r.last_activity_at) },
+      ], rows, { defaultSort: { key: 'name', dir: 'asc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.hash = '#clients/' + r.id; },
+        emptyTitle: 'No organizations match', emptySub: 'Add clients in the CRM tab of the Office Console.' });
+    } catch (e) { toast(e.message, true); $('cl-table').innerHTML = empty('Could not load clients', e.message); }
+  }
+
+  async function loadClientDetail(id) {
+    $('clients-list').hidden = true; const host = $('client-detail'); host.hidden = false; host.innerHTML = '<div class="cp-card"><div class="cp-skel"></div><div class="cp-skel"></div><div class="cp-skel"></div></div>';
+    try {
+      const { data: d } = await api('/clients/' + encodeURIComponent(id));
+      const o = d.organization, t = d.totals;
+      $('cp-title').textContent = o.name;
+      const buildings = d.buildings.length ? d.buildings.map(b => `
+        <div class="cp-building">
+          <h3>${b.id ? `<a class="cp-link" href="#buildings/${b.id}">${esc(b.name || b.address)}</a>` : esc(b.address)}${b.name && b.id ? ` <span class="cp-muted" style="font-weight:400">· ${esc(b.address)}</span>` : ''}${b.borough ? ` <span class="cp-muted" style="font-weight:400">· ${esc(b.borough)}</span>` : ''}</h3>
+          <div class="meta">${b.active_projects} active project(s) · ${b.projects.length} total · ${b.open_estimates} open estimate(s) · won ${money.format(b.won_value)}</div>
+          ${b.projects.length ? `<div class="cp-tags">${b.projects.map(p => `<a href="/projects/${encodeURIComponent(p.project_code)}" style="text-decoration:none"><span><b class="cp-id">${esc(p.project_code)}</b> ${esc(p.name || '')} · ${esc(p.status)}</span></a>`).join('')}</div>` : ''}
+          ${b.estimates.length ? `<div class="cp-tags">${b.estimates.map(e => `<span>${esc(e.code)} · ${esc(e.status)}${e.final_amount ? ' · ' + money.format(e.final_amount) : ''}</span>`).join('')}</div>` : ''}
+        </div>`).join('') : empty('No buildings linked yet', 'Link a project or estimate to this client and its address will appear here.');
+      host.innerHTML = `
+        <div class="cp-toolbar"><a class="cp-link" href="#clients">← All clients</a><span style="flex:1"></span>
+          <span class="cp-pill ${o.status === 'active' ? 'active' : ''}">${esc(o.status || 'active')}</span>${o.stage ? `<span class="cp-pill">${esc(o.stage)}</span>` : ''}
+          <a class="btn-ghost btn-sm" href="/#crm" style="text-decoration:none">Edit in CRM</a></div>
+        <div class="cp-kpis">
+          ${kpi('Buildings', t.buildings, `${t.projects} project(s) · ${t.projects_active} active`)}
+          ${kpi('Open pipeline', money.format(t.pipeline_value), `${t.estimates_open} open estimate(s)`)}
+          ${kpi('Won value', money.format(t.won_value), 'approved + converted', 'good')}
+          ${kpi('Contacts', d.contacts.length, `${d.open_tasks.length} open task(s)`)}
+        </div>
+        <div class="cp-grid3">
+          <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Buildings &amp; job sites</h2><a class="cp-link" href="#buildings">All buildings →</a></div>${buildings}</div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Documents expiring on this client's projects</h2></div>
+              ${d.documents_expiring.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th><th>Document</th><th>Category</th><th>Expires</th><th></th></tr></thead><tbody>${d.documents_expiring.map(x => `<tr><td class="cp-id">${esc(x.project_code)}</td><td>${esc(x.title)}</td><td>${esc(x.category)}</td><td>${fmtDate(x.expiry_date)}</td><td>${daysPill(x.days_left)}</td></tr>`).join('')}</tbody></table></div>` : empty('No dated documents', 'COIs, permits and contracts with an expiry date will show here.')}
+            </div>
+          </div>
+          <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Contacts</h2></div>
+              ${d.contacts.length ? `<ul class="cp-list">${d.contacts.map(c => `<li><div><strong>${esc(c.full_name)}</strong>${c.title ? `<div class="cp-muted" style="font-size:12px">${esc(c.title)}</div>` : ''}</div><div style="text-align:right;font-size:12px">${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a><br>` : ''}${esc(c.phone || '')}</div></li>`).join('')}</ul>` : empty('No contacts yet')}
+            </div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Open tasks</h2></div>
+              ${d.open_tasks.length ? `<ul class="cp-list">${d.open_tasks.map(x => `<li><span>${esc(x.title)}</span><span class="cp-muted">${fmtDate(x.due_date)}</span></li>`).join('')}</ul>` : empty('No open tasks')}
+            </div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Recent activity</h2></div>
+              ${d.activity.length ? `<ul class="cp-list">${d.activity.map(x => `<li><span><span class="cp-pill">${esc(x.activity_type)}</span> ${esc(x.summary || '')}</span><span class="cp-muted">${fmtDate(x.created_at)}</span></li>`).join('')}</ul>` : empty('No activity logged')}
+            </div>
+          </div>
+        </div>`;
+    } catch (e) { toast(e.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this client', e.message)}</div>`; }
+  }
+
+  // ---------- BUILDINGS (#304) ----------
+  async function clientOptions(selectEl, keepValue) {
+    if (!state.cache.clientOpts) {
+      try { const { data } = await api('/clients?type=client'); state.cache.clientOpts = data.map(c => ({ id: c.id, name: c.name })); }
+      catch (e) { state.cache.clientOpts = []; }
+    }
+    const cur = keepValue !== undefined ? keepValue : selectEl.value;
+    const first = selectEl.options[0] ? selectEl.options[0].outerHTML : '';
+    selectEl.innerHTML = first + state.cache.clientOpts.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    selectEl.value = cur || '';
+  }
+  async function loadBuildings() {
+    $('building-detail').hidden = true; $('buildings-list').hidden = false;
+    await clientOptions($('bd-client'));
+    const q = new URLSearchParams(); if ($('bd-search').value.trim()) q.set('search', $('bd-search').value.trim());
+    if ($('bd-client').value) q.set('client_org_id', $('bd-client').value); if ($('bd-archived').checked) q.set('archived', '1');
+    skeleton($('bd-table'), 5);
+    try {
+      const { data: rows } = await api('/buildings?' + q.toString(), null, true);
+      table($('bd-table'), [
+        { key: 'display', label: 'Building', render: r => `<span class="cp-id">${esc(r.name || r.address_line)}</span>${r.name ? `<div class="cp-muted" style="font-size:12px">${esc(r.address_line)}</div>` : ''}${r.archived_at ? ' <span class="cp-pill">archived</span>' : ''}` },
+        { key: 'client_name', label: 'Client', render: r => r.client_name ? esc(r.client_name) : '<span class="cp-muted">— unassigned —</span>' },
+        { key: 'borough', label: 'Borough', render: r => esc(r.borough || '—') },
+        { key: 'active_projects', label: 'Active projects', num: true, render: r => `${r.active_projects}<span class="cp-muted"> / ${r.projects_total}</span>` },
+        { key: 'open_estimates', label: 'Open estimates', num: true, render: r => `${r.open_estimates}<div class="cp-muted" style="font-size:12px">${money.format(r.pipeline_value)}</div>` },
+        { key: 'won_value', label: 'Won value', num: true, render: r => money.format(r.won_value) },
+        { key: 'bin', label: 'BIN', render: r => esc(r.bin || '—') },
+      ], rows, { defaultSort: { key: 'display', dir: 'asc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.hash = '#buildings/' + r.id; },
+        emptyTitle: 'No buildings yet', emptySub: 'Buildings are created automatically from project and estimate addresses. Add one by hand for a building you have not quoted yet.' });
+    } catch (e) { toast(e.message, true); $('bd-table').innerHTML = empty('Could not load buildings', e.message); }
+  }
+  async function loadBuildingDetail(id) {
+    $('buildings-list').hidden = true; const host = $('building-detail'); host.hidden = false; host.innerHTML = '<div class="cp-card"><div class="cp-skel"></div><div class="cp-skel"></div></div>';
+    try {
+      const { data: b } = await api('/buildings/' + encodeURIComponent(id), null, true);
+      $('cp-title').textContent = b.name || b.address_line;
+      const fact = (k, v) => `<li><span class="cp-muted">${esc(k)}</span><span>${v == null || v === '' ? '—' : esc(v)}</span></li>`;
+      const projects = b.projects.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th><th>Name</th><th>Status</th><th>Type</th><th></th></tr></thead><tbody>${b.projects.map(p => `<tr><td class="cp-id"><a class="cp-link" href="/projects/${encodeURIComponent(p.project_code)}">${esc(p.project_code)}</a></td><td>${esc(p.name || '')}</td><td><span class="cp-pill ${p.status === 'active' ? 'active' : ''}">${esc(p.status || 'active')}</span></td><td>${esc(p.project_type || '—')}</td><td><button type="button" class="cp-link" data-unlink-project="${esc(p.project_code)}" style="color:#A8382B">Unlink</button></td></tr>`).join('')}</tbody></table></div>` : empty('No projects at this building yet');
+      const estimates = b.estimates.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Estimate</th><th>Status</th><th>Stage</th><th class="num">Amount</th><th>Submitted</th><th>Decided</th><th></th></tr></thead><tbody>${b.estimates.map(e => `<tr><td class="cp-id">${esc(e.code)}</td><td><span class="cp-pill">${esc(e.status)}</span></td><td>${esc(e.est_stage || '—')}</td><td class="num">${e.final_amount ? money.format(e.final_amount) : '—'}</td><td>${fmtDate(e.submitted_date)}</td><td>${fmtDate(e.decided_date)}</td><td style="white-space:nowrap">${['lost','converted'].includes(e.status) ? '' : `<button type="button" class="cp-link" data-propose="${e.id}">Proposal</button> · `}<button type="button" class="cp-link" data-unlink-estimate="${e.id}" style="color:#A8382B">Unlink</button></td></tr>`).join('')}</tbody></table></div>` : empty('No estimates at this building yet');
+      host.innerHTML = `
+        <div class="cp-toolbar"><a class="cp-link" href="#buildings">← All buildings</a><span style="flex:1"></span>
+          ${b.archived_at ? '<span class="cp-pill">archived</span>' : ''}
+          <button class="btn-ghost btn-sm" type="button" id="bd-link-btn">Link project / estimate</button>
+          <button class="btn-ghost btn-sm" type="button" id="bd-edit">Edit</button>
+          <button class="btn-ghost btn-sm" type="button" id="bd-arch" style="color:#A8382B">${b.archived_at ? 'Restore' : 'Archive'}</button></div>
+        <div class="cp-kpis">
+          ${kpi('Active projects', b.active_projects, `${b.projects.length} project(s) total`)}
+          ${kpi('Open estimates', b.open_estimates, money.format(b.pipeline_value) + ' in pipeline')}
+          ${kpi('Won value', money.format(b.won_value), 'approved + converted', 'good')}
+          ${kpi('On file', `${b.documents_expiring.length}`, `dated document(s) · ${b.rfi_count} RFI(s) · ${b.photo_count} photo(s)`)}
+        </div>
+        <div class="cp-grid3">
+          <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Projects</h2></div>${projects}</div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Estimates &amp; proposals</h2></div>${estimates}</div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Documents expiring</h2></div>
+              ${b.documents_expiring.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th><th>Document</th><th>Category</th><th>Expires</th><th></th></tr></thead><tbody>${b.documents_expiring.map(x => `<tr><td class="cp-id">${esc(x.project_code)}</td><td>${esc(x.title)}</td><td>${esc(x.category)}</td><td>${fmtDate(x.expiry_date)}</td><td>${daysPill(x.days_left)}</td></tr>`).join('')}</tbody></table></div>` : empty('No dated documents', 'COIs, permits and contracts with an expiry date will show here.')}
+            </div>
+          </div>
+          <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Building</h2></div>
+              <ul class="cp-list">
+                ${fact('Address', b.address_line)}${fact('Client', b.client_name)}${fact('Borough', b.borough)}${fact('City / state / ZIP', [b.city, b.state, b.zip].filter(Boolean).join(' '))}
+                ${fact('DOB BIN', b.bin)}${fact('Block / lot', [b.block, b.lot].filter(Boolean).join(' / '))}${fact('Stories', b.stories)}${fact('Year built', b.year_built)}
+              </ul>
+              ${b.notes ? `<p class="cp-muted" style="margin:10px 0 0;white-space:pre-wrap">${esc(b.notes)}</p>` : ''}
+              ${b.client_org_id ? `<p style="margin:12px 0 0"><a class="cp-link" href="#clients/${b.client_org_id}">Open client →</a></p>` : ''}
+            </div>
+          </div>
+        </div>
+        <div class="cp-card" id="bd-linker" hidden>
+          <div class="cp-card-head"><h2>Link to this building</h2><button type="button" class="cp-link" id="bd-linker-close">Close</button></div>
+          <div class="cp-toolbar" style="gap:10px;flex-wrap:wrap">
+            <select class="cp-select" id="bd-link-project"><option value="">— project without a building —</option></select>
+            <button class="btn-ghost btn-sm" type="button" id="bd-link-project-go">Link project</button>
+            <select class="cp-select" id="bd-link-estimate"><option value="">— estimate without a building —</option></select>
+            <button class="btn-ghost btn-sm" type="button" id="bd-link-estimate-go">Link estimate</button>
+          </div>
+        </div>`;
+      $('bd-edit').addEventListener('click', () => openBuildingModal(b));
+      $('bd-arch').addEventListener('click', async () => {
+        if (!b.archived_at && !confirm(`Archive "${b.name || b.address_line}"? Its projects and estimates keep their history; it just leaves the active list.`)) return;
+        try { await api('/buildings/' + b.id + (b.archived_at ? '/restore' : '/archive'), { method: 'POST' }, true); toast(b.archived_at ? 'Building restored' : 'Building archived'); loadBuildingDetail(id); } catch (e) { toast(e.message, true); }
+      });
+      $('bd-link-btn').addEventListener('click', async () => {
+        const box = $('bd-linker'); box.hidden = false;
+        try {
+          const { data: u } = await api('/buildings/unlinked', null, true);
+          $('bd-link-project').innerHTML = '<option value="">— project without a building —</option>' + u.projects.map(p => `<option value="${esc(p.project_code)}">${esc(p.project_code)} · ${esc(p.name || p.address || '')}</option>`).join('');
+          $('bd-link-estimate').innerHTML = '<option value="">— estimate without a building —</option>' + u.estimates.map(e => `<option value="${e.id}">${esc(e.code)} · ${esc(e.building_address || '')}</option>`).join('');
+        } catch (e) { toast(e.message, true); }
+      });
+      $('bd-linker-close').addEventListener('click', () => { $('bd-linker').hidden = true; });
+      $('bd-link-project-go').addEventListener('click', async () => { const v = $('bd-link-project').value; if (!v) return; try { await api('/buildings/' + b.id + '/link', { method: 'POST', body: JSON.stringify({ project_code: v }) }, true); toast('Project linked'); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } });
+      $('bd-link-estimate-go').addEventListener('click', async () => { const v = $('bd-link-estimate').value; if (!v) return; try { await api('/buildings/' + b.id + '/link', { method: 'POST', body: JSON.stringify({ estimate_id: Number(v) }) }, true); toast('Estimate linked'); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } });
+      host.querySelectorAll('[data-unlink-project]').forEach(el => el.addEventListener('click', async () => { if (!confirm('Unlink this project from the building?')) return; try { await api('/buildings/' + b.id + '/unlink', { method: 'POST', body: JSON.stringify({ project_code: el.dataset.unlinkProject }) }, true); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } }));
+      host.querySelectorAll('[data-propose]').forEach(el => el.addEventListener('click', () => proposeFromEstimate(Number(el.dataset.propose))));
+      host.querySelectorAll('[data-unlink-estimate]').forEach(el => el.addEventListener('click', async () => { if (!confirm('Unlink this estimate from the building?')) return; try { await api('/buildings/' + b.id + '/unlink', { method: 'POST', body: JSON.stringify({ estimate_id: Number(el.dataset.unlinkEstimate) }) }, true); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } }));
+    } catch (e) { toast(e.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this building', e.message)}</div>`; }
+  }
+  async function openBuildingModal(b) {
+    await clientOptions($('bd-client-sel'), b ? String(b.client_org_id || '') : '');
+    $('bd-form').dataset.id = b ? b.id : '';
+    $('bd-title').textContent = b ? 'Edit building' : 'Add building';
+    $('bd-address').value = b ? b.address_line : ''; $('bd-name').value = b ? (b.name || '') : '';
+    $('bd-borough').value = b ? (b.borough || '') : ''; $('bd-zip').value = b ? (b.zip || '') : '';
+    $('bd-bin').value = b ? (b.bin || '') : ''; $('bd-blocklot').value = b ? [b.block, b.lot].filter(Boolean).join(' / ') : '';
+    $('bd-stories').value = b && b.stories != null ? b.stories : ''; $('bd-year').value = b && b.year_built ? b.year_built : ''; $('bd-notes').value = b ? (b.notes || '') : '';
+    $('bd-err').className = 'cp-form-err'; $('bd-overlay').classList.add('open'); setTimeout(() => $('bd-address').focus(), 30);
+  }
+  function closeBuildingModal() { $('bd-overlay').classList.remove('open'); $('bd-form').reset(); $('bd-form').dataset.id = ''; }
+  $('bd-add').addEventListener('click', () => openBuildingModal(null));
+  $('bd-cancel').addEventListener('click', closeBuildingModal);
+  $('bd-overlay').addEventListener('click', (e) => { if (e.target === $('bd-overlay')) closeBuildingModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('bd-overlay').classList.contains('open')) closeBuildingModal(); });
+  $('bd-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('bd-err'); err.className = 'cp-form-err';
+    const [block, lot] = $('bd-blocklot').value.split('/').map(x => x.trim());
+    const payload = { address_line: $('bd-address').value.trim(), name: $('bd-name').value.trim() || null, client_org_id: $('bd-client-sel').value || null,
+      borough: $('bd-borough').value || null, zip: $('bd-zip').value.trim() || null, bin: $('bd-bin').value.trim() || null, block: block || null, lot: lot || null,
+      stories: $('bd-stories').value.trim() || null, year_built: $('bd-year').value.trim() || null, notes: $('bd-notes').value.trim() || null };
+    if (!payload.address_line) { err.textContent = 'A street address is required.'; err.className = 'cp-form-err show'; return; }
+    const id = $('bd-form').dataset.id; $('bd-save').disabled = true;
+    try {
+      const res = id ? await api('/buildings/' + id, { method: 'PATCH', body: JSON.stringify(payload) }, true)
+                     : await api('/buildings', { method: 'POST', body: JSON.stringify(payload) }, true);
+      toast(id ? 'Building updated' : 'Building added'); closeBuildingModal();
+      location.hash = '#buildings/' + res.data.id; if (id) loadBuildingDetail(id);
+    } catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('bd-save').disabled = false; }
+  });
+  $('bd-rematch').addEventListener('click', async () => {
+    try { const { data } = await api('/buildings/backfill', { method: 'POST' }, true); toast(`Matcher: ${data.buildings_created} building(s) created, ${data.projects_linked} project(s) + ${data.estimates_linked} estimate(s) linked`); loadBuildings(); }
+    catch (e) { toast(e.message, true); }
+  });
+
+  // ---------- PROPOSALS (#307) ----------
+  const PR_PILL = { draft: '', sent: 'active', viewed: 'active', signed: 'ok', declined: 'bad', superseded: '', expired: 'warn' };
+  function prPill(p) { const st = p.display_status || p.status; return `<span class="cp-pill ${PR_PILL[st] || ''}">${esc(st)}</span>`; }
+  function fmtWhen(iso) { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? esc(iso) : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+  async function proposeFromEstimate(estimateId) {
+    try { const { data } = await api('/proposals', { method: 'POST', body: JSON.stringify({ estimate_id: estimateId }) }, true); toast(`Draft ${data.number} created`); location.hash = '#proposals/' + data.id; }
+    catch (e) { toast(e.message, true); }
+  }
+  async function loadProposals() {
+    $('proposals-list').hidden = false; $('proposal-detail').hidden = true;
+    skeleton($('pr-kpis'), 4);
+    const q = new URLSearchParams(); const s = $('pr-search').value.trim(); if (s) q.set('q', s); if ($('pr-status').value) q.set('status', $('pr-status').value);
+    try {
+      const { data: rows, meta } = await api('/proposals?' + q.toString(), null, true);
+      const c = meta.counts || {};
+      $('pr-kpis').innerHTML =
+        kpi('Awaiting the client', num.format(meta.awaiting.n), money.format(meta.awaiting.v) + ' sent or viewed') +
+        kpi('Signed this year', num.format(meta.signed_ytd.n), money.format(meta.signed_ytd.v), 'good') +
+        kpi('Drafts', num.format(c.draft || 0), 'not sent yet') +
+        kpi('Declined', num.format(c.declined || 0), `${num.format(c.superseded || 0)} superseded`);
+      table($('pr-table'), [
+        { key: 'number', label: 'Proposal', render: r => `<a class="cp-link cp-id" href="#proposals/${r.id}">${esc(r.number)}</a>` },
+        { key: 'client_name', label: 'Client', render: r => `<a class="cp-link" href="#clients/${r.client_org_id}">${esc(r.client_name)}</a>` },
+        { key: 'building_address', label: 'Building', render: r => r.building_id ? `<a class="cp-link" href="#buildings/${r.building_id}">${esc(r.building_name || r.building_address || '—')}</a>` : esc(r.building_address || '—') },
+        { key: 'title', label: 'Title' },
+        { key: 'price', label: 'Price', num: true, render: r => r.price != null ? money.format(r.price) : '—' },
+        { key: 'status', label: 'Status', render: prPill, sortVal: r => r.display_status },
+        { key: 'sent_at', label: 'Sent', render: r => fmtDate(r.sent_at) },
+        { key: 'updated_at', label: 'Updated', render: r => fmtDate(r.updated_at) },
+      ], rows, { defaultSort: { key: 'updated_at', dir: 'desc' }, emptyTitle: 'No proposals yet', emptySub: 'Create one from an estimate — client, building and price come across.', onRow: r => { location.hash = '#proposals/' + r.id; } });
+    } catch (e) { toast(e.message, true); }
+  }
+  function prLineRow(l, editable) {
+    const d = editable ? '' : 'disabled';
+    return `<tr><td><input class="l-desc" value="${esc(l.description || '')}" placeholder="Item" ${d}></td><td class="num" style="width:80px"><input class="l-qty" inputmode="decimal" value="${l.qty == null ? '' : l.qty}" ${d}></td><td style="width:70px"><input class="l-unit" value="${esc(l.unit || '')}" placeholder="ea" ${d}></td><td class="num" style="width:120px"><input class="l-price" inputmode="decimal" value="${l.unit_price == null ? '' : l.unit_price}" ${d}></td><td class="num l-amt" style="width:110px">${l.amount != null ? money.format(l.amount) : '—'}</td><td style="width:30px">${editable ? '<button type="button" class="cp-link l-del" style="color:#A8382B" title="Remove">✕</button>' : ''}</td></tr>`;
+  }
+  function prRecalc() {
+    let total = 0, any = false;
+    document.querySelectorAll('#pr-lines tbody tr').forEach(tr => {
+      const q = parseFloat(tr.querySelector('.l-qty').value), u = parseFloat(tr.querySelector('.l-price').value);
+      const a = (!isNaN(q) && !isNaN(u)) ? Math.round(q * u * 100) / 100 : null;
+      tr.querySelector('.l-amt').textContent = a != null ? money.format(a) : '—';
+      if (a != null) { total += a; any = true; }
+    });
+    if (any) { const el = $('pr-total'); el.textContent = money.format(total); el.dataset.total = total; }
+  }
+  function prCollectLines() {
+    return Array.from(document.querySelectorAll('#pr-lines tbody tr')).map(tr => ({
+      description: tr.querySelector('.l-desc').value.trim(), qty: tr.querySelector('.l-qty').value.trim() || null,
+      unit: tr.querySelector('.l-unit').value.trim() || null, unit_price: tr.querySelector('.l-price').value.trim() || null })).filter(l => l.description);
+  }
+  async function loadProposalDetail(id) {
+    $('proposals-list').hidden = true; const host = $('proposal-detail'); host.hidden = false; skeleton(host, 6);
+    try {
+      const { data: p } = await api('/proposals/' + encodeURIComponent(id), null, true);
+      $('cp-title').textContent = p.number;
+      const ed = p.editable, d = ed ? '' : 'disabled';
+      const fact = (k, v) => `<li><span class="cp-muted">${esc(k)}</span><span style="text-align:right">${v == null || v === '' ? '—' : v}</span></li>`;
+      const linkState = p.status === 'sent' || p.status === 'viewed' ? (p.display_status === 'expired' ? `expired ${fmtDate(p.link_expires_at)}` : `open until ${fmtDate(p.link_expires_at)}`) : (p.status === 'signed' ? 'accepted' : p.status);
+      const canSend = ['draft', 'sent', 'viewed'].includes(p.status), canVersion = ['sent', 'viewed', 'declined'].includes(p.status);
+      host.innerHTML = `
+        <div class="cp-toolbar"><a class="cp-link" href="#proposals">← All proposals</a>${prPill(p)}<span class="cp-muted" style="font-size:12px">v${p.version} · estimate <strong>${esc(p.estimate_code)}</strong> (${esc(p.estimate_status)})</span><span style="flex:1"></span>
+          <a class="btn-ghost btn-sm" href="/api/proposals/${p.id}/preview" target="_blank" rel="noopener">Preview</a>
+          <a class="btn-ghost btn-sm" href="/api/proposals/${p.id}/pdf" target="_blank" rel="noopener">PDF</a>
+          ${canSend ? `<button class="btn-primary btn-sm" type="button" id="pr-send-btn">${p.status === 'draft' ? 'Send…' : 'Resend…'}</button>` : ''}
+          ${canVersion ? `<button class="btn-ghost btn-sm" type="button" id="pr-version-btn">New version</button>` : ''}
+          ${canSend ? `<button class="btn-ghost btn-sm" type="button" id="pr-sign-btn">Mark signed offline</button>` : ''}
+          ${p.status === 'draft' ? `<button class="btn-ghost btn-sm" type="button" id="pr-del-btn" style="color:#A8382B">Delete draft</button>` : ''}</div>
+        <div class="cp-kpis">
+          ${kpi('Proposal price', p.price != null ? money.format(p.price) : '—', p.lines.length ? `${p.lines.length} line item(s)` : 'lump sum')}
+          ${kpi('Deposit', p.deposit_amount != null ? money.format(p.deposit_amount) : '—', p.deposit_pct != null ? `${p.deposit_pct}% to start` : '')}
+          ${kpi('Valid until', fmtDate(p.valid_until), `link ${linkState}`)}
+          ${kpi(p.status === 'signed' ? 'Signed' : (p.status === 'declined' ? 'Declined' : 'Client activity'), p.status === 'signed' ? fmtDate(p.signed_at) : (p.status === 'declined' ? fmtDate(p.declined_at) : (p.viewed_at ? `${p.view_count} view(s)` : (p.sent_at ? 'not opened yet' : 'not sent'))), p.status === 'signed' ? `by ${p.signed_name}${p.signed_title ? ', ' + p.signed_title : ''}` : (p.viewed_at ? 'first opened ' + fmtWhen(p.viewed_at) : ''), p.status === 'signed' ? 'good' : '')}
+        </div>
+        <div class="cp-grid3">
+          <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>${ed ? 'Edit the proposal' : 'Proposal'}</h2>${ed ? '' : '<span class="cp-muted" style="font-size:12px">Sent proposals are read-only — create a new version to change it.</span>'}</div>
+              <form id="pr-form" class="pr-form" novalidate>
+                <div class="cp-field full"><label for="pr-title">Title</label><input id="pr-title" value="${esc(p.title || '')}" ${d}></div>
+                <div class="cp-field"><label for="pr-contact">Contact</label><select id="pr-contact" ${d}><option value="">— none —</option></select></div>
+                <div class="cp-field"><label for="pr-valid">Valid until</label><input id="pr-valid" type="date" value="${esc(p.valid_until || '')}" ${d}></div>
+                <div class="cp-field"><label for="pr-price">Price ($)</label><input id="pr-price" inputmode="decimal" value="${p.price == null ? '' : p.price}" ${d}></div>
+                <div class="cp-field"><label for="pr-deposit">Deposit %</label><input id="pr-deposit" inputmode="decimal" value="${p.deposit_pct == null ? '' : p.deposit_pct}" ${d}></div>
+                <div class="cp-field full"><label for="pr-scope">Scope of work</label><textarea id="pr-scope" style="min-height:110px" ${d}>${esc(p.scope_summary || '')}</textarea></div>
+                <div class="cp-field full"><label>Schedule of values (optional — the total becomes the price when you leave Price blank)</label>
+                  <div class="cp-table-wrap"><table class="cp-table pr-lines" id="pr-lines"><thead><tr><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Unit price</th><th class="num">Amount</th><th></th></tr></thead><tbody>${p.lines.map(l => prLineRow(l, ed)).join('')}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:700">Lines total</td><td class="num" id="pr-total" style="font-weight:700">${p.lines.length ? money.format(p.lines.reduce((a, l) => a + (l.amount || 0), 0)) : '—'}</td><td></td></tr></tfoot></table></div>
+                  ${ed ? '<button type="button" class="cp-link" id="pr-add-line" style="margin-top:6px">+ Add line</button>' : ''}</div>
+                <div class="cp-field full"><label for="pr-schedule">Schedule</label><textarea id="pr-schedule" ${d}>${esc(p.schedule_text || '')}</textarea></div>
+                <div class="cp-field full"><label for="pr-excl">Exclusions</label><textarea id="pr-excl" ${d}>${esc(p.exclusions_text || '')}</textarea></div>
+                <div class="cp-field full"><label for="pr-terms">Terms</label><textarea id="pr-terms" style="min-height:110px" ${d}>${esc(p.terms_text || '')}</textarea></div>
+                <div class="cp-form-err full" id="pr-err" role="alert"></div>
+                ${ed ? '<div class="full" style="display:flex;justify-content:flex-end;gap:8px"><button class="btn-primary" type="submit" id="pr-save">Save draft</button></div>' : ''}
+              </form>
+            </div>
+          </div>
+          <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Who and where</h2></div>
+              <ul class="cp-list">
+                ${fact('Client', `<a class="cp-link" href="#clients/${p.client_org_id}">${esc(p.client_name)}</a>`)}
+                ${fact('Building', p.building_id ? `<a class="cp-link" href="#buildings/${p.building_id}">${esc(p.building_name || p.building_address || '')}</a>` : esc(p.building_address || ''))}
+                ${fact('Contact', esc(p.contact_name || ''))}
+                ${fact('Sent to', p.recipient_email ? `${esc(p.recipient_name || '')}<br><span class="cp-muted">${esc(p.recipient_email)}</span>` : '')}
+                ${fact('Sent', p.sent_at ? fmtWhen(p.sent_at) : '')}
+                ${fact('First opened', p.viewed_at ? fmtWhen(p.viewed_at) : '')}
+                ${p.status === 'signed' ? fact('Signed', `${esc(p.signed_name)}<br><span class="cp-muted">${fmtWhen(p.signed_at)}${p.signed_ip ? ' · ' + esc(p.signed_ip) : ''}</span>`) : ''}
+                ${p.status === 'declined' ? fact('Declined', `${fmtWhen(p.declined_at)}${p.decline_reason ? '<br><span class="cp-muted">' + esc(p.decline_reason) + '</span>' : ''}`) : ''}
+                ${p.superseded_by ? fact('Replaced by', `<a class="cp-link" href="#proposals/${p.superseded_by}">newer version</a>`) : ''}
+                ${p.converted_project_code ? fact('Project', `<a class="cp-link" href="/projects/${encodeURIComponent(p.converted_project_code)}">${esc(p.converted_project_code)}</a>`) : ''}
+                <li id="pr-deposit-inv" hidden></li>
+              </ul>
+            </div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Timeline</h2></div>
+              ${p.events.length ? `<ul class="cp-list pr-timeline">${p.events.slice().reverse().map(ev => `<li><span class="cp-pill ${PR_PILL[ev.event] || ''}">${esc(ev.event.replace('_', ' '))}</span> ${esc(ev.detail || '')}<div class="when">${fmtWhen(ev.at)}</div></li>`).join('')}</ul>` : empty('Nothing yet')}
+            </div>
+          </div>
+        </div>`;
+      // #315: the deposit invoice drafted by the signature
+      if (p.status === 'signed') {
+        try { const { data: inv } = await api('/invoices?proposal_id=' + p.id, null, true); const d = inv.find(i => i.kind === 'deposit' && i.status !== 'void');
+          if (d) { const li = $('pr-deposit-inv'); li.hidden = false; li.innerHTML = `<span>Deposit invoice</span><strong><a class="cp-link" href="#finance">${esc(d.number)}</a> <span class="cp-pill ${d.overdue ? 'bad' : (INV_PILL[d.status] || '')}">${esc(d.overdue ? 'overdue' : d.status)}</span> <span class="cp-muted">${money2.format(d.amount)}</span></strong>`; } } catch (e) {}
+      }
+      // contact options for this client
+      try {
+        const { data: cd } = await api('/clients/' + p.client_org_id);
+        const sel = $('pr-contact'); sel.innerHTML = '<option value="">— none —</option>' + (cd.contacts || []).map(c => `<option value="${c.id}" ${c.id === p.contact_id ? 'selected' : ''}>${esc(c.full_name)}${c.email ? ' · ' + esc(c.email) : ''}</option>`).join('');
+      } catch (e) { /* contacts are optional */ }
+      if (ed) {
+        $('pr-add-line').addEventListener('click', () => { $('pr-lines').querySelector('tbody').insertAdjacentHTML('beforeend', prLineRow({}, true)); $('pr-lines').querySelector('tbody tr:last-child .l-desc').focus(); });
+        $('pr-lines').addEventListener('input', prRecalc);
+        $('pr-lines').addEventListener('click', (e) => { if (e.target.classList.contains('l-del')) { e.target.closest('tr').remove(); prRecalc(); } });
+        $('pr-form').addEventListener('submit', async (e) => {
+          e.preventDefault(); const err = $('pr-err'); err.className = 'cp-form-err';
+          const payload = { title: $('pr-title').value, contact_id: $('pr-contact').value || null, valid_until: dateGet($('pr-valid')) || null,
+            deposit_pct: $('pr-deposit').value, scope_summary: $('pr-scope').value, schedule_text: $('pr-schedule').value,
+            exclusions_text: $('pr-excl').value, terms_text: $('pr-terms').value, lines: prCollectLines() };
+          if ($('pr-price').value.trim() !== '') payload.price = $('pr-price').value.trim();
+          $('pr-save').disabled = true;
+          try { await api('/proposals/' + p.id, { method: 'PATCH', body: JSON.stringify(payload) }, true); toast('Draft saved'); loadProposalDetail(id); }
+          catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+          finally { const b = $('pr-save'); if (b) b.disabled = false; }
+        });
+      }
+      if (canSend) {
+        $('pr-send-btn').addEventListener('click', () => {
+          $('pr-send-form').dataset.id = p.id; $('pr-send-sub').textContent = `${p.number} · ${money.format(p.price || 0)} · valid until ${fmtDate(p.valid_until)}`;
+          $('pr-send-name').value = p.recipient_name || p.contact_name || ''; $('pr-send-email').value = p.recipient_email || p.contact_email || ''; $('pr-send-msg').value = '';
+          $('pr-send-err').className = 'cp-form-err'; $('pr-send-overlay').classList.add('open'); setTimeout(() => $('pr-send-email').focus(), 30);
+        });
+        $('pr-sign-btn').addEventListener('click', () => {
+          $('pr-sign-form').dataset.id = p.id; $('pr-sign-name').value = p.recipient_name || p.contact_name || ''; dateSet($('pr-sign-date'), todayLocal());
+          $('pr-sign-err').className = 'cp-form-err'; $('pr-sign-overlay').classList.add('open');
+        });
+      }
+      if (canVersion) $('pr-version-btn').addEventListener('click', async () => {
+        if (!confirm(`Create version ${p.version + 1}? ${p.number} becomes superseded and its link stops working.`)) return;
+        try { const { data } = await api('/proposals/' + p.id + '/new-version', { method: 'POST' }, true); toast(`${data.number} drafted`); location.hash = '#proposals/' + data.id; } catch (e) { toast(e.message, true); }
+      });
+      if (p.status === 'draft') $('pr-del-btn').addEventListener('click', async () => {
+        if (!confirm(`Delete draft ${p.number}?`)) return;
+        try { await api('/proposals/' + p.id, { method: 'DELETE' }, true); toast('Draft deleted'); location.hash = '#proposals'; } catch (e) { toast(e.message, true); }
+      });
+    } catch (e) { toast(e.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this proposal', e.message)}</div>`; }
+  }
+  // new-proposal modal
+  async function openNewProposal() {
+    const sel = $('pr-new-est'); sel.innerHTML = '<option value="">Loading…</option>'; $('pr-new-err').className = 'cp-form-err';
+    $('pr-new-overlay').classList.add('open');
+    try {
+      const { data } = await api('/estimates', null, true);
+      const rows = ((data && data.estimates) || []).filter(e => !['lost', 'converted'].includes(e.status)).sort((a, b) => a.code.localeCompare(b.code));
+      sel.innerHTML = '<option value="">— choose an estimate —</option>' + rows.map(e => `<option value="${e.id}">${esc(e.code)} · ${esc(e.org_name || '')} · ${esc(e.building_address || 'no address')}${e.final_amount ? ' · ' + money.format(e.final_amount) : ''} (${esc(e.status)})</option>`).join('');
+      if (!rows.length) sel.innerHTML = '<option value="">No open estimates — open one in Estimating first</option>';
+    } catch (e) { sel.innerHTML = '<option value="">Could not load estimates</option>'; }
+  }
+  function closeOverlay(id) { $(id).classList.remove('open'); }
+  $('pr-new').addEventListener('click', openNewProposal);
+  $('pr-new-cancel').addEventListener('click', () => closeOverlay('pr-new-overlay'));
+  $('pr-new-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const v = $('pr-new-est').value; const err = $('pr-new-err'); err.className = 'cp-form-err';
+    if (!v) { err.textContent = 'Pick an estimate.'; err.className = 'cp-form-err show'; return; }
+    $('pr-new-go').disabled = true;
+    try { const { data } = await api('/proposals', { method: 'POST', body: JSON.stringify({ estimate_id: Number(v) }) }, true); closeOverlay('pr-new-overlay'); toast(`Draft ${data.number} created`); location.hash = '#proposals/' + data.id; }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('pr-new-go').disabled = false; }
+  });
+  $('pr-send-cancel').addEventListener('click', () => closeOverlay('pr-send-overlay'));
+  $('pr-send-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('pr-send-err'); err.className = 'cp-form-err'; const id = $('pr-send-form').dataset.id;
+    const email = $('pr-send-email').value.trim(); if (!email.includes('@')) { err.textContent = 'A valid recipient email is required.'; err.className = 'cp-form-err show'; return; }
+    $('pr-send-go').disabled = true; $('pr-send-go').textContent = 'Sending…';
+    try { await api('/proposals/' + id + '/send', { method: 'POST', body: JSON.stringify({ to_email: email, to_name: $('pr-send-name').value.trim(), message: $('pr-send-msg').value }) }, true); closeOverlay('pr-send-overlay'); toast('Proposal sent'); loadProposalDetail(id); }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('pr-send-go').disabled = false; $('pr-send-go').textContent = 'Send'; }
+  });
+  $('pr-sign-cancel').addEventListener('click', () => closeOverlay('pr-sign-overlay'));
+  $('pr-sign-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('pr-sign-err'); err.className = 'cp-form-err'; const id = $('pr-sign-form').dataset.id;
+    $('pr-sign-go').disabled = true;
+    try { await api('/proposals/' + id + '/mark-signed', { method: 'POST', body: JSON.stringify({ name: $('pr-sign-name').value.trim(), signed_on: dateGet($('pr-sign-date')) || null }) }, true); closeOverlay('pr-sign-overlay'); toast('Recorded as signed'); loadProposalDetail(id); }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('pr-sign-go').disabled = false; }
+  });
+  ['pr-new-overlay', 'pr-send-overlay', 'pr-sign-overlay'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target === $(id)) closeOverlay(id); }));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ['pr-new-overlay', 'pr-send-overlay', 'pr-sign-overlay'].forEach(closeOverlay); });
+
+  // ---------- FINANCE ----------
+  async function loadFinance() {
+    skeleton($('fin-kpis'), 1); skeleton($('fin-chart'), 5); skeleton($('fin-pipeline'), 4); skeleton($('fin-cat'), 4); skeleton($('fin-proj'), 4); skeleton($('fin-recv'), 3); skeleton($('fin-labor'), 3);
+    try {
+      const { data: d } = await api('/finance?months=' + $('fin-months').value);
+      const sum = a => a.reduce((x, y) => x + y, 0);
+      const spend = d.series.receipts.map((v, i) => v + d.series.ledger[i]);
+      const pipe = Object.fromEntries(d.pipeline_by_status.map(p => [p.status, p]));
+      const open = ['intake','scoping','submitted'].reduce((a, s) => a + ((pipe[s] || {}).value || 0), 0);
+      $('fin-kpis').innerHTML =
+        kpi('Won (period)', money.format(sum(d.series.won)), `${d.months.length} months`, 'good') +
+        kpi('Submitted (period)', money.format(sum(d.series.submitted)), 'proposal value sent') +
+        kpi('Spend (period)', money.format(sum(spend)), `${money.format(sum(d.series.receipts))} receipts · ${money.format(sum(d.series.ledger))} ledger`) +
+        kpi('Open pipeline', money.format(open), 'intake + scoping + submitted') +
+        kpi('Labor, last 30 days', money.format(d.labor_last_30_days.estimated_cost), `${d.labor_last_30_days.worked_hours} h worked${d.labor_last_30_days.unrated_hours ? ' · ' + d.labor_last_30_days.unrated_hours + ' h unrated' : ''}`) +
+        kpi('QuickBooks sync', `${d.quickbooks.receipts_synced}<span class="cp-muted" style="font-size:14px"> / ${d.quickbooks.receipts_total}</span>`, 'receipts synced');
+      const max = Math.max(1, ...d.series.won, ...spend);
+      $('fin-chart').innerHTML = `<div class="cp-bars">${d.months.map((m, i) => `<div class="cp-bar" title="${esc(m)} · won ${money.format(d.series.won[i])} · spend ${money.format(spend[i])}"><div class="b won" style="height:${Math.round(d.series.won[i] / max * 120)}px"></div><div class="b spend" style="height:${Math.round(spend[i] / max * 120)}px"></div><div class="lbl">${esc(fmtMonth(m))}</div></div>`).join('')}</div>
+        <div class="cp-legend"><span><i style="background:var(--status-complete)"></i>Won (decided)</span><span><i style="background:var(--brand-red)"></i>Spend (receipts + ledger)</span></div>`;
+      $('fin-pipeline').innerHTML = d.pipeline_by_status.length ? d.pipeline_by_status.map(p => `<li><span><span class="cp-pill ${['approved','converted'].includes(p.status) ? 'ok' : (p.status === 'lost' ? 'bad' : 'active')}">${esc(p.status)}</span> <span class="cp-muted">${p.n}</span></span><strong>${money.format(p.value)}</strong></li>`).join('') : empty('No estimates yet');
+      table($('fin-cat'), [
+        { key: 'category', label: 'Category' }, { key: 'source', label: 'Source', render: r => `<span class="cp-pill">${esc(r.source)}</span>` },
+        { key: 'n', label: 'Entries', num: true }, { key: 'total', label: 'Total', num: true, render: r => money2.format(r.total) },
+      ], d.spend_by_category, { defaultSort: { key: 'total', dir: 'desc' }, emptyTitle: 'No spend in this period' });
+      table($('fin-proj'), [
+        { key: 'project_code', label: 'Project', render: r => `<span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:12px">${esc(r.name || '')}</div>` },
+        { key: 'total', label: 'Total', num: true, render: r => money2.format(r.total) },
+      ], d.spend_by_project, { defaultSort: { key: 'total', dir: 'desc' }, emptyTitle: 'No spend in this period' });
+      table($('fin-recv'), [
+        { key: 'project_code', label: 'Job', render: r => `<span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:12px">${esc(r.client_name || r.project_name || '')}</div>` },
+        { key: 'final_amount', label: 'Contract', num: true, render: r => r.final_amount ? money.format(r.final_amount) : '—' },
+        { key: 'deposit_received', label: 'Deposit', render: r => r.deposit_received ? `<span class="cp-pill ok">received ${fmtDate(r.deposit_date)}</span>` : '<span class="cp-pill warn">awaiting</span>' },
+        { key: 'balance_status', label: 'Balance', render: r => `<span class="cp-pill ${r.balance_status === 'paid' ? 'ok' : 'active'}">${esc(r.balance_status || 'open')}</span>` },
+        { key: 'qb_invoice_ref', label: 'QB invoice', render: r => esc(r.qb_invoice_ref || '—') },
+      ], d.receivables, { emptyTitle: 'No IRA jobs tracked', emptySub: 'Receivables come from converted rope-access estimates.' });
+      state.cache.invoices = d.invoices || []; renderInvoices(d.invoice_summary);
+      const l = d.labor_last_30_days;
+      $('fin-labor').innerHTML = l.by_trade.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Trade</th><th class="num">Worked hours</th><th class="num">Est. cost</th></tr></thead><tbody>${l.by_trade.map(t => `<tr><td>${esc(t.trade)}</td><td class="num">${t.hours}</td><td class="num">${money2.format(t.cost)}</td></tr>`).join('')}</tbody></table></div>${l.unrated_hours ? `<div class="cp-note">${l.unrated_hours} worked hours have no rate on file and are excluded from the cost. Set rates under Workforce &amp; Pay.</div>` : ''}` : empty('No hours logged in the last 30 days');
+    } catch (e) { toast(e.message, true); $('fin-kpis').innerHTML = empty('Could not load finance', e.message); }
+  }
+
+  // ---------- EXPENSES ----------
+  async function loadExpenses() {
+    const q = new URLSearchParams();
+    if ($('ex-project').value) q.set('project', $('ex-project').value);
+    if ($('ex-category').value) q.set('category', $('ex-category').value);
+    if ($('ex-month').value) q.set('month', $('ex-month').value);
+    if ($('ex-status').value) q.set('status', $('ex-status').value);
+    q.set('source', $('ex-source').value);
+    skeleton($('ex-table'), 6);
+    try {
+      const { data: d } = await api('/expenses?' + q.toString());
+      const fill = (sel, items, val, label) => { const cur = sel.value; sel.innerHTML = sel.options[0].outerHTML + items.map(i => `<option value="${esc(val(i))}">${esc(label(i))}</option>`).join(''); sel.value = cur; };
+      fill($('ex-project'), d.filters.projects, p => p.project_code, p => `${p.project_code} · ${p.name || ''}`);
+      fill($('ex-category'), d.filters.categories, c => c, c => c);
+      $('ex-total').textContent = `${d.items.length} entries · ${money2.format(d.total)}`;
+      table($('ex-table'), [
+        { key: 'expense_date', label: 'Date', render: r => fmtDate(r.expense_date) },
+        { key: 'vendor', label: 'Vendor', render: r => `${esc(r.vendor || '—')}${r.doc_number ? `<div class="cp-muted" style="font-size:12px">${esc(r.doc_type || 'doc')} ${esc(r.doc_number)}</div>` : ''}` },
+        { key: 'project_code', label: 'Project', render: r => `<span class="cp-id">${esc(r.project_code || '—')}</span>` },
+        { key: 'category', label: 'Category', render: r => esc(r.category || '—') },
+        { key: 'amount', label: 'Amount', num: true, render: r => money2.format(r.amount) },
+        { key: 'source', label: 'Source', render: r => `<span class="cp-pill">${esc(r.source)}</span>` },
+        { key: 'status', label: 'Status', render: r => `<span class="cp-pill ${r.status === 'reviewed' || r.status === 'booked' ? 'ok' : (r.status === 'needs_review' ? 'warn' : '')}">${esc(r.status)}</span>${r.synced_to_qb ? ' <span class="cp-pill active">QB</span>' : ''}` },
+        { key: 'notes', label: 'Notes', render: r => `<span class="cp-muted">${esc((r.notes || '').slice(0, 80))}</span>` },
+      ], d.items, { defaultSort: { key: 'expense_date', dir: 'desc' }, emptyTitle: 'No expenses match these filters', emptySub: 'Receipts are scanned from the project dashboard; ledger entries are logged there too.' });
+    } catch (e) { toast(e.message, true); $('ex-table').innerHTML = empty('Could not load expenses', e.message); }
+  }
+
+  // ---------- WORKFORCE ----------
+  async function loadWorkforce() {
+    $('worker-detail').hidden = true; $('workforce-list').hidden = false;
+    skeleton($('wf-kpis'), 1); skeleton($('wf-table'), 6); skeleton($('wf-trades'), 3);
+    try {
+      const { data: d } = await api('/workforce');
+      state.cache.workforce = d;
+      const s = d.summary;
+      $('wf-kpis').innerHTML =
+        kpi('Headcount', s.headcount, `${s.on_site_today} on site today`) +
+        kpi('Rates on file', `${s.rated}<span class="cp-muted" style="font-size:14px"> / ${s.headcount}</span>`, s.pending_rate_changes ? `${s.pending_rate_changes} pending change(s)` : 'no pending changes', s.pending_rate_changes ? 'warn' : '') +
+        kpi('Certs expired', s.certs_expired, 'across active workers', s.certs_expired ? 'warn' : 'good') +
+        kpi('Certs expiring ≤ 30d', s.certs_expiring_30, 'renew before they lapse', s.certs_expiring_30 ? 'warn' : '');
+      renderWorkers();
+      table($('wf-trades'), [
+        { key: 'trade', label: 'Trade' }, { key: 'workers', label: 'Workers', num: true },
+        { key: 'avg_rate', label: 'Avg rate', num: true, render: r => r.avg_rate ? money2.format(r.avg_rate) + '/h' : '<span class="cp-muted">—</span>' },
+      ], d.by_trade, { defaultSort: { key: 'workers', dir: 'desc' }, emptyTitle: 'No active workers' });
+    } catch (e) { toast(e.message, true); $('wf-kpis').innerHTML = empty('Could not load workforce', e.message); }
+  }
+  function renderWorkers() {
+    const d = state.cache.workforce; if (!d) return;
+    const q = $('wf-search').value.trim().toLowerCase();
+    const rows = d.workers.filter(w => !q || [w.worker_id, w.name, w.trade].some(x => String(x || '').toLowerCase().includes(q)));
+    table($('wf-table'), [
+      { key: 'worker_id', label: 'Worker', render: r => `<a class="cp-link" href="#workforce/${encodeURIComponent(r.employee_id)}"><span class="cp-id">${esc(r.worker_id || r.employee_id)}</span> — ${esc(r.name)}</a><div class="cp-muted" style="font-size:12px">${esc(r.trade || 'trade not set')}</div>` },
+      { key: 'current_rate', label: 'Rate', num: true, render: r => r.current_rate ? `${money2.format(r.current_rate)}/h${r.pending_rate_changes ? ' <span class="cp-pill warn">pending</span>' : ''}` : '<span class="cp-pill warn">not set</span>' },
+      { key: 'hours_7d', label: 'Worked 7d', num: true }, { key: 'hours_30d', label: 'Worked 30d', num: true },
+      { key: 'last_on_site', label: 'Last on site', render: r => fmtDate(r.last_on_site) },
+      { key: 'certs_total', label: 'Certs', num: true, render: r => `${r.certs_total}${r.certs_expired ? ` <span class="cp-pill bad">${r.certs_expired} expired</span>` : ''}${r.certs_expiring_30 ? ` <span class="cp-pill warn">${r.certs_expiring_30} soon</span>` : ''}` },
+    ], rows, { defaultSort: { key: 'worker_id', dir: 'asc' }, emptyTitle: q ? 'No workers match' : 'No active workers', emptySub: q ? '' : 'Onboard workers from the Workforce tab of the Office Console.', onRow: r => { location.hash = '#workforce/' + encodeURIComponent(r.employee_id); } });
+  }
+
+  // ---------- WORKER JOB HISTORY + PAYROLL VIEW (#320) ----------
+  const hrs = h => (Math.round((h || 0) * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  async function loadWorkerDetail(id, months) {
+    $('workforce-list').hidden = true; const host = $('worker-detail'); host.hidden = false;
+    host.innerHTML = '<div class="cp-card"><div class="cp-skel"></div><div class="cp-skel"></div><div class="cp-skel"></div></div>';
+    months = months || state.cache.workerMonths || 12;
+    try {
+      const { data: d } = await api('/workers/' + encodeURIComponent(id) + '?months=' + months);
+      const w = d.worker, s = d.summary, L = d.window.labels;
+      $('cp-title').textContent = `${w.worker_id || w.employee_id} — ${w.name}`;
+      const statusPill = w.status === 'archived' ? '<span class="cp-pill">archived</span>' : (w.status === 'inactive' ? '<span class="cp-pill warn">inactive</span>' : '<span class="cp-pill ok">active</span>');
+      const max = Math.max(1, ...d.by_month.map(m => m.hours));
+      const bars = `<div class="cp-bars">${d.by_month.map(m => `<div class="cp-bar" title="${esc(fmtMonth(m.month))} · ${hrs(m.hours)} h · ${m.days} day(s) · est. ${money2.format(m.est_cost)}"><div class="b won" style="height:${Math.round(m.hours / max * 120)}px"></div><div class="lbl">${esc(fmtMonth(m.month))}</div></div>`).join('')}</div>`;
+      const certRow = c => `<tr><td>${esc(c.name || c.cert_type_id)}</td><td>${fmtDate(c.date_obtained)}</td><td>${fmtDate(c.expiration_date)} ${c.expiration_date ? daysPill(c.days_left) : ''}</td></tr>`;
+      const credRow = c => `<tr><td><span class="cp-id">${esc(c.card_id)}</span></td><td>${fmtDate(c.issued_date)}</td><td>${fmtDate(c.expires_date)} ${c.expires_date ? daysPill(c.days_left) : ''}</td><td><span class="cp-pill ${c.status === 'issued' ? 'ok' : ''}">${esc(c.status)}</span></td><td>${esc(c.issued_by || '')}</td></tr>`;
+      const rateRow = r => `<tr><td><strong>${money2.format(r.hourly_rate)}/h</strong> ${r.current ? '<span class="cp-pill ok">current</span>' : ''}</td><td>${fmtDate(r.effective_from)}</td><td>${r.effective_to ? fmtDate(r.effective_to) : '<span class="cp-muted">open</span>'}</td><td class="cp-muted">${esc(r.notes || '')}</td></tr>`;
+      const chgRow = r => `<tr><td>${r.old_rate ? money2.format(r.old_rate) : '—'} → <strong>${money2.format(r.new_rate)}</strong></td><td>${fmtDate(r.effective_date)}</td><td><span class="cp-pill ${r.status === 'approved' ? 'ok' : (r.status === 'pending' ? 'warn' : (r.status === 'rejected' ? 'bad' : ''))}">${esc(r.status)}</span></td><td class="cp-muted">${esc(r.note || '')}</td></tr>`;
+      host.innerHTML = `
+        <div class="cp-toolbar"><a class="cp-link" href="#workforce">← All workers</a><span style="flex:1"></span>${statusPill}<span class="cp-pill">${esc(w.trade || 'trade not set')}</span>
+          <select class="cp-select" id="wk-months"><option value="6">6 months</option><option value="12">12 months</option><option value="24">24 months</option><option value="36">36 months</option></select>
+          <a class="btn-ghost btn-sm" href="/admin/labor-rates" style="text-decoration:none">Manage rates</a></div>
+        <div class="cp-kpis">
+          ${kpi('Hours worked (' + months + ' mo)', hrs(s.hours_window), `${s.days_window} day(s) on site · ${hrs(s.hours_ytd)} h this year · ${hrs(s.hours_all_time)} h all time`)}
+          ${kpi('Est. labor cost (' + months + ' mo)', money.format(s.est_cost_window), s.unrated_hours_window ? `${hrs(s.unrated_hours_window)} h had no rate on file` : 'worked hours × rate on each date', s.unrated_hours_window ? 'warn' : '')}
+          ${kpi('Current rate', w.current_rate ? money2.format(w.current_rate) + '/h' : '—', w.current_rate ? `since ${fmtDate(w.rate_effective_date)}${s.pending_rate_changes ? ' · ' + s.pending_rate_changes + ' pending change(s)' : ''}` : 'no rate on file', !w.current_rate || s.pending_rate_changes ? 'warn' : '')}
+          ${kpi('Projects', s.projects_total, `${s.projects_active} active assignment(s) · last on site ${fmtDate(s.last_on_site)}`)}
+          ${kpi('Certifications', s.certs_total, `${s.certs_expired} expired · ${s.certs_expiring_30} expiring ≤ 30d`, s.certs_expired ? 'warn' : (s.certs_expiring_30 ? 'warn' : 'good'))}
+          ${kpi('Credentials', s.credentials_issued, 'Certificate of Fitness cards issued')}
+        </div>
+        <div class="cp-grid3">
+          <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Projects worked</h2><span class="hint">from sign-ins and assignments · all time</span></div>
+              <div class="cp-table-wrap"><table class="cp-table" id="wk-projects"></table></div></div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Hours by month</h2><span class="hint">last ${months} months</span></div>${bars}
+              <div class="cp-table-wrap" style="margin-top:12px"><table class="cp-table" id="wk-months-table"></table></div></div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Hours by project and month</h2></div>
+              ${d.matrix.rows.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th>${L.map(m => `<th class="num">${esc(fmtMonth(m))}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>${d.matrix.rows.map(r => `<tr><td><span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:12px">${esc(r.project_name || '')}</div></td>${r.cells.map(c => `<td class="num">${c ? hrs(c) : '<span class="cp-muted">·</span>'}</td>`).join('')}<td class="num"><strong>${hrs(r.total)}</strong></td></tr>`).join('')}</tbody></table></div>` : empty('No hours in this window')}
+            </div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Last 30 days</h2><span class="hint">each sign-in · hours worked</span></div>
+              ${d.recent_days.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Date</th><th>Project</th><th>In</th><th>Out</th><th class="num">Hours</th><th class="num">Est. cost</th></tr></thead><tbody>${d.recent_days.map(r => `<tr><td>${fmtDate(r.date)}</td><td><span class="cp-id">${esc(r.project_code)}</span></td><td>${esc(r.time_in || '—')}</td><td>${esc(r.time_out || '—')}</td><td class="num">${hrs(r.hours)}</td><td class="num">${r.est_cost ? money2.format(r.est_cost) : '<span class="cp-muted">no rate</span>'}</td></tr>`).join('')}</tbody></table></div>` : empty('No sign-ins in the last 30 days')}
+            </div>
+          </div>
+          <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Rate history</h2><span class="hint">company-confidential</span></div>
+              ${d.rate_history.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Rate</th><th>From</th><th>To</th><th></th></tr></thead><tbody>${d.rate_history.map(rateRow).join('')}</tbody></table></div>` : empty('No effective-dated rates', w.current_rate ? 'The current rate comes from the labor rate tracker state.' : 'Set a rate under Labor Rates.')}
+              ${d.rate_changes.length ? `<div class="cp-card-head" style="margin-top:14px"><h2>Rate changes</h2><span class="hint">approval audit</span></div><div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Change</th><th>Effective</th><th>Status</th><th></th></tr></thead><tbody>${d.rate_changes.slice().reverse().map(chgRow).join('')}</tbody></table></div>` : ''}
+            </div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Certifications</h2></div>
+              ${d.certifications.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Certification</th><th>Obtained</th><th>Expires</th></tr></thead><tbody>${d.certifications.map(certRow).join('')}</tbody></table></div>` : empty('No certifications on file')}
+            </div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Credentials issued</h2><span class="hint">Certificate of Fitness cards</span></div>
+              ${d.credentials.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Card</th><th>Issued</th><th>Expires</th><th>Status</th><th>By</th></tr></thead><tbody>${d.credentials.map(credRow).join('')}</tbody></table></div>` : empty('No cards issued yet')}
+            </div>
+          </div>
+        </div>`;
+      $('wk-months').value = String(months);
+      $('wk-months').addEventListener('change', () => { state.cache.workerMonths = Number($('wk-months').value); loadWorkerDetail(id, state.cache.workerMonths); });
+      table($('wk-projects'), [
+        { key: 'project_code', label: 'Project', render: p => `<a class="cp-link" href="/projects/${encodeURIComponent(p.project_code)}"><span class="cp-id">${esc(p.project_code)}</span></a><div class="cp-muted" style="font-size:12px">${esc(p.project_name || '')}${p.project_status ? ' · ' + esc(p.project_status) : ''}</div>` },
+        { key: 'role_on_project', label: 'Assignment', render: p => p.assignment_status ? `<span class="cp-pill ${p.assignment_status === 'active' ? 'ok' : ''}">${esc(p.assignment_status)}</span>${p.role_on_project ? ' ' + esc(p.role_on_project) : ''}` : '<span class="cp-muted">sign-ins only</span>' },
+        { key: 'first_date', label: 'First', render: p => fmtDate(p.first_date || p.assigned_from) },
+        { key: 'last_date', label: 'Last', render: p => fmtDate(p.last_date || p.assigned_to) },
+        { key: 'days', label: 'Days', num: true },
+        { key: 'hours', label: 'Hours', num: true, render: p => hrs(p.hours) },
+        { key: 'est_cost', label: 'Est. cost', num: true, render: p => p.est_cost ? money2.format(p.est_cost) + (p.unrated_hours ? ` <span class="cp-pill warn">${hrs(p.unrated_hours)} h unrated</span>` : '') : (p.hours ? '<span class="cp-pill warn">no rate</span>' : '—') },
+      ], d.projects, { defaultSort: { key: 'last_date', dir: 'desc' }, emptyTitle: 'No projects yet', emptySub: 'Sign-ins and project assignments will build this history.' });
+      table($('wk-months-table'), [
+        { key: 'month', label: 'Month', render: m => esc(fmtMonth(m.month)) },
+        { key: 'days', label: 'Days', num: true },
+        { key: 'hours', label: 'Hours', num: true, render: m => hrs(m.hours) },
+        { key: 'est_cost', label: 'Est. cost', num: true, render: m => m.est_cost ? money2.format(m.est_cost) : (m.hours ? '<span class="cp-pill warn">no rate</span>' : '—') },
+      ], d.by_month.filter(m => m.hours || m.days).slice().reverse(), { defaultSort: { key: 'month', dir: 'desc' }, emptyTitle: 'No hours in this window' });
+    } catch (e) { toast(e.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this worker', e.message)}<div style="margin-top:10px"><a class="cp-link" href="#workforce">← All workers</a></div></div>`; }
+  }
+
+  // ---------- COMPLIANCE ----------
+  const KIND_LABEL = { worker_cert: 'Worker cert', permit: 'Permit', project_document: 'Project document', estimate_document: 'Estimate document', company_document: 'Company document', vehicle: 'Vehicle' };
+  const cdFilter = { group: 'all' };
+  const coFilter = { state: 'all', kind: 'all' };
+  async function loadCompliance() {
+    skeleton($('co-kpis'), 1); skeleton($('co-table'), 5); skeleton($('cd-table'), 3);
+    try {
+      const [{ data: d }, docs, veh] = await Promise.all([api('/compliance?days=' + $('co-days').value), api('/company-documents'), api('/vehicles')]);
+      state.cache.compliance = d; state.cache.docCategories = docs.meta.categories || {}; state.cache.docGroups = docs.meta.groups || {}; state.cache.catGroups = docs.meta.category_groups || {};
+      state.cache.vehicles = veh.data; state.cache.drivers = veh.meta.drivers || [];
+      const s = d.summary;
+      const gaps = veh.data.reduce((n, v) => n + v.missing.length, 0);
+      $('co-kpis').innerHTML =
+        kpi('Expired', s.expired, 'needs action now', s.expired ? 'warn' : 'good') +
+        kpi('Due ≤ 30 days', s.due_30, '', s.due_30 ? 'warn' : '') +
+        kpi('Due 31–60 days', s.due_60, '') + kpi('Due 61–90 days', s.due_90, '') +
+        kpi('Vault documents', docs.data.length, `${docs.data.reduce((n, x) => n + x.file_count, 0)} file(s) attached`) +
+        kpi('Vehicles', veh.data.filter(v => v.status === 'active').length, gaps ? `${gaps} document(s) missing` : 'paper complete', gaps ? 'warn' : '');
+      renderVehicles(); renderCompanyDocs(docs.data); renderDocChips();   // docs cache first, then the shelf counts
+      renderComplianceChips(); renderComplianceTable();
+    } catch (e) { toast(e.message, true); $('co-kpis').innerHTML = empty('Could not load compliance', e.message); }
+  }
+  function renderComplianceChips() {
+    const d = state.cache.compliance; if (!d) return;
+    const chips = [['state', 'all', 'All', d.items.length], ['state', 'expired', 'Expired', d.summary.expired], ['state', 'due_30', '≤ 30d', d.summary.due_30], ['state', 'due_60', '31–60d', d.summary.due_60], ['state', 'due_90', '61–90d+', d.items.length - d.summary.expired - d.summary.due_30 - d.summary.due_60]];
+    const kinds = Object.entries(d.by_kind).map(([k, n]) => ['kind', k, KIND_LABEL[k] || k, n]);
+    $('co-chips').innerHTML = chips.concat([['sep']], kinds).map(c => c[0] === 'sep' ? '<span style="width:8px"></span>' : `<button type="button" class="cp-chip ${coFilter[c[0]] === c[1] ? 'on' : ''}" data-f="${c[0]}" data-v="${esc(c[1])}">${esc(c[2])}<span class="n">${c[3]}</span></button>`).join('');
+    $('co-chips').querySelectorAll('.cp-chip').forEach(b => b.addEventListener('click', () => { const f = b.dataset.f, v = b.dataset.v; coFilter[f] = (coFilter[f] === v && v !== 'all') ? 'all' : v; renderComplianceChips(); renderComplianceTable(); }));
+  }
+  function renderComplianceTable() {
+    const d = state.cache.compliance; if (!d) return;
+    const rows = d.items.filter(i => (coFilter.state === 'all' || (coFilter.state === 'due_90' ? !['expired','due_30','due_60'].includes(i.state) : i.state === coFilter.state)) && (coFilter.kind === 'all' || i.kind === coFilter.kind));
+    table($('co-table'), [
+      { key: 'expires_on', label: 'Expires', render: r => `${fmtDate(r.expires_on)}<div>${daysPill(r.days_left)}</div>` },
+      { key: 'kind', label: 'Type', render: r => `<span class="cp-pill">${esc(KIND_LABEL[r.kind] || r.kind)}</span>` },
+      { key: 'title', label: 'Item', render: r => `${esc(r.title)}${r.number ? `<div class="cp-muted" style="font-size:12px">${esc(r.number)}</div>` : ''}` },
+      { key: 'group', label: 'Group', render: r => esc(r.group || '—') },
+      { key: 'subject', label: 'For', render: r => r.kind === 'worker_cert' ? `<span class="cp-id">${esc((r.subject || '').split(' — ')[0])}</span>${esc((r.subject || '').slice((r.subject || '').indexOf(' — ')))}` : esc(r.subject || '—') },
+    ], rows, { defaultSort: { key: 'expires_on', dir: 'asc' }, emptyTitle: 'Nothing expiring in this window', emptySub: 'Certs, permits, project documents and company documents with an expiry date appear here.' });
+  }
+  function renderDocChips() {
+    const docs = state.cache.docs || [], groups = state.cache.docGroups || {};
+    const chips = [['all', 'All', docs.length]].concat(Object.entries(groups).map(([k, v]) => [k, v, docs.filter(d => d.group === k).length]));
+    $('cd-chips').innerHTML = chips.map(c => `<button type="button" class="cp-chip ${cdFilter.group === c[0] ? 'on' : ''}" data-g="${esc(c[0])}">${esc(c[1])}<span class="n">${c[2]}</span></button>`).join('');
+    $('cd-chips').querySelectorAll('.cp-chip').forEach(b => b.addEventListener('click', () => { cdFilter.group = b.dataset.g; renderDocChips(); renderCompanyDocs(state.cache.docs); }));
+  }
+  function renderCompanyDocs(docs) {
+    state.cache.docs = docs;
+    if ($('cd-chips').children.length === 0) renderDocChips();
+    const rows = cdFilter.group === 'all' ? docs : docs.filter(d => d.group === cdFilter.group);
+    table($('cd-table'), [
+      { key: 'category_label', label: 'Category', render: r => `${esc(r.category_label)}${r.doc_year ? `<div class="cp-muted" style="font-size:12px">${r.doc_year}</div>` : ''}` },
+      { key: 'title', label: 'Document', render: r => `<strong>${esc(r.title)}</strong>${r.doc_number ? `<div class="cp-muted" style="font-size:12px">${esc(r.doc_number)}</div>` : ''}` },
+      { key: 'issuer', label: 'Issuer', render: r => esc(r.issuer || '—') },
+      { key: 'holder', label: 'Holder / vehicle', render: r => r.vehicle_label ? `<span class="cp-pill">${esc(r.vehicle_label)}</span>` : esc(r.holder || '—') },
+      { key: 'effective_date', label: 'Effective', render: r => fmtDate(r.effective_date) },
+      { key: 'expiry_date', label: 'Expires', render: r => `${fmtDate(r.expiry_date)} ${r.expiry_date ? daysPill(r.days_left) : ''}` },
+      { key: 'amount', label: 'Amount', num: true, render: r => r.amount ? money.format(r.amount) : '—' },
+      { key: 'file_count', label: 'Files', render: r => r.file_count ? r.files.map(f => `<a class="cp-link" href="${esc(f.file_url)}" target="_blank" rel="noopener" title="${esc(f.file_name)}">📎</a>`).join(' ') + ` <span class="cp-muted">${r.file_count}</span>` : '<span class="cp-muted">—</span>' },
+      { key: 'id', label: '', render: r => `<div class="cp-actions"><button type="button" class="cp-link" data-edit="${r.id}">Edit</button><button type="button" class="cp-link" data-archive="${r.id}" style="color:#A8382B">Archive</button></div>` },
+    ], rows, { defaultSort: { key: 'expiry_date', dir: 'asc' }, emptyTitle: cdFilter.group === 'all' ? 'No vault documents yet' : 'Nothing on this shelf yet', emptySub: 'Add the GL and workers’ comp policies, contractor licenses, bonds, vehicle paper and tax filings so renewals show up here and in Overview.' });
+    $('cd-table').querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openDocModal(docs.find(x => String(x.id) === b.dataset.edit))));
+    $('cd-table').querySelectorAll('[data-archive]').forEach(b => b.addEventListener('click', async () => {
+      const doc = docs.find(x => String(x.id) === b.dataset.archive);
+      if (!confirm(`Archive "${doc.title}"? It will stop appearing in renewals.`)) return;
+      try { await api('/company-documents/' + doc.id, { method: 'DELETE' }); toast('Document archived'); loadCompliance(); } catch (e) { toast(e.message, true); }
+    }));
+  }
+
+  // ---------- company document modal ----------
+  const dp = () => window.SSCDatePicker || null;
+  function dateGet(el) { const p = dp(); if (p && typeof p.getISO === 'function') { const v = p.getISO(el); if (v !== undefined && v !== null) return v; } return el.value || ''; }
+  function dateSet(el, iso) { const p = dp(); if (p && typeof p.setISO === 'function') { try { p.setISO(el, iso || ''); return; } catch (e) {} } el.value = iso || ''; }
+  function wireDates() { const p = dp(); if (!p || typeof p.wire !== 'function') return; ['cd-effective', 'cd-expiry'].forEach(id => { const el = $(id); if (!el.dataset.sscDp) { try { p.wire(el, {}); } catch (e) {} } }); }
+  function openDocModal(doc) {
+    const cats = state.cache.docCategories || {};
+    $('cd-category').innerHTML = Object.entries(cats).map(([k, v]) => `<option value="${esc(k)}">${esc(v)}</option>`).join('');
+    $('cd-form').dataset.id = doc ? doc.id : '';
+    $('cd-title').textContent = doc ? 'Edit company document' : 'Add company document';
+    $('cd-category').value = doc ? doc.category : 'insurance_gl';
+    $('cd-title-in').value = doc ? doc.title : ''; $('cd-holder').value = doc ? (doc.holder || '') : 'Superstars Contracting Inc.';
+    $('cd-number').value = doc ? (doc.doc_number || '') : ''; $('cd-issuer').value = doc ? (doc.issuer || '') : '';
+    $('cd-amount').value = doc && doc.amount ? doc.amount : ''; $('cd-notes').value = doc ? (doc.notes || '') : '';
+    $('cd-vehicle').innerHTML = '<option value="">— none —</option>' + (state.cache.vehicles || []).map(v => `<option value="${v.id}">${esc(v.label)}${v.plate ? ' · ' + esc(v.plate) : ''}</option>`).join('');
+    $('cd-vehicle').value = doc && doc.vehicle_id ? String(doc.vehicle_id) : (openDocModal.presetVehicle || '');
+    $('cd-year').value = doc && doc.doc_year ? doc.doc_year : '';
+    cdFieldsForCategory();
+    $('cd-files-wrap').hidden = !doc; if (doc) renderDocFiles(doc); $('cd-file').value = '';
+    $('cd-err').className = 'cp-form-err'; $('cd-overlay').classList.add('open'); setTimeout(() => $('cd-title-in').focus(), 30);
+  }
+  function cdFieldsForCategory() {
+    const g = (state.cache.catGroups || {})[$('cd-category').value] || 'insurance';
+    $('cd-vehicle-wrap').hidden = g !== 'vehicles'; $('cd-year-wrap').hidden = g !== 'tax';
+    if (g !== 'vehicles') $('cd-vehicle').value = '';
+    if (g === 'vehicles') $('cd-holder').value = ''; else if (!$('cd-holder').value) $('cd-holder').value = 'Superstars Contracting Inc.';
+  }
+  $('cd-category').addEventListener('change', cdFieldsForCategory);
+  function renderDocFiles(doc) {
+    const files = doc.files || [];
+    $('cd-files').innerHTML = files.length ? files.map(f => `<li><span><a class="cp-link" href="${esc(f.file_url)}" target="_blank" rel="noopener">${esc(f.file_name)}</a> <span class="cp-muted">· ${f.file_size ? Math.round(f.file_size / 1024) + ' KB' : ''} · ${fmtDate(f.uploaded_at)}</span></span><button type="button" class="cp-link" data-delfile="${f.id}" style="color:#A8382B">Remove</button></li>`).join('') : '<li><span class="cp-muted">No files attached yet.</span></li>';
+    $('cd-files').querySelectorAll('[data-delfile]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Remove this file from the vault?')) return;
+      try { await api('/company-documents/files/' + b.dataset.delfile, { method: 'DELETE' }); toast('File removed'); await refreshDocInModal(); } catch (e) { toast(e.message, true); }
+    }));
+  }
+  async function refreshDocInModal() {
+    const id = $('cd-form').dataset.id; if (!id) return;
+    const { data } = await api('/company-documents'); state.cache.docs = data; renderCompanyDocs(data); renderDocChips();
+    const doc = data.find(x => String(x.id) === String(id)); if (doc) renderDocFiles(doc);
+  }
+  $('cd-upload').addEventListener('click', async () => {
+    const id = $('cd-form').dataset.id, f = $('cd-file').files[0]; const err = $('cd-err'); err.className = 'cp-form-err';
+    if (!id) return; if (!f) { err.textContent = 'Choose a file first.'; err.className = 'cp-form-err show'; return; }
+    const fd = new FormData(); fd.append('file', f); $('cd-upload').disabled = true;
+    try {
+      const res = await fetch(API + '/company-documents/' + id + '/files', { method: 'POST', body: fd, credentials: 'same-origin' });
+      const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || 'Upload failed');
+      toast('File attached'); $('cd-file').value = ''; await refreshDocInModal();
+    } catch (e) { err.textContent = e.message; err.className = 'cp-form-err show'; }
+    finally { $('cd-upload').disabled = false; }
+  });
+  function closeDocModal() { $('cd-overlay').classList.remove('open'); $('cd-form').reset(); dateSet($('cd-effective'), ''); dateSet($('cd-expiry'), ''); $('cd-form').dataset.id = ''; openDocModal.presetVehicle = ''; }
+  $('cd-add').addEventListener('click', () => openDocModal(null));
+  $('cd-cancel').addEventListener('click', closeDocModal);
+  $('cd-overlay').addEventListener('click', (e) => { if (e.target === $('cd-overlay')) closeDocModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('cd-overlay').classList.contains('open')) closeDocModal(); });
+  $('cd-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('cd-err'); err.className = 'cp-form-err';
+    const payload = { category: $('cd-category').value, title: $('cd-title-in').value.trim(), holder: $('cd-holder').value.trim(), doc_number: $('cd-number').value.trim(), issuer: $('cd-issuer').value.trim(),
+      effective_date: dateGet($('cd-effective')), expiry_date: dateGet($('cd-expiry')), amount: $('cd-amount').value.trim() || null, notes: $('cd-notes').value.trim(),
+      vehicle_id: $('cd-vehicle-wrap').hidden ? null : ($('cd-vehicle').value || null), doc_year: $('cd-year-wrap').hidden ? null : ($('cd-year').value.trim() || null) };
+    if (!$('cd-vehicle-wrap').hidden && !payload.vehicle_id) { err.textContent = 'Pick the vehicle this document belongs to.'; err.className = 'cp-form-err show'; return; }
+    if (!payload.title) { err.textContent = 'Give the document a title.'; err.className = 'cp-form-err show'; return; }
+    if (payload.effective_date && payload.expiry_date && payload.expiry_date < payload.effective_date) { err.textContent = 'Expiry date is before the effective date.'; err.className = 'cp-form-err show'; return; }
+    const id = $('cd-form').dataset.id; $('cd-save').disabled = true;
+    try {
+      if (id) await api('/company-documents/' + id, { method: 'PATCH', body: JSON.stringify(payload) });
+      else await api('/company-documents', { method: 'POST', body: JSON.stringify(payload) });
+      toast(id ? 'Document updated' : 'Document added'); closeDocModal(); loadCompliance();
+    } catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('cd-save').disabled = false; }
+  });
+
+  // ---------- VEHICLES (#318) ----------
+  function vhDocCell(v, cat) {
+    const d = v.documents[cat];
+    if (!d) return v.status === 'active' ? '<span class="cp-pill bad">missing</span>' : '<span class="cp-muted">—</span>';
+    return `${d.expiry_date ? fmtDate(d.expiry_date) : esc(d.title)}<div>${d.expiry_date ? daysPill(d.days_left) : '<span class="cp-pill">no expiry</span>'}</div>`;
+  }
+  function renderVehicles() {
+    const rows = state.cache.vehicles || [];
+    table($('vh-table'), [
+      { key: 'label', label: 'Vehicle', render: v => `<strong>${esc(v.label)}</strong><div class="cp-muted" style="font-size:12px">${esc([v.year, v.make, v.model].filter(Boolean).join(' '))}${v.color ? ' · ' + esc(v.color) : ''}</div>` },
+      { key: 'plate', label: 'Plate', render: v => v.plate ? `<span class="cp-id">${esc(v.plate)}</span>` : '—' },
+      { key: 'driver', label: 'Driver', render: v => esc(v.driver || '—') },
+      { key: 'status', label: 'Status', render: v => `<span class="cp-pill ${v.status === 'active' ? 'ok' : ''}">${esc(v.status)}</span>` },
+      { key: 'next_expiry_days', label: 'Registration', sortVal: v => (v.documents.vehicle_registration || {}).days_left, render: v => vhDocCell(v, 'vehicle_registration') },
+      { key: 'ins', label: 'Insurance', sortVal: v => (v.documents.vehicle_insurance || {}).days_left, render: v => vhDocCell(v, 'vehicle_insurance') },
+      { key: 'insp', label: 'Inspection', sortVal: v => (v.documents.vehicle_inspection || {}).days_left, render: v => vhDocCell(v, 'vehicle_inspection') },
+      { key: 'id', label: '', render: v => `<div class="cp-actions"><button type="button" class="cp-link" data-vdoc="${v.id}">+ Paper</button><button type="button" class="cp-link" data-vedit="${v.id}">Edit</button>${v.status === 'active' ? `<button type="button" class="cp-link" data-vretire="${v.id}" style="color:#A8382B">Retire</button>` : ''}</div>` },
+    ], rows, { defaultSort: { key: 'label', dir: 'asc' }, emptyTitle: 'No vehicles yet', emptySub: 'Add the six trucks and vans; then attach each one’s registration, insurance and inspection so renewals show up here.' });
+    $('vh-table').querySelectorAll('[data-vedit]').forEach(b => b.addEventListener('click', () => openVehicleModal(rows.find(v => String(v.id) === b.dataset.vedit))));
+    $('vh-table').querySelectorAll('[data-vdoc]').forEach(b => b.addEventListener('click', () => { openDocModal.presetVehicle = b.dataset.vdoc; openDocModal(null); $('cd-category').value = 'vehicle_registration'; cdFieldsForCategory(); $('cd-vehicle').value = b.dataset.vdoc; }));
+    $('vh-table').querySelectorAll('[data-vretire]').forEach(b => b.addEventListener('click', async () => {
+      const v = rows.find(x => String(x.id) === b.dataset.vretire);
+      if (!confirm(`Retire "${v.label}"? Its documents stay in the vault but stop being flagged.`)) return;
+      try { await api('/vehicles/' + v.id, { method: 'DELETE' }); toast('Vehicle retired'); loadCompliance(); } catch (e) { toast(e.message, true); }
+    }));
+  }
+  function openVehicleModal(v) {
+    $('vh-form').dataset.id = v ? v.id : ''; $('vh-title').textContent = v ? 'Edit vehicle' : 'Add vehicle';
+    $('vh-label').value = v ? v.label : ''; $('vh-year').value = v && v.year ? v.year : ''; $('vh-make').value = v ? (v.make || '') : ''; $('vh-model').value = v ? (v.model || '') : '';
+    $('vh-color').value = v ? (v.color || '') : ''; $('vh-plate').value = v ? (v.plate || '') : ''; $('vh-vin').value = v ? (v.vin || '') : ''; $('vh-notes').value = v ? (v.notes || '') : '';
+    $('vh-driver').innerHTML = '<option value="">— none —</option>' + (state.cache.drivers || []).map(d => `<option value="${esc(d.employee_id)}">${esc(d.label)}</option>`).join('');
+    $('vh-driver').value = v && v.driver_employee_id ? v.driver_employee_id : ''; $('vh-status').value = v ? v.status : 'active';
+    $('vh-err').className = 'cp-form-err'; $('vh-overlay').classList.add('open'); setTimeout(() => $('vh-label').focus(), 30);
+  }
+  $('vh-add').addEventListener('click', () => openVehicleModal(null));
+  $('vh-cancel').addEventListener('click', () => closeOverlay('vh-overlay'));
+  $('vh-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('vh-err'); err.className = 'cp-form-err';
+    const payload = { label: $('vh-label').value.trim(), year: $('vh-year').value.trim() || null, make: $('vh-make').value.trim(), model: $('vh-model').value.trim(), color: $('vh-color').value.trim(),
+      plate: $('vh-plate').value.trim(), vin: $('vh-vin').value.trim(), driver_employee_id: $('vh-driver').value || null, status: $('vh-status').value, notes: $('vh-notes').value.trim() };
+    if (!payload.label) { err.textContent = 'Give the vehicle a label.'; err.className = 'cp-form-err show'; return; }
+    const id = $('vh-form').dataset.id; $('vh-save').disabled = true;
+    try {
+      if (id) await api('/vehicles/' + id, { method: 'PATCH', body: JSON.stringify(payload) }); else await api('/vehicles', { method: 'POST', body: JSON.stringify(payload) });
+      toast(id ? 'Vehicle updated' : 'Vehicle added'); closeOverlay('vh-overlay'); loadCompliance();
+    } catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('vh-save').disabled = false; }
+  });
+
+  // ---------- INVOICES & RECEIVABLES (#315) ----------
+  const INV_PILL = { draft: '', issued: 'active', paid: 'ok', void: '' };
+  function invPill(r) { if (r.overdue) return `<span class="cp-pill bad">overdue ${r.days_overdue}d</span>`; return `<span class="cp-pill ${INV_PILL[r.status] || ''}">${esc(r.status)}</span>`; }
+  function invKind(k) { return esc(String(k || '').replace('_', ' ')); }
+  function renderInvoices(sum) {
+    const rows = state.cache.invoices || [];
+    if (sum) $('inv-kpis').innerHTML =
+      kpi('Open', money.format(sum.open_value), `${sum.open_count} issued, unpaid`) +
+      kpi('Overdue', money.format(sum.overdue_value), `${sum.overdue_count} past due`, sum.overdue_count ? 'warn' : '') +
+      kpi(`Due in ${sum.horizon_days} days`, money.format(sum.due_soon_value), `${sum.due_soon_count} invoice(s)`) +
+      kpi('Awaiting deposit', money.format(sum.awaiting_deposit_value), `${sum.awaiting_deposit_count} deposit invoice(s) open`) +
+      kpi('Drafts', money.format(sum.draft_value), `${sum.draft_count} not issued yet`) +
+      kpi('Collected YTD', money.format(sum.collected_ytd_value), `${sum.collected_ytd_count} payment(s)`, 'good');
+    const st = $('inv-status').value, kd = $('inv-kind').value, q = $('inv-search').value.trim().toLowerCase();
+    const data = rows.filter(r => (st === 'overdue' ? r.overdue : (!st || r.status === st)) && (!kd || r.kind === kd) &&
+      (!q || [r.number, r.client_name, r.project_code, r.description, r.building_address].some(v => String(v || '').toLowerCase().includes(q))));
+    table($('inv-table'), [
+      { key: 'number', label: 'Invoice', render: r => `<span class="cp-id">${esc(r.number)}</span><div class="cp-muted" style="font-size:12px">${invKind(r.kind)}${r.proposal_number ? ' · ' + esc(r.proposal_number) : ''}</div>` },
+      { key: 'client_name', label: 'Client', render: r => `${esc(r.client_name || '')}<div class="cp-muted" style="font-size:12px">${esc(r.project_code || r.building_address || '')}</div>` },
+      { key: 'description', label: 'Description', render: r => esc(r.description || '—') },
+      { key: 'amount', label: 'Amount', num: true, render: r => money2.format(r.amount) },
+      { key: 'balance', label: 'Open', num: true, render: r => r.status === 'issued' ? `<strong>${money2.format(r.balance)}</strong>` : '—' },
+      { key: 'due_at', label: 'Due', render: r => r.status === 'draft' ? '<span class="cp-muted">draft</span>' : fmtDate(r.due_at) },
+      { key: 'status', label: 'Status', render: r => invPill(r) + (r.sent_at ? `<div class="cp-muted" style="font-size:11px">${r.viewed_at ? 'opened' : 'sent'} ${fmtDate(r.viewed_at || r.sent_at)}</div>` : '') },
+    ], data, { defaultSort: { key: 'due_at', dir: 'asc' }, emptyTitle: rows.length ? 'No invoices match' : 'No invoices yet', emptySub: rows.length ? '' : 'Sign a proposal with deposit terms, or create one here.', onRow: r => openInvoice(r.id) });
+  }
+  async function reloadInvoices() {
+    try { const { data, meta } = await api('/invoices', null, true); state.cache.invoices = data; renderInvoices(meta.summary); }
+    catch (e) { toast(e.message, true); }
+  }
+  async function openInvoice(id) {
+    const body = $('inv-view-body'), foot = $('inv-view-foot'); skeleton(body, 4); foot.innerHTML = ''; $('inv-view-overlay').classList.add('open');
+    try {
+      const { data: r } = await api('/invoices/' + id, null, true);
+      $('inv-view-title').textContent = `${r.number} · ${money2.format(r.amount)}`;
+      $('inv-view-sub').innerHTML = `${invPill(r)} <span class="cp-muted">${invKind(r.kind)}${r.issued_at ? ' · issued ' + fmtDate(r.issued_at) : ' · not issued'}${r.paid_at ? ' · paid ' + fmtDate(r.paid_at) : ''}</span>`;
+      const f = (k, v) => v ? `<li><span>${esc(k)}</span><strong>${v}</strong></li>` : '';
+      body.innerHTML = `<ul class="cp-list">
+          ${f('Client', `<a class="cp-link" href="#clients/${r.client_org_id}">${esc(r.client_name || '')}</a>`)}
+          ${f('Project', r.project_code ? `${esc(r.project_code)}${r.project_name ? ' · ' + esc(r.project_name) : ''}` : '')}
+          ${f('Building', r.building_id ? `<a class="cp-link" href="#buildings/${r.building_id}">${esc(r.building_address || '')}</a>` : '')}
+          ${f('Proposal', r.proposal_id ? `<a class="cp-link" href="#proposals/${r.proposal_id}">${esc(r.proposal_number || '')}</a>` : '')}
+          ${f('Description', esc(r.description || ''))}
+          ${f('Retainage held', r.retainage ? money2.format(r.retainage) : '')}
+          ${f('Due', r.due_at ? fmtDate(r.due_at) + (r.overdue ? ` <span class="cp-pill bad">${r.days_overdue} days late</span>` : (r.days_to_due != null ? ` <span class="cp-muted">in ${r.days_to_due} days</span>` : '')) : '')}
+          ${f('Paid so far', money2.format(r.amount_paid) + (r.status === 'issued' ? ` <span class="cp-muted">· ${money2.format(r.balance)} open</span>` : ''))}
+          ${f('QuickBooks', r.qb_invoice_id ? esc(r.qb_invoice_id) + (r.qb_status ? ' · ' + esc(r.qb_status) : '') : '')}
+          ${f('Notes', esc(r.notes || '').replace(/\n/g, '<br>'))}
+        </ul>
+        ${r.payments.length ? `<div class="cp-card-head" style="margin-top:14px"><h2>Payments</h2></div><div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Received</th><th>Method</th><th>Reference</th><th class="num">Amount</th></tr></thead><tbody>${r.payments.map(p => `<tr><td>${fmtDate(p.paid_on)}</td><td>${esc(p.method || '—')}</td><td>${esc(p.reference || '—')}</td><td class="num">${money2.format(p.amount)}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
+      const btn = (id, cls, label) => `<button class="${cls}" type="button" id="${id}">${label}</button>`;
+      foot.innerHTML = btn('inv-close', 'btn-ghost', 'Close') +
+        `<a class="btn-ghost" href="/api/invoices/${r.id}/preview" target="_blank" rel="noopener" style="text-decoration:none">Preview</a>` +
+        (r.status !== 'draft' ? `<a class="btn-ghost" href="/api/invoices/${r.id}/pdf" target="_blank" rel="noopener" style="text-decoration:none">PDF</a>` : '') +
+        '<span style="flex:1"></span>' +
+        (r.status === 'draft' ? btn('inv-del', 'btn-ghost', 'Delete draft') + btn('inv-issue', 'btn-primary', 'Issue invoice') : '') +
+        (r.status === 'issued' ? btn('inv-void', 'btn-ghost', 'Void') + btn('inv-send', 'btn-ghost', r.sent_at ? 'Resend…' : 'Email to client…') + btn('inv-pay', 'btn-primary', 'Record payment…') : '') +
+        (r.status === 'paid' ? btn('inv-send', 'btn-ghost', 'Email receipt…') : '');
+      if (r.sent_at) body.insertAdjacentHTML('beforeend', `<div class="cp-note" style="margin-top:12px">Emailed to ${esc(r.sent_name ? r.sent_name + ' · ' : '')}${esc(r.sent_to || '')} on ${fmtWhen(r.sent_at)}${r.sent_count > 1 ? ' (' + r.sent_count + ' sends)' : ''}${r.viewed_at ? ' · opened ' + fmtWhen(r.viewed_at) : ' · not opened yet'}</div>`);
+      if ($('inv-send')) $('inv-send').addEventListener('click', async () => {
+        $('inv-mail-form').dataset.id = r.id; $('inv-mail-sub').textContent = `${r.number} · ${money2.format(r.balance)} open`;
+        $('inv-mail-err').className = 'cp-form-err'; $('inv-mail-msg').value = '';
+        $('inv-mail-name').value = r.sent_name || ''; $('inv-mail-email').value = r.sent_to || '';
+        if (!r.sent_to) { try { const { data } = await api('/invoices/' + r.id + '/recipient', null, true); $('inv-mail-email').value = data.email || ''; $('inv-mail-name').value = data.name || ''; } catch (e) {} }
+        closeOverlay('inv-view-overlay'); $('inv-mail-overlay').classList.add('open'); setTimeout(() => $('inv-mail-email').focus(), 30);
+      });
+      $('inv-close').addEventListener('click', () => closeOverlay('inv-view-overlay'));
+      const after = async (msg) => { toast(msg); closeOverlay('inv-view-overlay'); await reloadInvoices(); if (state.view === 'overview') loadOverview(); };
+      if (r.status === 'draft') {
+        $('inv-issue').addEventListener('click', async () => {
+          if (!confirm(`Issue ${r.number} for ${money2.format(r.amount)}? It becomes a receivable${r.due_at ? ' due ' + fmtDate(r.due_at) : (r.kind === 'deposit' ? ' due in 7 days' : ' due in 30 days')}.`)) return;
+          try { await api('/invoices/' + r.id + '/issue', { method: 'POST', body: '{}' }, true); after(`${r.number} issued`); } catch (e) { toast(e.message, true); }
+        });
+        $('inv-del').addEventListener('click', async () => {
+          if (!confirm(`Delete draft ${r.number}?`)) return;
+          try { await api('/invoices/' + r.id, { method: 'DELETE' }, true); after('Draft deleted'); } catch (e) { toast(e.message, true); }
+        });
+      }
+      if (r.status === 'issued') {
+        $('inv-pay').addEventListener('click', () => {
+          $('inv-pay-form').dataset.id = r.id; $('inv-pay-sub').textContent = `${r.number} · ${money2.format(r.balance)} open`;
+          $('inv-pay-amount').value = r.balance.toFixed(2); dateSet($('inv-pay-date'), todayLocal()); $('inv-pay-method').value = ''; $('inv-pay-ref').value = ''; $('inv-pay-notes').value = '';
+          $('inv-pay-err').className = 'cp-form-err'; closeOverlay('inv-view-overlay'); $('inv-pay-overlay').classList.add('open'); setTimeout(() => $('inv-pay-amount').focus(), 30);
+        });
+        $('inv-void').addEventListener('click', async () => {
+          const reason = prompt(`Void ${r.number}? It stops being a receivable. Reason (optional):`); if (reason === null) return;
+          try { await api('/invoices/' + r.id + '/void', { method: 'POST', body: JSON.stringify({ reason }) }, true); after(`${r.number} voided`); } catch (e) { toast(e.message, true); }
+        });
+      }
+    } catch (e) { body.innerHTML = empty('Could not load this invoice', e.message); foot.innerHTML = '<button class="btn-ghost" type="button" onclick="document.getElementById(\'inv-view-overlay\').classList.remove(\'open\')">Close</button>'; }
+  }
+  async function openNewInvoice() {
+    $('inv-new-err').className = 'cp-form-err'; $('inv-new-amount').value = ''; $('inv-new-retainage').value = ''; $('inv-new-desc').value = ''; dateSet($('inv-new-due'), '');
+    $('inv-new-overlay').classList.add('open');
+    await clientOptions($('inv-new-client'), '');
+    const ps = $('inv-new-project');
+    try { const res = await fetch('/api/projects', { credentials: 'same-origin' }); const j = await res.json(); const list = Array.isArray(j) ? j : (j.projects || j.data || []);
+      ps.innerHTML = '<option value="">— none —</option>' + list.map(p => `<option value="${esc(p.project_code)}">${esc(p.project_code)} · ${esc(p.name || '')}</option>`).join(''); }
+    catch (e) { ps.innerHTML = '<option value="">— none —</option>'; }
+    setTimeout(() => $('inv-new-client').focus(), 30);
+  }
+  $('inv-new').addEventListener('click', openNewInvoice);
+  $('inv-new-cancel').addEventListener('click', () => closeOverlay('inv-new-overlay'));
+  $('inv-new-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('inv-new-err'); err.className = 'cp-form-err';
+    const payload = { client_org_id: $('inv-new-client').value, kind: $('inv-new-kind').value, project_code: $('inv-new-project').value || null,
+      amount: $('inv-new-amount').value.replace(/[$,]/g, ''), retainage: $('inv-new-retainage').value.replace(/[$,]/g, '') || 0,
+      due_at: dateGet($('inv-new-due')) || null, description: $('inv-new-desc').value };
+    if (!payload.client_org_id) { err.textContent = 'Choose a client.'; err.className = 'cp-form-err show'; return; }
+    $('inv-new-go').disabled = true;
+    try { const { data } = await api('/invoices', { method: 'POST', body: JSON.stringify(payload) }, true); closeOverlay('inv-new-overlay'); toast(`Draft ${data.number} created`); await reloadInvoices(); openInvoice(data.id); }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('inv-new-go').disabled = false; }
+  });
+  $('inv-pay-cancel').addEventListener('click', () => closeOverlay('inv-pay-overlay'));
+  $('inv-pay-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('inv-pay-err'); err.className = 'cp-form-err'; const id = $('inv-pay-form').dataset.id;
+    const payload = { amount: $('inv-pay-amount').value.replace(/[$,]/g, ''), paid_on: dateGet($('inv-pay-date')) || null, method: $('inv-pay-method').value || null,
+      reference: $('inv-pay-ref').value, notes: $('inv-pay-notes').value };
+    $('inv-pay-go').disabled = true;
+    try { const { data } = await api('/invoices/' + id + '/payments', { method: 'POST', body: JSON.stringify(payload) }, true); closeOverlay('inv-pay-overlay'); toast(data.status === 'paid' ? `${data.number} paid in full` : `Payment recorded · ${money2.format(data.balance)} still open`); await reloadInvoices(); if (state.view === 'overview') loadOverview(); }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('inv-pay-go').disabled = false; }
+  });
+  $('inv-mail-cancel').addEventListener('click', () => closeOverlay('inv-mail-overlay'));
+  $('inv-mail-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('inv-mail-err'); err.className = 'cp-form-err'; const id = $('inv-mail-form').dataset.id;
+    const email = $('inv-mail-email').value.trim(); if (!email.includes('@')) { err.textContent = 'Enter the recipient email.'; err.className = 'cp-form-err show'; return; }
+    $('inv-mail-go').disabled = true;
+    try { const { data } = await api('/invoices/' + id + '/send', { method: 'POST', body: JSON.stringify({ to_email: email, to_name: $('inv-mail-name').value.trim(), message: $('inv-mail-msg').value }) }, true); closeOverlay('inv-mail-overlay'); toast(`${data.number} emailed to ${email}`); await reloadInvoices(); }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('inv-mail-go').disabled = false; }
+  });
+  ['inv-status', 'inv-kind'].forEach(id => $(id).addEventListener('change', () => renderInvoices()));
+  $('inv-search').addEventListener('input', () => debounce(() => renderInvoices()));
+  document.querySelectorAll('.cp-overlay').forEach(o => o.addEventListener('click', (e) => { if (e.target === o) o.classList.remove('open'); }));
+
+  // ---------- router ----------
+  const TITLES = { overview: 'Overview', clients: 'Clients', buildings: 'Buildings', proposals: 'Proposals', finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce & Pay', compliance: 'Compliance & Vault' };
+  const LOADERS = { overview: loadOverview, clients: loadClients, buildings: loadBuildings, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, compliance: loadCompliance };
+  function route() {
+    const h = (location.hash || '#overview').slice(1);
+    const [view, arg] = h.split('/');
+    const v = LOADERS[view] ? view : 'overview';
+    state.view = v;
+    document.querySelectorAll('.cp-view').forEach(s => s.hidden = (s.id !== 'view-' + v));
+    document.querySelectorAll('#cp-nav a').forEach(a => a.classList.toggle('active', a.dataset.view === v));
+    $('cp-title').textContent = TITLES[v];
+    if (v === 'finance') $('inv-status').value = ['overdue', 'draft', 'issued', 'paid', 'void'].includes(arg) ? arg : '';
+    if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'buildings' && arg) loadBuildingDetail(arg); else if (v === 'proposals' && arg) loadProposalDetail(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', route);
+
+  // filters
+  let t;
+  const debounce = (fn) => { clearTimeout(t); t = setTimeout(fn, 250); };
+  $('cl-search').addEventListener('input', () => debounce(loadClients));
+  $('bd-search').addEventListener('input', () => debounce(loadBuildings));
+  $('bd-client').addEventListener('change', loadBuildings);
+  $('bd-archived').addEventListener('change', loadBuildings);
+  $('pr-search').addEventListener('input', () => debounce(loadProposals));
+  $('pr-status').addEventListener('change', loadProposals);
+  $('cl-type').addEventListener('change', loadClients); $('cl-inactive').addEventListener('change', loadClients);
+  $('fin-months').addEventListener('change', loadFinance);
+  ['ex-project', 'ex-category', 'ex-month', 'ex-source', 'ex-status'].forEach(id => $(id).addEventListener('change', loadExpenses));
+  $('ex-clear').addEventListener('click', () => { ['ex-project', 'ex-category', 'ex-status'].forEach(id => $(id).value = ''); $('ex-month').value = ''; $('ex-source').value = 'all'; loadExpenses(); });
+  $('wf-search').addEventListener('input', () => debounce(renderWorkers));
+  $('co-days').addEventListener('change', loadCompliance);
+
+  $('cp-date').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  route();
+})();
+</script>
+</body>
+</html>

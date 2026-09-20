@@ -22,9 +22,12 @@
   .ph-head h1 { font-size:24px; margin:2px 0; line-height:1.2; }
   .ph-head .ph-sub { font-size:12px; color:#B11E2E; text-transform:uppercase; letter-spacing:.1em; font-weight:700; }
   .ph-actions { display:flex; flex-wrap:wrap; gap:10px; margin:14px 0 4px; }
-  .ph-actions .ph-btn { background:#B11E2E; color:#fff; border:none; border-radius:8px; padding:9px 14px; font-size:12px; font-weight:700; letter-spacing:.03em; cursor:pointer; }
-  .ph-actions .ph-btn.ghost { background:#fff; color:#B11E2E; border:1px solid #B11E2E; }
-  .ph-actions .ph-btn:hover { filter:brightness(.96); }
+  .ph-actions .ph-btn { background:var(--ui); color:#fff; border:none; border-radius:8px; padding:9px 14px; font-size:12px; font-weight:700; letter-spacing:.03em; cursor:pointer; }
+  .ph-actions .ph-btn.ghost { background:#fff; color:var(--ui); border:1px solid var(--ui); }
+  /* #323 — beat the generic [data-link]:hover wash (line ~816) that washed the button to a
+     pale box with white text; the solid button darkens, the ghost fills soft blue. */
+  .ph-actions .ph-btn[data-link]:hover, .ph-actions .ph-btn:hover { background:var(--ui-deep, #1B3272); color:#fff; }
+  .ph-actions .ph-btn.ghost[data-link]:hover, .ph-actions .ph-btn.ghost:hover { background:var(--ui-soft, #E8EDF8); color:var(--ui, #24418C); }
 
   /* KPI tiles */
   .ph-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin:16px 0 20px; }
@@ -94,7 +97,7 @@
   /* ===== GridStack integration (#209) — real drag + resize, per-user layouts ===== */
   .ph-gridbar { display:flex; align-items:center; gap:12px; margin:8px 0 4px; }
   .ph-reset { background:#fff; color:#54505A; border:1px solid #E8E4DD; border-radius:8px; padding:7px 12px; font-size:12px; font-weight:700; cursor:pointer; }
-  .ph-reset:hover { border-color:#B11E2E; color:#B11E2E; }
+  .ph-reset:hover { border-color:var(--ui); color:var(--ui); }
   .ph-gridbar-hint { font-size:11px; color:#76777E; }
   .grid-stack { background:transparent; }
   /* the .ph-widget card IS the visible surface; the grid item-content is just its box */
@@ -150,7 +153,7 @@
     .acct-mi { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: none; background: transparent; border-radius: 7px; cursor: pointer; text-align: left; font: inherit; font-size: 13px; color: #14161C; text-decoration: none; }
     .acct-mi:hover { background: #F5F6F8; }
     .acct-mi .nav-ic { width: 16px; height: 16px; color: #76777E; }
-    .acct-mi.acct-signout { color: #B11E2E; } .acct-mi.acct-signout .nav-ic { color: #B11E2E; }
+    .acct-mi.acct-signout { color: var(--ui); } .acct-mi.acct-signout .nav-ic { color: var(--ui); }
     .acct-mi.acct-signout:hover { background: rgba(177,30,46,.06); }
     .acct-mi:disabled { opacity: .6; cursor: not-allowed; }
     /* content corner — faint "Live · date" (Option 1) */
@@ -425,6 +428,23 @@
     }
     .nav-link.active .nav-ic { color: #1E73E8; }
     .nav-link.active::before { content: none; }
+    /* #311 / #321 — ONE sidebar language across the product (mirrors shell.css): light
+       grey sidebar, ink text, soft-blue active row with a blue edge, quiet hover.
+       Markup + JS untouched; the blue stays the widget accent inside the content column. */
+    .sidebar { background: var(--side-bg, #F3F4F6); border-right: 1px solid var(--side-edge, #E3E5EA); }
+    .sidebar-header { border-bottom-color: var(--side-edge, #E3E5EA); }
+    .sidebar .brand-name { color: #14161C; } .sidebar .brand-sub { color: var(--side-muted, #8A8F99); }
+    .nav-group-label { color: var(--side-muted, #8A8F99); } .nav-group-label:hover { color: #14161C; } .nav-chev { color: var(--side-muted, #8A8F99); }
+    .nav-link { color: var(--side-ink, #2B2F38); border-left-color: transparent; position: relative;
+                transition: background var(--ssc-t-fast, .12s) ease, color var(--ssc-t-fast, .12s) ease, transform var(--ssc-t, .18s) var(--ssc-ease, ease); }
+    .nav-link:hover { background: var(--side-hover, rgba(20,22,28,.05)); color: #14161C; transform: translateX(2px); }
+    .nav-ic { color: var(--side-muted, #8A8F99); } .nav-link:hover .nav-ic { color: #14161C; }
+    .nav-link.active { background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); border-left-color: transparent; transform: none; }
+    .nav-link.active .nav-ic { color: var(--ui, #24418C); }
+    .nav-link.active::before { content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 18px; border-radius: 3px; background: var(--ui, #24418C); transform: translateY(-50%); }
+    .sidebar-footer { border-top-color: var(--side-edge, #E3E5EA); }
+    .sidebar .acct-name { color: #14161C; } .sidebar .acct-role { color: var(--side-muted, #8A8F99); } .sidebar .acct-chev { color: var(--side-muted, #8A8F99); }
+    .sidebar .acct-avatar { background: var(--ui, #24418C); }
 
     /* #212 Drop Report — matches drop_report_mockup.html (brand red+black header) */
     .dr-edit { font-size:12px;font-weight:700;color:#1E73E8;text-decoration:none;white-space:nowrap; }
@@ -497,7 +517,7 @@
     /* Views Container */
     .views-container { flex: 1; overflow-y: auto; }
     .view { display: none; padding: 32px; }
-    .view.active { display: block; }
+    .view.active { display: block; animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }   /* #311 */
 
     /* #280 — the Drawing Markup view is full-bleed: the embedded v2 page brings its own
        padding, header and tokens, so the v1 32px gutter would double it. The frame owns
@@ -517,8 +537,11 @@
 
     /* Common Styles */
     .hero {
-      background-color: #FAF7F1;
+      position: relative;                                   /* #314 — the LRT blue wash + accent bar */
+      background: radial-gradient(520px 170px at 14% 0%, rgba(67,100,220,.14) 0%, rgba(255,255,255,0) 60%), #FAF7F1;
       padding: 24px 0 0 0;
+      border-top: 3px solid transparent;
+      border-image: linear-gradient(90deg, #4364dc, #ebf0fe) 1;
       border-bottom: 1px solid #E8E4DD;
       margin-bottom: 24px;
     }
@@ -753,12 +776,12 @@
       letter-spacing: 0.05em;
     }
     .hero-btn-primary {
-      background-color: #B11E2E;
+      background-color: var(--ui);
       color: white;
     }
     .hero-btn-primary:hover {
-      background-color: #8B1621;
-      box-shadow: 0 4px 12px rgba(177, 30, 46, 0.2);
+      background-color: var(--ui-deep, #1B3272);
+      box-shadow: 0 4px 12px rgba(36, 65, 140, 0.2);
     }
 
     /* Placeholder Card */
@@ -776,9 +799,13 @@
       .kpi-strip { grid-template-columns: repeat(4, 1fr); }
       .hero-stats { grid-template-columns: repeat(2, 1fr); }
     }
-    @media (max-width: 768px) {
+    /* #312 — the sidebar collapses at 860px, the same breakpoint as the shared menu
+       (widgets.css / shell.js); the rest of this block keeps its 768px rules. */
+    @media (max-width: 860px) {
       .app-shell { flex-direction: column; }
-      .sidebar { width: 100%; height: auto; position: static; }
+      .sidebar { width: 100%; height: auto; }
+    }
+    @media (max-width: 768px) {
       .kpi-strip { grid-template-columns: repeat(2, 1fr); }
       .hero-stats { grid-template-columns: 1fr; }
       .hero-meta { grid-template-columns: 1fr; }
@@ -794,7 +821,8 @@
 <!-- #211 calm-blue widget accent — applied via the SHARED widgets.css, loaded
      AFTER the inline #208 styles so the accent (blue band + inward shading + blue
      rings) wins, giving the project page + the company console one source of truth. -->
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=272">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=321">
+<script src="/files/static/js/shell.js?v=312" defer></script>
 </head>
 <body>
 <!-- #281 — ONE source for the project code, filled server-side from the URL.
@@ -932,6 +960,7 @@
         <div class="nav-group-label"><span class="nav-group-name">Financial</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
           <a class="nav-link" data-view="sov"><svg class="nav-ic"><use href="#i-dollar"/></svg>Schedule of Values</a>
+          <a class="nav-link" data-view="payments"><svg class="nav-ic"><use href="#i-dollar"/></svg>Payments</a>
           <!-- Labor Rate Tracker — routes to the LRT view on the company console. The
                whole Financial group is server-stripped for non-admin/c_suite, so this
                only reaches admin/c_suite; the inline reveal stays as belt-and-suspenders
@@ -1004,6 +1033,13 @@
     <script src="/files/static/js/auth_menu.js?v=292c" defer></script>
     <div class="content-corner"><span class="cc-live"><span class="cc-dot"></span>Live · <span id="live-date">—</span></span></div>
     <script>
+
+  // #305 — escape untrusted strings before innerHTML interpolation (stored XSS).
+  function escapeHtml(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
       // #193 — reveal the Labor Rate Tracker entry surfaces (nav link
       // + dashboard card) for admin / c_suite only. Server-side gate
       // on /api/payroll/hours is the real authority — non-admin roles
@@ -1295,8 +1331,30 @@
              button's background falls back to transparent and its white text lands on
              the white modal = an invisible "empty white box". (#230) color/font stay
              on .pd-wrap only so the overlay's own text rendering is unchanged. */
-          .pd-wrap,.pd-overlay{--pd-ink:#222633;--pd-muted:#8c92a0;--pd-line:#eceef3;--pd-accent:#4364dc;--pd-accent-ink:#3a5fd0;--pd-accent-soft:#ebf0fe;--pd-accent-edge:rgba(67,100,220,.30);--on-ink:#178a6c;--on-soft:#e7f6f0;--miss-ink:#8f8675;--miss-soft:#f3f0e9;--miss:#cabfad;--warn-ink:#d75a4c;--warn-soft:#fceeec}
+          .pd-wrap,.pd-overlay,.pk-overlay{--pd-ink:#222633;--pd-muted:#8c92a0;--pd-line:#eceef3;--pd-accent:#4364dc;--pd-accent-ink:#3a5fd0;--pd-accent-soft:#ebf0fe;--pd-accent-edge:rgba(67,100,220,.30);--on-ink:#178a6c;--on-soft:#e7f6f0;--miss-ink:#8f8675;--miss-soft:#f3f0e9;--miss:#cabfad;--warn-ink:#d75a4c;--warn-soft:#fceeec}
           .pd-wrap{color:var(--pd-ink);font:14px/1.55 -apple-system,"Segoe UI",Inter,Roboto,sans-serif}
+          /* #327 — permits & insurance package */
+          .pk-card{background:#fff;border:1px solid var(--pd-accent-edge);border-radius:16px;padding:16px 20px;margin-bottom:18px;position:relative;overflow:hidden;background:radial-gradient(520px 170px at 14% 0%, rgba(67,100,220,.14) 0%, rgba(255,255,255,0) 60%), #fff}
+          .pk-card::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,#4364dc,#ebf0fe)}
+          .pk-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+          .pk-h{font-size:15px;font-weight:700} .pk-sub{font-size:12.5px;color:var(--pd-muted);margin-top:2px}
+          .pk-btn{font:inherit;font-size:12.5px;font-weight:700;padding:8px 14px;border-radius:9px;border:1px solid var(--pd-line);background:#fff;color:var(--pd-ink);cursor:pointer}
+          .pk-btn.primary{background:var(--ui,#24418C);color:#fff;border-color:transparent} .pk-btn.primary:hover{background:var(--ui-deep,#1B3272)} .pk-btn:disabled{opacity:.5;cursor:not-allowed}
+          .pk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px 16px}
+          .pk-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--pd-line);font-size:13px} .pk-item .lbl{flex:1;min-width:0} .pk-item .lbl small{display:block;color:var(--pd-muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .pk-pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap} .pk-pill.on{background:var(--on-soft);color:var(--on-ink)} .pk-pill.miss{background:var(--miss-soft);color:var(--miss-ink)} .pk-pill.warn{background:var(--warn-soft);color:var(--warn-ink)}
+          .pk-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:12.5px;color:var(--pd-muted)}
+          .pk-overlay{position:fixed;inset:0;background:rgba(20,22,28,.45);display:none;align-items:center;justify-content:center;z-index:60;padding:16px} .pk-overlay.open{display:flex}
+          .pk-modal{background:#fff;border-radius:14px;width:100%;max-width:600px;box-shadow:0 24px 64px rgba(20,22,28,.25);max-height:92vh;overflow:auto}
+          .pk-mhead{padding:18px 20px 6px} .pk-mhead h3{margin:0;font-size:17px;font-weight:800} .pk-mhead p{margin:6px 0 0;font-size:12.5px;color:var(--pd-muted)}
+          .pk-mbody{padding:14px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px} .pk-mbody .full{grid-column:1 / -1}
+          .pk-field label{display:block;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--pd-muted);margin-bottom:5px}
+          .pk-field input,.pk-field textarea{width:100%;font:inherit;font-size:13px;padding:9px 10px;border:1px solid #eceef3;border-radius:8px;background:#fff;color:#222633;box-sizing:border-box}
+          .pk-field input:focus,.pk-field textarea:focus{border-color:#4364dc;box-shadow:0 0 0 3px #ebf0fe;outline:none}
+          .pk-docs{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;border:1px solid #eceef3;border-radius:8px;padding:10px} .pk-docs label{display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer} .pk-docs input{width:auto}
+          .pk-err{grid-column:1 / -1;color:#A8382B;background:var(--warn-soft);border-radius:8px;padding:8px 10px;font-size:13px;display:none} .pk-err.show{display:block}
+          .pk-mfoot{padding:12px 20px 18px;display:flex;justify-content:flex-end;gap:8px}
+          @media (max-width:600px){ .pk-mbody{grid-template-columns:1fr} }
           .pd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
           .pd-h1{margin:0;font-size:21px;font-weight:700}.pd-sub{color:var(--pd-muted);font-size:12.5px;margin-top:3px}
           .pd-ic{width:15px;height:15px;flex:none}
@@ -1420,6 +1478,7 @@
             <button class="pd-upload" id="pd-upload-btn"><svg class="pd-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 20h16"/></svg>Upload</button>
           </div>
           <div class="pd-hero" id="pd-hero"><div class="pd-empty" style="margin:0">Loading documents…</div></div>
+          <div class="pk-card" id="pd-package" hidden></div>
           <div class="pd-bulkbar pd-hide" id="pd-bulkbar">
             <span id="pd-bb-count">0 selected</span>
             <button class="pd-bb-share" id="pd-bb-share" type="button">Share selected with client</button>
@@ -1428,6 +1487,16 @@
           </div>
           <div id="pd-checklist"></div>
         </div>
+        <div class="pk-overlay" id="pk-overlay"><form class="pk-modal" id="pk-form" novalidate>
+          <div class="pk-mhead"><h3>Send permits &amp; insurance to the client</h3><p id="pk-sub">One email with a private link where the client views and downloads each document.</p></div>
+          <div class="pk-mbody">
+            <div class="pk-field"><label for="pk-name">Recipient name</label><input id="pk-name" autocomplete="off"></div>
+            <div class="pk-field"><label for="pk-email">Recipient email</label><input id="pk-email" type="email" autocomplete="off" list="pk-list"><datalist id="pk-list"></datalist></div>
+            <div class="pk-field full"><label for="pk-msg">Message (optional)</label><textarea id="pk-msg" rows="3" placeholder="A short note above the document list"></textarea></div>
+            <div class="pk-field full"><label>Documents to include</label><div class="pk-docs" id="pk-docs"></div></div>
+            <label class="full" style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="pk-share" checked style="width:auto"> Also show these in the client's portal (Documents section)</label>
+            <div class="pk-err" id="pk-err"></div></div>
+          <div class="pk-mfoot"><button type="button" class="pk-btn" id="pk-cancel">Cancel</button><button type="submit" class="pk-btn primary" id="pk-go">Send</button></div></form></div>
         <div class="pd-overlay" id="pd-modal">
           <div class="pd-modal">
             <div class="pd-mhead"><h3 id="pd-modal-title">Upload document</h3><button class="pd-mx" id="pd-modal-close">&times;</button></div>
@@ -4426,6 +4495,169 @@
       <!-- SECTION:financial:start -->
       <!-- SCHEDULE OF VALUES (#262 — Financial section; server-stripped for non-admin/c_suite,
            and the /api/projects/<code>/sov data endpoint 403s for them too) -->
+      <section class="view" data-view="payments">
+        <style>
+          .pay-wrap{font:14px/1.55 -apple-system,"Segoe UI",Inter,Roboto,sans-serif;color:#222633}
+          .pay-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+          .pay-h1{margin:0;font-size:21px;font-weight:700} .pay-sub{color:#8c92a0;font-size:12.5px;margin-top:3px}
+          .pay-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+          .pay-kpi{background:#fff;border:1px solid var(--accent-edge,rgba(67,100,220,.3));border-radius:12px;padding:12px 14px;box-shadow:inset 0 0 12px var(--accent-in,rgba(67,100,220,.14)),0 1px 4px rgba(0,0,0,.04)}
+          .pay-kpi .k{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#8c92a0;font-weight:700} .pay-kpi .v{font-size:22px;font-weight:800;margin-top:2px} .pay-kpi .s{font-size:12px;color:#8c92a0}
+          .pay-kpi.warn .v{color:#A8382B} .pay-kpi.good .v{color:#0c7a5f}
+          .pay-card{background:#fff;border:1px solid #eceef3;border-radius:14px;padding:16px 18px;margin-bottom:14px}
+          .pay-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+          .pay-btn{font:inherit;font-size:12px;font-weight:700;padding:7px 12px;border-radius:8px;border:1px solid #eceef3;background:#fff;color:#222633;cursor:pointer;text-decoration:none;display:inline-block}
+          .pay-btn:hover{border-color:var(--ui-edge,rgba(36,65,140,.35));background:var(--ui-soft,#E8EDF8);color:var(--ui,#24418C)}
+          .pay-btn.primary{background:var(--ui,#24418C);color:#fff;border-color:transparent} .pay-btn.primary:hover{background:var(--ui-deep,#1B3272);color:#fff}
+          .pay-btn:disabled{opacity:.55;cursor:not-allowed}
+          .pay-table{width:100%;border-collapse:collapse;font-size:13px} .pay-table th{text-align:left;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#8c92a0;padding:8px 10px;border-bottom:1px solid #eceef3}
+          .pay-table td{padding:10px;border-bottom:1px solid #eceef3;vertical-align:top} .pay-table td.num,.pay-table th.num{text-align:right} .pay-table tbody tr:hover td{background:var(--ui-soft,#E8EDF8)}
+          .pay-id{font-weight:700;color:#B11E2E} .pay-muted{color:#8c92a0;font-size:12px}
+          .pay-pill{display:inline-block;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:#f3f0e9;color:#6b6455;white-space:nowrap}
+          .pay-pill.ok{background:#e7f6f0;color:#0c7a5f} .pay-pill.active{background:#ebf0fe;color:#3a5fd0} .pay-pill.bad{background:#fceeec;color:#A8382B} .pay-pill.warn{background:#FFF4E5;color:#9A5B00}
+          .pay-acts{display:flex;gap:6px;flex-wrap:wrap} .pay-acts .pay-btn{padding:5px 9px;font-size:11.5px}
+          .pay-empty{text-align:center;color:#8c92a0;padding:26px 10px}
+          .pay-overlay{position:fixed;inset:0;background:rgba(20,22,28,.45);display:none;align-items:center;justify-content:center;z-index:60;padding:16px} .pay-overlay.open{display:flex}
+          .pay-modal{background:#fff;border-radius:14px;width:100%;max-width:560px;box-shadow:0 24px 64px rgba(20,22,28,.25);max-height:92vh;overflow:auto}
+          .pay-mhead{padding:18px 20px 6px} .pay-mhead h3{margin:0;font-size:17px;font-weight:800} .pay-mhead p{margin:6px 0 0;font-size:12.5px;color:#8c92a0}
+          .pay-mbody{padding:14px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px} .pay-mbody .full{grid-column:1 / -1}
+          .pay-field label{display:block;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#8c92a0;margin-bottom:5px}
+          .pay-field input,.pay-field select,.pay-field textarea{width:100%;font:inherit;font-size:13px;padding:9px 10px;border:1px solid #eceef3;border-radius:8px;background:#fff;color:#222633;box-sizing:border-box}
+          .pay-err{grid-column:1 / -1;color:#A8382B;background:#fceeec;border-radius:8px;padding:8px 10px;font-size:13px;display:none} .pay-err.show{display:block}
+          .pay-mfoot{padding:12px 20px 18px;display:flex;justify-content:flex-end;gap:8px}
+          @media (max-width:600px){ .pay-mbody{grid-template-columns:1fr} }
+        </style>
+        <div class="pay-wrap">
+          <div class="pay-head"><div><h1 class="pay-h1">Payments</h1><div class="pay-sub" id="pay-sub">Invoices on this job · email them to the client from here</div></div>
+            <div class="pay-toolbar"><button type="button" class="pay-btn primary" id="pay-new">+ New invoice</button></div></div>
+          <div class="pay-kpis" id="pay-kpis"></div>
+          <div class="pay-card"><div style="overflow:auto"><table class="pay-table" id="pay-table"><tbody><tr><td class="pay-empty">Loading…</td></tr></tbody></table></div>
+            <div class="pay-muted" style="margin-top:10px">Deposit invoices draft themselves when a proposal is signed. AIA progress billing (G702 / G703) fills a progress invoice — coming next. Amounts here are what the client owes, not labor cost.</div></div>
+        </div>
+        <div class="pay-overlay" id="pay-new-overlay"><form class="pay-modal" id="pay-new-form" novalidate>
+          <div class="pay-mhead"><h3>New invoice</h3><p id="pay-new-sub"></p></div>
+          <div class="pay-mbody">
+            <div class="pay-field"><label for="pay-new-kind">Kind</label><select id="pay-new-kind"></select></div>
+            <div class="pay-field"><label for="pay-new-amount">Amount (USD)</label><input id="pay-new-amount" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
+            <div class="pay-field"><label for="pay-new-due">Due date (optional)</label><input id="pay-new-due" type="date"></div>
+            <div class="pay-field"><label for="pay-new-ret">Retainage held (USD)</label><input id="pay-new-ret" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
+            <div class="pay-field full"><label for="pay-new-desc">Description</label><input id="pay-new-desc" placeholder="e.g. Progress billing #2 — north elevation" autocomplete="off"></div>
+            <div class="pay-err" id="pay-new-err"></div></div>
+          <div class="pay-mfoot"><button type="button" class="pay-btn" id="pay-new-cancel">Cancel</button><button type="submit" class="pay-btn primary" id="pay-new-go">Create draft</button></div></form></div>
+        <div class="pay-overlay" id="pay-mail-overlay"><form class="pay-modal" id="pay-mail-form" novalidate>
+          <div class="pay-mhead"><h3>Email invoice to the client</h3><p id="pay-mail-sub"></p></div>
+          <div class="pay-mbody">
+            <div class="pay-field"><label for="pay-mail-name">Recipient name</label><input id="pay-mail-name" autocomplete="off"></div>
+            <div class="pay-field"><label for="pay-mail-email">Recipient email</label><input id="pay-mail-email" type="email" autocomplete="off" list="pay-mail-list"><datalist id="pay-mail-list"></datalist></div>
+            <div class="pay-field full"><label for="pay-mail-msg">Message (optional)</label><textarea id="pay-mail-msg" rows="3" placeholder="A short note above the invoice details"></textarea></div>
+            <div class="pay-muted full">The email carries a private link where the client views the invoice, downloads the PDF, and sees how to pay. Each send mints a fresh link.</div>
+            <div class="pay-err" id="pay-mail-err"></div></div>
+          <div class="pay-mfoot"><button type="button" class="pay-btn" id="pay-mail-cancel">Cancel</button><button type="submit" class="pay-btn primary" id="pay-mail-go">Send</button></div></form></div>
+        <div class="pay-overlay" id="pay-pay-overlay"><form class="pay-modal" id="pay-pay-form" novalidate>
+          <div class="pay-mhead"><h3>Record a payment</h3><p id="pay-pay-sub"></p></div>
+          <div class="pay-mbody">
+            <div class="pay-field"><label for="pay-pay-amount">Amount received (USD)</label><input id="pay-pay-amount" inputmode="decimal" autocomplete="off"></div>
+            <div class="pay-field"><label for="pay-pay-date">Received on</label><input id="pay-pay-date" type="date"></div>
+            <div class="pay-field"><label for="pay-pay-method">Method</label><select id="pay-pay-method"><option value="">—</option><option value="check">Check</option><option value="ach">ACH</option><option value="wire">Wire</option><option value="card">Card</option><option value="cash">Cash</option><option value="quickbooks">QuickBooks payment</option><option value="other">Other</option></select></div>
+            <div class="pay-field"><label for="pay-pay-ref">Reference</label><input id="pay-pay-ref" autocomplete="off"></div>
+            <div class="pay-err" id="pay-pay-err"></div></div>
+          <div class="pay-mfoot"><button type="button" class="pay-btn" id="pay-pay-cancel">Cancel</button><button type="submit" class="pay-btn primary" id="pay-pay-go">Record payment</button></div></form></div>
+        <script>
+        (function(){
+          const $p = id => document.getElementById(id);
+          const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+          const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+          const fmtDate = iso => { if (!iso) return '—'; const [y,m,d] = String(iso).slice(0,10).split('-'); return (m && d) ? `${m}/${d}/${y}` : esc(iso); };
+          const todayLocal = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+          const dGet = el => { const p = window.SSCDatePicker; if (p && typeof p.getISO === 'function') { const v = p.getISO(el); if (v !== undefined && v !== null) return v; } return el.value || ''; };
+          const dSet = (el, iso) => { const p = window.SSCDatePicker; if (p && typeof p.setISO === 'function') { try { p.setISO(el, iso || ''); return; } catch (e) {} } el.value = iso || ''; };
+          const S = { data: null, code: null };
+          async function api(path, opts) {
+            const res = await fetch(path, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' } }, opts || {}));
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error((j && j.error) || ('Request failed (' + res.status + ')'));
+            return j;
+          }
+          function pill(r) { if (r.overdue) return `<span class="pay-pill bad">overdue ${r.days_overdue}d</span>`; const c = { draft: '', issued: 'active', paid: 'ok', void: '' }[r.status] || ''; return `<span class="pay-pill ${c}">${esc(r.status)}</span>`; }
+          function kpi(k, v, s, cls) { return `<div class="pay-kpi ${cls || ''}"><div class="k">${esc(k)}</div><div class="v">${v}</div><div class="s">${esc(s || '')}</div></div>`; }
+          function toast(msg, bad) { const t = document.createElement('div'); t.textContent = msg; t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:' + (bad ? '#A8382B' : '#14161C') + ';color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:99;box-shadow:0 6px 20px rgba(0,0,0,.2)'; document.body.appendChild(t); setTimeout(() => t.remove(), 3200); }
+          function render() {
+            const d = S.data, s = d.summary;
+            $p('pay-sub').textContent = (d.client ? d.client.name + ' · ' : '') + d.project.project_code + ' · invoices on this job';
+            $p('pay-kpis').innerHTML = kpi('Invoiced', money.format(s.invoiced_total), 'issued + paid') + kpi('Open', money.format(s.open_value), `${s.open_count} unpaid`, s.open_count ? '' : 'good') +
+              kpi('Overdue', money.format(s.overdue_value), `${s.overdue_count} past due`, s.overdue_count ? 'warn' : '') + kpi('Collected', money.format(s.collected), 'payments received', 'good') + kpi('Drafts', s.draft_count, 'not issued yet');
+            const rows = d.invoices;
+            if (!rows.length) { $p('pay-table').innerHTML = '<tbody><tr><td class="pay-empty"><b>No invoices on this job yet.</b><br>Create one, or sign a proposal with deposit terms.</td></tr></tbody>'; return; }
+            $p('pay-table').innerHTML = '<thead><tr><th>Invoice</th><th>Description</th><th class="num">Amount</th><th class="num">Open</th><th>Due</th><th>Status</th><th>Client</th><th></th></tr></thead><tbody>' + rows.map(r => `<tr>
+              <td><span class="pay-id">${esc(r.number)}</span><div class="pay-muted">${esc(String(r.kind || '').replace('_',' '))}${r.proposal_number ? ' · ' + esc(r.proposal_number) : ''}</div></td>
+              <td>${esc(r.description || '—')}</td><td class="num">${money.format(r.amount)}</td><td class="num">${r.status === 'issued' ? '<b>' + money.format(r.balance) + '</b>' : '—'}</td>
+              <td>${r.status === 'draft' ? '<span class="pay-muted">draft</span>' : fmtDate(r.due_at)}</td><td>${pill(r)}</td>
+              <td class="pay-muted">${r.sent_at ? (r.viewed_at ? 'opened ' + fmtDate(r.viewed_at) : 'sent ' + fmtDate(r.sent_at)) + (r.sent_count > 1 ? ' · ×' + r.sent_count : '') : 'not sent'}</td>
+              <td><div class="pay-acts"><a class="pay-btn" href="/api/invoices/${r.id}/preview" target="_blank" rel="noopener">Preview</a>${r.status !== 'draft' ? `<a class="pay-btn" href="/api/invoices/${r.id}/pdf" target="_blank" rel="noopener">PDF</a>` : ''}
+                ${r.status === 'draft' ? `<button type="button" class="pay-btn primary" data-issue="${r.id}">Issue</button>` : ''}
+                ${r.status === 'issued' ? `<button type="button" class="pay-btn primary" data-mail="${r.id}">${r.sent_at ? 'Resend' : 'Email client'}</button><button type="button" class="pay-btn" data-pay="${r.id}">Payment</button>` : ''}
+                ${r.status === 'paid' ? `<button type="button" class="pay-btn" data-mail="${r.id}">Email receipt</button>` : ''}</div></td></tr>`).join('') + '</tbody>';
+            $p('pay-table').querySelectorAll('[data-issue]').forEach(b => b.addEventListener('click', async () => {
+              const r = rows.find(x => String(x.id) === b.dataset.issue); if (!confirm(`Issue ${r.number} for ${money.format(r.amount)}? It becomes a receivable.`)) return;
+              try { await api('/api/invoices/' + r.id + '/issue', { method: 'POST', body: '{}' }); toast(r.number + ' issued'); load(); } catch (e) { toast(e.message, true); } }));
+            $p('pay-table').querySelectorAll('[data-mail]').forEach(b => b.addEventListener('click', () => openMail(rows.find(x => String(x.id) === b.dataset.mail))));
+            $p('pay-table').querySelectorAll('[data-pay]').forEach(b => b.addEventListener('click', () => openPay(rows.find(x => String(x.id) === b.dataset.pay))));
+          }
+          async function load() {
+            S.code = (typeof getProjectCode === 'function') ? getProjectCode() : (new URLSearchParams(location.search).get('project') || '');
+            try { const { data } = await api('/api/projects/' + encodeURIComponent(S.code) + '/payments'); S.data = data; render(); }
+            catch (e) { $p('pay-table').innerHTML = '<tbody><tr><td class="pay-empty">' + esc(e.message) + '</td></tr></tbody>'; }
+          }
+          window.PAY_load = load;
+          async function openMail(r) {
+            $p('pay-mail-form').dataset.id = r.id; $p('pay-mail-sub').textContent = `${r.number} · ${money.format(r.balance)} open`; $p('pay-mail-err').className = 'pay-err'; $p('pay-mail-msg').value = '';
+            $p('pay-mail-list').innerHTML = (S.data.contacts || []).map(c => `<option value="${esc(c.email)}">${esc(c.full_name || '')}</option>`).join('');
+            $p('pay-mail-name').value = r.sent_name || ''; $p('pay-mail-email').value = r.sent_to || '';
+            if (!r.sent_to) { try { const { data } = await api('/api/invoices/' + r.id + '/recipient'); $p('pay-mail-email').value = data.email || ''; $p('pay-mail-name').value = data.name || ''; } catch (e) {} }
+            $p('pay-mail-overlay').classList.add('open'); setTimeout(() => $p('pay-mail-email').focus(), 30);
+          }
+          function openPay(r) {
+            $p('pay-pay-form').dataset.id = r.id; $p('pay-pay-sub').textContent = `${r.number} · ${money.format(r.balance)} open`; $p('pay-pay-err').className = 'pay-err';
+            $p('pay-pay-amount').value = Number(r.balance).toFixed(2); dSet($p('pay-pay-date'), todayLocal()); $p('pay-pay-method').value = ''; $p('pay-pay-ref').value = '';
+            $p('pay-pay-overlay').classList.add('open'); setTimeout(() => $p('pay-pay-amount').focus(), 30);
+          }
+          $p('pay-new').addEventListener('click', () => {
+            if (!S.data) return; const d = S.data; $p('pay-new-err').className = 'pay-err';
+            $p('pay-new-sub').textContent = (d.client ? d.client.name + ' · ' : '') + d.project.project_code;
+            $p('pay-new-kind').innerHTML = d.kinds.map(k => `<option value="${esc(k.code)}" ${k.code === 'progress' ? 'selected' : ''}>${esc(k.label)}</option>`).join('');
+            $p('pay-new-amount').value = ''; $p('pay-new-ret').value = ''; $p('pay-new-desc').value = ''; dSet($p('pay-new-due'), '');
+            $p('pay-new-overlay').classList.add('open'); setTimeout(() => $p('pay-new-amount').focus(), 30);
+          });
+          $p('pay-new-cancel').addEventListener('click', () => $p('pay-new-overlay').classList.remove('open'));
+          $p('pay-new-form').addEventListener('submit', async (e) => {
+            e.preventDefault(); const err = $p('pay-new-err'); err.className = 'pay-err'; const d = S.data;
+            if (!d.client) { err.textContent = 'This project has no client organization yet — link it in the Company Portal first.'; err.className = 'pay-err show'; return; }
+            const payload = { client_org_id: d.client.id, project_code: d.project.project_code, kind: $p('pay-new-kind').value, amount: $p('pay-new-amount').value.replace(/[$,]/g, ''),
+              retainage: $p('pay-new-ret').value.replace(/[$,]/g, '') || 0, due_at: dGet($p('pay-new-due')) || null, description: $p('pay-new-desc').value };
+            $p('pay-new-go').disabled = true;
+            try { const { data } = await api('/api/invoices', { method: 'POST', body: JSON.stringify(payload) }); $p('pay-new-overlay').classList.remove('open'); toast('Draft ' + data.number + ' created'); load(); }
+            catch (ex) { err.textContent = ex.message; err.className = 'pay-err show'; } finally { $p('pay-new-go').disabled = false; }
+          });
+          $p('pay-mail-cancel').addEventListener('click', () => $p('pay-mail-overlay').classList.remove('open'));
+          $p('pay-mail-form').addEventListener('submit', async (e) => {
+            e.preventDefault(); const err = $p('pay-mail-err'); err.className = 'pay-err'; const id = $p('pay-mail-form').dataset.id; const email = $p('pay-mail-email').value.trim();
+            if (!email.includes('@')) { err.textContent = 'Enter the recipient email.'; err.className = 'pay-err show'; return; }
+            $p('pay-mail-go').disabled = true;
+            try { const { data } = await api('/api/invoices/' + id + '/send', { method: 'POST', body: JSON.stringify({ to_email: email, to_name: $p('pay-mail-name').value.trim(), message: $p('pay-mail-msg').value }) }); $p('pay-mail-overlay').classList.remove('open'); toast(data.number + ' emailed to ' + email); load(); }
+            catch (ex) { err.textContent = ex.message; err.className = 'pay-err show'; } finally { $p('pay-mail-go').disabled = false; }
+          });
+          $p('pay-pay-cancel').addEventListener('click', () => $p('pay-pay-overlay').classList.remove('open'));
+          $p('pay-pay-form').addEventListener('submit', async (e) => {
+            e.preventDefault(); const err = $p('pay-pay-err'); err.className = 'pay-err'; const id = $p('pay-pay-form').dataset.id;
+            const payload = { amount: $p('pay-pay-amount').value.replace(/[$,]/g, ''), paid_on: dGet($p('pay-pay-date')) || null, method: $p('pay-pay-method').value || null, reference: $p('pay-pay-ref').value };
+            $p('pay-pay-go').disabled = true;
+            try { const { data } = await api('/api/invoices/' + id + '/payments', { method: 'POST', body: JSON.stringify(payload) }); $p('pay-pay-overlay').classList.remove('open'); toast(data.status === 'paid' ? data.number + ' paid in full' : 'Payment recorded · ' + money.format(data.balance) + ' still open'); load(); }
+            catch (ex) { err.textContent = ex.message; err.className = 'pay-err show'; } finally { $p('pay-pay-go').disabled = false; }
+          });
+          document.querySelectorAll('#pay-new-overlay,#pay-mail-overlay,#pay-pay-overlay').forEach(o => o.addEventListener('click', ev => { if (ev.target === o) o.classList.remove('open'); }));
+        })();
+        </script>
+      </section>
       <section class="view" data-view="sov">
         <div class="section">
           <h2>Schedule of Values</h2>
@@ -4900,6 +5132,9 @@ document.querySelectorAll('.nav-link').forEach(link => {
     }
     if (targetView === 'documents') {
       if (typeof window.PROJ_loadAttachedSpecs === 'function') window.PROJ_loadAttachedSpecs();
+    }
+    if (targetView === 'payments') {   // #326 — Financial; PAY_load is absent (server-stripped) for non-admin/c_suite
+      if (typeof window.PAY_load === 'function') window.PAY_load();
     }
     if (targetView === 'field-photos') {
       if (typeof window.FP_load === 'function') window.FP_load();
@@ -6108,7 +6343,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
           <td style="padding:8px;">${fmtDate(r.issue_date)}</td>
           <td style="padding:8px;">${badge}</td>
           <td style="padding:8px;">${fmtMoney(r.penalty_imposed)}</td>
-          <td style="padding:8px;font-size:11px;">${(r.description || '—').substring(0, 80)}</td>
+          <td style="padding:8px;font-size:11px;">${escapeHtml((r.description || '—').substring(0, 80))}</td>
         </tr>`;
       }).join('');
     } catch (e) {
@@ -7440,7 +7675,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     try{
       var j=await jget('/api/projects/'+encodeURIComponent(PROJECT_CODE)+'/documents');
       PD.data=(j&&j.data)||{categories:[],readiness:{}};
-      renderHero(); renderChecklist();
+      renderHero(); renderChecklist(); renderPackage();
     }catch(e){console.warn('[projdocs] load failed',e);var h=$('pd-checklist');if(h)h.innerHTML='<div class="pd-empty">Could not load documents.</div>';}
   }
 
@@ -7591,6 +7826,52 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       +'<div class="pd-bar"><i style="width:'+seg(on)+'%;background:'+GRAD.on+'"></i><i style="width:'+seg(miss)+'%;background:'+GRAD.miss+'"></i><i style="width:'+seg(att)+'%;background:'+GRAD.warn+'"></i></div>'
       +'<div class="pd-legend"><span><span class="pd-dot" style="background:#15a07e"></span>'+on+' on file</span><span><span class="pd-dot" style="background:#cabfad"></span>'+miss+' missing</span><span><span class="pd-dot" style="background:#e9685a"></span>'+att+' expiring / expired</span></div></div>';
   }
+
+  // ---------- #327 — permits & insurance package + send to client ----------
+  var PK={data:null};
+  async function renderPackage(){
+    var host=$('pd-package'); if(!host) return;
+    try{
+      var j=await jget('/api/projects/'+encodeURIComponent(PROJECT_CODE)+'/documents/package');
+      if(!j||!j.data){ host.hidden=true; return; }
+      PK.data=j.data; var d=j.data, s=d.summary; host.hidden=false;
+      var pill=function(st){ return st==='missing'?'<span class="pk-pill miss">missing</span>':(st==='expired'?'<span class="pk-pill warn">expired</span>':(st==='expiring'?'<span class="pk-pill warn">expiring</span>':'<span class="pk-pill on">on file</span>')); };
+      var items=d.items.map(function(it){ var doc=it.doc; return '<div class="pk-item"><div class="lbl">'+esc(it.label)+(doc?'<small>'+esc(doc.title)+(doc.expiry_date?' · exp '+mdy(doc.expiry_date):'')+(doc.shared_client?' · in portal':'')+'</small>':'<small>not uploaded yet</small>')+'</div>'+pill(it.status)+'</div>'; }).join('');
+      var extras=d.extras.length?'<div class="pk-item"><div class="lbl">'+d.extras.length+' other permit document'+(d.extras.length===1?'':'s')+'<small>'+esc(d.extras.map(function(x){return x.title;}).join(' · '))+'</small></div><span class="pk-pill on">on file</span></div>':'';
+      var canSend=d.items.some(function(it){return it.doc&&!it.doc.flagged;})||d.extras.some(function(x){return !x.flagged;});
+      var last=d.last_sent?('Last sent to '+esc(d.last_sent.sent_name?d.last_sent.sent_name+' · ':'')+esc(d.last_sent.sent_to||'')+' on '+mdy(d.last_sent.sent_at)+(d.last_sent.viewed_at?' · opened '+mdy(d.last_sent.viewed_at):' · not opened yet')+(d.sends>1?' · '+d.sends+' sends':'')):'Not sent to the client yet.';
+      host.innerHTML='<div class="pk-head"><div><div class="pk-h">Permits &amp; insurance — what secures this job</div><div class="pk-sub">'+s.on_file+' of '+s.required+' on file'+(s.attention?' · '+s.attention+' need attention':'')+(s.missing?' · '+s.missing+' missing':'')+(d.client?' · client: '+esc(d.client.name):'')+'</div></div>'
+        +'<button type="button" class="pk-btn primary" id="pk-send" '+(canSend?'':'disabled title="Upload the permits and the COI first"')+'>Send to client…</button></div>'
+        +'<div class="pk-grid">'+items+extras+'</div><div class="pk-foot"><span>'+last+'</span><span>Broker sends the COI → upload it under Contracts &amp; Financial → send the package.</span></div>';
+      var b=$('pk-send'); if(b) b.addEventListener('click', openPackageModal);
+    }catch(e){ host.hidden=true; console.warn('[docpkg] load failed', e); }
+  }
+  function openPackageModal(){
+    var d=PK.data; if(!d) return; var err=$('pk-err'); err.className='pk-err';
+    $('pk-list').innerHTML=(d.contacts||[]).map(function(c){ return '<option value="'+esc(c.email)+'">'+esc(c.full_name||'')+'</option>'; }).join('');
+    var first=(d.contacts||[])[0]; $('pk-email').value=d.last_sent?(d.last_sent.sent_to||''):(first?first.email:''); $('pk-name').value=d.last_sent?(d.last_sent.sent_name||''):(first?(first.full_name||''):''); $('pk-msg').value='';
+    var docs=[]; d.items.forEach(function(it){ if(it.doc&&!it.doc.flagged) docs.push({id:it.doc.id,label:it.label,title:it.doc.title,status:it.status}); }); d.extras.forEach(function(x){ if(!x.flagged) docs.push({id:x.id,label:x.title,title:x.file_name||'',status:x.status}); });
+    $('pk-docs').innerHTML=docs.map(function(x){ return '<label><input type="checkbox" value="'+x.id+'" '+(x.status==='expired'?'':'checked')+'><span>'+esc(x.label)+' <span style="color:var(--pd-muted)">· '+esc(x.title)+(x.status==='expired'?' · expired':'')+'</span></span></label>'; }).join('')||'<div style="color:var(--pd-muted)">Nothing on file yet.</div>';
+    $('pk-share').checked=true; $('pk-overlay').classList.add('open'); setTimeout(function(){ $('pk-email').focus(); },30);
+  }
+  (function wirePackage(){
+    var ov=$('pk-overlay'); if(!ov||ov.dataset.wired) return; ov.dataset.wired='1';
+    $('pk-cancel').addEventListener('click', function(){ ov.classList.remove('open'); });
+    ov.addEventListener('click', function(e){ if(e.target===ov) ov.classList.remove('open'); });
+    $('pk-form').addEventListener('submit', async function(e){
+      e.preventDefault(); var err=$('pk-err'); err.className='pk-err';
+      var email=$('pk-email').value.trim(); if(email.indexOf('@')<0){ err.textContent='Enter the recipient email.'; err.className='pk-err show'; return; }
+      var ids=Array.prototype.map.call($('pk-docs').querySelectorAll('input:checked'), function(i){ return Number(i.value); });
+      if(!ids.length){ err.textContent='Tick at least one document.'; err.className='pk-err show'; return; }
+      $('pk-go').disabled=true;
+      try{
+        var r=await fetch('/api/projects/'+encodeURIComponent(PROJECT_CODE)+'/documents/package/send',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({to_email:email,to_name:$('pk-name').value.trim(),message:$('pk-msg').value,document_ids:ids,share_in_portal:$('pk-share').checked})});
+        var j=await r.json().catch(function(){return {};}); if(!r.ok) throw new Error(j.error||('Request failed ('+r.status+')'));
+        ov.classList.remove('open'); loadDocs();
+      }catch(ex){ err.textContent=ex.message; err.className='pk-err show'; }
+      finally{ $('pk-go').disabled=false; }
+    });
+  })();
 
   function renderChecklist(){
     var host=$('pd-checklist');if(!host)return;

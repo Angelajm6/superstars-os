@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=270">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=321">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=321">
+<script src="/files/static/js/shell.js?v=312" defer></script>
 <title>Project Assignments · Superstars Contracting</title>
 <!-- #263 — admin/c_suite project-assignment + project-close screen. Two axes wired here:
      who manages which projects (pm_project_assignment) and which projects are active vs
@@ -49,6 +51,24 @@
   .btn-primary{font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;border:none;background:var(--accent);color:#fff;cursor:pointer;}
   .btn-primary:hover{background:var(--accent-ink);}
   .btn-primary:disabled{opacity:.55;cursor:not-allowed;}
+  /* #324 — new project modal */
+  .np-overlay{position:fixed;inset:0;background:rgba(20,22,28,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  .np-overlay.open{display:flex;}
+  .np-modal{background:#fff;border-radius:14px;width:100%;max-width:600px;box-shadow:0 24px 64px rgba(20,22,28,.25);max-height:92vh;overflow:auto;}
+  .np-head{padding:18px 20px 6px;} .np-head h2{font-size:18px;font-weight:800;margin:0;} .np-head p{font-size:12.5px;color:var(--muted);margin:6px 0 0;}
+  .np-body{padding:14px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px;} .np-body .full{grid-column:1 / -1;}
+  .np-field label{display:block;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
+  .np-field input,.np-field select,.np-field textarea{width:100%;font:inherit;font-size:13px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);outline:none;box-sizing:border-box;}
+  .np-field input:focus,.np-field select:focus,.np-field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  .np-err{grid-column:1 / -1;color:#A8382B;background:var(--status-behind-soft,#fceeec);border-radius:8px;padding:8px 10px;font-size:13px;display:none;} .np-err.show{display:block;}
+  .np-foot{padding:12px 20px 18px;display:flex;justify-content:flex-end;gap:8px;}
+  .btn-ghost{font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
+  .np-site{display:flex;gap:8px;flex-wrap:wrap;align-items:center;} .np-site input{flex:1;min-width:110px;}
+  .np-hint{font-size:12px;color:var(--muted);margin-top:6px;}
+  .np-crew{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 12px;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:10px;}
+  .np-crew label{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;} .np-crew input{width:auto;} .np-crew .wid{font-weight:700;color:#B11E2E;}
+  .np-crew .none{grid-column:1 / -1;color:var(--muted);font-size:12.5px;}
+  @media (max-width:600px){ .np-body{grid-template-columns:1fr;} }
   .err-bar{background:#fceeec;color:#a23b30;border:1px solid #f3c9c4;border-radius:9px;padding:9px 13px;font-size:13px;margin-bottom:14px;display:none;}
   .err-bar.show{display:block;}
   .ok-bar{background:#e7f6f0;color:#0c7a5f;border:1px solid #b9e6d5;border-radius:9px;padding:9px 13px;font-size:13px;margin-bottom:14px;display:none;}
@@ -89,22 +109,64 @@
 </style>
 </head>
 <body>
-<div class="top">
-  <a class="brand-home" href="/" title="Company home"><img class="mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting"></a>
-  <h1>Superstars Contracting · Project Assignments</h1>
-  <a class="nav-back" href="/">Company home</a>
-  <a class="nav-back" href="/admin/users">Users</a>
-  <div class="who" id="who">—</div>
-</div>
+<!-- #311 — the shared application shell (shell.css): one sidebar, one top bar, on every operator page -->
+<div class="ssc-shell">
+<aside class="ssc-side" aria-label="Office Console navigation">
+  <div class="brand">
+    <img class="brand-mark" width="34" height="34" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
+    <div><div class="brand-name">Superstars Contracting</div><div class="brand-sub">Office Console</div></div>
+  </div>
+  <nav class="ssc-nav" id="ssc-nav">
+    <div class="ssc-nav-label">Company</div>
+    <a href="/#projects" data-roles="admin,c_suite">Overview</a>
+    <a href="/company" data-roles="admin,c_suite">Company Portal</a>
+    <a href="/#crm" data-roles="admin,c_suite">CRM</a>
+    <a href="/#estimates" data-roles="admin,c_suite">Estimates</a>
+    <a href="/estimating" data-roles="admin,c_suite,estimator">Estimating queue</a>
+    <div class="ssc-nav-label">Workforce</div>
+    <a href="/#workforce" data-roles="admin,c_suite">Workforce</a>
+    <a href="/#hours" data-roles="admin,c_suite">Hours Log</a>
+    <a href="/#cert-health" data-roles="admin,c_suite">Cert Health</a>
+    <a href="/#cert-library" data-roles="admin,c_suite">Cert Library</a>
+    <a href="/admin/labor-rates" data-roles="admin,c_suite,pm">Labor Rates</a>
+    <div class="ssc-nav-label">Operations</div>
+    <a href="/admin/projects" class="active" data-roles="admin,c_suite">Projects &amp; assignments</a>
+    <a href="/#compliance" data-roles="admin,c_suite">Compliance</a>
+    <a href="/#specs" data-roles="admin,c_suite">Specs Library</a>
+    <a href="/dropplan" data-roles="admin,c_suite,pm,super">Drop Plan</a>
+    <div class="ssc-nav-label">Admin</div>
+    <a href="/admin/users" data-roles="admin,c_suite">Users &amp; roles</a>
+    <a href="/#settings" data-roles="admin,c_suite">Settings</a>
+  </nav>
+  <div class="ssc-side-foot"><a href="/projects">My projects view</a></div>
+</aside>
+<script>
+  // #311 — the sidebar shows only what THIS role can open (server gates stay the control).
+  window.sscNavForRole = function (role) {
+    var nav = document.querySelector('.ssc-side .ssc-nav'); if (!nav) return;
+    nav.querySelectorAll('a[data-roles]').forEach(function (a) { a.hidden = a.getAttribute('data-roles').split(',').indexOf(role) < 0; });
+    nav.querySelectorAll('.ssc-nav-label').forEach(function (l) {
+      var n = l.nextElementSibling, any = false;
+      while (n && !n.classList.contains('ssc-nav-label')) { if (n.tagName === 'A' && !n.hidden) any = true; n = n.nextElementSibling; }
+      l.hidden = !any;
+    });
+  };
+</script>
+<div class="ssc-main">
+<header class="ssc-top">
+  <div class="ssc-top-title"><div class="ssc-crumb">Office Console · Operations</div><h1>Projects &amp; assignments</h1></div>
+  <div class="ssc-top-right"><div class="ssc-user" id="who">—</div></div>
+</header>
 
 <div class="wrap">
   <div class="err-bar" id="err"></div>
   <div class="ok-bar" id="ok"></div>
 
   <section>
-    <div class="head-row">
-      <h2>Projects</h2>
-      <div class="sub">Close a finished project to drop it off assigned PMs' lists (they can no longer open it). Reopen anytime — closed projects stay visible to admin / C-suite for records.</div>
+    <div class="head-row" style="display:flex;align-items:flex-start;gap:14px;">
+      <div style="flex:1;"><h2>Projects</h2>
+      <div class="sub">Close a finished project to drop it off assigned PMs' lists (they can no longer open it). Reopen anytime — closed projects stay visible to admin / C-suite for records. New bids start in <a href="/#estimates" style="color:var(--accent);font-weight:700;text-decoration:none;">Estimates</a>; a job that is already won can be onboarded here.</div></div>
+      <button class="btn-primary" type="button" id="np-open">+ New project</button>
     </div>
     <table id="proj-table">
       <thead><tr><th>Project</th><th>Code</th><th>Status</th><th class="acts">Action</th></tr></thead>
@@ -128,9 +190,50 @@
     <div id="client-list"><div class="empty">Loading…</div></div>
   </section>
 
-  <div class="ph-build" id="ap-build-stamp">build #270 · 2026-07-02 · Client access — section toggles + presets (Minimal/Standard/Full) + read-only portal preview (admin/c_suite)</div>
+  <div class="ph-build" id="ap-build-stamp" hidden>build #270 · 2026-07-02 · Client access — section toggles + presets (Minimal/Standard/Full) + read-only portal preview (admin/c_suite)</div>
 </div>
 
+
+<!-- #324 — onboard an already-won job -->
+<div class="np-overlay" id="np-overlay" role="dialog" aria-modal="true" aria-labelledby="np-title">
+  <form class="np-modal" id="np-form" novalidate>
+    <div class="np-head"><h2 id="np-title">New project</h2><p>For a job that is already won. It gets a code in the job's series, a back-dated approved estimate so Finance stays truthful, the building link, and its PM. New bids still start in Estimates.</p></div>
+    <div class="np-body">
+      <div class="np-field"><label for="np-client">Client</label><select id="np-client"><option value="">— choose a client —</option><option value="__new">+ New client…</option></select></div>
+      <div class="np-field" id="np-neworg-wrap" hidden><label for="np-neworg">New client name</label><input id="np-neworg" placeholder="Organization name" autocomplete="off"></div>
+      <div class="np-field"><label for="np-type">Job type</label><select id="np-type"></select></div>
+      <div class="np-field"><label for="np-borough">Borough</label><select id="np-borough"></select></div>
+      <div class="np-field full"><label for="np-address">Building address</label><input id="np-address" placeholder="890 E 135th St, Bronx" autocomplete="off"></div>
+      <div class="np-field full"><label for="np-name">Project name (optional)</label><input id="np-name" placeholder="defaults to the address" autocomplete="off"></div>
+      <div class="np-field"><label for="np-contract">Contract value (USD)</label><input id="np-contract" inputmode="decimal" placeholder="optional" autocomplete="off"></div>
+      <div class="np-field"><label for="np-start">Start date</label><input id="np-start" type="date" class="ssc-date"></div>
+      <div class="np-field"><label for="np-pm">Project manager</label><select id="np-pm"><option value="">— assign later —</option></select></div>
+      <div class="np-field full"><label for="np-notes">Notes</label><input id="np-notes" placeholder="optional" autocomplete="off"></div>
+      <div class="np-field full"><label>Site location · worker app check-in</label>
+        <div class="np-site"><input id="np-lat" inputmode="decimal" placeholder="Latitude" autocomplete="off"><input id="np-lng" inputmode="decimal" placeholder="Longitude" autocomplete="off"><input id="np-radius" inputmode="numeric" placeholder="200 m" autocomplete="off" style="max-width:90px"><button type="button" class="btn-ghost" id="np-geo">Use my location</button></div>
+        <div class="np-hint">Workers can only check in within this radius. Leave blank and the job accepts check-ins from anywhere until you set it (from the site, tap "Use my location").</div></div>
+      <div class="np-field full"><label>Crew · who can check in to this job</label><div class="np-crew" id="np-crew"></div></div>
+      <div class="np-err" id="np-err" role="alert"></div>
+    </div>
+    <div class="np-foot"><button type="button" class="btn-ghost" id="np-cancel">Cancel</button><button type="submit" class="btn-primary" id="np-go">Create project</button></div>
+  </form>
+</div>
+<!-- #325 — crew + site for an existing project -->
+<div class="np-overlay" id="cs-overlay" role="dialog" aria-modal="true" aria-labelledby="cs-title">
+  <form class="np-modal" id="cs-form" novalidate>
+    <div class="np-head"><h2 id="cs-title">Crew &amp; site</h2><p id="cs-sub">Who can check in to this job on the worker app, and where.</p></div>
+    <div class="np-body">
+      <div class="np-field full"><label>Site location · worker app check-in</label>
+        <div class="np-site"><input id="cs-lat" inputmode="decimal" placeholder="Latitude" autocomplete="off"><input id="cs-lng" inputmode="decimal" placeholder="Longitude" autocomplete="off"><input id="cs-radius" inputmode="numeric" placeholder="200 m" autocomplete="off" style="max-width:90px"><button type="button" class="btn-ghost" id="cs-geo">Use my location</button></div>
+        <div class="np-hint">Blank = check-ins accepted from anywhere. Radius 25–5000 m.</div></div>
+      <div class="np-field full"><label>Crew</label><div class="np-crew" id="cs-crew"></div></div>
+      <div class="np-err" id="cs-err" role="alert"></div>
+    </div>
+    <div class="np-foot"><button type="button" class="btn-ghost" id="cs-cancel">Cancel</button><button type="submit" class="btn-primary" id="cs-go">Save</button></div>
+  </form>
+</div>
+</div><!-- /.ssc-main -->
+</div><!-- /.ssc-shell -->
 <script>
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
@@ -145,7 +248,8 @@
   fetch('/api/auth/me').then(function(r){ return r.ok ? r.json() : null; }).then(function(j){
     if(!j || !j.user){ window.location.href='/login'; return; }
     var u=j.user;
-    $('who').innerHTML='<b>'+esc(u.display_name||u.full_name||u.email)+'</b> · '+esc(ROLE_LABEL[u.role]||u.role)+' <a id="logout">Sign out</a>';
+    $('who').innerHTML='<b>'+esc(u.display_name||u.full_name||u.email)+'</b><span class="ssc-role">'+esc(ROLE_LABEL[u.role]||u.role)+'</span><a id="logout">Sign out</a>';
+    if(window.sscNavForRole) sscNavForRole(u.role);
     $('logout').onclick=function(){ fetch('/api/auth/logout',{method:'POST'}).then(function(){ window.location.href='/login'; }); };
     if(u.role!=='admin' && u.role!=='c_suite'){ document.body.innerHTML='<div style="max-width:520px;margin:18vh auto;text-align:center;font-family:Inter,sans-serif;color:#76777E">This screen is limited to admin and C-suite.</div>'; }
   });
@@ -181,6 +285,99 @@
     }catch(e){ showErr('Could not load: '+e.message); }
   }
 
+  // #324 — new project modal
+  var NP = { meta: null };
+  function npDateGet(el){ var p=window.SSCDatePicker; if(p && typeof p.getISO==='function'){ var v=p.getISO(el); if(v!==undefined && v!==null) return v; } return el.value||''; }
+  function npDateSet(el, iso){ var p=window.SSCDatePicker; if(p && typeof p.setISO==='function'){ try{ p.setISO(el, iso||''); return; }catch(e){} } el.value=iso||''; }
+  function npToday(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  async function openNewProject(){
+    var err=$('np-err'); err.className='np-err'; $('np-overlay').classList.add('open');
+    try{
+      if(!NP.meta){ var r = await fetch('/api/admin/projects/onboard-meta').then(function(x){ return x.json(); }); if(r.error) throw new Error(r.error); NP.meta = r.data; }
+      var m = NP.meta;
+      $('np-client').innerHTML = '<option value="">— choose a client —</option>' + m.clients.map(function(c){ return '<option value="'+c.id+'">'+esc(c.name)+'</option>'; }).join('') + '<option value="__new">+ New client…</option>';
+      $('np-type').innerHTML = m.types.map(function(t){ return '<option value="'+esc(t.code)+'">'+esc(t.code)+' · '+esc(t.label)+'</option>'; }).join('');
+      $('np-borough').innerHTML = m.boroughs.map(function(b){ return '<option value="'+esc(b)+'">'+esc(b)+'</option>'; }).join('');
+      $('np-pm').innerHTML = '<option value="">— assign later —</option>' + m.pms.map(function(p){ return '<option value="'+p.user_id+'">'+esc(p.name)+'</option>'; }).join('');
+      var p=window.SSCDatePicker; if(p && typeof p.wire==='function' && !$('np-start').dataset.sscDp){ try{ p.wire($('np-start'), {}); }catch(e){} }
+      npDateSet($('np-start'), npToday());
+      $('np-neworg-wrap').hidden = true; $('np-neworg').value=''; $('np-address').value=''; $('np-name').value=''; $('np-contract').value=''; $('np-notes').value='';
+      $('np-lat').value=''; $('np-lng').value=''; $('np-radius').value=''; renderCrewBoxes($('np-crew'), m.workers, {});
+      setTimeout(function(){ $('np-client').focus(); }, 30);
+    }catch(e){ err.textContent='Could not load the form: '+e.message; err.className='np-err show'; }
+  }
+  function closeNewProject(){ $('np-overlay').classList.remove('open'); }
+  $('np-open').addEventListener('click', openNewProject);
+  $('np-cancel').addEventListener('click', closeNewProject);
+  $('np-overlay').addEventListener('click', function(e){ if(e.target===$('np-overlay')) closeNewProject(); });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && $('np-overlay').classList.contains('open')) closeNewProject(); if(e.key==='Escape' && $('cs-overlay').classList.contains('open')) $('cs-overlay').classList.remove('open'); });
+  $('np-client').addEventListener('change', function(){ var isNew = $('np-client').value==='__new'; $('np-neworg-wrap').hidden = !isNew; if(isNew) setTimeout(function(){ $('np-neworg').focus(); }, 30); });
+  $('np-form').addEventListener('submit', async function(e){
+    e.preventDefault(); var err=$('np-err'); err.className='np-err';
+    var isNew = $('np-client').value==='__new';
+    var payload = { client_org_id: isNew ? null : ($('np-client').value||null), new_org_name: isNew ? $('np-neworg').value.trim() : '',
+      est_type: $('np-type').value, borough: $('np-borough').value, address: $('np-address').value.trim(), name: $('np-name').value.trim(),
+      contract_value: $('np-contract').value.trim() || null, start_date: npDateGet($('np-start')) || null, pm_user_id: $('np-pm').value || null, notes: $('np-notes').value.trim(),
+      site_lat: $('np-lat').value.trim() || null, site_lng: $('np-lng').value.trim() || null, geofence_m: $('np-radius').value.trim() || null, crew: crewChecked($('np-crew')) };
+    if((payload.site_lat && !payload.site_lng) || (!payload.site_lat && payload.site_lng)){ err.textContent='Enter both latitude and longitude, or leave both blank.'; err.className='np-err show'; return; }
+    if(!payload.client_org_id && !payload.new_org_name){ err.textContent='Pick a client or type a new client name.'; err.className='np-err show'; return; }
+    if(payload.address.length < 4){ err.textContent='Enter the building address.'; err.className='np-err show'; return; }
+    $('np-go').disabled = true;
+    try{
+      var r = await fetch('/api/admin/projects/onboard', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      var j = await r.json().catch(function(){ return {}; });
+      if(!r.ok) throw new Error(j.error || ('Request failed ('+r.status+')'));
+      closeNewProject(); NP.meta = null;
+      showOk('Project '+j.data.project_code+' created' + (j.data.pm_user_id ? ' and assigned' : '') + ' — open it from the console');
+      await load();
+    }catch(ex){ err.textContent=ex.message; err.className='np-err show'; }
+    finally{ $('np-go').disabled=false; }
+  });
+
+  // #325 — crew checkboxes + site geolocation, shared by both modals
+  function renderCrewBoxes(host, workers, assigned){
+    if(!workers || !workers.length){ host.innerHTML='<div class="none">No active workers yet. Onboard them from Workforce first.</div>'; return; }
+    host.innerHTML = workers.map(function(w){ return '<label><input type="checkbox" value="'+esc(w.employee_id)+'" '+(assigned[w.employee_id]?'checked':'')+'><span><span class="wid">'+esc(w.worker_id||w.employee_id)+'</span> — '+esc(w.name||'')+(w.trade?' <span style="color:var(--muted)">· '+esc(w.trade)+'</span>':'')+'</span></label>'; }).join('');
+  }
+  function crewChecked(host){ return Array.prototype.map.call(host.querySelectorAll('input[type=checkbox]:checked'), function(i){ return i.value; }); }
+  function useMyLocation(latEl, lngEl, btn){
+    if(!navigator.geolocation){ showErr('This browser cannot read your location.'); return; }
+    btn.disabled=true; btn.textContent='Locating…';
+    navigator.geolocation.getCurrentPosition(function(pos){ latEl.value=pos.coords.latitude.toFixed(6); lngEl.value=pos.coords.longitude.toFixed(6); btn.disabled=false; btn.textContent='Use my location'; },
+      function(){ btn.disabled=false; btn.textContent='Use my location'; showErr('Location not available — allow location access and try again, or type the coordinates.'); }, { enableHighAccuracy:true, timeout:12000 });
+  }
+  $('np-geo').addEventListener('click', function(){ useMyLocation($('np-lat'), $('np-lng'), $('np-geo')); });
+  $('cs-geo').addEventListener('click', function(){ useMyLocation($('cs-lat'), $('cs-lng'), $('cs-geo')); });
+  async function openCrew(code){
+    var err=$('cs-err'); err.className='np-err'; $('cs-form').dataset.code=code; $('cs-overlay').classList.add('open');
+    $('cs-crew').innerHTML='<div class="none">Loading…</div>';
+    try{
+      var r = await fetch('/api/admin/projects/'+encodeURIComponent(code)+'/crew').then(function(x){ return x.json(); });
+      if(r.error) throw new Error(r.error);
+      var d=r.data; $('cs-sub').textContent = (d.project.name||code)+' · '+code+' · '+d.assigned_count+' on the crew';
+      $('cs-lat').value = d.site.site_lat!=null ? d.site.site_lat : ''; $('cs-lng').value = d.site.site_lng!=null ? d.site.site_lng : ''; $('cs-radius').value = d.site.geofence_m || '';
+      var assigned={}; d.workers.forEach(function(w){ if(w.assigned) assigned[w.employee_id]=true; });
+      renderCrewBoxes($('cs-crew'), d.workers, assigned);
+    }catch(e){ err.textContent='Could not load: '+e.message; err.className='np-err show'; }
+  }
+  $('cs-cancel').addEventListener('click', function(){ $('cs-overlay').classList.remove('open'); });
+  $('cs-overlay').addEventListener('click', function(e){ if(e.target===$('cs-overlay')) $('cs-overlay').classList.remove('open'); });
+  $('cs-form').addEventListener('submit', async function(e){
+    e.preventDefault(); var err=$('cs-err'); err.className='np-err'; var code=$('cs-form').dataset.code;
+    var lat=$('cs-lat').value.trim(), lng=$('cs-lng').value.trim();
+    if((lat && !lng) || (!lat && lng)){ err.textContent='Enter both latitude and longitude, or leave both blank.'; err.className='np-err show'; return; }
+    var payload = { crew: crewChecked($('cs-crew')), site_lat: lat || null, site_lng: lng || null };
+    if($('cs-radius').value.trim()) payload.geofence_m = $('cs-radius').value.trim();
+    $('cs-go').disabled=true;
+    try{
+      var r = await fetch('/api/admin/projects/'+encodeURIComponent(code)+'/crew', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      var j = await r.json().catch(function(){ return {}; }); if(!r.ok) throw new Error(j.error || ('Request failed ('+r.status+')'));
+      $('cs-overlay').classList.remove('open');
+      var ch=j.data.change||{added:[],removed:[]}; showOk('Crew saved for '+code+' — '+j.data.assigned_count+' on the crew'+(ch.added.length?', +'+ch.added.length:'')+(ch.removed.length?', −'+ch.removed.length:''));
+    }catch(ex){ err.textContent=ex.message; err.className='np-err show'; }
+    finally{ $('cs-go').disabled=false; }
+  });
+
   function statusPill(st){
     var s=(st||'active').toLowerCase();
     var cls = s==='closed' ? 'closed' : 'active';
@@ -196,10 +393,11 @@
       var btn = isClosed
         ? '<button class="btn-sm" onclick="setStatus(\''+esc(p.project_code)+'\',\'active\')">Reopen</button>'
         : '<button class="btn-sm danger" onclick="setStatus(\''+esc(p.project_code)+'\',\'closed\')">Close</button>';
+      var crewBtn = '<button class="btn-sm" onclick="openCrew(\''+esc(p.project_code)+'\')">Crew &amp; site</button> ';
       return '<tr><td class="nm">'+esc(p.name||p.project_code)+'</td>'
         + '<td class="code">'+esc(p.project_code)+'</td>'
         + '<td>'+statusPill(st)+'</td>'
-        + '<td class="acts">'+btn+'</td></tr>';
+        + '<td class="acts">'+crewBtn+btn+'</td></tr>';
     }).join('');
   }
 

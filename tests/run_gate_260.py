@@ -78,7 +78,21 @@ GATE = [
     "smoke_client_building_hub_299.py",# #299 static contract — client buildings / job sites in CRM
     "smoke_password_reset_300.py",     # #300 static contract — reset module + pages
     "smoke_password_reset_flow_301.py",# #301 guard — reset BEHAVIOR: no-enum, hashed single-use tokens, session revoke, expiry, throttle
+    "smoke_company_portal_302.py",     # #302 guard — company portal: company-axis gating, clients/buildings rollups, finance, compliance, company documents CRUD
+    "smoke_migrations_306.py",         # #306 guard — migration ledger: baseline, pending, apply/record, drift, health count
+    "smoke_doc_package_327.py",      # #327 guard — permits & insurance package: readiness, send to client + private link, portal share, red-flag revocation, gates
+    "smoke_project_payments_326.py", # #326 guard — invoice documents: preview/pdf, email to client + private link, view tracking, project Payments, gates
+    "smoke_crew_sites_325.py",       # #325 guard — crews + site coordinates + worker-app job picker: per-job geofence, chooser, shift start validation
+    "smoke_project_onboard_324.py",  # #324 guard — onboard an already-won job: gates, validation, estimate→approved→convert in one step, PM assignment, numbering
+    "smoke_worker_history_320.py",   # #320 guard — worker job history: hours by project/month/matrix, rate-on-date cost, assignments, certs, credentials, rate audit, gates
+    "smoke_company_vault_318.py",     # #318 guard — company vault: vehicles CRUD + driver roster, vehicle/tax categories, file upload/serve/delete (gated, path-contained), compliance rollup
+    "smoke_invoices_315.py",          # #315 guard — invoices & receivables: numbering, draft→issued→paid, payments, void, overdue math, proposal-signed deposit draft, gates
     "smoke_payroll_week_310.py",       # #310 guard — Mon–Sun payroll week: 7 dates/totals, weekend hours counted + priced, CSV, divergence window, default week
+    "smoke_csuite_reset_309.py",       # #309 guard — c_suite reset-only view of client accounts; admin unchanged; strong-password suggester wired on both set-password pages
+    "smoke_client_proposals_308.py",   # #308 guard — client Proposals tab: grant + matrix + org scoping, view/PDF/accept/decline, preview read-only, registry-only fields
+    "smoke_proposals_307.py",          # #307 guard — proposal from estimate, send + signed link, public view/accept/decline, signature trigger, versions, gates
+    "smoke_buildings_304.py",          # #304 guard — building identity, backfill de-dup, autolink, CRUD + gating, portal client view on the table
+    "smoke_security_release_305.py",   # #305 guard — PIN throttle, PII gates/strip, SQL-injection close, RFI routes, estimator/vendor containment, traversal, artifact scoping, preview gate, no duplicate routes
     "smoke_perf_budget_292.py",   # #292 THE BUDGET GATE — per-surface request-count + payload ceilings over the whole census; a page that goes chatty again fails here
     "smoke_dropplan_api.py",
     "smoke_worker_lifecycle.py",

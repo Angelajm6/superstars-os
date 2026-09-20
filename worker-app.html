@@ -299,6 +299,16 @@
       position: relative;
     }
 
+    /* #325 — job chooser (shown only when more than one job is in range) */
+    .project-list { flex: 1; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .project-btn { display: block; width: 100%; text-align: left; background: white; border: 1px solid var(--color-hairline); border-radius: 14px; padding: 16px 18px; font: inherit; cursor: pointer; }
+    .project-btn:active { background: #F5F6F8; }
+    .project-btn .pj-code { font-weight: 700; color: #B11E2E; font-size: 13px; letter-spacing: .04em; }
+    .project-btn .pj-name { font-size: 16px; font-weight: 600; margin-top: 2px; }
+    .project-btn .pj-dist { font-size: 12px; color: var(--color-mute); margin-top: 4px; }
+    .project-foot { padding: 12px 16px 20px; }
+    .project-foot button { width: 100%; font: inherit; font-size: 14px; padding: 12px; border-radius: 12px; border: 1px solid var(--color-hairline); background: white; }
+
     .working-topbar {
       background: white;
       border-bottom: 1px solid var(--color-hairline);
@@ -854,6 +864,12 @@
     </div>
   </div>
 
+  <div class="screen project-screen" id="screen-project">
+    <div class="working-topbar" id="project-topbar">Choose your job</div>
+    <div class="project-list" id="project-list"></div>
+    <div class="project-foot"><button type="button" id="project-cancel" onclick="cancelProjectChoice()">Cancel</button></div>
+  </div>
+
   <div class="screen working-screen" id="screen-working">
     <div class="working-topbar" id="working-topbar">Signed in</div>
     <div class="working-content">
@@ -951,6 +967,9 @@ const i18n = {
     scope_label: "Scope",
     send: "Send",
     signed_in: "Signed in",
+    choose_job: "Choose your job",
+    away: "away",
+    no_job: "No job assigned — see the office",
     photos_upload: "📷 Photos upload directly. Not saved to your phone.",
     photos_not_saved: "Not saved to your phone",
     signout_confirm: "Sign out for the day?",
@@ -978,6 +997,9 @@ const i18n = {
     scope_label: "Alcance",
     send: "Enviar",
     signed_in: "Sesión iniciada",
+    choose_job: "Elige tu obra",
+    away: "de distancia",
+    no_job: "Sin obra asignada — habla con la oficina",
     photos_upload: "📷 Las fotos se cargan directamente. No se guardan en tu teléfono.",
     photos_not_saved: "No se guardan en tu teléfono",
     signout_confirm: "¿Salir por hoy?",
@@ -1013,7 +1035,7 @@ let pinCode = '';
 let geofenceData = { onSite: false, distance: 0, latitude: null, longitude: null };
 let sessionData = {
   employeeId: null, name: null, sessionToken: null,
-  signInLogId: null, projectCode: null, certifications: [],
+  signInLogId: null, projectCode: null, projectName: null, projects: [], certifications: [],
   startTime: null, photoCount: 0
 };
 let currentZone = 'South L11';
@@ -1263,33 +1285,21 @@ async function signIn() {
     sessionData.employeeId = emp.employee_id;
     sessionData.name = emp.name;
     sessionData.sessionToken = emp.session_token;
-    sessionData.projectCode = emp.project_code || 'FR-BX-001';
+    sessionData.projects = emp.projects || [];
     sessionData.certifications = emp.certifications || [];
 
-    const startResp = await fetch('/api/worker/session/start', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        employee_id: sessionData.employeeId,
-        project_code: sessionData.projectCode,
-        session_token: sessionData.sessionToken
-      })
-    });
-    const startJson = await startResp.json();
-    if (!startResp.ok) {
-      certDiv.textContent = '✗ ' + (startJson.error || (lang === 'es' ? 'Error al iniciar turno' : 'Failed to start session'));
+    // #325 — one job in range: start straight away. Several: the worker picks.
+    if (emp.project_code) {
+      await startShift(emp.project_code, certDiv, btn);
+    } else if (sessionData.projects.length) {
+      renderProjectChooser();
+      goToScreen('project');
+      btn.disabled = false;
+    } else {
+      certDiv.textContent = '✗ ' + t('no_job');
       certDiv.className = 'cert-status blocked';
       btn.disabled = false;
-      return;
     }
-    const session = startJson.data || startJson;
-    sessionData.signInLogId = session.sign_in_log_id;
-    sessionData.startTime = new Date(session.time_in || Date.now());
-    sessionData.photoCount = 0;
-
-    goToScreen('working');
-    updateWorkingScreen();
-    startWorkingTimer();
   } catch (e) {
     certDiv.textContent = '✗ ' + (lang === 'es' ? 'Error de red' : 'Network error');
     certDiv.className = 'cert-status blocked';
@@ -1302,10 +1312,65 @@ function startWorkingTimer() {
   workingTimer = setInterval(updateWorkingScreen, 1000);
 }
 
+async function startShift(projectCode, certDiv, btn) {
+  const pj = (sessionData.projects || []).find(p => p.project_code === projectCode);
+  sessionData.projectCode = projectCode;
+  sessionData.projectName = pj ? pj.name : projectCode;
+  const startResp = await fetch('/api/worker/session/start', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      employee_id: sessionData.employeeId,
+      project_code: projectCode,
+      session_token: sessionData.sessionToken
+    })
+  });
+  const startJson = await startResp.json();
+  if (!startResp.ok) {
+    if (certDiv) { certDiv.textContent = '✗ ' + (startJson.error || (lang === 'es' ? 'Error al iniciar turno' : 'Failed to start session')); certDiv.className = 'cert-status blocked'; }
+    if (btn) btn.disabled = false;
+    goToScreen('signin');
+    return;
+  }
+  const session = startJson.data || startJson;
+  sessionData.signInLogId = session.sign_in_log_id;
+  sessionData.startTime = new Date(session.time_in || Date.now());
+  sessionData.photoCount = 0;
+  goToScreen('working');
+  updateWorkingScreen();
+  startWorkingTimer();
+}
+
+function renderProjectChooser() {
+  document.getElementById('project-topbar').textContent = t('choose_job');
+  document.getElementById('project-cancel').textContent = t('cancel');
+  const host = document.getElementById('project-list');
+  host.innerHTML = '';
+  (sessionData.projects || []).forEach(p => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'project-btn';
+    const dist = p.distance_m != null ? (p.distance_m >= 1000 ? (p.distance_m / 1000).toFixed(1) + ' km' : Math.round(p.distance_m) + ' m') + ' ' + t('away') : '';
+    b.innerHTML = '<div class="pj-code"></div><div class="pj-name"></div><div class="pj-dist"></div>';
+    b.querySelector('.pj-code').textContent = p.project_code;
+    b.querySelector('.pj-name').textContent = p.name || p.project_code;
+    b.querySelector('.pj-dist').textContent = dist;
+    b.onclick = async () => { host.querySelectorAll('button').forEach(x => x.disabled = true); await startShift(p.project_code, document.getElementById('cert-status'), document.getElementById('signin-btn')); };
+    host.appendChild(b);
+  });
+}
+
+function cancelProjectChoice() {
+  sessionData.projects = []; sessionData.sessionToken = null; pinCode = '';
+  const pin = document.getElementById('pin-input'); if (pin) pin.value = '';
+  const btn = document.getElementById('signin-btn'); if (btn) btn.disabled = true;
+  const certDiv = document.getElementById('cert-status'); if (certDiv) { certDiv.textContent = ''; certDiv.className = 'cert-status'; }
+  goToScreen('signin');
+}
+
 function updateWorkingScreen() {
   // Topbar shows just "Signed in" — no clock, no counter, no zone.
   // Workers don't need to see how long they've been on; PMs do, on the dashboard.
-  document.getElementById('working-topbar').textContent = t('signed_in');
+  document.getElementById('working-topbar').textContent = t('signed_in') + (sessionData.projectName ? ' · ' + sessionData.projectName : '');
 }
 
 let stream;

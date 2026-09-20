@@ -53,7 +53,12 @@ ROLE_CATALOG = ('admin', 'c_suite', 'pm', 'super', 'client', 'architect', 'vendo
 ONBOARDABLE_ROLES = ('c_suite', 'pm', 'client', 'estimator', 'architect')
 # Assignable as a role-change target: anything in the catalog EXCEPT admin
 # (no elevation to admin, ever).
-ASSIGNABLE_ROLES = tuple(r for r in ROLE_CATALOG if r != 'admin')
+# #305 — 'vendor' has no containment gate anywhere yet; it is not assignable until it does.
+ASSIGNABLE_ROLES = tuple(r for r in ROLE_CATALOG if r not in ('admin', 'vendor'))
+# #309 — a C-suite account may issue a one-time password for THESE roles only (a locked-out
+# client must not need the single admin login). Creating accounts, changing roles and
+# deactivating stay admin-only; the admin keeps resetting any non-admin account.
+CSUITE_RESET_ROLES = ('client',)
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _TEMP_ALPHABET = string.ascii_letters + string.digits  # no symbols — conveyable by hand
@@ -115,13 +120,20 @@ def _list_users():
         # the operator never sees seeded admins. The filter keys on the FLAG, not on
         # email guessing: a rogue admin created some other way has is_system=0 and
         # WOULD still appear here.
+        # #309 — a C-suite viewer sees ONLY the accounts they may act on (clients).
+        limited = (current_user() or {}).get("role") != "admin"
+        where = "COALESCE(is_system,0)=0"
+        params: tuple = ()
+        if limited:
+            where += " AND role IN (%s)" % ",".join("?" * len(CSUITE_RESET_ROLES))
+            params = tuple(CSUITE_RESET_ROLES)
         rows = conn.execute(
             "SELECT id, email, role, full_name, display_name, status, is_active, "
             "       must_reset_password, last_login_at, created_at, created_by, deactivated_at "
-            "FROM users WHERE COALESCE(is_system,0)=0 ORDER BY "
+            f"FROM users WHERE {where} ORDER BY "
             "CASE role WHEN 'admin' THEN 0 WHEN 'c_suite' THEN 1 WHEN 'pm' THEN 2 ELSE 3 END, "
-            "LOWER(email)").fetchall()
-        return jsonify({"data": [_public_user(r) for r in rows]})
+            "LOWER(email)", params).fetchall()
+        return jsonify({"data": [_public_user(r) for r in rows], "limited": limited})
     finally:
         conn.close()
 
@@ -250,6 +262,15 @@ def _reset_password(user_id: int):
         target = _get_user(conn, user_id)
         if not target:
             return jsonify({"error": "user not found"}), 404
+        # #309 — the admin row is never reset from the page (single-admin invariant,
+        # managed out-of-band); a non-admin actor may reset CSUITE_RESET_ROLES only.
+        trole = conn.execute("SELECT role FROM users WHERE id=?", (user_id,)).fetchone()["role"]
+        if trole == "admin":
+            return jsonify({"error": "the admin account is managed out-of-band"}), 403
+        if (actor or {}).get("role") != "admin" and trole not in CSUITE_RESET_ROLES:
+            logging.info(f"admin: reset denied actor_role={(actor or {}).get('role')} "
+                         f"target_role={trole} user_id={user_id}")
+            return jsonify({"error": "a C-suite account can reset client passwords only"}), 403
         conn.execute(
             "UPDATE users SET password_hash=?, must_reset_password=1 WHERE id=?",
             (hash_password(temp_pw), user_id))
@@ -259,7 +280,8 @@ def _reset_password(user_id: int):
         conn.close()
     destroy_all_user_sessions(user_id)          # force re-login with the temp password
     _login_audit(user_id, "password_reset", _client_ip())
-    logging.info(f"admin: reset password user_id={user_id} by={(actor or {}).get('id')}")  # never the temp pw
+    logging.info(f"admin: reset password user_id={user_id} by={(actor or {}).get('id')} "
+                 f"actor_role={(actor or {}).get('role')}")  # never the temp pw
     return jsonify({"data": _public_user(row), "temp_password": temp_pw})
 
 
@@ -277,10 +299,12 @@ def _admin_users_page():
 def register(app) -> None:
     """Wire the admin user-management page + APIs. EVERY endpoint is admin-only,
     server-side — the before_request login gate runs first, then @requires_role('admin')."""
+    # #309 — the page, the list and reset-password open to c_suite (limited to client
+    # accounts, enforced inside each handler); everything else stays admin-only.
     app.add_url_rule("/admin/users", "admin_users_page",
-                     requires_role('admin')(_admin_users_page), methods=["GET"])
+                     requires_role('admin', 'c_suite')(_admin_users_page), methods=["GET"])
     app.add_url_rule("/api/admin/users", "admin_users_list",
-                     requires_role('admin')(_list_users), methods=["GET"])
+                     requires_role('admin', 'c_suite')(_list_users), methods=["GET"])
     app.add_url_rule("/api/admin/users", "admin_users_create",
                      requires_role('admin')(_create_user), methods=["POST"])
     app.add_url_rule("/api/admin/users/<int:user_id>/role", "admin_users_role",
@@ -290,4 +314,4 @@ def register(app) -> None:
     app.add_url_rule("/api/admin/users/<int:user_id>/reactivate", "admin_users_reactivate",
                      requires_role('admin')(_reactivate_user), methods=["POST"])
     app.add_url_rule("/api/admin/users/<int:user_id>/reset-password", "admin_users_reset_pw",
-                     requires_role('admin')(_reset_password), methods=["POST"])
+                     requires_role('admin', 'c_suite')(_reset_password), methods=["POST"])

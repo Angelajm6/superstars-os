@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Labor Rates — Superstars Contracting</title>
+<link rel="stylesheet" href="/files/static/fonts/typography.css">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=321">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=321">
+<script src="/files/static/js/shell.js?v=312" defer></script>
 <style>
   :root{--blue:#1E73E8;--ink:#1b1d22;--muted:#7a7f88;--line:#ededf0;--edge:rgba(30,115,232,.42);--in:rgba(30,115,232,.14);--green:#0F6E56;--amber:#BA7517;--red:#C8102E;--bg:#f3f4f6;}
   *{box-sizing:border-box}
@@ -17,6 +21,9 @@
   .topbar .who{font-size:12px;color:#9aa3ae}
   .wrap{max-width:980px;margin:24px auto;padding:0 22px}
   .frame{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:18px}
+  #lr-admin-only{position:relative;overflow:hidden;background:radial-gradient(520px 170px at 14% 0%, var(--accent-in, rgba(67,100,220,.14)) 0%, rgba(255,255,255,0) 60%), #fff}   /* #314 hero band */
+  #lr-admin-only::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg, var(--accent, #4364dc), var(--accent-soft, #ebf0fe))}
+  .kpis .tile{border-color:var(--accent-edge, rgba(67,100,220,.30));box-shadow:inset 0 0 12px var(--accent-in, rgba(67,100,220,.14)), 0 1px 4px rgba(0,0,0,.04)}
   .head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap}
   .head h1{margin:0;font-size:21px}.head .sub{color:var(--muted);font-size:13px;margin-top:3px}
   .primary{background:var(--blue);border:none;color:#fff;border-radius:10px;padding:9px 15px;font-size:13.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
@@ -109,10 +116,54 @@
 <symbol id="i-star" viewBox="0 0 24 24"><polygon points="12,1 15,9 23,9 16.5,14 19,22 12,17 5,22 7.5,14 1,9 9,9" fill="#B11E2E"/></symbol>
 </defs></svg>
 
-<div class="topbar">
-  <div class="b"><img class="brand-mark" width="18" height="18" src="/files/static/brand/mark.svg" alt="" style="vertical-align:-3px;object-fit:contain">SUPERSTARS · LABOR RATES</div>
-  <div style="display:flex;align-items:center;gap:18px;"><span class="who" id="lr-who">—</span><a href="/company-dashboard.html">← Company Console</a></div>
-</div>
+<!-- #311 — the shared application shell (shell.css): one sidebar, one top bar, on every operator page -->
+<div class="ssc-shell">
+<aside class="ssc-side" aria-label="Office Console navigation">
+  <div class="brand">
+    <img class="brand-mark" width="34" height="34" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
+    <div><div class="brand-name">Superstars Contracting</div><div class="brand-sub">Office Console</div></div>
+  </div>
+  <nav class="ssc-nav" id="ssc-nav">
+    <div class="ssc-nav-label">Company</div>
+    <a href="/#projects" data-roles="admin,c_suite">Overview</a>
+    <a href="/company" data-roles="admin,c_suite">Company Portal</a>
+    <a href="/#crm" data-roles="admin,c_suite">CRM</a>
+    <a href="/#estimates" data-roles="admin,c_suite">Estimates</a>
+    <a href="/estimating" data-roles="admin,c_suite,estimator">Estimating queue</a>
+    <div class="ssc-nav-label">Workforce</div>
+    <a href="/#workforce" data-roles="admin,c_suite">Workforce</a>
+    <a href="/#hours" data-roles="admin,c_suite">Hours Log</a>
+    <a href="/#cert-health" data-roles="admin,c_suite">Cert Health</a>
+    <a href="/#cert-library" data-roles="admin,c_suite">Cert Library</a>
+    <a href="/admin/labor-rates" class="active" data-roles="admin,c_suite,pm">Labor Rates</a>
+    <div class="ssc-nav-label">Operations</div>
+    <a href="/admin/projects" data-roles="admin,c_suite">Projects &amp; assignments</a>
+    <a href="/#compliance" data-roles="admin,c_suite">Compliance</a>
+    <a href="/#specs" data-roles="admin,c_suite">Specs Library</a>
+    <a href="/dropplan" data-roles="admin,c_suite,pm,super">Drop Plan</a>
+    <div class="ssc-nav-label">Admin</div>
+    <a href="/admin/users" data-roles="admin,c_suite">Users &amp; roles</a>
+    <a href="/#settings" data-roles="admin,c_suite">Settings</a>
+  </nav>
+  <div class="ssc-side-foot"><a href="/projects">My projects view</a></div>
+</aside>
+<script>
+  // #311 — the sidebar shows only what THIS role can open (server gates stay the control).
+  window.sscNavForRole = function (role) {
+    var nav = document.querySelector('.ssc-side .ssc-nav'); if (!nav) return;
+    nav.querySelectorAll('a[data-roles]').forEach(function (a) { a.hidden = a.getAttribute('data-roles').split(',').indexOf(role) < 0; });
+    nav.querySelectorAll('.ssc-nav-label').forEach(function (l) {
+      var n = l.nextElementSibling, any = false;
+      while (n && !n.classList.contains('ssc-nav-label')) { if (n.tagName === 'A' && !n.hidden) any = true; n = n.nextElementSibling; }
+      l.hidden = !any;
+    });
+  };
+</script>
+<div class="ssc-main">
+<header class="ssc-top">
+  <div class="ssc-top-title"><div class="ssc-crumb">Office Console · Workforce</div><h1>Labor Rates</h1></div>
+  <div class="ssc-top-right"><div class="ssc-user" id="lr-who">—</div></div>
+</header>
 
 <div class="wrap">
   <div class="frame" id="lr-pm-note" style="display:none;border-left:3px solid var(--amber);">
@@ -154,7 +205,7 @@
       <tbody id="lr-pending-tbody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
     </table></div>
   </div>
-  <div style="text-align:center;color:#9aa3ae;font-size:11px;margin-top:2px;" id="ph-build-stamp">build #241 · 2026-06-12 · Labor Rates — worker selector replaces typed IDs · ids normalized server-side · status drives daily-report selectors</div>
+  <div hidden style="text-align:center;color:#9aa3ae;font-size:11px;margin-top:2px;" id="ph-build-stamp">build #241 · 2026-06-12 · Labor Rates — worker selector replaces typed IDs · ids normalized server-side · status drives daily-report selectors</div>
 </div>
 
 <div class="overlay" id="lr-overlay">
@@ -184,6 +235,9 @@
 <div class="toast" id="lr-toast"></div>
 <div class="lr-card" id="lr-card"></div>
 
+
+</div><!-- /.ssc-main -->
+</div><!-- /.ssc-shell -->
 <script src="/files/static/js/datepicker.js"></script>
 <script>
 (function(){
@@ -199,7 +253,10 @@
   let ROLE='', ROSTER={active:[],inactive:[]}, editWid=null, addMode=false, pendingPreselect=null;
 
   async function boot(){
-    try{ const me=await jget('/api/auth/me'); ROLE=((me.user||me.data||me)||{}).role||''; $('lr-who').textContent=(ROLE||'').toUpperCase(); }catch(e){}
+    try{ const me=await jget('/api/auth/me'); const _u=(me.user||me.data||me)||{}; ROLE=_u.role||'';
+      const _who=$('lr-who'); _who.innerHTML='<b></b><span class="ssc-role"></span>';
+      _who.firstChild.textContent=_u.display_name||_u.full_name||_u.email||''; _who.lastChild.textContent=(ROLE||'').toUpperCase();
+      if(window.sscNavForRole) sscNavForRole(ROLE); }catch(e){}
     if(ROLE==='pm'){
       $('lr-admin-only').style.display='none'; $('lr-pm-note').style.display='';
       $('lr-pending-frame').style.display=''; loadPending();

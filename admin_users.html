@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=257">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=321">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=321">
+<script src="/files/static/js/shell.js?v=312" defer></script>
 <title>User Management · Superstars Contracting</title>
 <style>
   /* Uses the GLOBAL :root tokens from widgets.css (--accent/--ink/--line/...), so the
@@ -66,14 +68,54 @@
 </style>
 </head>
 <body>
-<div class="top">
-  <a class="brand-home" href="/" title="Company home"><img class="mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting"></a>
-  <h1>Superstars Contracting · User Management</h1>
-  <a class="nav-back" href="/dashboard">&#8592; Dashboard</a>
-  <a class="nav-back" href="/">Company home</a>
-  <a class="nav-back" href="/admin/projects">Project assignments</a><!-- #263 -->
-  <div class="who" id="who">—</div>
-</div>
+<!-- #311 — the shared application shell (shell.css): one sidebar, one top bar, on every operator page -->
+<div class="ssc-shell">
+<aside class="ssc-side" aria-label="Office Console navigation">
+  <div class="brand">
+    <img class="brand-mark" width="34" height="34" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
+    <div><div class="brand-name">Superstars Contracting</div><div class="brand-sub">Office Console</div></div>
+  </div>
+  <nav class="ssc-nav" id="ssc-nav">
+    <div class="ssc-nav-label">Company</div>
+    <a href="/#projects" data-roles="admin,c_suite">Overview</a>
+    <a href="/company" data-roles="admin,c_suite">Company Portal</a>
+    <a href="/#crm" data-roles="admin,c_suite">CRM</a>
+    <a href="/#estimates" data-roles="admin,c_suite">Estimates</a>
+    <a href="/estimating" data-roles="admin,c_suite,estimator">Estimating queue</a>
+    <div class="ssc-nav-label">Workforce</div>
+    <a href="/#workforce" data-roles="admin,c_suite">Workforce</a>
+    <a href="/#hours" data-roles="admin,c_suite">Hours Log</a>
+    <a href="/#cert-health" data-roles="admin,c_suite">Cert Health</a>
+    <a href="/#cert-library" data-roles="admin,c_suite">Cert Library</a>
+    <a href="/admin/labor-rates" data-roles="admin,c_suite,pm">Labor Rates</a>
+    <div class="ssc-nav-label">Operations</div>
+    <a href="/admin/projects" data-roles="admin,c_suite">Projects &amp; assignments</a>
+    <a href="/#compliance" data-roles="admin,c_suite">Compliance</a>
+    <a href="/#specs" data-roles="admin,c_suite">Specs Library</a>
+    <a href="/dropplan" data-roles="admin,c_suite,pm,super">Drop Plan</a>
+    <div class="ssc-nav-label">Admin</div>
+    <a href="/admin/users" class="active" data-roles="admin,c_suite">Users &amp; roles</a>
+    <a href="/#settings" data-roles="admin,c_suite">Settings</a>
+  </nav>
+  <div class="ssc-side-foot"><a href="/projects">My projects view</a></div>
+</aside>
+<script>
+  // #311 — the sidebar shows only what THIS role can open (server gates stay the control).
+  window.sscNavForRole = function (role) {
+    var nav = document.querySelector('.ssc-side .ssc-nav'); if (!nav) return;
+    nav.querySelectorAll('a[data-roles]').forEach(function (a) { a.hidden = a.getAttribute('data-roles').split(',').indexOf(role) < 0; });
+    nav.querySelectorAll('.ssc-nav-label').forEach(function (l) {
+      var n = l.nextElementSibling, any = false;
+      while (n && !n.classList.contains('ssc-nav-label')) { if (n.tagName === 'A' && !n.hidden) any = true; n = n.nextElementSibling; }
+      l.hidden = !any;
+    });
+  };
+</script>
+<div class="ssc-main">
+<header class="ssc-top">
+  <div class="ssc-top-title"><div class="ssc-crumb">Office Console · Admin</div><h1>Users &amp; roles</h1></div>
+  <div class="ssc-top-right"><div class="ssc-user" id="who">—</div></div>
+</header>
 
 <div class="wrap">
   <div class="head-row">
@@ -86,7 +128,7 @@
     <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Last login</th><th style="text-align:right;">Actions</th></tr></thead>
     <tbody id="rows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
   </table>
-  <div style="text-align:center;color:var(--muted);font-size:11px;letter-spacing:.04em;margin-top:24px;padding-top:14px;border-top:1px solid var(--line);">build #268 · 2026-06-30 · Create-user dropdown offers Client (external — forced first-login reset → welcome hard-stop until access is granted); admin stays non-creatable (single-admin invariant)</div>
+  <div hidden style="text-align:center;color:var(--muted);font-size:11px;letter-spacing:.04em;margin-top:24px;padding-top:14px;border-top:1px solid var(--line);">build #311 · 2026-09-18 · shared shell · · 2026-09-18 · C-suite can issue a one-time password for client accounts; creating accounts, roles and deactivation stay with the single admin</div>
 </div>
 
 <!-- Create-user modal -->
@@ -152,6 +194,9 @@
   </div>
 </div>
 
+
+</div><!-- /.ssc-main -->
+</div><!-- /.ssc-shell -->
 <script>
 (function(){
   var ME=null, USERS=[];
@@ -164,6 +209,7 @@
   function clearErr(){$('err-bar').className='err-bar';}
   function fmtDate(iso){if(!iso)return '—';var m=String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?(m[2]+'/'+m[3]+'/'+m[1]):'—';}
 
+  var LIMITED=false;   // #309 — c_suite: reset-only view of client accounts
   function rowHtml(u){
     var isMe=ME&&ME.id===u.id;
     var isAdmin=u.role==='admin';
@@ -174,6 +220,8 @@
     if(isAdmin){
       // Admin rows are managed out-of-band (single-admin invariant). No UI actions.
       acts='<span class="muted" style="font-size:11.5px;">'+(isMe?'you · admin':'admin')+'</span>';
+    } else if(LIMITED){
+      acts+='<button class="btn-sm" type="button" data-reset="'+u.id+'">Reset password</button>';
     } else {
       acts+='<button class="btn-sm" type="button" data-role="'+u.id+'">Change role</button>';
       acts+='<button class="btn-sm" type="button" data-reset="'+u.id+'">Reset password</button>';
@@ -187,7 +235,7 @@
 
   function render(){
     var tb=$('rows');
-    if(!USERS.length){tb.innerHTML='<tr><td colspan="5" class="empty">No users yet.</td></tr>';return;}
+    if(!USERS.length){tb.innerHTML='<tr><td colspan="5" class="empty">'+(LIMITED?'No client accounts yet.':'No users yet.')+'</td></tr>';return;}
     tb.innerHTML=USERS.map(rowHtml).join('');
   }
 
@@ -196,9 +244,16 @@
     var me=await jget('/api/auth/me');
     ME=(me.j&&me.j.user)||null;
     if(!ME){location.href='/login?next=/admin/users';return;}
-    $('who').innerHTML='<b>'+esc(ME.display_name||ME.full_name||ME.email)+'</b> · '+esc(ROLE_LABEL[ME.role]||ME.role)+' <a id="signout">Sign out</a>';
+    $('who').innerHTML='<b>'+esc(ME.display_name||ME.full_name||ME.email)+'</b><span class="ssc-role">'+esc(ROLE_LABEL[ME.role]||ME.role)+'</span><a id="signout">Sign out</a>';
+    if(window.sscNavForRole) sscNavForRole(ME.role);
     $('signout').addEventListener('click',function(){fetch('/api/auth/logout',{method:'POST',credentials:'include'}).then(function(){location.href='/login';});});
-    if(ME.role!=='admin'){document.querySelector('.wrap').innerHTML='<div class="empty">Admins only.</div>';return;}
+    LIMITED=(ME.role==='c_suite');
+    if(ME.role!=='admin'&&!LIMITED){document.querySelector('.wrap').innerHTML='<div class="empty">Admins only.</div>';return;}
+    if(LIMITED){
+      $('new-user-btn').style.display='none';   // the button's own display rule beats the hidden attribute
+      document.querySelector('.head-row h2').textContent='Client accounts';
+      document.querySelector('.head-row .sub').textContent='A client who is locked out can get a new one-time password here. Creating accounts and changing roles stay with the admin.';
+    }
     var r=await jget('/api/admin/users');
     if(!r.ok){showErr((r.j&&r.j.error)||'Could not load users.');return;}
     USERS=(r.j&&r.j.data)||[];

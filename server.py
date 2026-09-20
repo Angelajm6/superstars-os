@@ -10,6 +10,7 @@ import sqlite3
 from pathlib import Path
 from datetime import datetime, date, timedelta
 import logging
+import math
 import json
 import os
 import re
@@ -84,6 +85,27 @@ apply_auth_gate(app)
 import password_reset  # noqa: E402
 password_reset.register(app)
 
+# #302 — Company Portal (C-suite whole-company view). MUST follow apply_auth_gate:
+# every route is behind requires_section('company_portal') = admin/c_suite.
+import company_portal  # noqa: E402
+company_portal.register(app)
+
+# #304 — buildings as a first-class entity (table + backfill at boot; CRM-axis endpoints).
+import buildings  # noqa: E402
+buildings.register(app)
+
+# #307 — proposals generated from estimates, sent with a signed link, accepted online.
+# Internal endpoints are requires_section('estimates'); /p/<token> + /api/p/<token>/* are
+# public by token (auth._PUBLIC_PREFIXES).
+import proposals  # noqa: E402
+proposals.register(app)
+import invoices  # noqa: E402
+invoices.register(app)
+import invoice_docs  # noqa: E402
+invoice_docs.register(app)   # #326 — invoice documents, email, public link, project Payments
+import doc_packages  # noqa: E402
+doc_packages.register(app)   # #327 — permits & insurance package, send to client
+
 # #279 (UI v2 phase 0) — the interface toggle. MUST follow apply_auth_gate: the
 # stored per-user preference is read off current_user(). Sets g.ui_version on page
 # routes; every UI route serves its page through ui_version.serve_ui, which returns
@@ -117,8 +139,38 @@ try:
     db_layer._PKMAP_CACHE.clear()
 except Exception as _e:
     logging.warning(f"#289 hardening schema ensure skipped: {_e}")
+# #305 — the canonical roster views (CLAUDE.md roster rule) were missing on every
+# fixture-built database (preprod): the migration that creates them was never in the
+# fixture lists. Ensure them at boot, idempotently, on both backends.
+def _ensure_roster_views(conn):
+    pg = db_layer.is_postgres()
+    head = "CREATE OR REPLACE VIEW" if pg else "CREATE VIEW IF NOT EXISTS"
+    conn.execute(f"{head} v_worker_roster AS "
+                 "SELECT e.*, COALESCE(ls.status, 'active') AS labor_status "
+                 "FROM employees e LEFT JOIN labor_worker_state ls ON ls.worker_id = e.worker_id")
+    conn.execute(f"{head} v_active_workers AS "
+                 "SELECT * FROM v_worker_roster WHERE archived_at IS NULL AND labor_status = 'active'")
+try:
+    _rv = db_layer.connect(pragma_fk=True)
+    try:
+        _ensure_roster_views(_rv)
+        _rv.commit()
+    finally:
+        _rv.close()
+except Exception as _e:
+    logging.warning(f"#305 roster views ensure skipped: {_e}")
+
+# #306 — migration ledger: ensure the table, baseline an existing database, report what
+# is pending (and apply it when SSC_AUTO_MIGRATE=1 — preprod). Never blocks boot.
+import migrations  # noqa: E402
+_MIGRATION_BOOT = migrations.boot(auto=os.environ.get('SSC_AUTO_MIGRATE') == '1')
+
 import auth_hardening
 auth_hardening.register(app)
+
+# #305 — containment for the roles that had none (estimator, vendor). After apply_auth_gate.
+import role_containment  # noqa: E402
+role_containment.register(app)
 
 # #296 — worker PWA bearer sessions.  The PWA routes are public so the session
 # record, rather than a client supplied employee_id, authorizes clock actions.
@@ -140,6 +192,8 @@ except Exception as _e:
 # is set before the scoping hook runs.
 import pm_scoping  # noqa: E402
 pm_scoping.register(app)
+import project_onboard  # noqa: E402
+project_onboard.register(app)   # #324 — onboard an already-won job
 
 # #264 — the per-item VISIBILITY ENGINE (default-deny) + the read-only CLIENT portal.
 # client_portal registers a default-deny before_request gate (a `client` reaches ONLY the
@@ -808,6 +862,17 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
+# #309-ops — mirror WARNING and above to stderr as well. The file under the data root
+# stays the full INFO record; the stream is what a cloud host (Render) collects, so a
+# "password reset email not sent via sendgrid" line is visible from the dashboard
+# without a shell into the disk. Guarded so a re-import (tests) adds it once.
+if not any(getattr(h, "_ssc_stream_mirror", False) for h in logging.getLogger().handlers):
+    _stream = logging.StreamHandler()   # defaults to stderr
+    _stream.setLevel(logging.WARNING)
+    _stream.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s'))
+    _stream._ssc_stream_mirror = True
+    logging.getLogger().addHandler(_stream)
+
 class _ReqConn:
     """#291 — request-scoped connection PROXY. db() hands every caller in one
     request the SAME underlying connection; a handler's .close() must not kill
@@ -905,6 +970,43 @@ def scrub_paths(obj):
             scrub_paths(v)
     return obj
 
+# #305 — worker PII never leaves the employee endpoints for non-company roles.
+# `pin` never leaves them at all (credential cards have their own gated route).
+_WORKER_PII_ALWAYS = frozenset({'pin'})
+_WORKER_PII_COMPANY_ONLY = frozenset({
+    'dob', 'phone', 'email', 'emergency_contact_name', 'emergency_contact_phone',
+    'emergency_contact_relation', 'home_address', 'address', 'license_number',
+    'id_number', 'ssn',
+})
+
+
+def strip_worker_pii(obj, role=None):
+    """Recursively drop PII keys from a payload. Company roles (admin/c_suite) keep
+    contact fields (the workforce profile shows them); everyone else gets the
+    roster shape only. Returns the same structure."""
+    if role is None:
+        role = (current_user() or {}).get('role')
+    deny = set(_WORKER_PII_ALWAYS)
+    if role not in access.COMPANY_ROLES:
+        deny |= _WORKER_PII_COMPANY_ONLY
+    def _walk(x):
+        if isinstance(x, dict):
+            return {k: _walk(v) for k, v in x.items() if k not in deny}
+        if isinstance(x, list):
+            return [_walk(v) for v in x]
+        return x
+    return _walk(obj)
+
+
+def _server_error(e):
+    """#305 — never echo driver/exception text to the client (table + column names,
+    conflicting values). Logged with a short id the operator can grep for."""
+    import uuid
+    ref = uuid.uuid4().hex[:8]
+    logging.error(f"[{ref}] {request.method} {request.path}: {type(e).__name__}: {e}")
+    return jsonify({"error": "Something went wrong on the server.", "ref": ref}), 500
+
+
 def response_wrapper(data, count=None):
     """Wrap response with metadata.
 
@@ -988,6 +1090,7 @@ def health():
     return response_wrapper({
         "status": "ok",
         "db": "postgres" if db_layer.is_postgres() else "sqlite",
+        "migrations_pending": migrations.pending_count(),   # #306 — 0 is healthy; -1 = ledger unreadable
         "timestamp": datetime.now().isoformat()
     })
 
@@ -1108,7 +1211,7 @@ def create_sign_in():
         return response_wrapper(dict(row)), 201
     except Exception as e:
         logging.error(f"POST /api/sign-ins: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 @app.route('/api/sign-ins/<int:sign_in_id>', methods=['PATCH'])
 def update_sign_in(sign_in_id):
@@ -1149,7 +1252,7 @@ def update_sign_in(sign_in_id):
                                   "rerender_error": rr.get("error")}
         return response_wrapper(out), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/sign-ins/<int:sign_in_id>', methods=['PUT'])
@@ -1206,7 +1309,7 @@ def replace_sign_in(sign_in_id):
         return response_wrapper(out), 200
     except Exception as e:
         logging.error(f"PUT /api/sign-ins/{sign_in_id}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/sign-ins/<int:sign_in_id>', methods=['DELETE'])
@@ -1249,7 +1352,7 @@ def delete_sign_in(sign_in_id):
         return jsonify(out), 200
     except Exception as e:
         logging.error(f"DELETE /api/sign-ins/{sign_in_id}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 # ============= PAYROLL: WEEKLY HOURS LOG =============
@@ -1363,7 +1466,7 @@ def api_payroll_hours():
     except Exception as e:
         # Never echo any rate values — only the operation that failed.
         logging.error(f"GET /api/payroll/hours: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/payroll/hours.csv', methods=['GET'])
@@ -1416,7 +1519,7 @@ def api_payroll_hours_csv():
         )
     except Exception as e:
         logging.error(f"GET /api/payroll/hours.csv: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/payroll/hours.pdf', methods=['GET'])
@@ -1470,7 +1573,7 @@ def api_payroll_hours_pdf():
         )
     except Exception as e:
         logging.error(f"GET /api/payroll/hours.pdf: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 # ============= RFI ENDPOINTS =============
@@ -1576,8 +1679,10 @@ def create_rfi():
     Server auto-assigns project-prefixed sequential rfi_number.
     """
     from project_type_config import RFI_STATUS_SUBSET
+    data = request.get_json(silent=True) or {}
+    if data.get('elevation_id'):
+        return elevation._api_rfi_create()   # #305 — drawing-markup RFIs (was a route collision)
     try:
-        data = request.get_json(silent=True) or {}
         project_code = data.get('project_code')
         if not project_code:
             return jsonify({"error": "project_code required"}), 400
@@ -1641,7 +1746,7 @@ def create_rfi():
         return response_wrapper(_rfi_row_to_dict(row, today_iso)), 201
     except Exception as e:
         logging.error(f"POST /api/rfis: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/rfis/<rfi_id>', methods=['PATCH'])
@@ -1692,7 +1797,7 @@ def update_rfi(rfi_id):
         return response_wrapper(_rfi_row_to_dict(row, date.today().isoformat()))
     except Exception as e:
         logging.error(f"PATCH /api/rfis/{rfi_id}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/rfis/<rfi_id>/render', methods=['GET'])
@@ -1727,7 +1832,7 @@ def render_rfi(rfi_id):
         return Response(html, mimetype='text/html; charset=utf-8')
     except Exception as e:
         logging.error(f"GET /api/rfis/{rfi_id}/render: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/rfis/<rfi_id>', methods=['DELETE'])
@@ -1747,11 +1852,23 @@ def delete_rfi(rfi_id):
         return response_wrapper({"rfi_number": rfi_id, "deleted": True})
     except Exception as e:
         logging.error(f"DELETE /api/rfis/{rfi_id}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 # ============= SITE CLOSURE ENDPOINTS =============
 
+SITE_CLOSURE_CHECKLIST_KEYS = (
+    'personnel_all_signed_out', 'personnel_visitors_escorted', 'personnel_no_remaining',
+    'equipment_tools_secured', 'equipment_scaffold_locked', 'equipment_compressors_secured',
+    'equipment_mast_climbers_locked', 'fire_watch_completed', 'fire_heat_sources_cool',
+    'fire_extinguishers_ready', 'dust_collection_sealed', 'dust_storage_sealed',
+    'dust_tarps_secure', 'water_penetrations_covered', 'water_window_protection',
+    'security_access_locked', 'security_fence_secured', 'security_sidewalk_clear',
+    'building_doors_locked', 'building_roof_locked', 'climate_hvac_undisturbed',
+    'climate_storage_sealed', 'doc_daily_report', 'doc_photos_taken',
+)
+
 @app.route('/api/site-closures', methods=['POST'])
+@requires_section('internal_ops')   # #305
 def create_site_closure():
     """Create new site closure record"""
     try:
@@ -1802,15 +1919,22 @@ def create_site_closure():
         return response_wrapper(dict(row) if row else {"closure_id": closure_id}), 201
     except Exception as e:
         logging.error(f"POST /api/site-closures: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 @app.route('/api/site-closures/<closure_id>/checklist', methods=['PATCH'])
+@requires_section('internal_ops')   # #305
 def update_closure_checklist(closure_id):
     """Update single checklist item"""
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         item = data.get('item')
         value = data.get('value')
+        # #305 — the column name came straight from the request body into the SQL
+        # (injection). Allowlist it; the value is a Y/N flag.
+        if item not in SITE_CLOSURE_CHECKLIST_KEYS:
+            return jsonify({"error": "unknown checklist item"}), 400
+        if value not in ('Y', 'N'):
+            return jsonify({"error": "value must be 'Y' or 'N'"}), 400
         
         conn = db()
         conn.execute(
@@ -1822,7 +1946,7 @@ def update_closure_checklist(closure_id):
         
         return response_wrapper({"item": item, "value": value}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 # ============= DCR SITE ACTIVITY ENDPOINTS =============
 
@@ -1863,7 +1987,7 @@ def create_work_log():
         return response_wrapper(dict(row)), 201
     except Exception as e:
         logging.error(f"POST /api/work-log: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/deliveries', methods=['POST'])
@@ -1896,7 +2020,7 @@ def create_delivery():
         return response_wrapper(dict(row)), 201
     except Exception as e:
         logging.error(f"POST /api/deliveries: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/equipment-log', methods=['POST'])
@@ -1931,7 +2055,7 @@ def create_equipment_log():
         return response_wrapper(dict(row)), 201
     except Exception as e:
         logging.error(f"POST /api/equipment-log: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/weather-log', methods=['POST'])
@@ -1966,7 +2090,7 @@ def create_weather_log():
         return response_wrapper(dict(row)), 201
     except Exception as e:
         logging.error(f"POST /api/weather-log: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 # ============= DCR SAFETY + COMPLIANCE ENDPOINTS =============
@@ -2003,7 +2127,7 @@ def create_toolbox_talk_record():
         return response_wrapper(dict(row)), 201
     except Exception as e:
         logging.error(f"POST /api/toolbox-talks/records: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/safety-events', methods=['POST'])
@@ -2037,7 +2161,7 @@ def create_safety_event():
         return response_wrapper(dict(row)), 201
     except Exception as e:
         logging.error(f"POST /api/safety-events: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/issues', methods=['POST'])
@@ -2077,7 +2201,7 @@ def create_issue():
         return response_wrapper(dict(row)), 201
     except Exception as e:
         logging.error(f"POST /api/issues: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/inspections', methods=['POST'])
@@ -2111,7 +2235,7 @@ def create_inspection():
         return response_wrapper(dict(row)), 201
     except Exception as e:
         logging.error(f"POST /api/inspections: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 # ============= DCR VISITORS =============
@@ -2147,7 +2271,7 @@ def create_visitor():
         return response_wrapper(dict(row)), 201
     except Exception as e:
         logging.error(f"POST /api/visitors: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 # ============= DELETE endpoints for DCR entry rows + reports =============
@@ -2165,7 +2289,7 @@ def _delete_entry_row(table, row_id):
         return jsonify({"deleted": True, "id": row_id, "table": table}), 200
     except Exception as e:
         logging.error(f"DELETE {table}/{row_id}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         conn.close()
 
@@ -2229,7 +2353,7 @@ def delete_photo(row_id):
         conn.commit()
     except Exception as e:
         logging.error(f"DELETE /api/photos/{row_id}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         conn.close()
     file_deleted = False
@@ -2291,7 +2415,7 @@ def _patch_dcr_row(table, row_id, allowed_fields, aliases=None):
         return response_wrapper(scrub_paths(dict(row))), 200
     except Exception as e:
         logging.error(f"PATCH /api/{table}/{row_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         conn.close()
 
@@ -2409,7 +2533,7 @@ def delete_report_by_sequence(project_code, seq):
         conn.commit()
     except Exception as e:
         logging.error(f"DELETE /api/projects/{project_code}/reports/by-sequence/{seq}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         conn.close()
 
@@ -2463,7 +2587,7 @@ def delete_report(project_code, report_id):
         conn.commit()
     except Exception as e:
         logging.error(f"DELETE /api/projects/{project_code}/reports/{report_id}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         conn.close()
     audience = None
@@ -2554,7 +2678,7 @@ def get_dcr_daily(project_code, report_date):
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logging.error(f"GET /api/projects/{project_code}/daily/{report_date}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 def _mark_dcr_stale(conn, project_code, report_date):
@@ -2965,7 +3089,7 @@ def api_dcr_no_work(project_code, report_date):
         })
     except Exception as e:
         logging.error(f"{request.method} /api/projects/{project_code}/daily/{report_date}/no-work: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/projects/<project_code>/daily/<report_date>/issue', methods=['POST'])
@@ -3152,7 +3276,7 @@ def issue_dcr(project_code, report_date):
             f"POST /api/projects/{project_code}/daily/{report_date}/issue "
             f"(audience={audience}, override={override_active}): {str(e)}"
         )
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 # ============= DCR REPORT ARCHIVE =============
@@ -3309,7 +3433,7 @@ def update_drop_status(drop_id):
         
         return response_wrapper(dict(row) if row else {}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 # ============= ACTION ITEM ENDPOINTS =============
 
@@ -3333,7 +3457,7 @@ def update_action_item_status(action_id):
         
         return response_wrapper(dict(row) if row else {}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 # ============= EMPLOYEE ENDPOINTS =============
 
@@ -3366,7 +3490,7 @@ def create_employee():
         return response_wrapper(dict(row) if row else {"employee_id": employee_id, "worker_id": worker_id}), 201
     except Exception as e:
         logging.error(f"POST /api/employees: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 @app.route('/api/employees/<emp_id>', methods=['PATCH'])
 def update_employee(emp_id):
@@ -3523,7 +3647,7 @@ def update_employee(emp_id):
         return response_wrapper(result), 200
     except Exception as e:
         app.logger.error(f"PATCH /api/employees/{emp_id} failed: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/employees/<emp_id>/intake/complete', methods=['POST'])
@@ -3567,7 +3691,7 @@ def complete_intake(emp_id):
         }), 200
     except Exception as e:
         logging.error(f"POST /api/employees/{emp_id}/intake/complete: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         if conn is not None:
             try: conn.close()
@@ -3662,7 +3786,7 @@ def delete_employee(emp_id):
             }), 200
     except Exception as e:
         logging.error(f"DELETE /api/employees/{emp_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         if conn is not None:
             try: conn.close()
@@ -3698,20 +3822,12 @@ def create_certification():
         # #247 — certifications SELECT * carries scan_path/file_path; scrub.
         return response_wrapper(scrub_paths(dict(row)) if row else {}), 201
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 # ============= EXISTING READ ENDPOINTS (abbreviated) =============
 
-@app.route('/api/projects', methods=['GET'])
-def get_projects():
-    conn = db()
-    rows = conn.execute("SELECT * FROM projects").fetchall()
-    # #263 — scope by role: a pm sees only assigned ACTIVE projects (closed excluded);
-    # admin/c_suite see all. Server-side, so a pm can't enumerate other projects.
-    user = current_user() or {}
-    rows = pm_scoping.filter_visible_projects(rows, user.get("role"), user.get("id"), conn)
-    conn.close()
-    return response_wrapper(rows_to_dicts(rows), len(rows))
+# #305 — the older GET /api/projects handler that lived here shadowed api_projects_list
+# (the Company Console one, with assigned_workers). One route, one handler.
 
 @app.route('/api/projects/<code>', methods=['GET'])
 def get_project(code):
@@ -3724,6 +3840,7 @@ def get_project(code):
     return response_wrapper(dict(row))
 
 @app.route('/api/employees', methods=['GET'])
+@requires_section('internal_ops')   # #305 — worker PII is internal-tier
 def get_employees():
     """List employees. Archived workers (archived_at IS NOT NULL) are
     filtered out by default. Pass ?include_archived=true to include them
@@ -3739,9 +3856,10 @@ def get_employees():
         ).fetchall()
     conn.close()
     # #247 — SELECT * carries face_image_path/folder_path/photo_path; scrub.
-    return response_wrapper(scrub_paths(rows_to_dicts(rows)), len(rows))
+    return response_wrapper(strip_worker_pii(scrub_paths(rows_to_dicts(rows))), len(rows))
 
 @app.route('/api/employees/<emp_id>', methods=['GET'])
+@requires_section('internal_ops')   # #305
 def get_employee(emp_id):
     conn = db()
     # #246 — canonical roster view: labor_status rides along so the profile
@@ -3759,9 +3877,10 @@ def get_employee(emp_id):
     employee['certifications'] = rows_to_dicts(cert_rows)
     conn.close()
     # #247 — employee SELECT * + cert rows (scan_path) — scrub the whole tree.
-    return response_wrapper(scrub_paths(employee))
+    return response_wrapper(strip_worker_pii(scrub_paths(employee)))
 
 @app.route('/api/certifications', methods=['GET'])
+@requires_section('internal_ops')   # #305
 def get_certifications():
     conn = db()
     rows = conn.execute(
@@ -3776,6 +3895,7 @@ def get_certifications():
     return response_wrapper(certs, len(certs))
 
 @app.route('/api/sign-ins', methods=['GET'])
+@requires_section('internal_ops')   # #305
 def get_sign_ins():
     conn = db()
     rows = conn.execute(
@@ -3789,6 +3909,8 @@ def get_rfis():
     """Cross-project RFI list. Each row carries status_derived (Auto-Overdue)
     + turnaround_days. Use /api/projects/<code>/rfis for the
     register-shaped per-project payload + the default sort."""
+    if request.args.get('elevation_id'):
+        return elevation._api_rfi_list()   # #305 — drawing-markup RFIs
     conn = db()
     rows = conn.execute("SELECT * FROM rfi_log ORDER BY date_submitted DESC").fetchall()
     conn.close()
@@ -3870,7 +3992,7 @@ def api_project_rfis(project_code):
         return response_wrapper(out, len(out))
     except Exception as e:
         logging.error(f"GET /api/projects/{project_code}/rfis: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/projects/<project_code>/rfi-constraints', methods=['GET'])
@@ -3928,7 +4050,7 @@ def api_project_rfi_constraints(project_code):
         return response_wrapper(out, len(out))
     except Exception as e:
         logging.error(f"GET /api/projects/{project_code}/rfi-constraints: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 @app.route('/api/drops', methods=['GET'])
 def get_drops():
@@ -3947,6 +4069,7 @@ def get_drop(drop_id):
     return response_wrapper(dict(row))
 
 @app.route('/api/site-closures', methods=['GET'])
+@requires_section('internal_ops')   # #305
 def get_site_closures():
     conn = db()
     rows = conn.execute("SELECT * FROM site_closure_log ORDER BY date DESC").fetchall()
@@ -3954,6 +4077,7 @@ def get_site_closures():
     return response_wrapper(rows_to_dicts(rows), len(rows))
 
 @app.route('/api/site-closures/<closure_id>', methods=['GET'])
+@requires_section('internal_ops')   # #305
 def get_site_closure(closure_id):
     conn = db()
     row = conn.execute("SELECT * FROM site_closure_log WHERE closure_id = ?", (closure_id,)).fetchone()
@@ -4043,7 +4167,7 @@ def sign_off_drop(drop_id):
         
         return response_wrapper(dict(row)), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 # ============= WORKER APP ENDPOINTS =============
@@ -4072,9 +4196,50 @@ def _worker_session(conn, token, *, employee_id=None, project_code=None):
         return None
     if employee_id and row["employee_id"] != employee_id:
         return None
-    if project_code and row["project_code"] != project_code:
+    if project_code and row["project_code"] and row["project_code"] != project_code:   # #325: NULL = not picked yet
         return None
     return row
+
+def _haversine_m(lat1, lng1, lat2, lng2):
+    R = 6371000  # Earth radius meters
+    d_lat = (lat1 - lat2) * math.pi / 180
+    d_lng = (lng1 - lng2) * math.pi / 180 * math.cos(math.radians(lat2))   # #305 — E-W was overstated ~32%
+    a = (d_lat / 2) ** 2 + (d_lng / 2) ** 2
+    return R * 2 * (a ** 0.5)
+
+
+def _worker_projects(conn, employee_id, latitude=None, longitude=None):
+    """#325 — the jobs a worker may check in to, each geofenced against ITS OWN site.
+
+    Active assignments on active projects; a worker with no assignment at all is
+    offered every active project (the office tightens this by assigning crews).
+    With a location: a project with coordinates is `eligible` only inside its
+    radius (default 200 m); a project with no coordinates on file is eligible as
+    is. Without a location (shift start, after the login already checked it)
+    every candidate is eligible."""
+    rows = conn.execute(
+        "SELECT p.project_code, p.name, p.site_lat, p.site_lng, p.geofence_m FROM projects p "
+        "JOIN project_assignments a ON a.project_code = p.project_code "
+        "WHERE a.employee_id = ? AND a.status = 'active' AND COALESCE(p.status, 'active') <> 'closed' "
+        "ORDER BY p.name, p.project_code", (employee_id,)).fetchall()
+    assigned = bool(rows)
+    if not rows:
+        rows = conn.execute(
+            "SELECT project_code, name, site_lat, site_lng, geofence_m FROM projects "
+            "WHERE COALESCE(status, 'active') <> 'closed' ORDER BY name, project_code").fetchall()
+    out = []
+    for r in rows:
+        has = r["site_lat"] is not None and r["site_lng"] is not None
+        dist = in_range = None
+        if has and latitude is not None and longitude is not None:
+            dist = _haversine_m(float(latitude), float(longitude), float(r["site_lat"]), float(r["site_lng"]))
+            in_range = dist <= float(r["geofence_m"] or 200)
+        out.append({"project_code": r["project_code"], "name": r["name"] or r["project_code"],
+                    "has_geofence": has, "distance_m": (round(dist) if dist is not None else None),
+                    "in_range": in_range, "assigned": assigned,
+                    "eligible": (not has) or (in_range if in_range is not None else True)})
+    return out
+
 
 @app.route('/api/worker/login', methods=['POST'])
 def worker_login():
@@ -4154,18 +4319,18 @@ def worker_login():
                 return jsonify({"error": "This device isn't set up yet — ask the office to add it",
                                 "device_required": True}), 403
 
-        # Validate geofence (Bronx project: 40.8083, -73.9162).  There is no
-        # client-controlled test bypass: staging uses a separate test project.
-        PROJECT_LAT, PROJECT_LNG = 40.8083, -73.9162
-        R = 6371000  # Earth radius meters
-        dLat = (latitude - PROJECT_LAT) * 3.14159 / 180
-        dLng = (longitude - PROJECT_LNG) * 3.14159 / 180
-        a = (dLat/2)**2 + (dLng/2)**2
-        distance = R * 2 * (a**0.5)
-
-        if distance > 200:
+        # #325 — geofence PER JOB: the worker's projects (assignments, or every active
+        # project when unassigned), each checked against its own coordinates. No
+        # client-controlled bypass: a project's coordinates live on the projects row.
+        candidates = _worker_projects(conn, emp['employee_id'], latitude, longitude)
+        eligible = [p for p in candidates if p["eligible"]]
+        if not candidates:
+            conn.close()
+            return jsonify({"error": "No job assigned — see the office"}), 403
+        if not eligible:
             conn.close()
             return jsonify({"error": "Not on site"}), 403
+        auto_code = eligible[0]["project_code"] if len(eligible) == 1 else None
 
         cert_rows = conn.execute(
             "SELECT c.*, ct.name as cert_name FROM certifications c "
@@ -4195,7 +4360,7 @@ def worker_login():
         conn.execute(
             "INSERT INTO worker_app_session "
             "(token_hash, employee_id, project_code, issued_at, expires_at) VALUES (?,?,?,?,?)",
-            (_worker_token_hash(session_token), emp['employee_id'], "FR-BX-001", now, expires),
+            (_worker_token_hash(session_token), emp['employee_id'], auto_code or '', now, expires),   # '' = not picked yet (#325)
         )
         conn.commit()
         conn.close()
@@ -4204,7 +4369,8 @@ def worker_login():
             "employee_id": emp['employee_id'],
             "name": emp['name'],
             "session_token": session_token,
-            "project_code": "FR-BX-001",
+            "project_code": auto_code,          # None -> the app shows the job chooser
+            "projects": eligible,               # #325 — what the chooser offers
             "certifications": certs
         })
     except Exception as e:
@@ -4220,7 +4386,7 @@ def worker_session_start():
     try:
         data = request.get_json(silent=True) or {}
         employee_id = data.get('employee_id')
-        project_code = data.get('project_code') or 'FR-BX-001'
+        project_code = (data.get('project_code') or '').strip()
         session_token = data.get('session_token') or ''
         if not employee_id:
             return jsonify({"error": "employee_id required"}), 400
@@ -4229,13 +4395,21 @@ def worker_session_start():
 
         conn = db()
         session = _worker_session(conn, session_token, employee_id=employee_id,
-                                  project_code=project_code)
+                                  project_code=project_code or None)
         if not session:
             conn.close()
             return jsonify({"error": "valid worker session required"}), 401
         if session["started_sign_in_id"] is not None or session["ended_at"] is not None:
             conn.close()
             return jsonify({"error": "worker session already used"}), 409
+        # #325 — the shift lands on one of THIS worker's jobs, never an arbitrary code
+        allowed = {p["project_code"] for p in _worker_projects(conn, employee_id)}
+        if not project_code or project_code not in allowed:
+            conn.close()
+            return jsonify({"error": "pick one of your jobs"}), 403
+        if not session["project_code"]:
+            conn.execute("UPDATE worker_app_session SET project_code=? WHERE token_hash=?",
+                         (project_code, session["token_hash"]))
         cursor = conn.execute(
             "INSERT INTO sign_in_log (date, employee_id, project_code, time_in, created_at, updated_at) "
             "VALUES (?, ?, ?, ?, ?, ?)",
@@ -4408,7 +4582,7 @@ def upload_photo():
             return jsonify({"error": f"DB insert failed: {db_err}"}), 500
     except Exception as e:
         logging.error(f"POST /api/photos/upload: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 @app.route('/api/photos', methods=['GET'])
 def get_photos():
@@ -4885,7 +5059,7 @@ def api_project_documents_upload(project_code):
         return response_wrapper(_projdoc_public(row, today.isoformat(), (today + timedelta(days=30)).isoformat())), 201
     except Exception as e:
         logging.error(f"POST /api/projects/{project_code}/documents: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         conn.close()
 
@@ -4923,7 +5097,7 @@ def api_project_documents_bulk(project_code):
         return response_wrapper({'saved': len(saved), 'ids': saved, 'errors': errors}), 201
     except Exception as e:
         logging.error(f"POST /api/projects/{project_code}/documents/bulk: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         conn.close()
 
@@ -5028,7 +5202,7 @@ def api_projdoc_file(doc_id):
                            (doc_id,)).fetchone()
         if not row or not row['file_path']:
             return jsonify({"error": "not found"}), 404
-        p = Path(row['file_path'])
+        p = ssc_paths.resolve_data_path(row['file_path'])   # #305 — legacy absolute rows resolve on the cloud
         base = (ssc_paths.under_root('data_room', 'project_docs')).resolve()
         if not (p.resolve().is_relative_to(base) and p.exists()):
             return jsonify({"error": "file missing"}), 404
@@ -5244,7 +5418,7 @@ def api_project_weekly_render(project_code):
         return Response(html, mimetype='text/html')
     except Exception as e:
         logging.error(f"GET /api/projects/{project_code}/weekly/render: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/projects/<project_code>/lookahead/render', methods=['GET'])
@@ -5286,7 +5460,7 @@ def api_project_lookahead_render(project_code):
         return Response(html, mimetype='text/html')
     except Exception as e:
         logging.error(f"GET /api/projects/{project_code}/lookahead/render: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/blank-forms', methods=['GET'])
@@ -5323,7 +5497,7 @@ def api_blank_forms():
         return response_wrapper(out, count=len(out))
     except Exception as e:
         logging.error(f"GET /api/blank-forms: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 # ====================================================================
@@ -5414,7 +5588,7 @@ def api_credentials_batch_print():
         })
     except Exception as e:
         logging.error(f"{request.method} /api/credentials/batch-print: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/labor-rates/workers', methods=['GET'])
@@ -5465,7 +5639,7 @@ def api_labor_rates_workers():
     except Exception as e:
         # Operation only — never echo rate values.
         logging.error(f"GET /api/labor-rates/workers: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/labor-rates/workers/<employee_id>/history', methods=['GET'])
@@ -5486,7 +5660,7 @@ def api_labor_rates_history(employee_id):
         return response_wrapper(rows, count=len(rows))
     except Exception as e:
         logging.error(f"GET /api/labor-rates/workers/{employee_id}/history: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/labor-rates/workers/<employee_id>', methods=['POST'])
@@ -5531,7 +5705,7 @@ def api_labor_rates_set(employee_id):
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logging.error(f"POST /api/labor-rates/workers/{employee_id}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 # ====================================================================
@@ -5592,7 +5766,7 @@ def api_signin_dcr_divergence(project_code):
         logging.error(
             f"GET /api/projects/{project_code}/signin-dcr-divergence: {str(e)}"
         )
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/projects/<project_code>/signin-dcr-divergence/reconcile',
@@ -5663,7 +5837,7 @@ def api_signin_dcr_reconcile(project_code):
             f"POST /api/projects/{project_code}/signin-dcr-divergence/reconcile: "
             f"{str(e)}"
         )
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 # ============= LABOR RATES v2 (#220) — approval-gated rate management =============
@@ -6233,7 +6407,7 @@ def api_toolbox_talks_library():
         return response_wrapper(out, count=len(out))
     except Exception as e:
         logging.error(f"GET /api/toolbox-talks/library: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/signage-templates', methods=['GET'])
@@ -6272,7 +6446,7 @@ def api_signage_templates():
         return response_wrapper(out, count=len(out))
     except Exception as e:
         logging.error(f"GET /api/signage-templates: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/spec-products', methods=['GET'])
@@ -6345,7 +6519,7 @@ def api_spec_products():
         })
     except Exception as e:
         logging.error(f"GET /api/spec-products: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/projects/<project_code>/document-specs', methods=['GET'])
@@ -6371,7 +6545,7 @@ def api_project_document_specs_list(project_code):
         return response_wrapper(rows_to_dicts(rows))
     except Exception as e:
         logging.error(f"GET /api/projects/{project_code}/document-specs: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/projects/<project_code>/document-specs', methods=['POST'])
@@ -6420,7 +6594,7 @@ def api_project_document_specs_attach(project_code):
         return response_wrapper(dict(row) if row else {}), (200 if already else 201)
     except Exception as e:
         logging.error(f"POST /api/projects/{project_code}/document-specs: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/projects/<project_code>/document-specs/<int:spec_product_id>', methods=['DELETE'])
@@ -6442,7 +6616,7 @@ def api_project_document_specs_detach(project_code, spec_product_id):
         return response_wrapper({"detached": affected})
     except Exception as e:
         logging.error(f"DELETE /api/projects/{project_code}/document-specs/{spec_product_id}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/projects/<project_code>/locations', methods=['GET'])
@@ -6538,7 +6712,7 @@ def api_project_locations(project_code):
         })
     except Exception as e:
         logging.error(f"GET /api/projects/{project_code}/locations: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/projects/<project_code>/on-site', methods=['GET'])
@@ -6665,7 +6839,7 @@ def api_project_on_site(project_code):
         })
     except Exception as e:
         logging.error(f"GET /api/projects/{project_code}/on-site: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/projects/<project_code>/assign', methods=['POST'])
@@ -6716,8 +6890,8 @@ def api_company_summary():
         ).fetchone()[0]
         all_projects = conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
 
-        today = datetime.utcnow().date().isoformat()
-        d30 = (datetime.utcnow() + timedelta(days=30)).date().isoformat()
+        today = date.today().isoformat()   # #305 — LOCAL, never UTC (dates rule)
+        d30 = (date.today() + timedelta(days=30)).isoformat()
         certs = conn.execute(
             "SELECT expiration_date, status FROM certifications"
         ).fetchall()
@@ -7141,9 +7315,17 @@ def api_worker_create():
         if not name:
             return jsonify({"error": "name is required"}), 400
 
-        employee_id = data.get("employee_id") or next_employee_id()
+        supplied_id = (data.get("employee_id") or "").strip()
+        if supplied_id and not re.fullmatch(r"E-\d{5}", supplied_id):   # #305 — no traversal via the id
+            return jsonify({"error": "employee_id must look like E-00042"}), 400
+        employee_id = supplied_id or next_employee_id()
         folder_slug = slugify_name(name)
-        folder = WORKER_RECORDS_DIR / f"{employee_id}_{folder_slug}"
+        def _worker_folder(eid):
+            f = WORKER_RECORDS_DIR / f"{eid}_{folder_slug}"
+            if not f.resolve().is_relative_to(WORKER_RECORDS_DIR.resolve()):   # #305 — containment
+                raise ValueError("worker folder escapes the records root")
+            return f
+        folder = _worker_folder(employee_id)
         (folder / "id").mkdir(parents=True, exist_ok=True)
         (folder / "certs").mkdir(parents=True, exist_ok=True)
 
@@ -7187,26 +7369,60 @@ def api_worker_create():
         # stored phone format is consistent regardless of how it was entered.
         if phone_digits:
             data["phone"] = phone_digits
-        # Try INSERT — fails silently if employee_id already exists
-        cursor = conn.execute(
-            """INSERT OR IGNORE INTO employees
-               (employee_id, worker_id, name, trade, dob, phone, email,
-                emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
-                language, hire_date, pin, folder_path, intake_status)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                employee_id, worker_id, name, data.get("trade"),
-                data.get("dob"), data.get("phone"), data.get("email"),
-                data.get("emergency_contact_name"), data.get("emergency_contact_phone"),
-                data.get("emergency_contact_relation"),
-                data.get("language"), data.get("hire_date"), data.get("pin"),
-                str(folder), "pending"
+        # #305 — no more INSERT OR IGNORE (a concurrent onboard used to return 200 with
+        # a folder on disk and NO row). Plain INSERT; on an id collision an auto-allocated
+        # id is re-allocated and retried, a caller-supplied id falls through to UPDATE.
+        def _insert_employee(eid, fold):
+            conn.execute(
+                """INSERT INTO employees
+                   (employee_id, worker_id, name, trade, dob, phone, email,
+                    emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
+                    language, hire_date, pin, folder_path, intake_status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    eid, worker_id, name, data.get("trade"),
+                    data.get("dob"), data.get("phone"), data.get("email"),
+                    data.get("emergency_contact_name"), data.get("emergency_contact_phone"),
+                    data.get("emergency_contact_relation"),
+                    data.get("language"), data.get("hire_date"), data.get("pin"),
+                    str(fold), "pending"
+                )
             )
-        )
-        # Only UPDATE if the INSERT didn't fire (i.e., the row already existed AND caller
-        # explicitly passed this employee_id). New auto-generated IDs should never collide,
-        # so this branch is only for caller-supplied IDs.
-        if cursor.rowcount == 0 and data.get("employee_id"):
+        def _is_collision(exc):
+            msg = str(exc).lower()
+            return "unique" in msg or "duplicate key" in msg or "constraint" in msg
+        inserted = False
+        for _attempt in range(6):
+            try:
+                _insert_employee(employee_id, folder)
+                inserted = True
+                break
+            except Exception as _e:
+                if not _is_collision(_e):
+                    raise
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                if supplied_id:
+                    break   # caller-supplied id that already exists -> UPDATE below
+                for sub in ("id", "certs"):
+                    try:
+                        (folder / sub).rmdir()
+                    except OSError:
+                        pass
+                try:
+                    folder.rmdir()
+                except OSError:
+                    pass
+                employee_id = next_employee_id()
+                folder = _worker_folder(employee_id)
+                (folder / "id").mkdir(parents=True, exist_ok=True)
+                (folder / "certs").mkdir(parents=True, exist_ok=True)
+        if not inserted and not supplied_id:
+            conn.close()
+            return jsonify({"error": "could not allocate an employee id, try again"}), 503
+        if not inserted and supplied_id:
             conn.execute(
                 """UPDATE employees SET name=COALESCE(?, name), trade=COALESCE(?, trade),
                       dob=COALESCE(?, dob), phone=COALESCE(?, phone), email=COALESCE(?, email),
@@ -7555,7 +7771,7 @@ def api_worker_patch_cert(employee_id, cert_id):
         return response_wrapper(scrub_paths(dict(row))), 200
     except Exception as e:
         logging.error(f"PATCH /api/workers/{employee_id}/certs/{cert_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         conn.close()
 
@@ -7826,10 +8042,11 @@ def api_certification_save(employee_id):
         })), 201
     except Exception as e:
         app.logger.error(f"POST /api/employees/{employee_id}/certifications failed: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/employees/<employee_id>/certifications', methods=['GET'])
+@requires_section('internal_ops')   # #305
 def api_certifications_list(employee_id):
     """List one worker's certifications, joined with cert_types for the
     human-readable cert name and CoF-prereq flag. Adds a derived status field
@@ -7901,7 +8118,7 @@ def api_certifications_list(employee_id):
         return response_wrapper(scrub_paths(out), count=len(out))
     except Exception as e:
         app.logger.error(f"GET /api/employees/{employee_id}/certifications failed: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/employees/<employee_id>/face-photo', methods=['POST'])
@@ -8080,7 +8297,7 @@ def api_employee_face_photo_delete(employee_id):
         }), 200
     except Exception as e:
         logging.error(f"DELETE /api/employees/{employee_id}/face-photo: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         if conn is not None:
             try: conn.close()
@@ -8088,6 +8305,7 @@ def api_employee_face_photo_delete(employee_id):
 
 
 @app.route('/api/employees/<employee_id>/face-photo', methods=['GET'])
+@requires_section('internal_ops')   # #305
 def api_employee_face_photo_get(employee_id):
     """#223 — serve a worker's headshot for the Employees & Certifications card
     view through THIS auth-gated route only (behind the global auth gate, same
@@ -8177,7 +8395,7 @@ def api_workers_intake_summary():
                 "FROM v_worker_roster WHERE archived_at IS NULL ORDER BY worker_id"
             ).fetchall()
 
-        today = datetime.utcnow().date().isoformat()
+        today = date.today().isoformat()   # #305 — LOCAL
         out = []
         for e in emps:
             emp_id = e["employee_id"]
@@ -8191,7 +8409,7 @@ def api_workers_intake_summary():
             cert_count = len(certs)
             expiring_30 = sum(
                 1 for c in certs if c["expiration_date"] and c["expiration_date"] <= str(
-                    (datetime.utcnow() + timedelta(days=30)).date()
+                    (date.today() + timedelta(days=30))
                 ) and c["expiration_date"] >= today
             )
             expired = sum(
@@ -8333,6 +8551,7 @@ def get_employee_credential(emp_id):
 
 
 @app.route('/api/cards/<emp_id>/<cred_type>/live', methods=['GET'])
+@requires_company   # #305 — renders the live PIN; company roles only (was ungated)
 def serve_card_live(emp_id, cred_type):
     """Render the worker's card with LIVE data at request time.
 
@@ -8486,7 +8705,7 @@ def serve_card_live(emp_id, cred_type):
         return Response(html, mimetype='text/html; charset=utf-8')
     except Exception as e:
         logging.error(f"GET /api/cards/{emp_id}/{cred_type}/live: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         if conn is not None:
             try: conn.close()
@@ -8696,7 +8915,7 @@ def issue_employee_credential(emp_id):
         return response_wrapper(response_body), 201
     except Exception as e:
         logging.error(f"POST .../credential/issue ({emp_id}): {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         if conn is not None:
             try:
@@ -8783,7 +9002,7 @@ def patch_employee_credential(emp_id):
         return response_wrapper(payload), 200
     except Exception as e:
         logging.error(f"PATCH /api/employees/{emp_id}/credential: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         if conn is not None:
             try: conn.close()
@@ -8817,7 +9036,7 @@ def delete_employee_credential(emp_id):
         }), 200
     except Exception as e:
         logging.error(f"DELETE /api/employees/{emp_id}/credential: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         if conn is not None:
             try: conn.close()
@@ -8831,7 +9050,7 @@ def serve_worker_file(filepath):
     try:
         # Only allow paths inside worker_records dir for safety
         target = (WORKER_RECORDS_DIR / filepath).resolve()
-        if not str(target).startswith(str(WORKER_RECORDS_DIR.resolve())):
+        if not target.resolve().is_relative_to(WORKER_RECORDS_DIR.resolve()):   # #305 — prefix match was not containment
             return jsonify({"error": "invalid path"}), 403
         if not target.exists() or not target.is_file():
             return jsonify({"error": "not found"}), 404
@@ -9241,7 +9460,7 @@ def api_dropplan_drops(project_code):
         return response_wrapper(out, count=len(out))
     except Exception as e:
         logging.error(f"GET /api/projects/{project_code}/drops: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/dropplan/drops/<drop_id>', methods=['GET'])
@@ -9261,7 +9480,7 @@ def api_dropplan_drop_detail(drop_id):
         return response_wrapper(detail)
     except Exception as e:
         logging.error(f"GET /api/drops/{drop_id}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/dropplan/projects/<project_code>/rollup', methods=['GET'])
@@ -9278,7 +9497,7 @@ def api_dropplan_rollup(project_code):
         return response_wrapper(roll)
     except Exception as e:
         logging.error(f"GET /api/projects/{project_code}/dropplan-rollup: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 # ============= TWO-WEEK LOOK-AHEAD (#255) — auto-draft + editable =============
@@ -9509,7 +9728,7 @@ def api_dropplan_post_quantity(drop_id):
         return response_wrapper(row), 201
     except Exception as e:
         logging.error(f"POST /api/dropplan/drops/{drop_id}/quantity-entries: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 def _dropplan_audit(conn, action, target_type, target_id, before=None, after=None, note=None):
@@ -9550,7 +9769,7 @@ def api_dropplan_list_quantity(drop_id):
         return response_wrapper(out, count=len(out))
     except Exception as e:
         logging.error(f"GET /api/dropplan/drops/{drop_id}/quantity-entries: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/dropplan/drops/<drop_id>', methods=['PATCH'])
@@ -9589,7 +9808,7 @@ def api_dropplan_patch_drop(drop_id):
         return response_wrapper(row)
     except Exception as e:
         logging.error(f"PATCH /api/dropplan/drops/{drop_id}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/dropplan/quantity-entries/<int:entry_id>', methods=['PATCH'])
@@ -9646,7 +9865,7 @@ def api_dropplan_patch_quantity(entry_id):
         return response_wrapper(new)
     except Exception as e:
         logging.error(f"PATCH /api/dropplan/quantity-entries/{entry_id}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/dropplan/quantity-entries/<int:entry_id>', methods=['DELETE'])
@@ -9672,7 +9891,7 @@ def api_dropplan_delete_quantity(entry_id):
         return response_wrapper({"deleted": entry_id, "drop_id": old['drop_id']})
     except Exception as e:
         logging.error(f"DELETE /api/dropplan/quantity-entries/{entry_id}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/dropplan/projects/<project_code>/expense-entries', methods=['POST'])
@@ -9702,7 +9921,7 @@ def api_dropplan_post_expense(project_code):
         return response_wrapper({"entry_id": eid, "logged_on": logged_on}), 201
     except Exception as e:
         logging.error(f"POST /api/projects/{project_code}/expense-entries: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/dropplan/drops/<drop_id>/stages/<int:step_no>', methods=['PATCH'])
@@ -9809,7 +10028,7 @@ def api_dropplan_patch_stage(drop_id, step_no):
         return response_wrapper(row)
     except Exception as e:
         logging.error(f"PATCH /api/drops/{drop_id}/stages/{step_no}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/dropplan/drops/<drop_id>/activate', methods=['POST'])
@@ -9851,7 +10070,7 @@ def api_dropplan_activate(drop_id):
                                  "stage1_started_on": start or None})
     except Exception as e:
         logging.error(f"POST /api/dropplan/drops/{drop_id}/activate: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/dropplan/paint-phases/<int:phase_id>', methods=['PATCH'])
@@ -9885,7 +10104,7 @@ def api_dropplan_patch_paint(phase_id):
         return response_wrapper(row)
     except Exception as e:
         logging.error(f"PATCH /api/paint-phases/{phase_id}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/dropplan/projects/<project_code>/sov-lines', methods=['GET'])
@@ -9905,7 +10124,7 @@ def api_dropplan_sov_lines(project_code):
         return response_wrapper(out, count=len(out))
     except Exception as e:
         logging.error(f"GET /api/dropplan/projects/{project_code}/sov-lines: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
 
 
 @app.route('/api/projects/<project_code>/sov', methods=['GET'])
@@ -10658,6 +10877,19 @@ def serve_project_file(relpath):
     target = _safe_artifact_path(relpath)
     if target is None:
         return jsonify({"error": "not found"}), 404
+    # #305 — project-scoped: a pm/super may only fetch artifacts of projects they are
+    # assigned to. The project code is the first path segment that names a project.
+    u = current_user() or {}
+    if u.get("role") not in access.COMPANY_ROLES:
+        import pm_scoping
+        conn = db()
+        try:
+            codes = {r["project_code"] for r in conn.execute("SELECT project_code FROM projects").fetchall()}
+            hit = next((seg for seg in relpath.replace("\\", "/").split("/") if seg in codes), None)
+            if hit is None or not pm_scoping.pm_can_access_project(u.get("role"), u.get("id"), hit, conn):
+                return jsonify({"error": "not found"}), 404
+        finally:
+            conn.close()
     return send_file(str(target))
 
 
@@ -11094,7 +11326,7 @@ def api_expenses_create(project_code):
         except Exception:
             pass
         logging.error(f"POST expenses: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         conn.close()
 
@@ -11172,7 +11404,7 @@ def api_expense_patch(expense_id):
         except Exception:
             pass
         logging.error(f"PATCH expense {expense_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _server_error(e)
     finally:
         conn.close()
 
@@ -11236,7 +11468,7 @@ def api_expense_receipt_get(expense_id):
         rip = row['receipt_image_path']
         if not rip:
             return jsonify({"error": "No receipt on file"}), 404
-        p = Path(rip)
+        p = ssc_paths.resolve_data_path(rip)   # #305 — same resolver as every other byte route
         # #219 — ?page=N serves page N of a multi-page scan (page 1 = the stored path)
         page = request.args.get('page', type=int)
         if page and page > 1 and p.parent.name.startswith('scan_'):
@@ -11622,6 +11854,26 @@ def not_found(error):
 def internal_error(error):
     logging.error(f"500: {str(error)}")
     return jsonify({"error": "Internal server error"}), 500
+
+# #305 — a second registration of the same (rule, method) silently shadows the first
+# (the /api/rfis collision). Report duplicates at boot; strict mode refuses to start.
+def _duplicate_routes():
+    seen, dups = {}, []
+    for r in app.url_map.iter_rules():
+        for m in (r.methods or set()) - {"HEAD", "OPTIONS"}:
+            key = (r.rule, m)
+            if key in seen and seen[key] != r.endpoint:
+                dups.append((r.rule, m, seen[key], r.endpoint))
+            seen.setdefault(key, r.endpoint)
+    return dups
+
+_dups = _duplicate_routes()
+if _dups:
+    for rule, m, a, b in _dups:
+        logging.error(f"duplicate route {m} {rule}: {a} shadows {b}")
+    if os.environ.get("SSC_STRICT_ROUTES") == "1":
+        raise SystemExit("duplicate routes registered — see log")
+
 
 if __name__ == '__main__':
     import sys

@@ -8,6 +8,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;1,500&display=swap" rel="stylesheet" />
 <script>
+
+  // #305 — LOCAL date (never toISOString, which is UTC and rolls to tomorrow after ~7 PM Eastern)
+  function todayLocal() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
   // Tailwind config must be set before the CDN loads
   window.tailwind = window.tailwind || {};
   window.tailwind.config = {
@@ -2219,7 +2225,7 @@ const MeetingsModule = () => {
       await fetch(`${API_BASE}/api/action-items/${id}/status`, {
         method: 'PATCH',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({status: newStatus, completion_date: newStatus === 'Completed' ? new Date().toISOString().slice(0,10) : null})
+        body: JSON.stringify({status: newStatus, completion_date: newStatus === 'Completed' ? todayLocal() : null})
       });
       toast(`Action item updated to ${newStatus}`, 'success');
       actionItems.refresh();
@@ -2925,7 +2931,7 @@ const DropPlanModule = () => {
       const resp = await fetch(`${API_BASE}/api/drops/${dropId}/sign-off`, {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({role, signed_by_employee_id: 'E-001', date: new Date().toISOString().slice(0,10)})
+        body: JSON.stringify({role, signed_by_employee_id: 'E-001', date: todayLocal()})
       });
       const json = await resp.json();
       if (!resp.ok) throw new Error(json.error || 'Sign-off failed');

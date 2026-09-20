@@ -60,11 +60,16 @@ LEGACY_MIGRATIONS = (
     "apply_project_docs_schema.py", "apply_field_photos_schema.py",
     "apply_lookahead_schema.py", "apply_auth_roles_257.py",
     "apply_is_system_258.py",
-    # #305/#310 — the roster views (v_worker_roster / v_active_workers) and the
-    # project_assignments table (the payroll worker pool) were never in this list, so a
-    # fixture DB had neither and /api/payroll/hours 500ed on it. Production and preprod
-    # already carry both; this only makes a fixture-built database match them.
+    # #305 — the roster views (v_worker_roster / v_active_workers) were never in this
+    # list, so every fixture DB (preprod included) booted without them: the Workforce
+    # tab said "No workers yet" and /api/employees/<id> 500ed. server.py now also
+    # ensures them at boot for databases that already exist.
     "apply_roster_views_schema.py",
+    # #305 — worker-intake columns (certifications.card_number & co.): the certifications
+    # endpoints 500ed on every fixture DB without them.
+    "apply_worker_intake_schema.py",
+    # #310 — project_assignments (the payroll worker pool) was never in this list, so a
+    # fixture DB had no assignments table and /api/payroll/hours 500ed on it.
     "apply_assignments_schema.py",
 )
 
@@ -79,6 +84,13 @@ DUAL_BACKEND_MIGRATIONS = (
     "apply_elevation_280.py", "apply_public_hardening_289.py",
     "apply_drawing_author_293.py", "apply_photo_reassign_294.py",
     "apply_hours_edit_295.py", "apply_worker_session_security_296.py",
+    "apply_buildings_304.py",
+    "apply_proposals_307.py",
+    "apply_invoices_315.py",
+    "apply_company_vault_318.py",
+    "apply_assignments_322.py",
+    "apply_project_site_325.py",
+    "apply_doc_packages_327.py",
 )
 
 
