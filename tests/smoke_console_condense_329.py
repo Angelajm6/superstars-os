@@ -96,7 +96,7 @@ def main() -> int:
     labels = [re.sub(r"<[^>]+>", "", a).strip() for a in re.findall(r"<a [^>]*>.*?</a>", nav, re.S)]
     for gone in ("Estimating queue", "Cert Health", "Cert Library", "Specs Library", "Drop Plan", "Interface"):
         assert gone not in labels, (gone, labels)
-    for kept in ("Overview", "Company Portal", "CRM", "Estimates", "Workforce", "Hours Log", "Weekly Payroll",
+    for kept in ("Dashboard", "Company Portal", "CRM", "Estimates", "Workforce", "Hours Log", "Weekly Payroll",
                  "Pay Rates", "Projects & assignments", "Compliance", "Certifications", "Settings"):
         assert kept in labels or kept.replace("&", "&amp;") in labels, (kept, labels)
     assert 'href="/estimating"' not in nav and 'href="/dropplan"' not in nav and 'href="/settings/interface"' not in nav

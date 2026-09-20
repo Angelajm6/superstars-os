@@ -30,8 +30,9 @@
 | Navigation clarity: project identity block on every project view, Pay Rates vs Weekly Payroll, company portal Buildings → Projects | Preprod (#328) |
 | Office Console condensed from 16 sidebar entries to 12 (Certifications, Compliance › Specs, queue + Interface folded in, Drop Plan per project) | Preprod (#329) |
 | AIA progress billing: billing Schedule of Values per job, Applications for Payment with G702 + G703 documents, each issued as a progress invoice (email, link, PDF, payments) | Preprod (#317) |
+| Accounts payable: bills we owe (by hand, from a scanned receipt, from a subscription renewal), payments, and "what needs to get paid" — a 30-day cash view of bills, renewals and client invoices due; console + portal "Overview" renamed "Dashboard" | Preprod (#319) |
 
-Everything through #327 is in production as of 2026-09-20 (upstream PR #4, C-suite approved on preprod). #328 and #329 went to production the same day (upstream PR #5). #317 AIA billing is on preprod awaiting review. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app.
+Everything through #327 is in production as of 2026-09-20 (upstream PR #4, C-suite approved on preprod). #328 and #329 went to production the same day (upstream PR #5). #317 AIA billing and #319 accounts payable are on preprod awaiting review. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app.
 
 ---
 
@@ -145,7 +146,7 @@ per issue into `preprod`, then a release PR into the client repo once approved.
   year, filing receipts, and a generic "company record" with expiry — all in
   the Compliance view's expiry buckets. File attachments on company documents
   (today it is metadata only).
-- **#319 Accounts payable.** `payable(vendor, doc, amount, due_at, paid_at,
+- **#319 Accounts payable — SHIPPED to preprod 2026-09-20.** `payable(vendor, doc, amount, due_at, paid_at,
   source: receipt|bill|subscription)` fed by the receipts ledger, the
   subscriptions register, and manual bills; "what needs to get paid" = due
   payables + due receivables on one Portal screen with a 30-day cash view.

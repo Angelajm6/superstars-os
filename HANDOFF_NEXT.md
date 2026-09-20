@@ -21,6 +21,41 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #319 — Accounts payable + the 30-day cash view; "Overview" → "Dashboard" (Bookore, 2026-09-20)
+
+* **Ask (C-suite 2026-09-11 item 6: "accounts receivable and accounts payable … a view
+  of what needs to get paid, any due invoice"; Angela 2026-09-20: rename Overview).**
+* **Module** `payables.py`; table `payable` in `apply_payables_319.py` (dual-backend
+  list; boot heals): vendor, source (`bill` | `receipt` | `subscription`) + `source_ref`,
+  doc number, description, project, category, amount, paid_amount, issued / due / paid,
+  method, reference, status (`open` → `paid` when the balance hits zero, or `void`).
+  Nothing is created automatically — a receipt paid at the counter is not a payable —
+  the operator picks from candidates: scanned `expenses` of the last 90 days not yet
+  logged, and active `subscriptions` renewing inside 45 days not yet logged for that
+  renewal date (`source_ref = "<id>:<renewal_date>"`).
+* **Cash view** (`payables.summary`): open / overdue / due-7 / due-30 bills, unlogged
+  renewals inside 30 days as projections, receivables due inside 30 days from the
+  #315 invoices (`invoices.receivables_summary` + open invoices with due_at ≤ +30),
+  `cash_30 = {in, out, net}`, and one `upcoming` list (payable | renewal | receivable)
+  in date order. The Overview payload carries it (`overview.payables`, lazy import so
+  a missing table never breaks the portal); "Money at a glance" shows "Bills to pay"
+  and "Cash, next 30 days".
+* **Routes** (`requires_section('company_portal')`): `GET /api/company/portal/payables
+  ?status=open|overdue|paid|void|all&search=`, `POST …/payables`, `PATCH …/<id>` (open
+  only), `POST …/<id>/pay` (partial ok; overpay → 400), `POST …/<id>/void` (no payments
+  only), `POST …/from-receipt/<expense_id>`, `POST …/from-subscription/<sub_id>`.
+* **UI (`company_portal.html` → Finance):** "What needs to get paid" card at the top:
+  six KPIs (bills open, overdue, due in 7 days, out / in / net next 30 days), the bills
+  table with Pay… / Void, the "Coming up" table, "+ New bill", "From a receipt…", "Log a
+  renewal…" pickers and the Record-a-payment modal.
+* **Rename:** Office Console first tab + `ssc-top-h1` "Overview" → "Dashboard" (ES
+  "Panel"); the four admin sidebars; Company Portal nav / title / `TITLES`. Hashes
+  (`#projects`, `#overview`) unchanged.
+* **Test** `tests/smoke_payables_319.py` (gate + CI). The `subscriptions` table is not
+  in the fixture lists: the test creates a minimal dual-backend copy when missing.
+* **Not in this ticket:** vendor statements / aging report; attaching the vendor's PDF
+  to a bill; paying from the app; QuickBooks bill sync (#316 phase 2).
+
 ### #317 — AIA progress billing, G702 + G703 (Bookore, 2026-09-20)
 
 * **Ask (C-suite 2026-09-11 item 5, priority list item 3 "AIA payments"):** the
