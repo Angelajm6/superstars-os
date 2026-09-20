@@ -21,6 +21,87 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #329 — Office Console condensed (Bookore, 2026-09-20)
+
+* **Ask (Angela, 2026-09-20, "go with the list"):** fewer sidebar entries on the
+  Office Console. 16 → 12.
+* **Grouped nav tabs.** A `.nav-tab` may carry `data-panels="a,b"`: `activatePanel`
+  lights the tab for any of its panels and titles the page with the tab's label
+  (`_tabOwns`). Grouped panels show `.ssc-subtabs` (plain hash anchors, so hash
+  routing does the switch; `.ssc-subtab.active` follows the panel).
+  * **Certifications** = `cert-library` (+ `#cert-health`, which was a Phase-B
+    placeholder panel: markup removed, hash aliased to the library).
+  * **Compliance** owns `compliance` + `specs` (Specs Library is its second tab;
+    `SPECS_loadCatalog` still fires on `#specs`).
+* **Moved, not removed.** "Estimating queue →" sits in the Estimates page header;
+  "Open interface preferences →" is an Interface section on Settings; Drop Plan is
+  reached from each project (sidebar + Overview cards). All URLs unchanged.
+* **Admin pages' own sidebars** (`admin_projects`, `admin_users`, `estimating`,
+  `admin_labor_rates`) match: Certifications; no Cert Health / Specs Library /
+  Drop Plan; the "Estimating queue" entry is `data-roles="estimator"` only (it is
+  the estimator's one link and must stay for that role).
+* **Test** `tests/smoke_console_condense_329.py` (gate + CI).
+* **Left alone on purpose:** the overlap between the console tabs and the Company
+  Portal (Finance / Expenses / Workforce & Pay / Compliance). Which surface owns
+  each topic is a C-suite decision, noted in ROADMAP.
+
+### #328 — Navigation clarity (Bookore, 2026-09-20)
+
+* **Ask (Angela, 2026-09-20):** too many tabs; the company portal's "Buildings"
+  should read "Projects"; "Labor Rates" (console) vs "Labor Rate Tracker" (project
+  sidebar) was two names for two different things; inside a project you could not
+  tell which job you were in once you left Project Health.
+* **Project identity block** (`dashboard-static.html`, `.proj-line` under the brand):
+  code chip (brand red, it is an ID), name, address, client — on EVERY view. Filled
+  server-side by `access.render_project_identity`, which gained a
+  `data-project-address` fill (`server._project_identity` reads `projects.address`
+  defensively; the address is dropped when it equals the name). The browser tab is
+  named `CODE · Name — Superstars Contracting`. On phones (#312 compact bar) the
+  line stays visible as one row (`widgets.css`, `?v=328`).
+* **Pay Rates vs Weekly Payroll.** `/admin/labor-rates` is now "Pay Rates" (set and
+  audit each worker's hourly rate) on the console nav and on every admin page's own
+  sidebar. The sheet formerly called "Labor Rate Tracker" (hours × rate per week,
+  the check-cutting view) is "Weekly Payroll" (ES "Nómina Semanal") with its own
+  visible console tab under Workforce next to Hours Log — admin / c_suite only,
+  revealed together with Pay Rates. Its link is GONE from the project sidebar: it is
+  company-wide, not per project. `#labor-rate` hash and every API path unchanged.
+* **Company portal:** the "Buildings" tab / title / links read "Projects"; the
+  address entity itself is worded "job site" (columns, buttons, empty states). Hash
+  routes (`#buildings`, `#buildings/<id>`), `/api/company/portal/buildings*` and the
+  `building` table are unchanged — labels only.
+* **Test** `tests/smoke_nav_clarity_328.py` (gate + CI): boots the real app; served
+  project page carries the filled identity block for c_suite and pm and no LRT link;
+  console has the Weekly Payroll tab + Pay Rates and no old labels; portal nav says
+  Projects; Pay Rates page heading; renderer unit checks.
+* **Not in this ticket:** condensing the Office Console tabs (proposal sent to
+  Angela for the C-suite to pick).
+
+### Release to production — 2026-09-20 (Bookore)
+
+* **What:** the whole preprod stack #302–#327 (26 fork PRs #15–#40) promoted to
+  production after the C-suite's yes. Upstream PR
+  `superstars-contracting/dashboard#4`, branch `release/prod-2026-09-20` =
+  `preprod` + a merge of `main` (the #310 / #310b hotfixes were on both under
+  different SHAs; the three conflicts were resolved with the preprod side and the
+  result is content-identical to preprod). Gate passed on SQLite and Postgres in
+  the upstream repo (first run of `gate.yml` there). Merged `d6d40a8`; Render
+  deploy `dep-danqruqjnfac7393dkr0` live 09:58 UTC; `/api/health` →
+  `migrations_pending: 0`; boot logs clean; new public/gated routes answer
+  (`/d/`, `/i/` → 404 on bad tokens, package / invoices / portal APIs → 401 anon).
+* **Schema on production:** no manual migration was run and none was needed —
+  every migration new to production (#304, #307, #315, #318, #325, #327) is a
+  wrapper around a module ensure that also runs at boot; #322
+  `project_assignments` already existed there. The #306 ledger was created and
+  baselined on that first boot, so its `baseline` rows for those seven are
+  truthful only because of the boot ensures. **Rule going forward:** a migration
+  whose module does NOT ensure at boot must be applied to production by hand
+  (`python migrations.py apply` from the allow-listed SSC workstation) BEFORE the
+  release boots, or the baseline will silently mark it applied.
+* `preprod` was fast-forwarded to `main` (`d6d40a8`) so the two are identical;
+  branch new work from `preprod` as usual.
+* `app.superstarscontracting.com` answered 200 over HTTPS again at release time
+  (the 2026-09-19 Cloudflare edge failure had cleared).
+
 ### #327 — Permits & insurance package, send to client (Bookore, 2026-09-19)
 
 * **Ask (C-suite via Angela, 2026-09-19, priority item 2):** a section within each

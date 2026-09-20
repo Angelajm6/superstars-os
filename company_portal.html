@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Company Portal · Superstars Contracting</title>
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=321">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=328">
 <script src="/files/static/js/shell.js?v=312" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=321">
 <script src="/files/static/js/datepicker.js?v=302" defer></script>
@@ -143,7 +143,7 @@
       <div class="ssc-nav-label">Company</div>
       <a href="#overview" data-view="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Overview</a>
       <a href="#clients" data-view="clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Clients</a>
-      <a href="#buildings" data-view="buildings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l7-4v18M10 21h11V11l-4-2v12"/><path d="M6 9h1M6 13h1M6 17h1M14 13h1M14 17h1"/></svg>Buildings</a>
+      <a href="#buildings" data-view="buildings" title="Job sites: every address we have a project or estimate at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l7-4v18M10 21h11V11l-4-2v12"/><path d="M6 9h1M6 13h1M6 17h1M14 13h1M14 17h1"/></svg>Projects</a>
       <a href="#proposals" data-view="proposals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>Proposals</a>
       <a href="#finance" data-view="finance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 8-8"/><path d="M14 8h6v6"/></svg>Finance</a>
       <a href="#expenses" data-view="expenses"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Expenses</a>
@@ -218,8 +218,8 @@
               <select class="cp-select" id="bd-client"><option value="">All clients</option></select>
               <label class="cp-muted" style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="bd-archived"> include archived</label>
               <span style="flex:1"></span>
-              <button class="btn-ghost btn-sm" id="bd-rematch" type="button" title="Link any project or estimate that has an address but no building yet">Re-run matcher</button>
-              <button class="btn-primary btn-sm" id="bd-add" type="button">+ Add building</button>
+              <button class="btn-ghost btn-sm" id="bd-rematch" type="button" title="Link any project or estimate that has an address but no job site yet">Re-run matcher</button>
+              <button class="btn-primary btn-sm" id="bd-add" type="button">+ Add job site</button>
             </div>
             <div class="cp-table-wrap"><table class="cp-table" id="bd-table"></table></div>
           </div>
@@ -356,7 +356,7 @@
 <!-- proposal modals (#307) -->
 <div class="cp-overlay" id="pr-new-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-new-title">
   <form class="cp-modal" id="pr-new-form" novalidate>
-    <div class="cp-modal-head"><h2 id="pr-new-title">New proposal</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">A proposal is generated from an estimate: client, contact, building and price come across; you edit the scope and terms before sending.</p></div>
+    <div class="cp-modal-head"><h2 id="pr-new-title">New proposal</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">A proposal is generated from an estimate: client, contact, job site and price come across; you edit the scope and terms before sending.</p></div>
     <div class="cp-modal-body">
       <div class="cp-field full"><label for="pr-new-est">Estimate</label><select id="pr-new-est"><option value="">Loading…</option></select></div>
       <div class="cp-form-err" id="pr-new-err" role="alert"></div>
@@ -465,10 +465,10 @@
 <!-- building modal (#304) -->
 <div class="cp-overlay" id="bd-overlay" role="dialog" aria-modal="true" aria-labelledby="bd-title">
   <form class="cp-modal" id="bd-form" novalidate>
-    <div class="cp-modal-head"><h2 id="bd-title">Add building</h2></div>
+    <div class="cp-modal-head"><h2 id="bd-title">Add job site</h2></div>
     <div class="cp-modal-body">
       <div class="cp-field full"><label for="bd-address">Street address</label><input id="bd-address" required placeholder="e.g. 890 E 135th St"></div>
-      <div class="cp-field"><label for="bd-name">Building name (optional)</label><input id="bd-name" placeholder="e.g. Compass Point Tower"></div>
+      <div class="cp-field"><label for="bd-name">Site name (optional)</label><input id="bd-name" placeholder="e.g. Compass Point Tower"></div>
       <div class="cp-field"><label for="bd-client-sel">Client</label><select id="bd-client-sel"><option value="">— none yet —</option></select></div>
       <div class="cp-field"><label for="bd-borough">Borough</label><select id="bd-borough"><option value="">—</option><option>Manhattan</option><option>Bronx</option><option>Brooklyn</option><option>Queens</option><option>Staten Island</option></select></div>
       <div class="cp-field"><label for="bd-zip">ZIP</label><input id="bd-zip" inputmode="numeric" placeholder="10454"></div>
@@ -479,7 +479,7 @@
       <div class="cp-field full"><label for="bd-notes">Notes</label><textarea id="bd-notes"></textarea></div>
       <div class="cp-form-err" id="bd-err" role="alert"></div>
     </div>
-    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="bd-cancel">Cancel</button><button class="btn-primary" type="submit" id="bd-save">Save building</button></div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="bd-cancel">Cancel</button><button class="btn-primary" type="submit" id="bd-save">Save job site</button></div>
   </form>
 </div>
 
@@ -581,7 +581,7 @@
       const { data: d } = await api('/overview');
       $('ov-asof').textContent = 'as of ' + fmtDate(d.as_of);
       $('ov-kpis').innerHTML =
-        kpi('Active projects', num.format(d.projects.active), `${num.format(d.clients.active)} active clients · ${num.format(d.clients.buildings)} buildings`) +
+        kpi('Active projects', num.format(d.projects.active), `${num.format(d.clients.active)} active clients · ${num.format(d.clients.buildings)} job sites`) +
         kpi('Open pipeline', money.format(d.pipeline.open_value), `${d.pipeline.open_count} open estimates`) +
         kpi('Won this year', money.format(d.pipeline.won_value_ytd), `${d.pipeline.won_count_ytd} won · ${d.pipeline.lost_count_ytd} lost`, 'good') +
         kpi('Spend this month', money.format(d.spend.receipts_mtd + d.spend.ledger_mtd), `${money.format(d.spend.receipts_ytd + d.spend.ledger_ytd)} year to date`) +
@@ -620,7 +620,7 @@
       const { data: rows } = await api('/clients?' + q.toString());
       table($('cl-table'), [
         { key: 'name', label: 'Organization', render: r => `<span class="cp-id">${esc(r.name)}</span>${r.status !== 'active' ? ' <span class="cp-pill">inactive</span>' : ''}<div class="cp-muted" style="font-size:12px">${esc(r.relationship_type)}${r.stage ? ' · ' + esc(r.stage) : ''}</div>` },
-        { key: 'buildings', label: 'Buildings', num: true },
+        { key: 'buildings', label: 'Job sites', num: true },
         { key: 'projects_active', label: 'Active projects', num: true, render: r => `${r.projects_active}<span class="cp-muted"> / ${r.projects_total}</span>` },
         { key: 'estimates_open', label: 'Open estimates', num: true, render: r => `${r.estimates_open}<div class="cp-muted" style="font-size:12px">${money.format(r.pipeline_value)}</div>` },
         { key: 'won_value', label: 'Won value', num: true, render: r => money.format(r.won_value) },
@@ -644,20 +644,20 @@
           <div class="meta">${b.active_projects} active project(s) · ${b.projects.length} total · ${b.open_estimates} open estimate(s) · won ${money.format(b.won_value)}</div>
           ${b.projects.length ? `<div class="cp-tags">${b.projects.map(p => `<a href="/projects/${encodeURIComponent(p.project_code)}" style="text-decoration:none"><span><b class="cp-id">${esc(p.project_code)}</b> ${esc(p.name || '')} · ${esc(p.status)}</span></a>`).join('')}</div>` : ''}
           ${b.estimates.length ? `<div class="cp-tags">${b.estimates.map(e => `<span>${esc(e.code)} · ${esc(e.status)}${e.final_amount ? ' · ' + money.format(e.final_amount) : ''}</span>`).join('')}</div>` : ''}
-        </div>`).join('') : empty('No buildings linked yet', 'Link a project or estimate to this client and its address will appear here.');
+        </div>`).join('') : empty('No projects linked yet', 'Link a project or estimate to this client and its job site will appear here.');
       host.innerHTML = `
         <div class="cp-toolbar"><a class="cp-link" href="#clients">← All clients</a><span style="flex:1"></span>
           <span class="cp-pill ${o.status === 'active' ? 'active' : ''}">${esc(o.status || 'active')}</span>${o.stage ? `<span class="cp-pill">${esc(o.stage)}</span>` : ''}
           <a class="btn-ghost btn-sm" href="/#crm" style="text-decoration:none">Edit in CRM</a></div>
         <div class="cp-kpis">
-          ${kpi('Buildings', t.buildings, `${t.projects} project(s) · ${t.projects_active} active`)}
+          ${kpi('Job sites', t.buildings, `${t.projects} project(s) · ${t.projects_active} active`)}
           ${kpi('Open pipeline', money.format(t.pipeline_value), `${t.estimates_open} open estimate(s)`)}
           ${kpi('Won value', money.format(t.won_value), 'approved + converted', 'good')}
           ${kpi('Contacts', d.contacts.length, `${d.open_tasks.length} open task(s)`)}
         </div>
         <div class="cp-grid3">
           <div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Buildings &amp; job sites</h2><a class="cp-link" href="#buildings">All buildings →</a></div>${buildings}</div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Projects &amp; job sites</h2><a class="cp-link" href="#buildings">All projects →</a></div>${buildings}</div>
             <div class="cp-card"><div class="cp-card-head"><h2>Documents expiring on this client's projects</h2></div>
               ${d.documents_expiring.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th><th>Document</th><th>Category</th><th>Expires</th><th></th></tr></thead><tbody>${d.documents_expiring.map(x => `<tr><td class="cp-id">${esc(x.project_code)}</td><td>${esc(x.title)}</td><td>${esc(x.category)}</td><td>${fmtDate(x.expiry_date)}</td><td>${daysPill(x.days_left)}</td></tr>`).join('')}</tbody></table></div>` : empty('No dated documents', 'COIs, permits and contracts with an expiry date will show here.')}
             </div>
@@ -697,7 +697,7 @@
     try {
       const { data: rows } = await api('/buildings?' + q.toString(), null, true);
       table($('bd-table'), [
-        { key: 'display', label: 'Building', render: r => `<span class="cp-id">${esc(r.name || r.address_line)}</span>${r.name ? `<div class="cp-muted" style="font-size:12px">${esc(r.address_line)}</div>` : ''}${r.archived_at ? ' <span class="cp-pill">archived</span>' : ''}` },
+        { key: 'display', label: 'Job site', render: r => `<span class="cp-id">${esc(r.name || r.address_line)}</span>${r.name ? `<div class="cp-muted" style="font-size:12px">${esc(r.address_line)}</div>` : ''}${r.archived_at ? ' <span class="cp-pill">archived</span>' : ''}` },
         { key: 'client_name', label: 'Client', render: r => r.client_name ? esc(r.client_name) : '<span class="cp-muted">— unassigned —</span>' },
         { key: 'borough', label: 'Borough', render: r => esc(r.borough || '—') },
         { key: 'active_projects', label: 'Active projects', num: true, render: r => `${r.active_projects}<span class="cp-muted"> / ${r.projects_total}</span>` },
@@ -705,8 +705,8 @@
         { key: 'won_value', label: 'Won value', num: true, render: r => money.format(r.won_value) },
         { key: 'bin', label: 'BIN', render: r => esc(r.bin || '—') },
       ], rows, { defaultSort: { key: 'display', dir: 'asc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.hash = '#buildings/' + r.id; },
-        emptyTitle: 'No buildings yet', emptySub: 'Buildings are created automatically from project and estimate addresses. Add one by hand for a building you have not quoted yet.' });
-    } catch (e) { toast(e.message, true); $('bd-table').innerHTML = empty('Could not load buildings', e.message); }
+        emptyTitle: 'No projects yet', emptySub: 'Job sites are created automatically from project and estimate addresses. Add one by hand for a site you have not quoted yet.' });
+    } catch (e) { toast(e.message, true); $('bd-table').innerHTML = empty('Could not load projects', e.message); }
   }
   async function loadBuildingDetail(id) {
     $('buildings-list').hidden = true; const host = $('building-detail'); host.hidden = false; host.innerHTML = '<div class="cp-card"><div class="cp-skel"></div><div class="cp-skel"></div></div>';
@@ -714,10 +714,10 @@
       const { data: b } = await api('/buildings/' + encodeURIComponent(id), null, true);
       $('cp-title').textContent = b.name || b.address_line;
       const fact = (k, v) => `<li><span class="cp-muted">${esc(k)}</span><span>${v == null || v === '' ? '—' : esc(v)}</span></li>`;
-      const projects = b.projects.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th><th>Name</th><th>Status</th><th>Type</th><th></th></tr></thead><tbody>${b.projects.map(p => `<tr><td class="cp-id"><a class="cp-link" href="/projects/${encodeURIComponent(p.project_code)}">${esc(p.project_code)}</a></td><td>${esc(p.name || '')}</td><td><span class="cp-pill ${p.status === 'active' ? 'active' : ''}">${esc(p.status || 'active')}</span></td><td>${esc(p.project_type || '—')}</td><td><button type="button" class="cp-link" data-unlink-project="${esc(p.project_code)}" style="color:#A8382B">Unlink</button></td></tr>`).join('')}</tbody></table></div>` : empty('No projects at this building yet');
-      const estimates = b.estimates.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Estimate</th><th>Status</th><th>Stage</th><th class="num">Amount</th><th>Submitted</th><th>Decided</th><th></th></tr></thead><tbody>${b.estimates.map(e => `<tr><td class="cp-id">${esc(e.code)}</td><td><span class="cp-pill">${esc(e.status)}</span></td><td>${esc(e.est_stage || '—')}</td><td class="num">${e.final_amount ? money.format(e.final_amount) : '—'}</td><td>${fmtDate(e.submitted_date)}</td><td>${fmtDate(e.decided_date)}</td><td style="white-space:nowrap">${['lost','converted'].includes(e.status) ? '' : `<button type="button" class="cp-link" data-propose="${e.id}">Proposal</button> · `}<button type="button" class="cp-link" data-unlink-estimate="${e.id}" style="color:#A8382B">Unlink</button></td></tr>`).join('')}</tbody></table></div>` : empty('No estimates at this building yet');
+      const projects = b.projects.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th><th>Name</th><th>Status</th><th>Type</th><th></th></tr></thead><tbody>${b.projects.map(p => `<tr><td class="cp-id"><a class="cp-link" href="/projects/${encodeURIComponent(p.project_code)}">${esc(p.project_code)}</a></td><td>${esc(p.name || '')}</td><td><span class="cp-pill ${p.status === 'active' ? 'active' : ''}">${esc(p.status || 'active')}</span></td><td>${esc(p.project_type || '—')}</td><td><button type="button" class="cp-link" data-unlink-project="${esc(p.project_code)}" style="color:#A8382B">Unlink</button></td></tr>`).join('')}</tbody></table></div>` : empty('No projects at this job site yet');
+      const estimates = b.estimates.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Estimate</th><th>Status</th><th>Stage</th><th class="num">Amount</th><th>Submitted</th><th>Decided</th><th></th></tr></thead><tbody>${b.estimates.map(e => `<tr><td class="cp-id">${esc(e.code)}</td><td><span class="cp-pill">${esc(e.status)}</span></td><td>${esc(e.est_stage || '—')}</td><td class="num">${e.final_amount ? money.format(e.final_amount) : '—'}</td><td>${fmtDate(e.submitted_date)}</td><td>${fmtDate(e.decided_date)}</td><td style="white-space:nowrap">${['lost','converted'].includes(e.status) ? '' : `<button type="button" class="cp-link" data-propose="${e.id}">Proposal</button> · `}<button type="button" class="cp-link" data-unlink-estimate="${e.id}" style="color:#A8382B">Unlink</button></td></tr>`).join('')}</tbody></table></div>` : empty('No estimates at this job site yet');
       host.innerHTML = `
-        <div class="cp-toolbar"><a class="cp-link" href="#buildings">← All buildings</a><span style="flex:1"></span>
+        <div class="cp-toolbar"><a class="cp-link" href="#buildings">← All projects</a><span style="flex:1"></span>
           ${b.archived_at ? '<span class="cp-pill">archived</span>' : ''}
           <button class="btn-ghost btn-sm" type="button" id="bd-link-btn">Link project / estimate</button>
           <button class="btn-ghost btn-sm" type="button" id="bd-edit">Edit</button>
@@ -737,7 +737,7 @@
             </div>
           </div>
           <div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Building</h2></div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Job site</h2></div>
               <ul class="cp-list">
                 ${fact('Address', b.address_line)}${fact('Client', b.client_name)}${fact('Borough', b.borough)}${fact('City / state / ZIP', [b.city, b.state, b.zip].filter(Boolean).join(' '))}
                 ${fact('DOB BIN', b.bin)}${fact('Block / lot', [b.block, b.lot].filter(Boolean).join(' / '))}${fact('Stories', b.stories)}${fact('Year built', b.year_built)}
@@ -748,39 +748,39 @@
           </div>
         </div>
         <div class="cp-card" id="bd-linker" hidden>
-          <div class="cp-card-head"><h2>Link to this building</h2><button type="button" class="cp-link" id="bd-linker-close">Close</button></div>
+          <div class="cp-card-head"><h2>Link to this job site</h2><button type="button" class="cp-link" id="bd-linker-close">Close</button></div>
           <div class="cp-toolbar" style="gap:10px;flex-wrap:wrap">
-            <select class="cp-select" id="bd-link-project"><option value="">— project without a building —</option></select>
+            <select class="cp-select" id="bd-link-project"><option value="">— project without a job site —</option></select>
             <button class="btn-ghost btn-sm" type="button" id="bd-link-project-go">Link project</button>
-            <select class="cp-select" id="bd-link-estimate"><option value="">— estimate without a building —</option></select>
+            <select class="cp-select" id="bd-link-estimate"><option value="">— estimate without a job site —</option></select>
             <button class="btn-ghost btn-sm" type="button" id="bd-link-estimate-go">Link estimate</button>
           </div>
         </div>`;
       $('bd-edit').addEventListener('click', () => openBuildingModal(b));
       $('bd-arch').addEventListener('click', async () => {
         if (!b.archived_at && !confirm(`Archive "${b.name || b.address_line}"? Its projects and estimates keep their history; it just leaves the active list.`)) return;
-        try { await api('/buildings/' + b.id + (b.archived_at ? '/restore' : '/archive'), { method: 'POST' }, true); toast(b.archived_at ? 'Building restored' : 'Building archived'); loadBuildingDetail(id); } catch (e) { toast(e.message, true); }
+        try { await api('/buildings/' + b.id + (b.archived_at ? '/restore' : '/archive'), { method: 'POST' }, true); toast(b.archived_at ? 'Job site restored' : 'Job site archived'); loadBuildingDetail(id); } catch (e) { toast(e.message, true); }
       });
       $('bd-link-btn').addEventListener('click', async () => {
         const box = $('bd-linker'); box.hidden = false;
         try {
           const { data: u } = await api('/buildings/unlinked', null, true);
-          $('bd-link-project').innerHTML = '<option value="">— project without a building —</option>' + u.projects.map(p => `<option value="${esc(p.project_code)}">${esc(p.project_code)} · ${esc(p.name || p.address || '')}</option>`).join('');
-          $('bd-link-estimate').innerHTML = '<option value="">— estimate without a building —</option>' + u.estimates.map(e => `<option value="${e.id}">${esc(e.code)} · ${esc(e.building_address || '')}</option>`).join('');
+          $('bd-link-project').innerHTML = '<option value="">— project without a job site —</option>' + u.projects.map(p => `<option value="${esc(p.project_code)}">${esc(p.project_code)} · ${esc(p.name || p.address || '')}</option>`).join('');
+          $('bd-link-estimate').innerHTML = '<option value="">— estimate without a job site —</option>' + u.estimates.map(e => `<option value="${e.id}">${esc(e.code)} · ${esc(e.building_address || '')}</option>`).join('');
         } catch (e) { toast(e.message, true); }
       });
       $('bd-linker-close').addEventListener('click', () => { $('bd-linker').hidden = true; });
       $('bd-link-project-go').addEventListener('click', async () => { const v = $('bd-link-project').value; if (!v) return; try { await api('/buildings/' + b.id + '/link', { method: 'POST', body: JSON.stringify({ project_code: v }) }, true); toast('Project linked'); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } });
       $('bd-link-estimate-go').addEventListener('click', async () => { const v = $('bd-link-estimate').value; if (!v) return; try { await api('/buildings/' + b.id + '/link', { method: 'POST', body: JSON.stringify({ estimate_id: Number(v) }) }, true); toast('Estimate linked'); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } });
-      host.querySelectorAll('[data-unlink-project]').forEach(el => el.addEventListener('click', async () => { if (!confirm('Unlink this project from the building?')) return; try { await api('/buildings/' + b.id + '/unlink', { method: 'POST', body: JSON.stringify({ project_code: el.dataset.unlinkProject }) }, true); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } }));
+      host.querySelectorAll('[data-unlink-project]').forEach(el => el.addEventListener('click', async () => { if (!confirm('Unlink this project from the job site?')) return; try { await api('/buildings/' + b.id + '/unlink', { method: 'POST', body: JSON.stringify({ project_code: el.dataset.unlinkProject }) }, true); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } }));
       host.querySelectorAll('[data-propose]').forEach(el => el.addEventListener('click', () => proposeFromEstimate(Number(el.dataset.propose))));
-      host.querySelectorAll('[data-unlink-estimate]').forEach(el => el.addEventListener('click', async () => { if (!confirm('Unlink this estimate from the building?')) return; try { await api('/buildings/' + b.id + '/unlink', { method: 'POST', body: JSON.stringify({ estimate_id: Number(el.dataset.unlinkEstimate) }) }, true); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } }));
-    } catch (e) { toast(e.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this building', e.message)}</div>`; }
+      host.querySelectorAll('[data-unlink-estimate]').forEach(el => el.addEventListener('click', async () => { if (!confirm('Unlink this estimate from the job site?')) return; try { await api('/buildings/' + b.id + '/unlink', { method: 'POST', body: JSON.stringify({ estimate_id: Number(el.dataset.unlinkEstimate) }) }, true); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } }));
+    } catch (e) { toast(e.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this job site', e.message)}</div>`; }
   }
   async function openBuildingModal(b) {
     await clientOptions($('bd-client-sel'), b ? String(b.client_org_id || '') : '');
     $('bd-form').dataset.id = b ? b.id : '';
-    $('bd-title').textContent = b ? 'Edit building' : 'Add building';
+    $('bd-title').textContent = b ? 'Edit job site' : 'Add job site';
     $('bd-address').value = b ? b.address_line : ''; $('bd-name').value = b ? (b.name || '') : '';
     $('bd-borough').value = b ? (b.borough || '') : ''; $('bd-zip').value = b ? (b.zip || '') : '';
     $('bd-bin').value = b ? (b.bin || '') : ''; $('bd-blocklot').value = b ? [b.block, b.lot].filter(Boolean).join(' / ') : '';
@@ -804,13 +804,13 @@
     try {
       const res = id ? await api('/buildings/' + id, { method: 'PATCH', body: JSON.stringify(payload) }, true)
                      : await api('/buildings', { method: 'POST', body: JSON.stringify(payload) }, true);
-      toast(id ? 'Building updated' : 'Building added'); closeBuildingModal();
+      toast(id ? 'Job site updated' : 'Job site added'); closeBuildingModal();
       location.hash = '#buildings/' + res.data.id; if (id) loadBuildingDetail(id);
     } catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
     finally { $('bd-save').disabled = false; }
   });
   $('bd-rematch').addEventListener('click', async () => {
-    try { const { data } = await api('/buildings/backfill', { method: 'POST' }, true); toast(`Matcher: ${data.buildings_created} building(s) created, ${data.projects_linked} project(s) + ${data.estimates_linked} estimate(s) linked`); loadBuildings(); }
+    try { const { data } = await api('/buildings/backfill', { method: 'POST' }, true); toast(`Matcher: ${data.buildings_created} job site(s) created, ${data.projects_linked} project(s) + ${data.estimates_linked} estimate(s) linked`); loadBuildings(); }
     catch (e) { toast(e.message, true); }
   });
 
@@ -837,13 +837,13 @@
       table($('pr-table'), [
         { key: 'number', label: 'Proposal', render: r => `<a class="cp-link cp-id" href="#proposals/${r.id}">${esc(r.number)}</a>` },
         { key: 'client_name', label: 'Client', render: r => `<a class="cp-link" href="#clients/${r.client_org_id}">${esc(r.client_name)}</a>` },
-        { key: 'building_address', label: 'Building', render: r => r.building_id ? `<a class="cp-link" href="#buildings/${r.building_id}">${esc(r.building_name || r.building_address || '—')}</a>` : esc(r.building_address || '—') },
+        { key: 'building_address', label: 'Job site', render: r => r.building_id ? `<a class="cp-link" href="#buildings/${r.building_id}">${esc(r.building_name || r.building_address || '—')}</a>` : esc(r.building_address || '—') },
         { key: 'title', label: 'Title' },
         { key: 'price', label: 'Price', num: true, render: r => r.price != null ? money.format(r.price) : '—' },
         { key: 'status', label: 'Status', render: prPill, sortVal: r => r.display_status },
         { key: 'sent_at', label: 'Sent', render: r => fmtDate(r.sent_at) },
         { key: 'updated_at', label: 'Updated', render: r => fmtDate(r.updated_at) },
-      ], rows, { defaultSort: { key: 'updated_at', dir: 'desc' }, emptyTitle: 'No proposals yet', emptySub: 'Create one from an estimate — client, building and price come across.', onRow: r => { location.hash = '#proposals/' + r.id; } });
+      ], rows, { defaultSort: { key: 'updated_at', dir: 'desc' }, emptyTitle: 'No proposals yet', emptySub: 'Create one from an estimate — client, job site and price come across.', onRow: r => { location.hash = '#proposals/' + r.id; } });
     } catch (e) { toast(e.message, true); }
   }
   function prLineRow(l, editable) {
@@ -913,7 +913,7 @@
             <div class="cp-card"><div class="cp-card-head"><h2>Who and where</h2></div>
               <ul class="cp-list">
                 ${fact('Client', `<a class="cp-link" href="#clients/${p.client_org_id}">${esc(p.client_name)}</a>`)}
-                ${fact('Building', p.building_id ? `<a class="cp-link" href="#buildings/${p.building_id}">${esc(p.building_name || p.building_address || '')}</a>` : esc(p.building_address || ''))}
+                ${fact('Job site', p.building_id ? `<a class="cp-link" href="#buildings/${p.building_id}">${esc(p.building_name || p.building_address || '')}</a>` : esc(p.building_address || ''))}
                 ${fact('Contact', esc(p.contact_name || ''))}
                 ${fact('Sent to', p.recipient_email ? `${esc(p.recipient_name || '')}<br><span class="cp-muted">${esc(p.recipient_email)}</span>` : '')}
                 ${fact('Sent', p.sent_at ? fmtWhen(p.sent_at) : '')}
@@ -1527,7 +1527,7 @@
   document.querySelectorAll('.cp-overlay').forEach(o => o.addEventListener('click', (e) => { if (e.target === o) o.classList.remove('open'); }));
 
   // ---------- router ----------
-  const TITLES = { overview: 'Overview', clients: 'Clients', buildings: 'Buildings', proposals: 'Proposals', finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce & Pay', compliance: 'Compliance & Vault' };
+  const TITLES = { overview: 'Overview', clients: 'Clients', buildings: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce & Pay', compliance: 'Compliance & Vault' };
   const LOADERS = { overview: loadOverview, clients: loadClients, buildings: loadBuildings, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, compliance: loadCompliance };
   function route() {
     const h = (location.hash || '#overview').slice(1);

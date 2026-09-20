@@ -6,29 +6,31 @@
 > what has shipped; this file records what is planned. Issue numbers continue
 > the repo's `#nnn` sequence.
 
-## Status snapshot (2026-09-15)
+## Status snapshot (2026-09-20)
 
 | Shipped | Where |
 |---|---|
 | Password reset + branded email, security hardening, CRM buildings | Production (#298–#301) |
-| Company Portal (`/company`) | Preprod (#302) |
-| Shared sidebar shell; Office Console rebuilt on it | Preprod (#303) |
-| Security release: every audit critical/high + mechanical mediums | Preprod (#305) |
-| Buildings as a first-class entity (table, auto-link, portal Buildings view) | Preprod (#304) |
-| Migration ledger + GitHub Actions gate on SQLite and Postgres | Preprod (#306) |
-| Proposals from estimates: branded document, signed link, online acceptance → estimate approved + COI/deposit tasks | Preprod (#307) |
-| Client portal Proposals tab: read, download, sign or decline inside the portal | Preprod (#308) |
+| Company Portal (`/company`) | Production (#302) |
+| Shared sidebar shell; Office Console rebuilt on it | Production (#303) |
+| Security release: every audit critical/high + mechanical mediums | Production (#305) |
+| Buildings as a first-class entity (table, auto-link, portal Buildings view) | Production (#304) |
+| Migration ledger + GitHub Actions gate on SQLite and Postgres | Production (#306) |
+| Proposals from estimates: branded document, signed link, online acceptance → estimate approved + COI/deposit tasks | Production (#307) |
+| Client portal Proposals tab: read, download, sign or decline inside the portal | Production (#308) |
 | Mon–Sun payroll week on the Labor Rate Tracker | Production (#310) |
-| Shared shell on the admin pages, motion layer, mobile menu, dark-blue accent, gradients + hovers | Preprod (#311–#314) |
-| Invoices & receivables: Finance → Receivables, deposit invoice drafted on signature | Preprod (#315) |
-| Company vault: vehicles with registration / insurance / inspection, tax returns by year, filings, records, file attachments | Preprod (#318) |
-| Worker job history + payroll view: projects, hours by month, rate-on-date cost, certs, credentials, rate history | Preprod (#320) |
-| Light sidebar; onboard an already-won job with "+ New project" on Projects & assignments | Preprod (#321, #324) |
-| Crews + site coordinates per job; worker app job picker with per-job geofence | Preprod (#325) |
-| Invoice documents: PDF, email to client with a private link, per-project Payments section | Preprod (#326) |
-| Permits & insurance package per job with send-to-client link and portal share | Preprod (#327) |
+| Shared shell on the admin pages, motion layer, mobile menu, dark-blue accent, gradients + hovers | Production (#311–#314) |
+| Invoices & receivables: Finance → Receivables, deposit invoice drafted on signature | Production (#315) |
+| Company vault: vehicles with registration / insurance / inspection, tax returns by year, filings, records, file attachments | Production (#318) |
+| Worker job history + payroll view: projects, hours by month, rate-on-date cost, certs, credentials, rate history | Production (#320) |
+| Light sidebar; onboard an already-won job with "+ New project" on Projects & assignments | Production (#321, #324) |
+| Crews + site coordinates per job; worker app job picker with per-job geofence | Production (#325) |
+| Invoice documents: PDF, email to client with a private link, per-project Payments section | Production (#326) |
+| Permits & insurance package per job with send-to-client link and portal share | Production (#327) |
+| Navigation clarity: project identity block on every project view, Pay Rates vs Weekly Payroll, company portal Buildings → Projects | Preprod (#328) |
+| Office Console condensed from 16 sidebar entries to 12 (Certifications, Compliance › Specs, queue + Interface folded in, Drop Plan per project) | Preprod (#329) |
 
-Production promotion of #302–#327 (except the #310 payroll-week hotfix, already live) waits on the C-suite's yes on preprod.
+Everything through #327 is in production as of 2026-09-20 (upstream PR #4, C-suite approved on preprod). #328 and #329 are on preprod awaiting review. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app; AIA G702/G703 (#317).
 
 ---
 
