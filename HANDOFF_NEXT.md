@@ -21,6 +21,30 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #329 — Office Console condensed (Bookore, 2026-09-20)
+
+* **Ask (Angela, 2026-09-20, "go with the list"):** fewer sidebar entries on the
+  Office Console. 16 → 12.
+* **Grouped nav tabs.** A `.nav-tab` may carry `data-panels="a,b"`: `activatePanel`
+  lights the tab for any of its panels and titles the page with the tab's label
+  (`_tabOwns`). Grouped panels show `.ssc-subtabs` (plain hash anchors, so hash
+  routing does the switch; `.ssc-subtab.active` follows the panel).
+  * **Certifications** = `cert-library` (+ `#cert-health`, which was a Phase-B
+    placeholder panel: markup removed, hash aliased to the library).
+  * **Compliance** owns `compliance` + `specs` (Specs Library is its second tab;
+    `SPECS_loadCatalog` still fires on `#specs`).
+* **Moved, not removed.** "Estimating queue →" sits in the Estimates page header;
+  "Open interface preferences →" is an Interface section on Settings; Drop Plan is
+  reached from each project (sidebar + Overview cards). All URLs unchanged.
+* **Admin pages' own sidebars** (`admin_projects`, `admin_users`, `estimating`,
+  `admin_labor_rates`) match: Certifications; no Cert Health / Specs Library /
+  Drop Plan; the "Estimating queue" entry is `data-roles="estimator"` only (it is
+  the estimator's one link and must stay for that role).
+* **Test** `tests/smoke_console_condense_329.py` (gate + CI).
+* **Left alone on purpose:** the overlap between the console tabs and the Company
+  Portal (Finance / Expenses / Workforce & Pay / Compliance). Which surface owns
+  each topic is a C-suite decision, noted in ROADMAP.
+
 ### #328 — Navigation clarity (Bookore, 2026-09-20)
 
 * **Ask (Angela, 2026-09-20):** too many tabs; the company portal's "Buildings"
