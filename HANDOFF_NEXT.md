@@ -21,6 +21,22 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Release to production — 2026-09-20, third of the day (Bookore)
+
+* Upstream PR `superstars-contracting/dashboard#6`: #317 AIA billing + the Payments
+  loader fix, #319 accounts payable + "Overview" → "Dashboard". Arun approved on
+  preprod. Merged `cd0f9cf`; Render build stamp 15:36:44 UTC; `/api/health` → 0
+  pending migrations on the Render hostname; the four new tables were created at boot.
+  `preprod` fast-forwarded to `main`.
+* **The custom domain was down again at release time** — `app`, `www` and the apex all
+  time out on ports 80 AND 443 at Cloudflare's edge (188.114.96/97.x) while
+  `https://ssc-dashboard-go4h.onrender.com` answers in 0.2 s and other
+  Cloudflare-fronted sites load fine from the same network. Same zone-wide pattern as
+  2026-09-19 (which cleared on its own). It is the company's Cloudflare zone (Amit),
+  not the app. Workaround: the Render hostname. Durable fix: the `app` record as a
+  DNS-only (grey cloud) CNAME to `ssc-dashboard-go4h.onrender.com`, or pause Cloudflare
+  on the zone.
+
 ### #319 — Accounts payable + the 30-day cash view; "Overview" → "Dashboard" (Bookore, 2026-09-20)
 
 * **Ask (C-suite 2026-09-11 item 6: "accounts receivable and accounts payable … a view
