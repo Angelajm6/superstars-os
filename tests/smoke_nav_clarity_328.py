@@ -151,8 +151,8 @@ def main() -> int:
     # ---- company portal: Projects, not Buildings
     html = _page(cs, "/company")
     assert "</svg>Projects</a>" in html and "</svg>Buildings</a>" not in html
-    assert "buildings: 'Projects'" in html
-    assert 'href="#buildings" data-view="buildings"' in html, "hash route unchanged"
+    assert "projects: 'Projects'" in html and "buildings: 'Job sites'" in html   # #330: the tab lists jobs; job sites keep their pages
+    assert 'href="#projects" data-view="projects"' in html and 'id="view-buildings"' in html
     passed += 1; print("  portal label ok")
 
     # ---- pay rates page
