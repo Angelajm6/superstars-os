@@ -80,6 +80,9 @@ GATE = [
     "smoke_password_reset_flow_301.py",# #301 guard — reset BEHAVIOR: no-enum, hashed single-use tokens, session revoke, expiry, throttle
     "smoke_company_portal_302.py",     # #302 guard — company portal: company-axis gating, clients/buildings rollups, finance, compliance, company documents CRUD
     "smoke_migrations_306.py",         # #306 guard — migration ledger: baseline, pending, apply/record, drift, health count
+    "smoke_calendar_332.py",         # #332 guard — jobs calendar: window rules, open-ended / closed / undated, report dots, dates via onboarding + Crew & site, pages
+    "smoke_regions_331.py",          # #331 guard — regions beyond the boroughs: one list, metas, NJ estimate series, LI job + job-site label, pickers
+    "smoke_portal_projects_330.py",  # #330 guard — portal Projects = jobs: list, a job's own page (money, package, docs, crew, activity), no cross-job leakage, gates
     "smoke_payables_319.py",         # #319 guard — accounts payable: bills lifecycle, receipt + renewal feeds, 30-day cash view, overview payload, Dashboard rename
     "smoke_aia_billing_317.py",      # #317 guard — AIA G702/G703: SOV editor rules, one draft, over-billing, lines 1–9, issue -> progress invoice, carry-forward, void, documents, gates
     "smoke_console_condense_329.py", # #329 guard — Office Console condensed to 12 entries: grouped panels, moved links, admin sidebars in step

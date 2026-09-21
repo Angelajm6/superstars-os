@@ -21,6 +21,109 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #332 — The jobs calendar (Bookore, 2026-09-21)
+
+* **Ask (Angela for Arun, 2026-09-21):** a calendar showing which jobs run on which
+  day, overlaps, and each job's duration; 3-day / week / month views; every job
+  clickable through to its page; a newly created job with dates appears by itself;
+  clean and easy to scan.
+* **Data** `portal_calendar.py`: `GET /api/company/portal/calendar?from&to` (company
+  section; window ≤ 120 days). One bar per job from `projects.start_date` to
+  `target_completion`; an active job without an end is `open_ended` (drawn to the edge
+  of the window with a fade); a closed job without an end ends the day it was closed
+  (`updated_at`); active jobs without a start come back as `undated` (the page says so
+  and links to Crew & site). `days[date].reports` = project codes with a DCR that day.
+  Colour = stable hash of the code. No PII.
+* **Dates travel:** "+ New project" gained *Target completion*; `onboard()` stores it
+  (refuses end < start). Crew & site (`GET/PUT /api/admin/projects/<code>/crew`) returns
+  and edits `dates` (start + target completion, same rule) — that is where existing
+  jobs get their end date.
+* **UI (`company_portal.html` → Calendar, nav entry under Company):** segmented 3 days
+  / Week / Month (remembered per browser), ‹ Today ›, range title, Monday-first grid,
+  weekends tinted, today highlighted, bars packed into lanes per row (month caps at 3
+  lanes + "+N more" → week view on that day), continuation edges when a bar crosses a
+  row, closed jobs dimmed, hover card (client, address, dates, duration, PM, crew),
+  daily-report dots per day in the job's colour, legend chips; click anywhere on a job
+  → `#projects/<code>`. `#calendar/YYYY-MM-DD` deep-links to a date. Windows are cached
+  per range while the view is open.
+* **Test** `tests/smoke_calendar_332.py` (gate + CI).
+* **Not in this ticket (ideas offered):** drag to move / stretch a bar; milestones on
+  the grid (COI / permit expiries, invoice due dates); on-site headcount from the
+  worker app per day; weather strip on the week view; a printable "this week" sheet.
+
+### #331 — Job locations beyond the five boroughs (Bookore, 2026-09-21)
+
+* **Ask (Angela, 2026-09-21):** pick Long Island or New Jersey (not only the five
+  boroughs) when entering a project's location.
+* **One list:** `regions.py` (`LABELS` code → name, `CODES`, `label()`, `options()`).
+  `estimates.BOROUGHS` now IS `regions.CODES` (+ `BOROUGH_LABELS`), so the estimate
+  code series simply gains `<TYPE>-LI-###` and `<TYPE>-NJ-###`; `buildings._BOROUGH_CODES`
+  reads the same map. Adding a region = one line in `regions.py`, no schema change
+  (`estimate.borough` is free text, `building.borough` stores the label).
+* **Metas** `/api/estimates/meta` and `/api/admin/projects/onboard-meta` carry
+  `regions: [{code, label}]` next to the old `boroughs` codes.
+* **Pickers:** "+ New project" and the console's "New estimate" render
+  "Long Island (LI)" style options from the meta; the portal's job-site modal lists Long
+  Island and New Jersey. Onboarding stamps the region label on the auto-created job site
+  when it has none.
+* **Test** `tests/smoke_regions_331.py` (gate + CI).
+* **Not in this ticket:** Westchester / Connecticut (one line each when asked); the
+  city / state / ZIP split already accepts NJ addresses (`_split_city_zip`).
+
+### #330 — Company Portal → Projects = jobs; a job's own page (Bookore, 2026-09-20)
+
+* **Ask (Angela, 2026-09-20, screenshot):** inside a project in the portal, none of the
+  containers were about that project (open estimates, won value, other projects at the
+  address). Cause: the tab was the #304 job-site (building) roll-up, renamed "Projects"
+  in #328. A new job's page must show only that job.
+* **Module** `portal_projects.py` (read-only, company-portal section):
+  `GET /api/company/portal/projects?status=active|closed|all&search=` — one row per job:
+  client, PMs (`pm_project_assignment`), crew count (active `project_assignments`),
+  contract (`billing_sov` sum when it exists, else the converted estimate's
+  `final_amount`), invoiced / open / overdue / collected (`invoice`), last DCR
+  (`report_index`), open RFIs (`rfi_log`). `GET …/projects/<code>` — the page: identity,
+  client + contacts, PMs, crew (name / trade via `v_active_workers`, no paths), job site
+  row, contract, money (`invoice_docs.project_payments`), AIA summary + applications
+  (`aia_billing.billing`), permits & insurance readiness (`doc_packages.package`, with
+  days_left computed here), documents with expiry dates, activity (DCRs in 30 days, last
+  DCR, open RFIs, photos, documents), links (dashboard `/projects/<code>`, crew & site,
+  `#buildings/<id>`, `#clients/<id>`). Every optional piece is read through `_safe` so a
+  missing table blanks one card, never the page.
+* **UI (`company_portal.html`):** nav "Projects" → `#projects` (list: job, address,
+  client, PM, crew, contract, open invoices, last report, status; Active / Closed / All;
+  "Job sites" and "+ New project" buttons). `#projects/<code>` = the job page: toolbar
+  (status, type, Crew & site, Open job dashboard →), KPIs (contract, invoiced,
+  collected, open, balance-to-finish or crew), Money / Permits & insurance / Documents
+  expiring / Crew cards, Job facts, Activity, Client contacts. `#buildings` (job sites)
+  keeps its pages, titled "Job sites", lit under Projects in the nav.
+* **Test** `tests/smoke_portal_projects_330.py` (gate + CI): two jobs at one address,
+  the page for one never shows the other's invoices or documents. `smoke_nav_clarity_328`
+  updated for the new hash.
+* **Not in this ticket:** editing a project from the portal (Crew & site stays on the
+  console); daily-report list on the page (the job dashboard has it).
+* **Postgres lesson (the PR's postgres gate failed and was merged anyway because
+  `gh pr checks --watch | tail` hid the exit code):** the fixture-built
+  `project_assignments` carries a FOREIGN KEY to `employees` on Postgres (the legacy
+  `apply_assignments_schema.py`), SQLite does not enforce it without `pragma_fk`. A
+  test that assigns crew must seed `employees` rows (see #325). Fixed the same night in
+  the follow-up PR. Rule: never pipe `gh pr checks --watch` through `tail`; read `$?`.
+
+### Release to production — 2026-09-20, third of the day (Bookore)
+
+* Upstream PR `superstars-contracting/dashboard#6`: #317 AIA billing + the Payments
+  loader fix, #319 accounts payable + "Overview" → "Dashboard". Arun approved on
+  preprod. Merged `cd0f9cf`; Render build stamp 15:36:44 UTC; `/api/health` → 0
+  pending migrations on the Render hostname; the four new tables were created at boot.
+  `preprod` fast-forwarded to `main`.
+* **The custom domain was down again at release time** — `app`, `www` and the apex all
+  time out on ports 80 AND 443 at Cloudflare's edge (188.114.96/97.x) while
+  `https://ssc-dashboard-go4h.onrender.com` answers in 0.2 s and other
+  Cloudflare-fronted sites load fine from the same network. Same zone-wide pattern as
+  2026-09-19 (which cleared on its own). It is the company's Cloudflare zone (Amit),
+  not the app. Workaround: the Render hostname. Durable fix: the `app` record as a
+  DNS-only (grey cloud) CNAME to `ssc-dashboard-go4h.onrender.com`, or pause Cloudflare
+  on the zone.
+
 ### #319 — Accounts payable + the 30-day cash view; "Overview" → "Dashboard" (Bookore, 2026-09-20)
 
 * **Ask (C-suite 2026-09-11 item 6: "accounts receivable and accounts payable … a view
