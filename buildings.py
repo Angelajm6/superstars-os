@@ -41,7 +41,8 @@ SECTION = "crm"
 PIPELINE_STATUSES = ("intake", "scoping", "submitted")
 WON_STATUSES = ("approved", "converted")
 BOROUGHS = ("Manhattan", "Bronx", "Brooklyn", "Queens", "Staten Island")
-_BOROUGH_CODES = {"MN": "Manhattan", "BX": "Bronx", "BK": "Brooklyn", "QN": "Queens", "SI": "Staten Island"}
+import regions  # #331
+_BOROUGH_CODES = regions.LABELS
 
 _ADDR_SUBS = {
     "street": "st", "avenue": "ave", "boulevard": "blvd", "road": "rd", "place": "pl",

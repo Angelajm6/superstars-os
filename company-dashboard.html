@@ -5805,7 +5805,7 @@ applyLanguage();
     var m = await ensureMeta();
     var orgs = await api('GET','/api/crm/organizations');
     var typeOpts = m.types.map(function(t){ return '<option value="'+esc(t.code)+'">'+esc(t.code)+' — '+esc(t.label)+'</option>'; }).join('');
-    var boroOpts = m.boroughs.map(function(b){ return '<option value="'+esc(b)+'">'+esc(b)+'</option>'; }).join('');
+    var boroOpts = (m.regions || m.boroughs.map(function(b){ return {code: b, label: b}; })).map(function(r){ return '<option value="'+esc(r.code)+'">'+esc(r.label)+' ('+esc(r.code)+')</option>'; }).join('');   // #331
     var orgOpts = '<option value="">Choose client…</option>'
       + orgs.map(function(o){ return '<option value="'+o.id+'">'+esc(o.name)+'</option>'; }).join('')
       + '<option value="__new__">+ New organization…</option>';
@@ -5813,7 +5813,7 @@ applyLanguage();
     openModal('New estimate',
       '<div class="est-field-row">'
       +   fieldSel('f-est-type','Type *', typeOpts)
-      +   fieldSel('f-est-boro','Borough *', boroOpts)
+      +   fieldSel('f-est-boro','Borough / region *', boroOpts)
       + '</div>'
       + '<div class="est-field-row">'
       +   fieldSel('f-est-div','Division', divOpts)

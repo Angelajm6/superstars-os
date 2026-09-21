@@ -67,6 +67,7 @@ def meta(conn) -> dict:
     return {
         "types": [{"code": k, "label": v} for k, v in estimates.EST_TYPES.items()],
         "boroughs": list(estimates.BOROUGHS),
+        "regions": [{"code": c, "label": l} for c, l in estimates.BOROUGH_LABELS.items()],   # #331
         "clients": clients,
         "pms": [{"user_id": p["id"], "name": p.get("display_name") or p.get("full_name") or p.get("email")} for p in pms],
         "workers": active_workers(conn),   # #325 — the crew picker
@@ -191,7 +192,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     if est_type not in estimates.EST_TYPES:
         raise ValueError("pick the job type")
     if borough not in estimates.BOROUGHS:
-        raise ValueError("pick the borough")
+        raise ValueError("pick the borough or region")
     address = (p.get("address") or "").strip()
     if len(address) < 4:
         raise ValueError("the building address is required")
@@ -283,6 +284,12 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
                                  + (f" ({'${:,.0f}'.format(contract)})" if contract else ""))
     except Exception as e:
         log.info("#324 activity not logged: %s", e)
+    try:   # #331 — the auto-created job site carries the region label when it has none yet
+        conn.execute("UPDATE building SET borough = ? WHERE id = (SELECT building_id FROM projects WHERE project_code = ?) "
+                     "AND COALESCE(borough, '') = ''", (estimates.BOROUGH_LABELS.get(borough, borough), code))
+        conn.commit()
+    except Exception as e:
+        log.info("#331 region label not stamped on the job site: %s", e)
     project = _one(conn.execute("SELECT project_code, name, address, status, client_org_id, building_id, "
                                 "site_lat, site_lng, geofence_m FROM projects WHERE project_code = ?", (code,)))
     return {"project_code": code, "project": project, "estimate_id": est["id"], "estimate_code": est["code"],

@@ -21,6 +21,25 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #331 — Job locations beyond the five boroughs (Bookore, 2026-09-21)
+
+* **Ask (Angela, 2026-09-21):** pick Long Island or New Jersey (not only the five
+  boroughs) when entering a project's location.
+* **One list:** `regions.py` (`LABELS` code → name, `CODES`, `label()`, `options()`).
+  `estimates.BOROUGHS` now IS `regions.CODES` (+ `BOROUGH_LABELS`), so the estimate
+  code series simply gains `<TYPE>-LI-###` and `<TYPE>-NJ-###`; `buildings._BOROUGH_CODES`
+  reads the same map. Adding a region = one line in `regions.py`, no schema change
+  (`estimate.borough` is free text, `building.borough` stores the label).
+* **Metas** `/api/estimates/meta` and `/api/admin/projects/onboard-meta` carry
+  `regions: [{code, label}]` next to the old `boroughs` codes.
+* **Pickers:** "+ New project" and the console's "New estimate" render
+  "Long Island (LI)" style options from the meta; the portal's job-site modal lists Long
+  Island and New Jersey. Onboarding stamps the region label on the auto-created job site
+  when it has none.
+* **Test** `tests/smoke_regions_331.py` (gate + CI).
+* **Not in this ticket:** Westchester / Connecticut (one line each when asked); the
+  city / state / ZIP split already accepts NJ addresses (`_split_city_zip`).
+
 ### #330 — Company Portal → Projects = jobs; a job's own page (Bookore, 2026-09-20)
 
 * **Ask (Angela, 2026-09-20, screenshot):** inside a project in the portal, none of the
