@@ -171,13 +171,63 @@ def pending_count() -> int:
         return -1
 
 
+# #337 — migrations whose MODULE ensures the same schema at boot. When the objects
+# exist, the ledger records the script as applied (note "boot-ensured") instead of
+# reporting it pending forever on a database that never ran the script by hand.
+# "table" or "table.column".
+BOOT_ENSURED = {
+    "apply_aia_317.py": ("pay_application", "pay_application_line", "billing_sov"),
+    "apply_payables_319.py": ("payable",),
+    "apply_project_dates_334.py": ("projects.start_date", "projects.target_completion"),
+    "apply_building_geometry_336.py": ("building_geometry",),
+    "apply_invoices_315.py": ("invoice", "invoice_payment"),
+    "apply_company_vault_318.py": ("vehicle", "company_document_file"),
+    "apply_assignments_322.py": ("project_assignments",),
+    "apply_project_site_325.py": ("projects.site_lat", "projects.geofence_m"),
+    "apply_doc_packages_327.py": ("document_package", "document_package_item"),
+    "apply_buildings_304.py": ("building",),
+    "apply_proposals_307.py": ("proposal",),
+}
+
+
+def _object_exists(conn, spec: str) -> bool:
+    if "." in spec:
+        table, column = spec.split(".", 1)
+        if db_layer.is_postgres():
+            return bool(conn.execute("SELECT 1 AS x FROM information_schema.columns WHERE table_name = ? AND column_name = ?",
+                                     (table, column)).fetchone())
+        return any(r["name"] == column for r in conn.execute(f"PRAGMA table_info({table})").fetchall())
+    return _table_exists(conn, spec)
+
+
+def reconcile_boot_ensured(conn, pending_names: list) -> list:
+    """Record every pending migration whose boot-ensured objects all exist. Returns the names."""
+    done = []
+    for name in pending_names:
+        specs = BOOT_ENSURED.get(name)
+        if not specs:
+            continue
+        try:
+            if all(_object_exists(conn, s) for s in specs):
+                record(conn, name, note="boot-ensured")
+                done.append(name)
+        except Exception as e:
+            log.info("#337 reconcile skipped %s: %s", name, e)
+    return done
+
+
 def boot(auto: bool) -> dict:
     """Called by server.py at import. Never raises."""
-    out = {"pending": [], "applied_now": [], "error": None}
+    out = {"pending": [], "applied_now": [], "error": None, "reconciled": []}
     try:
         conn = db_layer.connect(pragma_fk=True)
         try:
             st = status(conn)
+            if st["pending"]:
+                out["reconciled"] = reconcile_boot_ensured(conn, st["pending"])
+                if out["reconciled"]:
+                    log.info("#337 ledger: recorded %d boot-ensured migration(s): %s", len(out["reconciled"]), out["reconciled"])
+                    st = status(conn)
         finally:
             conn.close()
         if st["baselined"]:

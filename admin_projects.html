@@ -308,6 +308,17 @@
   }
   function closeNewProject(){ $('np-overlay').classList.remove('open'); }
   $('np-open').addEventListener('click', openNewProject);
+  // #337 — /admin/projects?new=1&address=…&borough=…&client_org_id=…&name=… opens the modal filled in
+  // (the Company Portal's "Create project here" on a job site, and the Projects-tab notice)
+  async function openNewProjectWith(pre){
+    await openNewProject();
+    if(pre.address) $('np-address').value = pre.address;
+    if(pre.name) $('np-name').value = pre.name;
+    if(pre.client_org_id && $('np-client').querySelector('option[value="'+pre.client_org_id+'"]')) $('np-client').value = String(pre.client_org_id);
+    if(pre.borough){ var want = String(pre.borough).trim().toLowerCase(); var opt = Array.prototype.slice.call($('np-borough').options).find(function(o){ return o.value.toLowerCase() === want || o.textContent.toLowerCase().indexOf(want) === 0; }); if(opt) $('np-borough').value = opt.value; }
+    try{ history.replaceState(null, '', location.pathname); }catch(e){}
+  }
+  (function(){ var q = new URLSearchParams(location.search); if(q.get('new') === '1') openNewProjectWith({ address:q.get('address')||'', borough:q.get('borough')||'', client_org_id:q.get('client_org_id')||'', name:q.get('name')||'' }); })();
   $('np-cancel').addEventListener('click', closeNewProject);
   $('np-overlay').addEventListener('click', function(e){ if(e.target===$('np-overlay')) closeNewProject(); });
   document.addEventListener('keydown', function(e){ if(e.key==='Escape' && $('np-overlay').classList.contains('open')) closeNewProject(); if(e.key==='Escape' && $('cs-overlay').classList.contains('open')) $('cs-overlay').classList.remove('open'); });

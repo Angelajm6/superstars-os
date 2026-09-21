@@ -235,12 +235,23 @@ def project_detail(conn, code: str, *, today: Optional[date] = None) -> Optional
 
 
 # ---------------------------------------------------------------- routes
+def sites_without_project(conn) -> list:
+    """#337 — job sites (addresses) nobody has created a project for yet. The office entered
+    five of these thinking they were projects; the Projects tab now says so and offers the
+    one-click path."""
+    return _safe(lambda: _rows(conn.execute(
+        "SELECT b.id, b.name, b.address_line, b.borough, b.client_org_id, o.name AS client_name, b.created_at "
+        "FROM building b LEFT JOIN crm_organization o ON o.id = b.client_org_id "
+        "WHERE b.archived_at IS NULL AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.building_id = b.id) "
+        "ORDER BY b.created_at DESC, b.id DESC LIMIT 50")), [])
+
+
 def _api_list():
     conn = _conn()
     try:
         rows = list_projects(conn, status=(request.args.get("status") or "active").strip().lower(),
                              search=(request.args.get("search") or "").strip() or None)
-        return jsonify({"data": rows, "meta": {"count": len(rows)}})
+        return jsonify({"data": rows, "meta": {"count": len(rows), "sites_without_project": sites_without_project(conn)}})
     finally:
         conn.close()
 
