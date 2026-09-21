@@ -64,19 +64,26 @@ class _Scratch:
 def main() -> int:
     passed = 0
 
-    # ---- a projects table without the columns gains them once
-    scratch = str(Path(_TMP) / "bare.db")
-    sc = _Scratch(scratch)
-    sc.execute("CREATE TABLE projects (project_code TEXT PRIMARY KEY, name TEXT)")
-    sc.commit()
-    assert not db_layer.is_postgres() or True
-    r1 = mig.ensure(sc)
-    assert r1["added"] == ["start_date", "target_completion"], r1
-    r2 = mig.ensure(sc)
-    assert r2["added"] == [], r2
-    cols = {r["name"] for r in sc.execute("PRAGMA table_info(projects)").fetchall()}
-    assert {"start_date", "target_completion"} <= cols
-    assert mig.main() == 0     # the fixture already has them: no-op, exit 0
+    # ---- a projects table without the columns gains them once (scratch SQLite; the
+    #      column probe follows the CONFIGURED backend, so this part is SQLite-gate only)
+    if not db_layer.is_postgres():
+        scratch = str(Path(_TMP) / "bare.db")
+        sc = _Scratch(scratch)
+        sc.execute("CREATE TABLE projects (project_code TEXT PRIMARY KEY, name TEXT)")
+        sc.commit()
+        r1 = mig.ensure(sc)
+        assert r1["added"] == ["start_date", "target_completion"], r1
+        r2 = mig.ensure(sc)
+        assert r2["added"] == [], r2
+        cols = {r["name"] for r in sc.execute("PRAGMA table_info(projects)").fetchall()}
+        assert {"start_date", "target_completion"} <= cols
+    # on either backend: the fixture has them -> idempotent no-op, and the script exits 0
+    conn = db_layer.connect(pragma_fk=False)
+    try:
+        assert mig.ensure(conn)["added"] == []
+    finally:
+        conn.close()
+    assert mig.main() == 0
     passed += 1; print("  ensure ok")
 
     # ---- the live app: odd values never break the calendar
