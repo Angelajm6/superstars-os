@@ -561,6 +561,47 @@
     <div class="ph-kpi"><div><div class="ph-kpi-k">Certs expiring ≤30d</div><div class="ph-kpi-v" id="cc-kpi-certs">—</div><div class="ph-kpi-sub" id="cc-kpi-certs-sub">incl. expired</div></div></div>
   </div>
 
+    <!-- #338 — This week: a one-row calendar strip. Same data and colours as the Company
+         Portal calendar; the header opens the calendar on this week, a bar opens the job. -->
+    <style>
+      .cc-week .h2-sub{margin-bottom:10px}
+      .cc-week-link{flex:none;font-size:12px;font-weight:700;color:var(--ui);text-decoration:none;border:1px solid var(--hairline);border-radius:8px;padding:7px 13px;white-space:nowrap}
+      .cc-week-link:hover{background:var(--ui-soft,#E8EDF8)}
+      .cc-week-dow{display:grid;grid-template-columns:repeat(7,1fr);font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#8C92A0);padding:0 0 6px}
+      .cc-week-dow div{padding:0 8px} .cc-week-dow div.today{color:var(--ui)}
+      .cc-week-row{position:relative;display:grid;grid-template-columns:repeat(7,1fr);min-height:120px;border:1px solid var(--hairline);border-radius:12px;overflow:hidden;background:#fff}
+      .cc-week-cell{border-right:1px solid var(--hairline);padding:8px 8px 6px;display:flex;flex-direction:column;gap:4px;min-width:0}
+      .cc-week-cell:last-child{border-right:0} .cc-week-cell.wknd{background:#FBFBFD} .cc-week-cell.today{background:var(--ui-soft,#E8EDF8)}
+      .cc-week-date{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700}
+      .cc-week-date .n{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
+      .cc-week-cell.today .cc-week-date .n{background:var(--ui);color:#fff}
+      .cc-week-hc{margin-left:auto;font-size:10px;font-weight:700;color:var(--ui);background:#fff;border:1px solid var(--hairline);border-radius:999px;padding:1px 6px;white-space:nowrap}
+      .cc-week-lanes{position:absolute;left:0;right:0;top:38px;pointer-events:none}
+      .cc-week-bar{position:absolute;height:22px;border-radius:6px;padding:0 8px;font-size:11.5px;font-weight:700;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;cursor:pointer;pointer-events:auto;text-decoration:none;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+      .cc-week-bar:hover{filter:brightness(1.08)} .cc-week-bar small{font-weight:500;opacity:.85;margin-left:6px}
+      .cc-week-bar.cont{border-top-left-radius:0;border-bottom-left-radius:0} .cc-week-bar.goes{border-top-right-radius:0;border-bottom-right-radius:0}
+      .cc-week-more{position:absolute;font-size:11px;font-weight:700;color:var(--ui);pointer-events:auto;padding:2px 6px;text-decoration:none}
+      .cc-week-ms{margin-top:auto;display:flex;flex-direction:column;gap:3px}
+      .cc-week-ms span{font-size:10px;font-weight:700;line-height:1.3;padding:2px 6px;border-radius:5px;background:#FFF4DB;color:#8A5A00;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid #E0A82E}
+      .cc-week-ms span.inv{background:#E8F1FB;color:#1B4F8A;border-left-color:#3B82F6} .cc-week-ms span.late{background:#FCEEEC;color:#A8382B;border-left-color:#B11E2E}
+      .cc-week-foot{font-size:12px;color:var(--muted,#8C92A0);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
+      .cc-week-foot a{color:var(--ui);font-weight:700;text-decoration:none}
+      .cw0{background:#24418C}.cw1{background:#0F766E}.cw2{background:#B45309}.cw3{background:#7C3AED}.cw4{background:#BE185D}.cw5{background:#0369A1}.cw6{background:#4D7C0F}.cw7{background:#B11E2E}
+      @media (max-width:760px){ .cc-week-bar small{display:none} .cc-week-hc{display:none} .cc-week-row{min-height:96px} }
+    </style>
+    <div class="section cc-week" id="cc-week">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;">
+        <div>
+          <h2 data-i18n="p-week-title">This week</h2>
+          <div class="h2-sub" data-i18n="p-week-sub">Jobs running each day, who is on site, and what falls due. Click a job to open it.</div>
+        </div>
+        <a class="cc-week-link" id="cc-week-open" href="/company#calendar" data-i18n="p-week-open">Open the calendar →</a>
+      </div>
+      <div class="cc-week-dow" id="cc-week-dow"></div>
+      <div class="cc-week-row" id="cc-week-row"><div class="placeholder" data-i18n="loading-week" style="grid-column:1 / -1">Loading this week…</div></div>
+      <div class="cc-week-foot" id="cc-week-foot"></div>
+    </div>
+
     <div class="section">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;">
         <div>
@@ -1959,6 +2000,10 @@ const I18N = {
     'tab-settings': 'Settings',
     'p-active-projects-title': 'Active Projects',
     'p-active-projects-sub': 'Click any project to drill into its dashboard.',
+    'p-week-title': 'This week',
+    'p-week-sub': 'Jobs running each day, who is on site, and what falls due. Click a job to open it.',
+    'p-week-open': 'Open the calendar →',
+    'loading-week': 'Loading this week…',
     'loading-projects': 'Loading projects…',
     'w-active-project': 'Active project',
     'w-compliance': 'Compliance',
@@ -2114,6 +2159,10 @@ const I18N = {
     'tab-settings': 'Ajustes',
     'p-active-projects-title': 'Proyectos Activos',
     'p-active-projects-sub': 'Haz clic en cualquier proyecto para ver su tablero.',
+    'p-week-title': 'Esta semana',
+    'p-week-sub': 'Trabajos en marcha cada día, quién está en obra y qué vence. Haz clic en un trabajo para abrirlo.',
+    'p-week-open': 'Abrir el calendario →',
+    'loading-week': 'Cargando la semana…',
     'loading-projects': 'Cargando proyectos…',
     'w-active-project': 'Proyecto activo',
     'w-compliance': 'Cumplimiento',
@@ -6509,5 +6558,58 @@ applyLanguage();
 </script>
 </div><!-- /.ssc-main -->
 </div><!-- /.ssc-shell -->
+<script>
+// #338 — This week on the Dashboard: one row of the calendar, same API and colours.
+(function () {
+  var W = document.getElementById('cc-week'); if (!W) return;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { var d = document.createElement('div'); d.textContent = (s == null ? '' : String(s)); return d.innerHTML; }
+  function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function parse(s) { var p = String(s).slice(0, 10).split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+  function add(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function mdy(s) { if (!s) return ''; var p = String(s).slice(0, 10).split('-'); return p[1] + '/' + p[2]; }
+  var ES = (localStorage.getItem('dashboard_lang') || 'en') === 'es';
+  var DOW = ES ? ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  var today = new Date(); var mon = add(today, -((today.getDay() + 6) % 7)); var days = []; for (var i = 0; i < 7; i++) days.push(add(mon, i));
+  var from = iso(days[0]), to = iso(days[6]), t = iso(today);
+  $('cc-week-open').href = '/company#calendar/' + from;
+  $('cc-week-dow').innerHTML = days.map(function (x, i) { return '<div class="' + (iso(x) === t ? 'today' : '') + '">' + DOW[i] + ' ' + x.getDate() + '</div>'; }).join('');
+  fetch('/api/company/portal/calendar?from=' + from + '&to=' + to, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (j) { render(j.data); })
+    .catch(function () { $('cc-week-row').innerHTML = '<div class="placeholder" style="grid-column:1 / -1">' + (ES ? 'No se pudo cargar la semana.' : 'Could not load this week.') + '</div>'; });
+  function render(d) {
+    var jobs = d.jobs.slice().sort(function (a, b) { return a.start_date < b.start_date ? -1 : a.start_date > b.start_date ? 1 : ((b.days || 999) - (a.days || 999)); });
+    var laneH = 26, maxLanes = 4, lanes = [], segs = [], overflow = {};
+    jobs.forEach(function (j) {
+      var js = j.start_date, je = j.open_ended ? '9999-12-31' : j.end_date; if (je < from || js > to) return;
+      var c0 = 0; for (var i = 0; i < 7; i++) { if (iso(days[i]) >= js) { c0 = i; break; } }
+      var c1 = 6; for (var k = 6; k >= 0; k--) { if (iso(days[k]) <= je) { c1 = k; break; } }
+      var lane = 0; while (lanes[lane] && lanes[lane].some(function (r) { return !(c1 < r[0] || c0 > r[1]); })) lane++;
+      (lanes[lane] = lanes[lane] || []).push([c0, c1]);
+      if (lane >= maxLanes) { for (var m = c0; m <= c1; m++) overflow[m] = (overflow[m] || 0) + 1; return; }
+      segs.push({ j: j, c0: c0, c1: c1, lane: lane, starts: js >= from, ends: !j.open_ended && je <= to });
+    });
+    var laneCount = Math.min(lanes.length, maxLanes);
+    var msMax = 0; days.forEach(function (x) { msMax = Math.max(msMax, Math.min(((d.days[iso(x)] || {}).milestones || []).length, 3)); });
+    var minH = Math.max(120, 44 + laneCount * laneH + 14 + msMax * 19);
+    var cells = days.map(function (x) {
+      var k = iso(x), info = d.days[k] || {}, hc = info.headcount || 0, ms = (info.milestones || []).slice(0, 3);
+      var chips = ms.map(function (m) { return '<span class="' + (m.kind === 'invoice' ? 'inv' : '') + (m.late ? ' late' : '') + '" title="' + esc(m.kind === 'invoice' ? (m.number + ' · ' + (m.client_name || '')) : ((m.project_name || m.project_code || '') + ' · ' + m.label)) + '">' + (m.kind === 'invoice' ? '$ ' : '◆ ') + esc(m.kind === 'invoice' ? m.number : m.label) + '</span>'; }).join('');
+      return '<div class="cc-week-cell ' + ((x.getDay() === 0 || x.getDay() === 6) ? 'wknd' : '') + (k === t ? ' today' : '') + '" style="padding-top:' + (40 + laneCount * laneH) + 'px;position:relative"><div class="cc-week-date" style="position:absolute;left:8px;right:8px;top:8px"><span class="n">' + x.getDate() + '</span>' + (hc ? '<span class="cc-week-hc" title="' + esc(Object.keys(info.on_site || {}).map(function (c) { var jj = d.jobs.filter(function (z) { return z.project_code === c; })[0]; return info.on_site[c] + ' · ' + ((jj && jj.name) || c); }).join(' · ')) + '">' + hc + (ES ? ' en obra' : ' on site') + '</span>' : '') + '</div><div class="cc-week-ms">' + chips + '</div></div>';
+    }).join('');
+    var bars = segs.map(function (s) {
+      var left = (s.c0 / 7 * 100).toFixed(3), width = ((s.c1 - s.c0 + 1) / 7 * 100).toFixed(3);
+      return '<a class="cc-week-bar cw' + s.j.color + (s.starts ? '' : ' cont') + (s.ends ? '' : ' goes') + '" href="/projects/' + encodeURIComponent(s.j.project_code) + '" style="left:calc(' + left + '% + 4px);width:calc(' + width + '% - 8px);top:' + (s.lane * laneH) + 'px" title="' + esc(s.j.name) + (s.j.client_name ? ' · ' + esc(s.j.client_name) : '') + ' · ' + mdy(s.j.start_date) + ' → ' + (s.j.open_ended ? (ES ? 'sin fecha final' : 'no end date') : mdy(s.j.end_date)) + '">' + esc(s.j.name) + (s.c1 - s.c0 >= 2 && s.j.client_name ? '<small>' + esc(s.j.client_name) + '</small>' : '') + '</a>';
+    }).join('') + Object.keys(overflow).map(function (i) { return '<a class="cc-week-more" href="/company#calendar/' + from + '" style="left:calc(' + (i / 7 * 100).toFixed(3) + '% + 6px);top:' + (maxLanes * laneH) + 'px">+' + overflow[i] + (ES ? ' más' : ' more') + '</a>'; }).join('');
+    $('cc-week-row').style.minHeight = minH + 'px';
+    $('cc-week-row').innerHTML = cells + '<div class="cc-week-lanes" style="height:' + (laneCount * laneH) + 'px">' + bars + '</div>';
+    var n = segs.length ? segs.map(function (s) { return s.j.project_code; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).length : 0;
+    var foot = [n ? (n + (ES ? ' trabajo(s) esta semana' : ' job(s) this week')) : (ES ? 'Ningún trabajo con fechas esta semana.' : 'No dated jobs this week.')];
+    if (d.undated && d.undated.length) foot.push((ES ? d.undated.length + ' trabajo(s) activo(s) sin fecha de inicio — ' : d.undated.length + ' active job(s) have no start date yet — ') + '<a href="/admin/projects">' + (ES ? 'ponerlas en Cuadrilla y obra' : 'set them under Crew & site') + '</a>');
+    $('cc-week-foot').innerHTML = foot.map(function (x) { return '<span>' + x + '</span>'; }).join('');
+  }
+})();
+</script>
 </body>
 </html>

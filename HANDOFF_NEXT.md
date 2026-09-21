@@ -21,6 +21,19 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #338 — "This week" on the Office Console Dashboard (Bookore, 2026-09-21)
+
+* **Ask (Angela):** a calendar snippet on the main dashboard as an overall view.
+* **What:** a one-row Monday–Sunday strip between the KPI tiles and Active Projects on
+  `company-dashboard.html`, reading the same `/api/company/portal/calendar` window the
+  portal calendar uses (admin / c_suite only — the console's audience). Job bars in the
+  calendar's colours (lane-packed, 4 lanes then "+N more" → the calendar), today
+  highlighted, per-day "N on site" and up to three milestone chips, a footer with the
+  count and the undated-jobs pointer to Crew & site. Header link opens
+  `/company#calendar/<monday>`; a bar opens `/projects/<code>` (the console's convention).
+  No view switcher, drag, weather or print here — those stay on the calendar. EN / ES.
+* **Test** `tests/smoke_dashboard_week_338.py` (gate + CI).
+
 ### #337 — Job sites → projects in one click; the ledger and boot-ensured schema (Bookore, 2026-09-21)
 
 * **Incident:** "Arun added projects on production yesterday and they're gone." Production
