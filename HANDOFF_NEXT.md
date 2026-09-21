@@ -21,6 +21,39 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #337 — Job sites → projects in one click; the ledger and boot-ensured schema (Bookore, 2026-09-21)
+
+* **Incident:** "Arun added projects on production yesterday and they're gone." Production
+  request log (Render API): Sunday 14:27–14:33 UTC, five `POST /api/buildings` 201 —
+  job sites through the portal's "Add job site" — and NO onboarding request anywhere.
+  #330 then turned the Projects tab into a list of real jobs, so the sites left that
+  tab. Nothing was deleted; they sit under Projects → "Job sites".
+* **Fix:** `GET /api/company/portal/projects` meta gains `sites_without_project`
+  (unarchived buildings with no project). The Projects tab shows a notice listing them
+  with **Create project**; a job site's page shows **Create project here** when it has
+  no project. Both link to `/admin/projects?new=1&address=…&borough=…&client_org_id=…&name=…`,
+  which opens "+ New project" prefilled (`openNewProjectWith`; borough matched by label
+  or code; the query string is cleared). Onboarding auto-links the new project to the
+  existing job site by address (`buildings.find_or_create`), so nothing typed is lost.
+* **Ledger:** production's `/api/health` said 4 migrations pending although the app had
+  created their tables at boot. `migrations.BOOT_ENSURED` maps each such script to the
+  objects its module ensures ("table" or "table.column"); `boot()` records pending
+  scripts whose objects all exist (note `boot-ensured`). Add an entry when a new module
+  ensures its own schema. Production reads 0 pending after this deploy.
+* **Test** `tests/smoke_job_sites_337.py` (gate + CI).
+* **Lesson:** a rename that changes what a list contains needs a bridge for the rows
+  people already entered. Reading production's request log through the Render API
+  (`/v1/logs` with `path` / `method` / `statusCode` labels; `RENDER_API_KEY` from the
+  shell env, never printed) answered "what did they actually do" in minutes.
+
+### Release to production — 2026-09-21, #336 (Bookore)
+
+* Upstream PR `superstars-contracting/dashboard#10`: the building in 3D, stage 1.
+  Approved by Angela. Both gates green (exit code checked). Merged `061c27f`; Render build
+  stamp 14:01:27 UTC; health 200, `/files/static/vendor/three.module.min.js` 200 and the
+  model route 401 anonymous on `app.superstarscontracting.com`. `preprod` = `main`.
+* Earlier the same day: #333 + #334 (PR #8), #335 (PR #9), #330–#332 (PR #7).
+
 ### #336 — The building in 3D, stage 1 (Bookore, 2026-09-21)
 
 * **Ask (Angela, 2026-09-21):** the client-portal drawing markup shows the building as
