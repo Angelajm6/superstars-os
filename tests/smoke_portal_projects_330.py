@@ -86,6 +86,12 @@ def _seed() -> dict:
         conn.execute("DELETE FROM pm_project_assignment WHERE project_code IN (?, ?)", (A, B))
         conn.execute("INSERT INTO pm_project_assignment (user_id, project_code, assigned_at) VALUES (?, ?, ?)", (pm_id, A, D(-40)))
         conn.execute("DELETE FROM project_assignments WHERE project_code IN (?, ?)", (A, B))
+        # Postgres enforces project_assignments.employee_id -> employees: seed the crew for real
+        conn.execute("DELETE FROM employees WHERE employee_id LIKE 'E-9330%'")
+        for eid, wid, name in (("E-93301", "W-9331", "Pp330 Mason One"), ("E-93302", "W-9332", "Pp330 Mason Two"),
+                               ("E-93303", "W-9333", "Pp330 Gone")):
+            conn.execute("INSERT INTO employees (employee_id, worker_id, name, trade, pin, created_at, updated_at) "
+                         "VALUES (?, ?, ?, 'mason', '9330', ?, ?)", (eid, wid, name, D(0), D(0)))
         for emp in ("E-93301", "E-93302"):
             conn.execute("INSERT INTO project_assignments (project_code, employee_id, role_on_project, status) VALUES (?, ?, 'mason', 'active')", (A, emp))
         conn.execute("INSERT INTO project_assignments (project_code, employee_id, status) VALUES (?, 'E-93303', 'ended')", (A,))
@@ -121,6 +127,15 @@ def _cleanup():
         for t in ("project_assignments", "pm_project_assignment", "project_documents", "report_index", "rfi_log", "billing_sov"):
             try:
                 conn.execute(f"DELETE FROM {t} WHERE project_code IN (?, ?)", (A, B))
+            except Exception:
+                conn.rollback()
+        for sql in ("DELETE FROM worker_app_session WHERE employee_id LIKE 'E-9330%'",
+                    "DELETE FROM sign_in_log WHERE employee_id LIKE 'E-9330%'",
+                    "DELETE FROM project_assignments WHERE employee_id LIKE 'E-9330%'",
+                    "DELETE FROM labor_worker_state WHERE employee_id LIKE 'E-9330%'",
+                    "DELETE FROM employees WHERE employee_id LIKE 'E-9330%'"):
+            try:
+                conn.execute(sql)
             except Exception:
                 conn.rollback()
         conn.execute("DELETE FROM estimate WHERE code LIKE 'PP330-%'")
@@ -199,6 +214,7 @@ def main() -> int:
     assert p["project_code"] == A and p["name"] == "Pp330 Facade" and p["superintendent"] == "Sam Super" and p["start_date"] == D(-40)
     assert d["client"]["name"] == "Pp330 Owners" and d["contacts"][0]["email"] == "pp330.dana@example.com"
     assert d["pms"][0]["name"].startswith("Smoke pm") and len(d["crew"]) == 2 and {c["employee_id"] for c in d["crew"]} == {"E-93301", "E-93302"}
+    assert {c["worker_id"] for c in d["crew"]} == {"W-9331", "W-9332"} and all(c["trade"] == "mason" for c in d["crew"])
     assert d["building"] and d["building"]["address_line"].startswith("77 Pp330") and d["links"]["building"] == f"#buildings/{p['building_id']}"
     assert d["links"]["dashboard"] == f"/projects/{A}" and d["links"]["client"] == f"#clients/{ids['org']}"
     m = d["money"]["summary"]
