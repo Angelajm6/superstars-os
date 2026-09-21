@@ -156,7 +156,8 @@ def _apply_crew(conn, code: str, ids: list, *, today: Optional[str] = None) -> d
 
 
 def crew(conn, code: str) -> Optional[dict]:
-    p = _one(conn.execute("SELECT project_code, name, status, site_lat, site_lng, geofence_m FROM projects WHERE project_code = ?", (code,)))
+    p = _one(conn.execute("SELECT project_code, name, status, site_lat, site_lng, geofence_m, start_date, target_completion "
+                          "FROM projects WHERE project_code = ?", (code,)))
     if not p:
         return None
     assigned = {r["employee_id"] for r in _rows(conn.execute(
@@ -166,7 +167,8 @@ def crew(conn, code: str) -> Optional[dict]:
         w["assigned"] = w["employee_id"] in assigned
     return {"project": p, "workers": workers, "assigned_count": len(assigned),
             "site": {"site_lat": p.get("site_lat"), "site_lng": p.get("site_lng"),
-                     "geofence_m": p.get("geofence_m") or GEOFENCE_DEFAULT}}
+                     "geofence_m": p.get("geofence_m") or GEOFENCE_DEFAULT},
+            "dates": {"start_date": p.get("start_date"), "target_completion": p.get("target_completion")}}   # #332
 
 
 def set_crew(conn, code: str, payload: dict, *, actor=None) -> dict:
@@ -175,6 +177,16 @@ def set_crew(conn, code: str, payload: dict, *, actor=None) -> dict:
         raise LookupError("project not found")
     site = _site_fields(p, partial=True)
     ids = _crew_ids(conn, p)
+    # #332 — the job's dates (what the calendar draws) are edited here too
+    cur = _one(conn.execute("SELECT start_date, target_completion FROM projects WHERE project_code = ?", (code,))) or {}
+    if "start_date" in p:
+        site["start_date"] = _valid_date(p.get("start_date"))
+    if "target_completion" in p:
+        site["target_completion"] = _valid_date(p.get("target_completion"))
+    new_start = site.get("start_date", cur.get("start_date"))
+    new_end = site.get("target_completion", cur.get("target_completion"))
+    if new_start and new_end and new_end < new_start:
+        raise ValueError("target completion cannot be before the start date")
     if site:
         sets = ", ".join(f"{k} = ?" for k in site)
         conn.execute(f"UPDATE projects SET {sets}, updated_at = CURRENT_TIMESTAMP WHERE project_code = ?", (*site.values(), code))
@@ -208,6 +220,9 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
         if contract < 0:
             raise ValueError("contract value cannot be negative")
     start = _valid_date(p.get("start_date")) or date.today().isoformat()
+    target = _valid_date(p.get("target_completion"))          # #332 — the calendar bar's end
+    if target and target < start:
+        raise ValueError("target completion cannot be before the start date")
     notes = (p.get("notes") or "").strip()[:2000]
     site = _site_fields(p, partial=True)          # #325 — validated before anything is written
     crew_ids = _crew_ids(conn, p)
@@ -253,7 +268,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     code = res["project_code"]
     conn.execute("UPDATE projects SET name = ?, updated_at = ? WHERE project_code = ?", (name, now, code))
     try:
-        conn.execute("UPDATE projects SET start_date = ? WHERE project_code = ?", (start, code))
+        conn.execute("UPDATE projects SET start_date = ?, target_completion = ? WHERE project_code = ?", (start, target, code))
     except Exception as e:   # projects.start_date exists only where the legacy ALTER ran
         log.info("#324 projects.start_date not set: %s", e)
         try:
@@ -293,7 +308,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     project = _one(conn.execute("SELECT project_code, name, address, status, client_org_id, building_id, "
                                 "site_lat, site_lng, geofence_m FROM projects WHERE project_code = ?", (code,)))
     return {"project_code": code, "project": project, "estimate_id": est["id"], "estimate_code": est["code"],
-            "client_org_id": org_id, "pm_user_id": pm_user_id, "start_date": start, "contract_value": contract,
+            "client_org_id": org_id, "pm_user_id": pm_user_id, "start_date": start, "target_completion": target, "contract_value": contract,
             "crew": crew_change["added"]}
 
 

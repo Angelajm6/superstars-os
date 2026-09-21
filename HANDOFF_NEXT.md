@@ -21,6 +21,36 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #332 — The jobs calendar (Bookore, 2026-09-21)
+
+* **Ask (Angela for Arun, 2026-09-21):** a calendar showing which jobs run on which
+  day, overlaps, and each job's duration; 3-day / week / month views; every job
+  clickable through to its page; a newly created job with dates appears by itself;
+  clean and easy to scan.
+* **Data** `portal_calendar.py`: `GET /api/company/portal/calendar?from&to` (company
+  section; window ≤ 120 days). One bar per job from `projects.start_date` to
+  `target_completion`; an active job without an end is `open_ended` (drawn to the edge
+  of the window with a fade); a closed job without an end ends the day it was closed
+  (`updated_at`); active jobs without a start come back as `undated` (the page says so
+  and links to Crew & site). `days[date].reports` = project codes with a DCR that day.
+  Colour = stable hash of the code. No PII.
+* **Dates travel:** "+ New project" gained *Target completion*; `onboard()` stores it
+  (refuses end < start). Crew & site (`GET/PUT /api/admin/projects/<code>/crew`) returns
+  and edits `dates` (start + target completion, same rule) — that is where existing
+  jobs get their end date.
+* **UI (`company_portal.html` → Calendar, nav entry under Company):** segmented 3 days
+  / Week / Month (remembered per browser), ‹ Today ›, range title, Monday-first grid,
+  weekends tinted, today highlighted, bars packed into lanes per row (month caps at 3
+  lanes + "+N more" → week view on that day), continuation edges when a bar crosses a
+  row, closed jobs dimmed, hover card (client, address, dates, duration, PM, crew),
+  daily-report dots per day in the job's colour, legend chips; click anywhere on a job
+  → `#projects/<code>`. `#calendar/YYYY-MM-DD` deep-links to a date. Windows are cached
+  per range while the view is open.
+* **Test** `tests/smoke_calendar_332.py` (gate + CI).
+* **Not in this ticket (ideas offered):** drag to move / stretch a bar; milestones on
+  the grid (COI / permit expiries, invoice due dates); on-site headcount from the
+  worker app per day; weather strip on the week view; a printable "this week" sheet.
+
 ### #331 — Job locations beyond the five boroughs (Bookore, 2026-09-21)
 
 * **Ask (Angela, 2026-09-21):** pick Long Island or New Jersey (not only the five
