@@ -21,6 +21,14 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Release to production — 2026-09-21, #336 (Bookore)
+
+* Upstream PR `superstars-contracting/dashboard#10`: the building in 3D, stage 1.
+  Approved by Angela. Both gates green (exit code checked). Merged `061c27f`; Render build
+  stamp 14:01:27 UTC; health 200, `/files/static/vendor/three.module.min.js` 200 and the
+  model route 401 anonymous on `app.superstarscontracting.com`. `preprod` = `main`.
+* Earlier the same day: #333 + #334 (PR #8), #335 (PR #9), #330–#332 (PR #7).
+
 ### #336 — The building in 3D, stage 1 (Bookore, 2026-09-21)
 
 * **Ask (Angela, 2026-09-21):** the client-portal drawing markup shows the building as
