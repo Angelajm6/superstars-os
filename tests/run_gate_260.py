@@ -80,6 +80,7 @@ GATE = [
     "smoke_password_reset_flow_301.py",# #301 guard — reset BEHAVIOR: no-enum, hashed single-use tokens, session revoke, expiry, throttle
     "smoke_company_portal_302.py",     # #302 guard — company portal: company-axis gating, clients/buildings rollups, finance, compliance, company documents CRUD
     "smoke_migrations_306.py",         # #306 guard — migration ledger: baseline, pending, apply/record, drift, health count
+    "smoke_project_dates_334.py",    # #334 guard — projects.start_date / target_completion ensured dual-backend; odd date values never 500 the calendar
     "smoke_calendar_plus_333.py",    # #333 guard — calendar extras: headcount, milestones, weather mapping (stubbed), reschedule, page hooks
     "smoke_calendar_332.py",         # #332 guard — jobs calendar: window rules, open-ended / closed / undated, report dots, dates via onboarding + Crew & site, pages
     "smoke_regions_331.py",          # #331 guard — regions beyond the boroughs: one list, metas, NJ estimate series, LI job + job-site label, pickers

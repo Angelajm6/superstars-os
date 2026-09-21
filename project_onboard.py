@@ -369,6 +369,8 @@ def register(app) -> None:
     try:
         import apply_project_site_325
         apply_project_site_325.ensure(conn)          # #325 — site columns heal at boot
+        import apply_project_dates_334
+        apply_project_dates_334.ensure(conn)         # #334 — start_date / target_completion heal at boot (preprod lacked them)
     except Exception as e:   # a fresh preprod DB may migrate later; never block boot
         log.warning("#325 project site columns ensure skipped: %s", e)
     finally:

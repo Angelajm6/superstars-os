@@ -93,6 +93,7 @@ DUAL_BACKEND_MIGRATIONS = (
     "apply_doc_packages_327.py",
     "apply_aia_317.py",
     "apply_payables_319.py",
+    "apply_project_dates_334.py",
 )
 
 

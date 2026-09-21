@@ -21,6 +21,26 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #334 — projects.start_date / target_completion on Postgres; calendar never 500s (Bookore, 2026-09-21)
+
+* **Symptom (Angela, preprod screenshot):** Calendar → "Could not load the calendar ·
+  Internal server error". The portal's Projects tab (#330) read the same columns.
+* **Cause:** the two columns come from `schema_project_assignments.sql`, applied only by
+  the sqlite-only legacy `apply_assignments_schema.py`, which joined the fixture list in
+  #310 (2026-09-18). Preprod's Postgres was built 2026-09-04, so it never had them; every
+  CI fixture (built after) did, so both gates were green. #322 fixed the
+  `project_assignments` TABLE from the same script but not these two ALTERs. Production
+  (built from the real database, where the legacy script had run) has them.
+* **Fix:** `apply_project_dates_334.py` (`ensure` adds both as TEXT, dual-backend; in
+  `DUAL_BACKEND_MIGRATIONS`; called at boot from `project_onboard.register` next to the
+  #325 ensure). `portal_calendar.window` no longer compares the columns with `''` in SQL,
+  treats unparsable dates as undated instead of raising, and the API returns
+  `calendar failed: <type>: <msg>` (logged) instead of a bare 500.
+* **Rule (third time):** a column or table the app reads must be ensured dual-backend at
+  boot. Grep LEGACY_MIGRATIONS for anything else the app depends on before trusting a
+  green Postgres gate — the gate's fixture is newer than preprod and production.
+* **Test** `tests/smoke_project_dates_334.py` (gate + CI).
+
 ### #333 — Calendar extras: milestones, headcount, weather, drag, print (Bookore, 2026-09-21)
 
 * **Ask (Angela, 2026-09-21):** "implement your calendar ideas".
