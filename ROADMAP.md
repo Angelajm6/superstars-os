@@ -31,11 +31,12 @@
 | Office Console condensed from 16 sidebar entries to 12 (Certifications, Compliance › Specs, queue + Interface folded in, Drop Plan per project) | Preprod (#329) |
 | AIA progress billing: billing Schedule of Values per job, Applications for Payment with G702 + G703 documents, each issued as a progress invoice (email, link, PDF, payments) | Production (#317) |
 | Accounts payable: bills we owe (by hand, from a scanned receipt, from a subscription renewal), payments, and "what needs to get paid" — a 30-day cash view of bills, renewals and client invoices due; console + portal "Overview" renamed "Dashboard" | Production (#319) |
-| Company Portal → Projects lists jobs; a job's own page shows only that job (money, AIA, permits package, documents expiring, crew, activity, links); job sites keep their pages | Preprod (#330) |
-| Job locations beyond the five boroughs: Long Island and New Jersey in every picker, estimate series `FR-NJ-###`, region label on the job site | Preprod (#331) |
-| Jobs calendar in the Company Portal: 3-day / week / month, one bar per job from start to target completion, overlaps stacked, daily-report dots, click-through to the job page; target completion captured on "+ New project" and Crew & site | Preprod (#332) |
+| Company Portal → Projects lists jobs; a job's own page shows only that job (money, AIA, permits package, documents expiring, crew, activity, links); job sites keep their pages | Production (#330) |
+| Job locations beyond the five boroughs: Long Island and New Jersey in every picker, estimate series `FR-NJ-###`, region label on the job site | Production (#331) |
+| Jobs calendar in the Company Portal: 3-day / week / month, one bar per job from start to target completion, overlaps stacked, daily-report dots, click-through to the job page; target completion captured on "+ New project" and Crew & site | Production (#332) |
+| Calendar extras: milestones on the grid (document expiries, invoice due dates), on-site headcount per day, weather strip on the short views, drag to move / stretch a job with undo, printable sheet | Preprod (#333) |
 
-Everything through #327 is in production as of 2026-09-20 (upstream PR #4, C-suite approved on preprod). #328 and #329 went to production the same day (upstream PR #5). #317 AIA billing and #319 accounts payable went to production the same afternoon (upstream PR #6). #330 (portal project pages), #331 (Long Island / New Jersey) and #332 (jobs calendar) are on preprod awaiting review. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app.
+Everything through #327 is in production as of 2026-09-20 (upstream PR #4, C-suite approved on preprod). #328 and #329 went to production the same day (upstream PR #5). #317 AIA billing and #319 accounts payable went to production the same afternoon (upstream PR #6). #330–#332 went to production 2026-09-21 (upstream PR #7). #333 (calendar extras) is on preprod awaiting review. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app; calendar milestones / headcount if Arun wants them. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app.
 
 ---
 

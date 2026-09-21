@@ -28,6 +28,8 @@ log = logging.getLogger("ssc.portal_calendar")
 
 MAX_DAYS = 120
 PALETTE = 8
+WEATHER_MAX_DAYS = 14          # #333 — the strip is for the 3-day / week views only
+DEFAULT_SITE = (40.8083, -73.9162)   # the company's home borough when no job has coordinates
 
 
 def _conn():
@@ -67,8 +69,8 @@ def window(conn, start: date, end: date) -> dict:
         "SELECT p.project_code, p.name, p.address, p.city_zip, p.project_type, COALESCE(p.status,'active') AS status, "
         "       p.start_date, p.target_completion, p.updated_at, o.name AS client_name "
         "FROM projects p LEFT JOIN crm_organization o ON o.id = p.client_org_id "
-        "WHERE p.start_date IS NOT NULL AND p.start_date <> '' AND p.start_date <= ? "
-        "ORDER BY p.start_date, p.project_code", (e,)))
+        "WHERE p.start_date IS NOT NULL ORDER BY p.start_date, p.project_code"))
+
     codes = [r["project_code"] for r in rows]
     marks = ",".join("?" * len(codes)) if codes else "NULL"
     pms: dict = {}
@@ -89,9 +91,17 @@ def window(conn, start: date, end: date) -> dict:
         except Exception as ex:
             log.info("#332 crew lookup skipped: %s", ex)
     jobs = []
+    odd = []          # rows whose dates cannot be read: reported as undated, never a 500
     for r in rows:
-        start_d = str(r["start_date"])[:10]
-        end_d = _iso(r.get("target_completion")) if r.get("target_completion") else None
+        start_d = str(r["start_date"] or "").strip()[:10]
+        try:
+            date.fromisoformat(start_d)
+            end_d = _iso(r.get("target_completion")) if str(r.get("target_completion") or "").strip() else None
+        except ValueError:
+            odd.append({"project_code": r["project_code"], "name": r.get("name")})
+            continue
+        if start_d > e:
+            continue
         open_ended = False
         if not end_d:
             if r["status"] == "active":
@@ -111,21 +121,123 @@ def window(conn, start: date, end: date) -> dict:
             "pm": ", ".join(pms.get(r["project_code"], [])) or None, "crew_count": crew.get(r["project_code"], 0),
             "color": color_index(r["project_code"]), "today_on": start_d <= today and (open_ended or end_d >= today),
         })
-    undated = _rows(conn.execute(
-        "SELECT project_code, name FROM projects WHERE (start_date IS NULL OR start_date = '') "
-        "AND COALESCE(status,'active') = 'active' ORDER BY project_code"))
+    undated = [r for r in _rows(conn.execute(
+        "SELECT project_code, name, start_date FROM projects WHERE COALESCE(status,'active') = 'active' ORDER BY project_code"))
+        if not str(r.get("start_date") or "").strip()]
+    undated = [{"project_code": r["project_code"], "name": r.get("name")} for r in undated] + [
+        o for o in odd if o["project_code"] not in {u["project_code"] for u in undated}]
     days: dict = {}
+
+    def day(d: str) -> dict:
+        return days.setdefault(d, {"reports": [], "on_site": {}, "headcount": 0, "milestones": []})
     try:
         for r in _rows(conn.execute(
                 "SELECT report_date, project_code FROM report_index WHERE report_type = 'DCR' AND report_date >= ? AND report_date <= ? "
                 "ORDER BY report_date", (s, e))):
-            d = str(r["report_date"])[:10]
-            days.setdefault(d, {"reports": []})
-            if r["project_code"] not in days[d]["reports"]:
-                days[d]["reports"].append(r["project_code"])
+            d = day(str(r["report_date"])[:10])
+            if r["project_code"] not in d["reports"]:
+                d["reports"].append(r["project_code"])
     except Exception as ex:
         log.info("#332 report dots skipped: %s", ex)
+    # #333 — who was actually on site: distinct workers signed in per job per day
+    try:
+        for r in _rows(conn.execute(
+                "SELECT date, project_code, COUNT(DISTINCT employee_id) AS n FROM sign_in_log "
+                "WHERE date >= ? AND date <= ? GROUP BY date, project_code", (s, e))):
+            d = day(str(r["date"])[:10])
+            d["on_site"][r["project_code"]] = int(r["n"])
+            d["headcount"] += int(r["n"])
+    except Exception as ex:
+        log.info("#333 headcount skipped: %s", ex)
+    # #333 — milestones: documents that expire and client invoices that fall due
+    try:
+        for r in _rows(conn.execute(
+                "SELECT d.id, d.project_code, d.category, d.requirement_key, d.title, d.expiry_date, p.name AS project_name "
+                "FROM project_documents d LEFT JOIN projects p ON p.project_code = d.project_code "
+                "WHERE COALESCE(d.superseded,0) = 0 AND d.expiry_date >= ? AND d.expiry_date <= ? ORDER BY d.expiry_date", (s, e))):
+            when = str(r["expiry_date"])[:10]
+            day(when)["milestones"].append({
+                "kind": "document", "id": r["id"], "project_code": r["project_code"], "project_name": r.get("project_name"),
+                "label": r.get("title") or (r.get("requirement_key") or r.get("category") or "document"),
+                "category": r.get("category"), "date": when, "late": when < today})
+    except Exception as ex:
+        log.info("#333 document milestones skipped: %s", ex)
+    try:
+        for r in _rows(conn.execute(
+                "SELECT i.id, i.number, i.project_code, i.due_at, i.amount, i.amount_paid, o.name AS client_name "
+                "FROM invoice i LEFT JOIN crm_organization o ON o.id = i.client_org_id "
+                "WHERE i.status = 'issued' AND i.due_at >= ? AND i.due_at <= ? ORDER BY i.due_at", (s, e))):
+            when = str(r["due_at"])[:10]
+            day(when)["milestones"].append({
+                "kind": "invoice", "id": r["id"], "number": r["number"], "project_code": r.get("project_code"),
+                "client_name": r.get("client_name"), "balance": round(float(r["amount"] or 0) - float(r["amount_paid"] or 0), 2),
+                "label": f"{r['number']} due", "date": when, "late": when < today})
+    except Exception as ex:
+        log.info("#333 invoice milestones skipped: %s", ex)
     return {"range": {"from": s, "to": e, "today": today}, "jobs": jobs, "undated": undated, "days": days}
+
+
+def _site(conn) -> tuple:
+    """Coordinates for the weather strip: the one active job with a site, else the home borough."""
+    try:
+        rows = _rows(conn.execute(
+            "SELECT site_lat, site_lng FROM projects WHERE COALESCE(status,'active') = 'active' AND site_lat IS NOT NULL "
+            "AND site_lng IS NOT NULL ORDER BY start_date DESC LIMIT 1"))
+        if rows:
+            return float(rows[0]["site_lat"]), float(rows[0]["site_lng"])
+    except Exception:
+        pass
+    return DEFAULT_SITE
+
+
+def weather(conn, start: date, end: date, fetch=None) -> dict:
+    """Per-day conditions for a short window (≤ 14 days), read through the same provider
+    helper the DCR uses (cached 30 min per date; a provider failure just leaves a day out)."""
+    if end < start:
+        raise ValueError("the window ends before it starts")
+    if (end - start).days + 1 > WEATHER_MAX_DAYS:
+        raise ValueError(f"weather covers at most {WEATHER_MAX_DAYS} days")
+    if fetch is None:
+        import server
+        fetch, labels = server.fetch_open_meteo_weather, server._WMO_LABELS
+    else:
+        labels = {}
+        try:
+            import server
+            labels = server._WMO_LABELS
+        except Exception:
+            pass
+    lat, lng = _site(conn)
+    out = {}
+    d = start
+    while d <= end:
+        try:
+            w = fetch(lat, lng, d.isoformat()) or {}
+            code = w.get("condition_code")
+            out[d.isoformat()] = {"code": code, "label": labels.get(code, "—") if code is not None else "—",
+                                  "temp_max": w.get("temp_max"), "temp_min": w.get("temp_min"),
+                                  "precip_prob": w.get("precip_prob_today")}
+        except Exception as ex:
+            log.info("#333 weather skipped for %s: %s", d, ex)
+        d += timedelta(days=1)
+    return {"site": {"lat": lat, "lng": lng}, "days": out}
+
+
+def _api_weather():
+    conn = _conn()
+    try:
+        try:
+            today = date.today()
+            start = date.fromisoformat(_iso(request.args.get("from")) or today.isoformat())
+            end = date.fromisoformat(_iso(request.args.get("to")) or (start + timedelta(days=6)).isoformat())
+        except ValueError:
+            return jsonify({"error": "dates must be YYYY-MM-DD"}), 400
+        try:
+            return jsonify({"data": weather(conn, start, end)})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+    finally:
+        conn.close()
 
 
 def _api_calendar():
@@ -141,6 +253,9 @@ def _api_calendar():
             return jsonify({"data": window(conn, start, end)})
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
+        except Exception as e:   # say what broke instead of a bare 500 (#334: a missing column on preprod)
+            log.exception("#332 calendar failed")
+            return jsonify({"error": f"calendar failed: {type(e).__name__}: {str(e)[:160]}"}), 500
     finally:
         conn.close()
 
@@ -149,3 +264,4 @@ def register(app) -> None:
     import company_portal
     gate = requires_section(company_portal.SECTION)
     app.add_url_rule("/api/company/portal/calendar", "portal_calendar", gate(_api_calendar), methods=["GET"])
+    app.add_url_rule("/api/company/portal/calendar/weather", "portal_calendar_weather", gate(_api_weather), methods=["GET"])   # #333

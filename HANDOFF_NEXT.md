@@ -21,6 +21,59 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #334 — projects.start_date / target_completion on Postgres; calendar never 500s (Bookore, 2026-09-21)
+
+* **Symptom (Angela, preprod screenshot):** Calendar → "Could not load the calendar ·
+  Internal server error". The portal's Projects tab (#330) read the same columns.
+* **Cause:** the two columns come from `schema_project_assignments.sql`, applied only by
+  the sqlite-only legacy `apply_assignments_schema.py`, which joined the fixture list in
+  #310 (2026-09-18). Preprod's Postgres was built 2026-09-04, so it never had them; every
+  CI fixture (built after) did, so both gates were green. #322 fixed the
+  `project_assignments` TABLE from the same script but not these two ALTERs. Production
+  (built from the real database, where the legacy script had run) has them.
+* **Fix:** `apply_project_dates_334.py` (`ensure` adds both as TEXT, dual-backend; in
+  `DUAL_BACKEND_MIGRATIONS`; called at boot from `project_onboard.register` next to the
+  #325 ensure). `portal_calendar.window` no longer compares the columns with `''` in SQL,
+  treats unparsable dates as undated instead of raising, and the API returns
+  `calendar failed: <type>: <msg>` (logged) instead of a bare 500.
+* **Rule (third time):** a column or table the app reads must be ensured dual-backend at
+  boot. Grep LEGACY_MIGRATIONS for anything else the app depends on before trusting a
+  green Postgres gate — the gate's fixture is newer than preprod and production.
+* **Test** `tests/smoke_project_dates_334.py` (gate + CI).
+
+### #333 — Calendar extras: milestones, headcount, weather, drag, print (Bookore, 2026-09-21)
+
+* **Ask (Angela, 2026-09-21):** "implement your calendar ideas".
+* **Data (`portal_calendar.window`)**, per day: `on_site` {code: distinct workers from
+  `sign_in_log`} + `headcount`; `milestones` = non-superseded `project_documents` with an
+  `expiry_date` in the window (`late` when past) + `issued` invoices with `due_at` in the
+  window (balance, client). Drafts and superseded documents never appear.
+* **Weather** `GET /api/company/portal/calendar/weather?from&to` (≤ 14 days): one call
+  per day through `server.fetch_open_meteo_weather` (30-min cache; a failing day is
+  left out), labelled with `server._WMO_LABELS`; coordinates = the latest active job
+  with a site, else the home borough. `portal_calendar.weather(conn, s, e, fetch=)`
+  takes the provider as a parameter so the test stubs it — no network in CI.
+* **UI:** amber `◆` chips for expiring documents, blue `$` for invoices due, red when
+  late (click → the job); "N on site" badge in the day header with a per-job tooltip;
+  the weather strip under the day headers on 3-day / week only; drag a bar to move the
+  whole job, drag its right grip to change the end → `PUT /api/admin/projects/<code>/crew`
+  with an Undo link in the toast (a click after a drag is swallowed); "Print" builds a
+  jobs table + a by-day table and prints the view (`@media print` hides the shell).
+* **Test** `tests/smoke_calendar_plus_333.py` (gate + CI).
+* **Left out on purpose:** weather on the month view (too noisy); drag on touch (works
+  with a mouse / trackpad; phones open the job instead).
+
+### Release to production — 2026-09-21 (Bookore)
+
+* Upstream PR `superstars-contracting/dashboard#7`: #330 portal project pages (+ the
+  Postgres test fix), #331 Long Island / New Jersey, #332 jobs calendar. Approved by
+  Angela. Both gates green before the merge (checked by exit code this time). Merged
+  `488f320`; Render build stamp 08:24:54 UTC; health 200 on the Render hostname AND on
+  `app.superstarscontracting.com` (the Cloudflare edge was fine this morning).
+  `preprod` fast-forwarded to `main`.
+* **After-deploy chore for Arun:** existing jobs have no target completion; set them
+  under Projects & assignments → Crew & site so the calendar bars get an end.
+
 ### #332 — The jobs calendar (Bookore, 2026-09-21)
 
 * **Ask (Angela for Arun, 2026-09-21):** a calendar showing which jobs run on which
