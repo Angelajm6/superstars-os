@@ -52,6 +52,12 @@ grant, or elevation code.
   updated for the new hash.
 * **Not in this ticket:** editing a project from the portal (Crew & site stays on the
   console); daily-report list on the page (the job dashboard has it).
+* **Postgres lesson (the PR's postgres gate failed and was merged anyway because
+  `gh pr checks --watch | tail` hid the exit code):** the fixture-built
+  `project_assignments` carries a FOREIGN KEY to `employees` on Postgres (the legacy
+  `apply_assignments_schema.py`), SQLite does not enforce it without `pragma_fk`. A
+  test that assigns crew must seed `employees` rows (see #325). Fixed the same night in
+  the follow-up PR. Rule: never pipe `gh pr checks --watch` through `tail`; read `$?`.
 
 ### Release to production — 2026-09-20, third of the day (Bookore)
 
