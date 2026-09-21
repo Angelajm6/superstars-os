@@ -72,6 +72,11 @@ def _seed() -> dict:
         conn.execute("INSERT INTO projects (project_code, name, address, status, client_org_id, start_date, target_completion, updated_at) "
                      "VALUES (?, 'Cal333 Facade', '1 Cal333 St', 'active', ?, ?, ?, ?)", (A, ids["org"], D(-3), D(10), D(0)))
         conn.execute("DELETE FROM sign_in_log WHERE project_code = ?", (A,))
+        # Postgres enforces sign_in_log.employee_id -> employees: seed the two workers for real
+        conn.execute("DELETE FROM employees WHERE employee_id LIKE 'E-9333%'")
+        for eid, wid, name in (("E-93331", "W-9341", "Cal333 Mason One"), ("E-93332", "W-9342", "Cal333 Mason Two")):
+            conn.execute("INSERT INTO employees (employee_id, worker_id, name, trade, pin, created_at, updated_at) "
+                         "VALUES (?, ?, ?, 'mason', '9333', ?, ?)", (eid, wid, name, D(0), D(0)))
         for emp, n in (("E-93331", 0), ("E-93332", 0), ("E-93331", 0), ("E-93331", -1)):   # two distinct today, one yesterday
             conn.execute("INSERT INTO sign_in_log (date, employee_id, project_code, time_in, created_at, updated_at) "
                          "VALUES (?, ?, ?, '07:00', ?, ?)", (D(n), emp, A, D(0), D(0)))
@@ -101,6 +106,14 @@ def _cleanup():
         for t in ("sign_in_log", "project_documents", "pm_project_assignment", "project_assignments"):
             try:
                 conn.execute(f"DELETE FROM {t} WHERE project_code = ?", (A,))
+            except Exception:
+                conn.rollback()
+        for sql in ("DELETE FROM worker_app_session WHERE employee_id LIKE 'E-9333%'",
+                    "DELETE FROM sign_in_log WHERE employee_id LIKE 'E-9333%'",
+                    "DELETE FROM labor_worker_state WHERE employee_id LIKE 'E-9333%'",
+                    "DELETE FROM employees WHERE employee_id LIKE 'E-9333%'"):
+            try:
+                conn.execute(sql)
             except Exception:
                 conn.rollback()
         org_ids = [r["id"] for r in conn.execute("SELECT id FROM crm_organization WHERE name LIKE 'Cal333 %'").fetchall()]
