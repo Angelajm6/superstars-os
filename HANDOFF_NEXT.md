@@ -21,6 +21,17 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Release to production — 2026-09-21 (Bookore)
+
+* Upstream PR `superstars-contracting/dashboard#7`: #330 portal project pages (+ the
+  Postgres test fix), #331 Long Island / New Jersey, #332 jobs calendar. Approved by
+  Angela. Both gates green before the merge (checked by exit code this time). Merged
+  `488f320`; Render build stamp 08:24:54 UTC; health 200 on the Render hostname AND on
+  `app.superstarscontracting.com` (the Cloudflare edge was fine this morning).
+  `preprod` fast-forwarded to `main`.
+* **After-deploy chore for Arun:** existing jobs have no target completion; set them
+  under Projects & assignments → Crew & site so the calendar bars get an end.
+
 ### #332 — The jobs calendar (Bookore, 2026-09-21)
 
 * **Ask (Angela for Arun, 2026-09-21):** a calendar showing which jobs run on which
