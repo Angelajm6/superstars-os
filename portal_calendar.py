@@ -69,8 +69,8 @@ def window(conn, start: date, end: date) -> dict:
         "SELECT p.project_code, p.name, p.address, p.city_zip, p.project_type, COALESCE(p.status,'active') AS status, "
         "       p.start_date, p.target_completion, p.updated_at, o.name AS client_name "
         "FROM projects p LEFT JOIN crm_organization o ON o.id = p.client_org_id "
-        "WHERE p.start_date IS NOT NULL AND p.start_date <> '' AND p.start_date <= ? "
-        "ORDER BY p.start_date, p.project_code", (e,)))
+        "WHERE p.start_date IS NOT NULL ORDER BY p.start_date, p.project_code"))
+
     codes = [r["project_code"] for r in rows]
     marks = ",".join("?" * len(codes)) if codes else "NULL"
     pms: dict = {}
@@ -91,9 +91,17 @@ def window(conn, start: date, end: date) -> dict:
         except Exception as ex:
             log.info("#332 crew lookup skipped: %s", ex)
     jobs = []
+    odd = []          # rows whose dates cannot be read: reported as undated, never a 500
     for r in rows:
-        start_d = str(r["start_date"])[:10]
-        end_d = _iso(r.get("target_completion")) if r.get("target_completion") else None
+        start_d = str(r["start_date"] or "").strip()[:10]
+        try:
+            date.fromisoformat(start_d)
+            end_d = _iso(r.get("target_completion")) if str(r.get("target_completion") or "").strip() else None
+        except ValueError:
+            odd.append({"project_code": r["project_code"], "name": r.get("name")})
+            continue
+        if start_d > e:
+            continue
         open_ended = False
         if not end_d:
             if r["status"] == "active":
@@ -113,9 +121,11 @@ def window(conn, start: date, end: date) -> dict:
             "pm": ", ".join(pms.get(r["project_code"], [])) or None, "crew_count": crew.get(r["project_code"], 0),
             "color": color_index(r["project_code"]), "today_on": start_d <= today and (open_ended or end_d >= today),
         })
-    undated = _rows(conn.execute(
-        "SELECT project_code, name FROM projects WHERE (start_date IS NULL OR start_date = '') "
-        "AND COALESCE(status,'active') = 'active' ORDER BY project_code"))
+    undated = [r for r in _rows(conn.execute(
+        "SELECT project_code, name, start_date FROM projects WHERE COALESCE(status,'active') = 'active' ORDER BY project_code"))
+        if not str(r.get("start_date") or "").strip()]
+    undated = [{"project_code": r["project_code"], "name": r.get("name")} for r in undated] + [
+        o for o in odd if o["project_code"] not in {u["project_code"] for u in undated}]
     days: dict = {}
 
     def day(d: str) -> dict:
@@ -243,6 +253,9 @@ def _api_calendar():
             return jsonify({"data": window(conn, start, end)})
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
+        except Exception as e:   # say what broke instead of a bare 500 (#334: a missing column on preprod)
+            log.exception("#332 calendar failed")
+            return jsonify({"error": f"calendar failed: {type(e).__name__}: {str(e)[:160]}"}), 500
     finally:
         conn.close()
 
