@@ -21,6 +21,28 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #333 — Calendar extras: milestones, headcount, weather, drag, print (Bookore, 2026-09-21)
+
+* **Ask (Angela, 2026-09-21):** "implement your calendar ideas".
+* **Data (`portal_calendar.window`)**, per day: `on_site` {code: distinct workers from
+  `sign_in_log`} + `headcount`; `milestones` = non-superseded `project_documents` with an
+  `expiry_date` in the window (`late` when past) + `issued` invoices with `due_at` in the
+  window (balance, client). Drafts and superseded documents never appear.
+* **Weather** `GET /api/company/portal/calendar/weather?from&to` (≤ 14 days): one call
+  per day through `server.fetch_open_meteo_weather` (30-min cache; a failing day is
+  left out), labelled with `server._WMO_LABELS`; coordinates = the latest active job
+  with a site, else the home borough. `portal_calendar.weather(conn, s, e, fetch=)`
+  takes the provider as a parameter so the test stubs it — no network in CI.
+* **UI:** amber `◆` chips for expiring documents, blue `$` for invoices due, red when
+  late (click → the job); "N on site" badge in the day header with a per-job tooltip;
+  the weather strip under the day headers on 3-day / week only; drag a bar to move the
+  whole job, drag its right grip to change the end → `PUT /api/admin/projects/<code>/crew`
+  with an Undo link in the toast (a click after a drag is swallowed); "Print" builds a
+  jobs table + a by-day table and prints the view (`@media print` hides the shell).
+* **Test** `tests/smoke_calendar_plus_333.py` (gate + CI).
+* **Left out on purpose:** weather on the month view (too noisy); drag on touch (works
+  with a mouse / trackpad; phones open the job instead).
+
 ### Release to production — 2026-09-21 (Bookore)
 
 * Upstream PR `superstars-contracting/dashboard#7`: #330 portal project pages (+ the

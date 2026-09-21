@@ -34,8 +34,9 @@
 | Company Portal → Projects lists jobs; a job's own page shows only that job (money, AIA, permits package, documents expiring, crew, activity, links); job sites keep their pages | Production (#330) |
 | Job locations beyond the five boroughs: Long Island and New Jersey in every picker, estimate series `FR-NJ-###`, region label on the job site | Production (#331) |
 | Jobs calendar in the Company Portal: 3-day / week / month, one bar per job from start to target completion, overlaps stacked, daily-report dots, click-through to the job page; target completion captured on "+ New project" and Crew & site | Production (#332) |
+| Calendar extras: milestones on the grid (document expiries, invoice due dates), on-site headcount per day, weather strip on the short views, drag to move / stretch a job with undo, printable sheet | Preprod (#333) |
 
-Everything through #327 is in production as of 2026-09-20 (upstream PR #4, C-suite approved on preprod). #328 and #329 went to production the same day (upstream PR #5). #317 AIA billing and #319 accounts payable went to production the same afternoon (upstream PR #6). #330–#332 went to production 2026-09-21 (upstream PR #7). Preprod = main. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app; calendar milestones / headcount if Arun wants them. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app.
+Everything through #327 is in production as of 2026-09-20 (upstream PR #4, C-suite approved on preprod). #328 and #329 went to production the same day (upstream PR #5). #317 AIA billing and #319 accounts payable went to production the same afternoon (upstream PR #6). #330–#332 went to production 2026-09-21 (upstream PR #7). #333 (calendar extras) is on preprod awaiting review. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app; calendar milestones / headcount if Arun wants them. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app.
 
 ---
 
