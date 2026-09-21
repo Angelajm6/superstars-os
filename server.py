@@ -111,6 +111,8 @@ import payables
 payables.register(app)       # #319 — accounts payable + the 30-day cash view
 import portal_projects
 portal_projects.register(app)   # #330 — Company Portal Projects tab = jobs; a job's own page
+import portal_calendar
+portal_calendar.register(app)   # #332 — the jobs calendar (3-day / week / month)
 
 # #279 (UI v2 phase 0) — the interface toggle. MUST follow apply_auth_gate: the
 # stored per-user preference is read off current_user(). Sets g.ui_version on page
