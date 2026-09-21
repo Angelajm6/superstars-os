@@ -28,6 +28,8 @@ log = logging.getLogger("ssc.portal_calendar")
 
 MAX_DAYS = 120
 PALETTE = 8
+WEATHER_MAX_DAYS = 14          # #333 — the strip is for the 3-day / week views only
+DEFAULT_SITE = (40.8083, -73.9162)   # the company's home borough when no job has coordinates
 
 
 def _conn():
@@ -115,17 +117,117 @@ def window(conn, start: date, end: date) -> dict:
         "SELECT project_code, name FROM projects WHERE (start_date IS NULL OR start_date = '') "
         "AND COALESCE(status,'active') = 'active' ORDER BY project_code"))
     days: dict = {}
+
+    def day(d: str) -> dict:
+        return days.setdefault(d, {"reports": [], "on_site": {}, "headcount": 0, "milestones": []})
     try:
         for r in _rows(conn.execute(
                 "SELECT report_date, project_code FROM report_index WHERE report_type = 'DCR' AND report_date >= ? AND report_date <= ? "
                 "ORDER BY report_date", (s, e))):
-            d = str(r["report_date"])[:10]
-            days.setdefault(d, {"reports": []})
-            if r["project_code"] not in days[d]["reports"]:
-                days[d]["reports"].append(r["project_code"])
+            d = day(str(r["report_date"])[:10])
+            if r["project_code"] not in d["reports"]:
+                d["reports"].append(r["project_code"])
     except Exception as ex:
         log.info("#332 report dots skipped: %s", ex)
+    # #333 — who was actually on site: distinct workers signed in per job per day
+    try:
+        for r in _rows(conn.execute(
+                "SELECT date, project_code, COUNT(DISTINCT employee_id) AS n FROM sign_in_log "
+                "WHERE date >= ? AND date <= ? GROUP BY date, project_code", (s, e))):
+            d = day(str(r["date"])[:10])
+            d["on_site"][r["project_code"]] = int(r["n"])
+            d["headcount"] += int(r["n"])
+    except Exception as ex:
+        log.info("#333 headcount skipped: %s", ex)
+    # #333 — milestones: documents that expire and client invoices that fall due
+    try:
+        for r in _rows(conn.execute(
+                "SELECT d.id, d.project_code, d.category, d.requirement_key, d.title, d.expiry_date, p.name AS project_name "
+                "FROM project_documents d LEFT JOIN projects p ON p.project_code = d.project_code "
+                "WHERE COALESCE(d.superseded,0) = 0 AND d.expiry_date >= ? AND d.expiry_date <= ? ORDER BY d.expiry_date", (s, e))):
+            when = str(r["expiry_date"])[:10]
+            day(when)["milestones"].append({
+                "kind": "document", "id": r["id"], "project_code": r["project_code"], "project_name": r.get("project_name"),
+                "label": r.get("title") or (r.get("requirement_key") or r.get("category") or "document"),
+                "category": r.get("category"), "date": when, "late": when < today})
+    except Exception as ex:
+        log.info("#333 document milestones skipped: %s", ex)
+    try:
+        for r in _rows(conn.execute(
+                "SELECT i.id, i.number, i.project_code, i.due_at, i.amount, i.amount_paid, o.name AS client_name "
+                "FROM invoice i LEFT JOIN crm_organization o ON o.id = i.client_org_id "
+                "WHERE i.status = 'issued' AND i.due_at >= ? AND i.due_at <= ? ORDER BY i.due_at", (s, e))):
+            when = str(r["due_at"])[:10]
+            day(when)["milestones"].append({
+                "kind": "invoice", "id": r["id"], "number": r["number"], "project_code": r.get("project_code"),
+                "client_name": r.get("client_name"), "balance": round(float(r["amount"] or 0) - float(r["amount_paid"] or 0), 2),
+                "label": f"{r['number']} due", "date": when, "late": when < today})
+    except Exception as ex:
+        log.info("#333 invoice milestones skipped: %s", ex)
     return {"range": {"from": s, "to": e, "today": today}, "jobs": jobs, "undated": undated, "days": days}
+
+
+def _site(conn) -> tuple:
+    """Coordinates for the weather strip: the one active job with a site, else the home borough."""
+    try:
+        rows = _rows(conn.execute(
+            "SELECT site_lat, site_lng FROM projects WHERE COALESCE(status,'active') = 'active' AND site_lat IS NOT NULL "
+            "AND site_lng IS NOT NULL ORDER BY start_date DESC LIMIT 1"))
+        if rows:
+            return float(rows[0]["site_lat"]), float(rows[0]["site_lng"])
+    except Exception:
+        pass
+    return DEFAULT_SITE
+
+
+def weather(conn, start: date, end: date, fetch=None) -> dict:
+    """Per-day conditions for a short window (≤ 14 days), read through the same provider
+    helper the DCR uses (cached 30 min per date; a provider failure just leaves a day out)."""
+    if end < start:
+        raise ValueError("the window ends before it starts")
+    if (end - start).days + 1 > WEATHER_MAX_DAYS:
+        raise ValueError(f"weather covers at most {WEATHER_MAX_DAYS} days")
+    if fetch is None:
+        import server
+        fetch, labels = server.fetch_open_meteo_weather, server._WMO_LABELS
+    else:
+        labels = {}
+        try:
+            import server
+            labels = server._WMO_LABELS
+        except Exception:
+            pass
+    lat, lng = _site(conn)
+    out = {}
+    d = start
+    while d <= end:
+        try:
+            w = fetch(lat, lng, d.isoformat()) or {}
+            code = w.get("condition_code")
+            out[d.isoformat()] = {"code": code, "label": labels.get(code, "—") if code is not None else "—",
+                                  "temp_max": w.get("temp_max"), "temp_min": w.get("temp_min"),
+                                  "precip_prob": w.get("precip_prob_today")}
+        except Exception as ex:
+            log.info("#333 weather skipped for %s: %s", d, ex)
+        d += timedelta(days=1)
+    return {"site": {"lat": lat, "lng": lng}, "days": out}
+
+
+def _api_weather():
+    conn = _conn()
+    try:
+        try:
+            today = date.today()
+            start = date.fromisoformat(_iso(request.args.get("from")) or today.isoformat())
+            end = date.fromisoformat(_iso(request.args.get("to")) or (start + timedelta(days=6)).isoformat())
+        except ValueError:
+            return jsonify({"error": "dates must be YYYY-MM-DD"}), 400
+        try:
+            return jsonify({"data": weather(conn, start, end)})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+    finally:
+        conn.close()
 
 
 def _api_calendar():
@@ -149,3 +251,4 @@ def register(app) -> None:
     import company_portal
     gate = requires_section(company_portal.SECTION)
     app.add_url_rule("/api/company/portal/calendar", "portal_calendar", gate(_api_calendar), methods=["GET"])
+    app.add_url_rule("/api/company/portal/calendar/weather", "portal_calendar_weather", gate(_api_weather), methods=["GET"])   # #333
