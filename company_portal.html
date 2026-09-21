@@ -293,6 +293,7 @@
       <!-- ================= PROJECTS (#330) — jobs, one page each ================= -->
       <section class="cp-view" id="view-projects" hidden>
         <div id="projects-list">
+          <div id="pj-notice"></div>
           <div class="cp-card">
             <div class="cp-toolbar">
               <input class="cp-input search" id="pj-search" placeholder="Search code, name, address or client…" autocomplete="off">
@@ -1000,7 +1001,9 @@
     skeleton($('pj-table'), 5);
     const q = new URLSearchParams(); q.set('status', $('pj-status').value); if ($('pj-search').value.trim()) q.set('search', $('pj-search').value.trim());
     try {
-      const { data: rows } = await api('/projects?' + q.toString());
+      const { data: rows, meta } = await api('/projects?' + q.toString());
+      const sites = (meta && meta.sites_without_project) || [];   // #337
+      $('pj-notice').innerHTML = sites.length ? `<div class="cp-note" style="margin-bottom:12px"><strong>${sites.length} job site${sites.length > 1 ? 's have' : ' has'} no project yet.</strong> A job site is just an address — create the project so it gets a dashboard, crew, calendar bar and daily reports.<ul class="cp-list" style="margin-top:8px">${sites.map(s => `<li><span><a class="cp-link" href="#buildings/${s.id}">${esc(s.name || s.address_line)}</a>${s.client_name ? ' <span class="cp-muted">· ' + esc(s.client_name) + '</span>' : ''}</span><a class="btn-primary btn-sm" style="text-decoration:none" href="${newProjectHref(s)}">Create project</a></li>`).join('')}</ul></div>` : '';
       table($('pj-table'), [
         { key: 'project_code', label: 'Job', render: r => `<span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:12px">${esc(r.name || '')}</div>` },
         { key: 'address', label: 'Address', render: r => `${esc(r.address || '—')}<div class="cp-muted" style="font-size:12px">${esc(r.city_zip || '')}</div>` },
@@ -1014,6 +1017,12 @@
       ], rows, { defaultSort: { key: 'project_code', dir: 'asc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.hash = '#projects/' + encodeURIComponent(r.project_code); },
         emptyTitle: 'No jobs here', emptySub: 'Add one with "+ New project" — the daily report and the worker portal work for it right away.' });
     } catch (e) { toast(e.message, true); $('pj-table').innerHTML = empty('Could not load projects', e.message); }
+  }
+  // #337 — hand a job site to "+ New project" with the address, borough and client filled in
+  function newProjectHref(s) {
+    const q = new URLSearchParams({ new: '1', address: s.address_line || s.address || '', borough: s.borough || '', name: s.name || '' });
+    if (s.client_org_id) q.set('client_org_id', s.client_org_id);
+    return '/admin/projects?' + q.toString();
   }
   async function loadProjectDetail(code) {
     $('projects-list').hidden = true; const host = $('project-detail'); host.hidden = false; host.innerHTML = '<div class="cp-card"><div class="cp-skel"></div><div class="cp-skel"></div></div>';
@@ -1114,8 +1123,9 @@
       const projects = b.projects.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th><th>Name</th><th>Status</th><th>Type</th><th></th></tr></thead><tbody>${b.projects.map(p => `<tr><td class="cp-id"><a class="cp-link" href="/projects/${encodeURIComponent(p.project_code)}">${esc(p.project_code)}</a></td><td>${esc(p.name || '')}</td><td><span class="cp-pill ${p.status === 'active' ? 'active' : ''}">${esc(p.status || 'active')}</span></td><td>${esc(p.project_type || '—')}</td><td><button type="button" class="cp-link" data-unlink-project="${esc(p.project_code)}" style="color:#A8382B">Unlink</button></td></tr>`).join('')}</tbody></table></div>` : empty('No projects at this job site yet');
       const estimates = b.estimates.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Estimate</th><th>Status</th><th>Stage</th><th class="num">Amount</th><th>Submitted</th><th>Decided</th><th></th></tr></thead><tbody>${b.estimates.map(e => `<tr><td class="cp-id">${esc(e.code)}</td><td><span class="cp-pill">${esc(e.status)}</span></td><td>${esc(e.est_stage || '—')}</td><td class="num">${e.final_amount ? money.format(e.final_amount) : '—'}</td><td>${fmtDate(e.submitted_date)}</td><td>${fmtDate(e.decided_date)}</td><td style="white-space:nowrap">${['lost','converted'].includes(e.status) ? '' : `<button type="button" class="cp-link" data-propose="${e.id}">Proposal</button> · `}<button type="button" class="cp-link" data-unlink-estimate="${e.id}" style="color:#A8382B">Unlink</button></td></tr>`).join('')}</tbody></table></div>` : empty('No estimates at this job site yet');
       host.innerHTML = `
-        <div class="cp-toolbar"><a class="cp-link" href="#buildings">← All projects</a><span style="flex:1"></span>
+        <div class="cp-toolbar"><a class="cp-link" href="#buildings">← All job sites</a><span style="flex:1"></span>
           ${b.archived_at ? '<span class="cp-pill">archived</span>' : ''}
+          ${!b.projects.length && !b.archived_at ? `<a class="btn-primary btn-sm" style="text-decoration:none" href="${newProjectHref(b)}" title="Open + New project with this address filled in">Create project here</a>` : ''}
           <button class="btn-ghost btn-sm" type="button" id="bd-link-btn">Link project / estimate</button>
           <button class="btn-ghost btn-sm" type="button" id="bd-edit">Edit</button>
           <button class="btn-ghost btn-sm" type="button" id="bd-arch" style="color:#A8382B">${b.archived_at ? 'Restore' : 'Archive'}</button></div>
