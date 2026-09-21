@@ -187,6 +187,7 @@
   </header>
 
   <div class="toolbar v2-no-print">
+    <button type="button" class="v2-btn-ghost" id="view3d" aria-pressed="false" title="See the whole building — drag to orbit, tap a cell">3D</button>
     <button type="button" class="v2-btn-ghost" id="patterns" aria-pressed="false">Patterns</button>
     <button type="button" class="v2-btn-ghost" id="printbtn">Print</button>
     <span class="zoomctl" role="group" aria-label="Zoom">
@@ -205,6 +206,7 @@
   <div class="cols">
     <div class="v2-card">
       <div class="stage" id="stage"></div>
+      <div class="stage3d" id="stage3d" hidden></div>
       <div class="legend" id="legend"></div>
     </div>
 
@@ -938,6 +940,50 @@
     this.setAttribute('aria-pressed', String(S.patterns));
     render();
   });
+
+  // ---------- #336 — the building in 3D --------------------------------------
+  // The viewer is an ES module (vendored three.js) loaded on first use. It draws every
+  // traced elevation of the job on the real building; picking a cell opens the same panel
+  // as the 2D sheet, on the same state.
+  var V3 = { on: false, mod: null, view: null, elevs: {} };
+  function toneColorCss(tone) {
+    var probe = document.createElement('span'); probe.style.color = toneChip(tone); document.body.appendChild(probe);
+    var c = getComputedStyle(probe).color; probe.remove(); return c;
+  }
+  function open3d() {
+    var code = S.data && S.data.project_code; if (!code) return;
+    $('stage3d').hidden = false; $('stage').hidden = true; $('stage3d').innerHTML = '<div class="v2-muted" style="padding:24px">Building the model…</div>';
+    var load = V3.mod ? Promise.resolve(V3.mod) : import('/files/static/js/building3d.js').then(function (m) { V3.mod = m; return m; });
+    var model = fetch('/api/elevation/model3d/' + encodeURIComponent(code), { credentials:'same-origin' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (j) { return j.data; });
+    Promise.all([load, model]).then(function (res) {
+      var mod = res[0], m = res[1];
+      var ids = Object.keys(m.mapping || {}).map(function (k) { return m.mapping[k]; });
+      return Promise.all(ids.map(function (id) {
+        if (id === S.elevId && S.data) return Promise.resolve(S.data);
+        return fetch('/api/elevation/' + id, { credentials:'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { return j && j.data; });
+      })).then(function (payloads) {
+        V3.elevs = {}; ids.forEach(function (id, i) { if (payloads[i]) V3.elevs[id] = payloads[i]; });
+        if (S.data && S.elevId) V3.elevs[S.elevId] = S.data;
+        V3.view = mod.open($('stage3d'), m, V3.elevs, {
+          toneColor: toneColorCss,
+          statusOf: function (ep, key) { return (ep && ep.statuses && ep.statuses[key]) || { key:key, label:key, tone:'neutral' }; },
+          onPick: function (elevId, dropId, cellId) {
+            if (elevId !== S.elevId) { S.drop = dropId; rememberChoice(elevId); load(elevId); renderPickerSelection(elevId); }
+            else { S.drop = dropId; render(); renderPanel(); }
+            if (V3.view) V3.view.highlight(cellId);
+          }
+        });
+        if (!ids.length) $('stage3d').insertAdjacentHTML('afterbegin', '<div class="v2-muted" style="padding:10px 0">No traced elevation to drape yet — the building shows as a plain block.</div>');
+      });
+    }).catch(function () { $('stage3d').innerHTML = '<div class="v2-muted" style="padding:24px">The 3D view could not load. The 2D sheet is unaffected.</div>'; });
+  }
+  function close3d() { if (V3.mod) V3.mod.close(); $('stage3d').hidden = true; $('stage3d').innerHTML = ''; $('stage').hidden = false; V3.view = null; }
+  function renderPickerSelection(id) { var sel = $('elevpick'); if (sel) sel.value = String(id); }
+  $('view3d').addEventListener('click', function () {
+    V3.on = !V3.on; this.setAttribute('aria-pressed', String(V3.on));
+    if (V3.on) open3d(); else close3d();
+  });
+  window.__markup3d = { open: open3d, close: close3d, state: V3 };
   $('printbtn').addEventListener('click', function () { window.print(); });
 
   // ---------- zoom (#293 — tall authored buildings) -------------------------

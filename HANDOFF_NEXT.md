@@ -21,6 +21,45 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #336 — The building in 3D, stage 1 (Bookore, 2026-09-21)
+
+* **Ask (Angela, 2026-09-21):** the client-portal drawing markup shows the building as
+  flat blocks; clients want a real, navigable 3D view they can click into. Option A was
+  chosen (no vendor, no key, nothing for Amit to set up).
+* **Where the shape comes from** (`building_3d.py`): NYC Open Data *Building Footprints*
+  (`5zhs-2jue`, fields `bin, height_roof, ground_elevation, construction_year, the_geom`)
+  and NYC Planning *GeoSearch* (address → point + BIN). Lookup order: linked
+  `building.bin` → geocode the address → the job's site point (`intersects`). Neighbours
+  = footprints within 90 m (≤ 60). Cached per job in `building_geometry`
+  (`apply_building_geometry_336.py`, ledger + boot ensure; 30-day TTL; a failure is
+  stored and retried after 6 h; `?refresh=1` / `POST …/refresh` for internal roles).
+  Both providers are free and anonymous; the fetcher is injectable, the test stubs it.
+* **The model** `GET /api/elevation/model3d/<code>` — registered UNDER `/api/elevation/`
+  on purpose: that prefix is what the client (`client_portal`, needs the `drawing`
+  grant) and architect (`elevation._ARCH_ALLOW_PREFIXES`) allowlists admit; a route under
+  `/api/projects/` 403s for them before it runs. Payload: footprint rings and neighbours
+  in LOCAL METRES around the centroid (x east, y north), height in metres, `walls`
+  (longest edge per compass direction with outward normal + bearing), the job's
+  elevations with a compass code (`_face_code`: 'N', 'North', 'East (courtyard)' …),
+  `mapping` compass → the first confirmed traced elevation (drafts hidden from external),
+  a `fallback` box sized from the traced facades (used outside the city / on failure).
+* **The viewer** `static/js/building3d.js` (ES module) over vendored
+  `static/vendor/three.module.min.js` (three 0.169.0, MIT, from the npm build;
+  sha256 f7cee3c7…72ee). Extrudes the footprint and neighbours, drapes each mapped
+  elevation's drop × level grid on its wall (traced facade width/height scaled to the
+  real wall), colours cells by status tone (page CSS vars), orbit / zoom / pinch, N-E-S-W
+  fly-to, face labels, hover tooltip, click → `onPick(elevId, dropId, cellId)`.
+* **The page** (`templates/v2/drawing-markup.html`): a "3D" toggle in the toolbar shows
+  `#stage3d` in place of the sheet; the module is imported on first use; picking a cell
+  drives the SAME state (`S.drop`, `load(elevId)`, `renderPanel`) so the right-hand panel,
+  paint bar and picker follow. `window.__markup3d` exposes open/close/state.
+* **Test** `tests/smoke_building3d_336.py` (gate + CI).
+* **Verified live:** 890 E 135th St resolves to BIN 2004029 (82.67 ft) with 21
+  neighbours from the demo database; the North elevation drapes on the north wall.
+* **Next stages (roadmap Phase D):** photoreal skin from a capture (Stage 2) — the
+  Google 3D Tiles toggle was declined to avoid a vendor account; condition overlay
+  (Stage 3).
+
 ### #334 — projects.start_date / target_completion on Postgres; calendar never 500s (Bookore, 2026-09-21)
 
 * **Symptom (Angela, preprod screenshot):** Calendar → "Could not load the calendar ·

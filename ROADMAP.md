@@ -34,9 +34,10 @@
 | Company Portal → Projects lists jobs; a job's own page shows only that job (money, AIA, permits package, documents expiring, crew, activity, links); job sites keep their pages | Production (#330) |
 | Job locations beyond the five boroughs: Long Island and New Jersey in every picker, estimate series `FR-NJ-###`, region label on the job site | Production (#331) |
 | Jobs calendar in the Company Portal: 3-day / week / month, one bar per job from start to target completion, overlaps stacked, daily-report dots, click-through to the job page; target completion captured on "+ New project" and Crew & site | Production (#332) |
-| Calendar extras: milestones on the grid (document expiries, invoice due dates), on-site headcount per day, weather strip on the short views, drag to move / stretch a job with undo, printable sheet | Preprod (#333) |
+| Calendar extras: milestones on the grid (document expiries, invoice due dates), on-site headcount per day, weather strip on the short views, drag to move / stretch a job with undo, printable sheet | Production (#333) |
+| The building in 3D, stage 1: real footprint + height from NYC Open Data (no key), neighbours for scale, every traced elevation draped on its wall, cells clickable into the same panel; fallback box outside the city; a 3D toggle on the drawing markup for staff and clients | Preprod (#336) |
 
-Everything through #327 is in production as of 2026-09-20 (upstream PR #4, C-suite approved on preprod). #328 and #329 went to production the same day (upstream PR #5). #317 AIA billing and #319 accounts payable went to production the same afternoon (upstream PR #6). #330–#332 went to production 2026-09-21 (upstream PR #7). #333 (calendar extras) is on preprod awaiting review. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app; calendar milestones / headcount if Arun wants them. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app.
+Everything through #327 is in production as of 2026-09-20 (upstream PR #4, C-suite approved on preprod). #328 and #329 went to production the same day (upstream PR #5). #317 AIA billing and #319 accounts payable went to production the same afternoon (upstream PR #6). #330–#332 went to production 2026-09-21 (upstream PR #7). #333 and the #334/#335 fixes are in production. #336 (the building in 3D, stage 1) is on preprod awaiting review. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app; calendar milestones / headcount if Arun wants them. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app.
 
 ---
 
@@ -167,7 +168,7 @@ The ask is "a 3D model of each building you can click into, looking almost
 identical to the real one". That is two different things, and the honest path
 is to ship them in order:
 
-- **#322 Stage 1 — 3D massing from what we already have.** Extrude each
+- **Stage 1 — 3D massing — SHIPPED to preprod 2026-09-21 as #336** (from the REAL footprint and height, not just the grid). Original plan: extrude each
   elevation grid (`elevation` × `elevation_cell` rows/columns, stories, drops)
   into a simple 3D box model of the building in the browser (three.js). Every
   face is the existing elevation; every cell is clickable and opens the same
