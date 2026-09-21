@@ -32,8 +32,9 @@
 | AIA progress billing: billing Schedule of Values per job, Applications for Payment with G702 + G703 documents, each issued as a progress invoice (email, link, PDF, payments) | Production (#317) |
 | Accounts payable: bills we owe (by hand, from a scanned receipt, from a subscription renewal), payments, and "what needs to get paid" — a 30-day cash view of bills, renewals and client invoices due; console + portal "Overview" renamed "Dashboard" | Production (#319) |
 | Company Portal → Projects lists jobs; a job's own page shows only that job (money, AIA, permits package, documents expiring, crew, activity, links); job sites keep their pages | Preprod (#330) |
+| Job locations beyond the five boroughs: Long Island and New Jersey in every picker, estimate series `FR-NJ-###`, region label on the job site | Preprod (#331) |
 
-Everything through #327 is in production as of 2026-09-20 (upstream PR #4, C-suite approved on preprod). #328 and #329 went to production the same day (upstream PR #5). #317 AIA billing and #319 accounts payable went to production the same afternoon (upstream PR #6). #330 (portal project pages) is on preprod awaiting review. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app.
+Everything through #327 is in production as of 2026-09-20 (upstream PR #4, C-suite approved on preprod). #328 and #329 went to production the same day (upstream PR #5). #317 AIA billing and #319 accounts payable went to production the same afternoon (upstream PR #6). #330 (portal project pages) and #331 (Long Island / New Jersey) are on preprod awaiting review. Next: QuickBooks phase 1 (#316) once Amit creates the Intuit developer app.
 
 ---
 

@@ -54,7 +54,9 @@ EST_TYPES = {
     "IR":  "Interior Repair",
     "PG":  "Parking Garage",   # #276 — the fourth division's code series (blueprint §1)
 }
-BOROUGHS = ("MN", "BX", "BK", "QN", "SI")
+import regions  # #331 — one list for the boroughs and the other places we work
+BOROUGHS = regions.CODES
+BOROUGH_LABELS = regions.LABELS
 # #276 — division derivation (obvious mappings; editable per lead)
 DIVISION_OF_TYPE = {"IRA": "rope_access", "FR": "facade", "IR": "interior",
                     "PG": "parking_garage"}
@@ -462,6 +464,7 @@ def _api_meta():
     return jsonify({"data": {
         "types": [{"code": k, "label": v} for k, v in EST_TYPES.items()],
         "boroughs": list(BOROUGHS),
+        "regions": regions.options(),   # #331 — code + label for the pickers
         "statuses": list(STATUSES),
         "doc_categories": list(DOC_CATEGORIES),
     }})
