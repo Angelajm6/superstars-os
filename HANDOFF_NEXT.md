@@ -21,6 +21,63 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #340 — Navigation revamp phases 2 + 3: Finance consolidation + project sidebar cut (Bookore, 2026-09-22)
+
+* **Ask (Angela):** "let's ... finish up the phase 2 and 3 of the navigation" — Finance as
+  one tab (phase 2) and the project dashboard sidebar cut to ~15 entries (phase 3), per the
+  plan approved alongside #339.
+* **Phase 2 finding — already shipped by #339, no code change:** the company Finance tab
+  (`static/js/company_nav.js`) already covers bills/payables, Expenses, Weekly payroll and
+  Pay rates as ONE tab with four sub-destinations (`sub: [['What needs to get paid', ...],
+  ['Expenses', ...], ['Weekly payroll', ...], ['Pay rates', ...]]`); `company_portal.html`'s
+  `view-expenses` already titles itself "Finance · Expenses" (`TITLES.expenses`), not a
+  standalone concept. Verified via code read, no gap found — phase 2 was complete before
+  this session started.
+* **Phase 3 — `dashboard-static.html` project sidebar, 9 groups / 29 entries → 6 groups / 21
+  entries:** removed the 8 dead "Coming with Phase 2B" placeholder stubs outright (their
+  `<section class="view">` content panes too, not just the nav links): Subcontractors &
+  COIs, Site Closure, Meeting Minutes, Equipment Log, Inspection Log, Punch List, Warranty &
+  Closeout, Client Portal. Regrouped the 21 remaining REAL views into 6 groups: **Overview**
+  (Project Health), **Field** (Employees & Certs [moved from the old People group],
+  Drawing Markup, Project Documents, Field Photos, Drop Report/Plan, Schedule), **Daily**
+  (Daily Report, Weekly Summary, Materials & Deliveries, Toolbox Talks), **Tracking** (RFI
+  Log, Violations, Compliance & Permits [moved from the old standalone Compliance group]),
+  **Money** (Schedule of Values, Payments, Expenses, Product Usage — merged the old separate
+  Financial + Expenses nav-groups into one; both were already gated by the same
+  `SECTION:financial` marker, so the merge is one gate instead of two; dropped the redundant
+  client-side `exp-nav-group`/`revealForAdmin` toggle since the group now relies on the same
+  server-side strip the SOV/Payments items already used), **Setup** (Templates, Settings).
+  `SECTION:internal_ops` / `SECTION:financial` marker pairing was re-verified with the exact
+  regex from `access.py` (`_SECTION_RE`) after every edit — a first pass accidentally
+  orphaned the Employees & Certs content pane's closing marker, caught and fixed before
+  shipping.
+* **Not done (deliberately out of scope):** did NOT build the "Documents folder-based page"
+  / "Client access page" / "Money group Billing+Costs sub-tab" ideas from the original
+  audit — those are net-new feature surfaces, not navigation reorganization, and would need
+  their own scoping pass. The floor for further entry-count reduction is ~20 real, actively
+  used destinations; going lower means either building those net-new surfaces or deciding to
+  merge/hide real capability, both of which need explicit sign-off first.
+* **Tests:** `tests/smoke_behavior_conventions.py` (`rbac_pm_sidebar_has_compliance` now
+  checks `data-view="compliance"` instead of the retired `data-group="compliance"`;
+  `rbac_sidebar_split_two_groups` checks the merged `data-group="financial"` +
+  `>Money<` label against the ungated `data-group="tracking"` group; also fixed
+  `m_admin_console_home_nav`, a STALE #339 regression this session's gate run caught for the
+  first time — it checked for the pre-#339 `href="/dashboard"` + `class="brand-home"`
+  escape hatch on `/admin/users`, which #339's sidebar swap had already removed in favor of
+  the shared `company_nav.js` nav; nothing was actually broken for the user, just the test).
+  `tests/smoke_portal_shell_281.py` dropped its now-nonexistent subs/equipment/site-closure
+  per-role-strip checks (those views no longer exist for ANY role, not just external ones).
+  `tests/run_gate_ci.py`: 35/35 pass. `tests/run_gate_260.py` (the RBAC/behavioral operator
+  gate) could not be run end-to-end in this environment — it needs a seeded `FR-BX-001`-style
+  project + pm assignment that only exists on the real workstation DB; verified the sidebar
+  markup directly instead (regex-simulated the `access.py` SECTION strip, then a live
+  logged-in-admin browser walkthrough of every Money/Tracking/Field destination — all
+  loaded real data with no console errors beyond a pre-existing unrelated `/api/weather` 400).
+* **Not in this phase (next):** the "Documents folder-based page", "Client access" panel
+  (would use the already-built `client_grants.py` presets/toggles), and Money's Billing/Costs
+  sub-tab split remain open ideas from the original audit if the entry count needs to drop
+  further — each is a scoping conversation, not a mechanical nav change.
+
 ### #339 — ONE home: the company sidebar, navigation revamp phase 1 (Bookore, 2026-09-22)
 
 * **Ask (Angela, after the audit + Arun's 2026-09-22 meeting):** too many tabs, two homes
