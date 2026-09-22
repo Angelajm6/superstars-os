@@ -913,7 +913,7 @@
          a pm keeps the projects link (to /projects, their assigned list). A pm is never
          served a path to the company console (which 403s for them anyway). -->
     <!-- BACKLINK_COMPANY:start -->
-    <a href="/" data-prefetch="/api/console/bootstrap#console" style="display:flex;align-items:center;gap:8px;padding:10px 18px;color:#76777E;font-size:12px;text-decoration:none;border-bottom:1px solid #E8E4DD;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;transition:color 0.15s;" onmouseover="this.style.color='#B11E2E'" onmouseout="this.style.color='#76777E'">
+    <a href="/company#overview" style="display:flex;align-items:center;gap:8px;padding:10px 18px;color:#76777E;font-size:12px;text-decoration:none;border-bottom:1px solid #E8E4DD;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;transition:color 0.15s;" onmouseover="this.style.color='#B11E2E'" onmouseout="this.style.color='#76777E'">
       ← Back to Company
     </a>
     <!-- BACKLINK_COMPANY:end -->
@@ -1262,10 +1262,10 @@
           .ec-hide{display:none!important}
         </style>
         <div class="ec-wrap">
-          <div class="ec-note"><strong style="color:#14161C;">📋 Office-managed:</strong> New workers, cert intake, and renewals happen<!-- COMPANYLINK:start --> in the <a href="/" style="color:#B11E2E;font-weight:600;text-decoration:none;">Company Console →</a><!-- COMPANYLINK:end -->. This view is read-only crew compliance for <em>this</em> project.</div>
+          <div class="ec-note"><strong style="color:#14161C;">📋 Office-managed:</strong> New workers, cert intake, and renewals happen<!-- COMPANYLINK:start --> in the <a href="/#workforce" style="color:#B11E2E;font-weight:600;text-decoration:none;">Company → Workforce</a><!-- COMPANYLINK:end -->. This view is read-only crew compliance for <em>this</em> project.</div>
           <div class="ec-head">
             <div><h2>Employees &amp; Certifications</h2><div class="ec-sub" id="ec-sub">Crew credential readiness · live cert-health tracking</div></div>
-            <!-- COMPANYLINK:start --><a class="ec-scan" href="/" title="Add or scan certifications in the Company Console (camera → AI read → review → save)"><svg class="ec-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 012-2h3M16 3h3a2 2 0 012 2v3M21 16v3a2 2 0 01-2 2h-3M8 21H5a2 2 0 01-2-2v-3"/><rect x="7" y="9" width="10" height="6" rx="1"/></svg>Scan / add cert</a><!-- COMPANYLINK:end -->
+            <!-- COMPANYLINK:start --><a class="ec-scan" href="/#cert-library" title="Add or scan certifications under Company → Workforce → Certifications (camera → AI read → review → save)"><svg class="ec-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 012-2h3M16 3h3a2 2 0 012 2v3M21 16v3a2 2 0 01-2 2h-3M8 21H5a2 2 0 01-2-2v-3"/><rect x="7" y="9" width="10" height="6" rx="1"/></svg>Scan / add cert</a><!-- COMPANYLINK:end -->
           </div>
           <div class="ec-hero" id="ec-hero"><div class="ec-empty" style="margin:0">Loading crew readiness…</div></div>
           <div class="ec-tools">
@@ -1533,7 +1533,7 @@
           <div style="margin-bottom:18px;">
             <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px;">
               <h3 style="font-size:13px;font-weight:700;color:#B11E2E;text-transform:uppercase;letter-spacing:0.08em;margin:0;">Specifications</h3>
-              <!-- COMPANYLINK:start --><a href="/#specs" onclick="window.location='/';return false;" style="font-size:11px;color:#76777E;text-decoration:none;">Manage in Specs Library →</a><!-- COMPANYLINK:end -->
+              <!-- COMPANYLINK:start --><a href="/#specs" style="font-size:11px;color:#76777E;text-decoration:none;">Manage in Specs Library →</a><!-- COMPANYLINK:end -->
             </div>
             <table style="width:100%;border-collapse:collapse;font-size:12px;background:white;border:1px solid #E8E4DD;border-radius:4px;">
               <thead>

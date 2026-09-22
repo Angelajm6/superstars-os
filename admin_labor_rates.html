@@ -6,7 +6,8 @@
 <title>Pay Rates — Superstars Contracting</title>
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=321">
-<link rel="stylesheet" href="/files/static/css/shell.css?v=321">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=339">
+<script src="/files/static/js/company_nav.js?v=339b"></script>
 <script src="/files/static/js/shell.js?v=312" defer></script>
 <style>
   :root{--blue:#1E73E8;--ink:#1b1d22;--muted:#7a7f88;--line:#ededf0;--edge:rgba(30,115,232,.42);--in:rgba(30,115,232,.14);--green:#0F6E56;--amber:#BA7517;--red:#C8102E;--bg:#f3f4f6;}
@@ -118,51 +119,23 @@
 
 <!-- #311 — the shared application shell (shell.css): one sidebar, one top bar, on every operator page -->
 <div class="ssc-shell">
-<aside class="ssc-side" aria-label="Office Console navigation">
+<aside class="ssc-side" aria-label="Company navigation">
   <div class="brand">
     <img class="brand-mark" width="34" height="34" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
-    <div><div class="brand-name">Superstars Contracting</div><div class="brand-sub">Office Console</div></div>
+    <div><div class="brand-name">Superstars Contracting</div><div class="brand-sub">Company</div></div>
   </div>
-  <nav class="ssc-nav" id="ssc-nav">
-    <div class="ssc-nav-label">Company</div>
-    <a href="/#projects" data-roles="admin,c_suite">Dashboard</a>
-    <a href="/company" data-roles="admin,c_suite">Company Portal</a>
-    <a href="/#crm" data-roles="admin,c_suite">CRM</a>
-    <a href="/#estimates" data-roles="admin,c_suite">Estimates</a>
-    <a href="/estimating" data-roles="estimator">Estimating queue</a>
-    <div class="ssc-nav-label">Workforce</div>
-    <a href="/#workforce" data-roles="admin,c_suite">Workforce</a>
-    <a href="/#hours" data-roles="admin,c_suite">Hours Log</a>
-    <a href="/#cert-library" data-roles="admin,c_suite">Certifications</a>
-    <a href="/admin/labor-rates" class="active" data-roles="admin,c_suite,pm">Pay Rates</a>
-    <div class="ssc-nav-label">Operations</div>
-    <a href="/admin/projects" data-roles="admin,c_suite">Projects &amp; assignments</a>
-    <a href="/#compliance" data-roles="admin,c_suite">Compliance</a>
-    <div class="ssc-nav-label">Admin</div>
-    <a href="/admin/users" data-roles="admin,c_suite">Users &amp; roles</a>
-    <a href="/#settings" data-roles="admin,c_suite">Settings</a>
-  </nav>
-  <div class="ssc-side-foot"><a href="/projects">My projects view</a></div>
+  <!-- #339 — ONE company sidebar, rendered by company_nav.js on every company page -->
+  <nav class="ssc-nav" id="ssc-nav" data-company-nav></nav>
+  <script>SSC_NAV.mount();</script>
 </aside>
-<script>
-  // #311 — the sidebar shows only what THIS role can open (server gates stay the control).
-  window.sscNavForRole = function (role) {
-    var nav = document.querySelector('.ssc-side .ssc-nav'); if (!nav) return;
-    nav.querySelectorAll('a[data-roles]').forEach(function (a) { a.hidden = a.getAttribute('data-roles').split(',').indexOf(role) < 0; });
-    nav.querySelectorAll('.ssc-nav-label').forEach(function (l) {
-      var n = l.nextElementSibling, any = false;
-      while (n && !n.classList.contains('ssc-nav-label')) { if (n.tagName === 'A' && !n.hidden) any = true; n = n.nextElementSibling; }
-      l.hidden = !any;
-    });
-  };
-</script>
 <div class="ssc-main">
 <header class="ssc-top">
-  <div class="ssc-top-title"><div class="ssc-crumb">Office Console · Workforce</div><h1>Pay Rates</h1></div>
+  <div class="ssc-top-title"><div class="ssc-crumb" data-nav-crumb>Company</div><h1>Pay Rates</h1></div>
   <div class="ssc-top-right"><div class="ssc-user" id="lr-who">—</div></div>
 </header>
 
 <div class="wrap">
+  <div class="ssc-subtabs" data-subtabs="finance"></div>
   <div class="frame" id="lr-pm-note" style="display:none;border-left:3px solid var(--amber);">
     <h1 style="font-size:18px;margin:0;">Rate approvals awaiting your review</h1>
     <div class="sub" style="color:var(--muted);margin-top:3px;">You can approve or reject proposed rate changes. The full rate roster + history is admin-only.</div>

@@ -256,12 +256,14 @@ def main() -> int:
     assert ov["payables"]["cash_30"]["horizon_days"] == 30 and ov["payables"]["payables"]["open_count"] == 4
     html = cs.get("/company").get_data(as_text=True)
     assert 'id="pb-card"' in html and 'id="pb-new-overlay"' in html and "loadPayables" in html
-    assert "</svg>Dashboard</a>" in html and ">Overview<" not in html and "overview: 'Dashboard'" in html
+    assert 'data-company-nav' in html and ">Overview<" not in html and "overview: 'Dashboard'" in html
+    nav = (ROOT / "static" / "js" / "company_nav.js").read_text(encoding="utf-8")
+    assert "label: 'Dashboard'" in nav and "Overview" not in nav   # #339: one sidebar for every company page
     con = cs.get("/", follow_redirects=True).get_data(as_text=True)
-    assert 'data-i18n="tab-projects">Dashboard</a>' in con and "'tab-projects': 'Panel'" in con and ">Overview<" not in con
+    assert 'data-company-nav' in con and ">Overview<" not in con
     for page in ("/admin/projects", "/admin/users", "/estimating", "/admin/labor-rates"):
         h = cs.get(page, follow_redirects=True).get_data(as_text=True)
-        assert '>Dashboard</a>' in h and '>Overview</a>' not in h, page
+        assert 'data-company-nav' in h and '>Overview</a>' not in h, page
     passed += 1; print("  overview + rename ok")
 
     print(f"PASS smoke_payables_319 ({passed} groups)")

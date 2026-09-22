@@ -80,6 +80,8 @@ GATE = [
     "smoke_password_reset_flow_301.py",# #301 guard — reset BEHAVIOR: no-enum, hashed single-use tokens, session revoke, expiry, throttle
     "smoke_company_portal_302.py",     # #302 guard — company portal: company-axis gating, clients/buildings rollups, finance, compliance, company documents CRUD
     "smoke_migrations_306.py",         # #306 guard — migration ledger: baseline, pending, apply/record, drift, health count
+    "smoke_one_home_339.py",         # #339 guard — ONE company sidebar on every page; console dashboard + CRM retired; Add client on the portal; Exterior wording
+    "smoke_dashboard_week_338.py",   # #338 guard — "This week" strip on the company Dashboard: served, week window, company-only
     "smoke_job_sites_337.py",        # #337 guard — job sites without a project offered with a one-click path; ledger records boot-ensured migrations
     "smoke_building3d_336.py",       # #336 guard — the building in 3D: geocode/footprint cache (stubbed), maths, model, gates incl. client audience, page + vendored three.js
     "smoke_project_dates_334.py",    # #334 guard — projects.start_date / target_completion ensured dual-backend; odd date values never 500 the calendar
@@ -89,7 +91,6 @@ GATE = [
     "smoke_portal_projects_330.py",  # #330 guard — portal Projects = jobs: list, a job's own page (money, package, docs, crew, activity), no cross-job leakage, gates
     "smoke_payables_319.py",         # #319 guard — accounts payable: bills lifecycle, receipt + renewal feeds, 30-day cash view, overview payload, Dashboard rename
     "smoke_aia_billing_317.py",      # #317 guard — AIA G702/G703: SOV editor rules, one draft, over-billing, lines 1–9, issue -> progress invoice, carry-forward, void, documents, gates
-    "smoke_console_condense_329.py", # #329 guard — Office Console condensed to 12 entries: grouped panels, moved links, admin sidebars in step
     "smoke_nav_clarity_328.py",      # #328 guard — navigation clarity: project identity block on every view, Weekly Payroll / Pay Rates naming, company portal Projects label
     "smoke_doc_package_327.py",      # #327 guard — permits & insurance package: readiness, send to client + private link, portal share, red-flag revocation, gates
     "smoke_project_payments_326.py", # #326 guard — invoice documents: preview/pdf, email to client + private link, view tracking, project Payments, gates

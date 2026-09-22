@@ -119,3 +119,11 @@
   border: 1px solid var(--line, #eceef3); border-radius: 14px; padding: 18px 20px; margin-bottom: 18px; overflow: hidden; }
 .ssc-main > .wrap > .head-row::before, .ssc-main > .wrap > section:first-of-type > .head-row::before {
   content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: linear-gradient(90deg, var(--accent, #4364dc), var(--accent-soft, #ebf0fe)); }
+
+/* #339 — sub-tab row under a page header: the active tab's destinations. Rendered by
+   company_nav.js into `<div class="ssc-subtabs" data-subtabs="<tab>">`. */
+.ssc-subtabs { display: flex; gap: 6px; margin: 0 0 16px; flex-wrap: wrap; }
+.ssc-subtabs:empty { display: none; }
+.ssc-subtab { padding: 7px 14px; font-size: 12.5px; font-weight: 700; color: var(--muted, #76777E); border-radius: 8px; text-decoration: none; }
+.ssc-subtab:hover { background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); }
+.ssc-subtab.active { color: #fff; background: var(--ui, #24418C); }

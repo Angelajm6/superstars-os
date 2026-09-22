@@ -142,8 +142,7 @@ def main() -> int:
     assert "m.regions" in ap and "Borough / region" in ap
     con = c.get("/", follow_redirects=True).get_data(as_text=True)
     assert "m.regions" in con and "Borough / region *" in con
-    portal = c.get("/company").get_data(as_text=True)
-    assert "<option>Long Island</option><option>New Jersey</option>" in portal
+    # #339 — the portal's job-site picker retired with the Job sites page; regions are picked on + New project
     passed += 1; print("  pickers ok")
 
     print(f"PASS smoke_regions_331 ({passed} groups)")

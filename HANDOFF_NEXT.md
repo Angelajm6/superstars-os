@@ -21,6 +21,59 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #339 — ONE home: the company sidebar, navigation revamp phase 1 (Bookore, 2026-09-22)
+
+* **Ask (Angela, after the audit + Arun's 2026-09-22 meeting):** too many tabs, two homes
+  (Office Console vs Company Portal) with every concept in both, job sites confusing, CRM
+  unnecessary, quick actions unnecessary. Decisions: calendar lives inside Projects;
+  Workforce stays top-level; "exterior", never "facades" (Arun).
+* **What:** `static/js/company_nav.js` is the ONE definition of the company-level sidebar —
+  seven tabs (Dashboard · Projects · Clients · Proposals · Finance · Workforce · Company),
+  each with its sub-tab row (`<div class="ssc-subtabs" data-subtabs="<tab>">`), rendered on
+  the portal (`/company`), the console (`/`) and the four admin pages from
+  `<nav data-company-nav>` + `SSC_NAV.mount()`. Active tab / sub-tab / crumb / h1 follow
+  `pathname + hash`; roles via the existing `sscNavForRole` hook + `ssc:user-loaded`.
+  Include it SYNC in `<head>`: it also owns the redirects that retire the old homes
+  (`/`, `/#projects` → `/company#overview`; `/#crm` → `/company#clients`; portal
+  `#buildings` → `#projects`, `#compliance` → `#company`), and the console's hash router
+  defers to `SSC_NAV.redirectIfRetired()` before its own "no such panel → home" fallback.
+* **Retired:** the console's Dashboard panel (KPIs, widget grid, Quick actions) and CRM
+  panel + module (`window.CRM`); the portal's Job sites view, modal and loaders; every
+  per-page copy of the sidebar and `sscNavForRole`. The console's remaining panels
+  (Onboarding & directory, Sign-ins, Certifications, Pipeline, Weekly payroll, Compliance
+  documents, Specs, Settings) are sub-tabs of their tabs.
+* **Portal:** "This week" (#338) moved to the company Dashboard (`loadWeekStrip`, same
+  API); Clients gets **+ Add client** (organization → optional main contact) and the client
+  page gets **+ Contact / + Note / + Follow-up** and a "done" on each follow-up, all on the
+  existing `/api/crm/*` endpoints (`requires_section('crm')`, unchanged); the client page
+  lists projects instead of job sites; the #337 notice keeps its "Create project" buttons
+  (no job-site page to link to). Company view = the old Compliance & Vault.
+* **Words:** `estimates.EST_TYPES["FR"]` = "Exterior Restoration"; `project_type_config`
+  label "Exterior Restoration / Recladding" (id stays `facade`); console `DIV_LABEL`.
+  The project dashboard's back link → `/company#overview`; its cert links → `/#workforce`,
+  `/#cert-library`.
+* **Tests:** `tests/smoke_one_home_339.py` (gate + CI). #329's guard retired with the
+  console it guarded (file removed from both gates); #328 / #330 / #337 / #338 / #319 /
+  #302 assertions follow the shared sidebar. Static assets cache for 600 s: bump the
+  `?v=` on `company_nav.js` whenever it changes (it is `339b` now for that reason).
+* **Not in phase 1 (next):** Finance as one tab with real sub-pages (#340), the project
+  sidebar cut to 15 (#341), integrations (Claude proposal agent, QuickBooks).
+* **Known pre-existing:** the console's `/api/workers/intake-summary` answers 400 on an
+  empty roster (console error on the Onboarding page; not new).
+
+### #338 — "This week" on the Office Console Dashboard (Bookore, 2026-09-21)
+
+* **Ask (Angela):** a calendar snippet on the main dashboard as an overall view.
+* **What:** a one-row Monday–Sunday strip between the KPI tiles and Active Projects on
+  `company-dashboard.html`, reading the same `/api/company/portal/calendar` window the
+  portal calendar uses (admin / c_suite only — the console's audience). Job bars in the
+  calendar's colours (lane-packed, 4 lanes then "+N more" → the calendar), today
+  highlighted, per-day "N on site" and up to three milestone chips, a footer with the
+  count and the undated-jobs pointer to Crew & site. Header link opens
+  `/company#calendar/<monday>`; a bar opens `/projects/<code>` (the console's convention).
+  No view switcher, drag, weather or print here — those stay on the calendar. EN / ES.
+* **Test** `tests/smoke_dashboard_week_338.py` (gate + CI).
+
 ### #337 — Job sites → projects in one click; the ledger and boot-ensured schema (Bookore, 2026-09-21)
 
 * **Incident:** "Arun added projects on production yesterday and they're gone." Production
