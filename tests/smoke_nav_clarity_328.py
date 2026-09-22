@@ -139,20 +139,19 @@ def main() -> int:
     assert 'data-group="financial"' in cs_html and 'data-group="financial"' not in pm_html, "#262 split untouched"
     passed += 1; print("  project identity block ok")
 
-    # ---- office console: Pay Rates + Weekly Payroll, old labels gone
+    # ---- the names live in the shared sidebar now (#339): Weekly payroll vs Pay rates, old labels gone
+    nav = (ROOT / "static" / "js" / "company_nav.js").read_text(encoding="utf-8")
+    assert "'Weekly payroll', '/#labor-rate'" in nav and "'Pay rates', '/admin/labor-rates'" in nav
+    assert "Labor Rates" not in nav and "Labor Rate Tracker" not in nav
     html = _page(cs, "/")
-    assert 'id="nav-labor-rate-tab"' in html and "Weekly Payroll" in html
-    assert 'id="nav-labor-rates-admin"' in html and ">Pay Rates<" in html
-    assert ">Labor Rates<" not in html and ">Labor Rate Tracker<" not in html and ">Labor Rate<" not in html
-    assert "'nav-labor-rate-tab'" in html, "the reveal hook must name the new tab"
+    assert 'data-company-nav' in html and ">Labor Rate Tracker<" not in html and ">Labor Rates<" not in html
     assert "Nómina Semanal" in html
     passed += 1; print("  console naming ok")
 
-    # ---- company portal: Projects, not Buildings
+    # ---- company portal: Projects, never Buildings / Job sites (#339 removed the job-sites page)
     html = _page(cs, "/company")
-    assert "</svg>Projects</a>" in html and "</svg>Buildings</a>" not in html
-    assert "projects: 'Projects'" in html and "buildings: 'Job sites'" in html   # #330: the tab lists jobs; job sites keep their pages
-    assert 'href="#projects" data-view="projects"' in html and 'id="view-buildings"' in html
+    assert "label: 'Projects'" in nav and "Buildings" not in nav
+    assert "projects: 'Projects'" in html and "buildings: 'Job sites'" not in html and 'id="view-buildings"' not in html
     passed += 1; print("  portal label ok")
 
     # ---- pay rates page

@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Company Portal · Superstars Contracting</title>
+<title>Company · Superstars Contracting</title>
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=328">
 <script src="/files/static/js/shell.js?v=312" defer></script>
-<link rel="stylesheet" href="/files/static/css/shell.css?v=321">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=339">
+<script src="/files/static/js/company_nav.js?v=339b"></script>
 <script src="/files/static/js/datepicker.js?v=302" defer></script>
 <script src="/files/static/js/auth_menu.js?v=302" defer></script>
 <style>
@@ -136,33 +137,18 @@
       <img class="brand-mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
       <div>
         <div class="brand-name">Superstars Contracting</div>
-        <div class="brand-sub">Company Portal</div>
+        <div class="brand-sub">Company</div>
       </div>
     </div>
-    <nav class="ssc-nav" id="cp-nav">
-      <div class="ssc-nav-label">Company</div>
-      <a href="#overview" data-view="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</a>
-      <a href="#clients" data-view="clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Clients</a>
-      <a href="#calendar" data-view="calendar" title="What is happening on which day"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Calendar</a>
-      <a href="#projects" data-view="projects" title="Every job, with its own page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l7-4v18M10 21h11V11l-4-2v12"/><path d="M6 9h1M6 13h1M6 17h1M14 13h1M14 17h1"/></svg>Projects</a>
-      <a href="#proposals" data-view="proposals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>Proposals</a>
-      <a href="#finance" data-view="finance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 8-8"/><path d="M14 8h6v6"/></svg>Finance</a>
-      <a href="#expenses" data-view="expenses"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Expenses</a>
-      <div class="ssc-nav-label">People &amp; Risk</div>
-      <a href="#workforce" data-view="workforce"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15 14.5a5 5 0 0 1 6.5 5"/></svg>Workforce &amp; Pay</a>
-      <a href="#compliance" data-view="compliance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>Compliance &amp; Vault</a>
-    </nav>
-    <div class="ssc-side-foot">
-      <a href="/">← Office Console</a>
-      <a href="/admin/users">Users &amp; roles</a>
-      <a href="/estimating">Estimating queue</a>
-    </div>
+    <!-- #339 — ONE company sidebar, rendered by company_nav.js on every company page -->
+    <nav class="ssc-nav" id="ssc-nav" data-company-nav aria-label="Company navigation"></nav>
+    <script>SSC_NAV.mount();</script>
   </aside>
 
   <main class="ssc-main">
     <header class="ssc-top">
       <div>
-        <div class="ssc-crumb" id="cp-crumb">Company Portal</div>
+        <div class="ssc-crumb" id="cp-crumb" data-nav-crumb>Company</div>
         <h1 id="cp-title">Dashboard</h1>
       </div>
       <div class="ssc-top-right">
@@ -174,6 +160,45 @@
     <div class="cp-content">
       <!-- ================= OVERVIEW ================= -->
       <section class="cp-view" id="view-overview" hidden>
+        <!-- #339 — This week (#338): one row of the calendar, same API and colours. -->
+        <style>
+          .cc-week{margin-bottom:18px}
+          .cc-week-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+          .cc-week-head h2{margin:0;font-size:16px;font-weight:800;letter-spacing:-.01em}
+          .cc-week-head .cp-muted{font-size:12.5px;margin-top:2px}
+          .cc-week-link{flex:none;font-size:12px;font-weight:700;color:var(--ui);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:7px 13px;white-space:nowrap;background:#fff}
+          .cc-week-link:hover{background:var(--ui-soft,#E8EDF8)}
+          .cc-week-dow{display:grid;grid-template-columns:repeat(7,1fr);font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:0 0 6px}
+          .cc-week-dow div{padding:0 8px} .cc-week-dow div.today{color:var(--ui)}
+          .cc-week-row{position:relative;display:grid;grid-template-columns:repeat(7,1fr);min-height:120px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+          .cc-week-cell{border-right:1px solid var(--line);padding:8px 8px 6px;display:flex;flex-direction:column;gap:4px;min-width:0}
+          .cc-week-cell:last-child{border-right:0} .cc-week-cell.wknd{background:#FBFBFD} .cc-week-cell.today{background:var(--ui-soft,#E8EDF8)}
+          .cc-week-date{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700}
+          .cc-week-date .n{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
+          .cc-week-cell.today .cc-week-date .n{background:var(--ui);color:#fff}
+          .cc-week-hc{margin-left:auto;font-size:10px;font-weight:700;color:var(--ui);background:#fff;border:1px solid var(--line);border-radius:999px;padding:1px 6px;white-space:nowrap}
+          .cc-week-lanes{position:absolute;left:0;right:0;top:38px;pointer-events:none}
+          .cc-week-bar{position:absolute;height:22px;border-radius:6px;padding:0 8px;font-size:11.5px;font-weight:700;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;cursor:pointer;pointer-events:auto;text-decoration:none;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+          .cc-week-bar:hover{filter:brightness(1.08)} .cc-week-bar small{font-weight:500;opacity:.85;margin-left:6px}
+          .cc-week-bar.cont{border-top-left-radius:0;border-bottom-left-radius:0} .cc-week-bar.goes{border-top-right-radius:0;border-bottom-right-radius:0}
+          .cc-week-more{position:absolute;font-size:11px;font-weight:700;color:var(--ui);pointer-events:auto;padding:2px 6px;text-decoration:none}
+          .cc-week-ms{margin-top:auto;display:flex;flex-direction:column;gap:3px}
+          .cc-week-ms span{font-size:10px;font-weight:700;line-height:1.3;padding:2px 6px;border-radius:5px;background:#FFF4DB;color:#8A5A00;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid #E0A82E}
+          .cc-week-ms span.inv{background:#E8F1FB;color:#1B4F8A;border-left-color:#3B82F6} .cc-week-ms span.late{background:#FCEEEC;color:#A8382B;border-left-color:#B11E2E}
+          .cc-week-foot{font-size:12px;color:var(--muted);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
+          .cc-week-foot a{color:var(--ui);font-weight:700;text-decoration:none}
+          .cw0{background:#24418C}.cw1{background:#0F766E}.cw2{background:#B45309}.cw3{background:#7C3AED}.cw4{background:#BE185D}.cw5{background:#0369A1}.cw6{background:#4D7C0F}.cw7{background:#B11E2E}
+          @media (max-width:760px){ .cc-week-bar small{display:none} .cc-week-hc{display:none} .cc-week-row{min-height:96px} }
+        </style>
+        <div class="cp-card cc-week" id="cc-week">
+          <div class="cc-week-head">
+            <div><h2>This week</h2><div class="cp-muted">Jobs running each day, who is on site, and what falls due. Click a job to open it.</div></div>
+            <a class="cc-week-link" id="cc-week-open" href="#calendar">Open the calendar →</a>
+          </div>
+          <div class="cc-week-dow" id="cc-week-dow"></div>
+          <div class="cc-week-row" id="cc-week-row"><div class="cp-empty" style="grid-column:1 / -1">Loading this week…</div></div>
+          <div class="cc-week-foot" id="cc-week-foot"></div>
+        </div>
         <div class="cp-kpis" id="ov-kpis"></div>
         <div class="cp-grid2">
           <div class="cp-card">
@@ -181,7 +206,7 @@
             <ul class="cp-list" id="ov-money"></ul>
           </div>
           <div class="cp-card">
-            <div class="cp-card-head"><h2>Needs attention</h2><a class="cp-link" href="#compliance">Open compliance →</a></div>
+            <div class="cp-card-head"><h2>Needs attention</h2><a class="cp-link" href="#company">Open Company →</a></div>
             <ul class="cp-list" id="ov-attention"></ul>
           </div>
         </div>
@@ -202,7 +227,7 @@
               </select>
               <label class="cp-muted" style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="cl-inactive"> include inactive</label>
               <span style="flex:1"></span>
-              <a class="btn-ghost btn-sm" href="/#crm" style="text-decoration:none;">Manage in CRM</a>
+              <button class="btn-primary btn-sm" id="cl-add" type="button">+ Add client</button>
             </div>
             <div class="cp-table-wrap"><table class="cp-table" id="cl-table"></table></div>
           </div>
@@ -212,6 +237,7 @@
 
       <!-- ================= CALENDAR (#332) — what is happening on which day ================= -->
       <section class="cp-view" id="view-calendar" hidden>
+        <div class="ssc-subtabs" data-subtabs="projects"></div>
         <style>
           .cal{--cal-line:#ECEEF3;--cal-soft:#F7F8FB;--cal-ink:#14161C;--cal-mute:#8C92A0}
           .cal-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
@@ -293,13 +319,13 @@
       <!-- ================= PROJECTS (#330) — jobs, one page each ================= -->
       <section class="cp-view" id="view-projects" hidden>
         <div id="projects-list">
+          <div class="ssc-subtabs" data-subtabs="projects"></div>
           <div id="pj-notice"></div>
           <div class="cp-card">
             <div class="cp-toolbar">
               <input class="cp-input search" id="pj-search" placeholder="Search code, name, address or client…" autocomplete="off">
               <select class="cp-select" id="pj-status"><option value="active">Active jobs</option><option value="closed">Closed</option><option value="all">All</option></select>
               <span style="flex:1"></span>
-              <a class="btn-ghost btn-sm" href="#buildings" style="text-decoration:none" title="Addresses — one job site can hold several jobs">Job sites</a>
               <a class="btn-primary btn-sm" href="/admin/projects" style="text-decoration:none">+ New project</a>
             </div>
             <div class="cp-table-wrap"><table class="cp-table" id="pj-table"></table></div>
@@ -308,26 +334,9 @@
         <div id="project-detail" hidden></div>
       </section>
 
-      <!-- ================= JOB SITES (addresses; #304) ================= -->
-      <section class="cp-view" id="view-buildings" hidden>
-        <div id="buildings-list">
-          <div class="cp-card">
-            <div class="cp-toolbar">
-              <input class="cp-input search" id="bd-search" placeholder="Search address, name, client or BIN…" autocomplete="off">
-              <select class="cp-select" id="bd-client"><option value="">All clients</option></select>
-              <label class="cp-muted" style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="bd-archived"> include archived</label>
-              <span style="flex:1"></span>
-              <button class="btn-ghost btn-sm" id="bd-rematch" type="button" title="Link any project or estimate that has an address but no job site yet">Re-run matcher</button>
-              <button class="btn-primary btn-sm" id="bd-add" type="button">+ Add job site</button>
-            </div>
-            <div class="cp-table-wrap"><table class="cp-table" id="bd-table"></table></div>
-          </div>
-        </div>
-        <div id="building-detail" hidden></div>
-      </section>
-
       <section class="cp-view" id="view-proposals" hidden>
         <div id="proposals-list">
+          <div class="ssc-subtabs" data-subtabs="proposals"></div>
           <div class="cp-kpis" id="pr-kpis"></div>
           <div class="cp-card">
             <div class="cp-toolbar">
@@ -343,6 +352,7 @@
       </section>
 
       <section class="cp-view" id="view-finance" hidden>
+        <div class="ssc-subtabs" data-subtabs="finance"></div>
         <div class="cp-kpis" id="fin-kpis"></div>
         <!-- #319 — accounts payable + the 30-day cash view -->
         <div class="cp-card" id="pb-card">
@@ -408,6 +418,7 @@
 
       <!-- ================= EXPENSES ================= -->
       <section class="cp-view" id="view-expenses" hidden>
+        <div class="ssc-subtabs" data-subtabs="finance"></div>
         <div class="cp-card">
           <div class="cp-toolbar">
             <select class="cp-select" id="ex-project"><option value="">All projects</option></select>
@@ -427,6 +438,7 @@
       <!-- ================= WORKFORCE ================= -->
       <section class="cp-view" id="view-workforce" hidden>
         <div id="workforce-list">
+        <div class="ssc-subtabs" data-subtabs="workforce"></div>
         <div class="cp-kpis" id="wf-kpis"></div>
         <div class="cp-grid3">
           <div class="cp-card">
@@ -445,7 +457,8 @@
       </section>
 
       <!-- ================= COMPLIANCE ================= -->
-      <section class="cp-view" id="view-compliance" hidden>
+      <section class="cp-view" id="view-company" hidden>
+        <div class="ssc-subtabs" data-subtabs="company"></div>
         <div class="cp-kpis" id="co-kpis"></div>
         <div class="cp-card">
           <div class="cp-card-head"><h2>Vehicles</h2><span class="hint">registration · insurance · inspection per vehicle</span>
@@ -472,7 +485,7 @@
 <!-- proposal modals (#307) -->
 <div class="cp-overlay" id="pr-new-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-new-title">
   <form class="cp-modal" id="pr-new-form" novalidate>
-    <div class="cp-modal-head"><h2 id="pr-new-title">New proposal</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">A proposal is generated from an estimate: client, contact, job site and price come across; you edit the scope and terms before sending.</p></div>
+    <div class="cp-modal-head"><h2 id="pr-new-title">New proposal</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">A proposal is generated from an estimate: client, contact, address and price come across; you edit the scope and terms before sending.</p></div>
     <div class="cp-modal-body">
       <div class="cp-field full"><label for="pr-new-est">Estimate</label><select id="pr-new-est"><option value="">Loading…</option></select></div>
       <div class="cp-form-err" id="pr-new-err" role="alert"></div>
@@ -616,24 +629,59 @@
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pb-pick-cancel">Close</button></div>
   </div>
 </div>
-<!-- building modal (#304) -->
-<div class="cp-overlay" id="bd-overlay" role="dialog" aria-modal="true" aria-labelledby="bd-title">
-  <form class="cp-modal" id="bd-form" novalidate>
-    <div class="cp-modal-head"><h2 id="bd-title">Add job site</h2></div>
+<!-- #339 — clients live here now (the CRM tab is retired): add a client, a contact, a note, a follow-up -->
+<div class="cp-overlay" id="cl-overlay" role="dialog" aria-modal="true" aria-labelledby="cl-title">
+  <form class="cp-modal" id="cl-form" novalidate>
+    <div class="cp-modal-head"><h2 id="cl-title">Add client</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">The organization first; a main contact is optional and can be added later.</p></div>
     <div class="cp-modal-body">
-      <div class="cp-field full"><label for="bd-address">Street address</label><input id="bd-address" required placeholder="e.g. 890 E 135th St"></div>
-      <div class="cp-field"><label for="bd-name">Site name (optional)</label><input id="bd-name" placeholder="e.g. Compass Point Tower"></div>
-      <div class="cp-field"><label for="bd-client-sel">Client</label><select id="bd-client-sel"><option value="">— none yet —</option></select></div>
-      <div class="cp-field"><label for="bd-borough">Borough / region</label><select id="bd-borough"><option value="">—</option><option>Manhattan</option><option>Bronx</option><option>Brooklyn</option><option>Queens</option><option>Staten Island</option><option>Long Island</option><option>New Jersey</option></select></div>
-      <div class="cp-field"><label for="bd-zip">ZIP</label><input id="bd-zip" inputmode="numeric" placeholder="10454"></div>
-      <div class="cp-field"><label for="bd-bin">DOB BIN</label><input id="bd-bin" inputmode="numeric" placeholder="7-digit BIN"></div>
-      <div class="cp-field"><label for="bd-blocklot">Block / lot</label><input id="bd-blocklot" placeholder="e.g. 2543 / 12"></div>
-      <div class="cp-field"><label for="bd-stories">Stories</label><input id="bd-stories" inputmode="numeric"></div>
-      <div class="cp-field"><label for="bd-year">Year built</label><input id="bd-year" inputmode="numeric"></div>
-      <div class="cp-field full"><label for="bd-notes">Notes</label><textarea id="bd-notes"></textarea></div>
-      <div class="cp-form-err" id="bd-err" role="alert"></div>
+      <div class="cp-field full"><label for="cl-name">Organization</label><input id="cl-name" required placeholder="e.g. Compass Point, LLC"></div>
+      <div class="cp-field"><label for="cl-rel">Relationship</label><select id="cl-rel"><option value="client">Client</option><option value="lead">Lead</option><option value="architect">Architect</option><option value="engineer">Engineer</option><option value="vendor">Vendor</option><option value="sub">Subcontractor</option><option value="partner">Partner</option><option value="other">Other</option></select></div>
+      <div class="cp-field"><label for="cl-cname">Main contact (optional)</label><input id="cl-cname" placeholder="Full name"></div>
+      <div class="cp-field"><label for="cl-ctitle">Contact title</label><input id="cl-ctitle" placeholder="e.g. Property manager"></div>
+      <div class="cp-field"><label for="cl-cemail">Contact email</label><input id="cl-cemail" type="email" placeholder="name@example.com"></div>
+      <div class="cp-field"><label for="cl-cphone">Contact phone</label><input id="cl-cphone" inputmode="tel"></div>
+      <div class="cp-field full"><label for="cl-notes">Notes</label><textarea id="cl-notes"></textarea></div>
+      <div class="cp-form-err" id="cl-err" role="alert"></div>
     </div>
-    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="bd-cancel">Cancel</button><button class="btn-primary" type="submit" id="bd-save">Save job site</button></div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" data-cancel>Cancel</button><button class="btn-primary" type="submit" id="cl-save">Add client</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="ct-overlay" role="dialog" aria-modal="true" aria-labelledby="ct-title">
+  <form class="cp-modal" id="ct-form" novalidate>
+    <div class="cp-modal-head"><h2 id="ct-title">Add contact</h2></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><label for="ct-name">Full name</label><input id="ct-name" required></div>
+      <div class="cp-field"><label for="ct-title-in">Title</label><input id="ct-title-in" placeholder="e.g. Board president"></div>
+      <div class="cp-field"><label for="ct-phone">Phone</label><input id="ct-phone" inputmode="tel"></div>
+      <div class="cp-field full"><label for="ct-email">Email</label><input id="ct-email" type="email"></div>
+      <div class="cp-form-err" id="ct-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" data-cancel>Cancel</button><button class="btn-primary" type="submit" id="ct-save">Add contact</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="nt-overlay" role="dialog" aria-modal="true" aria-labelledby="nt-title">
+  <form class="cp-modal" id="nt-form" novalidate>
+    <div class="cp-modal-head"><h2 id="nt-title">Log a note</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">A call, an email, a meeting or a plain note — it lands in the client's activity.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="nt-type">Type</label><select id="nt-type"><option value="note">Note</option><option value="call">Call</option><option value="email">Email</option><option value="meeting">Meeting</option></select></div>
+      <div class="cp-field"><label for="nt-summary">Summary</label><input id="nt-summary" required placeholder="One line"></div>
+      <div class="cp-field full"><label for="nt-body">Details</label><textarea id="nt-body"></textarea></div>
+      <div class="cp-form-err" id="nt-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" data-cancel>Cancel</button><button class="btn-primary" type="submit" id="nt-save">Log it</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="fu-overlay" role="dialog" aria-modal="true" aria-labelledby="fu-title">
+  <form class="cp-modal" id="fu-form" novalidate>
+    <div class="cp-modal-head"><h2 id="fu-title">Add a follow-up</h2></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><label for="fu-title-in">What</label><input id="fu-title-in" required placeholder="e.g. Send revised proposal"></div>
+      <div class="cp-field"><label for="fu-due">Due</label><input id="fu-due" type="date"></div>
+      <div class="cp-field"><label for="fu-priority">Priority</label><select id="fu-priority"><option value="normal">Normal</option><option value="high">High</option><option value="low">Low</option></select></div>
+      <div class="cp-field full"><label for="fu-detail">Details</label><textarea id="fu-detail"></textarea></div>
+      <div class="cp-form-err" id="fu-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" data-cancel>Cancel</button><button class="btn-primary" type="submit" id="fu-save">Add follow-up</button></div>
   </form>
 </div>
 
@@ -731,11 +779,12 @@
   // ---------- OVERVIEW ----------
   async function loadOverview() {
     skeleton($('ov-kpis'), 1); skeleton($('ov-money'), 4); skeleton($('ov-attention'), 4);
+    loadWeekStrip();
     try {
       const { data: d } = await api('/overview');
       $('ov-asof').textContent = 'as of ' + fmtDate(d.as_of);
       $('ov-kpis').innerHTML =
-        kpi('Active projects', num.format(d.projects.active), `${num.format(d.clients.active)} active clients · ${num.format(d.clients.buildings)} job sites`) +
+        kpi('Active projects', num.format(d.projects.active), `${num.format(d.clients.active)} active clients`) +
         kpi('Open pipeline', money.format(d.pipeline.open_value), `${d.pipeline.open_count} open estimates`) +
         kpi('Won this year', money.format(d.pipeline.won_value_ytd), `${d.pipeline.won_count_ytd} won · ${d.pipeline.lost_count_ytd} lost`, 'good') +
         kpi('Spend this month', money.format(d.spend.receipts_mtd + d.spend.ledger_mtd), `${money.format(d.spend.receipts_ytd + d.spend.ledger_ytd)} year to date`) +
@@ -754,8 +803,8 @@
         ['Receipts needing review', `${d.spend.receipts_needing_review}`],
       ].map(([k, v]) => `<li><span>${esc(k)}</span><strong>${v}</strong></li>`).join('');
       const att = [];
-      if (d.expiring.expired) att.push([`${d.expiring.expired} expired item(s)`, '<a class="cp-link" href="#compliance">review</a>']);
-      if (d.expiring.next_30) att.push([`${d.expiring.next_30} item(s) expire within 30 days`, '<a class="cp-link" href="#compliance">review</a>']);
+      if (d.expiring.expired) att.push([`${d.expiring.expired} expired item(s)`, '<a class="cp-link" href="#company">review</a>']);
+      if (d.expiring.next_30) att.push([`${d.expiring.next_30} item(s) expire within 30 days`, '<a class="cp-link" href="#company">review</a>']);
       if (d.spend.receipts_needing_review) att.push([`${d.spend.receipts_needing_review} receipt(s) need review`, '<a class="cp-link" href="#expenses">open</a>']);
       if (d.invoices.overdue_count) att.push([`${d.invoices.overdue_count} invoice(s) overdue · ${money2.format(d.invoices.overdue_value)}`, '<a class="cp-link" href="#finance/overdue">collect</a>']);
       if (d.invoices.draft_count) att.push([`${d.invoices.draft_count} draft invoice(s) waiting to be issued · ${money2.format(d.invoices.draft_value)}`, '<a class="cp-link" href="#finance/draft">issue</a>']);
@@ -776,7 +825,6 @@
       const { data: rows } = await api('/clients?' + q.toString());
       table($('cl-table'), [
         { key: 'name', label: 'Organization', render: r => `<span class="cp-id">${esc(r.name)}</span>${r.status !== 'active' ? ' <span class="cp-pill">inactive</span>' : ''}<div class="cp-muted" style="font-size:12px">${esc(r.relationship_type)}${r.stage ? ' · ' + esc(r.stage) : ''}</div>` },
-        { key: 'buildings', label: 'Job sites', num: true },
         { key: 'projects_active', label: 'Active projects', num: true, render: r => `${r.projects_active}<span class="cp-muted"> / ${r.projects_total}</span>` },
         { key: 'estimates_open', label: 'Open estimates', num: true, render: r => `${r.estimates_open}<div class="cp-muted" style="font-size:12px">${money.format(r.pipeline_value)}</div>` },
         { key: 'won_value', label: 'Won value', num: true, render: r => money.format(r.won_value) },
@@ -784,7 +832,7 @@
         { key: 'open_tasks', label: 'Open tasks', num: true },
         { key: 'last_activity_at', label: 'Last activity', render: r => fmtDate(r.last_activity_at) },
       ], rows, { defaultSort: { key: 'name', dir: 'asc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.hash = '#clients/' + r.id; },
-        emptyTitle: 'No organizations match', emptySub: 'Add clients in the CRM tab of the Office Console.' });
+        emptyTitle: 'No organizations match', emptySub: 'Use "+ Add client" to add one.' });
     } catch (e) { toast(e.message, true); $('cl-table').innerHTML = empty('Could not load clients', e.message); }
   }
 
@@ -794,26 +842,24 @@
       const { data: d } = await api('/clients/' + encodeURIComponent(id));
       const o = d.organization, t = d.totals;
       $('cp-title').textContent = o.name;
-      const buildings = d.buildings.length ? d.buildings.map(b => `
-        <div class="cp-building">
-          <h3>${b.id ? `<a class="cp-link" href="#buildings/${b.id}">${esc(b.name || b.address)}</a>` : esc(b.address)}${b.name && b.id ? ` <span class="cp-muted" style="font-weight:400">· ${esc(b.address)}</span>` : ''}${b.borough ? ` <span class="cp-muted" style="font-weight:400">· ${esc(b.borough)}</span>` : ''}</h3>
-          <div class="meta">${b.active_projects} active project(s) · ${b.projects.length} total · ${b.open_estimates} open estimate(s) · won ${money.format(b.won_value)}</div>
-          ${b.projects.length ? `<div class="cp-tags">${b.projects.map(p => `<a href="/projects/${encodeURIComponent(p.project_code)}" style="text-decoration:none"><span><b class="cp-id">${esc(p.project_code)}</b> ${esc(p.name || '')} · ${esc(p.status)}</span></a>`).join('')}</div>` : ''}
-          ${b.estimates.length ? `<div class="cp-tags">${b.estimates.map(e => `<span>${esc(e.code)} · ${esc(e.status)}${e.final_amount ? ' · ' + money.format(e.final_amount) : ''}</span>`).join('')}</div>` : ''}
-        </div>`).join('') : empty('No projects linked yet', 'Link a project or estimate to this client and its job site will appear here.');
+      // #339 — the client's jobs (grouped by address on the API; shown as one list)
+      const jobs = [].concat(...d.buildings.map(b => b.projects.map(p => Object.assign({ address: b.address, borough: b.borough }, p))));
+      const ests = [].concat(...d.buildings.map(b => b.estimates));
+      const projectsHtml = jobs.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Job</th><th>Address</th><th>Status</th></tr></thead><tbody>${jobs.map(p => `<tr><td><a class="cp-link" href="#projects/${encodeURIComponent(p.project_code)}"><b class="cp-id">${esc(p.project_code)}</b></a> ${esc(p.name || '')}</td><td>${esc(p.address || '')}${p.borough ? ` <span class="cp-muted">· ${esc(p.borough)}</span>` : ''}</td><td><span class="cp-pill ${p.status === 'active' ? 'ok' : ''}">${esc(p.status)}</span></td></tr>`).join('')}</tbody></table></div>` : empty('No projects yet', 'Create one under Projects → + New project and pick this client.');
+      const estsHtml = ests.length ? `<div class="cp-tags" style="margin-top:10px">${ests.map(e => `<span>${esc(e.code)} · ${esc(e.status)}${e.final_amount ? ' · ' + money.format(e.final_amount) : ''}</span>`).join('')}</div>` : '';
       host.innerHTML = `
         <div class="cp-toolbar"><a class="cp-link" href="#clients">← All clients</a><span style="flex:1"></span>
           <span class="cp-pill ${o.status === 'active' ? 'active' : ''}">${esc(o.status || 'active')}</span>${o.stage ? `<span class="cp-pill">${esc(o.stage)}</span>` : ''}
-          <a class="btn-ghost btn-sm" href="/#crm" style="text-decoration:none">Edit in CRM</a></div>
+          <button class="btn-ghost btn-sm" type="button" id="cl-contact-add">+ Contact</button><button class="btn-ghost btn-sm" type="button" id="cl-note-add">+ Note</button><button class="btn-primary btn-sm" type="button" id="cl-task-add">+ Follow-up</button></div>
         <div class="cp-kpis">
-          ${kpi('Job sites', t.buildings, `${t.projects} project(s) · ${t.projects_active} active`)}
+          ${kpi('Projects', t.projects, `${t.projects_active} active`)}
           ${kpi('Open pipeline', money.format(t.pipeline_value), `${t.estimates_open} open estimate(s)`)}
           ${kpi('Won value', money.format(t.won_value), 'approved + converted', 'good')}
           ${kpi('Contacts', d.contacts.length, `${d.open_tasks.length} open task(s)`)}
         </div>
         <div class="cp-grid3">
           <div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Projects &amp; job sites</h2><a class="cp-link" href="#buildings">All projects →</a></div>${buildings}</div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Projects</h2><a class="cp-link" href="#projects">All projects →</a></div>${projectsHtml}${estsHtml}</div>
             <div class="cp-card"><div class="cp-card-head"><h2>Documents expiring on this client's projects</h2></div>
               ${d.documents_expiring.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th><th>Document</th><th>Category</th><th>Expires</th><th></th></tr></thead><tbody>${d.documents_expiring.map(x => `<tr><td class="cp-id">${esc(x.project_code)}</td><td>${esc(x.title)}</td><td>${esc(x.category)}</td><td>${fmtDate(x.expiry_date)}</td><td>${daysPill(x.days_left)}</td></tr>`).join('')}</tbody></table></div>` : empty('No dated documents', 'COIs, permits and contracts with an expiry date will show here.')}
             </div>
@@ -822,15 +868,122 @@
             <div class="cp-card"><div class="cp-card-head"><h2>Contacts</h2></div>
               ${d.contacts.length ? `<ul class="cp-list">${d.contacts.map(c => `<li><div><strong>${esc(c.full_name)}</strong>${c.title ? `<div class="cp-muted" style="font-size:12px">${esc(c.title)}</div>` : ''}</div><div style="text-align:right;font-size:12px">${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a><br>` : ''}${esc(c.phone || '')}</div></li>`).join('')}</ul>` : empty('No contacts yet')}
             </div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Open tasks</h2></div>
-              ${d.open_tasks.length ? `<ul class="cp-list">${d.open_tasks.map(x => `<li><span>${esc(x.title)}</span><span class="cp-muted">${fmtDate(x.due_date)}</span></li>`).join('')}</ul>` : empty('No open tasks')}
+            <div class="cp-card"><div class="cp-card-head"><h2>Follow-ups</h2></div>
+              ${d.open_tasks.length ? `<ul class="cp-list">${d.open_tasks.map(x => `<li><span>${esc(x.title)}</span><span class="cp-muted">${fmtDate(x.due_date)} <button type="button" class="cp-link" data-task-done="${x.id}" style="margin-left:8px;background:none;border:0;padding:0;cursor:pointer;font:inherit">done</button></span></li>`).join('')}</ul>` : empty('No open follow-ups')}
             </div>
             <div class="cp-card"><div class="cp-card-head"><h2>Recent activity</h2></div>
               ${d.activity.length ? `<ul class="cp-list">${d.activity.map(x => `<li><span><span class="cp-pill">${esc(x.activity_type)}</span> ${esc(x.summary || '')}</span><span class="cp-muted">${fmtDate(x.created_at)}</span></li>`).join('')}</ul>` : empty('No activity logged')}
             </div>
           </div>
         </div>`;
+      $('cl-contact-add').addEventListener('click', () => openClientModal('ct', o.id));
+      $('cl-note-add').addEventListener('click', () => openClientModal('nt', o.id));
+      $('cl-task-add').addEventListener('click', () => openClientModal('fu', o.id));
+      host.querySelectorAll('[data-task-done]').forEach(b => b.addEventListener('click', async () => {
+        try { await api('/crm/tasks/' + b.dataset.taskDone + '/complete', { method: 'POST' }, true); toast('Follow-up done'); loadClientDetail(o.id); } catch (ex) { toast(ex.message, true); }
+      }));
     } catch (e) { toast(e.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this client', e.message)}</div>`; }
+  }
+
+  // ---------- CLIENTS: add / contact / note / follow-up (#339 — was the console's CRM tab) ----------
+  const CM = { cl: 'cl-overlay', ct: 'ct-overlay', nt: 'nt-overlay', fu: 'fu-overlay' };
+  function openClientModal(k, orgId) {
+    const ov = $(CM[k]), f = ov.querySelector('form'); f.reset(); f.dataset.org = orgId || '';
+    ov.querySelector('.cp-form-err').className = 'cp-form-err'; ov.classList.add('open');
+    setTimeout(() => { const i = f.querySelector('input,select,textarea'); if (i) i.focus(); }, 30);
+  }
+  function closeClientModal(k) { $(CM[k]).classList.remove('open'); }
+  function formErr(id, msg) { const e = $(id); e.textContent = msg; e.className = 'cp-form-err show'; }
+  Object.keys(CM).forEach(k => { const ov = $(CM[k]); ov.querySelector('[data-cancel]').addEventListener('click', () => closeClientModal(k)); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') Object.keys(CM).forEach(closeClientModal); });
+  $('cl-add').addEventListener('click', () => openClientModal('cl'));
+  $('cl-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); $('cl-err').className = 'cp-form-err';
+    const name = $('cl-name').value.trim(); if (!name) { formErr('cl-err', 'Enter the organization name.'); return; }
+    $('cl-save').disabled = true;
+    try {
+      const { data } = await api('/crm/organizations', { method: 'POST', body: JSON.stringify({ name, relationship_type: $('cl-rel').value, notes: $('cl-notes').value.trim() || null }) }, true);
+      const cn = $('cl-cname').value.trim();
+      if (cn) await api('/crm/contacts', { method: 'POST', body: JSON.stringify({ full_name: cn, org_id: data.id, email: $('cl-cemail').value.trim() || null, phone: $('cl-cphone').value.trim() || null, title: $('cl-ctitle').value.trim() || null }) }, true);
+      toast('Client added'); closeClientModal('cl'); location.hash = '#clients/' + data.id;
+    } catch (ex) { formErr('cl-err', ex.message); }
+    finally { $('cl-save').disabled = false; }
+  });
+  $('ct-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const org = $('ct-form').dataset.org; const name = $('ct-name').value.trim();
+    if (!name) { formErr('ct-err', 'Enter the contact name.'); return; }
+    $('ct-save').disabled = true;
+    try {
+      await api('/crm/contacts', { method: 'POST', body: JSON.stringify({ full_name: name, org_id: Number(org), email: $('ct-email').value.trim() || null, phone: $('ct-phone').value.trim() || null, title: $('ct-title-in').value.trim() || null }) }, true);
+      toast('Contact added'); closeClientModal('ct'); loadClientDetail(org);
+    } catch (ex) { formErr('ct-err', ex.message); }
+    finally { $('ct-save').disabled = false; }
+  });
+  $('nt-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const org = $('nt-form').dataset.org; const summary = $('nt-summary').value.trim();
+    if (!summary) { formErr('nt-err', 'Write a one-line summary.'); return; }
+    $('nt-save').disabled = true;
+    try {
+      await api('/crm/activity', { method: 'POST', body: JSON.stringify({ entity_type: 'organization', entity_id: Number(org), activity_type: $('nt-type').value, summary, body: $('nt-body').value.trim() || null }) }, true);
+      toast('Logged'); closeClientModal('nt'); loadClientDetail(org);
+    } catch (ex) { formErr('nt-err', ex.message); }
+    finally { $('nt-save').disabled = false; }
+  });
+  $('fu-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const org = $('fu-form').dataset.org; const title = $('fu-title-in').value.trim();
+    if (!title) { formErr('fu-err', 'Say what the follow-up is.'); return; }
+    $('fu-save').disabled = true;
+    try {
+      await api('/crm/tasks', { method: 'POST', body: JSON.stringify({ entity_type: 'organization', entity_id: Number(org), title, due_date: $('fu-due').value || null, priority: $('fu-priority').value, detail: $('fu-detail').value.trim() || null }) }, true);
+      toast('Follow-up added'); closeClientModal('fu'); loadClientDetail(org);
+    } catch (ex) { formErr('fu-err', ex.message); }
+    finally { $('fu-save').disabled = false; }
+  });
+
+  // ---------- THIS WEEK on the Dashboard (#338 → #339: lives on the company home now) ----------
+  async function loadWeekStrip() {
+    const W = $('cc-week'); if (!W) return;
+    const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const add = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+    const mdy = (s) => { if (!s) return ''; const p = String(s).slice(0, 10).split('-'); return p[1] + '/' + p[2]; };
+    const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const today = new Date(), mon = add(today, -((today.getDay() + 6) % 7)), days = []; for (let i = 0; i < 7; i++) days.push(add(mon, i));
+    const from = iso(days[0]), to = iso(days[6]), t = iso(today);
+    $('cc-week-open').href = '#calendar/' + from;
+    $('cc-week-dow').innerHTML = days.map((x, i) => `<div class="${iso(x) === t ? 'today' : ''}">${DOW[i]} ${x.getDate()}</div>`).join('');
+    let d;
+    try { d = (await api('/calendar?from=' + from + '&to=' + to)).data; }
+    catch (e) { $('cc-week-row').innerHTML = `<div class="cp-empty" style="grid-column:1 / -1">Could not load this week.</div>`; return; }
+    const jobs = d.jobs.slice().sort((a, b) => a.start_date < b.start_date ? -1 : a.start_date > b.start_date ? 1 : ((b.days || 999) - (a.days || 999)));
+    const laneH = 26, maxLanes = 4, lanes = [], segs = [], overflow = {};
+    jobs.forEach(j => {
+      const js = j.start_date, je = j.open_ended ? '9999-12-31' : j.end_date; if (je < from || js > to) return;
+      let c0 = 0; for (let i = 0; i < 7; i++) { if (iso(days[i]) >= js) { c0 = i; break; } }
+      let c1 = 6; for (let k = 6; k >= 0; k--) { if (iso(days[k]) <= je) { c1 = k; break; } }
+      let lane = 0; while (lanes[lane] && lanes[lane].some(r => !(c1 < r[0] || c0 > r[1]))) lane++;
+      (lanes[lane] = lanes[lane] || []).push([c0, c1]);
+      if (lane >= maxLanes) { for (let m = c0; m <= c1; m++) overflow[m] = (overflow[m] || 0) + 1; return; }
+      segs.push({ j, c0, c1, lane, starts: js >= from, ends: !j.open_ended && je <= to });
+    });
+    const laneCount = Math.min(lanes.length, maxLanes);
+    let msMax = 0; days.forEach(x => { msMax = Math.max(msMax, Math.min(((d.days[iso(x)] || {}).milestones || []).length, 3)); });
+    const minH = Math.max(120, 44 + laneCount * laneH + 14 + msMax * 19);
+    const cells = days.map(x => {
+      const k = iso(x), info = d.days[k] || {}, hc = info.headcount || 0, ms = (info.milestones || []).slice(0, 3);
+      const chips = ms.map(m => `<span class="${m.kind === 'invoice' ? 'inv' : ''}${m.late ? ' late' : ''}" title="${esc(m.kind === 'invoice' ? (m.number + ' · ' + (m.client_name || '')) : ((m.project_name || m.project_code || '') + ' · ' + m.label))}">${m.kind === 'invoice' ? '$ ' : '◆ '}${esc(m.kind === 'invoice' ? m.number : m.label)}</span>`).join('');
+      const who = Object.keys(info.on_site || {}).map(c => { const jj = d.jobs.find(z => z.project_code === c); return info.on_site[c] + ' · ' + ((jj && jj.name) || c); }).join(' · ');
+      return `<div class="cc-week-cell ${(x.getDay() === 0 || x.getDay() === 6) ? 'wknd' : ''}${k === t ? ' today' : ''}" style="padding-top:${40 + laneCount * laneH}px;position:relative"><div class="cc-week-date" style="position:absolute;left:8px;right:8px;top:8px"><span class="n">${x.getDate()}</span>${hc ? `<span class="cc-week-hc" title="${esc(who)}">${hc} on site</span>` : ''}</div><div class="cc-week-ms">${chips}</div></div>`;
+    }).join('');
+    const bars = segs.map(s => {
+      const left = (s.c0 / 7 * 100).toFixed(3), width = ((s.c1 - s.c0 + 1) / 7 * 100).toFixed(3);
+      return `<a class="cc-week-bar cw${s.j.color}${s.starts ? '' : ' cont'}${s.ends ? '' : ' goes'}" href="/projects/${encodeURIComponent(s.j.project_code)}" style="left:calc(${left}% + 4px);width:calc(${width}% - 8px);top:${s.lane * laneH}px" title="${esc(s.j.name)}${s.j.client_name ? ' · ' + esc(s.j.client_name) : ''} · ${mdy(s.j.start_date)} → ${s.j.open_ended ? 'no end date' : mdy(s.j.end_date)}">${esc(s.j.name)}${s.c1 - s.c0 >= 2 && s.j.client_name ? `<small>${esc(s.j.client_name)}</small>` : ''}</a>`;
+    }).join('') + Object.keys(overflow).map(i => `<a class="cc-week-more" href="#calendar/${from}" style="left:calc(${(i / 7 * 100).toFixed(3)}% + 6px);top:${maxLanes * laneH}px">+${overflow[i]} more</a>`).join('');
+    $('cc-week-row').style.minHeight = minH + 'px';
+    $('cc-week-row').innerHTML = cells + `<div class="cc-week-lanes" style="height:${laneCount * laneH}px">${bars}</div>`;
+    const n = segs.length ? new Set(segs.map(s => s.j.project_code)).size : 0;
+    const foot = [n ? `${n} job(s) this week` : 'No dated jobs this week.'];
+    if (d.undated && d.undated.length) foot.push(`${d.undated.length} active job(s) have no start date yet — <a href="/admin/projects">set them under Crew &amp; site</a>`);
+    $('cc-week-foot').innerHTML = foot.map(x => `<span>${x}</span>`).join('');
   }
 
   // ---------- CALENDAR (#332) ----------
@@ -1003,7 +1156,7 @@
     try {
       const { data: rows, meta } = await api('/projects?' + q.toString());
       const sites = (meta && meta.sites_without_project) || [];   // #337
-      $('pj-notice').innerHTML = sites.length ? `<div class="cp-note" style="margin-bottom:12px"><strong>${sites.length} job site${sites.length > 1 ? 's have' : ' has'} no project yet.</strong> A job site is just an address — create the project so it gets a dashboard, crew, calendar bar and daily reports.<ul class="cp-list" style="margin-top:8px">${sites.map(s => `<li><span><a class="cp-link" href="#buildings/${s.id}">${esc(s.name || s.address_line)}</a>${s.client_name ? ' <span class="cp-muted">· ' + esc(s.client_name) + '</span>' : ''}</span><a class="btn-primary btn-sm" style="text-decoration:none" href="${newProjectHref(s)}">Create project</a></li>`).join('')}</ul></div>` : '';
+      $('pj-notice').innerHTML = sites.length ? `<div class="cp-note" style="margin-bottom:12px"><strong>${sites.length} address${sites.length > 1 ? 'es were' : ' was'} added without a project.</strong> Create the project so it gets a dashboard, crew, calendar bar and daily reports.<ul class="cp-list" style="margin-top:8px">${sites.map(s => `<li><span>${esc(s.name || s.address_line)}${s.client_name ? ' <span class="cp-muted">· ' + esc(s.client_name) + '</span>' : ''}</span><a class="btn-primary btn-sm" style="text-decoration:none" href="${newProjectHref(s)}">Create project</a></li>`).join('')}</ul></div>` : '';
       table($('pj-table'), [
         { key: 'project_code', label: 'Job', render: r => `<span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:12px">${esc(r.name || '')}</div>` },
         { key: 'address', label: 'Address', render: r => `${esc(r.address || '—')}<div class="cp-muted" style="font-size:12px">${esc(r.city_zip || '')}</div>` },
@@ -1018,7 +1171,7 @@
         emptyTitle: 'No jobs here', emptySub: 'Add one with "+ New project" — the daily report and the worker portal work for it right away.' });
     } catch (e) { toast(e.message, true); $('pj-table').innerHTML = empty('Could not load projects', e.message); }
   }
-  // #337 — hand a job site to "+ New project" with the address, borough and client filled in
+  // #337 — hand an address to "+ New project" with the street, borough and client filled in
   function newProjectHref(s) {
     const q = new URLSearchParams({ new: '1', address: s.address_line || s.address || '', borough: s.borough || '', name: s.name || '' });
     if (s.client_org_id) q.set('client_org_id', s.client_org_id);
@@ -1069,7 +1222,7 @@
               ${fact('Target completion', p.target_completion ? fmtDate(p.target_completion) : null)}
               ${fact('Address', esc(p.address || ''))}
               ${fact('City / ZIP', esc(p.city_zip || ''))}
-              ${fact('Job site', d.links.building ? `<a class="cp-link" href="${d.links.building}">${esc((d.building && (d.building.name || d.building.address_line)) || 'open')}${d.building && d.building.borough ? ' · ' + esc(d.building.borough) : ''}</a>` : null)}
+              ${fact('Region', d.building && d.building.borough ? esc(d.building.borough) : null)}
             </ul></div>
             <div class="cp-card"><div class="cp-card-head"><h2>Activity</h2><span class="hint">last 30 days</span></div><ul class="cp-list">
               ${fact('Daily reports', `${act.reports_30d}${act.last_report_date ? ' <span class="cp-muted">· last ' + fmtDate(act.last_report_date) + '</span>' : ''}`)}
@@ -1094,133 +1247,6 @@
     selectEl.innerHTML = first + state.cache.clientOpts.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
     selectEl.value = cur || '';
   }
-  async function loadBuildings() {
-    $('building-detail').hidden = true; $('buildings-list').hidden = false;
-    await clientOptions($('bd-client'));
-    const q = new URLSearchParams(); if ($('bd-search').value.trim()) q.set('search', $('bd-search').value.trim());
-    if ($('bd-client').value) q.set('client_org_id', $('bd-client').value); if ($('bd-archived').checked) q.set('archived', '1');
-    skeleton($('bd-table'), 5);
-    try {
-      const { data: rows } = await api('/buildings?' + q.toString(), null, true);
-      table($('bd-table'), [
-        { key: 'display', label: 'Job site', render: r => `<span class="cp-id">${esc(r.name || r.address_line)}</span>${r.name ? `<div class="cp-muted" style="font-size:12px">${esc(r.address_line)}</div>` : ''}${r.archived_at ? ' <span class="cp-pill">archived</span>' : ''}` },
-        { key: 'client_name', label: 'Client', render: r => r.client_name ? esc(r.client_name) : '<span class="cp-muted">— unassigned —</span>' },
-        { key: 'borough', label: 'Borough', render: r => esc(r.borough || '—') },
-        { key: 'active_projects', label: 'Active projects', num: true, render: r => `${r.active_projects}<span class="cp-muted"> / ${r.projects_total}</span>` },
-        { key: 'open_estimates', label: 'Open estimates', num: true, render: r => `${r.open_estimates}<div class="cp-muted" style="font-size:12px">${money.format(r.pipeline_value)}</div>` },
-        { key: 'won_value', label: 'Won value', num: true, render: r => money.format(r.won_value) },
-        { key: 'bin', label: 'BIN', render: r => esc(r.bin || '—') },
-      ], rows, { defaultSort: { key: 'display', dir: 'asc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.hash = '#buildings/' + r.id; },
-        emptyTitle: 'No projects yet', emptySub: 'Job sites are created automatically from project and estimate addresses. Add one by hand for a site you have not quoted yet.' });
-    } catch (e) { toast(e.message, true); $('bd-table').innerHTML = empty('Could not load projects', e.message); }
-  }
-  async function loadBuildingDetail(id) {
-    $('buildings-list').hidden = true; const host = $('building-detail'); host.hidden = false; host.innerHTML = '<div class="cp-card"><div class="cp-skel"></div><div class="cp-skel"></div></div>';
-    try {
-      const { data: b } = await api('/buildings/' + encodeURIComponent(id), null, true);
-      $('cp-title').textContent = b.name || b.address_line;
-      const fact = (k, v) => `<li><span class="cp-muted">${esc(k)}</span><span>${v == null || v === '' ? '—' : esc(v)}</span></li>`;
-      const projects = b.projects.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th><th>Name</th><th>Status</th><th>Type</th><th></th></tr></thead><tbody>${b.projects.map(p => `<tr><td class="cp-id"><a class="cp-link" href="/projects/${encodeURIComponent(p.project_code)}">${esc(p.project_code)}</a></td><td>${esc(p.name || '')}</td><td><span class="cp-pill ${p.status === 'active' ? 'active' : ''}">${esc(p.status || 'active')}</span></td><td>${esc(p.project_type || '—')}</td><td><button type="button" class="cp-link" data-unlink-project="${esc(p.project_code)}" style="color:#A8382B">Unlink</button></td></tr>`).join('')}</tbody></table></div>` : empty('No projects at this job site yet');
-      const estimates = b.estimates.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Estimate</th><th>Status</th><th>Stage</th><th class="num">Amount</th><th>Submitted</th><th>Decided</th><th></th></tr></thead><tbody>${b.estimates.map(e => `<tr><td class="cp-id">${esc(e.code)}</td><td><span class="cp-pill">${esc(e.status)}</span></td><td>${esc(e.est_stage || '—')}</td><td class="num">${e.final_amount ? money.format(e.final_amount) : '—'}</td><td>${fmtDate(e.submitted_date)}</td><td>${fmtDate(e.decided_date)}</td><td style="white-space:nowrap">${['lost','converted'].includes(e.status) ? '' : `<button type="button" class="cp-link" data-propose="${e.id}">Proposal</button> · `}<button type="button" class="cp-link" data-unlink-estimate="${e.id}" style="color:#A8382B">Unlink</button></td></tr>`).join('')}</tbody></table></div>` : empty('No estimates at this job site yet');
-      host.innerHTML = `
-        <div class="cp-toolbar"><a class="cp-link" href="#buildings">← All job sites</a><span style="flex:1"></span>
-          ${b.archived_at ? '<span class="cp-pill">archived</span>' : ''}
-          ${!b.projects.length && !b.archived_at ? `<a class="btn-primary btn-sm" style="text-decoration:none" href="${newProjectHref(b)}" title="Open + New project with this address filled in">Create project here</a>` : ''}
-          <button class="btn-ghost btn-sm" type="button" id="bd-link-btn">Link project / estimate</button>
-          <button class="btn-ghost btn-sm" type="button" id="bd-edit">Edit</button>
-          <button class="btn-ghost btn-sm" type="button" id="bd-arch" style="color:#A8382B">${b.archived_at ? 'Restore' : 'Archive'}</button></div>
-        <div class="cp-kpis">
-          ${kpi('Active projects', b.active_projects, `${b.projects.length} project(s) total`)}
-          ${kpi('Open estimates', b.open_estimates, money.format(b.pipeline_value) + ' in pipeline')}
-          ${kpi('Won value', money.format(b.won_value), 'approved + converted', 'good')}
-          ${kpi('On file', `${b.documents_expiring.length}`, `dated document(s) · ${b.rfi_count} RFI(s) · ${b.photo_count} photo(s)`)}
-        </div>
-        <div class="cp-grid3">
-          <div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Projects</h2></div>${projects}</div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Estimates &amp; proposals</h2></div>${estimates}</div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Documents expiring</h2></div>
-              ${b.documents_expiring.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th><th>Document</th><th>Category</th><th>Expires</th><th></th></tr></thead><tbody>${b.documents_expiring.map(x => `<tr><td class="cp-id">${esc(x.project_code)}</td><td>${esc(x.title)}</td><td>${esc(x.category)}</td><td>${fmtDate(x.expiry_date)}</td><td>${daysPill(x.days_left)}</td></tr>`).join('')}</tbody></table></div>` : empty('No dated documents', 'COIs, permits and contracts with an expiry date will show here.')}
-            </div>
-          </div>
-          <div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Job site</h2></div>
-              <ul class="cp-list">
-                ${fact('Address', b.address_line)}${fact('Client', b.client_name)}${fact('Borough', b.borough)}${fact('City / state / ZIP', [b.city, b.state, b.zip].filter(Boolean).join(' '))}
-                ${fact('DOB BIN', b.bin)}${fact('Block / lot', [b.block, b.lot].filter(Boolean).join(' / '))}${fact('Stories', b.stories)}${fact('Year built', b.year_built)}
-              </ul>
-              ${b.notes ? `<p class="cp-muted" style="margin:10px 0 0;white-space:pre-wrap">${esc(b.notes)}</p>` : ''}
-              ${b.client_org_id ? `<p style="margin:12px 0 0"><a class="cp-link" href="#clients/${b.client_org_id}">Open client →</a></p>` : ''}
-            </div>
-          </div>
-        </div>
-        <div class="cp-card" id="bd-linker" hidden>
-          <div class="cp-card-head"><h2>Link to this job site</h2><button type="button" class="cp-link" id="bd-linker-close">Close</button></div>
-          <div class="cp-toolbar" style="gap:10px;flex-wrap:wrap">
-            <select class="cp-select" id="bd-link-project"><option value="">— project without a job site —</option></select>
-            <button class="btn-ghost btn-sm" type="button" id="bd-link-project-go">Link project</button>
-            <select class="cp-select" id="bd-link-estimate"><option value="">— estimate without a job site —</option></select>
-            <button class="btn-ghost btn-sm" type="button" id="bd-link-estimate-go">Link estimate</button>
-          </div>
-        </div>`;
-      $('bd-edit').addEventListener('click', () => openBuildingModal(b));
-      $('bd-arch').addEventListener('click', async () => {
-        if (!b.archived_at && !confirm(`Archive "${b.name || b.address_line}"? Its projects and estimates keep their history; it just leaves the active list.`)) return;
-        try { await api('/buildings/' + b.id + (b.archived_at ? '/restore' : '/archive'), { method: 'POST' }, true); toast(b.archived_at ? 'Job site restored' : 'Job site archived'); loadBuildingDetail(id); } catch (e) { toast(e.message, true); }
-      });
-      $('bd-link-btn').addEventListener('click', async () => {
-        const box = $('bd-linker'); box.hidden = false;
-        try {
-          const { data: u } = await api('/buildings/unlinked', null, true);
-          $('bd-link-project').innerHTML = '<option value="">— project without a job site —</option>' + u.projects.map(p => `<option value="${esc(p.project_code)}">${esc(p.project_code)} · ${esc(p.name || p.address || '')}</option>`).join('');
-          $('bd-link-estimate').innerHTML = '<option value="">— estimate without a job site —</option>' + u.estimates.map(e => `<option value="${e.id}">${esc(e.code)} · ${esc(e.building_address || '')}</option>`).join('');
-        } catch (e) { toast(e.message, true); }
-      });
-      $('bd-linker-close').addEventListener('click', () => { $('bd-linker').hidden = true; });
-      $('bd-link-project-go').addEventListener('click', async () => { const v = $('bd-link-project').value; if (!v) return; try { await api('/buildings/' + b.id + '/link', { method: 'POST', body: JSON.stringify({ project_code: v }) }, true); toast('Project linked'); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } });
-      $('bd-link-estimate-go').addEventListener('click', async () => { const v = $('bd-link-estimate').value; if (!v) return; try { await api('/buildings/' + b.id + '/link', { method: 'POST', body: JSON.stringify({ estimate_id: Number(v) }) }, true); toast('Estimate linked'); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } });
-      host.querySelectorAll('[data-unlink-project]').forEach(el => el.addEventListener('click', async () => { if (!confirm('Unlink this project from the job site?')) return; try { await api('/buildings/' + b.id + '/unlink', { method: 'POST', body: JSON.stringify({ project_code: el.dataset.unlinkProject }) }, true); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } }));
-      host.querySelectorAll('[data-propose]').forEach(el => el.addEventListener('click', () => proposeFromEstimate(Number(el.dataset.propose))));
-      host.querySelectorAll('[data-unlink-estimate]').forEach(el => el.addEventListener('click', async () => { if (!confirm('Unlink this estimate from the job site?')) return; try { await api('/buildings/' + b.id + '/unlink', { method: 'POST', body: JSON.stringify({ estimate_id: Number(el.dataset.unlinkEstimate) }) }, true); loadBuildingDetail(id); } catch (e) { toast(e.message, true); } }));
-    } catch (e) { toast(e.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this job site', e.message)}</div>`; }
-  }
-  async function openBuildingModal(b) {
-    await clientOptions($('bd-client-sel'), b ? String(b.client_org_id || '') : '');
-    $('bd-form').dataset.id = b ? b.id : '';
-    $('bd-title').textContent = b ? 'Edit job site' : 'Add job site';
-    $('bd-address').value = b ? b.address_line : ''; $('bd-name').value = b ? (b.name || '') : '';
-    $('bd-borough').value = b ? (b.borough || '') : ''; $('bd-zip').value = b ? (b.zip || '') : '';
-    $('bd-bin').value = b ? (b.bin || '') : ''; $('bd-blocklot').value = b ? [b.block, b.lot].filter(Boolean).join(' / ') : '';
-    $('bd-stories').value = b && b.stories != null ? b.stories : ''; $('bd-year').value = b && b.year_built ? b.year_built : ''; $('bd-notes').value = b ? (b.notes || '') : '';
-    $('bd-err').className = 'cp-form-err'; $('bd-overlay').classList.add('open'); setTimeout(() => $('bd-address').focus(), 30);
-  }
-  function closeBuildingModal() { $('bd-overlay').classList.remove('open'); $('bd-form').reset(); $('bd-form').dataset.id = ''; }
-  $('bd-add').addEventListener('click', () => openBuildingModal(null));
-  $('bd-cancel').addEventListener('click', closeBuildingModal);
-  $('bd-overlay').addEventListener('click', (e) => { if (e.target === $('bd-overlay')) closeBuildingModal(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('bd-overlay').classList.contains('open')) closeBuildingModal(); });
-  $('bd-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const err = $('bd-err'); err.className = 'cp-form-err';
-    const [block, lot] = $('bd-blocklot').value.split('/').map(x => x.trim());
-    const payload = { address_line: $('bd-address').value.trim(), name: $('bd-name').value.trim() || null, client_org_id: $('bd-client-sel').value || null,
-      borough: $('bd-borough').value || null, zip: $('bd-zip').value.trim() || null, bin: $('bd-bin').value.trim() || null, block: block || null, lot: lot || null,
-      stories: $('bd-stories').value.trim() || null, year_built: $('bd-year').value.trim() || null, notes: $('bd-notes').value.trim() || null };
-    if (!payload.address_line) { err.textContent = 'A street address is required.'; err.className = 'cp-form-err show'; return; }
-    const id = $('bd-form').dataset.id; $('bd-save').disabled = true;
-    try {
-      const res = id ? await api('/buildings/' + id, { method: 'PATCH', body: JSON.stringify(payload) }, true)
-                     : await api('/buildings', { method: 'POST', body: JSON.stringify(payload) }, true);
-      toast(id ? 'Job site updated' : 'Job site added'); closeBuildingModal();
-      location.hash = '#buildings/' + res.data.id; if (id) loadBuildingDetail(id);
-    } catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
-    finally { $('bd-save').disabled = false; }
-  });
-  $('bd-rematch').addEventListener('click', async () => {
-    try { const { data } = await api('/buildings/backfill', { method: 'POST' }, true); toast(`Matcher: ${data.buildings_created} job site(s) created, ${data.projects_linked} project(s) + ${data.estimates_linked} estimate(s) linked`); loadBuildings(); }
-    catch (e) { toast(e.message, true); }
-  });
-
   // ---------- PROPOSALS (#307) ----------
   const PR_PILL = { draft: '', sent: 'active', viewed: 'active', signed: 'ok', declined: 'bad', superseded: '', expired: 'warn' };
   function prPill(p) { const st = p.display_status || p.status; return `<span class="cp-pill ${PR_PILL[st] || ''}">${esc(st)}</span>`; }
@@ -1244,13 +1270,13 @@
       table($('pr-table'), [
         { key: 'number', label: 'Proposal', render: r => `<a class="cp-link cp-id" href="#proposals/${r.id}">${esc(r.number)}</a>` },
         { key: 'client_name', label: 'Client', render: r => `<a class="cp-link" href="#clients/${r.client_org_id}">${esc(r.client_name)}</a>` },
-        { key: 'building_address', label: 'Job site', render: r => r.building_id ? `<a class="cp-link" href="#buildings/${r.building_id}">${esc(r.building_name || r.building_address || '—')}</a>` : esc(r.building_address || '—') },
+        { key: 'building_address', label: 'Address', render: r => esc(r.building_name || r.building_address || '—') },
         { key: 'title', label: 'Title' },
         { key: 'price', label: 'Price', num: true, render: r => r.price != null ? money.format(r.price) : '—' },
         { key: 'status', label: 'Status', render: prPill, sortVal: r => r.display_status },
         { key: 'sent_at', label: 'Sent', render: r => fmtDate(r.sent_at) },
         { key: 'updated_at', label: 'Updated', render: r => fmtDate(r.updated_at) },
-      ], rows, { defaultSort: { key: 'updated_at', dir: 'desc' }, emptyTitle: 'No proposals yet', emptySub: 'Create one from an estimate — client, job site and price come across.', onRow: r => { location.hash = '#proposals/' + r.id; } });
+      ], rows, { defaultSort: { key: 'updated_at', dir: 'desc' }, emptyTitle: 'No proposals yet', emptySub: 'Create one from an estimate — client, address and price come across.', onRow: r => { location.hash = '#proposals/' + r.id; } });
     } catch (e) { toast(e.message, true); }
   }
   function prLineRow(l, editable) {
@@ -1320,7 +1346,7 @@
             <div class="cp-card"><div class="cp-card-head"><h2>Who and where</h2></div>
               <ul class="cp-list">
                 ${fact('Client', `<a class="cp-link" href="#clients/${p.client_org_id}">${esc(p.client_name)}</a>`)}
-                ${fact('Job site', p.building_id ? `<a class="cp-link" href="#buildings/${p.building_id}">${esc(p.building_name || p.building_address || '')}</a>` : esc(p.building_address || ''))}
+                ${fact('Address', esc(p.building_name || p.building_address || ''))}
                 ${fact('Contact', esc(p.contact_name || ''))}
                 ${fact('Sent to', p.recipient_email ? `${esc(p.recipient_name || '')}<br><span class="cp-muted">${esc(p.recipient_email)}</span>` : '')}
                 ${fact('Sent', p.sent_at ? fmtWhen(p.sent_at) : '')}
@@ -1629,7 +1655,7 @@
       { key: 'hours_7d', label: 'Worked 7d', num: true }, { key: 'hours_30d', label: 'Worked 30d', num: true },
       { key: 'last_on_site', label: 'Last on site', render: r => fmtDate(r.last_on_site) },
       { key: 'certs_total', label: 'Certs', num: true, render: r => `${r.certs_total}${r.certs_expired ? ` <span class="cp-pill bad">${r.certs_expired} expired</span>` : ''}${r.certs_expiring_30 ? ` <span class="cp-pill warn">${r.certs_expiring_30} soon</span>` : ''}` },
-    ], rows, { defaultSort: { key: 'worker_id', dir: 'asc' }, emptyTitle: q ? 'No workers match' : 'No active workers', emptySub: q ? '' : 'Onboard workers from the Workforce tab of the Office Console.', onRow: r => { location.hash = '#workforce/' + encodeURIComponent(r.employee_id); } });
+    ], rows, { defaultSort: { key: 'worker_id', dir: 'asc' }, emptyTitle: q ? 'No workers match' : 'No active workers', emptySub: q ? '' : 'Onboard workers under Workforce → Onboarding & directory.', onRow: r => { location.hash = '#workforce/' + encodeURIComponent(r.employee_id); } });
   }
 
   // ---------- WORKER JOB HISTORY + PAYROLL VIEW (#320) ----------
@@ -1940,7 +1966,7 @@
       body.innerHTML = `<ul class="cp-list">
           ${f('Client', `<a class="cp-link" href="#clients/${r.client_org_id}">${esc(r.client_name || '')}</a>`)}
           ${f('Project', r.project_code ? `${esc(r.project_code)}${r.project_name ? ' · ' + esc(r.project_name) : ''}` : '')}
-          ${f('Building', r.building_id ? `<a class="cp-link" href="#buildings/${r.building_id}">${esc(r.building_address || '')}</a>` : '')}
+          ${f('Address', esc(r.building_address || ''))}
           ${f('Proposal', r.proposal_id ? `<a class="cp-link" href="#proposals/${r.proposal_id}">${esc(r.proposal_number || '')}</a>` : '')}
           ${f('Description', esc(r.description || ''))}
           ${f('Retainage held', r.retainage ? money2.format(r.retainage) : '')}
@@ -2038,19 +2064,20 @@
   document.querySelectorAll('.cp-overlay').forEach(o => o.addEventListener('click', (e) => { if (e.target === o) o.classList.remove('open'); }));
 
   // ---------- router ----------
-  const TITLES = { overview: 'Dashboard', clients: 'Clients', calendar: 'Calendar', projects: 'Projects', buildings: 'Job sites', proposals: 'Proposals', finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce & Pay', compliance: 'Compliance & Vault' };
-  const LOADERS = { overview: loadOverview, clients: loadClients, calendar: loadCalendar, projects: loadProjects, buildings: loadBuildings, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, compliance: loadCompliance };
+  const TITLES = { overview: 'Dashboard', clients: 'Clients', calendar: 'Projects · Calendar', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance · Expenses', workforce: 'Workforce', company: 'Company' };
+  const LOADERS = { overview: loadOverview, clients: loadClients, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance };
+  const ALIASES = { buildings: 'projects', compliance: 'company' };   // #339 — old bookmarks and links keep working
   function route() {
     const h = (location.hash || '#overview').slice(1);
-    const [view, arg] = h.split('/');
+    let [view, arg] = h.split('/');
+    if (ALIASES[view]) { view = ALIASES[view]; arg = undefined; location.replace('#' + view); }
     const v = LOADERS[view] ? view : 'overview';
     state.view = v;
     document.querySelectorAll('.cp-view').forEach(s => s.hidden = (s.id !== 'view-' + v));
-    document.querySelectorAll('#cp-nav a').forEach(a => a.classList.toggle('active', a.dataset.view === v || (v === 'buildings' && a.dataset.view === 'projects')));   // #330 job sites live under Projects
     $('cp-title').textContent = TITLES[v];
     if (v === 'finance') $('inv-status').value = ['overdue', 'draft', 'issued', 'paid', 'void'].includes(arg) ? arg : '';
     if (v === 'calendar' && arg && /^\d{4}-\d{2}-\d{2}$/.test(arg)) { CAL.anchor = calParse(arg); loadCalendar(); }
-    if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'projects' && arg) loadProjectDetail(arg); else if (v === 'buildings' && arg) loadBuildingDetail(arg); else if (v === 'proposals' && arg) loadProposalDetail(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
+    if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'projects' && arg) loadProjectDetail(arg); else if (v === 'proposals' && arg) loadProposalDetail(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);
@@ -2059,11 +2086,8 @@
   let t;
   const debounce = (fn) => { clearTimeout(t); t = setTimeout(fn, 250); };
   $('cl-search').addEventListener('input', () => debounce(loadClients));
-  $('bd-search').addEventListener('input', () => debounce(loadBuildings));
   $('pj-search').addEventListener('input', () => debounce(loadProjects));
   $('pj-status').addEventListener('change', loadProjects);
-  $('bd-client').addEventListener('change', loadBuildings);
-  $('bd-archived').addEventListener('change', loadBuildings);
   $('pr-search').addEventListener('input', () => debounce(loadProposals));
   $('pr-status').addEventListener('change', loadProposals);
   $('cl-type').addEventListener('change', loadClients); $('cl-inactive').addEventListener('change', loadClients);

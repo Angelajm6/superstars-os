@@ -109,8 +109,9 @@ def main() -> int:
     passed += 1; print("  sites without project ok")
 
     html = c.get("/company").get_data(as_text=True)
-    for needle in ('id="pj-notice"', "Create project here", "function newProjectHref", "sites_without_project", "← All job sites"):
+    for needle in ('id="pj-notice"', ">Create project</a>", "function newProjectHref", "sites_without_project"):
         assert needle in html, needle
+    assert "← All job sites" not in html and 'id="view-buildings"' not in html   # #339: no job-sites page
     ap = c.get("/admin/projects").get_data(as_text=True)
     for needle in ("openNewProjectWith", "q.get('new') === '1'", "np-borough"):
         assert needle in ap, needle

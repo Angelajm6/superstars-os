@@ -35,7 +35,7 @@ SPINE_VERSION = "1.0.0"   # bump when project_types content or shared fields cha
 PROJECT_TYPES = [
     {
         "id": "facade",
-        "label": "Facade Restoration / Recladding",
+        "label": "Exterior Restoration / Recladding",   # #339 — label only; the id stays "facade"
         "location_unit_options": ["Bay", "Drop", "Elevation", "Grid line", "Floor/Level"],
         "typical_scopes": [
             "Probe/investigation", "Demo", "Masonry repair", "Brick replacement",

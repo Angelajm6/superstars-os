@@ -229,9 +229,9 @@ def main() -> int:
     passed += 1; print("  detail ok")
 
     html = cs.get("/company").get_data(as_text=True)
-    assert 'href="#projects" data-view="projects"' in html and "</svg>Projects</a>" in html
-    assert 'id="view-projects"' in html and 'id="project-detail"' in html and 'id="view-buildings"' in html
-    assert "projects: 'Projects'" in html and "buildings: 'Job sites'" in html and "loadProjectDetail" in html
+    assert 'data-company-nav' in html and "label: 'Projects'" in (ROOT / "static" / "js" / "company_nav.js").read_text(encoding="utf-8")   # #339: shared sidebar
+    assert 'id="view-projects"' in html and 'id="project-detail"' in html and 'id="view-buildings"' not in html   # #339: no job-sites page
+    assert "projects: 'Projects'" in html and "buildings: 'Job sites'" not in html and "loadProjectDetail" in html
     assert 'href="#buildings" data-view="buildings"' not in html, "job sites are not a nav entry any more"
     passed += 1; print("  served page ok")
 

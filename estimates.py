@@ -50,7 +50,7 @@ _DOC_BASE = ssc_paths.under_root("data_room", "estimate_docs")   # #287
 # ---- catalogs (in code, extensible — the operator adds a type here, no schema change) ----
 EST_TYPES = {
     "IRA": "Industrial Rope Access Inspection",
-    "FR":  "Facade Restoration",
+    "FR":  "Exterior Restoration",   # #339 — "exterior", never "facade" (Arun, 2026-09-22): roofs and parapets are exterior too
     "IR":  "Interior Repair",
     "PG":  "Parking Garage",   # #276 — the fourth division's code series (blueprint §1)
 }
