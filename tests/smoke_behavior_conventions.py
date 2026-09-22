@@ -128,12 +128,14 @@ def m_dropreport_path_scoped(html):
 
 
 def m_admin_console_home_nav(html):
-    """(#258) the admin console (/admin/users) must offer a way OUT — a link to the
-    dashboard AND the company home — so the operator is never stranded there
-    (the #257 dead-end bug)."""
-    has_dashboard = 'href="/dashboard"' in html
-    has_home = 'class="brand-home"' in html
-    return has_dashboard and has_home
+    """(#258) the admin console (/admin/users) must offer a way OUT — so the operator
+    is never stranded there (the #257 dead-end bug). #339 replaced the page's own
+    'href="/dashboard"' + 'class="brand-home"' escape hatch with the shared
+    company_nav.js sidebar (mounted via <nav data-company-nav> + SSC_NAV.mount()),
+    whose Dashboard tab is the equivalent way out."""
+    has_shared_nav = 'data-company-nav' in html
+    mounts_it = 'SSC_NAV.mount()' in html
+    return has_shared_nav and mounts_it
 
 
 def m_app_admin_users_link(js):
@@ -538,18 +540,21 @@ def behavioral_rbac_financial_check():
         cs_html = cs.get(f"{BASE}/projects/FR-BX-001", timeout=15).text
 
         # (a) sidebar — server-rendered per role
+        # #340 — Phase 3 merged the old Financial + Expenses groups into one gated
+        # "Money" group (still `data-group="financial"`, the SECTION:financial key is
+        # unchanged) and folded Compliance & Permits into the ungated "Tracking" group.
         ok("rbac_pm_sidebar_no_financial",
            ('data-group="financial"' not in pm_html) and ('data-view="sov"' not in pm_html),
-           "pm served dashboard must OMIT the Financial group + SoV view (absent, not hidden)")
+           "pm served dashboard must OMIT the Money group + SoV view (absent, not hidden)")
         ok("rbac_pm_sidebar_has_compliance",
-           'data-group="compliance"' in pm_html, "pm keeps the Compliance group")
+           'data-view="compliance"' in pm_html, "pm keeps the Compliance & Permits view")
         ok("rbac_csuite_sidebar_has_financial",
            ('data-group="financial"' in cs_html) and ('data-view="sov"' in cs_html),
-           "c_suite sees the Financial group + SoV view")
+           "c_suite sees the Money group + SoV view")
         ok("rbac_sidebar_split_two_groups",
-           all(t in cs_html for t in ('data-group="financial"', 'data-group="compliance"',
-                                      '>Financial<', '>Compliance<')),
-           "split into distinct Financial + Compliance groups")
+           all(t in cs_html for t in ('data-group="financial"', 'data-group="tracking"',
+                                      '>Money<', 'data-view="compliance"')),
+           "gated Money group is distinct from the ungated Tracking group that keeps Compliance & Permits")
 
         # (b) endpoints — pm 403, c_suite 200
         pm_sov = pm.get(f"{BASE}/api/projects/FR-BX-001/sov", timeout=15).status_code
