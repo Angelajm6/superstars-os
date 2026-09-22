@@ -220,7 +220,7 @@ def main() -> int:
         r = cs.get("/company")
         assert r.status_code == 200
         html = r.data.decode("utf-8")
-        assert "Company Portal" in html and "Superstars Contracting" in html
+        assert "<title>Company · Superstars Contracting</title>" in html and "Superstars Contracting" in html   # #339: one home
         assert "AMG" not in html
         import re as _re
         visible = _re.sub(r"<(script|style)\b.*?</\1>", "", html, flags=_re.DOTALL | _re.IGNORECASE)

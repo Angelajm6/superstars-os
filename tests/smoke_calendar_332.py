@@ -183,7 +183,8 @@ def main() -> int:
     passed += 1; print("  dates travel ok")
 
     html = cs.get("/company").get_data(as_text=True)
-    assert 'href="#calendar" data-view="calendar"' in html and 'id="view-calendar"' in html and "loadCalendar" in html
+    assert 'data-subtabs="projects"' in html and 'id="view-calendar"' in html and "loadCalendar" in html   # #339: Calendar is a Projects sub-tab
+    assert "'Calendar', '/company#calendar'" in (ROOT / "static" / "js" / "company_nav.js").read_text(encoding="utf-8")
     assert 'data-cal-view="3day"' in html and 'data-cal-view="week"' in html and 'data-cal-view="month"' in html
     ap = admin.get("/admin/projects").get_data(as_text=True)
     assert 'id="np-end"' in ap and 'id="cs-start"' in ap and 'id="cs-end"' in ap and "target_completion" in ap

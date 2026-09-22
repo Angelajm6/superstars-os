@@ -11,11 +11,12 @@
 <link rel="stylesheet" href="/files/static/vendor/gridstack.min.css">
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=328">
 <script src="/files/static/js/shell.js?v=312" defer></script>
-<link rel="stylesheet" href="/files/static/css/shell.css?v=321">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=339">
+<script src="/files/static/js/company_nav.js?v=339b"></script>
 <script src="/files/static/vendor/gridstack-all.js"></script>
 <script src="/files/static/js/dash_layout.js?v=292" defer></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Superstars Contracting · Office Console</title>
+<title>Superstars Contracting · Company</title>
 <style>
   :root {
     --brand-red: #B11E2E;
@@ -371,42 +372,19 @@
 </head>
 <body>
 <div class="ssc-shell">
-<aside class="ssc-side" aria-label="Office Console navigation">
+<aside class="ssc-side" aria-label="Company navigation">
   <div class="brand">
     <img class="brand-mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
     <div>
       <div class="brand-name">Superstars Contracting</div>
-      <div class="brand-sub" data-i18n="office-console">Office Console</div>
+      <div class="brand-sub">Company</div>
     </div>
   </div>
-  <nav class="ssc-nav" id="ssc-nav">
-    <div class="ssc-nav-label">Company</div>
-    <a class="nav-tab active" data-panel="projects" href="#projects" data-i18n="tab-projects">Dashboard</a>
-    <a class="ssc-nav-ext" href="/company" title="Clients &amp; buildings, finance, workforce &amp; pay, compliance">Company Portal</a>
-    <a class="nav-tab" data-panel="crm" href="#crm">CRM</a>
-    <a class="nav-tab" data-panel="estimates" href="#estimates" data-i18n="tab-estimates">Estimates</a>
-    <!-- #329 — the Estimating queue link lives inside the Estimates page now -->
-    <div class="ssc-nav-label">Workforce</div>
-    <a class="nav-tab" data-panel="workforce" href="#workforce" data-i18n="tab-workforce">Workforce</a>
-    <a class="nav-tab" data-panel="hours" href="#hours">Hours Log</a>
-    <!-- #328 — Weekly Payroll (the sheet formerly called "Labor Rate Tracker": hours × rate
-         per week) now has its own visible tab here, admin / c_suite only (revealed with the
-         Pay Rates tab below). It used to be reachable only by hash from a project's sidebar. -->
-    <a class="nav-tab" id="nav-labor-rate-tab" data-panel="labor-rate" href="#labor-rate" data-i18n="tab-labor-rate" style="display:none;">Weekly Payroll</a>
-    <!-- #329 — one Certifications entry (Cert Health was a placeholder; #cert-health aliases here) -->
-    <a class="nav-tab" data-panel="cert-library" data-panels="cert-health,cert-library" href="#cert-library" data-i18n="tab-cert-library">Certifications</a>
-    <a class="ssc-nav-ext" id="nav-labor-rates-admin" href="/admin/labor-rates" title="Set &amp; audit each worker's hourly pay rate">Pay Rates</a>
-    <div class="ssc-nav-label">Operations</div>
-    <a class="ssc-nav-ext" href="/admin/projects">Projects &amp; assignments</a>
-    <!-- #329 — Specs Library is a tab inside Compliance; Drop Plan is reached from each
-         project (sidebar + Overview cards), not from here -->
-    <a class="nav-tab" data-panel="compliance" data-panels="compliance,specs" href="#compliance" data-i18n="tab-compliance">Compliance</a>
-    <div class="ssc-nav-label">Admin</div>
-    <a class="nav-tab" data-panel="settings" href="#settings" data-i18n="tab-settings">Settings</a>
-  </nav>
-  <div class="ssc-side-foot">
-    <a href="/projects">My projects view</a>
-  </div>
+  <!-- #339 — ONE company sidebar, rendered by company_nav.js on every company page. The
+       console's own dashboard and CRM retired to the company home (/company); its
+       remaining panels are reached from the sidebar's sub-tabs. -->
+  <nav class="ssc-nav" id="ssc-nav" data-company-nav></nav>
+  <script>SSC_NAV.mount();</script>
 </aside>
 <div class="ssc-main">
 
@@ -519,12 +497,12 @@
 </script>
 
 <div class="topbar ssc-top">
-  <div class="ssc-top-title"><div class="ssc-crumb" data-i18n="office-console">Office Console</div><h1 id="ssc-top-h1">Dashboard</h1></div>
+  <div class="ssc-top-title"><div class="ssc-crumb" data-nav-crumb>Company</div><h1 id="ssc-top-h1" data-nav-h1>&nbsp;</h1></div>
   <div class="brand">
     <img class="brand-mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
     <div class="brand-text">
       <div class="brand-name">Superstars Contracting</div>
-      <div class="brand-sub" data-i18n="office-console">Office Console</div>
+      <div class="brand-sub">Company</div>
     </div>
   </div>
   <div class="topbar-right">
@@ -549,171 +527,10 @@
     <span id="m-certs-valid"></span><span id="m-certs-total"></span><span id="m-certs-expiring"></span><span id="m-certs-expired"></span>
   </div>
 
-  <!-- PROJECTS — #240: Active Projects first, widget grid below. The grid is
-       Projects-tab content: any other active tab replaces everything below
-       the strip, so the grid hides with the panel. -->
-  <div class="panel active" data-panel="projects">
-  <!-- KPI tiles (live) — #303 moved inside Overview; the tab strip became the sidebar -->
-  <div class="ph-kpis" data-widget="kpis">
-    <div class="ph-kpi"><div><div class="ph-kpi-k">Active projects</div><div class="ph-kpi-v" id="cc-kpi-projects">—</div><div class="ph-kpi-sub" id="cc-kpi-projects-sub">&nbsp;</div></div></div>
-    <div class="ph-kpi"><div><div class="ph-kpi-k">Workers</div><div class="ph-kpi-v" id="cc-kpi-workers">—</div><div class="ph-kpi-sub">in the system</div></div></div>
-    <div class="ph-kpi"><div><div class="ph-kpi-k">Active drops</div><div class="ph-kpi-v" id="cc-kpi-drops">—</div><div class="ph-kpi-sub">of <span id="cc-kpi-drops-total">—</span> drops</div></div></div>
-    <div class="ph-kpi"><div><div class="ph-kpi-k">Certs expiring ≤30d</div><div class="ph-kpi-v" id="cc-kpi-certs">—</div><div class="ph-kpi-sub" id="cc-kpi-certs-sub">incl. expired</div></div></div>
-  </div>
-
-    <!-- #338 — This week: a one-row calendar strip. Same data and colours as the Company
-         Portal calendar; the header opens the calendar on this week, a bar opens the job. -->
-    <style>
-      .cc-week .h2-sub{margin-bottom:10px}
-      .cc-week-link{flex:none;font-size:12px;font-weight:700;color:var(--ui);text-decoration:none;border:1px solid var(--hairline);border-radius:8px;padding:7px 13px;white-space:nowrap}
-      .cc-week-link:hover{background:var(--ui-soft,#E8EDF8)}
-      .cc-week-dow{display:grid;grid-template-columns:repeat(7,1fr);font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#8C92A0);padding:0 0 6px}
-      .cc-week-dow div{padding:0 8px} .cc-week-dow div.today{color:var(--ui)}
-      .cc-week-row{position:relative;display:grid;grid-template-columns:repeat(7,1fr);min-height:120px;border:1px solid var(--hairline);border-radius:12px;overflow:hidden;background:#fff}
-      .cc-week-cell{border-right:1px solid var(--hairline);padding:8px 8px 6px;display:flex;flex-direction:column;gap:4px;min-width:0}
-      .cc-week-cell:last-child{border-right:0} .cc-week-cell.wknd{background:#FBFBFD} .cc-week-cell.today{background:var(--ui-soft,#E8EDF8)}
-      .cc-week-date{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700}
-      .cc-week-date .n{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
-      .cc-week-cell.today .cc-week-date .n{background:var(--ui);color:#fff}
-      .cc-week-hc{margin-left:auto;font-size:10px;font-weight:700;color:var(--ui);background:#fff;border:1px solid var(--hairline);border-radius:999px;padding:1px 6px;white-space:nowrap}
-      .cc-week-lanes{position:absolute;left:0;right:0;top:38px;pointer-events:none}
-      .cc-week-bar{position:absolute;height:22px;border-radius:6px;padding:0 8px;font-size:11.5px;font-weight:700;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;cursor:pointer;pointer-events:auto;text-decoration:none;box-shadow:0 1px 2px rgba(0,0,0,.08)}
-      .cc-week-bar:hover{filter:brightness(1.08)} .cc-week-bar small{font-weight:500;opacity:.85;margin-left:6px}
-      .cc-week-bar.cont{border-top-left-radius:0;border-bottom-left-radius:0} .cc-week-bar.goes{border-top-right-radius:0;border-bottom-right-radius:0}
-      .cc-week-more{position:absolute;font-size:11px;font-weight:700;color:var(--ui);pointer-events:auto;padding:2px 6px;text-decoration:none}
-      .cc-week-ms{margin-top:auto;display:flex;flex-direction:column;gap:3px}
-      .cc-week-ms span{font-size:10px;font-weight:700;line-height:1.3;padding:2px 6px;border-radius:5px;background:#FFF4DB;color:#8A5A00;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid #E0A82E}
-      .cc-week-ms span.inv{background:#E8F1FB;color:#1B4F8A;border-left-color:#3B82F6} .cc-week-ms span.late{background:#FCEEEC;color:#A8382B;border-left-color:#B11E2E}
-      .cc-week-foot{font-size:12px;color:var(--muted,#8C92A0);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
-      .cc-week-foot a{color:var(--ui);font-weight:700;text-decoration:none}
-      .cw0{background:#24418C}.cw1{background:#0F766E}.cw2{background:#B45309}.cw3{background:#7C3AED}.cw4{background:#BE185D}.cw5{background:#0369A1}.cw6{background:#4D7C0F}.cw7{background:#B11E2E}
-      @media (max-width:760px){ .cc-week-bar small{display:none} .cc-week-hc{display:none} .cc-week-row{min-height:96px} }
-    </style>
-    <div class="section cc-week" id="cc-week">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;">
-        <div>
-          <h2 data-i18n="p-week-title">This week</h2>
-          <div class="h2-sub" data-i18n="p-week-sub">Jobs running each day, who is on site, and what falls due. Click a job to open it.</div>
-        </div>
-        <a class="cc-week-link" id="cc-week-open" href="/company#calendar" data-i18n="p-week-open">Open the calendar →</a>
-      </div>
-      <div class="cc-week-dow" id="cc-week-dow"></div>
-      <div class="cc-week-row" id="cc-week-row"><div class="placeholder" data-i18n="loading-week" style="grid-column:1 / -1">Loading this week…</div></div>
-      <div class="cc-week-foot" id="cc-week-foot"></div>
-    </div>
-
-    <div class="section">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;">
-        <div>
-          <h2 data-i18n="p-active-projects-title">Active Projects</h2>
-          <div class="h2-sub" data-i18n="p-active-projects-sub">Click any project to drill into its dashboard.</div>
-        </div>
-        <!-- #263 — admin/c_suite: assign PMs to projects + close/reopen projects. -->
-        <a href="/admin/projects" style="flex:none;font-size:12px;font-weight:700;color:var(--ui);text-decoration:none;border:1px solid var(--hairline);border-radius:8px;padding:7px 13px;white-space:nowrap;" onmouseover="this.style.borderColor='var(--brand-red)'" onmouseout="this.style.borderColor='var(--hairline)'">Assignments &amp; status →</a>
-      </div>
-      <div class="project-grid" id="project-grid">
-        <div class="placeholder" data-i18n="loading-projects">Loading projects…</div>
-      </div>
-    </div>
-
-    <!-- WIDGET GRID — GridStack (reuses #209 framework, page_key=company_console).
-         #240 moved it inside the Projects panel; #cc-grid identity + gs-ids are
-         unchanged so per-user saved layouts keep restoring. -->
-    <div class="cc-grid-wrap">
-      <div class="grid-stack" id="cc-grid">
-        <div class="grid-stack-item" gs-id="active-project" gs-x="0" gs-y="0" gs-w="5" gs-h="3">
-          <div class="grid-stack-item-content">
-            <section class="ph-widget" data-widget="active-project">
-              <div class="ph-widget-head"><h3 data-i18n="w-active-project">Active project</h3><span class="ph-grip" title="Drag to move">⠿</span></div>
-              <div class="ph-widget-body" id="cc-active-body"><div class="ph-loading">Loading…</div></div>
-            </section>
-          </div>
-        </div>
-
-        <div class="grid-stack-item" gs-id="compliance" gs-x="5" gs-y="0" gs-w="4" gs-h="3">
-          <div class="grid-stack-item-content">
-            <section class="ph-widget" data-widget="compliance">
-              <div class="ph-widget-head"><h3 data-i18n="w-compliance">Compliance</h3><span class="ph-grip" title="Drag to move">⠿</span></div>
-              <div class="ph-widget-body" id="cc-compliance-body"><div class="ph-loading">Loading…</div></div>
-            </section>
-          </div>
-        </div>
-
-        <!-- #272b — materials reorder alerts across ALL projects (admin/c_suite console;
-             rows appear only for materials whose operator-set consumption map says
-             order-by/order-now — no map, no row; nothing fabricated) -->
-        <!-- #278 — PROJECT COST, SPENT TO DATE (C-SUITE; comp data — CLAUDE.md).
-             Built to MOCKUP_payroll_widget_csuite_v2. The /api/costs/widget call
-             403s for every non-c_suite/admin role and this item is then REMOVED
-             (hidden entirely, never empty-rendered); the console page itself is
-             already admin/c_suite-only (#263) — defense in depth. -->
-        <div class="grid-stack-item" gs-id="project-costs" gs-x="5" gs-y="7" gs-w="7" gs-h="4">
-          <div class="grid-stack-item-content">
-            <section class="ph-widget" data-widget="project-costs">
-              <div class="ph-widget-head"><h3>Project Cost — Spent to Date</h3>
-                <span class="pc-lockchip">C-Suite</span>
-                <button type="button" class="est-mini-btn" id="pc-btn-log" style="margin-left:auto;">Expenses</button>
-                <button type="button" class="btn-primary" id="pc-btn-add" style="padding:5px 11px;font-size:11.5px;">+ Expense</button>
-                <span class="ph-grip" title="Drag to move">⠿</span></div>
-              <div class="ph-widget-body" id="pc-body"><div class="ph-loading">Loading…</div></div>
-            </section>
-          </div>
-        </div>
-
-        <div class="grid-stack-item" gs-id="material-alerts" gs-x="0" gs-y="7" gs-w="5" gs-h="3">
-          <div class="grid-stack-item-content">
-            <section class="ph-widget" data-widget="material-alerts">
-              <div class="ph-widget-head"><h3>Materials — order alerts</h3><span class="ph-grip" title="Drag to move">⠿</span></div>
-              <div class="ph-widget-body" id="cc-materials-body"><div class="ph-loading">Loading…</div></div>
-            </section>
-          </div>
-        </div>
-
-        <div class="grid-stack-item" gs-id="on-site" gs-x="9" gs-y="0" gs-w="3" gs-h="4">
-          <div class="grid-stack-item-content">
-            <section class="ph-widget" data-widget="on-site">
-              <div class="ph-widget-head"><h3 data-i18n="w-on-site">On site today · W-#### only</h3><span class="ph-grip" title="Drag to move">⠿</span></div>
-              <div class="ph-widget-body" id="cc-onsite-body"><div class="ph-loading">Loading…</div></div>
-            </section>
-          </div>
-        </div>
-
-        <div class="grid-stack-item" gs-id="quick-actions" gs-x="0" gs-y="3" gs-w="5" gs-h="2">
-          <div class="grid-stack-item-content">
-            <section class="ph-widget" data-widget="quick-actions">
-              <div class="ph-widget-head"><h3 data-i18n="w-quick-actions">Quick actions</h3><span class="ph-grip" title="Drag to move">⠿</span></div>
-              <div class="ph-widget-body">
-                <div class="cc-actions">
-                  <a class="cc-action" href="/projects/FR-BX-001" data-i18n="qa-open-project">Open project</a>
-                  <a class="cc-action" href="/dropplan" data-i18n="qa-dropplan">Drop Plan</a>
-                  <a class="cc-action" href="/projects/FR-BX-001#daily-report" data-i18n="qa-new-dcr">New DCR</a>
-                  <a class="cc-action" href="/rfi_submission_form.html" data-i18n="qa-submit-rfi">Submit RFI</a>
-                  <a class="cc-action" id="cc-act-workforce" href="#" data-i18n="qa-workforce">Workforce</a>
-                  <button class="cc-action" id="cc-reset-layout" type="button" title="Revert to the default layout" data-i18n="qa-reset-layout">↺ Reset layout</button>
-                </div>
-              </div>
-            </section>
-          </div>
-        </div>
-
-        <div class="grid-stack-item" gs-id="recent-activity" gs-x="5" gs-y="3" gs-w="7" gs-h="3">
-          <div class="grid-stack-item-content">
-            <section class="ph-widget" data-widget="recent-activity">
-              <div class="ph-widget-head"><h3 data-i18n="w-recent-activity">Recent activity</h3><span class="ph-grip" title="Drag to move">⠿</span></div>
-              <div class="ph-widget-body" id="cc-activity-body"><div class="ph-loading">Loading…</div></div>
-            </section>
-          </div>
-        </div>
-      </div>
-      <!-- #240 — DashLayout status messages land here; shown as a transient
-           toast (no permanent row). Same id the framework already targets. -->
-      <div class="cc-layout-toast" id="cc-layout-hint" aria-live="polite"></div>
-    </div>
-  </div>
-
   <!-- WORKFORCE -->
   <div class="panel" data-panel="workforce">
     <div class="section">
+      <div class="ssc-subtabs" data-subtabs="workforce"></div>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;margin-bottom:18px;">
         <div>
           <h2 data-i18n="p-workforce-title">Workforce</h2>
@@ -753,6 +570,7 @@
   <!-- HOURS (PAYROLL) -->
   <div class="panel" data-panel="hours">
     <div class="section">
+      <div class="ssc-subtabs" data-subtabs="workforce"></div>
       <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap;gap:12px;">
         <div>
           <h2>Hours <span style="font-size:12px;color:#76777E;font-weight:400;text-transform:none;letter-spacing:0;">· Payroll · hours worked, lunch (−30 min) always deducted</span></h2>
@@ -795,6 +613,7 @@
        DB plumbing that drives automatic CoF issuance on cert scan/upload —
        it stays in the payload and in every issuance path, just unrendered. -->
   <div class="panel" data-panel="cert-library">
+    <div class="ssc-subtabs" data-subtabs="workforce"></div>
     <div class="cl-card">
       <div class="cl-head">
         <h2 data-i18n="p-cert-lib-title">Certifications</h2>
@@ -815,7 +634,7 @@
 
   <!-- COMPLIANCE -->
   <div class="panel" data-panel="compliance">
-    <div class="ssc-subtabs" role="tablist"><a class="ssc-subtab active" href="#compliance" data-i18n="tab-compliance">Compliance</a><a class="ssc-subtab" href="#specs" data-i18n="tab-specs">Specs Library</a></div>
+    <div class="ssc-subtabs" data-subtabs="company"></div>
     <div class="section">
       <h2 data-i18n="p-compliance-title">Compliance (Company-Wide)</h2>
       <div class="h2-sub" data-i18n="p-compliance-sub">NYC DOB permits, violations, and complaints across all your active job sites.</div>
@@ -834,10 +653,6 @@
     .est-actions { display:flex; gap:8px; flex:none; }
     .est-subtabs { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
     /* #329 — page-level sub-tabs for a nav entry that owns several panels */
-    .ssc-subtabs { display:flex; gap:6px; margin:0 0 14px; flex-wrap:wrap; }
-    .ssc-subtab { padding:7px 14px; font-size:12.5px; font-weight:700; color:var(--muted); border-radius:8px; text-decoration:none; }
-    .ssc-subtab:hover { background:var(--ui-soft,#E8EDF8); color:var(--ui,#24418C); }
-    .ssc-subtab.active { color:#fff; background:var(--accent); }
     .est-subtab { padding:7px 14px; font-size:12.5px; font-weight:700; color:var(--muted); cursor:pointer; border-radius:8px; }
     .est-subtab.active { color:#fff; background:var(--accent); }
     .est-group { margin-bottom:18px; }
@@ -1024,6 +839,7 @@
   </style>
   <div class="panel" data-panel="estimates">
     <div class="section">
+      <div class="ssc-subtabs" data-subtabs="proposals"></div>
       <div class="est-head">
         <div>
           <h2>Estimates</h2>
@@ -1204,7 +1020,7 @@
 
   <!-- SPECS LIBRARY (manufacturer-agnostic specifications catalog) -->
   <div class="panel" data-panel="specs">
-    <div class="ssc-subtabs" role="tablist"><a class="ssc-subtab" href="#compliance" data-i18n="tab-compliance">Compliance</a><a class="ssc-subtab active" href="#specs" data-i18n="tab-specs">Specs Library</a></div>
+    <div class="ssc-subtabs" data-subtabs="company"></div>
     <div class="section">
       <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap;gap:12px;">
         <div>
@@ -1380,10 +1196,7 @@
       _searchTimer = setTimeout(load, 200);
     });
 
-    // Lazy-load on first nav into the Specs tab
-    const navTab = document.querySelector('.nav-tab[data-panel="specs"]');
-    if (navTab) navTab.addEventListener('click', load);
-    // Also expose for the tab-click handler at the top of the file
+    // #339 — the hash router (activatePanel) loads the catalog on first entry
     window.SPECS_loadCatalog = load;
   })();
   </script>
@@ -1406,6 +1219,7 @@
     place to wrap, no spread responsibility.
   -->
   <div class="panel" data-panel="labor-rate">
+    <div class="ssc-subtabs" data-subtabs="finance"></div>
     <!-- #244 — crafted Lumen+Oat card: hero (money + pills + week navigator,
          NO chart per operator amendment), exception-first sheet, floating
          totals card. Comp gating unchanged: rate/amount render only when
@@ -1561,109 +1375,9 @@
 
   <!-- SETTINGS -->
   <!-- #266 — CRM / OPS CORE (C-suite function; page is admin/c_suite-only, endpoints @requires_section('crm')) -->
-  <div class="panel" data-panel="crm">
-    <div class="section">
-      <div class="crm-head">
-        <div>
-          <h2>CRM &amp; Ops</h2>
-          <div class="crm-sub">Organizations, contacts, activity &amp; follow-ups — the C-suite command center.</div>
-        </div>
-        <div class="crm-actions">
-          <button type="button" class="btn-ghost" id="crm-btn-add-contact">+ Contact</button>
-          <button type="button" class="btn-primary" id="crm-btn-add-org">+ Organization</button>
-        </div>
-      </div>
-
-      <!-- console strip: light C-suite surfacing -->
-      <div class="crm-strip">
-        <div class="crm-card">
-          <h3>Needs Attention</h3>
-          <div class="crm-bignum"><span id="crm-w-na-count">0</span><span class="crm-over" id="crm-w-na-over"></span></div>
-          <div class="crm-mini" id="crm-w-na-top" style="margin-top:10px;"></div>
-        </div>
-        <div class="crm-card">
-          <h3>Pipeline</h3>
-          <div class="crm-chips" id="crm-w-pipeline"></div>
-        </div>
-        <div class="crm-card">
-          <h3>Recent Activity</h3>
-          <div id="crm-w-recent"></div>
-        </div>
-      </div>
-
-      <div class="crm-subtabs">
-        <div class="crm-subtab active" data-crmview="orgs">Organizations</div>
-        <div class="crm-subtab" data-crmview="attention">Needs Attention</div>
-      </div>
-
-      <!-- ORGANIZATIONS view -->
-      <div class="crm-view" data-crmview="orgs">
-        <div class="crm-filters">
-          <input type="text" id="crm-search" class="ssc-field" placeholder="Search name or notes…">
-          <select id="crm-f-rel" class="ssc-field"><option value="">All types</option></select>
-          <select id="crm-f-stage" class="ssc-field"><option value="">All stages</option></select>
-          <select id="crm-f-tag" class="ssc-field"><option value="">All functions</option></select>
-        </div>
-        <table class="crm-table">
-          <thead><tr><th>Organization</th><th>Type</th><th>Stage</th><th>Functions</th><th>Last activity</th></tr></thead>
-          <tbody id="crm-org-tbody"><tr><td colspan="5" class="crm-empty">Loading…</td></tr></tbody>
-        </table>
-      </div>
-
-      <!-- NEEDS ATTENTION view -->
-      <div class="crm-view" data-crmview="attention" style="display:none;">
-        <div class="crm-filters">
-          <label><input type="checkbox" id="crm-na-mine"> Assigned to me</label>
-          <select id="crm-na-tag" class="ssc-field"><option value="">All functions</option></select>
-        </div>
-        <table class="crm-table">
-          <thead><tr><th>Task</th><th>For</th><th>Due</th><th>Priority</th><th>Function</th><th></th></tr></thead>
-          <tbody id="crm-na-tbody"><tr><td colspan="6" class="crm-empty">Loading…</td></tr></tbody>
-        </table>
-      </div>
-
-      <!-- ENTITY DETAIL view (org or contact) -->
-      <div class="crm-view" data-crmview="detail" style="display:none;">
-        <span class="crm-back" id="crm-detail-back">← Back to list</span>
-        <div class="crm-detail-grid">
-          <div class="crm-detail-info" id="crm-detail-info"></div>
-          <div class="crm-detail-main">
-            <div class="crm-box">
-              <div class="crm-box-head"><h3>Activity timeline</h3><button type="button" class="crm-mini-btn" id="crm-detail-log">+ Log activity</button></div>
-              <div id="crm-detail-timeline"></div>
-            </div>
-            <div class="crm-box">
-              <div class="crm-box-head"><h3>Open follow-ups</h3><button type="button" class="crm-mini-btn" id="crm-detail-addtask">+ Add follow-up</button></div>
-              <div id="crm-detail-tasks"></div>
-            </div>
-            <div class="crm-box" id="crm-box-projects">
-              <div class="crm-box-head"><h3>Buildings &amp; job sites</h3><button type="button" class="crm-mini-btn" id="crm-detail-link">+ Link job site</button></div>
-              <div id="crm-detail-projects"></div>
-            </div>
-            <div class="crm-box" id="crm-box-contacts">
-              <div class="crm-box-head"><h3>Contacts</h3><button type="button" class="crm-mini-btn" id="crm-detail-addcontact">+ Contact</button></div>
-              <div id="crm-detail-contacts"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- shared CRM modal shell -->
-  <div class="crm-modal-bg" id="crm-modal-bg">
-    <div class="crm-modal" role="dialog" aria-modal="true">
-      <div class="crm-modal-head"><h3 id="crm-modal-title">—</h3><button type="button" class="crm-modal-x" id="crm-modal-x">&times;</button></div>
-      <div class="crm-modal-body" id="crm-modal-body"></div>
-      <div class="crm-modal-foot">
-        <button type="button" class="btn-ghost" id="crm-modal-cancel">Cancel</button>
-        <button type="button" class="btn-primary" id="crm-modal-save">Save</button>
-      </div>
-    </div>
-  </div>
-
   <div class="panel" data-panel="settings">
     <div class="section">
+      <div class="ssc-subtabs" data-subtabs="company"></div>
       <h2 data-i18n="p-settings-title">Settings</h2>
       <div class="h2-sub" data-i18n="p-settings-sub">Company info, issuer signature, integrations.</div>
       <div class="placeholder" data-i18n="p-settings-placeholder">Settings UI — coming next. Today, edit api-keys.txt directly.</div>
@@ -2458,15 +2172,12 @@ applyLanguage();
   function activatePanel(target) {
     if (target === 'cert-health') target = 'cert-library';
     $$('.nav-tab').forEach(x => x.classList.toggle('active', _tabOwns(x, target)));
-    var _h1 = document.getElementById('ssc-top-h1'), _src = Array.prototype.filter.call($$('.ssc-nav .nav-tab'), function (t) { return _tabOwns(t, target); })[0];
-    if (_h1 && _src) _h1.textContent = _src.textContent.trim();
     $$('.panel').forEach(p => p.classList.toggle('active', p.getAttribute('data-panel') === target));
-    $$('.ssc-subtab').forEach(a => a.classList.toggle('active', (a.getAttribute('href') || '') === '#' + target));
+    if (window.SSC_NAV) SSC_NAV.refresh();   // #339 — sidebar, sub-tabs and title follow the hash
     if (target === 'workforce') loadWorkforce();
     if (target === 'cert-library') loadCertLibrary();
     if (target === 'labor-rate' && typeof window.LRT_loadGrid === 'function') window.LRT_loadGrid(null);
     if (target === 'specs' && typeof window.SPECS_loadCatalog === 'function') window.SPECS_loadCatalog();
-    if (target === 'crm' && window.CRM) window.CRM.enter();
   if (target === 'estimates' && window.EST) window.EST.enter();
   }
   $$('.nav-tab').forEach(t => t.addEventListener('click', () => {
@@ -2483,6 +2194,7 @@ applyLanguage();
     if (hash === 'cert-health') hash = 'cert-library';   // #329 — old bookmarks / admin-page links
     var panel = document.querySelector('.panel[data-panel="' + hash + '"]');
     if (panel) activatePanel(hash);
+    else if (!(window.SSC_NAV && SSC_NAV.redirectIfRetired())) window.location.replace('/company#overview');   // #339 — retired hashes forward to their new home; anything else, the company home
   }
   window.addEventListener('hashchange', maybeActivateFromHash);
   // Late-binding: panels initialize after this script's IIFE; defer
@@ -4798,6 +4510,7 @@ applyLanguage();
    show codes only (W-####, drop/project codes), never names. ===== */
 (function(){
   const $=(id)=>document.getElementById(id);
+  if(!$('cc-grid')) return;   // #339 — the console dashboard retired to /company; nothing to render or poll
   const C={red:'#B11E2E',ok:'#2F7C57',ink:'#14161C',mute:'#76777E',track:'#EDEAE3',warn:'#B68838'};
   const PROJECT='FR-BX-001';
   const DEFAULT_LAYOUT=[
@@ -4996,362 +4709,6 @@ applyLanguage();
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
 </script>
-<!-- #266 — CRM / Ops core UI module -->
-<script>
-(function(){
-  var REL_TYPES = ['client','vendor','lead','architect','engineer','sub','partner','other'];
-  var STAGES = ['prospect','proposal','onboarding','active','closed'];
-  var FUNC_TAGS = ['finance','sales','compliance','ops','exec'];
-  var ACT_TYPES = ['note','call','email','meeting'];
-  var PRIORITIES = ['low','normal','high'];
-  var ACT_ICON = {note:'✎', call:'☎', email:'✉', meeting:'◫', stage_change:'⇄', system:'•'};
-
-  var q = function(id){ return document.getElementById(id); };
-  function esc(s){ if(s==null) return ''; return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
-  function cap(s){ return s ? s.charAt(0).toUpperCase()+s.slice(1) : ''; }
-  function dOnly(s){ return (s||'').slice(0,10); }
-  function fmtD(s){ s=dOnly(s); if(!s) return '—'; return (window.SSCDatePicker && SSCDatePicker.fmtMDY(s)) || s; }
-  function opt(v,label,sel){ return '<option value="'+esc(v)+'"'+(sel?' selected':'')+'>'+esc(label)+'</option>'; }
-
-  async function api(method, path, body){
-    var opts = { method: method, credentials: 'include', headers: {} };
-    if (body !== undefined){ opts.headers['Content-Type']='application/json'; opts.body=JSON.stringify(body); }
-    var r = await fetch(path, opts);
-    var j = null; try { j = await r.json(); } catch(e){}
-    if (!r.ok) throw new Error((j && j.error) || ('HTTP '+r.status));
-    return j ? j.data : null;
-  }
-
-  var inited = false, cur = null;         // cur = {type:'organization'|'contact', id}
-  var usersCache = null, projectsCache = null;
-
-  async function assignableUsers(){ if(!usersCache) usersCache = await api('GET','/api/crm/assignable-users'); return usersCache; }
-  async function allProjects(){ if(!projectsCache){ var d = await api('GET','/api/projects'); projectsCache = d || []; } return projectsCache; }
-
-  // ---------- views ----------
-  function showView(name){
-    document.querySelectorAll('.crm-view').forEach(function(v){ v.style.display = (v.getAttribute('data-crmview')===name)?'':'none'; });
-    document.querySelectorAll('.crm-subtab').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-crmview')===name); });
-  }
-
-  // ---------- console strip ----------
-  async function loadConsole(){
-    try {
-      var d = await api('GET','/api/crm/console');
-      q('crm-w-na-count').textContent = d.needs_attention_count;
-      q('crm-w-na-over').textContent = d.overdue_count ? (d.overdue_count+' overdue') : '';
-      q('crm-w-na-top').innerHTML = (d.needs_attention_top||[]).slice(0,4).map(function(t){
-        return '<div class="crm-mini-row"><span'+(t.overdue?' class="crm-overdue"':'')+'>'+esc(t.title)+'</span><span class="crm-mini-when">'+(t.due_date?fmtD(t.due_date):'—')+'</span></div>';
-      }).join('') || '<div class="crm-mini">Nothing open. 🎉</div>';
-      q('crm-w-pipeline').innerHTML = (d.pipeline||[]).map(function(p){
-        return '<span class="crm-chip">'+esc(cap(p.stage))+' <b>'+p.count+'</b></span>';
-      }).join('') || '<div class="crm-mini">No organizations yet.</div>';
-      q('crm-w-recent').innerHTML = (d.recent_activity||[]).slice(0,5).map(function(a){
-        return '<div class="crm-mini-row"><span>'+(ACT_ICON[a.activity_type]||'•')+' '+esc(a.summary||cap(a.activity_type))+'</span><span class="crm-mini-when">'+fmtD(a.occurred_at)+'</span></div>';
-      }).join('') || '<div class="crm-mini">No activity yet.</div>';
-    } catch(e){ console.warn('crm console', e); }
-  }
-
-  // ---------- organizations list ----------
-  async function loadOrgs(){
-    var tb = q('crm-org-tbody');
-    tb.innerHTML = '<tr><td colspan="5" class="crm-empty">Loading…</td></tr>';
-    var p = new URLSearchParams();
-    if (q('crm-search').value.trim()) p.set('search', q('crm-search').value.trim());
-    if (q('crm-f-rel').value) p.set('relationship_type', q('crm-f-rel').value);
-    if (q('crm-f-stage').value) p.set('stage', q('crm-f-stage').value);
-    if (q('crm-f-tag').value) p.set('function_tag', q('crm-f-tag').value);
-    try {
-      var rows = await api('GET','/api/crm/organizations?'+p.toString());
-      if (!rows.length){ tb.innerHTML = '<tr><td colspan="5" class="crm-empty">No organizations match. Add one with “+ Organization”.</td></tr>'; return; }
-      tb.innerHTML = rows.map(function(o){
-        var tags = (o.function_tags||'').split(',').filter(Boolean).map(function(t){ return '<span class="crm-tag">'+esc(t)+'</span>'; }).join('');
-        var stg = (o.stage||'').toLowerCase();
-        return '<tr data-org="'+o.id+'">'
-          + '<td><span class="crm-name">'+esc(o.name)+'</span></td>'
-          + '<td>'+esc(cap(o.relationship_type)||'—')+'</td>'
-          + '<td>'+(o.stage?'<span class="crm-badge stage-'+esc(stg)+'">'+esc(o.stage)+'</span>':'—')+'</td>'
-          + '<td>'+(tags||'—')+'</td>'
-          + '<td>'+(o.last_activity?fmtD(o.last_activity):'<span class="crm-mini">—</span>')+'</td></tr>';
-      }).join('');
-      tb.querySelectorAll('tr[data-org]').forEach(function(tr){ tr.addEventListener('click', function(){ openOrg(+tr.getAttribute('data-org')); }); });
-    } catch(e){ tb.innerHTML = '<tr><td colspan="5" class="crm-empty">'+esc(e.message)+'</td></tr>'; }
-  }
-
-  // ---------- entity detail (organization) ----------
-  async function openOrg(id){
-    cur = { type:'organization', id: id };
-    showView('detail');
-    q('crm-detail-info').innerHTML = '<div class="crm-mini">Loading…</div>';
-    q('crm-box-projects').style.display = '';
-    try {
-      var d = await api('GET','/api/crm/organizations/'+id);
-      var o = d.organization;
-      var tags = (o.function_tags||'').split(',').filter(Boolean).map(function(t){ return '<span class="crm-tag">'+esc(t)+'</span>'; }).join(' ') || '—';
-      q('crm-detail-info').innerHTML =
-        '<h2>'+esc(o.name)+'</h2>'
-        + '<div class="crm-kv"><span class="k">Relationship</span>'+esc(cap(o.relationship_type)||'—')+'</div>'
-        + '<div class="crm-kv"><span class="k">Stage</span>'+(o.stage?'<span class="crm-badge stage-'+esc((o.stage||'').toLowerCase())+'">'+esc(o.stage)+'</span>':'—')+'</div>'
-        + '<div class="crm-kv"><span class="k">Status</span>'+esc(cap(o.status)||'active')+'</div>'
-        + '<div class="crm-kv"><span class="k">Functions</span>'+tags+'</div>'
-        + '<div class="crm-kv"><span class="k">Notes</span>'+esc(o.notes||'—')+'</div>'
-        + '<div style="margin-top:12px;"><button type="button" class="crm-mini-btn" id="crm-edit-org">Edit</button></div>';
-      q('crm-edit-org').addEventListener('click', function(){ editOrgModal(o); });
-      renderTimeline(d.timeline);
-      renderTasks(d.open_tasks);
-      renderProjects(d.linked_projects);
-      renderContacts(d.contacts);
-    } catch(e){ q('crm-detail-info').innerHTML = '<div class="crm-empty">'+esc(e.message)+'</div>'; }
-  }
-
-  function renderTimeline(items){
-    var el = q('crm-detail-timeline');
-    if (!items || !items.length){ el.innerHTML = '<div class="crm-mini">No activity logged yet.</div>'; return; }
-    el.innerHTML = items.map(function(a){
-      return '<div class="crm-tl-item"><div class="crm-tl-icon">'+(ACT_ICON[a.activity_type]||'•')+'</div>'
-        + '<div class="crm-tl-body"><div class="crm-tl-sum">'+esc(a.summary||cap(a.activity_type))+'</div>'
-        + (a.body?'<div class="crm-mini" style="margin-top:2px;">'+esc(a.body)+'</div>':'')
-        + '<div class="crm-tl-meta">'+esc(cap(a.activity_type))+' · '+fmtD(a.occurred_at)+'</div></div></div>';
-    }).join('');
-  }
-
-  function renderTasks(items){
-    var el = q('crm-detail-tasks');
-    if (!items || !items.length){ el.innerHTML = '<div class="crm-mini">No open follow-ups.</div>'; return; }
-    el.innerHTML = items.map(function(t){
-      return '<div class="crm-task-row"><span class="t-title">'+esc(t.title)+'</span>'
-        + '<span class="crm-prio '+esc(t.priority||'normal')+'">'+esc(t.priority||'normal')+'</span>'
-        + (t.function_tag?'<span class="crm-tag">'+esc(t.function_tag)+'</span>':'')
-        + '<span class="crm-task-due" style="margin-left:auto;">'+(t.due_date?('Due '+fmtD(t.due_date)):'no due date')+'</span>'
-        + '<button type="button" class="crm-mini-btn" data-done="'+t.id+'">Done</button></div>';
-    }).join('');
-    el.querySelectorAll('button[data-done]').forEach(function(b){ b.addEventListener('click', function(){ completeTask(+b.getAttribute('data-done')); }); });
-  }
-
-  function renderProjects(items){
-    var el = q('crm-detail-projects');
-    if (!items || !items.length){ el.innerHTML = '<div class="crm-mini">No buildings or job sites linked yet.</div>'; return; }
-    el.innerHTML = items.map(function(p){
-      var address = [p.address, p.city_zip].filter(Boolean).join(', ');
-      return '<div class="crm-task-row" style="align-items:flex-start;gap:10px;">'
-        + '<div><a class="crm-name" href="/projects/'+encodeURIComponent(p.project_code)+'">'+esc(p.name||p.address||p.project_code)+'</a>'
-        + '<div class="crm-mini" style="margin-top:2px;">'+esc(address||'Address not yet entered')+' · '+esc(p.project_code)+'</div></div>'
-        + (p.status?'<span class="crm-tag">'+esc(p.status)+'</span>':'')
-        + '<button type="button" class="crm-mini-btn" data-unlink="'+esc(p.project_code)+'" style="margin-left:auto;">Unlink</button></div>';
-    }).join('');
-    el.querySelectorAll('button[data-unlink]').forEach(function(b){ b.addEventListener('click', async function(){
-      try { await api('POST','/api/crm/projects/'+encodeURIComponent(b.getAttribute('data-unlink'))+'/link',{org_id:null}); openOrg(cur.id); } catch(e){ alert(e.message); }
-    }); });
-  }
-
-  function renderContacts(items){
-    var el = q('crm-detail-contacts');
-    if (!items || !items.length){ el.innerHTML = '<div class="crm-mini">No contacts yet.</div>'; return; }
-    el.innerHTML = items.map(function(c){
-      return '<div class="crm-task-row"><span class="t-title">'+esc(c.full_name)+'</span>'
-        + (c.title?'<span class="crm-mini">'+esc(c.title)+'</span>':'')
-        + '<span class="crm-mini" style="margin-left:auto;">'+esc(c.email||c.phone||'')+'</span></div>';
-    }).join('');
-  }
-
-  async function completeTask(id){
-    try {
-      await api('POST','/api/crm/tasks/'+id+'/complete');
-      loadConsole();
-      // refresh whichever view is showing — detail (re-open the org) or the needs-attention list
-      var detailVisible = document.querySelector('.crm-view[data-crmview="detail"]').style.display !== 'none';
-      if (detailVisible && cur) openOrg(cur.id); else loadNA();
-    } catch(e){ alert(e.message); }
-  }
-
-  // ---------- needs attention view ----------
-  async function loadNA(){
-    var tb = q('crm-na-tbody');
-    tb.innerHTML = '<tr><td colspan="6" class="crm-empty">Loading…</td></tr>';
-    var p = new URLSearchParams();
-    if (q('crm-na-mine').checked) p.set('mine','1');
-    if (q('crm-na-tag').value) p.set('function_tag', q('crm-na-tag').value);
-    try {
-      var rows = await api('GET','/api/crm/needs-attention?'+p.toString());
-      if (!rows.length){ tb.innerHTML = '<tr><td colspan="6" class="crm-empty">Nothing needs attention. 🎉</td></tr>'; return; }
-      tb.innerHTML = rows.map(function(t){
-        var due = t.due_date ? ('<span'+(t.overdue?' class="crm-overdue"':'')+'>'+fmtD(t.due_date)+(t.overdue?' · overdue':(t.due_today?' · today':''))+'</span>') : '<span class="crm-mini">—</span>';
-        return '<tr><td class="t-title">'+esc(t.title)+'</td>'
-          + '<td class="crm-mini">'+esc(cap(t.entity_type)||'—')+'</td>'
-          + '<td>'+due+'</td>'
-          + '<td><span class="crm-prio '+esc(t.priority||'normal')+'">'+esc(t.priority||'normal')+'</span></td>'
-          + '<td>'+(t.function_tag?'<span class="crm-tag">'+esc(t.function_tag)+'</span>':'—')+'</td>'
-          + '<td><button type="button" class="crm-mini-btn" data-done="'+t.id+'">Done</button></td></tr>';
-      }).join('');
-      tb.querySelectorAll('button[data-done]').forEach(function(b){ b.addEventListener('click', function(){ completeTask(+b.getAttribute('data-done')); }); });
-    } catch(e){ tb.innerHTML = '<tr><td colspan="6" class="crm-empty">'+esc(e.message)+'</td></tr>'; }
-  }
-
-  // ---------- modal shell ----------
-  var modalSave = null;
-  function openModal(title, bodyHtml, onSave, saveLabel){
-    q('crm-modal-title').textContent = title;
-    q('crm-modal-body').innerHTML = bodyHtml + '<div class="crm-err" id="crm-modal-err"></div>';
-    q('crm-modal-save').textContent = saveLabel || 'Save';
-    modalSave = onSave;
-    q('crm-modal-bg').classList.add('show');
-    // wire any SSCDatePicker date fields in this modal
-    if (window.SSCDatePicker){ q('crm-modal-body').querySelectorAll('input.ssc-date').forEach(function(el){ SSCDatePicker.wire(el); }); }
-    var first = q('crm-modal-body').querySelector('input,select,textarea'); if(first) try{ first.focus(); }catch(e){}
-  }
-  function closeModal(){ q('crm-modal-bg').classList.remove('show'); modalSave = null; }
-  function modalErr(msg){ var e=q('crm-modal-err'); if(e){ e.textContent=msg; e.classList.add('show'); } }
-  function getISO(el){ return el ? (window.SSCDatePicker ? (SSCDatePicker.getISO(el)||'') : (el.value||'').trim()) : ''; }
-
-  function tagCheckboxes(name){ return '<div class="crm-tagset">'+FUNC_TAGS.map(function(t){ return '<label><input type="checkbox" name="'+name+'" value="'+t+'"> '+cap(t)+'</label>'; }).join('')+'</div>'; }
-  function checkedTags(name){ return Array.prototype.slice.call(q('crm-modal-body').querySelectorAll('input[name="'+name+'"]:checked')).map(function(x){ return x.value; }); }
-
-  // ---------- forms ----------
-  function addOrgModal(){
-    openModal('Add organization',
-      '<div class="crm-field"><label>Name *</label><input class="ssc-field" id="f-org-name" placeholder="Organization name"></div>'
-      + '<div class="crm-field-row">'
-      +   '<div class="crm-field"><label>Relationship</label><select class="ssc-field" id="f-org-rel"><option value="">—</option>'+REL_TYPES.map(function(t){return opt(t,cap(t));}).join('')+'</select></div>'
-      +   '<div class="crm-field"><label>Stage</label><select class="ssc-field" id="f-org-stage"><option value="">—</option>'+STAGES.map(function(s){return opt(s,cap(s));}).join('')+'</select></div>'
-      + '</div>'
-      + '<div class="crm-field"><label>Function tags</label>'+tagCheckboxes('f-org-tags')+'</div>'
-      + '<div class="crm-field"><label>Notes</label><textarea class="ssc-field" id="f-org-notes" rows="2"></textarea></div>',
-      async function(){
-        var name = q('f-org-name').value.trim();
-        if (!name){ modalErr('Name is required.'); return false; }
-        await api('POST','/api/crm/organizations',{ name:name, relationship_type:q('f-org-rel').value||null,
-          stage:q('f-org-stage').value||null, function_tags:checkedTags('f-org-tags'), notes:q('f-org-notes').value.trim()||null });
-        return true;
-      }, 'Create');
-  }
-
-  function editOrgModal(o){
-    openModal('Edit organization',
-      '<div class="crm-field"><label>Name</label><input class="ssc-field" id="f-org-name" value="'+esc(o.name)+'"></div>'
-      + '<div class="crm-field-row">'
-      +   '<div class="crm-field"><label>Stage</label><select class="ssc-field" id="f-org-stage"><option value="">—</option>'+STAGES.map(function(s){return opt(s,cap(s),o.stage===s);}).join('')+'</select></div>'
-      +   '<div class="crm-field"><label>Status</label><select class="ssc-field" id="f-org-status">'+['active','inactive'].map(function(s){return opt(s,cap(s),(o.status||'active')===s);}).join('')+'</select></div>'
-      + '</div>'
-      + '<div class="crm-field"><label>Function tags</label>'+tagCheckboxes('f-org-tags').replace(/name="f-org-tags" value="([a-z]+)"/g, function(m,t){ return 'name="f-org-tags" value="'+t+'"'+(( '' + (o.function_tags||'')).split(',').indexOf(t)>=0?' checked':''); })+'</div>'
-      + '<div class="crm-field"><label>Notes</label><textarea class="ssc-field" id="f-org-notes" rows="2">'+esc(o.notes||'')+'</textarea></div>',
-      async function(){
-        await api('PUT','/api/crm/organizations/'+o.id,{ name:q('f-org-name').value.trim(), stage:q('f-org-stage').value||null,
-          status:q('f-org-status').value, function_tags:checkedTags('f-org-tags'), notes:q('f-org-notes').value.trim()||null });
-        return true;
-      }, 'Save');
-  }
-
-  async function addContactModal(prefillOrg){
-    var orgs = await api('GET','/api/crm/organizations');
-    var orgOpts = '<option value="">— none —</option>'+orgs.map(function(o){ return opt(o.id, o.name, prefillOrg && +prefillOrg===o.id); }).join('');
-    openModal('Add contact',
-      '<div class="crm-field"><label>Full name *</label><input class="ssc-field" id="f-c-name"></div>'
-      + '<div class="crm-field"><label>Organization</label><select class="ssc-field" id="f-c-org">'+orgOpts+'</select></div>'
-      + '<div class="crm-field-row"><div class="crm-field"><label>Email</label><input class="ssc-field" id="f-c-email"></div>'
-      +   '<div class="crm-field"><label>Phone</label><input class="ssc-field" id="f-c-phone"></div></div>'
-      + '<div class="crm-field"><label>Title</label><input class="ssc-field" id="f-c-title"></div>',
-      async function(){
-        var nm = q('f-c-name').value.trim(); if(!nm){ modalErr('Full name is required.'); return false; }
-        await api('POST','/api/crm/contacts',{ full_name:nm, org_id:q('f-c-org').value?+q('f-c-org').value:null,
-          email:q('f-c-email').value.trim()||null, phone:q('f-c-phone').value.trim()||null, title:q('f-c-title').value.trim()||null });
-        return true;
-      }, 'Add');
-  }
-
-  function logActivityModal(entityType, entityId){
-    openModal('Log activity',
-      '<div class="crm-field"><label>Type</label><select class="ssc-field" id="f-a-type">'+ACT_TYPES.map(function(t){return opt(t,cap(t),t==='call');}).join('')+'</select></div>'
-      + '<div class="crm-field"><label>Summary *</label><input class="ssc-field" id="f-a-sum" placeholder="e.g. Intro call with owner"></div>'
-      + '<div class="crm-field"><label>Date</label><input class="ssc-date ssc-field" id="f-a-date" placeholder="MM/DD/YYYY"></div>'
-      + '<div class="crm-field"><label>Notes</label><textarea class="ssc-field" id="f-a-body" rows="3"></textarea></div>',
-      async function(){
-        var sum = q('f-a-sum').value.trim(); if(!sum){ modalErr('Summary is required.'); return false; }
-        await api('POST','/api/crm/activity',{ entity_type:entityType, entity_id:entityId, activity_type:q('f-a-type').value,
-          summary:sum, body:q('f-a-body').value.trim()||null, occurred_at:getISO(q('f-a-date'))||null });
-        return true;
-      }, 'Log');
-  }
-
-  async function addTaskModal(entityType, entityId){
-    var users = await assignableUsers();
-    var uOpts = '<option value="">— unassigned —</option>'+users.map(function(u){ return opt(u.id, u.name+' ('+u.role+')'); }).join('');
-    openModal('Add follow-up',
-      '<div class="crm-field"><label>Title *</label><input class="ssc-field" id="f-t-title" placeholder="Next action"></div>'
-      + '<div class="crm-field-row"><div class="crm-field"><label>Due date</label><input class="ssc-date ssc-field" id="f-t-due" placeholder="MM/DD/YYYY"></div>'
-      +   '<div class="crm-field"><label>Priority</label><select class="ssc-field" id="f-t-prio">'+PRIORITIES.map(function(p){return opt(p,cap(p),p==='normal');}).join('')+'</select></div></div>'
-      + '<div class="crm-field"><label>Assignee</label><select class="ssc-field" id="f-t-assignee">'+uOpts+'</select></div>'
-      + '<div class="crm-field"><label>Function tag</label><select class="ssc-field" id="f-t-tag"><option value="">—</option>'+FUNC_TAGS.map(function(t){return opt(t,cap(t));}).join('')+'</select></div>'
-      + '<div class="crm-field"><label>Detail</label><textarea class="ssc-field" id="f-t-detail" rows="2"></textarea></div>',
-      async function(){
-        var ti = q('f-t-title').value.trim(); if(!ti){ modalErr('Title is required.'); return false; }
-        await api('POST','/api/crm/tasks',{ title:ti, entity_type:entityType, entity_id:entityId, due_date:getISO(q('f-t-due'))||null,
-          assignee_user_id:q('f-t-assignee').value?+q('f-t-assignee').value:null, priority:q('f-t-prio').value,
-          function_tag:q('f-t-tag').value||null, detail:q('f-t-detail').value.trim()||null });
-        return true;
-      }, 'Add');
-  }
-
-  async function linkProjectModal(orgId){
-    var projs = await allProjects();
-    var pOpts = projs.map(function(p){ return opt(p.project_code, (p.name||p.project_code)+' · '+p.project_code, false); }).join('');
-    if (!pOpts){ alert('No projects available.'); return; }
-    openModal('Link a building / job site',
-      '<div class="crm-field"><label>Building / job site</label><select class="ssc-field" id="f-link-proj">'+pOpts+'</select></div>'
-      + '<div class="crm-mini">This links the job site to the client. Its address, people, documents, compliance, and job activity stay in one operational record.</div>',
-      async function(){
-        await api('POST','/api/crm/projects/'+encodeURIComponent(q('f-link-proj').value)+'/link',{ org_id: orgId });
-        return true;
-      }, 'Link');
-  }
-
-  // ---------- wiring ----------
-  function wireOnce(){
-    if (inited) return; inited = true;
-    // filter dropdowns
-    q('crm-f-rel').innerHTML = '<option value="">All types</option>'+REL_TYPES.map(function(t){return opt(t,cap(t));}).join('');
-    q('crm-f-stage').innerHTML = '<option value="">All stages</option>'+STAGES.map(function(s){return opt(s,cap(s));}).join('');
-    q('crm-f-tag').innerHTML = '<option value="">All functions</option>'+FUNC_TAGS.map(function(t){return opt(t,cap(t));}).join('');
-    q('crm-na-tag').innerHTML = '<option value="">All functions</option>'+FUNC_TAGS.map(function(t){return opt(t,cap(t));}).join('');
-    // list filters
-    var deb; q('crm-search').addEventListener('input', function(){ clearTimeout(deb); deb=setTimeout(loadOrgs,250); });
-    ['crm-f-rel','crm-f-stage','crm-f-tag'].forEach(function(id){ q(id).addEventListener('change', loadOrgs); });
-    q('crm-na-mine').addEventListener('change', loadNA);
-    q('crm-na-tag').addEventListener('change', loadNA);
-    // subtabs
-    document.querySelectorAll('.crm-subtab').forEach(function(t){ t.addEventListener('click', function(){
-      var v = t.getAttribute('data-crmview'); showView(v); if(v==='orgs') loadOrgs(); if(v==='attention') loadNA();
-    }); });
-    // header buttons
-    q('crm-btn-add-org').addEventListener('click', addOrgModal);
-    q('crm-btn-add-contact').addEventListener('click', function(){ addContactModal(cur && cur.type==='organization' ? cur.id : null); });
-    // detail buttons
-    q('crm-detail-back').addEventListener('click', function(){ cur=null; showView('orgs'); loadOrgs(); });
-    q('crm-detail-log').addEventListener('click', function(){ if(cur) logActivityModal(cur.type, cur.id); });
-    q('crm-detail-addtask').addEventListener('click', function(){ if(cur) addTaskModal(cur.type, cur.id); });
-    q('crm-detail-link').addEventListener('click', function(){ if(cur && cur.type==='organization') linkProjectModal(cur.id); });
-    q('crm-detail-addcontact').addEventListener('click', function(){ if(cur && cur.type==='organization') addContactModal(cur.id); });
-    // modal buttons
-    q('crm-modal-x').addEventListener('click', closeModal);
-    q('crm-modal-cancel').addEventListener('click', closeModal);
-    q('crm-modal-bg').addEventListener('click', function(e){ if(e.target===q('crm-modal-bg')) closeModal(); });
-    q('crm-modal-save').addEventListener('click', async function(){
-      if (!modalSave) return;
-      var btn = q('crm-modal-save'); btn.disabled = true;
-      try {
-        var ok = await modalSave();
-        if (ok !== false){ closeModal(); loadConsole(); usersCache=null;
-          if (cur) openOrg(cur.id); else loadOrgs(); }
-      } catch(e){ modalErr(e.message || 'Could not save.'); }
-      finally { btn.disabled = false; }
-    });
-  }
-
-  window.CRM = {
-    enter: function(){ wireOnce(); showView('orgs'); loadConsole(); loadOrgs(); }
-  };
-})();
-</script>
-
 <!-- #278 — PROJECT COST widget (C-Suite; MOCKUP_payroll_widget_csuite_v2 binding).
      Comp data: /api/costs/* 403s below c_suite -> the grid item is REMOVED entirely. -->
 <script>
@@ -5586,7 +4943,7 @@ applyLanguage();
   var BOARD_ORDER = ['intake','scoping','submitted','approved','lost'];
   var GROUP_DOT = { intake:'var(--status-oat)', scoping:'#1b7f79', submitted:'#5a4fb8',
                     approved:'var(--status-complete)', lost:'#b9bac2' };
-  var DIV_LABEL = { facade:'Facade', rope_access:'Rope Access', interior:'Interior', parking_garage:'Parking Garage' };
+  var DIV_LABEL = { facade:'Exterior', rope_access:'Rope Access', interior:'Interior', parking_garage:'Parking Garage' };   // #339 — 'exterior', never 'facade' (Arun)
 
   function showView(name){
     document.querySelectorAll('.est-view').forEach(function(v){ v.style.display = (v.getAttribute('data-estview')===name)?'':'none'; });
@@ -6558,58 +5915,5 @@ applyLanguage();
 </script>
 </div><!-- /.ssc-main -->
 </div><!-- /.ssc-shell -->
-<script>
-// #338 — This week on the Dashboard: one row of the calendar, same API and colours.
-(function () {
-  var W = document.getElementById('cc-week'); if (!W) return;
-  function $(id) { return document.getElementById(id); }
-  function esc(s) { var d = document.createElement('div'); d.textContent = (s == null ? '' : String(s)); return d.innerHTML; }
-  function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
-  function parse(s) { var p = String(s).slice(0, 10).split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
-  function add(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
-  function mdy(s) { if (!s) return ''; var p = String(s).slice(0, 10).split('-'); return p[1] + '/' + p[2]; }
-  var ES = (localStorage.getItem('dashboard_lang') || 'en') === 'es';
-  var DOW = ES ? ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  var today = new Date(); var mon = add(today, -((today.getDay() + 6) % 7)); var days = []; for (var i = 0; i < 7; i++) days.push(add(mon, i));
-  var from = iso(days[0]), to = iso(days[6]), t = iso(today);
-  $('cc-week-open').href = '/company#calendar/' + from;
-  $('cc-week-dow').innerHTML = days.map(function (x, i) { return '<div class="' + (iso(x) === t ? 'today' : '') + '">' + DOW[i] + ' ' + x.getDate() + '</div>'; }).join('');
-  fetch('/api/company/portal/calendar?from=' + from + '&to=' + to, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
-    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(function (j) { render(j.data); })
-    .catch(function () { $('cc-week-row').innerHTML = '<div class="placeholder" style="grid-column:1 / -1">' + (ES ? 'No se pudo cargar la semana.' : 'Could not load this week.') + '</div>'; });
-  function render(d) {
-    var jobs = d.jobs.slice().sort(function (a, b) { return a.start_date < b.start_date ? -1 : a.start_date > b.start_date ? 1 : ((b.days || 999) - (a.days || 999)); });
-    var laneH = 26, maxLanes = 4, lanes = [], segs = [], overflow = {};
-    jobs.forEach(function (j) {
-      var js = j.start_date, je = j.open_ended ? '9999-12-31' : j.end_date; if (je < from || js > to) return;
-      var c0 = 0; for (var i = 0; i < 7; i++) { if (iso(days[i]) >= js) { c0 = i; break; } }
-      var c1 = 6; for (var k = 6; k >= 0; k--) { if (iso(days[k]) <= je) { c1 = k; break; } }
-      var lane = 0; while (lanes[lane] && lanes[lane].some(function (r) { return !(c1 < r[0] || c0 > r[1]); })) lane++;
-      (lanes[lane] = lanes[lane] || []).push([c0, c1]);
-      if (lane >= maxLanes) { for (var m = c0; m <= c1; m++) overflow[m] = (overflow[m] || 0) + 1; return; }
-      segs.push({ j: j, c0: c0, c1: c1, lane: lane, starts: js >= from, ends: !j.open_ended && je <= to });
-    });
-    var laneCount = Math.min(lanes.length, maxLanes);
-    var msMax = 0; days.forEach(function (x) { msMax = Math.max(msMax, Math.min(((d.days[iso(x)] || {}).milestones || []).length, 3)); });
-    var minH = Math.max(120, 44 + laneCount * laneH + 14 + msMax * 19);
-    var cells = days.map(function (x) {
-      var k = iso(x), info = d.days[k] || {}, hc = info.headcount || 0, ms = (info.milestones || []).slice(0, 3);
-      var chips = ms.map(function (m) { return '<span class="' + (m.kind === 'invoice' ? 'inv' : '') + (m.late ? ' late' : '') + '" title="' + esc(m.kind === 'invoice' ? (m.number + ' · ' + (m.client_name || '')) : ((m.project_name || m.project_code || '') + ' · ' + m.label)) + '">' + (m.kind === 'invoice' ? '$ ' : '◆ ') + esc(m.kind === 'invoice' ? m.number : m.label) + '</span>'; }).join('');
-      return '<div class="cc-week-cell ' + ((x.getDay() === 0 || x.getDay() === 6) ? 'wknd' : '') + (k === t ? ' today' : '') + '" style="padding-top:' + (40 + laneCount * laneH) + 'px;position:relative"><div class="cc-week-date" style="position:absolute;left:8px;right:8px;top:8px"><span class="n">' + x.getDate() + '</span>' + (hc ? '<span class="cc-week-hc" title="' + esc(Object.keys(info.on_site || {}).map(function (c) { var jj = d.jobs.filter(function (z) { return z.project_code === c; })[0]; return info.on_site[c] + ' · ' + ((jj && jj.name) || c); }).join(' · ')) + '">' + hc + (ES ? ' en obra' : ' on site') + '</span>' : '') + '</div><div class="cc-week-ms">' + chips + '</div></div>';
-    }).join('');
-    var bars = segs.map(function (s) {
-      var left = (s.c0 / 7 * 100).toFixed(3), width = ((s.c1 - s.c0 + 1) / 7 * 100).toFixed(3);
-      return '<a class="cc-week-bar cw' + s.j.color + (s.starts ? '' : ' cont') + (s.ends ? '' : ' goes') + '" href="/projects/' + encodeURIComponent(s.j.project_code) + '" style="left:calc(' + left + '% + 4px);width:calc(' + width + '% - 8px);top:' + (s.lane * laneH) + 'px" title="' + esc(s.j.name) + (s.j.client_name ? ' · ' + esc(s.j.client_name) : '') + ' · ' + mdy(s.j.start_date) + ' → ' + (s.j.open_ended ? (ES ? 'sin fecha final' : 'no end date') : mdy(s.j.end_date)) + '">' + esc(s.j.name) + (s.c1 - s.c0 >= 2 && s.j.client_name ? '<small>' + esc(s.j.client_name) + '</small>' : '') + '</a>';
-    }).join('') + Object.keys(overflow).map(function (i) { return '<a class="cc-week-more" href="/company#calendar/' + from + '" style="left:calc(' + (i / 7 * 100).toFixed(3) + '% + 6px);top:' + (maxLanes * laneH) + 'px">+' + overflow[i] + (ES ? ' más' : ' more') + '</a>'; }).join('');
-    $('cc-week-row').style.minHeight = minH + 'px';
-    $('cc-week-row').innerHTML = cells + '<div class="cc-week-lanes" style="height:' + (laneCount * laneH) + 'px">' + bars + '</div>';
-    var n = segs.length ? segs.map(function (s) { return s.j.project_code; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).length : 0;
-    var foot = [n ? (n + (ES ? ' trabajo(s) esta semana' : ' job(s) this week')) : (ES ? 'Ningún trabajo con fechas esta semana.' : 'No dated jobs this week.')];
-    if (d.undated && d.undated.length) foot.push((ES ? d.undated.length + ' trabajo(s) activo(s) sin fecha de inicio — ' : d.undated.length + ' active job(s) have no start date yet — ') + '<a href="/admin/projects">' + (ES ? 'ponerlas en Cuadrilla y obra' : 'set them under Crew & site') + '</a>');
-    $('cc-week-foot').innerHTML = foot.map(function (x) { return '<span>' + x + '</span>'; }).join('');
-  }
-})();
-</script>
 </body>
 </html>

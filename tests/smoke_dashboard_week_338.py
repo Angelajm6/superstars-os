@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""#338 — "This week" strip on the Office Console Dashboard: behavioral guard.
+"""#338 — "This week" strip on the company Dashboard (moved from the console by #339): behavioral guard.
 
 Boots the real app (`import server`) on an ISOLATED database. Proves:
   * the served console carries the strip (section, weekday header, row, footer, the
@@ -89,13 +89,13 @@ def main() -> int:
     passed = 0
 
     cs = _login("c_suite")
-    html = cs.get("/", follow_redirects=True).get_data(as_text=True)
+    html = cs.get("/company", follow_redirects=True).get_data(as_text=True)
     for needle in ('id="cc-week"', 'id="cc-week-dow"', 'id="cc-week-row"', 'id="cc-week-foot"', 'id="cc-week-open"',
-                   "/api/company/portal/calendar?from=", "'p-week-title': 'This week'", "'p-week-title': 'Esta semana'",
-                   "'p-week-open': 'Abrir el calendario →'", 'href="/projects/'):
+                   "async function loadWeekStrip", "'/calendar?from=' + from + '&to=' + to", "href=\"/projects/", "'#calendar/' + from"):
         assert needle in html, needle
-    # the strip sits above Active Projects
-    assert html.index('id="cc-week"') < html.index('data-i18n="p-active-projects-title"')
+    # the strip opens the Dashboard, above the KPI tiles
+    assert html.index('id="cc-week"') < html.index('id="ov-kpis"')
+    assert 'id="cc-week"' not in cs.get("/", follow_redirects=True).get_data(as_text=True), "the console dashboard retired (#339)"
     passed += 1; print("  strip served ok")
 
     mon = TODAY - timedelta(days=TODAY.weekday())
@@ -108,8 +108,9 @@ def main() -> int:
     passed += 1; print("  week window ok")
 
     pm = _login("pm")
-    r = pm.get("/", follow_redirects=False)
-    assert r.status_code in (302, 403), r.status_code
+    for path in ("/", "/company"):
+        r = pm.get(path, follow_redirects=False)
+        assert r.status_code in (302, 403), (path, r.status_code)
     passed += 1; print("  company-only ok")
 
     print(f"PASS smoke_dashboard_week_338 ({passed} groups)")
