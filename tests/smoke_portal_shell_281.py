@@ -225,14 +225,14 @@ def run():
     internal_links = re.findall(r'"[^"]*-internal\.[a-z]+"', preview)
     ok("preview_no_internal_document_links", not internal_links, str(internal_links[:3]))
     ok("preview_no_build_changelog", not re.search(r"build #\d+\s*·", preview))
+    # #340 — subs/equipment/site-closure were "Coming with Phase 2B" placeholder
+    # views; Phase 3 removed them from the template entirely (not just stripped
+    # per-role), so they no longer belong in this per-role strip check.
     for marker, label in (('data-view="expenses"', "expenses_view"),
                           ('data-view="product-usage"', "product_usage"),
                           ('id="kpi-workers"', "workforce_kpi"),
                           ('data-view="employees"', "employees_view"),
-                          ('data-view="subs"', "subs_view"),
-                          ('data-view="equipment"', "equipment_view"),
                           ('data-view="toolbox-talks"', "toolbox_view"),
-                          ('data-view="site-closure"', "site_closure_view"),
                           ('data-view="sov"', "sov_view")):
         ok(f"preview_strips_{label}", marker not in p_markup, f"{marker} present in external DOM")
     # ...and the internal-only SECTION blocks are gone as BLOCKS, so nothing inside

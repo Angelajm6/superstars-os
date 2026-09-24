@@ -927,6 +927,13 @@
          highlight + blue left bar (Option 1). Legacy "Drop Plans" nav entry
          removed; "Drop Plan" renamed to "Drop Report" (the report view); the
          draggable board stays reachable from the report's "Edit / log" link. -->
+    <!-- #340 — Phase 3 cut: 9 groups / 29 entries down to 6 groups. Removed the 8
+         dead "Coming with Phase 2B" placeholder stubs (Subcontractors & COIs, Site
+         Closure, Meeting Minutes, Equipment Log, Inspection Log, Punch List, Warranty
+         & Closeout, Client Portal) outright rather than leaving inert nav entries.
+         Employees & Certs folded into Field (crew is a field concern); Compliance
+         folded into Tracking; Financial + Expenses merged into one gated Money group
+         (was two separate SECTION:financial blocks). -->
     <nav class="nav">
       <div class="nav-group" data-group="overview">
         <div class="nav-group-label"><span class="nav-group-name">Overview</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
@@ -934,14 +941,10 @@
           <a class="nav-link active" data-view="dashboard"><svg class="nav-ic"><use href="#i-gauge"/></svg>Project Health</a>
         </div>
       </div>
-      <div class="nav-group" data-group="people">
-        <div class="nav-group-label"><span class="nav-group-name">People</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
-        <div class="nav-items">
-<!-- SECTION:internal_ops:start --><a class="nav-link" data-view="employees"><svg class="nav-ic"><use href="#i-users"/></svg>Employees & Certs</a><!-- SECTION:internal_ops:end --><!-- SECTION:internal_ops:start --><a class="nav-link" data-view="subs"><svg class="nav-ic"><use href="#i-bldg"/></svg>Subcontractors & COIs</a><!-- SECTION:internal_ops:end -->        </div>
-      </div>
       <div class="nav-group" data-group="field">
         <div class="nav-group-label"><span class="nav-group-name">Field</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
+<!-- SECTION:internal_ops:start --><a class="nav-link" data-view="employees"><svg class="nav-ic"><use href="#i-users"/></svg>Employees & Certs</a><!-- SECTION:internal_ops:end -->
           <a class="nav-link" data-view="drawings"><svg class="nav-ic"><use href="#i-pencil"/></svg>Drawing Markup</a>
           <a class="nav-link" data-view="documents"><svg class="nav-ic"><use href="#i-file"/></svg>Project Documents</a>
           <a class="nav-link" data-view="field-photos"><svg class="nav-ic"><use href="#i-camera"/></svg>Field Photos</a>
@@ -953,64 +956,44 @@
         </div>
       </div>
       <div class="nav-group" data-group="dailyops">
-        <div class="nav-group-label"><span class="nav-group-name">Daily Ops</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
+        <div class="nav-group-label"><span class="nav-group-name">Daily</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
           <a class="nav-link" data-view="daily-report"><svg class="nav-ic"><use href="#i-file"/></svg>Daily Report</a>
           <a class="nav-link" data-view="weekly-summary"><svg class="nav-ic"><use href="#i-cal"/></svg>Weekly Summary</a>
-<!-- SECTION:internal_ops:start --><a class="nav-link" data-view="site-closure"><svg class="nav-ic"><use href="#i-clip"/></svg>Site Closure</a><!-- SECTION:internal_ops:end -->          <a class="nav-link" data-view="materials"><svg class="nav-ic"><use href="#i-box"/></svg>Materials & Deliveries</a>
-          <a class="nav-link" data-view="meetings"><svg class="nav-ic"><use href="#i-msg"/></svg>Meeting Minutes</a>
-<!-- SECTION:internal_ops:start --><a class="nav-link" data-view="equipment"><svg class="nav-ic"><use href="#i-box"/></svg>Equipment Log</a><!-- SECTION:internal_ops:end --><!-- SECTION:internal_ops:start --><a class="nav-link" data-view="toolbox-talks"><svg class="nav-ic"><use href="#i-mega"/></svg>Toolbox Talks</a><!-- SECTION:internal_ops:end -->        </div>
+          <a class="nav-link" data-view="materials"><svg class="nav-ic"><use href="#i-box"/></svg>Materials & Deliveries</a>
+<!-- SECTION:internal_ops:start --><a class="nav-link" data-view="toolbox-talks"><svg class="nav-ic"><use href="#i-mega"/></svg>Toolbox Talks</a><!-- SECTION:internal_ops:end -->        </div>
       </div>
       <div class="nav-group" data-group="tracking">
         <div class="nav-group-label"><span class="nav-group-name">Tracking</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
           <a class="nav-link" data-view="rfis"><svg class="nav-ic"><use href="#i-msg"/></svg>RFI Log</a>
-          <a class="nav-link" data-view="inspections"><svg class="nav-ic"><use href="#i-clip"/></svg>Inspection Log</a>
           <a class="nav-link" data-view="violations"><svg class="nav-ic"><use href="#i-alert"/></svg>Violations</a>
-          <a class="nav-link" data-view="punch"><svg class="nav-ic"><use href="#i-list"/></svg>Punch List</a>
+          <a class="nav-link" data-view="compliance"><svg class="nav-ic"><use href="#i-alert"/></svg>Compliance & Permits</a>
         </div>
       </div>
+      <!-- #262/#218 — Money group (was two separate SECTION:financial blocks: Financial
+           [SOV, Payments] and Expenses [Expenses, Product Usage]). One gate now covers
+           both: server STRIPS this whole block from the served HTML for pm/super (absent,
+           not just hidden), and every endpoint underneath still 403s them too. The old
+           client-side exp-nav-group/revealForAdmin toggle is gone — redundant now that
+           the whole group shares the server-side gate the SOV/Payments items already relied on. -->
       <!-- SECTION:financial:start -->
-      <!-- #262 — Financial group (Schedule of Values + Payments). Gated to
-           admin/c_suite via the central access.SECTION_ACCESS map: the server STRIPS
-           this whole block from the served HTML for pm/super (absent, not just hidden),
-           and the Financial endpoints 403 too. -->
       <div class="nav-group" data-group="financial" data-section="financial">
-        <div class="nav-group-label"><span class="nav-group-name">Financial</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
+        <div class="nav-group-label"><span class="nav-group-name">Money</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
           <a class="nav-link" data-view="sov"><svg class="nav-ic"><use href="#i-dollar"/></svg>Schedule of Values</a>
           <a class="nav-link" data-view="payments"><svg class="nav-ic"><use href="#i-dollar"/></svg>Payments</a>
+          <a class="nav-link" data-view="expenses"><svg class="nav-ic"><use href="#i-receipt"/></svg>Expenses</a>
+          <a class="nav-link" data-view="product-usage"><svg class="nav-ic"><use href="#i-layers"/></svg>Product Usage</a>
           <!-- #328 — the company-wide Weekly Payroll (was "Labor Rate Tracker") no longer
                sits in a project's sidebar: it is not per project. It lives on the Office
                Console under Workforce, next to Hours Log and Pay Rates. -->
         </div>
       </div>
       <!-- SECTION:financial:end -->
-      <div class="nav-group" data-group="compliance">
-        <div class="nav-group-label"><span class="nav-group-name">Compliance</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
-        <div class="nav-items">
-          <a class="nav-link" data-view="compliance"><svg class="nav-ic"><use href="#i-alert"/></svg>Compliance & Permits</a>
-          <a class="nav-link" data-view="closeout"><svg class="nav-ic"><use href="#i-clip"/></svg>Warranty & Closeout</a>
-        </div>
-      </div>
-      <!-- #218 Expenses — its own section. Cost data: hidden until the gate
-           script reveals it for admin/c_suite (server @requires_role is the
-           real authority — non-cost roles 403 + this stays omitted). -->
-      <!-- SECTION:financial:start -->
-      <div class="nav-group" data-group="expenses" id="exp-nav-group" style="display:none;">
-        <div class="nav-group-label"><span class="nav-group-name">Expenses</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
-        <div class="nav-items">
-          <a class="nav-link" data-view="expenses"><svg class="nav-ic"><use href="#i-receipt"/></svg>Expenses
-            <span style="font-size:9px;font-weight:700;color:#76777E;letter-spacing:0.5px;margin-left:6px;padding:1px 5px;border:1px solid #D5D2C9;border-radius:2px;text-transform:uppercase;">Admin</span>
-          </a>
-          <a class="nav-link" data-view="product-usage"><svg class="nav-ic"><use href="#i-layers"/></svg>Product Usage</a>
-        </div>
-      </div>
-      <!-- SECTION:financial:end -->
       <div class="nav-group" data-group="setup">
         <div class="nav-group-label"><span class="nav-group-name">Setup</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
-          <a class="nav-link" data-view="portal"><svg class="nav-ic"><use href="#i-users"/></svg>Client Portal</a>
           <a class="nav-link" data-view="templates"><svg class="nav-ic"><use href="#i-file"/></svg>Templates</a>
           <a class="nav-link" data-view="settings"><svg class="nav-ic"><use href="#i-gear"/></svg>Settings</a>
         </div>
@@ -1283,18 +1266,9 @@
           <div class="ec-empty ec-hide" id="ec-none">No workers match.</div>
         </div>
       </section>
+      <!-- SECTION:internal_ops:end -->
 
       <!-- INTAKE MODAL — removed from project dashboard. Lives in Company Console (/) -->
-
-      <!-- SUBCONTRACTORS & COIs -->
-      <!-- SECTION:internal_ops:end -->
-      <!-- SECTION:internal_ops:start -->
-      <section class="view" data-view="subs">
-        <div class="section">
-          <h2>Subcontractors & COIs</h2>
-          <div class="placeholder-card">Subcontractor management & insurance tracking · Coming with Phase 2B</div>
-        </div>
-      </section>
 
       <!-- DRAWING MARKUP — #280. Behaves like every other module: the nav item swaps this
            view in place via the standard data-view dispatch, the sidebar and frame stay
@@ -1314,7 +1288,6 @@
            NOTE (UI v2 #279): dashboard-static.html is a v1 template, edited here on the
            operator's explicit instruction. The phase-0 byte-identity gate is unaffected —
            there is no v2 twin of this file, so ui_version 1 and 2 serve the same bytes. -->
-      <!-- SECTION:internal_ops:end -->
       <section class="view" data-view="drawings">
         <iframe class="drawings-frame" src="/drawing-markup" loading="lazy"
                 title="Drawing Markup — north elevation drop status"></iframe>
@@ -4002,17 +3975,7 @@
       })();
       </script>
 
-      <!-- SITE CLOSURE -->
-      <!-- SECTION:internal_ops:start -->
-      <section class="view" data-view="site-closure">
-        <div class="section">
-          <h2>Site Closure</h2>
-          <div class="placeholder-card">Daily site closure checklist · Coming with Phase 2B</div>
-        </div>
-      </section>
-
       <!-- MATERIALS & DELIVERIES -->
-      <!-- SECTION:internal_ops:end -->
       <section class="view" data-view="materials">
         <style>
           /* #272a — Materials & Deliveries (per the approved A+B mockup). Tokens from
@@ -4224,25 +4187,7 @@
         </div>
       </section>
 
-      <!-- MEETING MINUTES -->
-      <section class="view" data-view="meetings">
-        <div class="section">
-          <h2>Meeting Minutes</h2>
-          <div class="placeholder-card">Project meeting notes & action items · Coming with Phase 2B</div>
-        </div>
-      </section>
-
-      <!-- EQUIPMENT LOG -->
-      <!-- SECTION:internal_ops:start -->
-      <section class="view" data-view="equipment">
-        <div class="section">
-          <h2>Equipment Log</h2>
-          <div class="placeholder-card">Equipment checkout & maintenance tracking · Coming with Phase 2B</div>
-        </div>
-      </section>
-
       <!-- TOOLBOX TALKS -->
-      <!-- SECTION:internal_ops:end -->
       <!-- SECTION:internal_ops:start -->
       <section class="view" data-view="toolbox-talks">
         <div class="section">
@@ -4464,14 +4409,6 @@
         </div>
       </section>
 
-      <!-- INSPECTIONS -->
-      <section class="view" data-view="inspections">
-        <div class="section">
-          <h2>Inspection Log</h2>
-          <div class="placeholder-card">Inspection scheduling & findings tracking · Coming with Phase 2B</div>
-        </div>
-      </section>
-
       <!-- VIOLATIONS — redirects to Compliance & Permits view -->
       <section class="view" data-view="violations">
         <div class="section">
@@ -4481,14 +4418,6 @@
             <a href="#" onclick="document.querySelector('[data-view=compliance]').click(); return false;" style="color:#B11E2E;font-weight:600;">Compliance & Permits</a>
             module — pulled directly from NYC OpenData.
           </div>
-        </div>
-      </section>
-
-      <!-- PUNCH LIST -->
-      <section class="view" data-view="punch">
-        <div class="section">
-          <h2>Punch List</h2>
-          <div class="placeholder-card">Outstanding punch list items · Coming with Phase 2B</div>
         </div>
       </section>
 
@@ -5043,23 +4972,6 @@
         </div>
       </section>
 
-      <!-- CLOSEOUT & WARRANTY -->
-      <section class="view" data-view="closeout">
-        <div class="section">
-          <h2>Warranty & Closeout</h2>
-          <div class="placeholder-card">Project closeout checklist & warranty documentation · Coming with Phase 2B</div>
-        </div>
-      </section>
-
-      <!-- CLIENT PORTAL -->
-      <section class="view" data-view="portal">
-        <div class="section">
-          <h2>Client Portal</h2>
-          <div class="placeholder-card">Client-facing project portal & document sharing · Coming with Phase 2B</div>
-        </div>
-      </section>
-
-      <!-- TEMPLATES -->
       <!-- FIELD PHOTOS (#235 Phase 1) — gallery + Unassigned sort/assign tray + bulk upload -->
       <section class="view" data-view="field-photos">
         <style>
@@ -5734,11 +5646,6 @@ document.querySelectorAll('.nav-link').forEach(link => {
   $('exp-search').addEventListener('input', ()=>{ clearTimeout(searchT); searchT=setTimeout(loadList, 250); });
   ['exp-filter-vendor','exp-filter-category','exp-filter-class','exp-filter-status'].forEach(k=>$(k).addEventListener('change', loadList));
   const puSel=$('exp-pu-project'); if(puSel) puSel.addEventListener('change', loadProductUsage);
-
-  // admin/c_suite reveal of the Expenses nav group (omitted otherwise)
-  function revealForAdmin(user){ if(user && (user.role==='admin'||user.role==='c_suite')){ const g=$('exp-nav-group'); if(g) g.style.display=''; } }
-  document.addEventListener('ssc:user-loaded', (e)=>revealForAdmin(e.detail));
-  if(window.__SSC_USER) revealForAdmin(window.__SSC_USER);
 
   window.PROJ_loadExpenses = async function(){ await ensureTaxonomy(); showState('list'); loadList(); };
   window.PROJ_loadProductUsage = function(){ loadProductUsage(); };
