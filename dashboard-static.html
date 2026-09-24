@@ -140,7 +140,8 @@
     }
     /* #213 — account pinned to the sidebar bottom (Option 1 simple layout) */
     .sidebar-grow { flex: 1; min-height: 8px; }
-    .sidebar-footer { flex: 0 0 auto; border-top: 1px solid #E8E4DD; padding-top: 8px; margin-top: 8px; position: relative; }
+    .sidebar-pinned { flex: 0 0 auto; border-top: 1px solid #E8E4DD; padding-top: 8px; }
+    .sidebar-footer { flex: 0 0 auto; padding-top: 8px; margin-top: 8px; position: relative; }
     .acct { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: none; background: transparent; border-radius: 9px; cursor: pointer; text-align: left; font: inherit; color: #14161C; }
     .acct:hover { background: #F5F6F8; }
     .acct-avatar { width: 30px; height: 30px; border-radius: 50%; background: #1E73E8; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; letter-spacing: .02em; }
@@ -452,7 +453,7 @@
     .nav-link.active { background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); border-left-color: transparent; transform: none; }
     .nav-link.active .nav-ic { color: var(--ui, #24418C); }
     .nav-link.active::before { content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 18px; border-radius: 3px; background: var(--ui, #24418C); transform: translateY(-50%); }
-    .sidebar-footer { border-top-color: var(--side-edge, #E3E5EA); }
+    .sidebar-pinned { border-top-color: var(--side-edge, #E3E5EA); }
     .sidebar .acct-name { color: #14161C; } .sidebar .acct-role { color: var(--side-muted, #8A8F99); } .sidebar .acct-chev { color: var(--side-muted, #8A8F99); }
     .sidebar .acct-avatar { background: var(--ui, #24418C); }
 
@@ -995,11 +996,16 @@
         <div class="nav-group-label"><span class="nav-group-name">Setup</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
           <a class="nav-link" data-view="templates"><svg class="nav-ic"><use href="#i-file"/></svg>Templates</a>
-          <a class="nav-link" data-view="settings"><svg class="nav-ic"><use href="#i-gear"/></svg>Settings</a>
         </div>
       </div>
     </nav>
     <div class="sidebar-grow"></div>
+    <!-- #341 — Settings pinned as its own entry above the account footer, not buried
+         inside a scrollable nav group — the pattern most dashboards use (Settings lives
+         with account controls, not with the day-to-day work views). -->
+    <div class="sidebar-pinned">
+      <a class="nav-link" data-view="settings"><svg class="nav-ic"><use href="#i-gear"/></svg>Settings</a>
+    </div>
     <!-- #213 — account block pinned to the sidebar bottom (was the top-bar user menu).
          Sign out reuses the EXISTING logout action (POST /api/auth/logout -> /login). -->
     <div class="sidebar-footer">
@@ -5254,7 +5260,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     link.classList.add('active');
 
     // Update breadcrumb
-    const groupLabel = link.closest('.nav-group').querySelector('.nav-group-label')?.textContent || 'Overview';
+    const groupLabel = link.closest('.nav-group')?.querySelector('.nav-group-label')?.textContent || 'Overview';
     const _bc = document.getElementById('topbar-breadcrumb'); if (_bc) _bc.textContent = groupLabel; // #213 — breadcrumb host removed with the top bar; guard so this never throws
 
     // Switch views
