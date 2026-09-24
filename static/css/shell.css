@@ -15,7 +15,9 @@
            <a class="nav-tab" data-panel="x" href="#x">In-page panel</a>   (console tabs keep .nav-tab + data-panel)
            <a href="/somewhere">Another page</a>
          </nav>
-         <div class="ssc-side-foot"><a href="/">…</a></div>
+         <!-- #341 — company_nav.js injects this sibling itself (the pinned Settings
+              entry); do not hand-author it, and do not put anything else here. -->
+         <div class="ssc-side-foot" data-company-nav-foot><a href="/#settings">Settings</a></div>
        </aside>
        <div class="ssc-main">
          <header class="ssc-top"> … </header>
@@ -49,9 +51,22 @@
 .ssc-side .ssc-nav .active svg { opacity: 1; }
 .ssc-side .ssc-nav .ssc-nav-ext::after { content: "↗"; margin-left: auto; font-size: 11px; opacity: .55; }
 
-.ssc-side .ssc-side-foot { margin-top: auto; padding: 12px 10px 16px; border-top: 1px solid var(--side-edge, #E3E5EA); }
-.ssc-side .ssc-side-foot a { display: block; padding: 8px 12px; color: var(--side-muted, #8A8F99); text-decoration: none; font-size: 12px; font-weight: 600; border-radius: 8px; }
+/* #341 — .ssc-side-foot is populated by company_nav.js (the pinned Settings entry,
+   a sibling of <nav data-company-nav>, not one of its scrollable tabs). margin-top:
+   auto pushes it to the bottom of the .ssc-side flex column regardless of tab count.
+   Styled to match .ssc-nav a exactly (icon + label row, same active state) rather
+   than a plain muted link, so it reads as a nav item, not a footnote. */
+.ssc-side .ssc-side-foot { margin-top: auto; padding: 8px 10px 12px; border-top: 1px solid var(--side-edge, #E3E5EA); }
+.ssc-side .ssc-side-foot a {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin: 0; border: 0; border-radius: 8px;
+  color: var(--side-ink, #2B2F38); text-decoration: none; font-weight: 600; font-size: 13px; line-height: 1.2; cursor: pointer;
+  background: transparent; transition: background .12s ease, color .12s ease;
+}
+.ssc-side .ssc-side-foot a svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .8; }
 .ssc-side .ssc-side-foot a:hover { background: var(--side-hover, rgba(20,22,28,.05)); color: var(--ink, #14161C); }
+.ssc-side .ssc-side-foot a:focus-visible { outline: 2px solid var(--ui, #24418C); outline-offset: 1px; }
+.ssc-side .ssc-side-foot a.active { background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); }
+.ssc-side .ssc-side-foot a.active svg { opacity: 1; }
 
 /* ---- main column + top bar ---- */
 .ssc-main { min-width: 0; background: var(--canvas, #fafbfd); }
