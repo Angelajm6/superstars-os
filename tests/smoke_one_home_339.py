@@ -105,23 +105,31 @@ def main() -> int:
     _seed()
     passed = 0
 
-    # ---- the sidebar: one definition, seven tabs, on every company page
+    # ---- the sidebar: one definition, seven tabs + one pinned entry, on every company page
     js = (ROOT / "static" / "js" / "company_nav.js").read_text(encoding="utf-8")
-    labels = re.findall(r"\{ key: '[a-z]+', label: '([^']+)'", js)
+    tabs_src, _, pinned_src = js.partition("var PINNED")
+    labels = re.findall(r"\{ key: '[a-z]+', label: '([^']+)'", tabs_src)
     assert labels == TABS, labels
+    # #341 — Settings is an eighth, PINNED destination (rendered outside <nav>, not
+    # one of the seven scrollable tabs) — it must exist exactly once, after the split.
+    assert re.findall(r"\{ key: '[a-z]+', label: '([^']+)'", pinned_src) == ["Settings"], pinned_src
+    assert "key: 'settings', label: 'Settings', href: '/#settings'" in js
     for gone in ("'CRM'", "Job sites", "Office Console", "Company Portal", "Quick actions", "Hours Log"):
         assert gone not in js, gone
     assert "'/': { '': '/company#overview', 'projects': '/company#overview', 'crm': '/company#clients' }" in js
     assert "'/company': { 'buildings': '/company#projects', 'compliance': '/company#company' }" in js
     for sub in ("'Weekly payroll', '/#labor-rate'", "'Pay rates', '/admin/labor-rates'", "'Calendar', '/company#calendar'",
-                "'Estimating queue', '/estimating', ['estimator']", "'Team & access', '/admin/users'", "'Settings', '/#settings'"):
+                "'Estimating queue', '/estimating', ['estimator']", "'Team & access', '/admin/users'"):
         assert sub in js, sub
+    # #341 — Settings must NOT be duplicated inside the Company tab's own sub-nav
+    # anymore; its only home is the pinned entry asserted above.
+    assert "'Settings', '/#settings'" not in js
     cs = _login("c_suite")
     pages = {"/company": _page(cs, "/company"), "/": _page(cs, "/")}
     for path in ADMIN_PAGES:
         pages[path] = _page(cs, path)
     for path, html in pages.items():
-        assert 'data-company-nav' in html and "SSC_NAV.mount()" in html and "company_nav.js?v=339b" in html, path
+        assert 'data-company-nav' in html and "SSC_NAV.mount()" in html and "company_nav.js?v=" in html, path
         assert ">Office Console<" not in html and "ssc-nav-ext" not in html and "ssc-side-foot" not in html, path
         assert '<div class="brand-sub">Company</div>' in html, path
     for path, tab in ADMIN_PAGES.items():
