@@ -52,11 +52,19 @@ grant, or elevation code.
   orphaned the Employees & Certs content pane's closing marker, caught and fixed before
   shipping.
 * **Not done (deliberately out of scope):** did NOT build the "Documents folder-based page"
-  / "Client access page" / "Money group Billing+Costs sub-tab" ideas from the original
-  audit — those are net-new feature surfaces, not navigation reorganization, and would need
-  their own scoping pass. The floor for further entry-count reduction is ~20 real, actively
-  used destinations; going lower means either building those net-new surfaces or deciding to
-  merge/hide real capability, both of which need explicit sign-off first.
+  / "Money group Billing+Costs sub-tab" ideas from the original audit — those are net-new
+  feature surfaces, not navigation reorganization, and would need their own scoping pass.
+  The floor for further entry-count reduction is ~20 real, actively used destinations; going
+  lower means either building those net-new surfaces or deciding to merge/hide real
+  capability, both of which need explicit sign-off first.
+  **Correction (2026-09-24):** the "Client access page" idea below was a stale assumption —
+  it already exists and has since build #270 (2026-07-02), well before this session's work.
+  `/admin/projects` ("Assignments & onboarding" under the Projects tab) has a full "Client
+  Access" section: per-client project assignment, per-section grant toggles (DEFAULT OFF),
+  one-click presets (Minimal/Standard/Full), and a "👁 Preview" button that opens the portal
+  exactly as that client sees it. Backed by `client_grants.py` + `/api/admin/pm-assignments`
+  (which already merges in `grantable_sections`/`presets`/each client's `sections`). No gap
+  here — do not rebuild this.
 * **Tests:** `tests/smoke_behavior_conventions.py` (`rbac_pm_sidebar_has_compliance` now
   checks `data-view="compliance"` instead of the retired `data-group="compliance"`;
   `rbac_sidebar_split_two_groups` checks the merged `data-group="financial"` +
@@ -73,10 +81,11 @@ grant, or elevation code.
   markup directly instead (regex-simulated the `access.py` SECTION strip, then a live
   logged-in-admin browser walkthrough of every Money/Tracking/Field destination — all
   loaded real data with no console errors beyond a pre-existing unrelated `/api/weather` 400).
-* **Not in this phase (next):** the "Documents folder-based page", "Client access" panel
-  (would use the already-built `client_grants.py` presets/toggles), and Money's Billing/Costs
+* **Not in this phase (next):** the "Documents folder-based page" and Money's Billing/Costs
   sub-tab split remain open ideas from the original audit if the entry count needs to drop
-  further — each is a scoping conversation, not a mechanical nav change.
+  further — each is a scoping conversation, not a mechanical nav change. ("Client access
+  panel" is NOT on this list — see the correction above, it already ships on
+  `/admin/projects`.)
 
 ### #339 — ONE home: the company sidebar, navigation revamp phase 1 (Bookore, 2026-09-22)
 
