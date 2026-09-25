@@ -316,22 +316,22 @@
         <div class="cal-tip" id="cal-tip"></div>
       </section>
 
-      <!-- ================= PROJECTS (#330) — jobs, one page each ================= -->
+      <!-- ================= PROJECTS (#330) — the job list. #343: a row opens the
+           job's own dashboard (/projects/<code>) directly; the in-portal summary page
+           that used to sit in between is gone, its money/permits/crew cards now live
+           on the dashboard's Project Health. ================= -->
       <section class="cp-view" id="view-projects" hidden>
-        <div id="projects-list">
-          <div class="ssc-subtabs" data-subtabs="projects"></div>
-          <div id="pj-notice"></div>
-          <div class="cp-card">
-            <div class="cp-toolbar">
-              <input class="cp-input search" id="pj-search" placeholder="Search code, name, address or client…" autocomplete="off">
-              <select class="cp-select" id="pj-status"><option value="active">Active jobs</option><option value="closed">Closed</option><option value="all">All</option></select>
-              <span style="flex:1"></span>
-              <a class="btn-primary btn-sm" href="/admin/projects" style="text-decoration:none">+ New project</a>
-            </div>
-            <div class="cp-table-wrap"><table class="cp-table" id="pj-table"></table></div>
+        <div class="ssc-subtabs" data-subtabs="projects"></div>
+        <div id="pj-notice"></div>
+        <div class="cp-card">
+          <div class="cp-toolbar">
+            <input class="cp-input search" id="pj-search" placeholder="Search code, name, address or client…" autocomplete="off">
+            <select class="cp-select" id="pj-status"><option value="active">Active jobs</option><option value="closed">Closed</option><option value="all">All</option></select>
+            <span style="flex:1"></span>
+            <a class="btn-primary btn-sm" href="/admin/projects" style="text-decoration:none">+ New project</a>
           </div>
+          <div class="cp-table-wrap"><table class="cp-table" id="pj-table"></table></div>
         </div>
-        <div id="project-detail" hidden></div>
       </section>
 
       <section class="cp-view" id="view-proposals" hidden>
@@ -1150,7 +1150,6 @@
 
   // ---------- PROJECTS (#330) — jobs, one page each ----------
   async function loadProjects() {
-    $('project-detail').hidden = true; $('projects-list').hidden = false;
     skeleton($('pj-table'), 5);
     const q = new URLSearchParams(); q.set('status', $('pj-status').value); if ($('pj-search').value.trim()) q.set('search', $('pj-search').value.trim());
     try {
@@ -1167,7 +1166,7 @@
         { key: 'open_value', label: 'Open invoices', num: true, render: r => r.open_value ? `${money.format(r.open_value)}${r.overdue_value ? ' <span class="cp-pill bad">overdue</span>' : ''}` : '—' },
         { key: 'last_report_date', label: 'Last report', render: r => r.last_report_date ? fmtDate(r.last_report_date) : '<span class="cp-muted">none</span>' },
         { key: 'status', label: 'Status', render: r => `<span class="cp-pill ${r.status === 'active' ? 'ok' : ''}">${esc(r.status)}</span>` },
-      ], rows, { defaultSort: { key: 'project_code', dir: 'asc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.hash = '#projects/' + encodeURIComponent(r.project_code); },
+      ], rows, { defaultSort: { key: 'project_code', dir: 'asc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.href = '/projects/' + encodeURIComponent(r.project_code); },
         emptyTitle: 'No jobs here', emptySub: 'Add one with "+ New project" — the daily report and the worker portal work for it right away.' });
     } catch (e) { toast(e.message, true); $('pj-table').innerHTML = empty('Could not load projects', e.message); }
   }
@@ -1177,65 +1176,6 @@
     if (s.client_org_id) q.set('client_org_id', s.client_org_id);
     return '/admin/projects?' + q.toString();
   }
-  async function loadProjectDetail(code) {
-    $('projects-list').hidden = true; const host = $('project-detail'); host.hidden = false; host.innerHTML = '<div class="cp-card"><div class="cp-skel"></div><div class="cp-skel"></div></div>';
-    try {
-      const { data: d } = await api('/projects/' + encodeURIComponent(code));
-      const p = d.project, m = d.money.summary || {}, a = d.aia.summary || {}, pk = d.package.summary || {}, act = d.activity;
-      $('cp-title').textContent = p.name || p.project_code;
-      const fact = (k, v) => `<li><span class="cp-muted">${esc(k)}</span><span style="text-align:right">${v == null || v === '' ? '—' : v}</span></li>`;
-      const pill = s => `<span class="cp-pill ${{ on_file: 'ok', expiring: 'warn', expired: 'bad', missing: '' }[s] || ''}">${esc(String(s || '').replace('_', ' '))}</span>`;
-      const contract = d.contract.value != null ? money.format(d.contract.value) : '—';
-      const invoices = d.money.invoices.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Invoice</th><th>Description</th><th class="num">Amount</th><th class="num">Open</th><th>Due</th><th>Status</th></tr></thead><tbody>${d.money.invoices.map(r => `<tr><td class="cp-id">${esc(r.number)}</td><td>${esc(r.description || '')}<div class="cp-muted" style="font-size:12px">${esc(r.kind || '')}</div></td><td class="num">${money2.format(r.amount)}</td><td class="num">${r.status === 'issued' ? '<strong>' + money2.format(r.balance) + '</strong>' : '—'}</td><td>${r.status === 'draft' ? '<span class="cp-muted">draft</span>' : fmtDate(r.due_at)}</td><td><span class="cp-pill ${r.overdue ? 'bad' : (r.status === 'paid' ? 'ok' : (r.status === 'issued' ? 'active' : ''))}">${r.overdue ? 'overdue' : esc(r.status)}</span></td></tr>`).join('')}</tbody></table></div>` : empty('No invoices on this job yet', 'Create one from the job dashboard under Payments, or issue an AIA application.');
-      const apps = d.aia.applications.length ? `<div class="cp-tags">${d.aia.applications.map(x => `<span>App #${x.number} · ${esc(x.status)} · ${money2.format(x.current_payment_due || 0)} · ${x.pct_complete}%</span>`).join('')}</div>` : '';
-      const pkg = d.package.items.length ? `<div class="cp-tags">${d.package.items.map(i => `<span>${esc(i.label)} ${pill(i.status)}${i.expiry_date ? ' <span class="cp-muted">· ' + fmtDate(i.expiry_date) + '</span>' : ''}</span>`).join('')}</div>` : empty('No package defined', 'COI, bond and permits appear here once the job has document requirements.');
-      const lastSent = d.package.last_sent ? `<div class="cp-muted" style="font-size:12px;margin-top:8px">Sent to ${esc(d.package.last_sent.sent_name || d.package.last_sent.sent_to || '')} on ${fmtDate(d.package.last_sent.sent_at)}${d.package.last_sent.viewed_at ? ' · opened ' + fmtDate(d.package.last_sent.viewed_at) : ' · not opened yet'}${d.package.sends > 1 ? ' · ' + d.package.sends + ' sends' : ''}</div>` : '';
-      const docs = d.documents_expiring.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Document</th><th>Category</th><th>Expires</th></tr></thead><tbody>${d.documents_expiring.map(x => `<tr><td>${esc(x.title)}</td><td class="cp-muted">${esc(x.category)}</td><td>${fmtDate(x.expiry_date)} ${x.days_left != null ? (x.days_left < 0 ? '<span class="cp-pill bad">expired</span>' : (x.days_left <= 30 ? '<span class="cp-pill warn">' + x.days_left + 'd</span>' : '')) : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('No dated documents', 'COIs, permits and contracts with an expiry date will show here.');
-      const crew = d.crew.length ? `<div class="cp-tags">${d.crew.map(w => `<span><b class="cp-id">${esc(w.worker_id || w.employee_id)}</b> ${esc(w.name || '')}${w.trade ? ' · ' + esc(w.trade) : ''}${w.role_on_project ? ' · ' + esc(w.role_on_project) : ''}</span>`).join('')}</div>` : `<div class="cp-muted">No crew assigned — workers are offered every active job until one is set. <a class="cp-link" href="${d.links.crew_and_site}">Assign crew →</a></div>`;
-      host.innerHTML = `
-        <div class="cp-toolbar"><a class="cp-link" href="#projects">← All projects</a><span style="flex:1"></span>
-          <span class="cp-pill ${p.status === 'active' ? 'ok' : ''}">${esc(p.status)}</span>${p.project_type ? `<span class="cp-pill">${esc(p.project_type)}</span>` : ''}
-          <a class="btn-ghost btn-sm" href="${d.links.crew_and_site}" style="text-decoration:none">Crew & site</a>
-          <a class="btn-primary btn-sm" href="${esc(d.links.dashboard)}" style="text-decoration:none">Open job dashboard →</a></div>
-        <div class="cp-kpis">
-          ${kpi('Contract', contract, d.contract.source === 'schedule_of_values' ? 'schedule of values' : (d.contract.source === 'estimate' ? 'from ' + esc(d.contract.estimate_code || 'the estimate') : 'not set'))}
-          ${kpi('Invoiced', money.format(m.invoiced_total || 0), 'issued + paid')}
-          ${kpi('Collected', money.format(m.collected || 0), 'payments received', 'good')}
-          ${kpi('Open', money.format(m.open_value || 0), `${m.open_count || 0} unpaid${m.overdue_count ? ' · ' + m.overdue_count + ' overdue' : ''}`, m.overdue_count ? 'warn' : '')}
-          ${a.contract_sum_to_date ? kpi('Balance to finish', money.format(a.balance_to_finish || 0), `${money.format(a.retainage_held || 0)} retainage held`) : kpi('Crew on job', d.crew.length, d.pms.length ? 'PM ' + esc(d.pms.map(x => x.name).join(', ')) : 'no PM assigned')}
-        </div>
-        <div class="cp-grid3">
-          <div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Money</h2><span class="hint">invoices and AIA applications on this job</span></div>${invoices}${apps}</div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Permits &amp; insurance</h2><span class="hint">${pk.required ? pk.on_file + ' of ' + pk.required + ' on file · ' + pk.pct + '%' : 'what secures this job'}</span></div>${pkg}${lastSent}</div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Documents expiring</h2></div>${docs}</div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Crew</h2><span class="hint">${d.crew.length} on the job</span></div>${crew}</div>
-          </div>
-          <div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Job</h2></div><ul class="cp-list">
-              ${fact('Code', `<b class="cp-id">${esc(p.project_code)}</b>`)}
-              ${fact('Client', d.client ? `<a class="cp-link" href="${d.links.client}">${esc(d.client.name)}</a>` : null)}
-              ${fact('PM', d.pms.length ? esc(d.pms.map(x => x.name).join(', ')) : null)}
-              ${fact('Superintendent', esc(p.superintendent || ''))}
-              ${fact('Type', esc(p.project_type || ''))}
-              ${fact('Start', p.start_date ? fmtDate(p.start_date) : null)}
-              ${fact('Target completion', p.target_completion ? fmtDate(p.target_completion) : null)}
-              ${fact('Address', esc(p.address || ''))}
-              ${fact('City / ZIP', esc(p.city_zip || ''))}
-              ${fact('Region', d.building && d.building.borough ? esc(d.building.borough) : null)}
-            </ul></div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Activity</h2><span class="hint">last 30 days</span></div><ul class="cp-list">
-              ${fact('Daily reports', `${act.reports_30d}${act.last_report_date ? ' <span class="cp-muted">· last ' + fmtDate(act.last_report_date) + '</span>' : ''}`)}
-              ${fact('Open RFIs', act.open_rfis)}
-              ${fact('Field photos', act.photos)}
-              ${fact('Documents on file', act.documents)}
-            </ul></div>
-            ${d.contacts.length ? `<div class="cp-card"><div class="cp-card-head"><h2>Client contacts</h2></div><ul class="cp-list">${d.contacts.map(c => `<li><span>${esc(c.full_name)}</span><span class="cp-muted">${esc(c.email || c.phone || '')}</span></li>`).join('')}</ul></div>` : ''}
-          </div>
-        </div>`;
-    } catch (e) { toast(e.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this project', e.message)}</div>`; }
-  }
-
   // ---------- BUILDINGS (#304) ----------
   async function clientOptions(selectEl, keepValue) {
     if (!state.cache.clientOpts) {
@@ -2071,13 +2011,16 @@
     const h = (location.hash || '#overview').slice(1);
     let [view, arg] = h.split('/');
     if (ALIASES[view]) { view = ALIASES[view]; arg = undefined; location.replace('#' + view); }
+    // #343 — a job has one page: its dashboard. Every #projects/<code> link (the
+    // Overview list, calendar bars and milestones, old bookmarks) forwards there.
+    if (view === 'projects' && arg) { location.replace('/projects/' + arg); return; }
     const v = LOADERS[view] ? view : 'overview';
     state.view = v;
     document.querySelectorAll('.cp-view').forEach(s => s.hidden = (s.id !== 'view-' + v));
     $('cp-title').textContent = TITLES[v];
     if (v === 'finance') $('inv-status').value = ['overdue', 'draft', 'issued', 'paid', 'void'].includes(arg) ? arg : '';
     if (v === 'calendar' && arg && /^\d{4}-\d{2}-\d{2}$/.test(arg)) { CAL.anchor = calParse(arg); loadCalendar(); }
-    if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'projects' && arg) loadProjectDetail(arg); else if (v === 'proposals' && arg) loadProposalDetail(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
+    if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'proposals' && arg) loadProposalDetail(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);
