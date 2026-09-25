@@ -21,6 +21,45 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #343 — One click into a project, one visual language (Bookore, 2026-09-25)
+
+* **Ask (Angela):** from the Projects tab you were "within a project already" but still had
+  to open the project dashboard as a separate entity, and that dashboard looked outdated
+  next to the new UI. Option 2 of three scoped (full rebuild and iframe-embed deferred).
+* **The hop is gone:** a Projects-tab row now opens `/projects/<code>` directly. The
+  portal's in-between job summary page (`loadProjectDetail`, `#project-detail`, its
+  "Open job dashboard →" button) is deleted; the portal router forwards any
+  `#projects/<code>` link (Overview list, calendar bars/milestones, old bookmarks) to
+  `/projects/<code>` with `location.replace`.
+* **Nothing lost:** that page's contract / invoices / AIA apps / permits package /
+  documents expiring / job facts / crew / client contacts is now a "Contract, paperwork
+  & crew" block on Project Health, right under the ops KPIs (static, not a GridStack
+  widget — the saved-layout keys are untouched). Same endpoint,
+  `GET /api/company/portal/projects/<code>`, unchanged. Loader
+  `window.PROJ_loadFinancialSummary` runs on load and on returning to Project Health.
+* **Gating:** the block (markup, its `<style>`, its script, even its explanatory comment)
+  sits inside `<!-- SECTION:company_portal:start/end -->` — deliberately the SAME key the
+  endpoint is gated on (`requires_section("company_portal")`, admin/c_suite), not
+  `financial` as first planned, so the HTML gate and the API gate can never drift apart.
+  pm/super receive none of it; the view switcher only names the loader behind a
+  `typeof` guard (same pattern as `SOV_load`).
+* **Chrome:** brand lockup now matches `shell.css .ssc-side .brand` exactly (34px mark,
+  uppercase 13px Archivo wordmark, uppercase sub) — correction to the plan: the
+  wordmark was ALREADY Archivo; the visible mismatch was size, case and the 24px mark.
+  Account avatar `#1E73E8` → `var(--ui)` (was the only old-blue left beside the
+  already-`--ui` active nav row). Account menu, live chip, eyebrow labels and the
+  pinned-Settings divider moved onto `--side-*` / `--muted` / `--status-complete`.
+* **Tests:** `smoke_portal_projects_330.py` — the served-portal asserts flip (no
+  summary page, row → `/projects/`, router forward) and a new group proves c_suite gets
+  the card + loader while a pm assigned to the same job gets none of it and still 403s
+  the endpoint. `run_gate_ci.py` 35/35. Live walkthrough: Projects row → dashboard in
+  one click; card renders a real onboarded job; computed avatar colour == active-nav
+  colour (`rgb(36,65,140)`); `#projects/<code>` forwards.
+* **Not in this phase — #343b:** the ~20 operational content views (Daily Report, RFI
+  Log, Drop Report, …) still carry most of the file's hardcoded hex (10 `<style>` blocks;
+  Materials & Deliveries and parts of Payments/SOV already use the shared tokens). A
+  view-by-view token sweep is the follow-up; this phase fixed the chrome and the hop.
+
 ### #340 — Navigation revamp phases 2 + 3: Finance consolidation + project sidebar cut (Bookore, 2026-09-22)
 
 * **Ask (Angela):** "let's ... finish up the phase 2 and 3 of the navigation" — Finance as

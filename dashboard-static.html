@@ -140,27 +140,27 @@
     }
     /* #213 — account pinned to the sidebar bottom (Option 1 simple layout) */
     .sidebar-grow { flex: 1; min-height: 8px; }
-    .sidebar-pinned { flex: 0 0 auto; border-top: 1px solid #E8E4DD; padding-top: 8px; }
+    .sidebar-pinned { flex: 0 0 auto; border-top: 1px solid var(--side-edge, #E3E5EA); padding-top: 8px; }
     .sidebar-footer { flex: 0 0 auto; padding-top: 8px; margin-top: 8px; position: relative; }
-    .acct { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: none; background: transparent; border-radius: 9px; cursor: pointer; text-align: left; font: inherit; color: #14161C; }
-    .acct:hover { background: #F5F6F8; }
-    .acct-avatar { width: 30px; height: 30px; border-radius: 50%; background: #1E73E8; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; letter-spacing: .02em; }
+    .acct { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: none; background: transparent; border-radius: 9px; cursor: pointer; text-align: left; font: inherit; color: var(--side-ink, #2B2F38); }
+    .acct:hover { background: var(--side-hover, rgba(20,22,28,.05)); }
+    .acct-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--ui, #24418C); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; letter-spacing: .02em; }
     .acct-info { min-width: 0; flex: 1; }
     .acct-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .acct-role { color: #76777E; font-size: 11px; }
-    .acct-chev { width: 13px; height: 13px; color: #9CA0AA; margin-left: auto; flex-shrink: 0; transition: transform .15s; }
+    .acct-role { color: var(--side-muted, #8A8F99); font-size: 11px; }
+    .acct-chev { width: 13px; height: 13px; color: var(--side-muted, #8A8F99); margin-left: auto; flex-shrink: 0; transition: transform .15s; }
     .acct[aria-expanded="true"] .acct-chev { transform: rotate(180deg); }
-    .acct-menu { position: absolute; bottom: calc(100% - 2px); left: 6px; right: 6px; background: #fff; border: 1px solid #E8E4DD; border-radius: 10px; box-shadow: 0 6px 22px rgba(0,0,0,.12); padding: 6px; z-index: 60; }
-    .acct-mi { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: none; background: transparent; border-radius: 7px; cursor: pointer; text-align: left; font: inherit; font-size: 13px; color: #14161C; text-decoration: none; }
-    .acct-mi:hover { background: #F5F6F8; }
-    .acct-mi .nav-ic { width: 16px; height: 16px; color: #76777E; }
+    .acct-menu { position: absolute; bottom: calc(100% - 2px); left: 6px; right: 6px; background: #fff; border: 1px solid var(--side-edge, #E3E5EA); border-radius: 10px; box-shadow: 0 6px 22px rgba(0,0,0,.12); padding: 6px; z-index: 60; }
+    .acct-mi { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: none; background: transparent; border-radius: 7px; cursor: pointer; text-align: left; font: inherit; font-size: 13px; color: var(--side-ink, #2B2F38); text-decoration: none; }
+    .acct-mi:hover { background: var(--side-hover, rgba(20,22,28,.05)); }
+    .acct-mi .nav-ic { width: 16px; height: 16px; color: var(--side-muted, #8A8F99); }
     .acct-mi.acct-signout { color: var(--ui); } .acct-mi.acct-signout .nav-ic { color: var(--ui); }
     .acct-mi.acct-signout:hover { background: rgba(177,30,46,.06); }
     .acct-mi:disabled { opacity: .6; cursor: not-allowed; }
     /* content corner — faint "Live · date" (Option 1) */
     .content-corner { display: flex; justify-content: flex-end; padding: 14px 28px 0; }
-    .cc-live { display: inline-flex; align-items: center; gap: 6px; color: #9CA0AA; font-size: 12px; }
-    .cc-dot { width: 7px; height: 7px; border-radius: 50%; background: #2F7C57; }
+    .cc-live { display: inline-flex; align-items: center; gap: 6px; color: var(--muted, #8c92a0); font-size: 12px; }
+    .cc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--status-complete, #15a07e); }
 
     /* #214 Daily Construction Reports list — approved dcr_combined.html design (blue/white) */
     /* #215 — per-view live-date corner removed (the page-level .content-corner is the
@@ -443,7 +443,13 @@
        Markup + JS untouched; the blue stays the widget accent inside the content column. */
     .sidebar { background: var(--side-bg, #F3F4F6); border-right: 1px solid var(--side-edge, #E3E5EA); }
     .sidebar-header { border-bottom-color: var(--side-edge, #E3E5EA); }
-    .sidebar .brand-name { color: #14161C; } .sidebar .brand-sub { color: var(--side-muted, #8A8F99); }
+    /* #343 — the brand lockup matches shell.css's .ssc-side .brand exactly (34px mark,
+       uppercase 13px wordmark, uppercase sub) so the project dashboard reads as the
+       same product as the company pages it is opened from. */
+    .sidebar .sidebar-header img.brand-mark { width: 34px; height: 34px; object-fit: contain; flex-shrink: 0; }
+    .sidebar .brand-name { font-family: 'Archivo', 'Inter', -apple-system, sans-serif; font-size: 13px; font-weight: 700;
+      letter-spacing: .5px; text-transform: uppercase; line-height: 1.1; color: var(--ink, #14161C); }
+    .sidebar .brand-sub { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; margin-top: 2px; color: var(--side-muted, #8A8F99); }
     .sidebar .proj-line { border-bottom-color: var(--side-edge, #E3E5EA); }
     .nav-group-label { color: var(--side-muted, #8A8F99); } .nav-group-label:hover { color: #14161C; } .nav-chev { color: var(--side-muted, #8A8F99); }
     .nav-link { color: var(--side-ink, #2B2F38); border-left-color: transparent; position: relative;
@@ -507,7 +513,7 @@
       font-size: 10px;
       letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: #76777E;
+      color: var(--muted, #8c92a0);
       margin-bottom: 8px;
     }
     .topbar-title {
@@ -1088,6 +1094,157 @@
             <div class="ph-kpi"><div><div class="ph-kpi-k">Active drops</div><div class="ph-kpi-v" id="ph-kpi-active">—</div><div class="ph-kpi-sub">of <span id="ph-kpi-active-total">—</span> drops</div></div></div>
             <div class="ph-kpi"><span id="ph-kpi-progress-ring"></span><div><div class="ph-kpi-k">Overall progress</div><div class="ph-kpi-v" id="ph-kpi-progress">—</div><div class="ph-kpi-sub">drop plan</div></div></div>
           </div>
+
+          <!-- SECTION:company_portal:start -->
+          <!-- #343 — the job's contract, paperwork and crew, folded in from the Company
+               Portal's old per-job summary page so a job is ONE page. Same data, same
+               endpoint (/api/company/portal/projects/<code>). Gated on the SAME section
+               key that endpoint is gated on, so the markup and the API can never drift:
+               pm/super never receive this block — this comment included (stripped
+               server-side, access.render_sections) — and the endpoint 403s them anyway. -->
+          <style>
+            /* #343 — pf- namespace. Built on the shared widgets.css :root tokens (the
+               first Project Health surface that is), so it already matches the portal. */
+            .pf { margin: 0 0 22px; }
+            .pf-head { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin:4px 0 12px; }
+            .pf-head h2 { margin:0; font-size:16px; font-weight:700; color:var(--ink, #222633); }
+            .pf-hint { font-size:12px; color:var(--muted, #8c92a0); }
+            .pf-spacer { flex:1; }
+            .pf-btn { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; text-decoration:none;
+              color:var(--ui, #24418C); background:#fff; border:1px solid var(--ui, #24418C); border-radius:8px; padding:7px 12px; }
+            .pf-btn:hover { background:var(--ui-soft, #E8EDF8); }
+            .pf .ph-kpis { margin:0 0 14px; }
+            .pf-grid { display:grid; grid-template-columns:minmax(0,3fr) minmax(0,2fr); gap:14px; }
+            .pf-col { display:flex; flex-direction:column; gap:14px; min-width:0; }
+            @media (max-width:1100px){ .pf-grid { grid-template-columns:minmax(0,1fr); } }
+            .pf .ph-widget-head .pf-sub { font-size:12px; color:var(--muted, #8c92a0); text-transform:none; letter-spacing:0; font-weight:400; }
+            .pf-table-wrap { overflow-x:auto; }
+            .pf-table { width:100%; border-collapse:collapse; font-size:13px; color:var(--ink, #222633); }
+            .pf-table th { text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+              color:var(--muted, #8c92a0); padding:0 10px 8px; border-bottom:1px solid var(--line, #eceef3); white-space:nowrap; }
+            .pf-table td { padding:9px 10px; border-bottom:1px solid var(--line, #eceef3); vertical-align:top; }
+            .pf-table tr:last-child td { border-bottom:0; }
+            .pf-table .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+            .pf-muted { color:var(--muted, #8c92a0); }
+            .pf-small { font-size:12px; }
+            /* internal identifiers: the row's sans, weight + brand red (CLAUDE.md terminology rule) */
+            .pf-id { font-weight:700; color:var(--brand-red, #B11E2E); }
+            .pf-pill { display:inline-block; font-size:11px; font-weight:700; padding:3px 8px; border-radius:999px; white-space:nowrap;
+              background:var(--status-oat-soft, #f3f0e9); color:#6b6455; }
+            .pf-pill.ok { background:var(--status-complete-soft, #e7f6f0); color:var(--status-complete-deep, #0c7a5f); }
+            .pf-pill.active { background:var(--status-active-soft, #ebf0fe); color:var(--accent-ink, #3a5fd0); }
+            .pf-pill.warn { background:#FFF4E5; color:#9A5B00; }
+            .pf-pill.bad { background:var(--status-behind-soft, #fceeec); color:#A8382B; }
+            .pf-tags { margin-top:10px; }
+            .pf-tags span { display:inline-block; font-size:12px; padding:3px 9px; border-radius:999px; background:#F3F4F7; margin:0 6px 6px 0; }
+            .pf-list { list-style:none; margin:0; padding:0; }
+            .pf-list li { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid var(--line, #eceef3); font-size:13px; }
+            .pf-list li:last-child { border-bottom:0; }
+            .pf-list li > span:last-child { text-align:right; }
+            .pf-link { color:var(--ui, #24418C); font-weight:600; text-decoration:none; }
+            .pf-link:hover { text-decoration:underline; }
+          </style>
+          <section class="pf" id="pf" aria-label="Contract, paperwork and crew">
+            <div class="pf-head">
+              <h2>Contract, paperwork &amp; crew</h2>
+              <span class="pf-hint">company view · admin and C-suite</span>
+              <span class="pf-spacer"></span>
+              <a class="pf-btn" href="/admin/projects">Crew &amp; site</a>
+            </div>
+            <div class="ph-kpis" id="pf-kpis"><div class="ph-kpi"><div><div class="ph-kpi-k">Contract</div><div class="ph-kpi-v">—</div><div class="ph-kpi-sub">loading…</div></div></div></div>
+            <div class="pf-grid">
+              <div class="pf-col">
+                <section class="ph-widget"><div class="ph-widget-head"><h3>Money</h3><span class="pf-sub">invoices and AIA applications on this job</span></div><div class="ph-widget-body" id="pf-money"><div class="ph-loading">Loading…</div></div></section>
+                <section class="ph-widget"><div class="ph-widget-head"><h3>Permits &amp; insurance</h3><span class="pf-sub" id="pf-pkg-sub">what secures this job</span></div><div class="ph-widget-body" id="pf-pkg"><div class="ph-loading">Loading…</div></div></section>
+                <section class="ph-widget"><div class="ph-widget-head"><h3>Documents expiring</h3></div><div class="ph-widget-body" id="pf-docs"><div class="ph-loading">Loading…</div></div></section>
+              </div>
+              <div class="pf-col">
+                <section class="ph-widget"><div class="ph-widget-head"><h3>Job</h3></div><div class="ph-widget-body" id="pf-job"><div class="ph-loading">Loading…</div></div></section>
+                <section class="ph-widget"><div class="ph-widget-head"><h3>Crew</h3><span class="pf-sub" id="pf-crew-sub"></span></div><div class="ph-widget-body" id="pf-crew"><div class="ph-loading">Loading…</div></div></section>
+                <section class="ph-widget" id="pf-contacts-card" hidden><div class="ph-widget-head"><h3>Client contacts</h3></div><div class="ph-widget-body" id="pf-contacts"></div></section>
+              </div>
+            </div>
+          </section>
+          <script>
+          (function(){
+            const $ = (id) => document.getElementById(id);
+            if (!$('pf')) return;
+            const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+            const money = new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', maximumFractionDigits:0 });
+            const money2 = new Intl.NumberFormat('en-US', { style:'currency', currency:'USD' });
+            const mdy = (iso) => { if (!iso) return '—'; const p = String(iso).slice(0,10).split('-'); return p.length === 3 ? p[1] + '/' + p[2] + '/' + p[0] : esc(iso); };
+            const empty = (t, s) => `<div class="ph-empty"><div class="ph-empty-title">${esc(t)}</div>${s ? `<div class="ph-empty-sub">${esc(s)}</div>` : ''}</div>`;
+            const kpi = (k, v, sub) => `<div class="ph-kpi"><div><div class="ph-kpi-k">${esc(k)}</div><div class="ph-kpi-v">${v}</div><div class="ph-kpi-sub">${sub || ''}</div></div></div>`;
+            const fact = (k, v) => `<li><span class="pf-muted">${esc(k)}</span><span>${v == null || v === '' ? '—' : v}</span></li>`;
+            const pkgPill = (s) => `<span class="pf-pill ${({ on_file:'ok', expiring:'warn', expired:'bad' })[s] || ''}">${esc(String(s || '').replace('_', ' '))}</span>`;
+            const code = () => window.SSC_PROJECT_CODE || decodeURIComponent((location.pathname.match(/\/projects\/([^\/]+)/) || [])[1] || '');
+
+            function render(d) {
+              const p = d.project || {}, m = (d.money && d.money.summary) || {}, a = (d.aia && d.aia.summary) || {};
+              const pk = (d.package && d.package.summary) || {}, pms = d.pms || [], crew = d.crew || [];
+              const src = d.contract && d.contract.source;
+              $('pf-kpis').innerHTML =
+                kpi('Contract', d.contract && d.contract.value != null ? money.format(d.contract.value) : '—',
+                    src === 'schedule_of_values' ? 'schedule of values' : (src === 'estimate' ? 'from ' + esc(d.contract.estimate_code || 'the estimate') : 'not set')) +
+                kpi('Invoiced', money.format(m.invoiced_total || 0), 'issued + paid') +
+                kpi('Collected', money.format(m.collected || 0), 'payments received') +
+                kpi('Open', money.format(m.open_value || 0), `${m.open_count || 0} unpaid${m.overdue_count ? ' · <span class="pf-pill bad">' + m.overdue_count + ' overdue</span>' : ''}`) +
+                (a.contract_sum_to_date ? kpi('Balance to finish', money.format(a.balance_to_finish || 0), money.format(a.retainage_held || 0) + ' retainage held') : '');
+
+              const inv = (d.money && d.money.invoices) || [];
+              const invHtml = inv.length ? `<div class="pf-table-wrap"><table class="pf-table"><thead><tr><th>Invoice</th><th>Description</th><th class="num">Amount</th><th class="num">Open</th><th>Due</th><th>Status</th></tr></thead><tbody>${inv.map(r => `<tr><td class="pf-id">${esc(r.number)}</td><td>${esc(r.description || '')}<div class="pf-muted pf-small">${esc(r.kind || '')}</div></td><td class="num">${money2.format(r.amount || 0)}</td><td class="num">${r.status === 'issued' ? '<strong>' + money2.format(r.balance || 0) + '</strong>' : '—'}</td><td>${r.status === 'draft' ? '<span class="pf-muted">draft</span>' : mdy(r.due_at)}</td><td><span class="pf-pill ${r.overdue ? 'bad' : (r.status === 'paid' ? 'ok' : (r.status === 'issued' ? 'active' : ''))}">${r.overdue ? 'overdue' : esc(r.status)}</span></td></tr>`).join('')}</tbody></table></div>`
+                : empty('No invoices on this job yet', 'Create one under Money → Payments, or issue an AIA application.');
+              const apps = (d.aia && d.aia.applications) || [];
+              $('pf-money').innerHTML = invHtml + (apps.length ? `<div class="pf-tags">${apps.map(x => `<span>App #${esc(x.number)} · ${esc(x.status)} · ${money2.format(x.current_payment_due || 0)} · ${esc(x.pct_complete)}%</span>`).join('')}</div>` : '');
+
+              const items = (d.package && d.package.items) || [], ls = d.package && d.package.last_sent;
+              $('pf-pkg-sub').textContent = pk.required ? `${pk.on_file} of ${pk.required} on file · ${pk.pct}%` : 'what secures this job';
+              $('pf-pkg').innerHTML = (items.length ? `<div class="pf-tags" style="margin-top:0">${items.map(i => `<span>${esc(i.label)} ${pkgPill(i.status)}${i.expiry_date ? ' <span class="pf-muted">· ' + mdy(i.expiry_date) + '</span>' : ''}</span>`).join('')}</div>`
+                  : empty('No package defined', 'COI, bond and permits appear here once the job has document requirements.')) +
+                (ls ? `<div class="pf-muted pf-small" style="margin-top:8px">Sent to ${esc(ls.sent_name || ls.sent_to || '')} on ${mdy(ls.sent_at)}${ls.viewed_at ? ' · opened ' + mdy(ls.viewed_at) : ' · not opened yet'}${d.package.sends > 1 ? ' · ' + esc(d.package.sends) + ' sends' : ''}</div>` : '');
+
+              const docs = d.documents_expiring || [];
+              $('pf-docs').innerHTML = docs.length ? `<div class="pf-table-wrap"><table class="pf-table"><thead><tr><th>Document</th><th>Category</th><th>Expires</th></tr></thead><tbody>${docs.map(x => `<tr><td>${esc(x.title)}</td><td class="pf-muted">${esc(x.category)}</td><td>${mdy(x.expiry_date)} ${x.days_left != null ? (x.days_left < 0 ? '<span class="pf-pill bad">expired</span>' : (x.days_left <= 30 ? '<span class="pf-pill warn">' + esc(x.days_left) + 'd</span>' : '')) : ''}</td></tr>`).join('')}</tbody></table></div>`
+                : empty('No dated documents', 'COIs, permits and contracts with an expiry date will show here.');
+
+              // a portal-relative link (#clients/<id>) is re-rooted on the company portal
+              const clientHref = d.client && d.links && d.links.client ? '/company' + d.links.client : null;
+              $('pf-job').innerHTML = `<ul class="pf-list">
+                ${fact('Client', d.client ? (clientHref ? `<a class="pf-link" href="${esc(clientHref)}">${esc(d.client.name)}</a>` : esc(d.client.name)) : null)}
+                ${fact('PM', pms.length ? esc(pms.map(x => x.name).join(', ')) : null)}
+                ${fact('Superintendent', p.superintendent ? esc(p.superintendent) : null)}
+                ${fact('Type', p.project_type ? esc(p.project_type) : null)}
+                ${fact('Status', `<span class="pf-pill ${p.status === 'active' ? 'ok' : ''}">${esc(p.status || '—')}</span>`)}
+                ${fact('Start', p.start_date ? mdy(p.start_date) : null)}
+                ${fact('Target completion', p.target_completion ? mdy(p.target_completion) : null)}
+                ${fact('Region', d.building && d.building.borough ? esc(d.building.borough) : null)}
+              </ul>`;
+
+              $('pf-crew-sub').textContent = `${crew.length} on the job`;
+              $('pf-crew').innerHTML = crew.length
+                ? `<div class="pf-tags" style="margin-top:0">${crew.map(w => `<span><b class="pf-id">${esc(w.worker_id || w.employee_id)}</b> — ${esc(w.name || '')}${w.trade ? ' · ' + esc(w.trade) : ''}${w.role_on_project ? ' · ' + esc(w.role_on_project) : ''}</span>`).join('')}</div>`
+                : `<div class="pf-muted">No crew assigned — workers are offered every active job until one is set. <a class="pf-link" href="/admin/projects">Assign crew →</a></div>`;
+
+              const contacts = d.contacts || [];
+              $('pf-contacts-card').hidden = !contacts.length;
+              $('pf-contacts').innerHTML = contacts.length ? `<ul class="pf-list">${contacts.map(c => `<li><span>${esc(c.full_name)}</span><span class="pf-muted">${esc(c.email || c.phone || '')}</span></li>`).join('')}</ul>` : '';
+            }
+
+            window.PROJ_loadFinancialSummary = async function () {
+              const c = code(); if (!c) return;
+              try {
+                const r = await fetch('/api/company/portal/projects/' + encodeURIComponent(c), { credentials: 'same-origin' });
+                const j = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+                render(j.data || {});
+              } catch (e) {
+                ['pf-money', 'pf-pkg', 'pf-docs', 'pf-job', 'pf-crew'].forEach(id => { $(id).innerHTML = empty('Could not load this section', e.message); });
+              }
+            };
+            window.PROJ_loadFinancialSummary();
+          })();
+          </script>
+          <!-- SECTION:company_portal:end -->
 
           <!-- layout controls -->
           <div class="ph-gridbar">
@@ -5271,6 +5428,9 @@ document.querySelectorAll('.nav-link').forEach(link => {
       document.querySelector('.views-container').scrollTo({top: 0, behavior: 'smooth'});
     }
     // Per-view lazy loads
+    if (targetView === 'dashboard') {   // #343 — company-only card; absent (server-stripped) for pm/super
+      if (typeof window.PROJ_loadFinancialSummary === 'function') window.PROJ_loadFinancialSummary();
+    }
     if (targetView === 'sov') {   // #262 — Financial; SOV_load is absent (server-stripped) for non-admin/c_suite
       if (typeof window.SOV_load === 'function') window.SOV_load();
     }
