@@ -219,9 +219,17 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
             raise ValueError("contract value must be a number")
         if contract < 0:
             raise ValueError("contract value cannot be negative")
-    start = _valid_date(p.get("start_date")) or date.today().isoformat()
+    # #342 — `provided_start` is what actually goes into projects.start_date (the field
+    # the calendar draws from, per portal_calendar.window()'s `WHERE start_date IS NOT
+    # NULL`). It stays None when the operator leaves the date blank on "+ New project" —
+    # an undated job must NOT appear on the calendar. `start` defaults to today ONLY for
+    # bookkeeping that always needs a concrete date regardless of scheduling (the
+    # estimate's own approval timestamp below, and the crew assignment's "as of" date) —
+    # it must never be written to projects.start_date.
+    provided_start = _valid_date(p.get("start_date"))
+    start = provided_start or date.today().isoformat()
     target = _valid_date(p.get("target_completion"))          # #332 — the calendar bar's end
-    if target and target < start:
+    if target and provided_start and target < provided_start:
         raise ValueError("target completion cannot be before the start date")
     notes = (p.get("notes") or "").strip()[:2000]
     site = _site_fields(p, partial=True)          # #325 — validated before anything is written
@@ -268,7 +276,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     code = res["project_code"]
     conn.execute("UPDATE projects SET name = ?, updated_at = ? WHERE project_code = ?", (name, now, code))
     try:
-        conn.execute("UPDATE projects SET start_date = ?, target_completion = ? WHERE project_code = ?", (start, target, code))
+        conn.execute("UPDATE projects SET start_date = ?, target_completion = ? WHERE project_code = ?", (provided_start, target, code))
     except Exception as e:   # projects.start_date exists only where the legacy ALTER ran
         log.info("#324 projects.start_date not set: %s", e)
         try:
@@ -308,7 +316,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     project = _one(conn.execute("SELECT project_code, name, address, status, client_org_id, building_id, "
                                 "site_lat, site_lng, geofence_m FROM projects WHERE project_code = ?", (code,)))
     return {"project_code": code, "project": project, "estimate_id": est["id"], "estimate_code": est["code"],
-            "client_org_id": org_id, "pm_user_id": pm_user_id, "start_date": start, "target_completion": target, "contract_value": contract,
+            "client_org_id": org_id, "pm_user_id": pm_user_id, "start_date": provided_start, "target_completion": target, "contract_value": contract,
             "crew": crew_change["added"]}
 
 

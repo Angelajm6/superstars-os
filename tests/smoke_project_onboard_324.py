@@ -18,6 +18,9 @@ SQLite snapshot from the versioned migrations when unset). Proves:
     real estimate created afterwards continues the series
   * a new client name creates the organization; IRA jobs open the inspection row
     when that table exists; the page carries the button + modal
+  * #342 — an onboard with no start_date leaves projects.start_date NULL (never
+    silently defaults to today) and the job never draws a bar on the portal
+    calendar, landing in its `undated` bucket instead
   * no `*_path` keys in any payload
 
 Run:  venv/bin/python tests/smoke_project_onboard_324.py
@@ -47,6 +50,7 @@ import crm  # noqa: E402
 import db_layer  # noqa: E402
 import estimates  # noqa: E402
 import pm_scoping  # noqa: E402
+import portal_calendar  # noqa: E402
 import project_onboard  # noqa: E402
 import role_containment  # noqa: E402
 
@@ -282,13 +286,33 @@ def main() -> int:
         conn.close()
     checks += 1
 
+    # ---- #342 — no start_date given: projects.start_date must stay NULL (never
+    # silently default to today), so the job never draws a calendar bar. It must
+    # still show up in the portal calendar's separate `undated` bucket.
+    r = admin.post(f"{API}/onboard", json={**base, "address": "22 Np324 Quay", "name": "Np324 Undated"})
+    assert r.status_code == 201, r.get_json()
+    d3 = r.get_json()["data"]
+    code3 = d3["project_code"]
+    assert d3["start_date"] is None, d3
+    conn = _db()
+    try:
+        row = conn.execute("SELECT start_date FROM projects WHERE project_code = ?", (code3,)).fetchone()
+        assert row["start_date"] is None, "an undated onboard must never default to today in the DB"
+        win = portal_calendar.window(conn, TODAY - timedelta(days=7), TODAY + timedelta(days=7))
+    finally:
+        conn.close()
+    assert code3 not in {j["project_code"] for j in win["jobs"]}, "an undated project must not draw a calendar bar"
+    assert code3 in {u["project_code"] for u in win["undated"]}, "an undated project belongs in the undated bucket"
+    checks += 1
+
     # ---- the page carries the button + modal
     html = admin.get("/admin/projects").get_data(as_text=True)
     assert 'id="np-open"' in html and 'id="np-form"' in html and "/api/admin/projects/onboard" in html
     checks += 1
 
     print(f"PASS: #324 onboard an already-won job — gates, meta, validation, estimate→approved→convert in one step, "
-          f"name / start / PM / building / activity, numbering, new client, IRA row, page ({checks} groups)")
+          f"name / start / PM / building / activity, numbering, new client, IRA row, undated onboard stays off "
+          f"the calendar (#342), page ({checks} groups)")
     return 0
 
 
