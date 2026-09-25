@@ -10,8 +10,11 @@ Boots the real app (`import server`) on an ISOLATED database. Proves:
     money (invoice list + summary), AIA summary, permits & insurance package readiness,
     documents expiring with days left, activity counts, links out; nothing from other
     jobs at the same address leaks in; no *_path anywhere
-  * served portal: nav "Projects" routes to #projects, the view exists, job sites keep
-    #buildings, titles updated
+  * served portal: nav "Projects" routes to #projects, the view exists, titles updated
+  * #343 — a job is one page: no in-portal summary page; a row opens /projects/<code>
+    and #projects/<code> links forward there; the job dashboard's Project Health
+    carries the contract/paperwork/crew card for c_suite, and a pm assigned to the
+    same job receives none of it (stripped server-side) and still 403s the endpoint
 Run:  venv/bin/python tests/smoke_portal_projects_330.py
 """
 from __future__ import annotations
@@ -230,10 +233,32 @@ def main() -> int:
 
     html = cs.get("/company").get_data(as_text=True)
     assert 'data-company-nav' in html and "label: 'Projects'" in (ROOT / "static" / "js" / "company_nav.js").read_text(encoding="utf-8")   # #339: shared sidebar
-    assert 'id="view-projects"' in html and 'id="project-detail"' in html and 'id="view-buildings"' not in html   # #339: no job-sites page
-    assert "projects: 'Projects'" in html and "buildings: 'Job sites'" not in html and "loadProjectDetail" in html
+    assert 'id="view-projects"' in html and 'id="view-buildings"' not in html   # #339: no job-sites page
+    assert "projects: 'Projects'" in html and "buildings: 'Job sites'" not in html
     assert 'href="#buildings" data-view="buildings"' not in html, "job sites are not a nav entry any more"
+    # #343 — a job is ONE page: the in-portal summary page is gone, a row opens the
+    # dashboard directly, and every old #projects/<code> link forwards there.
+    assert 'id="project-detail"' not in html and "loadProjectDetail" not in html and "Open job dashboard" not in html
+    assert "location.href = '/projects/' + encodeURIComponent(r.project_code)" in html
+    assert "if (view === 'projects' && arg) { location.replace('/projects/' + arg); return; }" in html
     passed += 1; print("  served page ok")
+
+    # #343 — the summary lives on the job dashboard's Project Health, company roles only:
+    # c_suite receives the card + its loader; a pm assigned to the same job receives
+    # NEITHER (stripped server-side, not hidden) and the endpoint still 403s them.
+    dash_cs = cs.get(f"/projects/{A}").get_data(as_text=True)
+    for needle in ('id="pf"', "window.PROJ_loadFinancialSummary", "/api/company/portal/projects/"):
+        assert needle in dash_cs, needle
+    pm = _login("pm")
+    r = pm.get(f"/projects/{A}")
+    assert r.status_code == 200, r.status_code
+    dash_pm = r.get_data(as_text=True)
+    # the view switcher names the loader behind a typeof guard (same as SOV_load) — what
+    # must be absent is the DEFINITION, the card, the markers and the endpoint path
+    for needle in ('id="pf"', "window.PROJ_loadFinancialSummary = ", "SECTION:company_portal", "/api/company/portal/projects/"):
+        assert needle not in dash_pm, f"pm must not receive {needle}"
+    assert pm.get(f"{API}/{A}").status_code == 403, "the endpoint behind the card stays company-only"
+    passed += 1; print("  job dashboard card ok")
 
     print(f"PASS smoke_portal_projects_330 ({passed} groups)")
     return 0
