@@ -117,6 +117,8 @@ import building_3d
 building_3d.register(app)       # #336 — the building in 3D (footprint + height from NYC Open Data, grids on the walls)
 import dcr_maintenance
 dcr_maintenance.register(app)   # #344 — DCR register + the pinned 109→097 correction
+import worker_lifecycle
+worker_lifecycle.register(app)   # #345 — Workforce: archive / reactivate / delete permanently
 
 # #279 (UI v2 phase 0) — the interface toggle. MUST follow apply_auth_gate: the
 # stored per-user preference is read off current_user(). Sets g.ui_version on page
@@ -3777,92 +3779,53 @@ def complete_intake(emp_id):
             except Exception: pass
 
 
-def _worker_history_counts(conn, emp_id):
-    """Count rows that prevent hard-delete (preserves accuracy of historical
-    DCRs, Weekly Hours Log, and credential audit trail). Returns a dict
-    keyed by table for the operator-facing diagnostic, plus a `total`."""
-    counts = {}
-    for tbl in ('sign_in_log', 'certifications', 'worker_documents',
-                'cof_cards', 'company_id_cards'):
-        n = conn.execute(
-            f"SELECT COUNT(*) FROM {tbl} WHERE employee_id = ?", (emp_id,)
-        ).fetchone()[0]
-        counts[tbl] = n
-    counts['total'] = sum(v for k, v in counts.items() if k != 'total')
-    return counts
-
-
 @app.route('/api/employees/<emp_id>', methods=['DELETE'])
+@requires_company   # #345 — was reachable by any logged-in role
 def delete_employee(emp_id):
     """Delete a worker. Auto-dispatches between hard-delete and soft-archive
-    based on whether the worker has any operational history:
+    based on whether the worker has any operational history — the SAME check as
+    the Workforce tab's "Delete permanently" (#345, worker_lifecycle.BLOCKING):
 
-      - NO history (sign_in_log, certifications, worker_documents, cof_cards,
-        company_id_cards all empty for this employee) → hard-delete. Removes
-        the employees row plus its project_assignments. Safe to wipe; nothing
-        else references this worker.
+      - NO history -> the worker and every setup row that points at them
+        (assignments, rate rows, labor state, devices, sessions) plus their
+        records folder are removed, dependents first.
+      - HAS history -> soft-archive: employees.archived_at = NOW + reason. The
+        history stays so DCRs and the Hours Log stay accurate; the worker can be
+        reactivated from the Workforce tab's Inactive list.
 
-      - HAS history → soft-archive: sets employees.archived_at = NOW. The
-        sign-ins, certs, docs, and cards remain so historical DCRs and the
-        Weekly Hours Log stay accurate. project_assignments stays so the
-        archived worker can be re-activated later by clearing archived_at.
-
-    Archived workers are filtered out of the workforce list, the project
-    worker list, and the intake-summary list by default. Pass
-    ?include_archived=true on those GETs to see them.
-
-    Body: optional {reason}. 404 if worker doesn't exist; 409 if already
-    archived. Hard-delete returns 200 with {deleted: 'hard'}; archive
-    returns 200 with {deleted: 'archived'} + the history counts that
-    forced the soft path."""
-    conn = None
+    Body: optional {reason}. 404 if the worker doesn't exist; 409 if already
+    archived. Returns {deleted: 'hard'|'archived', history_counts}."""
+    import worker_lifecycle
+    data = request.get_json(silent=True) or {}
+    reason = (data.get('reason') or '').strip() or None
+    conn = db()
     try:
-        data = request.get_json(silent=True) or {}
-        reason = (data.get('reason') or '').strip() or None
-        conn = db()
-        emp = conn.execute(
-            "SELECT employee_id, archived_at FROM employees WHERE employee_id = ?",
-            (emp_id,)
-        ).fetchone()
+        emp = conn.execute("SELECT employee_id, archived_at FROM employees WHERE employee_id = ?",
+                           (emp_id,)).fetchone()
         if not emp:
             return jsonify({"error": "employee not found"}), 404
         if emp["archived_at"]:
-            return jsonify({"error": "employee already archived",
-                            "archived_at": emp["archived_at"]}), 409
-        counts = _worker_history_counts(conn, emp_id)
-        if counts["total"] == 0:
-            # Hard-delete: project_assignments first (no FK cascade configured),
-            # then the employees row. Worker folder on disk is left in place —
-            # it's the audit/intake artifact, and a re-onboard with the same
-            # name would reuse it.
-            conn.execute("DELETE FROM project_assignments WHERE employee_id = ?", (emp_id,))
-            conn.execute("DELETE FROM employees WHERE employee_id = ?", (emp_id,))
+            return jsonify({"error": "employee already archived", "archived_at": emp["archived_at"]}), 409
+        plan = worker_lifecycle.removal_plan(conn, emp_id)
+        counts = {**plan["blocking"], "total": sum(plan["blocking"].values())}
+        if plan["can_delete"]:
+            _, err = worker_lifecycle.delete_worker(conn, emp_id)
+            if err:
+                return err
             conn.commit()
-            return response_wrapper({
-                "employee_id": emp_id,
-                "deleted": "hard",
-                "history_counts": counts,
-            }), 200
-        else:
-            # Soft-archive: mark archived_at + reason. History rows stay.
-            conn.execute(
-                "UPDATE employees SET archived_at = CURRENT_TIMESTAMP, "
-                "archived_reason = ?, updated_at = CURRENT_TIMESTAMP "
-                "WHERE employee_id = ?",
-                (reason, emp_id)
-            )
-            conn.commit()
-            row = conn.execute(
-                "SELECT archived_at, archived_reason FROM employees WHERE employee_id = ?",
-                (emp_id,)
-            ).fetchone()
-            return response_wrapper({
-                "employee_id": emp_id,
-                "deleted": "archived",
-                "archived_at": row["archived_at"],
-                "archived_reason": row["archived_reason"],
-                "history_counts": counts,
-            }), 200
+            conn.close(); conn = None
+            worker_lifecycle.remove_folder(emp_id)
+            return response_wrapper({"employee_id": emp_id, "deleted": "hard", "history_counts": counts}), 200
+        conn.execute("UPDATE employees SET archived_at = CURRENT_TIMESTAMP, archived_reason = ?, "
+                     "updated_at = CURRENT_TIMESTAMP WHERE employee_id = ?", (reason, emp_id))
+        worker_lifecycle._audit(conn, "worker_archive", emp_id, before={"state": "active"},
+                                after={"state": "archived"}, note=reason)
+        conn.commit()
+        row = conn.execute("SELECT archived_at, archived_reason FROM employees WHERE employee_id = ?",
+                           (emp_id,)).fetchone()
+        return response_wrapper({"employee_id": emp_id, "deleted": "archived",
+                                 "archived_at": row["archived_at"], "archived_reason": row["archived_reason"],
+                                 "history_counts": counts}), 200
     except Exception as e:
         logging.error(f"DELETE /api/employees/{emp_id}: {e}")
         return _server_error(e)

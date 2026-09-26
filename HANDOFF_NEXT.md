@@ -21,6 +21,30 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #345 — Workforce: Active / Inactive, make inactive, reactivate, delete (Bookore, 2026-09-26)
+
+* **What:** the Workforce list gets an **Active (N) / Inactive (N)** toggle. Inactive =
+  archived (`employees.archived_at` + `archived_reason`) OR labor-inactive
+  (`labor_worker_state`, still PM-approved via /labor-rates — archiving deliberately does NOT
+  touch it). The Inactive list shows status, since, reason, last on site and a Reactivate
+  button. A worker page gets **Make inactive** (asks for a reason), **Reactivate** (clears
+  both archive and labor-inactive), and — admin only — **Delete permanently**.
+* **Delete rules (`worker_lifecycle.py`):** anything proving they worked or hold credentials
+  BLOCKS it with a 409 "make them inactive instead" (sign-ins, hour edits, certs, IDs,
+  documents, CoF / company-ID cards, field photos, drop-plan sign-offs, vehicle driver, a
+  dashboard login). Setup rows (assignments, rates, labor state + rate changes keyed by
+  W-####, devices, sessions) are purged with the worker, dependents first (Postgres
+  enforces the FKs), then the worker_records folder after commit. Every table is probed in
+  the catalog first. Audit rows (`worker_archive` / `worker_reactivate` / `worker_delete`)
+  carry IDs, trade and counts only — no names.
+* **Also:** headcount + the Overview tile count active workers only (`v_active_workers`,
+  roster rule); the old `DELETE /api/employees/<E>` is now company roles only and uses the
+  same rules.
+* **Routes:** `POST /api/company/portal/workers/<E>/archive|reactivate` (admin/c_suite),
+  `GET …/removal` (preview), `DELETE /api/company/portal/workers/<E>` (admin).
+* **Tests:** `tests/smoke_workforce_archive_345.py` (both gates).
+* **Next (#346):** Angela deletes the empty test workers W-0027..29 with this Delete, then
+  the one-shot W-0030..32 → W-0027..29 renumber runs.
 ### #344 — DCR numbers: register, number preview, delete fix, one-time 109 → 097 (Bookore, 2026-09-26)
 
 * **Ask (Angela):** "Issue New DCR" produced `DCR-FR-BX-001-109` where she expected 097, plus

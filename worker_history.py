@@ -104,7 +104,7 @@ def worker_detail(conn, employee_id: str, *, months: int = MONTHS_DEFAULT, today
     in30 = (today + timedelta(days=30)).isoformat()
 
     w = _one(conn.execute(
-        "SELECT e.employee_id, e.worker_id, e.name, e.trade, e.archived_at, e.created_at, "
+        "SELECT e.employee_id, e.worker_id, e.name, e.trade, e.archived_at, e.archived_reason, e.created_at, "
         "       s.current_rate, s.status AS labor_status, s.effective_date AS rate_effective_date "
         "FROM employees e LEFT JOIN labor_worker_state s ON s.employee_id = e.employee_id "
         "WHERE e.employee_id = ?", (employee_id,)))

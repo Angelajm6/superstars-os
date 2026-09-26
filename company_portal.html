@@ -443,7 +443,10 @@
         <div class="cp-grid3">
           <div class="cp-card">
             <div class="cp-card-head"><h2>Workers</h2><span class="hint">rates are company-confidential · never shown on field surfaces</span></div>
-            <div class="cp-toolbar"><input class="cp-input search" id="wf-search" placeholder="Search by worker ID, name or trade…" autocomplete="off">
+            <div class="cp-toolbar">
+              <!-- #345 — Active / Inactive (former workers: archived, or deactivated in Pay rates) -->
+              <div class="cal-seg" role="tablist" aria-label="Worker status"><button type="button" data-wf-status="active" class="on">Active <span id="wf-n-active"></span></button><button type="button" data-wf-status="inactive">Inactive <span id="wf-n-inactive"></span></button></div>
+              <input class="cp-input search" id="wf-search" placeholder="Search by worker ID, name or trade…" autocomplete="off">
               <span style="flex:1"></span><a class="btn-ghost btn-sm" href="/admin/labor-rates" style="text-decoration:none;">Manage rates</a></div>
             <div class="cp-table-wrap"><table class="cp-table" id="wf-table"></table></div>
           </div>
@@ -1569,9 +1572,13 @@
   async function loadWorkforce() {
     $('worker-detail').hidden = true; $('workforce-list').hidden = false;
     skeleton($('wf-kpis'), 1); skeleton($('wf-table'), 6); skeleton($('wf-trades'), 3);
+    const wfStatus = state.wfStatus || 'active';   // #345
+    document.querySelectorAll('[data-wf-status]').forEach(b => b.classList.toggle('on', b.dataset.wfStatus === wfStatus));
     try {
-      const { data: d } = await api('/workforce');
+      const { data: d } = await api('/workforce?status=' + wfStatus);
       state.cache.workforce = d;
+      $('wf-n-active').textContent = '(' + d.counts.active + ')';
+      $('wf-n-inactive').textContent = '(' + d.counts.inactive + ')';
       const s = d.summary;
       $('wf-kpis').innerHTML =
         kpi('Headcount', s.headcount, `${s.on_site_today} on site today`) +
@@ -1589,6 +1596,20 @@
     const d = state.cache.workforce; if (!d) return;
     const q = $('wf-search').value.trim().toLowerCase();
     const rows = d.workers.filter(w => !q || [w.worker_id, w.name, w.trade].some(x => String(x || '').toLowerCase().includes(q)));
+    const workerCell = r => `<a class="cp-link" href="#workforce/${encodeURIComponent(r.employee_id)}"><span class="cp-id">${esc(r.worker_id || r.employee_id)}</span> — ${esc(r.name)}</a><div class="cp-muted" style="font-size:12px">${esc(r.trade || 'trade not set')}</div>`;
+    if (d.status === 'inactive') {   // #345 — former workers: why, since when, one click back
+      table($('wf-table'), [
+        { key: 'worker_id', label: 'Worker', render: workerCell },
+        { key: 'state', label: 'Status', render: r => r.state === 'archived' ? '<span class="cp-pill">inactive</span>' : '<span class="cp-pill warn">deactivated in Pay rates</span>' },
+        { key: 'archived_at', label: 'Since', render: r => r.archived_at ? fmtDate(r.archived_at) : '<span class="cp-muted">—</span>' },
+        { key: 'archived_reason', label: 'Reason', render: r => r.archived_reason ? esc(r.archived_reason) : '<span class="cp-muted">—</span>' },
+        { key: 'last_on_site', label: 'Last on site', render: r => fmtDate(r.last_on_site) },
+        { key: 'employee_id', label: '', render: r => `<button class="btn-ghost btn-sm" type="button" data-wf-reactivate="${esc(r.employee_id)}">Reactivate</button>` },
+      ], rows, { defaultSort: { key: 'worker_id', dir: 'asc' }, emptyTitle: q ? 'No workers match' : 'No inactive workers',
+        emptySub: q ? '' : 'Workers you make inactive from their page show up here, ready to reactivate.',
+        onRow: r => { location.hash = '#workforce/' + encodeURIComponent(r.employee_id); } });
+      return;
+    }
     table($('wf-table'), [
       { key: 'worker_id', label: 'Worker', render: r => `<a class="cp-link" href="#workforce/${encodeURIComponent(r.employee_id)}"><span class="cp-id">${esc(r.worker_id || r.employee_id)}</span> — ${esc(r.name)}</a><div class="cp-muted" style="font-size:12px">${esc(r.trade || 'trade not set')}</div>` },
       { key: 'current_rate', label: 'Rate', num: true, render: r => r.current_rate ? `${money2.format(r.current_rate)}/h${r.pending_rate_changes ? ' <span class="cp-pill warn">pending</span>' : ''}` : '<span class="cp-pill warn">not set</span>' },
@@ -1608,7 +1629,8 @@
       const { data: d } = await api('/workers/' + encodeURIComponent(id) + '?months=' + months);
       const w = d.worker, s = d.summary, L = d.window.labels;
       $('cp-title').textContent = `${w.worker_id || w.employee_id} — ${w.name}`;
-      const statusPill = w.status === 'archived' ? '<span class="cp-pill">archived</span>' : (w.status === 'inactive' ? '<span class="cp-pill warn">inactive</span>' : '<span class="cp-pill ok">active</span>');
+      state.workerId = id;   // #345 — the lifecycle buttons act on this worker
+      const statusPill = w.status === 'archived' ? '<span class="cp-pill">inactive</span>' : (w.status === 'inactive' ? '<span class="cp-pill warn">deactivated</span>' : '<span class="cp-pill ok">active</span>');
       const max = Math.max(1, ...d.by_month.map(m => m.hours));
       const bars = `<div class="cp-bars">${d.by_month.map(m => `<div class="cp-bar" title="${esc(fmtMonth(m.month))} · ${hrs(m.hours)} h · ${m.days} day(s) · est. ${money2.format(m.est_cost)}"><div class="b won" style="height:${Math.round(m.hours / max * 120)}px"></div><div class="lbl">${esc(fmtMonth(m.month))}</div></div>`).join('')}</div>`;
       const certRow = c => `<tr><td>${esc(c.name || c.cert_type_id)}</td><td>${fmtDate(c.date_obtained)}</td><td>${fmtDate(c.expiration_date)} ${c.expiration_date ? daysPill(c.days_left) : ''}</td></tr>`;
@@ -1618,7 +1640,12 @@
       host.innerHTML = `
         <div class="cp-toolbar"><a class="cp-link" href="#workforce">← All workers</a><span style="flex:1"></span>${statusPill}<span class="cp-pill">${esc(w.trade || 'trade not set')}</span>
           <select class="cp-select" id="wk-months"><option value="6">6 months</option><option value="12">12 months</option><option value="24">24 months</option><option value="36">36 months</option></select>
-          <a class="btn-ghost btn-sm" href="/admin/labor-rates" style="text-decoration:none">Manage rates</a></div>
+          <a class="btn-ghost btn-sm" href="/admin/labor-rates" style="text-decoration:none">Manage rates</a>
+          ${w.status === 'active'
+            ? `<button class="btn-ghost btn-sm" type="button" id="wk-archive">Make inactive</button>`
+            : `<button class="btn-primary btn-sm" type="button" data-wf-reactivate="${esc(w.employee_id)}">Reactivate</button>`}
+          ${((window.__SSC_USER || {}).role === 'admin') ? `<button class="btn-ghost btn-sm" type="button" id="wk-delete" style="color:#A8382B;border-color:#e7c3be;">Delete permanently</button>` : ''}</div>
+        ${w.status === 'archived' && w.archived_reason ? `<div class="cp-note" style="margin-bottom:12px">Inactive${w.archived_at ? ' since ' + fmtDate(w.archived_at) : ''} — ${esc(w.archived_reason)}</div>` : ''}
         <div class="cp-kpis">
           ${kpi('Hours worked (' + months + ' mo)', hrs(s.hours_window), `${s.days_window} day(s) on site · ${hrs(s.hours_ytd)} h this year · ${hrs(s.hours_all_time)} h all time`)}
           ${kpi('Est. labor cost (' + months + ' mo)', money.format(s.est_cost_window), s.unrated_hours_window ? `${hrs(s.unrated_hours_window)} h had no rate on file` : 'worked hours × rate on each date', s.unrated_hours_window ? 'warn' : '')}
@@ -2038,6 +2065,57 @@
   ['ex-project', 'ex-category', 'ex-month', 'ex-source', 'ex-status'].forEach(id => $(id).addEventListener('change', loadExpenses));
   $('ex-clear').addEventListener('click', () => { ['ex-project', 'ex-category', 'ex-status'].forEach(id => $(id).value = ''); $('ex-month').value = ''; $('ex-source').value = 'all'; loadExpenses(); });
   $('wf-search').addEventListener('input', () => debounce(renderWorkers));
+  // ---------- #345 — worker lifecycle: Active / Inactive, reactivate, delete permanently ----------
+  document.querySelectorAll('[data-wf-status]').forEach(b => b.addEventListener('click', () => {
+    state.wfStatus = b.dataset.wfStatus; loadWorkforce();
+  }));
+  const onWorkerPage = () => !$('worker-detail').hidden && state.workerId;
+  const refreshWorker = () => onWorkerPage() ? loadWorkerDetail(state.workerId) : loadWorkforce();
+  // capture phase: the Reactivate button sits inside a row whose click opens the worker page
+  document.addEventListener('click', async (e) => {
+    const re = e.target.closest('[data-wf-reactivate]');
+    if (re) {
+      e.stopPropagation(); e.preventDefault();
+      re.disabled = true;
+      try {
+        await api('/workers/' + encodeURIComponent(re.dataset.wfReactivate) + '/reactivate', { method: 'POST', body: '{}' });
+        toast('Reactivated — back on the active roster');
+        refreshWorker();
+      } catch (err) { toast(err.message, true); re.disabled = false; }
+      return;
+    }
+    if (e.target.closest('#wk-archive')) {
+      const reason = prompt('Make this worker inactive? They leave the active roster, can no longer sign in on the worker app, and can be reactivated any time. All their history is kept.\n\nReason (optional) — e.g. "left the company", "seasonal":', '');
+      if (reason === null) return;
+      try {
+        await api('/workers/' + encodeURIComponent(state.workerId) + '/archive', { method: 'POST', body: JSON.stringify({ reason }) });
+        toast('Moved to Inactive');
+        loadWorkerDetail(state.workerId);
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
+    if (e.target.closest('#wk-delete')) {
+      let p;
+      try { p = (await api('/workers/' + encodeURIComponent(state.workerId) + '/removal')).data; }
+      catch (err) { toast(err.message, true); return; }
+      if (!p.can_delete) {
+        const had = Object.entries(p.blocking).map(([k, n]) => n + ' ' + k).join(', ');
+        alert(p.worker_id + ' cannot be deleted — they have history: ' + had + '.\n\nUse "Make inactive" instead: they leave the roster and everything is kept.');
+        return;
+      }
+      const rows = Object.values(p.removes || {}).reduce((a, n) => a + n, 0);
+      if (!confirm('Permanently delete ' + p.worker_id + '?\n\nThey have no sign-ins, certifications, documents or cards, so nothing historical is lost. Removed with them: '
+        + rows + ' setup row(s) (assignments, rate, labor status)' + (p.folder_files ? ' and their records folder (' + p.folder_files + ' file(s))' : '')
+        + '.\n\nThis cannot be undone.')) return;
+      try {
+        await api('/workers/' + encodeURIComponent(state.workerId), { method: 'DELETE' });
+        toast(p.worker_id + ' deleted');
+        state.workerId = null;
+        state.wfStatus = 'active';
+        location.hash = '#workforce';
+      } catch (err) { toast(err.message, true); }
+    }
+  }, true);
   $('co-days').addEventListener('change', loadCompliance);
 
   $('cp-date').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });

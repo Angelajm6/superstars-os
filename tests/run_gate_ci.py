@@ -38,7 +38,7 @@ STATIC = ["smoke_http_security_297.py", "smoke_login_experience_298.py",
 BEHAVIORAL = ["smoke_password_reset_flow_301.py", "smoke_company_portal_302.py",
               "smoke_buildings_304.py", "smoke_security_release_305.py", "smoke_migrations_306.py",
               "smoke_proposals_307.py", "smoke_client_proposals_308.py", "smoke_csuite_reset_309.py",
-              "smoke_payroll_week_310.py", "smoke_invoices_315.py", "smoke_company_vault_318.py", "smoke_worker_history_320.py", "smoke_project_onboard_324.py", "smoke_crew_sites_325.py", "smoke_project_payments_326.py", "smoke_doc_package_327.py", "smoke_nav_clarity_328.py", "smoke_aia_billing_317.py", "smoke_payables_319.py", "smoke_portal_projects_330.py", "smoke_regions_331.py", "smoke_calendar_332.py", "smoke_calendar_plus_333.py", "smoke_project_dates_334.py", "smoke_building3d_336.py", "smoke_job_sites_337.py", "smoke_dashboard_week_338.py", "smoke_one_home_339.py", "smoke_dcr_numbers_344.py"]
+              "smoke_payroll_week_310.py", "smoke_invoices_315.py", "smoke_company_vault_318.py", "smoke_worker_history_320.py", "smoke_project_onboard_324.py", "smoke_crew_sites_325.py", "smoke_project_payments_326.py", "smoke_doc_package_327.py", "smoke_nav_clarity_328.py", "smoke_aia_billing_317.py", "smoke_payables_319.py", "smoke_portal_projects_330.py", "smoke_regions_331.py", "smoke_calendar_332.py", "smoke_calendar_plus_333.py", "smoke_project_dates_334.py", "smoke_building3d_336.py", "smoke_job_sites_337.py", "smoke_dashboard_week_338.py", "smoke_one_home_339.py", "smoke_dcr_numbers_344.py", "smoke_workforce_archive_345.py"]
 PORT = int(os.environ.get("GATE_PORT", "5434"))
 
 results: list = []

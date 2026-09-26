@@ -299,7 +299,7 @@ def overview(conn, today: Optional[date] = None) -> dict:
                                "WHERE expense_date LIKE ? AND voided_at IS NULL", (year + "%",))
     needs_review = _scalar(conn, "SELECT COUNT(1) FROM expenses WHERE status = 'needs_review'")
 
-    headcount = _scalar(conn, "SELECT COUNT(1) FROM employees WHERE archived_at IS NULL")
+    headcount = _scalar(conn, "SELECT COUNT(1) FROM v_active_workers")   # #345 — roster rule #246
     on_site = _scalar(conn, "SELECT COUNT(DISTINCT employee_id) FROM sign_in_log WHERE date = ?", (t,))
     hours_week = 0.0
     for r in _rows(conn.execute("SELECT time_in, time_out FROM sign_in_log WHERE date >= ? AND date <= ?",
@@ -719,18 +719,29 @@ def list_expenses(conn, *, project_code: Optional[str] = None, category: Optiona
 
 # ============================ workforce ============================
 
-def workforce(conn, today: Optional[date] = None) -> dict:
+def workforce(conn, today: Optional[date] = None, status: str = "active") -> dict:
+    """#345 — `status` picks the list: 'active' (default) or 'inactive' (archived, or
+    labor-inactive via the PM-approved deactivation). The summary always describes the
+    ACTIVE workforce, and the roster comes from v_worker_roster (roster rule #246) so a
+    labor-inactive worker is no longer counted in the headcount."""
     today = today or _today()
     t = today.isoformat()
     since7 = (today - timedelta(days=6)).isoformat()
     since30 = (today - timedelta(days=29)).isoformat()
     in30 = (today + timedelta(days=30)).isoformat()
 
-    workers = _rows(conn.execute(
-        "SELECT e.employee_id, e.worker_id, e.name, e.trade, "
-        "       s.current_rate, s.status AS rate_status, s.effective_date "
-        "FROM employees e LEFT JOIN labor_worker_state s ON s.employee_id = e.employee_id "
-        "WHERE e.archived_at IS NULL ORDER BY e.worker_id, e.name"))
+    everyone = _rows(conn.execute(
+        "SELECT r.employee_id, r.worker_id, r.name, r.trade, r.archived_at, r.archived_reason, "
+        "       r.labor_status, s.current_rate, s.status AS rate_status, s.effective_date "
+        "FROM v_worker_roster r LEFT JOIN labor_worker_state s ON s.employee_id = r.employee_id "
+        "ORDER BY r.worker_id, r.name"))
+    for w in everyone:
+        w["state"] = "archived" if w.get("archived_at") else (
+            "inactive" if (w.get("labor_status") or "active") == "inactive" else "active")
+        w["archived_at"] = str(w["archived_at"]) if w.get("archived_at") else None
+    active = [w for w in everyone if w["state"] == "active"]
+    inactive = [w for w in everyone if w["state"] != "active"]
+    workers = inactive if status == "inactive" else active
     hours7: dict = {}
     hours30: dict = {}
     last_seen: dict = {}
@@ -750,18 +761,23 @@ def workforce(conn, today: Optional[date] = None) -> dict:
         "FROM certifications GROUP BY employee_id", (t, t, in30)))}
     pending = {r["employee_id"]: r["n"] for r in _rows(conn.execute(
         "SELECT employee_id, COUNT(1) AS n FROM labor_rate_change WHERE status = 'pending' GROUP BY employee_id"))}
+    # #345 — last day on site across ALL history: a former worker's last day is
+    # usually more than 30 days back, and it's what the Inactive list needs
+    last_ever = {r["employee_id"]: str(r["d"])[:10] for r in _rows(conn.execute(
+        "SELECT employee_id, MAX(date) AS d FROM sign_in_log GROUP BY employee_id"))}
 
-    by_trade: dict = {}
-    for w in workers:
+    for w in everyone:
         c = certs.get(w["employee_id"]) or {}
         w["hours_7d"] = round(hours7.get(w["employee_id"], 0.0), 2)
         w["hours_30d"] = round(hours30.get(w["employee_id"], 0.0), 2)
-        w["last_on_site"] = last_seen.get(w["employee_id"])
+        w["last_on_site"] = last_ever.get(w["employee_id"]) or last_seen.get(w["employee_id"])
         w["certs_total"] = int(c.get("total") or 0)
         w["certs_expired"] = int(c.get("expired") or 0)
         w["certs_expiring_30"] = int(c.get("expiring") or 0)
         w["pending_rate_changes"] = int(pending.get(w["employee_id"]) or 0)
         w["current_rate"] = _num(w.get("current_rate")) or None
+    by_trade: dict = {}
+    for w in active:
         tr = w.get("trade") or "unassigned"
         b = by_trade.setdefault(tr, {"trade": tr, "workers": 0, "rated": 0, "rate_sum": 0.0})
         b["workers"] += 1
@@ -775,14 +791,16 @@ def workforce(conn, today: Optional[date] = None) -> dict:
     trades.sort(key=lambda x: -x["workers"])
     return {
         "workers": workers,
+        "status": "inactive" if status == "inactive" else "active",
+        "counts": {"active": len(active), "inactive": len(inactive)},
         "by_trade": trades,
         "summary": {
-            "headcount": len(workers),
-            "rated": sum(1 for w in workers if w["current_rate"]),
-            "on_site_today": sum(1 for w in workers if w["last_on_site"] == t),
-            "certs_expired": sum(w["certs_expired"] for w in workers),
-            "certs_expiring_30": sum(w["certs_expiring_30"] for w in workers),
-            "pending_rate_changes": sum(w["pending_rate_changes"] for w in workers),
+            "headcount": len(active),
+            "rated": sum(1 for w in active if w["current_rate"]),
+            "on_site_today": sum(1 for w in active if w["last_on_site"] == t),
+            "certs_expired": sum(w["certs_expired"] for w in active),
+            "certs_expiring_30": sum(w["certs_expiring_30"] for w in active),
+            "pending_rate_changes": sum(w["pending_rate_changes"] for w in active),
         },
     }
 
@@ -1051,7 +1069,8 @@ def register(app) -> None:
     @app.route("/api/company/portal/workforce", methods=["GET"])
     @gate
     def company_portal_workforce():
-        return _wrap(_with_conn(workforce))
+        status = (request.args.get("status") or "active").strip().lower()
+        return _wrap(_with_conn(lambda c: workforce(c, status=status)))
 
     @app.route("/api/company/portal/compliance", methods=["GET"])
     @gate
