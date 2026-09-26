@@ -82,6 +82,7 @@ GATE = [
     "smoke_migrations_306.py",         # #306 guard — migration ledger: baseline, pending, apply/record, drift, health count
     "smoke_one_home_339.py",         # #339 guard — ONE company sidebar on every page; console dashboard + CRM retired; Add client on the portal; Exterior wording
     "smoke_workforce_archive_345.py", # #345 — Workforce Active/Inactive, archive, reactivate, delete permanently (history-blocked), headcount = active
+    "smoke_worker_id_cleanup_346.py", # #346 — one-time W-0030..32 -> W-0027..29 renumber: guards, rows + saved DCRs move, cross-check identical, CoF revision
     "smoke_dashboard_week_338.py",   # #338 guard — "This week" strip on the company Dashboard: served, week window, company-only
     "smoke_job_sites_337.py",        # #337 guard — job sites without a project offered with a one-click path; ledger records boot-ensured migrations
     "smoke_building3d_336.py",       # #336 guard — the building in 3D: geocode/footprint cache (stubbed), maths, model, gates incl. client audience, page + vendored three.js

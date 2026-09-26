@@ -117,6 +117,8 @@ import building_3d
 building_3d.register(app)       # #336 — the building in 3D (footprint + height from NYC Open Data, grids on the walls)
 import worker_lifecycle
 worker_lifecycle.register(app)   # #345 — Workforce: archive / reactivate / delete permanently
+import worker_id_cleanup
+worker_id_cleanup.register(app)  # #346 — one-time W-0030..32 -> W-0027..29 renumber (admin)
 
 # #279 (UI v2 phase 0) — the interface toggle. MUST follow apply_auth_gate: the
 # stored per-user preference is read off current_user(). Sets g.ui_version on page

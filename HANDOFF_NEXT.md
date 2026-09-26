@@ -21,6 +21,33 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #346 — one-time worker ID cleanup: W-0030/31/32 → W-0027/28/29 (Bookore, 2026-09-26)
+
+* **Why:** three empty test workers (W-0027..29) were added by mistake; Angela asked for
+  them to be removed and the three real workers after them to move up with all their data.
+  This overrides the "worker IDs never change" rule for this one case only — the map is
+  PINNED in `worker_id_cleanup.py` and the action runs once (its audit row is the marker).
+* **What moves:** `employees.worker_id`, `labor_worker_state.worker_id`,
+  `labor_rate_change.worker_id`, `field_photos.worker_id` (one transaction; nothing has an FK
+  on worker_id), plus every saved DCR file (internal/client.html) that prints the old IDs —
+  standalone IDs only. Originals go to `data_room/_maintenance_backup/<stamp>-worker-renumber-346/`;
+  stale internal.pdf files are set aside and regenerated in batches of 3
+  (`POST …/worker-renumber-346/pdfs`, the UI loops). E-keyed history (sign-ins, certs,
+  documents) does not move. Issued card rows are NOT rewritten — the preview lists who
+  holds a card printed with the old number (re-issue it).
+* **Guards:** targets absent from every W-keyed table, card numbers and saved DCRs; no old
+  ID inside another code in a saved DCR (the reconcile reads `W-\d{4}` loosely); plan_hash
+  re-checked under an advisory lock; the sign-in ↔ DCR divergence report must be identical
+  before and after, otherwise rows AND files are put back.
+* **CoF fix:** `_next_cof_revision` also stays above every existing card_id with the same
+  card number, so a new hire given a freed number (W-0030) can't collide with the old card.
+* **UI:** admin-only "One-time worker ID cleanup" box at the top of Workforce; hides once
+  applied and all PDFs are regenerated.
+* **Runbook (production):** Render DB backup → Workforce → delete W-0027, W-0028, W-0029
+  (Delete permanently, #345) → the box turns green → Apply → let the PDFs finish → re-issue
+  any listed cards.
+* **Tests:** `tests/smoke_worker_id_cleanup_346.py` (both gates; synthetic W-9xxx map).
+
 ### #345 — Workforce: Active / Inactive, make inactive, reactivate, delete (Bookore, 2026-09-26)
 
 * **What:** the Workforce list gets an **Active (N) / Inactive (N)** toggle. Inactive =
