@@ -19,6 +19,7 @@ Run:  venv/bin/python tests/smoke_dcr_numbers_344.py
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sys
@@ -191,16 +192,28 @@ def main() -> int:
         "maintenance backups must not be servable"
     passed += 1; print("  delete moves PDF + folder, audits ok")
 
+    # ---- #348: a leftover 097 folder with no report row (the pre-#344 delete left the PDF)
+    # does not block; the apply sets it aside in the backup, never deletes it
+    _dir(97).mkdir(parents=True, exist_ok=True)
+    (_dir(97) / "internal.pdf").write_bytes(b"%PDF-leftover-097")
+    (_dir(97) / "notes.txt").write_text("x", encoding="utf-8")
+
     # ---- correction: stale hash refused; then applied; then refused again
     p = admin.get(fix).get_json()["data"]
     assert p["can_apply"] is True and p["target_taken"] is False and p["between"] == [], p
+    assert p["leftover"] == {"files": {"internal.pdf": {"size": 17}}, "other_files": 1}, p["leftover"]
+    assert "notes.txt" not in json.dumps(p), "other leftover file names are counted, not echoed"
     assert p["id_hits"] == {"internal.html": 2, "client.html": 2}, p["id_hits"]
     r = admin.post(fix, json={"plan_hash": "0" * 16})
-    assert r.status_code == 409 and (_dir(109) / "internal.html").exists() and not _dir(97).exists()
+    assert r.status_code == 409 and (_dir(109) / "internal.html").exists()
+    assert (_dir(97) / "internal.pdf").read_bytes() == b"%PDF-leftover-097", "a refused apply leaves the leftover alone"
     r = admin.post(fix, json={"plan_hash": p["plan_hash"]})
     assert r.status_code == 200, r.get_json()
     res = r.get_json()["data"]
-    assert res["to"] == f"DCR-{P}-097" and res["rows"] == 2, res
+    assert res["to"] == f"DCR-{P}-097" and res["rows"] == 2 and res["leftover_moved"] is True, res
+    left = list((DATA_ROOT / "data_room" / "_maintenance_backup").glob(f"*-dcr-renumber-{P}-109-to-097-leftover-097"))
+    assert len(left) == 1 and (left[0] / "internal.pdf").read_bytes() == b"%PDF-leftover-097" and (left[0] / "notes.txt").exists()
+    assert not (_dir(97) / "notes.txt").exists()
     assert res["number_replacements"] == {"internal.html": 2, "client.html": 2}, res
     assert not _dir(109).exists() and _dir(97).exists() and not _dir(97).with_name("097.tmp").exists()
     for aud in ("internal", "client"):

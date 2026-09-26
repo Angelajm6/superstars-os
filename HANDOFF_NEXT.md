@@ -21,6 +21,16 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #348 — DCR 109 → 097 fix: a leftover 097 folder no longer blocks it (Bookore, 2026-09-26)
+
+* On production the fix refused with "A folder for DCR-FR-BX-001-097 is already on this
+  server's disk" although no report 097 exists — a report 097 was deleted before #344, and
+  the old delete left `internal.pdf`, so the folder survived.
+* A target folder with NO report row is now a "leftover": the preview lists its known files
+  (other file names are counted, never echoed) and the apply moves it to
+  `data_room/_maintenance_backup/<stamp>-dcr-renumber-…-leftover-097/` (never deleted; put
+  back if the apply fails). A folder WITH a report row still blocks (the number is taken).
+
 ### #347 — C-suite can run the one-time fixes (Bookore, 2026-09-26)
 
 * Angela's production login is c_suite, so the admin-only fix boxes never appeared. On her
