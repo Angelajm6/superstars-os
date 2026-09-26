@@ -21,6 +21,34 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #343b (stage 1) — the project dashboard's content views onto the shared tokens (Bookore, 2026-09-25)
+
+* **What:** 549 CSS color literals in `dashboard-static.html` rewritten to the widgets.css
+  `:root` tokens. Untokenized CSS colors (excl. white) went 798 → 281. Two groups:
+  (A) values that already EQUAL a token (`#B11E2E`→`--brand-red`, `#8C92A0`→`--muted`,
+  `#ECEEF3`→`--line`, the status tokens, …) — zero visual change; (B) the four colors that
+  WERE the old look — `#76777E` warm-gray text → `--muted`, `#E8E4DD` warm-beige borders →
+  `--line`, `#14161C` → `--ink`, `#1E73E8` bright blue → `--ui` — plus the old blue's
+  translucent tints `rgba(30,115,232,a)` → `rgba(36,65,140,a)` so solid/tint pairs stay
+  coherent (navy text never sits on a bright-blue tint).
+* **Rules the transform followed (reuse for stage 2):** CSS contexts ONLY — `<style>`
+  blocks with `/* comments */` carved out (ticket refs like `#262` are valid 3-digit hex),
+  and `style="…"` attribute values including ones built inside JS strings (escaped quotes
+  handled). Never JS color literals (Chart.js / canvas / `EC_PALETTE`) or SVG presentation
+  attributes — `var()` doesn't work there. A hex that is already `var(--x, #hex)`'s
+  fallback is skipped (no nested `var()`). Every inserted `var()` carries an explicit
+  fallback so print/popup windows without widgets.css still render. Verified: all 17
+  inline scripts pass `node --check`; no JS reads computed CSS values back.
+* **Deliberately unchanged:** `.btn-primary` buttons (Scan Receipt, the Lumen modal
+  saves) stay azure `--accent` — the design guard requires it and it's the shared
+  system's split (azure = widget/modal primary, navy `--ui` = nav/links/hero actions),
+  product-wide, not a sweep decision.
+* **Stage 2 (open):** the 281 long-tail literals are status/semantic colors needing a
+  per-use call — old greens `#2F7C57`/`#0F6E56`, ambers `#B68838`/`#BA7517`, reds
+  `#A8382B`/`#A23B30`/`#7A2E1B`/`#C8102E` (older brand red), warm grays `#F1EEE8`/`#54505A`/
+  `#8F8675`, light fills `#F5F6F8`/`#F3F3F5`/`#F4F6F9`, plus old-palette colors that live
+  in JS/SVG (Chart.js colors, the Drop Report sync icon stroke).
+
 ### #343 — One click into a project, one visual language (Bookore, 2026-09-25)
 
 * **Ask (Angela):** from the Projects tab you were "within a project already" but still had
