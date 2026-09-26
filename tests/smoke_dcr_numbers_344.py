@@ -160,8 +160,8 @@ def main() -> int:
     passed += 1; print("  register ok")
 
     # ---- correction: admin only; refuses while 097 is taken
-    assert cs.get(fix).status_code == 403 and pm.get(fix).status_code == 403
-    assert cs.post(fix, json={}).status_code == 403
+    assert pm.get(fix).status_code == 403 and pm.post(fix, json={}).status_code == 403
+    assert cs.get(fix).status_code == 200, "#347: c_suite can run the pinned fix"
     p = admin.get(fix).get_json()["data"]
     assert p["can_apply"] is False and p["target_taken"] is True and not p["done"], p
     assert any("already exists" in x for x in p["problems"]), p["problems"]

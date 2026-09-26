@@ -10,7 +10,7 @@ Boots the real app (`import server`) on an ISOLATED database and a temp data roo
     a history-free worker goes completely: employees row, labor state + rate changes
     (keyed by W-####), assignments, their records folder — audited with IDs/counts only
   * the old DELETE /api/employees route is company-only now and uses the same rules
-  * pm → 403 everywhere; c_suite → 403 on delete; no names in the removal preview
+  * pm → 403 everywhere; c_suite may delete (#347), still history-blocked; no names in the removal preview
 Run:  venv/bin/python tests/smoke_workforce_archive_345.py
 """
 from __future__ import annotations
@@ -165,7 +165,7 @@ def main() -> int:
                          (f"{API}/workers/{A[0]}/removal", "get"), (f"{API}/workers/{B[0]}", "delete"),
                          (f"/api/employees/{B[0]}", "delete")):
         assert getattr(pm, method)(path, json={}).status_code == 403, path
-    assert cs.delete(f"{API}/workers/{B[0]}").status_code == 403, "delete permanently is admin-only"
+    assert cs.delete(f"{API}/workers/{A[0]}").status_code == 409, "#347: c_suite may delete, still blocked by history"
     passed += 1; print("  gates ok")
 
     # ---- archive / reactivate

@@ -6,7 +6,7 @@ things that confuse numbering — gaps, reports issued out of date order,
 future-dated rows — were invisible. The register shows every report by number
 and flags them (company roles only).
 
-The correction is ONE pinned, admin-only action: FR-BX-001's DCR 109 becomes 097.
+The correction is ONE pinned action (admin + c_suite since #347): FR-BX-001's DCR 109 becomes 097.
 It is not a general "renumber" tool on purpose — numbers are permanent identity.
 It runs inside the app because the production database is only reachable from
 there: preview first (shows exactly what is in 097–108 and whether 097 is free),
@@ -228,7 +228,7 @@ def fix_plan(conn):
             "can_apply": not problems, "plan_hash": plan_hash}
 
 
-@requires_role("admin")
+@requires_company   # #347: admin + c_suite (pinned, guarded, runs once)
 def _api_fix_preview():
     conn = _db()
     try:
@@ -237,7 +237,7 @@ def _api_fix_preview():
         conn.close()
 
 
-@requires_role("admin")
+@requires_company   # #347: admin + c_suite (pinned, guarded, runs once)
 def _api_fix_apply():
     body = request.get_json(silent=True) or {}
     code, src, dst = FIX_PROJECT, FIX_FROM, FIX_TO
