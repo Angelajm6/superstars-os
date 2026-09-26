@@ -439,6 +439,7 @@
       <section class="cp-view" id="view-workforce" hidden>
         <div id="workforce-list">
         <div class="ssc-subtabs" data-subtabs="workforce"></div>
+        <div class="cp-card" id="wf-fix346" hidden style="margin-bottom:14px;border-color:#e9d6a8;"></div>
         <div class="cp-kpis" id="wf-kpis"></div>
         <div class="cp-grid3">
           <div class="cp-card">
@@ -1572,6 +1573,7 @@
   async function loadWorkforce() {
     $('worker-detail').hidden = true; $('workforce-list').hidden = false;
     skeleton($('wf-kpis'), 1); skeleton($('wf-table'), 6); skeleton($('wf-trades'), 3);
+    loadFix346();
     const wfStatus = state.wfStatus || 'active';   // #345
     document.querySelectorAll('[data-wf-status]').forEach(b => b.classList.toggle('on', b.dataset.wfStatus === wfStatus));
     try {
@@ -1592,6 +1594,66 @@
       ], d.by_trade, { defaultSort: { key: 'workers', dir: 'desc' }, emptyTitle: 'No active workers' });
     } catch (e) { toast(e.message, true); $('wf-kpis').innerHTML = empty('Could not load workforce', e.message); }
   }
+
+  // #346 — one-time worker ID cleanup (admin only; hides itself once finished)
+  const FIX346 = '/admin/maintenance/worker-renumber-346';
+  const FIX346_TABLES = { employees: 'worker record', labor_worker_state: 'rate and status', labor_rate_change: 'rate history', field_photos: 'field photos' };
+  async function loadFix346(result) {
+    const box = $('wf-fix346');
+    result = result || state.fix346Result;
+    if ((window.__SSC_USER || {}).role !== 'admin') { box.hidden = true; return; }
+    let p;
+    try { p = (await api(FIX346, null, true)).data; } catch (e) { box.hidden = true; return; }
+    if (p.done && !p.pdfs_remaining && !result) { box.hidden = true; return; }
+    const moves = p.map.map(m => `<strong>${esc(m.from)}</strong> → <strong>${esc(m.to)}</strong>`).join(' · ');
+    const cards = (result || p).cards_to_reissue || [];
+    const cardList = cards.length ? `<div class="cp-note"><strong>Re-issue ${cards.length} card(s)</strong>: they were printed with the old number. `
+      + cards.map(c => `${esc(c.worker_id)} (${esc(c.type)}, printed ${esc(c.printed)})`).join(' · ')
+      + '. A CoF card only re-issues while the certifications behind it are current.</div>' : '';
+    let body;
+    if (p.done) {
+      body = `<p style="margin:6px 0 0">Done. ${result ? `${result.dcr_files} saved DCR file(s) updated; the sign-in / DCR cross-check is unchanged.` : ''}</p>`
+        + (p.pdfs_remaining ? `<p style="margin:6px 0 0"><span id="fix346-pdf">Updating report PDFs: ${p.pdfs_remaining} left.</span> <button class="btn-ghost btn-sm" type="button" id="fix346-pdfs">Continue</button></p>` : '<p class="cp-muted" style="margin:6px 0 0">All report PDFs are up to date.</p>')
+        + cardList;
+    } else if (!p.can_apply) {
+      body = `<ul style="margin:8px 0 0;padding-left:18px;color:#A8382B">${p.problems.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
+    } else {
+      const rows = Object.entries(p.rows).map(([t, by]) => `${esc(FIX346_TABLES[t] || t)} (${Object.values(by).reduce((a, b) => a + b, 0)})`).join(', ');
+      body = `<p style="margin:6px 0 0">Changes: ${rows || 'no rows'}; ${p.dcr_files} saved DCR file(s) across ${p.dcr_reports.length} report(s) get the new numbers`
+        + (p.pdfs_to_regenerate ? `, and ${p.pdfs_to_regenerate} PDF(s) are regenerated afterwards` : '') + '. The original files are kept in a backup.</p>'
+        + cardList
+        + `<p style="margin:10px 0 0"><button class="btn-primary btn-sm" type="button" id="fix346-apply" data-hash="${esc(p.plan_hash)}">Apply the renumber</button> <span class="cp-muted" style="font-size:12px">Take a database backup in Render first. Run it when nobody is issuing a daily report.</span></p>`;
+    }
+    box.innerHTML = `<div class="cp-card-head"><h2>One-time worker ID cleanup</h2><span class="hint">admin only</span></div>`
+      + `<p style="margin:0">${moves}. Their sign-ins, hours, certifications and documents stay exactly as they are.</p>` + body;
+    box.hidden = false;
+  }
+  async function runFix346Pdfs() {
+    const btn = $('fix346-pdfs'); if (btn) btn.disabled = true;
+    try {
+      for (;;) {
+        const { data: r } = await api(FIX346 + '/pdfs', { method: 'POST' }, true);
+        if ($('fix346-pdf')) $('fix346-pdf').textContent = r.remaining ? `Updating report PDFs: ${r.remaining} left…` : 'All report PDFs are up to date.';
+        if (r.error) { toast(r.error, true); break; }
+        if (!r.remaining || !r.made) break;
+      }
+    } catch (e) { toast(e.message, true); }
+    if (btn) btn.disabled = false;
+  }
+  document.addEventListener('ssc:user-loaded', () => { if (!$('workforce-list').hidden && !$('view-workforce').hidden) loadFix346(); });
+  document.addEventListener('click', async (e) => {
+    if (e.target.id === 'fix346-pdfs') { runFix346Pdfs(); return; }
+    if (e.target.id !== 'fix346-apply') return;
+    if (!confirm('Renumber W-0030, W-0031, W-0032 to W-0027, W-0028, W-0029?\n\nAll of their data stays with them. This runs once and cannot be repeated.')) return;
+    e.target.disabled = true;
+    try {
+      const { data: r } = await api(FIX346, { method: 'POST', body: JSON.stringify({ plan_hash: e.target.dataset.hash }) }, true);
+      toast('Worker IDs renumbered');
+      state.fix346Result = r;
+      loadWorkforce();
+      if (r.pdfs_remaining) runFix346Pdfs();
+    } catch (err) { toast(err.message, true); loadFix346(); }
+  });
   function renderWorkers() {
     const d = state.cache.workforce; if (!d) return;
     const q = $('wf-search').value.trim().toLowerCase();

@@ -288,16 +288,31 @@ def card_number_for_employee(employee_id):
     return f"SSC-COF-{employee_id}"
 
 
-def _next_cof_revision(conn, employee_id):
+def _next_cof_revision(conn, employee_id, card_number_display=None):
     """Next revision number for this employee's CoF cards. Count-based
     (matches company_id_issuer._next_revision pattern) — every issuance
     creates one row, including the row that gets marked 'replaced' by a
-    later reissue. Returns 1 if no prior cards."""
+    later reissue. Returns 1 if no prior cards.
+
+    #346: card_id is `<card number>-<rev>` and the card number carries the
+    W-####, so after the one-time worker renumber a new hire given a freed
+    number (e.g. W-0030) would recount from 1 and collide with the card the
+    previous holder of that number was issued. The revision is therefore also
+    kept above every existing card_id with the same card number."""
     n = conn.execute(
         "SELECT COUNT(*) FROM cof_cards WHERE employee_id = ?",
         (employee_id,)
     ).fetchone()[0]
-    return n + 1
+    rev = n + 1
+    if card_number_display:
+        prefix = f"{card_number_display}-"
+        for r in conn.execute(
+            "SELECT card_id FROM cof_cards WHERE card_id LIKE ?", (prefix + "%",)
+        ).fetchall():
+            tail = r[0][len(prefix):]
+            if tail.isdigit():
+                rev = max(rev, int(tail) + 1)
+    return rev
 
 
 # =====================================================================
@@ -443,7 +458,7 @@ def issue_cof(employee_id, rigger_id=None, project_code=None, today_override=Non
         # Compute revision + unique card_id BEFORE marking the prior card
         # replaced — the count-based revision then sees the prior row as
         # part of the existing history.
-        revision = _next_cof_revision(conn, employee_id)
+        revision = _next_cof_revision(conn, employee_id, card_number_display)
         card_id = f"{card_number_display}-{revision}"
 
         # Snapshot the photo to credentials dir (best-effort; if it fails the
