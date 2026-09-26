@@ -21,6 +21,14 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #347 — C-suite can run the one-time fixes (Bookore, 2026-09-26)
+
+* Angela's production login is c_suite, so the admin-only fix boxes never appeared. On her
+  explicit instruction ("allow C-suite to run the fixes") these are now admin + c_suite
+  (`requires_company`): the #344 DCR 109 → 097 fix, the #346 worker ID cleanup (preview,
+  apply, PDF batches) and #345 Delete permanently (still refused for any worker with
+  history). pm/super stay 403. All three remain pinned/guarded; the fixes still run once.
+
 ### #346 — one-time worker ID cleanup: W-0030/31/32 → W-0027/28/29 (Bookore, 2026-09-26)
 
 * **Why:** three empty test workers (W-0027..29) were added by mistake; Angela asked for

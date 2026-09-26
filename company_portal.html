@@ -1595,13 +1595,13 @@
     } catch (e) { toast(e.message, true); $('wf-kpis').innerHTML = empty('Could not load workforce', e.message); }
   }
 
-  // #346 — one-time worker ID cleanup (admin only; hides itself once finished)
+  // #346 — one-time worker ID cleanup (admin + c_suite since #347; hides itself once finished)
   const FIX346 = '/admin/maintenance/worker-renumber-346';
   const FIX346_TABLES = { employees: 'worker record', labor_worker_state: 'rate and status', labor_rate_change: 'rate history', field_photos: 'field photos' };
   async function loadFix346(result) {
     const box = $('wf-fix346');
     result = result || state.fix346Result;
-    if ((window.__SSC_USER || {}).role !== 'admin') { box.hidden = true; return; }
+    if (['admin', 'c_suite'].indexOf((window.__SSC_USER || {}).role) === -1) { box.hidden = true; return; }   // #347
     let p;
     try { p = (await api(FIX346, null, true)).data; } catch (e) { box.hidden = true; return; }
     if (p.done && !p.pdfs_remaining && !result) { box.hidden = true; return; }
@@ -1624,7 +1624,7 @@
         + cardList
         + `<p style="margin:10px 0 0"><button class="btn-primary btn-sm" type="button" id="fix346-apply" data-hash="${esc(p.plan_hash)}">Apply the renumber</button> <span class="cp-muted" style="font-size:12px">Take a database backup in Render first. Run it when nobody is issuing a daily report.</span></p>`;
     }
-    box.innerHTML = `<div class="cp-card-head"><h2>One-time worker ID cleanup</h2><span class="hint">admin only</span></div>`
+    box.innerHTML = `<div class="cp-card-head"><h2>One-time worker ID cleanup</h2><span class="hint">admin and C-suite</span></div>`
       + `<p style="margin:0">${moves}. Their sign-ins, hours, certifications and documents stay exactly as they are.</p>` + body;
     box.hidden = false;
   }
@@ -1706,7 +1706,7 @@
           ${w.status === 'active'
             ? `<button class="btn-ghost btn-sm" type="button" id="wk-archive">Make inactive</button>`
             : `<button class="btn-primary btn-sm" type="button" data-wf-reactivate="${esc(w.employee_id)}">Reactivate</button>`}
-          ${((window.__SSC_USER || {}).role === 'admin') ? `<button class="btn-ghost btn-sm" type="button" id="wk-delete" style="color:#A8382B;border-color:#e7c3be;">Delete permanently</button>` : ''}</div>
+          ${(['admin', 'c_suite'].indexOf((window.__SSC_USER || {}).role) !== -1) ? `<button class="btn-ghost btn-sm" type="button" id="wk-delete" style="color:#A8382B;border-color:#e7c3be;">Delete permanently</button>` : ''}</div>
         ${w.status === 'archived' && w.archived_reason ? `<div class="cp-note" style="margin-bottom:12px">Inactive${w.archived_at ? ' since ' + fmtDate(w.archived_at) : ''} — ${esc(w.archived_reason)}</div>` : ''}
         <div class="cp-kpis">
           ${kpi('Hours worked (' + months + ' mo)', hrs(s.hours_window), `${s.days_window} day(s) on site · ${hrs(s.hours_ytd)} h this year · ${hrs(s.hours_all_time)} h all time`)}
