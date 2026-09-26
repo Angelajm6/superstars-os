@@ -12,7 +12,7 @@ suite never meets real workers and can run on the shared CI Postgres. Proves:
   * the saved DCR files get the new numbers (standalone IDs only), originals are kept in
     the maintenance backup, the stale PDF is set aside and regenerated in batches
   * the sign-in <-> DCR divergence report is identical before and after
-  * wrong plan_hash / second apply refused; pm + c_suite 403; audit carries no names
+  * wrong plan_hash / second apply refused; pm 403 (admin + c_suite allowed, #347); audit carries no names
   * a new hire given a freed number can be issued a CoF without a card_id collision
 Run:  venv/bin/python tests/smoke_worker_id_cleanup_346.py
 """
@@ -178,13 +178,13 @@ def main() -> int:
     passed = 0
     admin, cs, pm = _login("admin"), _login("c_suite"), _login("pm")
 
-    # ---- admin only
-    for who in (cs, pm):
-        assert who.get(API).status_code == 403
-        assert who.post(API, json={}).status_code == 403
-        assert who.post(f"{API}/pdfs").status_code == 403
+    # ---- company roles only (#347: admin + c_suite); pm refused
+    assert pm.get(API).status_code == 403
+    assert pm.post(API, json={}).status_code == 403
+    assert pm.post(f"{API}/pdfs").status_code == 403
+    assert cs.get(API).status_code == 200
     passed += 1
-    print("  admin only ok")
+    print("  company roles only ok")
 
     # ---- refuses while the test workers exist; the #345 delete clears them
     p = admin.get(API).get_json()["data"]

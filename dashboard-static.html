@@ -3603,7 +3603,7 @@
           }
 
           // ---- #344 — numbering: register, banner, and the one-time 109 → 097 fix ----
-          // The register (every report by number) is company-only; the fix is admin-only
+          // The register (every report by number) and the fix are company-only (admin + c_suite, #347)
           // and pinned to one project. Both endpoints enforce that server-side — the role
           // check here only decides what to draw.
           const DCR_FIX_PROJECT = 'FR-BX-001';
@@ -3680,7 +3680,7 @@
             const box = document.getElementById('dcrg-fix');
             if (!box) return;
             box.hidden = true;
-            if (_dcrRole() !== 'admin' || PROJECT_CODE !== DCR_FIX_PROJECT) return;
+            if (!_isCompanyRole() || PROJECT_CODE !== DCR_FIX_PROJECT) return;   // #347: admin + c_suite
             let d;
             try {
               const r = await fetch('/api/admin/maintenance/dcr-renumber-344');

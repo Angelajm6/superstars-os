@@ -39,7 +39,7 @@ from flask import jsonify, request
 
 import db_layer
 import ssc_paths
-from auth import _db, current_user, requires_role
+from auth import _db, current_user, requires_company
 from worker_lifecycle import has_column
 
 log = logging.getLogger(__name__)
@@ -228,7 +228,7 @@ def _pending_pdfs(conn):
 
 
 # ---------------------------------------------------------------- routes
-@requires_role("admin")
+@requires_company   # #347: admin + c_suite
 def _api_preview():
     conn = _db()
     try:
@@ -239,7 +239,7 @@ def _api_preview():
         conn.close()
 
 
-@requires_role("admin")
+@requires_company   # #347: admin + c_suite
 def _api_apply():
     body = request.get_json(silent=True) or {}
     conn = _db()
@@ -363,7 +363,7 @@ def _api_apply():
     }})
 
 
-@requires_role("admin")
+@requires_company   # #347: admin + c_suite
 def _api_pdfs():
     conn = _db()
     try:

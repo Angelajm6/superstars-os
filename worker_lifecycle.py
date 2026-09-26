@@ -219,7 +219,7 @@ def remove_folder(employee_id):
             log.exception("#345 worker folder removal failed for %s", employee_id)
 
 
-@requires_role("admin")
+@requires_company   # #347: admin + c_suite; still blocked by any history
 def _api_delete(employee_id):
     conn = _db()
     try:
