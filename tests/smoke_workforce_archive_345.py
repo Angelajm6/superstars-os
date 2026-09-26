@@ -65,6 +65,8 @@ def _seed():
     conn = _db()
     try:
         _purge_workers(conn)
+        conn.execute("INSERT INTO projects (project_code, name, address, status, created_at, updated_at) "
+                     "VALUES ('WF345-P', 'Wf345 Synthetic', '1 Test St', 'active', ?, ?)", (TODAY, TODAY))
         for eid, wid, trade in ALL:
             conn.execute("INSERT INTO employees (employee_id, worker_id, name, trade, created_at, updated_at) "
                          "VALUES (?, ?, ?, ?, ?, ?)", (eid, wid, f"Wf345 Synthetic {wid[-1]}", trade, TODAY, TODAY))
@@ -101,7 +103,8 @@ def _purge_workers(conn):
     wids = [x[1] for x in ALL]
     for t, c, vals in (("sign_in_log", "employee_id", eids), ("project_assignments", "employee_id", eids),
                        ("labor_rate_change", "worker_id", wids), ("labor_worker_state", "worker_id", wids),
-                       ("audit_log", "target_id", eids), ("employees", "employee_id", eids)):
+                       ("audit_log", "target_id", eids), ("employees", "employee_id", eids),
+                       ("projects", "project_code", ["WF345-P"])):
         purge(conn, t, c, vals)
 
 
