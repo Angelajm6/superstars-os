@@ -3698,6 +3698,12 @@
             let html = '<h4>One-time fix: ' + esc(d.from) + ' → ' + esc(d.to) + '</h4>'
               + '<div>' + esc(d.to) + ' is ' + (d.target_taken ? '<strong class="dcrg-problem">taken</strong>' : '<strong>free</strong>') + '. '
               + 'Numbers between them right now:' + between + '</div>';
+            if (d.leftover) {   // #348 — files left on disk by an earlier delete; set aside, not deleted
+              const lf = Object.keys(d.leftover.files || {});
+              html += '<div style="margin-top:6px">A leftover folder for ' + esc(d.to) + ' is on the server from a report deleted earlier (it has no report in the list'
+                + (lf.length ? '; files: ' + esc(lf.join(', ')) : '') + (d.leftover.other_files ? ' + ' + d.leftover.other_files + ' other file(s)' : '')
+                + '). The fix moves it into the backup first, so nothing is lost.</div>';
+            }
             if (d.problems && d.problems.length) {
               html += '<div class="dcrg-problem">Can\'t apply yet:</div><ul>' + d.problems.map(p => '<li class="dcrg-problem">' + esc(p) + '</li>').join('') + '</ul>'
                 + '<div>If a report in the way is a test or duplicate, delete it with its trash icon below — this box re-checks itself afterwards.</div>';
