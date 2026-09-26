@@ -21,6 +21,45 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #344 — DCR numbers: register, number preview, delete fix, one-time 109 → 097 (Bookore, 2026-09-26)
+
+* **Ask (Angela):** "Issue New DCR" produced `DCR-FR-BX-001-109` where she expected 097, plus
+  any Daily Report improvements. Decision with her: numbers stay in ISSUE order (next = MAX+1,
+  deliberate since #282), the UI gets clearer, and 109 → 097 is fixed once if 097 is free.
+* **Why 109:** MAX+1 — a report numbered 108 already existed. The list is windowed to the
+  last 30 days, so whatever occupies 097–108 (backdated days? future-dated test reports?)
+  was invisible. I can't query production (IP allowlist), so the fix runs inside the app.
+* **`dcr_maintenance.py` (new):** `number_lock()` (Postgres advisory xact lock on
+  `dcr-seq:<project>`, now taken by the issue route too — two issues in flight could read
+  the same MAX), `audit()`, the **register** `GET /api/projects/<code>/dcr-register`
+  (company roles) — every report by number with missing ranges, out-of-date-order, and
+  future-dated flags — and the **pinned correction** `GET|POST
+  /api/admin/maintenance/dcr-renumber-344` (admin only, FR-BX-001 109→097 hardcoded,
+  refuses once its `audit_log` row exists). Preview returns what's in 097–108, whether 097
+  is free, whether the files are on this server's disk, and a `plan_hash`. Apply:
+  stage a copy in `097.tmp/` with the number rewritten (anchored `DCR-FR-BX-001-109(?!\d)`)
+  in both HTML files + PDF regenerated (a PDF still saying 109 is never kept) → under the
+  lock re-verify the hash → UPDATE both rows' report_id + dcr_sequence + audit → move `109/`
+  to `data_room/_maintenance_backup/…` (not servable: outside `_ARTIFACT_SUBTREES`) → rename
+  staging into place → commit; any failure puts the files back. Remove the pinned
+  endpoints once it has run in production.
+* **Delete fix (server.py):** both DCR delete routes now MOVE the files (HTML + the PDF the
+  old code left behind) to the maintenance backup, remove the number's folder, and write
+  a `dcr_delete` audit row with the deleted rows. Response shape unchanged; no paths on the
+  wire.
+* **Daily Report UI:** number preview above Issue ("Will be issued as …-098" / "This date
+  already has …-097"), and the number in the confirm prompt; "Total reports" + header =
+  whole project (`meta.total_project` on the list API, via `response_wrapper(**extra_meta)`);
+  "Issued At" = `created_at` with "edited <date>"; PDF link per row (`pdf_url`); company
+  roles get a numbering banner + "All numbers" panel (View / Delete per row — reaches
+  reports dated outside the list's window) and, for admin on FR-BX-001, the one-time fix box.
+* **Tests:** `tests/smoke_dcr_numbers_344.py` (both gates) builds the production scenario
+  (096 + 109 real, 097–100 dated 2099, 101–108 unused) and drives preview → refusal →
+  junk delete → stale-hash refusal → apply → second-run refusal → next number 098.
+* **Operator runbook (production):** Render dashboard → take a DB backup → FR-BX-001 →
+  Daily Report → All numbers → check what's in 097–108; delete test/duplicate reports only
+  → the one-time box turns "Ready" → apply. If 097 is a real report it refuses; talk first.
+
 ### #343b (stage 1) — the project dashboard's content views onto the shared tokens (Bookore, 2026-09-25)
 
 * **What:** 549 CSS color literals in `dashboard-static.html` rewritten to the widgets.css
