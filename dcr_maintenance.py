@@ -197,6 +197,15 @@ def fix_plan(conn):
     pat = re.compile(re.escape(old_id) + r"(?!\d)")
     id_hits = {n: len(pat.findall((src_dir / n).read_text(encoding="utf-8", errors="replace")))
                for n in ("internal.html", "client.html") if n in files}
+    # #348: a folder for the target number with NO report row is a leftover of a
+    # deleted report (the pre-#344 delete left internal.pdf, so the folder survived).
+    # It is moved into the maintenance backup by the apply — never deleted — and the
+    # preview lists what is in it. Other file names are counted, never echoed.
+    leftover = None
+    if dst_dir.exists() and not target:
+        others = [p for p in dst_dir.rglob("*") if p.is_file() and p.parent == dst_dir and p.name not in _FILES]
+        nested = [p for p in dst_dir.rglob("*") if p.is_file() and p.parent != dst_dir]
+        leftover = {"files": _file_facts(dst_dir), "other_files": len(others) + len(nested)}
 
     problems = []
     if done:
@@ -207,7 +216,7 @@ def fix_plan(conn):
         if target:
             problems.append(f"{new_id} already exists (dated {_iso(target[0]['report_date'])}), "
                             f"so its number is taken. Nothing will change.")
-        if dst_dir.exists():
+        if dst_dir.exists() and target:
             problems.append(f"A folder for {new_id} is already on this server's disk.")
         if source and "internal.html" not in files:
             problems.append(f"{old_id}'s report files are not on this server's disk, so the report "
@@ -219,10 +228,12 @@ def fix_plan(conn):
         "source_rows": [{"report_id": r["report_id"], "report_date": _iso(r["report_date"]),
                          "created_at": str(r["created_at"] or "")} for r in source],
         "target_taken": bool(target), "between": between,
-        "files": files, "id_hits": id_hits,
+        "files": files, "id_hits": id_hits, "leftover": leftover,
     }
     plan_hash = hashlib.sha256(json.dumps(plan, sort_keys=True, default=str).encode()).hexdigest()[:16]
     for f in plan["files"].values():          # the UI needs sizes, not mtimes
+        f.pop("mtime_ns", None)
+    for f in ((leftover or {}).get("files") or {}).values():
         f.pop("mtime_ns", None)
     return {**plan, "done": bool(done), "problems": problems,
             "can_apply": not problems, "plan_hash": plan_hash}
@@ -283,8 +294,9 @@ def _api_fix_apply():
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     backup = ssc_paths.under_root("data_room", "_maintenance_backup",
                                   f"{stamp}-dcr-renumber-{code}-{src:03d}-to-{dst:03d}")
+    leftover_backup = backup.with_name(backup.name + f"-leftover-{dst:03d}")
     conn = _db()
-    moved_src = placed_dst = False
+    moved_src = placed_dst = moved_left = False
     try:
         number_lock(conn, code)
         again = fix_plan(conn)
@@ -306,8 +318,13 @@ def _api_fix_apply():
         audit(conn, FIX_ACTION, old_id, before=before,
               after={"rows": after, "replaced": replaced, "pdf_ok": bool(pdf_status.get("ok"))},
               note=f"{old_id} -> {new_id}; original folder kept at "
-                   f"data_room/_maintenance_backup/{backup.name}")
+                   f"data_room/_maintenance_backup/{backup.name}"
+                   + (f"; leftover {new_id} folder (no report row) kept at "
+                      f"data_room/_maintenance_backup/{leftover_backup.name}" if again.get("leftover") else ""))
         backup.parent.mkdir(parents=True, exist_ok=True)
+        if again.get("leftover"):
+            shutil.move(str(dst_dir), str(leftover_backup))   # #348: set aside, never deleted
+            moved_left = True
         shutil.move(str(src_dir), str(backup))   # the untouched original, kept
         moved_src = True
         staging.rename(dst_dir)
@@ -323,6 +340,8 @@ def _api_fix_apply():
                 shutil.rmtree(dst_dir)
             if moved_src and backup.exists() and not src_dir.exists():
                 shutil.move(str(backup), str(src_dir))
+            if moved_left and leftover_backup.exists() and not dst_dir.exists():
+                shutil.move(str(leftover_backup), str(dst_dir))
             shutil.rmtree(staging, ignore_errors=True)
         except Exception:
             log.exception("#344 correction: file rollback failed")
@@ -337,6 +356,7 @@ def _api_fix_apply():
     return jsonify({"data": {
         "ok": True, "from": old_id, "to": new_id, "rows": len(after),
         "number_replacements": replaced, "pdf_ok": bool(pdf_status.get("ok")),
+        "leftover_moved": bool(moved_left),
     }})
 
 
