@@ -21,6 +21,96 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #346 — one-time worker ID cleanup: W-0030/31/32 → W-0027/28/29 (Bookore, 2026-09-26)
+
+* **Why:** three empty test workers (W-0027..29) were added by mistake; Angela asked for
+  them to be removed and the three real workers after them to move up with all their data.
+  This overrides the "worker IDs never change" rule for this one case only — the map is
+  PINNED in `worker_id_cleanup.py` and the action runs once (its audit row is the marker).
+* **What moves:** `employees.worker_id`, `labor_worker_state.worker_id`,
+  `labor_rate_change.worker_id`, `field_photos.worker_id` (one transaction; nothing has an FK
+  on worker_id), plus every saved DCR file (internal/client.html) that prints the old IDs —
+  standalone IDs only. Originals go to `data_room/_maintenance_backup/<stamp>-worker-renumber-346/`;
+  stale internal.pdf files are set aside and regenerated in batches of 3
+  (`POST …/worker-renumber-346/pdfs`, the UI loops). E-keyed history (sign-ins, certs,
+  documents) does not move. Issued card rows are NOT rewritten — the preview lists who
+  holds a card printed with the old number (re-issue it).
+* **Guards:** targets absent from every W-keyed table, card numbers and saved DCRs; no old
+  ID inside another code in a saved DCR (the reconcile reads `W-\d{4}` loosely); plan_hash
+  re-checked under an advisory lock; the sign-in ↔ DCR divergence report must be identical
+  before and after, otherwise rows AND files are put back.
+* **CoF fix:** `_next_cof_revision` also stays above every existing card_id with the same
+  card number, so a new hire given a freed number (W-0030) can't collide with the old card.
+* **UI:** admin-only "One-time worker ID cleanup" box at the top of Workforce; hides once
+  applied and all PDFs are regenerated.
+* **Runbook (production):** Render DB backup → Workforce → delete W-0027, W-0028, W-0029
+  (Delete permanently, #345) → the box turns green → Apply → let the PDFs finish → re-issue
+  any listed cards.
+* **Tests:** `tests/smoke_worker_id_cleanup_346.py` (both gates; synthetic W-9xxx map).
+
+### #345 — Workforce: Active / Inactive, make inactive, reactivate, delete (Bookore, 2026-09-26)
+
+* **What:** the Workforce list gets an **Active (N) / Inactive (N)** toggle. Inactive =
+  archived (`employees.archived_at` + `archived_reason`) OR labor-inactive
+  (`labor_worker_state`, still PM-approved via /labor-rates — archiving deliberately does NOT
+  touch it). The Inactive list shows status, since, reason, last on site and a Reactivate
+  button. A worker page gets **Make inactive** (asks for a reason), **Reactivate** (clears
+  both archive and labor-inactive), and — admin only — **Delete permanently**.
+* **Delete rules (`worker_lifecycle.py`):** anything proving they worked or hold credentials
+  BLOCKS it with a 409 "make them inactive instead" (sign-ins, hour edits, certs, IDs,
+  documents, CoF / company-ID cards, field photos, drop-plan sign-offs, vehicle driver, a
+  dashboard login). Setup rows (assignments, rates, labor state + rate changes keyed by
+  W-####, devices, sessions) are purged with the worker, dependents first (Postgres
+  enforces the FKs), then the worker_records folder after commit. Every table is probed in
+  the catalog first. Audit rows (`worker_archive` / `worker_reactivate` / `worker_delete`)
+  carry IDs, trade and counts only — no names.
+* **Also:** headcount + the Overview tile count active workers only (`v_active_workers`,
+  roster rule); the old `DELETE /api/employees/<E>` is now company roles only and uses the
+  same rules.
+* **Routes:** `POST /api/company/portal/workers/<E>/archive|reactivate` (admin/c_suite),
+  `GET …/removal` (preview), `DELETE /api/company/portal/workers/<E>` (admin).
+* **Tests:** `tests/smoke_workforce_archive_345.py` (both gates).
+* **Next (#346):** Angela deletes the empty test workers W-0027..29 with this Delete, then
+  the one-shot W-0030..32 → W-0027..29 renumber runs.
+### #344 — DCR numbers: register, number preview, delete fix, one-time 109 → 097 (Bookore, 2026-09-26)
+
+* **Ask (Angela):** "Issue New DCR" produced `DCR-FR-BX-001-109` where she expected 097, plus
+  any Daily Report improvements. Decision with her: numbers stay in ISSUE order (next = MAX+1,
+  deliberate since #282), the UI gets clearer, and 109 → 097 is fixed once if 097 is free.
+* **Why 109:** MAX+1 — a report numbered 108 already existed. The list is windowed to the
+  last 30 days, so whatever occupies 097–108 (backdated days? future-dated test reports?)
+  was invisible. I can't query production (IP allowlist), so the fix runs inside the app.
+* **`dcr_maintenance.py` (new):** `number_lock()` (Postgres advisory xact lock on
+  `dcr-seq:<project>`, now taken by the issue route too — two issues in flight could read
+  the same MAX), `audit()`, the **register** `GET /api/projects/<code>/dcr-register`
+  (company roles) — every report by number with missing ranges, out-of-date-order, and
+  future-dated flags — and the **pinned correction** `GET|POST
+  /api/admin/maintenance/dcr-renumber-344` (admin only, FR-BX-001 109→097 hardcoded,
+  refuses once its `audit_log` row exists). Preview returns what's in 097–108, whether 097
+  is free, whether the files are on this server's disk, and a `plan_hash`. Apply:
+  stage a copy in `097.tmp/` with the number rewritten (anchored `DCR-FR-BX-001-109(?!\d)`)
+  in both HTML files + PDF regenerated (a PDF still saying 109 is never kept) → under the
+  lock re-verify the hash → UPDATE both rows' report_id + dcr_sequence + audit → move `109/`
+  to `data_room/_maintenance_backup/…` (not servable: outside `_ARTIFACT_SUBTREES`) → rename
+  staging into place → commit; any failure puts the files back. Remove the pinned
+  endpoints once it has run in production.
+* **Delete fix (server.py):** both DCR delete routes now MOVE the files (HTML + the PDF the
+  old code left behind) to the maintenance backup, remove the number's folder, and write
+  a `dcr_delete` audit row with the deleted rows. Response shape unchanged; no paths on the
+  wire.
+* **Daily Report UI:** number preview above Issue ("Will be issued as …-098" / "This date
+  already has …-097"), and the number in the confirm prompt; "Total reports" + header =
+  whole project (`meta.total_project` on the list API, via `response_wrapper(**extra_meta)`);
+  "Issued At" = `created_at` with "edited <date>"; PDF link per row (`pdf_url`); company
+  roles get a numbering banner + "All numbers" panel (View / Delete per row — reaches
+  reports dated outside the list's window) and, for admin on FR-BX-001, the one-time fix box.
+* **Tests:** `tests/smoke_dcr_numbers_344.py` (both gates) builds the production scenario
+  (096 + 109 real, 097–100 dated 2099, 101–108 unused) and drives preview → refusal →
+  junk delete → stale-hash refusal → apply → second-run refusal → next number 098.
+* **Operator runbook (production):** Render dashboard → take a DB backup → FR-BX-001 →
+  Daily Report → All numbers → check what's in 097–108; delete test/duplicate reports only
+  → the one-time box turns "Ready" → apply. If 097 is a real report it refuses; talk first.
+
 ### #343b (stage 1) — the project dashboard's content views onto the shared tokens (Bookore, 2026-09-25)
 
 * **What:** 549 CSS color literals in `dashboard-static.html` rewritten to the widgets.css

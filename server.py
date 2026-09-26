@@ -115,6 +115,12 @@ import portal_calendar
 portal_calendar.register(app)   # #332 — the jobs calendar (3-day / week / month)
 import building_3d
 building_3d.register(app)       # #336 — the building in 3D (footprint + height from NYC Open Data, grids on the walls)
+import dcr_maintenance
+dcr_maintenance.register(app)   # #344 — DCR register + the pinned 109→097 correction
+import worker_lifecycle
+worker_lifecycle.register(app)   # #345 — Workforce: archive / reactivate / delete permanently
+import worker_id_cleanup
+worker_id_cleanup.register(app)  # #346 — one-time W-0030..32 -> W-0027..29 renumber (admin)
 
 # #279 (UI v2 phase 0) — the interface toggle. MUST follow apply_auth_gate: the
 # stored per-user preference is read off current_user(). Sets g.ui_version on page
@@ -1025,7 +1031,7 @@ def _server_error(e):
     return jsonify({"error": "Something went wrong on the server.", "ref": ref}), 500
 
 
-def response_wrapper(data, count=None):
+def response_wrapper(data, count=None, **extra_meta):
     """Wrap response with metadata.
 
     #251 — defense-in-depth for the CLAUDE.md PII rule: every wrapped payload is
@@ -1044,7 +1050,8 @@ def response_wrapper(data, count=None):
         "data": data,
         "meta": {
             "count": count if count is not None else len(data) if isinstance(data, list) else 1,
-            "generated_at": datetime.now().isoformat()
+            "generated_at": datetime.now().isoformat(),
+            **extra_meta,
         }
     })
 
@@ -2526,28 +2533,70 @@ def patch_photo(row_id):
     })
 
 
+def _dcr_backup_name(project_code, seq, what):
+    return f"{datetime.now():%Y%m%d-%H%M%S}-{what}-{project_code}-{seq:03d}"
+
+
+def _retire_dcr_files(project_code, seq, audiences, backup_name):
+    """#344 — MOVE a DCR's files (HTML per audience + the internal PDF) into
+    data_room/_maintenance_backup/<backup_name>/ instead of unlinking them, then
+    drop the number's folder once it is empty. The old delete removed only the
+    HTML, leaving internal.pdf behind — the folder never went away and a later
+    report on that number would sit next to a stale PDF. _maintenance_backup is
+    outside _ARTIFACT_SUBTREES, so nothing in it is servable. Best-effort per file;
+    returns (moved_names, errors, backup_rel)."""
+    seq_dir = ssc_paths.under_root("data_room", "reports", "dcr", project_code, f"{seq:03d}")
+    backup = ssc_paths.under_root("data_room", "_maintenance_backup", backup_name)
+    names = [f"{a}.html" for a in audiences] + (["internal.pdf"] if 'internal' in audiences else [])
+    moved, errors = [], {}
+    for name in names:
+        src = seq_dir / name
+        try:
+            if src.exists():
+                backup.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(src), str(backup / name))
+                moved.append(name)
+        except Exception as e:
+            errors[name] = str(e)
+            logging.warning(f"DCR file retire failed for {project_code} seq={seq} {name}: {e}")
+    try:
+        if seq_dir.exists() and not any(seq_dir.iterdir()):
+            seq_dir.rmdir()
+    except Exception:
+        pass
+    backup_rel = backup.relative_to(ssc_paths.data_root()).as_posix() if moved else None
+    return moved, errors, backup_rel
+
+
 @app.route('/api/projects/<project_code>/reports/by-sequence/<int:seq>', methods=['DELETE'])
 def delete_report_by_sequence(project_code, seq):
     """Atomic DCR delete: removes BOTH internal and client report_index rows for
-    (project_code, dcr_sequence=seq) plus both HTML files. Frontend Delete button
+    (project_code, dcr_sequence=seq) plus the report's files. Frontend Delete button
     uses this so the operator's 'Delete' action removes the entire report (the
     legacy per-report_id route is retained below for low-level use). 404 if no
-    rows match. DB deletes are transactional; file deletes are best-effort."""
+    rows match. DB deletes are transactional; file moves are best-effort.
+    #344 — files (both HTML + the PDF) move to a non-served backup folder, the
+    number's folder is removed, and an audit row records what was deleted."""
+    display_id = f"DCR-{project_code}-{seq:03d}"
+    backup_name = _dcr_backup_name(project_code, seq, "dcr-delete")
     conn = db()
     try:
         rows = conn.execute(
-            "SELECT report_id FROM report_index "
+            "SELECT * FROM report_index "
             "WHERE project_code = ? AND dcr_sequence = ? AND report_type = 'DCR'",
             (project_code, seq)
         ).fetchall()
         if not rows:
             return jsonify({"error": "Not found"}), 404
-        deleted_report_ids = [r['report_id'] for r in rows]
+        before = [dict(r) for r in rows]
+        deleted_report_ids = [r['report_id'] for r in before]
         conn.execute(
             "DELETE FROM report_index "
             "WHERE project_code = ? AND dcr_sequence = ? AND report_type = 'DCR'",
             (project_code, seq)
         )
+        dcr_maintenance.audit(conn, 'dcr_delete', display_id, before=before,
+                   note=f"files moved to data_room/_maintenance_backup/{backup_name}")
         conn.commit()
     except Exception as e:
         logging.error(f"DELETE /api/projects/{project_code}/reports/by-sequence/{seq}: {str(e)}")
@@ -2555,31 +2604,14 @@ def delete_report_by_sequence(project_code, seq):
     finally:
         conn.close()
 
-    files_deleted = []
-    file_errors = {}
-    seq_dir = ssc_paths.under_root("data_room", "reports", "dcr", project_code, f"{seq:03d}")   # #287
-    for audience in ('internal', 'client'):
-        out_file = seq_dir / f"{audience}.html"
-        try:
-            if out_file.exists():
-                out_file.unlink()
-                files_deleted.append(f"{audience}.html")
-        except Exception as e:
-            file_errors[f"{audience}.html"] = str(e)
-            logging.warning(f"DCR HTML delete failed for {project_code} seq={seq} {audience}: {e}")
-    # Best-effort rmdir the now-empty sequence directory so we don't leave a stub.
-    try:
-        if seq_dir.exists() and not any(seq_dir.iterdir()):
-            seq_dir.rmdir()
-    except Exception:
-        pass
-
+    moved, file_errors, _ = _retire_dcr_files(
+        project_code, seq, ('internal', 'client'), backup_name)
     return jsonify({
         "deleted": True,
         "project_code": project_code,
         "sequence": seq,
         "report_ids_deleted": deleted_report_ids,
-        "files_deleted": files_deleted,
+        "files_deleted": moved,
         "file_errors": file_errors or None,
     }), 200
 
@@ -2589,41 +2621,41 @@ def delete_report(project_code, report_id):
     """Delete a single report_index row + its rendered HTML file (sequence-based
     path). One row per audience: deleting the internal variant leaves the client
     variant alone, and vice versa. DB delete succeeds even if file delete fails."""
+    audience = None
+    for suf in ('internal', 'client'):
+        if report_id.endswith(f'-{suf}'):
+            audience = suf
+            break
     conn = db()
     try:
         row = conn.execute(
-            "SELECT dcr_sequence FROM report_index WHERE project_code = ? AND report_id = ?",
+            "SELECT * FROM report_index WHERE project_code = ? AND report_id = ?",
             (project_code, report_id)
         ).fetchone()
         if not row:
             return jsonify({"error": "Not found"}), 404
-        seq = row['dcr_sequence']
+        before = dict(row)
+        seq = before['dcr_sequence']
+        backup_name = _dcr_backup_name(project_code, seq or 0, f"dcr-delete-{audience or 'row'}")
         conn.execute(
             "DELETE FROM report_index WHERE project_code = ? AND report_id = ?",
             (project_code, report_id)
         )
+        # #344 — audit + move (not unlink) the audience's files, incl. the PDF
+        dcr_maintenance.audit(conn, 'dcr_delete', _display_id(report_id), before=before,
+                   note=f"{audience or 'row'} only; files moved to data_room/_maintenance_backup/{backup_name}")
         conn.commit()
     except Exception as e:
         logging.error(f"DELETE /api/projects/{project_code}/reports/{report_id}: {str(e)}")
         return _server_error(e)
     finally:
         conn.close()
-    audience = None
-    for suf in ('internal', 'client'):
-        if report_id.endswith(f'-{suf}'):
-            audience = suf
-            break
     file_deleted = False
     file_error = None
     if seq is not None and audience:
-        out_file = ssc_paths.under_root("data_room", "reports", "dcr", project_code, f"{seq:03d}", f"{audience}.html")   # #287
-        try:
-            if out_file.exists():
-                out_file.unlink()
-                file_deleted = True
-        except Exception as e:
-            file_error = str(e)
-            logging.warning(f"DCR HTML delete failed for {report_id}: {file_error}")
+        moved, errors, _ = _retire_dcr_files(project_code, seq, (audience,), backup_name)
+        file_deleted = f"{audience}.html" in moved
+        file_error = errors.get(f"{audience}.html")
     return jsonify({
         "deleted": True, "report_id": report_id, "file_deleted": file_deleted,
         "file_error": file_error,
@@ -3110,6 +3142,28 @@ def api_dcr_no_work(project_code, report_date):
         return _server_error(e)
 
 
+@app.route('/api/projects/<project_code>/daily/<report_date>/number', methods=['GET'])
+def dcr_number_preview(project_code, report_date):
+    """#344 — the number a DCR for this date would carry, shown on the entry form
+    BEFORE the operator issues it (a number is permanent once issued). Re-issuing
+    a date keeps its number; a new date takes the next one, whatever its date."""
+    try:
+        datetime.strptime(report_date, '%Y-%m-%d')
+    except ValueError:
+        return jsonify({"error": "date must be YYYY-MM-DD"}), 400
+    conn = db()
+    try:
+        if not validate_project_exists(conn, project_code):
+            return jsonify({"error": "Project not found"}), 404
+        existing = lookup_existing_dcr_sequence(conn, project_code, report_date)
+        nxt = next_dcr_sequence(conn, project_code)
+    finally:
+        conn.close()
+    seq = existing if existing is not None else nxt
+    return response_wrapper({"sequence": seq, "display_id": f"DCR-{project_code}-{seq:03d}",
+                             "reissue": existing is not None, "next_sequence": nxt})
+
+
 @app.route('/api/projects/<project_code>/daily/<report_date>/issue', methods=['POST'])
 def issue_dcr(project_code, report_date):
     """Issue a DCR for (project_code, report_date) at the given audience.
@@ -3212,6 +3266,7 @@ def issue_dcr(project_code, report_date):
                     actor_role=user.get('role') or 'system',
                 )
         # ---- end #194 gate ----
+        dcr_maintenance.number_lock(conn, project_code)   # #344
         existing_seq = lookup_existing_dcr_sequence(conn, project_code, report_date)
         if existing_seq is not None and not override_active:
             conn.close()
@@ -3365,6 +3420,12 @@ def list_reports(project_code):
         params.append(td)
     sql = f"SELECT * FROM report_index WHERE {' AND '.join(where)} ORDER BY report_date DESC, id DESC"
     rows = conn.execute(sql, params).fetchall()
+    # #344 — the whole project's DCR count, not just the date window the list shows
+    total_project = None
+    if rt == 'DCR':
+        total_project = conn.execute(
+            "SELECT COUNT(*) FROM report_index WHERE project_code = ? AND report_type = 'DCR' "
+            "AND report_id LIKE ?", (project_code, '%-internal')).fetchone()[0]
     conn.close()
     out = []
     for r in rows:
@@ -3376,13 +3437,17 @@ def list_reports(project_code):
             d['audience'] = 'client'
         else:
             d['audience'] = None
+        d['pdf_url'] = None
         if d['audience'] and d.get('dcr_sequence') is not None and d.get('report_type') == 'DCR':
             d['html_url'] = f"/project-files/data_room/reports/dcr/{project_code}/{d['dcr_sequence']:03d}/{d['audience']}.html"
+            if d['audience'] == 'internal' and ssc_paths.under_root(
+                    "data_room", "reports", "dcr", project_code, f"{d['dcr_sequence']:03d}", "internal.pdf").exists():
+                d['pdf_url'] = d['html_url'][:-len('.html')] + '.pdf'   # #344
         else:
             d['html_url'] = None
         d['display_id'] = _display_id(rid)
         out.append(d)
-    return response_wrapper(out, count=len(out))
+    return response_wrapper(out, count=len(out), total_project=total_project)
 
 
 @app.route('/api/projects/<project_code>/reports/latest', methods=['GET'])
@@ -3716,92 +3781,53 @@ def complete_intake(emp_id):
             except Exception: pass
 
 
-def _worker_history_counts(conn, emp_id):
-    """Count rows that prevent hard-delete (preserves accuracy of historical
-    DCRs, Weekly Hours Log, and credential audit trail). Returns a dict
-    keyed by table for the operator-facing diagnostic, plus a `total`."""
-    counts = {}
-    for tbl in ('sign_in_log', 'certifications', 'worker_documents',
-                'cof_cards', 'company_id_cards'):
-        n = conn.execute(
-            f"SELECT COUNT(*) FROM {tbl} WHERE employee_id = ?", (emp_id,)
-        ).fetchone()[0]
-        counts[tbl] = n
-    counts['total'] = sum(v for k, v in counts.items() if k != 'total')
-    return counts
-
-
 @app.route('/api/employees/<emp_id>', methods=['DELETE'])
+@requires_company   # #345 — was reachable by any logged-in role
 def delete_employee(emp_id):
     """Delete a worker. Auto-dispatches between hard-delete and soft-archive
-    based on whether the worker has any operational history:
+    based on whether the worker has any operational history — the SAME check as
+    the Workforce tab's "Delete permanently" (#345, worker_lifecycle.BLOCKING):
 
-      - NO history (sign_in_log, certifications, worker_documents, cof_cards,
-        company_id_cards all empty for this employee) → hard-delete. Removes
-        the employees row plus its project_assignments. Safe to wipe; nothing
-        else references this worker.
+      - NO history -> the worker and every setup row that points at them
+        (assignments, rate rows, labor state, devices, sessions) plus their
+        records folder are removed, dependents first.
+      - HAS history -> soft-archive: employees.archived_at = NOW + reason. The
+        history stays so DCRs and the Hours Log stay accurate; the worker can be
+        reactivated from the Workforce tab's Inactive list.
 
-      - HAS history → soft-archive: sets employees.archived_at = NOW. The
-        sign-ins, certs, docs, and cards remain so historical DCRs and the
-        Weekly Hours Log stay accurate. project_assignments stays so the
-        archived worker can be re-activated later by clearing archived_at.
-
-    Archived workers are filtered out of the workforce list, the project
-    worker list, and the intake-summary list by default. Pass
-    ?include_archived=true on those GETs to see them.
-
-    Body: optional {reason}. 404 if worker doesn't exist; 409 if already
-    archived. Hard-delete returns 200 with {deleted: 'hard'}; archive
-    returns 200 with {deleted: 'archived'} + the history counts that
-    forced the soft path."""
-    conn = None
+    Body: optional {reason}. 404 if the worker doesn't exist; 409 if already
+    archived. Returns {deleted: 'hard'|'archived', history_counts}."""
+    import worker_lifecycle
+    data = request.get_json(silent=True) or {}
+    reason = (data.get('reason') or '').strip() or None
+    conn = db()
     try:
-        data = request.get_json(silent=True) or {}
-        reason = (data.get('reason') or '').strip() or None
-        conn = db()
-        emp = conn.execute(
-            "SELECT employee_id, archived_at FROM employees WHERE employee_id = ?",
-            (emp_id,)
-        ).fetchone()
+        emp = conn.execute("SELECT employee_id, archived_at FROM employees WHERE employee_id = ?",
+                           (emp_id,)).fetchone()
         if not emp:
             return jsonify({"error": "employee not found"}), 404
         if emp["archived_at"]:
-            return jsonify({"error": "employee already archived",
-                            "archived_at": emp["archived_at"]}), 409
-        counts = _worker_history_counts(conn, emp_id)
-        if counts["total"] == 0:
-            # Hard-delete: project_assignments first (no FK cascade configured),
-            # then the employees row. Worker folder on disk is left in place —
-            # it's the audit/intake artifact, and a re-onboard with the same
-            # name would reuse it.
-            conn.execute("DELETE FROM project_assignments WHERE employee_id = ?", (emp_id,))
-            conn.execute("DELETE FROM employees WHERE employee_id = ?", (emp_id,))
+            return jsonify({"error": "employee already archived", "archived_at": emp["archived_at"]}), 409
+        plan = worker_lifecycle.removal_plan(conn, emp_id)
+        counts = {**plan["blocking"], "total": sum(plan["blocking"].values())}
+        if plan["can_delete"]:
+            _, err = worker_lifecycle.delete_worker(conn, emp_id)
+            if err:
+                return err
             conn.commit()
-            return response_wrapper({
-                "employee_id": emp_id,
-                "deleted": "hard",
-                "history_counts": counts,
-            }), 200
-        else:
-            # Soft-archive: mark archived_at + reason. History rows stay.
-            conn.execute(
-                "UPDATE employees SET archived_at = CURRENT_TIMESTAMP, "
-                "archived_reason = ?, updated_at = CURRENT_TIMESTAMP "
-                "WHERE employee_id = ?",
-                (reason, emp_id)
-            )
-            conn.commit()
-            row = conn.execute(
-                "SELECT archived_at, archived_reason FROM employees WHERE employee_id = ?",
-                (emp_id,)
-            ).fetchone()
-            return response_wrapper({
-                "employee_id": emp_id,
-                "deleted": "archived",
-                "archived_at": row["archived_at"],
-                "archived_reason": row["archived_reason"],
-                "history_counts": counts,
-            }), 200
+            conn.close(); conn = None
+            worker_lifecycle.remove_folder(emp_id)
+            return response_wrapper({"employee_id": emp_id, "deleted": "hard", "history_counts": counts}), 200
+        conn.execute("UPDATE employees SET archived_at = CURRENT_TIMESTAMP, archived_reason = ?, "
+                     "updated_at = CURRENT_TIMESTAMP WHERE employee_id = ?", (reason, emp_id))
+        worker_lifecycle._audit(conn, "worker_archive", emp_id, before={"state": "active"},
+                                after={"state": "archived"}, note=reason)
+        conn.commit()
+        row = conn.execute("SELECT archived_at, archived_reason FROM employees WHERE employee_id = ?",
+                           (emp_id,)).fetchone()
+        return response_wrapper({"employee_id": emp_id, "deleted": "archived",
+                                 "archived_at": row["archived_at"], "archived_reason": row["archived_reason"],
+                                 "history_counts": counts}), 200
     except Exception as e:
         logging.error(f"DELETE /api/employees/{emp_id}: {e}")
         return _server_error(e)
