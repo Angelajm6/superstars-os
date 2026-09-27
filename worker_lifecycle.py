@@ -5,9 +5,11 @@ inactive (`labor_worker_state.status`, which stays PM-approved via /labor-rates 
 archiving deliberately does NOT touch it). Reactivate clears both.
 
 Permanent removal is for a worker who never actually worked here — a test record, a
-duplicate, an onboarding that never started. Anything that proves they worked or hold
-credentials BLOCKS it (archive instead); setup rows with no history value on their own
-are removed WITH the worker, dependents first because Postgres enforces the foreign
+duplicate, an onboarding that never started. Anything that proves they worked BLOCKS it
+(archive instead); setup rows with no history value on their own are removed WITH the
+worker. #349: an ID card on its own is not work history (a card can be printed at
+onboarding), so a history-free worker's CoF / company ID card rows and card files go
+too — listed in the preview and the confirm, card IDs kept in the audit. Setup rows are removed dependents first because Postgres enforces the foreign
 keys SQLite only declares. Every table is probed in the catalog first: optional
 tables differ between databases, and on Postgres a failed statement would poison the
 transaction.
@@ -37,13 +39,15 @@ BLOCKING = (
     ("identifications", "employee_id", "E", "IDs"),
     ("employee_documents", "employee_id", "E", "documents"),
     ("worker_documents", "employee_id", "E", "intake documents"),
-    ("cof_cards", "employee_id", "E", "CoF cards"),
-    ("company_id_cards", "employee_id", "E", "company ID cards"),
     ("field_photos", "worker_id", "W", "field photos"),
     ("drop_plan_sign_offs", "signed_by_employee_id", "E", "drop-plan sign-offs"),
     ("vehicle", "driver_employee_id", "E", "vehicle assignments"),
     ("users", "employee_id_link", "E", "dashboard login"),
 )
+# #349 — removed with a history-free worker (never block on their own)
+CARDS = (("cof_cards", "CoF cards"), ("company_id_cards", "company ID cards"))
+CARD_PATH_COLS = ("photo_snapshot_path", "pdf_export_path", "html_export_path")
+
 PURGED = (
     ("project_assignments", "employee_id", "E"),
     ("employee_assignments", "employee_id", "E"),
@@ -104,11 +108,17 @@ def removal_plan(conn, employee_id):
             n = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE {col} = ?", (key,)).fetchone()[0]
             if n:
                 purge[table] = purge.get(table, 0) + int(n)
+    cards = {}
+    for table, label in CARDS:
+        if has_column(conn, table, "employee_id"):
+            n = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE employee_id = ?", (employee_id,)).fetchone()[0]
+            if n:
+                cards[label] = int(n)
     folder = _folder(employee_id)
     return {
         "employee_id": w["employee_id"], "worker_id": w["worker_id"],
         "blocking": blocking, "can_delete": not blocking,
-        "removes": purge,
+        "removes": purge, "cards": cards,
         "folder_files": sum(1 for p in folder.rglob("*") if p.is_file()) if folder else 0,
     }
 
@@ -197,6 +207,17 @@ def delete_worker(conn, employee_id):
         return plan, (jsonify({"error": "This worker has history, so they can't be deleted — "
                                         "make them inactive instead.", "data": plan}), 409)
     w = _worker(conn, employee_id)
+    card_ids, card_files = [], []
+    for table, _label in CARDS:
+        if not has_column(conn, table, "employee_id"):
+            continue
+        cols = [c for c in CARD_PATH_COLS if has_column(conn, table, c)]
+        for r in conn.execute(f"SELECT card_id{''.join(', ' + c for c in cols)} FROM {table} "
+                              f"WHERE employee_id = ?", (employee_id,)).fetchall():
+            card_ids.append(r["card_id"])
+            card_files += [r[c] for c in cols if r[c]]
+        conn.execute(f"DELETE FROM {table} WHERE employee_id = ?", (employee_id,))
+    plan["_card_files"] = card_files
     for table, col, by in PURGED:
         key = _key(w, by)
         if key and has_column(conn, table, col):
@@ -206,8 +227,22 @@ def delete_worker(conn, employee_id):
     _audit(conn, "worker_delete", employee_id,
            before={"employee_id": w["employee_id"], "worker_id": w["worker_id"], "trade": w["trade"],
                    "state": _state(w)},
-           after={"removed_rows": plan["removes"], "folder_files": plan["folder_files"]})
+           after={"removed_rows": plan["removes"], "folder_files": plan["folder_files"],
+                  "cards": card_ids})
     return plan, None
+
+
+def remove_card_files(stored_paths):
+    """#349 — card photo snapshots / exports of a deleted worker, only inside
+    data_room/credentials (a stored path is never trusted beyond that)."""
+    root = ssc_paths.under_root("data_room", "credentials").resolve()
+    for stored in stored_paths or []:
+        try:
+            f = ssc_paths.resolve_data_path(stored).resolve()
+            if f.is_file() and root in f.parents:
+                f.unlink()
+        except Exception:
+            log.exception("#349 card file removal failed")
 
 
 def remove_folder(employee_id):
@@ -230,7 +265,9 @@ def _api_delete(employee_id):
     finally:
         conn.close()
     remove_folder(employee_id)
-    return jsonify({"data": {"employee_id": employee_id, "worker_id": plan["worker_id"], "deleted": True}})
+    remove_card_files(plan.get("_card_files"))
+    return jsonify({"data": {"employee_id": employee_id, "worker_id": plan["worker_id"], "deleted": True,
+                             "cards_removed": sum(plan.get("cards", {}).values())}})
 
 
 def register(app) -> None:
