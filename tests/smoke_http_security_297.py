@@ -17,7 +17,34 @@ for name in (
 ):
     assert name in headers, f"missing {name}"
 
-assert "frame-ancestors 'none'" in headers
+assert "frame-ancestors " in headers and "'none'" in headers   # default stays 'none' (behaviour below)
+
+# #351 — behaviour: only the two pages the dashboard embeds may be framed, and only by
+# the app itself; everything else (and any look-alike path) stays DENY / 'none'.
+import sys
+sys.path.insert(0, str(ROOT))
+from flask import Flask  # noqa: E402
+import http_security  # noqa: E402
+
+_app = Flask("t351")
+http_security.apply_http_security_headers(_app)
+
+
+@_app.route("/<path:p>")
+def _any(p):
+    return "ok"
+
+
+_c = _app.test_client()
+for path in ("/drawing-markup", "/api/projects/FR-BX-001/weekly/render"):
+    r = _c.get(path)
+    assert r.headers["X-Frame-Options"] == "SAMEORIGIN", path
+    assert "frame-ancestors 'self'" in r.headers["Content-Security-Policy"], path
+for path in ("/company", "/projects/FR-BX-001", "/api/projects/FR-BX-001/weekly/render/x",
+             "/drawing-markup-evil", "/login"):
+    r = _c.get(path)
+    assert r.headers["X-Frame-Options"] == "DENY", path
+    assert "frame-ancestors 'none'" in r.headers["Content-Security-Policy"], path
 assert "object-src 'none'" in headers
 assert "if _edge_is_https()" in headers, "HSTS must not be sent on local HTTP by default"
-print("PASS: #297 HTTP security headers and non-wildcard browser API policy")
+print("PASS: #297 HTTP security headers and non-wildcard browser API policy (+ #351 same-origin frames)")
