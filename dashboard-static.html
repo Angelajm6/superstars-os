@@ -1793,7 +1793,10 @@
           .dp-exphint{color:var(--dp-muted);font-size:12px;margin-bottom:14px}
           .dp-activate{margin-top:9px;width:100%;border:1px solid var(--dp-edge);background:var(--active-soft);color:var(--active-ink);border-radius:9px;padding:7px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
           .dp-qty{background:var(--canvas, #fafbfd);border:1px solid var(--dp-line);border-radius:13px;padding:15px;align-self:start}
-          .dp-qty h4{margin:0 0 3px;font-size:13px}.dp-qsub{color:var(--dp-muted);font-size:11.5px;margin-bottom:12px}
+          .dp-qty h4{margin:0 0 3px;font-size:13px}
+          .dp-kind{display:inline-flex;background:var(--fill, #F4F5F8);border:1px solid var(--line, #eceef3);border-radius:9px;padding:2px;margin:4px 0 8px}
+          .dp-kind button{font:inherit;font-size:12px;font-weight:700;border:0;background:transparent;color:var(--muted, #8c92a0);padding:5px 10px;border-radius:7px;cursor:pointer}
+          .dp-kind button.on{background:#fff;color:var(--ui, #24418C);box-shadow:0 1px 2px rgba(0,0,0,.08)}.dp-qsub{color:var(--dp-muted);font-size:11.5px;margin-bottom:12px}
           .dp-qrow{display:flex;gap:7px;margin-bottom:9px;align-items:stretch}
           .dp-qcell{flex:1;display:flex;flex-direction:column;gap:4px}
           .dp-qcell input{width:100%;height:32px;border:1px solid var(--dp-line);border-radius:8px;padding:0 8px;font-size:13px;text-align:center;font-family:inherit}
@@ -7730,13 +7733,17 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       var d=detResp&&detResp.data;
       if(!d){ host.innerHTML='<div class="ph-empty"><div class="ph-empty-title">Could not load drop</div></div>'; return; }
       jget('/api/dropplan/drops/'+encodeURIComponent(dropId)+'/quantity-entries').then(function(pResp){
-        var patches=((pResp&&pResp.data)||[]).filter(function(e){return e.volume_cf!=null;});
-        host.innerHTML=reportHtml(d, patches);
+        var all=((pResp&&pResp.data)||[]).filter(function(e){return e.volume_cf!=null;});
+        // #352 — column repairs are their own section, never counted as patches
+        var patches=all.filter(function(e){return e.sov_code!=='COL-REPAIR';});
+        var cols=all.filter(function(e){return e.sov_code==='COL-REPAIR';});
+        host.innerHTML=reportHtml(d, patches, cols);
       });
     });
   }
 
-  function reportHtml(d, patches){
+  function reportHtml(d, patches, cols){
+    cols=cols||[];
     var pr=d.progress||{}, wd=d.working_days||{};
     var st=statusOf(d), pct=(pr.pct!=null?pr.pct:0);
     var statusBadge = st==='active' ? '<span class="dr-badge">Active · '+pct+'%</span>'
@@ -7751,6 +7758,9 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     var stageRows=(d.stages||[]).map(function(s){ var m=SLABEL[s.status]||[s.status,'na']; var date=s.completed_on||s.started_on; var days=(s.working_days_actual!=null?s.working_days_actual:(s.default_working_days!=null?s.default_working_days:'—')); return '<tr><td>'+esc(s.step_no)+'</td><td>'+esc(s.name)+'</td><td><span class="dr-pill '+m[1]+'">'+esc(m[0])+'</span></td><td>'+fmtMDY(date)+'</td><td style="text-align:right">'+esc(days)+'</td></tr>'; }).join('');
     var patchRows=patches.length ? patches.map(function(p,i){ return '<tr><td>'+(i+1)+'</td><td>'+esc(p.length)+' '+esc(p.length_unit)+'</td><td>'+esc(p.width)+' '+esc(p.width_unit)+'</td><td>'+esc(p.depth)+' '+esc(p.depth_unit)+'</td><td style="text-align:right">'+ceilTenth(p.volume_cf).toFixed(1)+' CF</td></tr>'; }).join('') + '<tr><td class="dr-tot" colspan="4">Total · '+patches.length+' patch'+(patches.length===1?'':'es')+'</td><td class="dr-tot" style="text-align:right">'+totDisp+' CF</td></tr>'
       : '<tr><td colspan="5" style="color:var(--muted, #8c92a0);padding:10px 8px;">No concrete patches logged yet.</td></tr>';
+    var colVol=0; cols.forEach(function(p){colVol+=p.volume_cf;}); var colDisp=cols.length?ceilTenth(colVol).toFixed(1):'0.0';
+    var colRows=cols.length ? cols.map(function(p,i){ return '<tr><td>'+(i+1)+'</td><td>'+esc(p.length)+' '+esc(p.length_unit)+'</td><td>'+esc(p.width)+' '+esc(p.width_unit)+'</td><td>'+esc(p.depth)+' '+esc(p.depth_unit)+'</td><td style="text-align:right">'+ceilTenth(p.volume_cf).toFixed(1)+' CF</td></tr>'; }).join('') + '<tr><td class="dr-tot" colspan="4">Total · '+cols.length+' column repair'+(cols.length===1?'':'s')+'</td><td class="dr-tot" style="text-align:right">'+colDisp+' CF</td></tr>'
+      : '<tr><td colspan="5" style="color:var(--muted, #8c92a0);padding:10px 8px;">No column repairs logged yet.</td></tr>';
     return '<div class="dr-sheet">'
       +'<div class="dr-head"><div class="dr-brand"><img width="24" height="24" src="/files/static/brand/logo-dark.svg" alt="" style="object-fit:contain;vertical-align:middle">'
         +'<div><div class="dr-co">SUPERSTARS <span class="s">CONTRACTING INC.</span></div><div class="dr-title">DROP REPORT</div></div></div>'
@@ -7765,9 +7775,11 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
         +'<div><div class="l">Progress</div><div class="v">'+pct+'%</div></div>'
         +'<div><div class="l">Current stage</div><div class="v" style="font-size:14px">'+curStage+'</div></div>'
         +'<div><div class="l">Working days · plan/actual</div><div class="v" style="font-size:16px">'+planned+' / '+actual+' '+wdChip+'</div></div>'
-        +'<div><div class="l">Patch volume to date</div><div class="v">'+totDisp+' CF</div></div></div></div>'
+        +'<div><div class="l">Patch volume to date</div><div class="v">'+totDisp+' CF</div></div>'
+        +'<div><div class="l">Column repair to date</div><div class="v">'+colDisp+' CF</div></div></div></div>'
       +'<div class="dr-sec"><h3>Stage progress (auto-pulled)</h3><table class="dr-table"><thead><tr><th style="width:26px">#</th><th>Stage</th><th>Status</th><th>Date</th><th style="text-align:right">Days</th></tr></thead><tbody>'+stageRows+'</tbody></table></div>'
       +'<div class="dr-sec"><h3>Concrete patches logged (auto-pulled)</h3><table class="dr-table"><thead><tr><th style="width:26px">#</th><th>Length</th><th>Width</th><th>Depth</th><th style="text-align:right">Volume</th></tr></thead><tbody>'+patchRows+'</tbody></table></div>'
+      +'<div class="dr-sec"><h3>Column repairs logged (auto-pulled)</h3><table class="dr-table"><thead><tr><th style="width:26px">#</th><th>Length</th><th>Width</th><th>Depth</th><th style="text-align:right">Volume</th></tr></thead><tbody>'+colRows+'</tbody></table></div>'
       +'<div class="dr-sec"><h3>Photos</h3><div class="dr-photos"><div class="dr-ph">stage</div><div class="dr-ph">stage</div><div class="dr-ph">+ add</div></div></div>'
       +'<div class="dr-foot"><span class="dr-sync"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1E73E8" stroke-width="2"><path d="M20 11A8 8 0 105 6"/><path d="M4 4v4h4"/></svg>Live from the Drop Plan — updates as stages &amp; quantities are logged</span>'
         +'<span>Engineer sign-off: ____________ · Generated '+todayMDY()+'</span></div>'
@@ -7799,7 +7811,12 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   var ICCHEVD='<svg class="dp-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
   var ICBOLT='<svg class="dp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>';
   var ICCAL='<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:5px;color:var(--muted, #8c92a0)"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>';
-  var DP={drops:[],sov:[],patchSov:null,template:null,view:'elevation',expanded:null,detail:{},collapsed:{},units:{length:'in',width:'in',depth:'in'},completing:null,overallPct:null,wired:false};
+  var DP={drops:[],sov:[],patchSov:null,template:null,view:'elevation',expanded:null,detail:{},collapsed:{},units:{length:'in',width:'in',depth:'in'},completing:null,overallPct:null,wired:false,kind:'patch'};
+  // #352 — a drop's logged repairs, split by type (column repairs have their own SOV line)
+  function dpSplit(list){
+    var all=(list||[]).filter(function(e){return e.volume_cf!=null;});
+    return {patches:all.filter(function(e){return e.sov_code!=='COL-REPAIR';}),columns:all.filter(function(e){return e.sov_code==='COL-REPAIR';})};
+  }
 
   function $(id){return document.getElementById(id);}
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
@@ -7835,14 +7852,15 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       if(!DP.sov.length){
         var sj=await jget('/api/dropplan/projects/'+encodeURIComponent(PROJECT_CODE)+'/sov-lines');
         DP.sov=(sj&&sj.data)||[];
-        DP.patchSov=DP.sov.filter(function(s){return s.unit==='CF';})[0]||DP.sov[0]||null;
+        var notCol=DP.sov.filter(function(s){return s.sov_code!=='COL-REPAIR';});   // #352
+        DP.patchSov=notCol.filter(function(s){return s.unit==='CF';})[0]||notCol[0]||null;
       }
       renderHero(); renderView();
     }catch(e){ console.warn('[dropplan] load failed',e); var h=$('dp-elev'); if(h)h.innerHTML='<div class="dp-empty">Could not load the drop plan.</div>'; }
   }
 
   function aggregate(){
-    var a={complete:0,active:0,not_started:0,behind:0,total:DP.drops.length,cf:0,cs:0,ap:0};
+    var a={complete:0,active:0,not_started:0,behind:0,total:DP.drops.length,cf:0,cr:0,cs:0,ap:0};
     DP.drops.forEach(function(d){
       var s=dropStatus(d);
       if(s==='complete')a.complete++;
@@ -7850,6 +7868,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       else if(s==='behind')a.behind++;       // #225 behind is its own bucket (mutually exclusive)
       else a.active++;
       a.cf+=(d.volume_to_date||0);
+      a.cr+=(d.column_repair_to_date||0);   // #352
       a.cs+=(d.progress&&d.progress.complete_steps)||0;
       a.ap+=(d.progress&&d.progress.applicable_steps)||0;
     });
@@ -7872,7 +7891,8 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       +'<span><span class="dp-dot" style="background:'+DOT.active+'"></span>'+a.active+' active</span>'
       +'<span><span class="dp-dot" style="background:'+DOT.behind+'"></span>'+a.behind+' behind target</span>'
       +'<span><span class="dp-dot" style="background:'+DOT.not_started+'"></span>'+a.not_started+' not started</span></div></div>'
-      +'<div class="dp-herostat"><b>'+(ceilTenth(a.cf)||0).toFixed(1)+'</b><s>patch CF to date</s></div>';
+      +'<div class="dp-herostat"><b>'+(ceilTenth(a.cf)||0).toFixed(1)+'</b><s>patch CF to date</s></div>'
+      +(a.cr?'<div class="dp-herostat"><b>'+(ceilTenth(a.cr)||0).toFixed(1)+'</b><s>column repair CF</s></div>':'');
     var sub=$('dp-sub'); if(sub)sub.textContent=PROJECT_CODE+' · '+a.total+' drops · '+ELORDER.filter(function(e){return DP.drops.some(function(d){return d.elevation===e;});}).length+' elevations';
   }
 
@@ -7995,18 +8015,23 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       return '<div class="dp-step"><span class="dp-sdot '+cls+'"></span><span class="dp-sname '+ncls+'">'+esc(st.name)+gate+'</span>'+right+'</div>';
     }).join('');
     var patches=(det.patches||[]),sum=0; patches.forEach(function(p){sum+=(p.volume_cf||0);});
+    var cols=(det.columns||[]),csum=0; cols.forEach(function(p){csum+=(p.volume_cf||0);});   // #352
+    var isCol=DP.kind==='column';
     var u=DP.units;
     var qcell=function(k,ph){return '<div class="dp-qcell"><input data-dim="'+k+'" type="number" step="0.01" min="0" inputmode="decimal" placeholder="'+ph+'">'
       +'<span class="dp-unit-tog" data-unitfor="'+k+'"><button data-u="in" class="'+(u[k]==='in'?'on':'')+'">in</button><button data-u="ft" class="'+(u[k]==='ft'?'on':'')+'">ft</button></span></div>';};
-    var qty='<div class="dp-qty"><h4>Add a patch</h4><div class="dp-qsub">L × W × depth → volume, auto-rounded</div>'
+    var qty='<div class="dp-qty"><h4>Log a repair</h4>'
+      +'<div class="dp-kind" role="tablist"><button type="button" data-dpkind="patch" class="'+(isCol?'':'on')+'">Concrete patch</button><button type="button" data-dpkind="column" class="'+(isCol?'on':'')+'">Column repair</button></div>'
+      +'<div class="dp-qsub">L × W × depth → volume, auto-rounded</div>'
       +'<div class="dp-qrow">'+qcell('length','L')+'<span class="dp-qx">×</span>'+qcell('width','W')+'<span class="dp-qx">×</span>'+qcell('depth','D')+'</div>'
       +'<div class="dp-qvol"><span style="color:var(--dp-muted);font-size:12px">Volume</span><b id="dp-livevol">0.0 CF</b></div>'
-      +'<button class="dp-qadd" data-addpatch="'+esc(d.drop_id)+'">'+ICPLUS+'Add patch</button>'
+      +'<button class="dp-qadd" data-addpatch="'+esc(d.drop_id)+'">'+ICPLUS+(isCol?'Add column repair':'Add patch')+'</button>'
       +'<div class="dp-qerr" id="dp-qerr"></div>'
-      +'<div class="dp-qrun">Drop total · <b>'+(ceilTenth(sum)||0).toFixed(1)+' CF</b> · '+patches.length+' patch'+(patches.length===1?'':'es')+'</div></div>';
+      +'<div class="dp-qrun">Patches · <b>'+(ceilTenth(sum)||0).toFixed(1)+' CF</b> · '+patches.length+' patch'+(patches.length===1?'':'es')+'</div>'
+      +'<div class="dp-qrun">Column repairs · <b>'+(ceilTenth(csum)||0).toFixed(1)+' CF</b> · '+cols.length+' repair'+(cols.length===1?'':'s')+'</div></div>';
     return '<div class="dp-exp">'
       +'<div class="dp-exphead">'+headPill+(tnote?'<span style="color:var(--dp-muted);font-size:12px;margin-left:auto">'+esc(tnote)+'</span>':'')+'</div>'
-      +'<div class="dp-exphint">Click a stage date to set when it started · toggle N/A · log patches at right</div>'
+      +'<div class="dp-exphint">Click a stage date to set when it started · toggle N/A · log patches and column repairs at right</div>'
       +'<div class="dp-twocol"><div class="dp-steps">'+steps+'</div>'+qty+'</div></div>';
   }
 
@@ -8019,8 +8044,9 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       try{
         var dj=await jget('/api/dropplan/drops/'+encodeURIComponent(dropId));
         var pj=await jget('/api/dropplan/drops/'+encodeURIComponent(dropId)+'/quantity-entries');
-        DP.detail[dropId]={detail:(dj&&dj.data)||{},patches:((pj&&pj.data)||[]).filter(function(e){return e.volume_cf!=null;})};
-      }catch(e){DP.detail[dropId]={detail:{},patches:[]};}
+        var sp=dpSplit(pj&&pj.data);
+        DP.detail[dropId]={detail:(dj&&dj.data)||{},patches:sp.patches,columns:sp.columns};
+      }catch(e){DP.detail[dropId]={detail:{},patches:[],columns:[]};}
     }
     renderView();
     setTimeout(function(){var ex=document.querySelector('.dp-exp');if(ex)ex.scrollIntoView({behavior:'smooth',block:'nearest'});},40);
@@ -8029,7 +8055,8 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   function refreshDetail(dropId){
     return Promise.all([jget('/api/dropplan/drops/'+encodeURIComponent(dropId)),jget('/api/dropplan/drops/'+encodeURIComponent(dropId)+'/quantity-entries')])
       .then(function(r){
-        DP.detail[dropId]={detail:(r[0]&&r[0].data)||{},patches:((r[1]&&r[1].data)||[]).filter(function(e){return e.volume_cf!=null;})};
+        var sp=dpSplit(r[1]&&r[1].data);
+        DP.detail[dropId]={detail:(r[0]&&r[0].data)||{},patches:sp.patches,columns:sp.columns};
         return Promise.all([
           jget('/api/dropplan/projects/'+encodeURIComponent(PROJECT_CODE)+'/drops'),
           jget('/api/dropplan/projects/'+encodeURIComponent(PROJECT_CODE)+'/rollup')   // #256 canonical overall
@@ -8049,8 +8076,9 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     var g=function(k){var el=document.querySelector('.dp-exp [data-dim="'+k+'"]');return el&&el.value!==''?parseFloat(el.value):null;};
     var l=g('length'),w=g('width'),d=g('depth');
     if(l==null||w==null||d==null||l<=0||w<=0||d<=0){if(err)err.textContent='Enter length, width, and depth.';return;}
-    if(!DP.patchSov){if(err)err.textContent='No patch SOV line for this project.';return;}
-    var body={sov_line_item:DP.patchSov.sov_id,length:l,width:w,depth:d,length_unit:DP.units.length,width_unit:DP.units.width,depth_unit:DP.units.depth,logged_on:todayLocal()};
+    var body={length:l,width:w,depth:d,length_unit:DP.units.length,width_unit:DP.units.width,depth_unit:DP.units.depth,logged_on:todayLocal()};
+    if(DP.kind==='column'){ body.kind='column_repair'; }   // #352 — the server finds/creates the column-repair line
+    else { if(!DP.patchSov){if(err)err.textContent='No patch SOV line for this project.';return;} body.sov_line_item=DP.patchSov.sov_id; }
     try{
       var r=await fetch('/api/dropplan/drops/'+encodeURIComponent(dropId)+'/quantity-entries',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       if(!r.ok){var j=await r.json().catch(function(){return {};});if(err)err.textContent=(j&&j.error)||'Add failed';return;}
@@ -8120,6 +8148,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     wrap.addEventListener('click',function(e){
       var na=e.target.closest('[data-na]'); if(na){toggleNA(na.getAttribute('data-drop'),na.getAttribute('data-na'));return;}
       var add=e.target.closest('[data-addpatch]'); if(add){addPatch(add.getAttribute('data-addpatch'));return;}
+      var kb=e.target.closest('[data-dpkind]'); if(kb){DP.kind=kb.getAttribute('data-dpkind');renderView();return;}   // #352
       var ag=e.target.closest('[data-activatego]'); if(ag){activateDrop(ag.getAttribute('data-activatego'));return;}
       // #256 — stage Complete control (open editor -> pick backdatable date -> confirm), + un-complete
       var cmp=e.target.closest('[data-complete]'); if(cmp){startComplete(cmp.getAttribute('data-drop'),cmp.getAttribute('data-complete'));return;}
