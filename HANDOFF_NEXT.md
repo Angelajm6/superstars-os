@@ -141,6 +141,29 @@ grant, or elevation code.
   Daily Report → All numbers → check what's in 097–108; delete test/duplicate reports only
   → the one-time box turns "Ready" → apply. If 097 is a real report it refuses; talk first.
 
+### #343b (stage 2) — the long tail of status and neutral colors (Bookore, 2026-09-28)
+
+* **What:** 287 more CSS colors in `dashboard-static.html` onto shared tokens (untokenized
+  hex in CSS contexts 293 → 37; plus translucent tints following their solid). Same rules
+  and transform as stage 1 (CSS contexts only, comments carved out, never JS/SVG, no nested
+  var(), explicit fallbacks).
+* **Families:** greens `#0F6E56/#2F7C57/#15806A/#178A6C` → `--status-complete-deep`;
+  text reds `#A8382B/#A23B30/#A23C3C/#7A2E1B` → NEW `--status-behind-deep` (#A8382B, the
+  portal's bad-pill ink); `#C8102E` (older brand red) → `--brand-red`; ambers → NEW
+  `--status-warn` / `--status-warn-soft` / `--status-warn-edge` (the portal's warn pill
+  #9A5B00 / #FFF4E5); secondary grays (`#54505A`, `#5B6270`, `#444`, `#666`, …) → NEW `--ink-2`;
+  pale fills → NEW `--fill`, pale hairlines → `--line` (property-aware: a border becomes
+  `--line`, a background `--fill`), near-white → `--canvas`; oat/warm grays → `--oat-ink` /
+  `--status-oat` / `--cream`. Tints: rgba(15,110,86) → rgba(12,122,95), rgba(186,117,23) →
+  rgba(154,91,0), rgba(200,16,46) → rgba(177,30,46), rgba(107,114,128) → rgba(140,146,160).
+* **New tokens** live in `static/css/widgets.css :root`; dashboard-static loads it as
+  `?v=3432`.
+* **Left on purpose (37):** chart palettes and '?'-context colors, purple accents, the dark
+  panel colors, faint "disabled" grays (#AEB4C2, #C2C4CA, …), light text on dark
+  (#EAECEF), and a few one-off edge colors on soft fills.
+* **Verified:** 17 inline scripts pass `node --check`; the 21 views open with no JS errors;
+  the new tokens resolve in the browser.
+
 ### #343b (stage 1) — the project dashboard's content views onto the shared tokens (Bookore, 2026-09-25)
 
 * **What:** 549 CSS color literals in `dashboard-static.html` rewritten to the widgets.css
@@ -163,7 +186,7 @@ grant, or elevation code.
   saves) stay azure `--accent` — the design guard requires it and it's the shared
   system's split (azure = widget/modal primary, navy `--ui` = nav/links/hero actions),
   product-wide, not a sweep decision.
-* **Stage 2 (open):** the 281 long-tail literals are status/semantic colors needing a
+* **Stage 2 (done, see above):** the 281 long-tail literals are status/semantic colors needing a
   per-use call — old greens `#2F7C57`/`#0F6E56`, ambers `#B68838`/`#BA7517`, reds
   `#A8382B`/`#A23B30`/`#7A2E1B`/`#C8102E` (older brand red), warm grays `#F1EEE8`/`#54505A`/
   `#8F8675`, light fills `#F5F6F8`/`#F3F3F5`/`#F4F6F9`, plus old-palette colors that live
