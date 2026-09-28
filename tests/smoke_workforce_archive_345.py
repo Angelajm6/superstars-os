@@ -80,6 +80,10 @@ def _seed():
         for eid in (A[0], C[0], D[0]):
             conn.execute("INSERT INTO sign_in_log (date, employee_id, project_code, time_in, time_out, created_at, "
                          "updated_at) VALUES (?, ?, 'WF345-P', '07:00', '15:30', ?, ?)", (TODAY, eid, TODAY, TODAY))
+        for eid, wid in ((B[0], B[1]), (A[0], A[1])):   # #349 — a card alone is not work history
+            conn.execute("INSERT INTO company_id_cards (card_id, employee_id, issued_date, issued_by, card_number_display, "
+                         "photo_snapshot_path, status) VALUES (?, ?, ?, 'Smoke', ?, ?, 'active')",
+                         (f"SSC-CID-{eid}-1", eid, TODAY, f"SSC-CID-{wid}", f"data_room/credentials/company_id/{eid}_v1.jpg"))
         conn.execute("INSERT INTO project_assignments (project_code, employee_id, role_on_project, start_date, status) "
                      "VALUES ('WF345-P', ?, 'laborer', ?, 'active')", (B[0], TODAY))
         ids = {}
@@ -92,6 +96,10 @@ def _seed():
         conn.commit()
     finally:
         conn.close()
+    card = DATA_ROOT / "data_room" / "credentials" / "company_id"
+    card.mkdir(parents=True, exist_ok=True)
+    for eid in (A[0], B[0]):
+        (card / f"{eid}_v1.jpg").write_bytes(b"synthetic")
     for eid in (B[0], E[0]):
         f = _folder(eid)
         f.mkdir(parents=True, exist_ok=True)
@@ -103,7 +111,7 @@ def _purge_workers(conn):
     wids = [x[1] for x in ALL]
     for t, c, vals in (("sign_in_log", "employee_id", eids), ("project_assignments", "employee_id", eids),
                        ("labor_rate_change", "worker_id", wids), ("labor_worker_state", "worker_id", wids),
-                       ("audit_log", "target_id", eids), ("employees", "employee_id", eids),
+                       ("company_id_cards", "employee_id", eids), ("audit_log", "target_id", eids), ("employees", "employee_id", eids),
                        ("projects", "project_code", ["WF345-P"])):
         purge(conn, t, c, vals)
 
@@ -191,11 +199,13 @@ def main() -> int:
     # ---- delete permanently: blocked by history, complete when history-free
     p = admin.get(f"{API}/workers/{A[0]}/removal").get_json()["data"]
     assert p["can_delete"] is False and p["blocking"].get("sign-ins") == 1, p
+    assert "company ID cards" not in p["blocking"], "#349: a card alone never blocks"
     assert "name" not in json.dumps(p), "no names in the removal preview"
     r = admin.delete(f"{API}/workers/{A[0]}")
     assert r.status_code == 409 and _scalar("SELECT COUNT(*) FROM employees WHERE employee_id=?", (A[0],)) == 1
     p = admin.get(f"{API}/workers/{B[0]}/removal").get_json()["data"]
     assert p["can_delete"] is True and p["folder_files"] == 1, p
+    assert p["cards"] == {"company ID cards": 1} and "credentials" not in json.dumps(p), p   # #349
     assert p["removes"].get("labor_worker_state", 0) >= 1 and p["removes"].get("labor_rate_change", 0) >= 1 \
         and p["removes"].get("project_assignments") == 1, p["removes"]
     r = admin.delete(f"{API}/workers/{B[0]}")
@@ -209,6 +219,12 @@ def main() -> int:
                 "SELECT COUNT(*) FROM labor_rate_change WHERE worker_id=?"):
         assert _scalar(sql, (B[1],)) == 0, sql
     assert not _folder(B[0]).exists(), "the worker's records folder goes too"
+    assert r.get_json()["data"]["cards_removed"] == 1
+    assert _scalar("SELECT COUNT(*) FROM company_id_cards WHERE employee_id=?", (B[0],)) == 0, "#349 card row goes"
+    assert not (DATA_ROOT / "data_room" / "credentials" / "company_id" / f"{B[0]}_v1.jpg").exists(), "#349 card file goes"
+    assert (DATA_ROOT / "data_room" / "credentials" / "company_id" / f"{A[0]}_v1.jpg").exists(), "others' card files stay"
+    aft = json.loads(_scalar("SELECT after_json FROM audit_log WHERE action='worker_delete' AND target_id=?", (B[0],)))
+    assert aft["cards"] == [f"SSC-CID-{B[0]}-1"], aft
     aud = _scalar("SELECT before_json FROM audit_log WHERE action='worker_delete' AND target_id=?", (B[0],))
     assert aud and "Wf345" not in aud and json.loads(aud)["worker_id"] == B[1], "audit keeps IDs, not names"
     passed += 1; print("  delete permanently ok")

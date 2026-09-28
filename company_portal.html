@@ -2166,8 +2166,9 @@
         return;
       }
       const rows = Object.values(p.removes || {}).reduce((a, n) => a + n, 0);
-      if (!confirm('Permanently delete ' + p.worker_id + '?\n\nThey have no sign-ins, certifications, documents or cards, so nothing historical is lost. Removed with them: '
-        + rows + ' setup row(s) (assignments, rate, labor status)' + (p.folder_files ? ' and their records folder (' + p.folder_files + ' file(s))' : '')
+      const cardList = Object.entries(p.cards || {}).map(([k, n]) => n + ' ' + k).join(', ');   // #349
+      if (!confirm('Permanently delete ' + p.worker_id + '?\n\nThey have no sign-ins, certifications or documents, so no work history is lost. Removed with them: '
+        + rows + ' setup row(s) (assignments, rate, labor status)' + (cardList ? ', their ID card records (' + cardList + ')' : '') + (p.folder_files ? ' and their records folder (' + p.folder_files + ' file(s))' : '')
         + '.\n\nThis cannot be undone.')) return;
       try {
         await api('/workers/' + encodeURIComponent(state.workerId), { method: 'DELETE' });

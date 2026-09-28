@@ -21,6 +21,18 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### #349 — Delete permanently: an ID card alone no longer blocks (Bookore, 2026-09-27)
+
+* Test worker W-0027 couldn't be deleted: it had one company ID card (issued during testing).
+  Angela chose "remove cards too": a card on its own is not work history (a card can be
+  printed at onboarding), so for a worker with no sign-ins / certs / documents / photos /
+  sign-offs / vehicle / login, Delete permanently now also removes their `cof_cards` /
+  `company_id_cards` rows and the card files they reference (only inside
+  `data_room/credentials`). The preview returns `cards` counts, the confirm lists them, the
+  `worker_delete` audit keeps the card IDs. Anyone with real history is still refused.
+* Note: project crew links were never the blocker — `project_assignments` are purged with the
+  worker; crew is edited under Projects admin → Crew & site (uncheck a worker).
+
 ### #348 — DCR 109 → 097 fix: a leftover 097 folder no longer blocks it (Bookore, 2026-09-26)
 
 * On production the fix refused with "A folder for DCR-FR-BX-001-097 is already on this
