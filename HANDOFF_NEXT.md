@@ -141,6 +141,17 @@ grant, or elevation code.
   Daily Report → All numbers → check what's in 097–108; delete test/duplicate reports only
   → the one-time box turns "Ready" → apply. If 097 is a real report it refuses; talk first.
 
+### #351 — Drawing Markup + Weekly Summary "refuse to connect" fixed (Bookore, 2026-09-28)
+
+* **Cause:** #297's perimeter headers sent `X-Frame-Options: DENY` + `frame-ancestors 'none'`
+  on EVERY response, and the project dashboard embeds two pages in iframes
+  (`/drawing-markup`, `/api/projects/<code>/weekly/render`) — so the browser blocked both
+  ("refuses to connect") since #297.
+* **Fix:** `http_security._SAME_ORIGIN_FRAMEABLE` — only those two paths get
+  `SAMEORIGIN` / `frame-ancestors 'self'`; every other page (and look-alike paths) keeps
+  DENY / 'none'. Another site still cannot frame anything. Add a path there if the
+  dashboard ever embeds a new page.
+* **Test:** `tests/smoke_http_security_297.py` now checks the behaviour on a bare Flask app.
 ### #352 — Drop Plan: column repair per drop (L × W × D) (Bookore, 2026-09-28)
 
 * **What:** each drop's repair panel has a **Concrete patch / Column repair** switch with the
