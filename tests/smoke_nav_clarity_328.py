@@ -163,8 +163,14 @@ def main() -> int:
     # ---- stylesheet: the compact-bar rule shipped and the cache key moved
     css = (ROOT / "static" / "css" / "widgets.css").read_text(encoding="utf-8")
     assert ".sidebar .proj-line { display: flex" in css
+    # the four shells share ONE cache key, moved at least to #328's (later sweeps move it on)
+    import re
+    keys = set()
     for page in ("dashboard-static.html", "company-dashboard.html", "company_portal.html", "portal_shell.html"):
-        assert "widgets.css?v=328" in (ROOT / page).read_text(encoding="utf-8"), page
+        m = re.search(r"widgets\.css\?v=(\d+)", (ROOT / page).read_text(encoding="utf-8"))
+        assert m and int(m.group(1)) >= 328, page
+        keys.add(m.group(1))
+    assert len(keys) == 1, keys
     passed += 1; print("  stylesheet ok")
 
     print(f"PASS smoke_nav_clarity_328 ({passed} groups)")
