@@ -36,12 +36,12 @@ def _any(p):
 
 
 _c = _app.test_client()
-for path in ("/drawing-markup", "/api/projects/FR-BX-001/weekly/render"):
+for path in ("/drawing-markup", "/drawing-markup/12", "/api/projects/FR-BX-001/weekly/render"):
     r = _c.get(path)
     assert r.headers["X-Frame-Options"] == "SAMEORIGIN", path
     assert "frame-ancestors 'self'" in r.headers["Content-Security-Policy"], path
 for path in ("/company", "/projects/FR-BX-001", "/api/projects/FR-BX-001/weekly/render/x",
-             "/drawing-markup-evil", "/login"):
+             "/drawing-markup-evil", "/drawing-markup/12/x", "/drawing-markup/abc", "/login"):
     r = _c.get(path)
     assert r.headers["X-Frame-Options"] == "DENY", path
     assert "frame-ancestors 'none'" in r.headers["Content-Security-Policy"], path

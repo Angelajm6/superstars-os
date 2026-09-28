@@ -17,7 +17,7 @@ from flask import request
 # another site, and every other page stays unframeable. Without this the browser
 # showed "refuses to connect" in both panels.
 _SAME_ORIGIN_FRAMEABLE = (
-    re.compile(r"^/drawing-markup/?$"),
+    re.compile(r"^/drawing-markup(?:/\d+)?/?$"),   # the page + a chosen elevation (/drawing-markup/<id>)
     re.compile(r"^/api/projects/[^/]+/weekly/render$"),
 )
 
