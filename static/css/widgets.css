@@ -35,6 +35,12 @@
   /* #245 — warm cream surface family (cost columns, totals row) */
   --cream:#faf7f1;
   --cream-line:#efe9dd;
+  /* #343b stage 2 — the families the long tail needed. Warning = the company
+     portal's existing warn pill (#FFF4E5 / #9A5B00); deep red = its bad-pill ink. */
+  --status-warn:#9A5B00; --status-warn-soft:#FFF4E5; --status-warn-edge:#E8C9A0;
+  --status-behind-deep:#A8382B;
+  --ink-2:#4A4F59;      /* secondary body text: between --ink and --muted */
+  --fill:#F4F5F8;       /* subtle neutral fill (table heads, chips, hovers) */
 }
 
 /* ===== Shared CTA buttons (#236) — ONE primary style site-wide. A primary
