@@ -3811,12 +3811,13 @@ def delete_employee(emp_id):
         plan = worker_lifecycle.removal_plan(conn, emp_id)
         counts = {**plan["blocking"], "total": sum(plan["blocking"].values())}
         if plan["can_delete"]:
-            _, err = worker_lifecycle.delete_worker(conn, emp_id)
+            removed, err = worker_lifecycle.delete_worker(conn, emp_id)
             if err:
                 return err
             conn.commit()
             conn.close(); conn = None
             worker_lifecycle.remove_folder(emp_id)
+            worker_lifecycle.remove_card_files(removed.get("_card_files"))   # #349
             return response_wrapper({"employee_id": emp_id, "deleted": "hard", "history_counts": counts}), 200
         conn.execute("UPDATE employees SET archived_at = CURRENT_TIMESTAMP, archived_reason = ?, "
                      "updated_at = CURRENT_TIMESTAMP WHERE employee_id = ?", (reason, emp_id))
