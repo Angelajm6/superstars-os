@@ -168,6 +168,41 @@ grant, or elevation code.
   as patches and never picks COL-REPAIR as its patch line. The new SOV line shows in the
   financial Schedule of Values with no unit rate until one is set.
 * **Test:** `tests/smoke_column_repair_352.py` (both gates).
+### #353 — Drawing Markup: the real building in 3D (Google Photorealistic 3D Tiles) (Bookore, 2026-09-28)
+
+* **What:** the 3D view gets a **Photoreal / Massing** toggle. Photoreal streams Google's
+  textured 3D mesh of the real building (no capture, no manual work), anchored at the
+  model's reference lat/lng (the origin of every local coordinate), and the drop x level
+  grid floats see-through on the real walls, still clickable. Default = photoreal when it
+  is set up; massing otherwise, and on any key / quota / coverage error (with a note).
+* **Renderer:** NASA-AMMOS `3d-tiles-renderer` 0.5.3 (Apache-2.0) vendored in
+  `static/vendor/3d-tiles-renderer/` + three 0.169.0 add-ons (GLTFLoader, DRACOLoader +
+  decoder, BufferGeometryUtils, Pass) in `static/vendor/three-addons/`. Our vendored
+  three.module.min.js is byte-identical to the official 0.169.0 build. The page's import
+  map maps bare `three` / `three/addons/` to those files (same URL building3d.js imports ->
+  one three.js instance). The vector-tile plugins' `@mapbox/vector-tile` / `pbf` /
+  `pmtiles` are lazy `import()`s the photoreal path never calls — not vendored.
+* **Frames:** the library's OBJECT_FRAME is +Z north / +X west; ReorientationPlugin
+  `azimuth: Math.PI` turns it into ours (+X east, -Z north). Heights are ellipsoidal: the
+  grid starts at `ground_ellipsoid_m` (NYC ground_ft + GEOID -32.7 m) and is re-seated by a
+  downward ray onto the loaded tiles just outside a wall.
+* **Switch-on rule (`building_3d.photoreal`):** needs `SSC_GOOGLE_TILES_KEY` (browser key,
+  referrer + Map Tiles API restricted) AND today's app-side cap not used up AND the official Google Maps logo
+  at `static/vendor/google/google_maps_logo.svg` (policy: logo + data credits on screen) AND
+  a located building. Reasons surface as no_key / no_logo / no_location.
+* **Not done yet:** the key (Angela sets it in Render) and the logo file (from Google's
+  Map Tiles "attribution assets" zip — needs a download OK). Until both exist, nothing
+  changes for users.
+* **Cost + cap:** Map Tiles API "Photorealistic 3D Tiles" — 1,000 root-tileset requests /
+  month free (each = one 3D session of up to 3 h), then $6 per 1,000. Google's "3D Tiles
+  root requests per day" quota is NOT adjustable, so the cap is app-side: the key is NOT in
+  the model payload; `POST /api/elevation/model3d/<code>/photoreal-session` counts a session
+  in `photoreal_usage(day, sessions)` and returns the key, 429 past
+  `SSC_GOOGLE_TILES_DAILY_CAP` (default 30/day ≈ 900/month). The key is referrer-restricted
+  to our three hosts, so the app is its only consumer. Backup: a $1 billing budget alert.
+* **Test:** `tests/smoke_photoreal_3d_353.py` (both gates). Verified locally with a dummy
+  key: the module chain loads via the import map, the renderer requests Google's root
+  tileset with the key, Google rejects it, and the view falls back to massing with a note.
 
 ### #343b (stage 2) — the long tail of status and neutral colors (Bookore, 2026-09-28)
 
