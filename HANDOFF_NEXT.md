@@ -141,6 +141,33 @@ grant, or elevation code.
   Daily Report → All numbers → check what's in 097–108; delete test/duplicate reports only
   → the one-time box turns "Ready" → apply. If 097 is a real report it refuses; talk first.
 
+### #351 — Drawing Markup + Weekly Summary "refuse to connect" fixed (Bookore, 2026-09-28)
+
+* **Cause:** #297's perimeter headers sent `X-Frame-Options: DENY` + `frame-ancestors 'none'`
+  on EVERY response, and the project dashboard embeds two pages in iframes
+  (`/drawing-markup`, `/api/projects/<code>/weekly/render`) — so the browser blocked both
+  ("refuses to connect") since #297.
+* **Fix:** `http_security._SAME_ORIGIN_FRAMEABLE` — only those two paths get
+  `SAMEORIGIN` / `frame-ancestors 'self'`; every other page (and look-alike paths) keeps
+  DENY / 'none'. Another site still cannot frame anything. Add a path there if the
+  dashboard ever embeds a new page.
+* **Test:** `tests/smoke_http_security_297.py` now checks the behaviour on a bare Flask app.
+### #352 — Drop Plan: column repair per drop (L × W × D) (Bookore, 2026-09-28)
+
+* **What:** each drop's repair panel has a **Concrete patch / Column repair** switch with the
+  same L × W × D inputs (in/ft per dimension, live CF). A column repair is a
+  `quantity_entries` row on the project's `COL-REPAIR` SOV line ("Column repair", CF),
+  created on first use by `dropplan_rollups.ensure_column_repair_sov` when the POST carries
+  `kind: "column_repair"` (no sov_line_item). It needs all three dimensions.
+* **Totals kept apart:** `drop_summary.volume_to_date` stays patch-only (the "patch CF"
+  hero); new `column_repair_to_date` feeds a "column repair CF" hero stat (shown once any is
+  logged) and the panel's second running total. The project rollup lists both SOV lines.
+  The Drop Report gets a "Column repairs logged" section + a summary figure.
+* **Unchanged on purpose:** Product Usage (materials) consumes ALL logged volume — column
+  repairs use the same repair mortar. The legacy `/dropplan` page never lists column repairs
+  as patches and never picks COL-REPAIR as its patch line. The new SOV line shows in the
+  financial Schedule of Values with no unit rate until one is set.
+* **Test:** `tests/smoke_column_repair_352.py` (both gates).
 ### #353 — Drawing Markup: the real building in 3D (Google Photorealistic 3D Tiles) (Bookore, 2026-09-28)
 
 * **What:** the 3D view gets a **Photoreal / Massing** toggle. Photoreal streams Google's
