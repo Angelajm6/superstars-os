@@ -9705,7 +9705,8 @@ def api_dropplan_post_quantity(drop_id):
     try:
         body = request.get_json(silent=True) or {}
         sov_line = body.get('sov_line_item')
-        if sov_line is None:
+        column_repair = sov_line is None and body.get('kind') == 'column_repair'   # #352
+        if sov_line is None and not column_repair:
             return jsonify({"error": "sov_line_item required"}), 400
 
         # Dimensions (concrete patch). All three required together if any present.
@@ -9719,6 +9720,8 @@ def api_dropplan_post_quantity(drop_id):
         is_patch = any(dims_present)
         if is_patch and not all(dims_present):
             return jsonify({"error": "a concrete patch needs all of length, width, depth"}), 400
+        if column_repair and not is_patch:
+            return jsonify({"error": "a column repair needs length, width and depth"}), 400
 
         def _unit(key):
             u = (body.get(key) or 'ft')
@@ -9742,8 +9745,12 @@ def api_dropplan_post_quantity(drop_id):
         logged_by = body.get('logged_by') or _dropplan_actor()
         conn = db()
         try:
-            if conn.execute("SELECT 1 FROM drops WHERE drop_id=?", (drop_id,)).fetchone() is None:
+            drop_row = conn.execute("SELECT project_code FROM drops WHERE drop_id=?", (drop_id,)).fetchone()
+            if drop_row is None:
                 return jsonify({"error": "drop not found"}), 404
+            if column_repair:
+                import dropplan_rollups as _dpr
+                sov_line = _dpr.ensure_column_repair_sov(conn, drop_row["project_code"])
             if conn.execute("SELECT 1 FROM sov_line_items WHERE sov_id=?", (sov_line,)).fetchone() is None:
                 return jsonify({"error": "sov_line_item not found"}), 404
             cur = conn.execute(

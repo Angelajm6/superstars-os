@@ -152,6 +152,22 @@ grant, or elevation code.
   DENY / 'none'. Another site still cannot frame anything. Add a path there if the
   dashboard ever embeds a new page.
 * **Test:** `tests/smoke_http_security_297.py` now checks the behaviour on a bare Flask app.
+### #352 — Drop Plan: column repair per drop (L × W × D) (Bookore, 2026-09-28)
+
+* **What:** each drop's repair panel has a **Concrete patch / Column repair** switch with the
+  same L × W × D inputs (in/ft per dimension, live CF). A column repair is a
+  `quantity_entries` row on the project's `COL-REPAIR` SOV line ("Column repair", CF),
+  created on first use by `dropplan_rollups.ensure_column_repair_sov` when the POST carries
+  `kind: "column_repair"` (no sov_line_item). It needs all three dimensions.
+* **Totals kept apart:** `drop_summary.volume_to_date` stays patch-only (the "patch CF"
+  hero); new `column_repair_to_date` feeds a "column repair CF" hero stat (shown once any is
+  logged) and the panel's second running total. The project rollup lists both SOV lines.
+  The Drop Report gets a "Column repairs logged" section + a summary figure.
+* **Unchanged on purpose:** Product Usage (materials) consumes ALL logged volume — column
+  repairs use the same repair mortar. The legacy `/dropplan` page never lists column repairs
+  as patches and never picks COL-REPAIR as its patch line. The new SOV line shows in the
+  financial Schedule of Values with no unit rate until one is set.
+* **Test:** `tests/smoke_column_repair_352.py` (both gates).
 
 ### #343b (stage 2) — the long tail of status and neutral colors (Bookore, 2026-09-28)
 
