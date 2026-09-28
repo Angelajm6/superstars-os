@@ -3,7 +3,7 @@
 
 No network, no key. Proves:
   * building_3d.photoreal() switches on ONLY with a key AND the vendored Google logo AND a
-    located building; otherwise it names the reason (no_key / no_logo / no_location) and the
+    located building AND today's app-side session cap not used up; otherwise it names the reason (no_key / no_logo / no_location) and the
     page keeps the massing view. When on, it hands the browser the key, the reference
     lat/lng (the origin of every local coordinate) and a ground guess on the ellipsoid.
   * the model payload carries the block
@@ -43,7 +43,7 @@ def check_availability() -> None:
         tmp.write_text("<svg/>", encoding="utf-8")
         assert building_3d.photoreal({"available": False})["reason"] == "no_location"
         on = building_3d.photoreal(GEOM)
-        assert on["available"] is True and on["key"] == "test-browser-key", on
+        assert on["available"] is True and "key" not in on, "the key is only handed out by /photoreal-session"
         assert (on["lat"], on["lng"]) == (GEOM["lat"], GEOM["lng"])
         assert abs(on["ground_ellipsoid_m"] - (21.0 * 0.3048 + building_3d.GEOID_NYC_M)) < 0.01, on
     finally:
@@ -53,8 +53,42 @@ def check_availability() -> None:
         else:
             os.environ["SSC_GOOGLE_TILES_KEY"] = old_key
     src = (ROOT / "building_3d.py").read_text(encoding="utf-8")
-    assert '"photoreal": photoreal(geometry)' in src, "the model payload must carry the photoreal block"
+    assert '"photoreal": photoreal(geometry, conn)' in src, "the model payload must carry the photoreal block"
+    assert '"/api/elevation/model3d/<project_code>/photoreal-session"' in src
     print("  availability rules ok")
+
+
+def check_daily_cap() -> None:
+    """The app-side cap: Google's root-requests/day quota is not adjustable, so the app counts
+    sessions per day and refuses past SSC_GOOGLE_TILES_DAILY_CAP (default 30)."""
+    import sqlite3
+    old = {k: os.environ.get(k) for k in ("SSC_GOOGLE_TILES_KEY", "SSC_GOOGLE_TILES_DAILY_CAP")}
+    old_logo = building_3d.GOOGLE_LOGO_REL
+    tmp = Path(tempfile.mkdtemp(prefix="ssc_pr353c_")) / "logo.svg"
+    tmp.write_text("<svg/>", encoding="utf-8")
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    try:
+        os.environ.pop("SSC_GOOGLE_TILES_DAILY_CAP", None)
+        assert building_3d.daily_cap() == 30
+        os.environ["SSC_GOOGLE_TILES_KEY"] = "k"
+        os.environ["SSC_GOOGLE_TILES_DAILY_CAP"] = "2"
+        building_3d.GOOGLE_LOGO_REL = str(tmp)
+        conn.execute("CREATE TABLE photoreal_usage (day TEXT PRIMARY KEY, sessions INTEGER NOT NULL DEFAULT 0)")
+        assert building_3d.photoreal(GEOM, conn)["available"] is True
+        assert building_3d.claim_session(conn) and building_3d.claim_session(conn)
+        assert building_3d.claim_session(conn) is False, "third session past a cap of 2 must be refused"
+        assert building_3d.used_today(conn) == 2
+        assert building_3d.photoreal(GEOM, conn) == {"available": False, "reason": "daily_cap"}
+    finally:
+        conn.close()
+        building_3d.GOOGLE_LOGO_REL = old_logo
+        for k, v in old.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+    print("  daily cap ok")
 
 
 def check_vendor() -> None:
@@ -91,6 +125,7 @@ def check_page() -> None:
     assert '"three/addons/":"/files/static/vendor/three-addons/"' in m.group(1)
     assert page.index('type="importmap"') < page.index("<script>"), "the import map must come before any module load"
     assert "building3d.js?v=" in page and "onPhotorealError" in page and "prAvailable" in page
+    assert "/photoreal-session" in page and "sres.status === 429" in page, "the page starts a counted session first"
     js = (ROOT / "static/js/building3d.js").read_text(encoding="utf-8")
     assert "from '/files/static/vendor/three.module.min.js'" in js, "same URL as the import map -> one three.js instance"
     assert "azimuth: Math.PI" in js and "GoogleCloudAuthPlugin" in js and "logoUrl: pr.logo_url" in js
@@ -100,9 +135,10 @@ def check_page() -> None:
 
 def main() -> int:
     check_availability()
+    check_daily_cap()
     check_vendor()
     check_page()
-    print("PASS smoke_photoreal_3d_353 (3 groups)")
+    print("PASS smoke_photoreal_3d_353 (4 groups)")
     return 0
 
 

@@ -956,7 +956,7 @@
   function open3d() {
     var code = S.data && S.data.project_code; if (!code) return;
     $('stage3d').hidden = false; $('stage').hidden = true; $('stage3d').innerHTML = '<div class="v2-muted" style="padding:24px">Building the model…</div>';
-    var load = V3.mod ? Promise.resolve(V3.mod) : import('/files/static/js/building3d.js?v=353b').then(function (m) { V3.mod = m; return m; });
+    var load = V3.mod ? Promise.resolve(V3.mod) : import('/files/static/js/building3d.js?v=353c').then(function (m) { V3.mod = m; return m; });
     var model = fetch('/api/elevation/model3d/' + encodeURIComponent(code), { credentials:'same-origin' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (j) { return j.data; });
     Promise.all([load, model]).then(function (res) {
       var mod = res[0], m = res[1];
@@ -969,6 +969,24 @@
         if (S.data && S.elevId) V3.elevs[S.elevId] = S.data;
         var prOk = !!(m.photoreal && m.photoreal.available);
         if (V3.mode == null) V3.mode = prOk ? 'photoreal' : 'massing';   // the real building by default when set up
+        if (!prOk && m.photoreal && m.photoreal.reason === 'daily_cap' && !V3.prNote) V3.prNote = "Today's photoreal views are used up (free-tier limit).";
+        // #353 — a photoreal session is started (and counted against the daily cap) only now;
+        // the key comes back with it. Cap reached / not set up -> massing with a note.
+        var session = (V3.mode === 'photoreal' && prOk)
+          ? fetch('/api/elevation/model3d/' + encodeURIComponent(code) + '/photoreal-session', { method:'POST', credentials:'same-origin' })
+              .then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
+              .catch(function () { return { status: 0, j: {} }; })
+          : Promise.resolve(null);
+        return session.then(function (sres) {
+        var prCfg = null;
+        if (sres) {
+          if (sres.status === 200 && sres.j && sres.j.data && sres.j.data.key) {
+            prCfg = Object.assign({}, m.photoreal, { key: sres.j.data.key });
+          } else {
+            V3.mode = 'massing';
+            V3.prNote = sres.status === 429 ? "Today's photoreal views are used up (free-tier limit)." : 'The Google 3D view is unavailable right now.';
+          }
+        }
         V3.view = mod.open($('stage3d'), m, V3.elevs, {
           onMode: function (mode) { V3.mode = mode; V3.prNote = ''; open3d(); },
           onPhotorealError: function (msg) {
@@ -982,9 +1000,10 @@
             else { S.drop = dropId; render(); renderPanel(); }
             if (V3.view) V3.view.highlight(cellId);
           }
-        }, { photoreal: (V3.mode === 'photoreal' && prOk) ? m.photoreal : null, prAvailable: prOk });
+        }, { photoreal: prCfg, prAvailable: prOk });
         if (V3.prNote) $('stage3d').insertAdjacentHTML('afterbegin', '<div class="v2-muted" style="padding:10px 0">' + V3.prNote.replace(/[<>&]/g, '') + ' Showing the massing model instead.</div>');
         if (!ids.length) $('stage3d').insertAdjacentHTML('afterbegin', '<div class="v2-muted" style="padding:10px 0">No traced elevation to drape yet — the building shows as a plain block.</div>');
+        });
       });
     }).catch(function () { $('stage3d').innerHTML = '<div class="v2-muted" style="padding:24px">The 3D view could not load. The 2D sheet is unaffected.</div>'; });
   }

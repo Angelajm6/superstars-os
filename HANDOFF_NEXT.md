@@ -160,15 +160,19 @@ grant, or elevation code.
   grid starts at `ground_ellipsoid_m` (NYC ground_ft + GEOID -32.7 m) and is re-seated by a
   downward ray onto the loaded tiles just outside a wall.
 * **Switch-on rule (`building_3d.photoreal`):** needs `SSC_GOOGLE_TILES_KEY` (browser key,
-  referrer + Map Tiles API restricted, daily-quota capped) AND the official Google Maps logo
+  referrer + Map Tiles API restricted) AND today's app-side cap not used up AND the official Google Maps logo
   at `static/vendor/google/google_maps_logo.svg` (policy: logo + data credits on screen) AND
   a located building. Reasons surface as no_key / no_logo / no_location.
 * **Not done yet:** the key (Angela sets it in Render) and the logo file (from Google's
   Map Tiles "attribution assets" zip — needs a download OK). Until both exist, nothing
   changes for users.
-* **Cost:** Map Tiles API "Photorealistic 3D Tiles" — 1,000 root-tileset requests / month
-  free (each = one 3D session of up to 3 h), then $6 per 1,000. The daily quota cap keeps
-  it at $0.
+* **Cost + cap:** Map Tiles API "Photorealistic 3D Tiles" — 1,000 root-tileset requests /
+  month free (each = one 3D session of up to 3 h), then $6 per 1,000. Google's "3D Tiles
+  root requests per day" quota is NOT adjustable, so the cap is app-side: the key is NOT in
+  the model payload; `POST /api/elevation/model3d/<code>/photoreal-session` counts a session
+  in `photoreal_usage(day, sessions)` and returns the key, 429 past
+  `SSC_GOOGLE_TILES_DAILY_CAP` (default 30/day ≈ 900/month). The key is referrer-restricted
+  to our three hosts, so the app is its only consumer. Backup: a $1 billing budget alert.
 * **Test:** `tests/smoke_photoreal_3d_353.py` (both gates). Verified locally with a dummy
   key: the module chain loads via the import map, the renderer requests Google's root
   tileset with the key, Google rejects it, and the view falls back to massing with a note.
