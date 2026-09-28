@@ -28,6 +28,8 @@ from __future__ import annotations
 import json
 import logging
 import math
+import os
+from pathlib import Path
 from datetime import date, datetime, timedelta
 from typing import Optional
 
@@ -396,7 +398,38 @@ def model(conn, code: str, *, fetch=None, refresh: bool = False) -> Optional[dic
     return {"project": {"project_code": p["project_code"], "name": p.get("name"), "address": p.get("address_line") or p.get("address"),
                         "borough": p.get("borough"), "stories": stories},
             "geometry": geometry, "fallback": fallback, "elevations": elevs, "mapping": mapping,
+            "photoreal": photoreal(geometry),   # #353
             "audience": _elev.audience(), "can_refresh": internal}
+
+
+# ---------------------------------------------------------------- #353 photoreal
+# Google Photorealistic 3D Tiles, drawn by the vendored NASA-AMMOS 3d-tiles-renderer.
+# SSC_GOOGLE_TILES_KEY is a BROWSER key (HTTP-referrer + Map Tiles API restricted, daily
+# quota capped) — public by nature, so it may reach any viewer who can open the model.
+# Google's policy requires its Maps logo on screen, so photoreal only switches on when the
+# official logo file is vendored too. Without either, the massing view is used as today.
+GOOGLE_LOGO_REL = "static/vendor/google/google_maps_logo.svg"
+GEOID_NYC_M = -32.7   # NAVD88 -> WGS84 ellipsoid offset around New York City (approx.)
+
+
+def photoreal(geometry: dict) -> dict:
+    key = (os.environ.get("SSC_GOOGLE_TILES_KEY") or "").strip()
+    logo = Path(__file__).resolve().parent / GOOGLE_LOGO_REL
+    out = {"available": False, "reason": None}
+    if not key:
+        out["reason"] = "no_key"
+    elif not logo.is_file():
+        out["reason"] = "no_logo"
+    elif not (geometry or {}).get("available") or geometry.get("lat") is None:
+        out["reason"] = "no_location"
+    else:
+        ground_ft = geometry.get("ground_ft")
+        out.update({"available": True, "key": key, "lat": geometry["lat"], "lng": geometry["lng"],
+                    "logo_url": "/files/" + GOOGLE_LOGO_REL,
+                    # starting guess for the ground on Google's ellipsoid; the browser refines
+                    # it by casting a ray onto the loaded tiles
+                    "ground_ellipsoid_m": round((ground_ft or 0.0) * FT + GEOID_NYC_M, 2)})
+    return out
 
 
 # ---------------------------------------------------------------- routes

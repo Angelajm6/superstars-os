@@ -165,6 +165,9 @@
     * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   }
 </style>
+<!-- #353 — resolves the vendored 3D-tiles library's bare "three" imports to the one
+     vendored three.js build (same URL building3d.js imports, so one module instance) -->
+<script type="importmap">{"imports":{"three":"/files/static/vendor/three.module.min.js","three/addons/":"/files/static/vendor/three-addons/"}}</script>
 </head>
 <body class="v2">
 <div class="wrap">
@@ -945,7 +948,7 @@
   // The viewer is an ES module (vendored three.js) loaded on first use. It draws every
   // traced elevation of the job on the real building; picking a cell opens the same panel
   // as the 2D sheet, on the same state.
-  var V3 = { on: false, mod: null, view: null, elevs: {} };
+  var V3 = { on: false, mod: null, view: null, elevs: {}, mode: null, prNote: '' };   // #353 mode: 'photoreal' | 'massing'
   function toneColorCss(tone) {
     var probe = document.createElement('span'); probe.style.color = toneChip(tone); document.body.appendChild(probe);
     var c = getComputedStyle(probe).color; probe.remove(); return c;
@@ -953,7 +956,7 @@
   function open3d() {
     var code = S.data && S.data.project_code; if (!code) return;
     $('stage3d').hidden = false; $('stage').hidden = true; $('stage3d').innerHTML = '<div class="v2-muted" style="padding:24px">Building the model…</div>';
-    var load = V3.mod ? Promise.resolve(V3.mod) : import('/files/static/js/building3d.js').then(function (m) { V3.mod = m; return m; });
+    var load = V3.mod ? Promise.resolve(V3.mod) : import('/files/static/js/building3d.js?v=353b').then(function (m) { V3.mod = m; return m; });
     var model = fetch('/api/elevation/model3d/' + encodeURIComponent(code), { credentials:'same-origin' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (j) { return j.data; });
     Promise.all([load, model]).then(function (res) {
       var mod = res[0], m = res[1];
@@ -964,7 +967,14 @@
       })).then(function (payloads) {
         V3.elevs = {}; ids.forEach(function (id, i) { if (payloads[i]) V3.elevs[id] = payloads[i]; });
         if (S.data && S.elevId) V3.elevs[S.elevId] = S.data;
+        var prOk = !!(m.photoreal && m.photoreal.available);
+        if (V3.mode == null) V3.mode = prOk ? 'photoreal' : 'massing';   // the real building by default when set up
         V3.view = mod.open($('stage3d'), m, V3.elevs, {
+          onMode: function (mode) { V3.mode = mode; V3.prNote = ''; open3d(); },
+          onPhotorealError: function (msg) {
+            // #353 — key, quota or coverage problem: fall back to massing, say why once
+            V3.mode = 'massing'; V3.prNote = msg || 'The Google 3D view is unavailable right now.'; open3d();
+          },
           toneColor: toneColorCss,
           statusOf: function (ep, key) { return (ep && ep.statuses && ep.statuses[key]) || { key:key, label:key, tone:'neutral' }; },
           onPick: function (elevId, dropId, cellId) {
@@ -972,7 +982,8 @@
             else { S.drop = dropId; render(); renderPanel(); }
             if (V3.view) V3.view.highlight(cellId);
           }
-        });
+        }, { photoreal: (V3.mode === 'photoreal' && prOk) ? m.photoreal : null, prAvailable: prOk });
+        if (V3.prNote) $('stage3d').insertAdjacentHTML('afterbegin', '<div class="v2-muted" style="padding:10px 0">' + V3.prNote.replace(/[<>&]/g, '') + ' Showing the massing model instead.</div>');
         if (!ids.length) $('stage3d').insertAdjacentHTML('afterbegin', '<div class="v2-muted" style="padding:10px 0">No traced elevation to drape yet — the building shows as a plain block.</div>');
       });
     }).catch(function () { $('stage3d').innerHTML = '<div class="v2-muted" style="padding:24px">The 3D view could not load. The 2D sheet is unaffected.</div>'; });
