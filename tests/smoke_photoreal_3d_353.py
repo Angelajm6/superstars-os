@@ -118,6 +118,18 @@ def check_vendor() -> None:
     print("  vendored library complete ok")
 
 
+def check_logo() -> None:
+    """Google's policy: its Maps logo, unmodified, on screen with the data credits. The
+    vendored file is the "Gray" variant from Google_Maps_Attribution_Assets.zip."""
+    logo = ROOT / building_3d.GOOGLE_LOGO_REL
+    assert logo.is_file(), "photoreal cannot switch on without the vendored Google Maps logo"
+    svg = logo.read_text(encoding="utf-8")
+    assert "<svg" in svg and 'viewBox="0 0 98 18"' in svg
+    for bad in ("<script", "onload", "href=", "<foreignObject"):
+        assert bad not in svg.lower(), bad
+    print("  Google logo vendored ok")
+
+
 def check_page() -> None:
     page = (ROOT / "templates/v2/drawing-markup.html").read_text(encoding="utf-8")
     m = re.search(r'<script type="importmap">(.*?)</script>', page, re.S)
@@ -137,8 +149,9 @@ def main() -> int:
     check_availability()
     check_daily_cap()
     check_vendor()
+    check_logo()
     check_page()
-    print("PASS smoke_photoreal_3d_353 (4 groups)")
+    print("PASS smoke_photoreal_3d_353 (5 groups)")
     return 0
 
 
