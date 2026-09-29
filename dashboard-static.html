@@ -5866,7 +5866,7 @@
         function applyType(bt, label) {
           document.body.dataset.billingType = bt || '';
           document.querySelectorAll('[data-bt-label]').forEach(el => { el.textContent = (label || '').toLowerCase(); });
-          const nav = document.querySelector('.nav-link[data-view="sov"]');
+          const nav = document.querySelector('.nav-link[data-view=sov]');
           if (nav) nav.hidden = !!(bt && bt !== 'aia_sov');
         }
         async function loadSettings() {
