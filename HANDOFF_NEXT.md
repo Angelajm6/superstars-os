@@ -190,9 +190,10 @@ grant, or elevation code.
   referrer + Map Tiles API restricted) AND today's app-side cap not used up AND the official Google Maps logo
   at `static/vendor/google/google_maps_logo.svg` (policy: logo + data credits on screen) AND
   a located building. Reasons surface as no_key / no_logo / no_location.
-* **Not done yet:** the key (Angela sets it in Render) and the logo file (from Google's
-  Map Tiles "attribution assets" zip — needs a download OK). Until both exist, nothing
-  changes for users.
+* **Set up (2026-09-29):** key in Render on preprod (production: add the same
+  `SSC_GOOGLE_TILES_KEY` on the ssc-dashboard service); logo = the "Gray" SVG from Google's
+  `Google_Maps_Attribution_Assets.zip` (developers.google.com), vendored unmodified at
+  `static/vendor/google/google_maps_logo.svg`, shown 18 px tall in the credits bar.
 * **Cost + cap:** Map Tiles API "Photorealistic 3D Tiles" — 1,000 root-tileset requests /
   month free (each = one 3D session of up to 3 h), then $6 per 1,000. Google's "3D Tiles
   root requests per day" quota is NOT adjustable, so the cap is app-side: the key is NOT in

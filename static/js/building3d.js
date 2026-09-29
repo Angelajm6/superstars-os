@@ -203,7 +203,7 @@ export function open(host, model, elevations, hooks, opts) {
     renderer.domElement.style.background = '#cfd8e6';
     credits = document.createElement('div');
     credits.style.cssText = 'position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:8px;padding:5px 10px;background:rgba(255,255,255,.85);font:11px Inter,system-ui,sans-serif;color:#3c414d;pointer-events:none;border-radius:0 0 12px 12px';
-    const logo = document.createElement('img'); logo.src = pr.logo_url; logo.alt = 'Google Maps'; logo.style.cssText = 'height:16px;width:auto;margin:0 10px 0 0';
+    const logo = document.createElement('img'); logo.src = pr.logo_url; logo.alt = 'Google Maps'; logo.style.cssText = 'height:18px;width:auto;margin:0 10px 0 0';   // Google: 16-19px tall, unmodified
     const txt = document.createElement('span'); credits.appendChild(logo); credits.appendChild(txt); overlay.appendChild(credits);
     const fail = msg => { if (hooks.onPhotorealError) hooks.onPhotorealError(msg); };
     Promise.all([import(TILES + 'index.three.js'), import(TILES + 'index.three-plugins.js'), import(TILES + 'index.core-plugins.js'),
