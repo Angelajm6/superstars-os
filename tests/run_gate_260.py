@@ -89,6 +89,7 @@ GATE = [
     "smoke_fleet_355.py", # #355 — vehicles: odometer log, service due, E-ZPass statement import, car bills -> payables
     "smoke_billing_type_356.py", # #356 — billing type per job: backfill, set/gates, AIA guards, list chip, page reacts
     "smoke_project_contacts_357.py", # #357 — project contacts: add/validate/primary/remove, access + PII, DCR header people
+    "smoke_job_dashboard_358.py",   # #358 — job dashboard summary: bootstrap part, money C-suite only, blocks, drill-through
     "smoke_dashboard_week_338.py",   # #338 guard — "This week" strip on the company Dashboard: served, week window, company-only
     "smoke_job_sites_337.py",        # #337 guard — job sites without a project offered with a one-click path; ledger records boot-ensured migrations
     "smoke_building3d_336.py",       # #336 guard — the building in 3D: geocode/footprint cache (stubbed), maths, model, gates incl. client audience, page + vendored three.js

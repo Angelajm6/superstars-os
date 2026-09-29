@@ -243,19 +243,18 @@ def main() -> int:
     assert "if (view === 'projects' && arg) { location.replace('/projects/' + arg); return; }" in html
     passed += 1; print("  served page ok")
 
-    # #343 — the summary lives on the job dashboard's Project Health, company roles only:
-    # c_suite receives the card + its loader; a pm assigned to the same job receives
-    # NEITHER (stripped server-side, not hidden) and the endpoint still 403s them.
+    # #343 put the money summary on the job dashboard, company roles only; #358 replaced
+    # that card with the Money card of the executive summary (inside SECTION:financial).
+    # c_suite receives it; a pm assigned to the same job receives NONE of it (stripped
+    # server-side, not hidden) and the company endpoint still 403s them.
     dash_cs = cs.get(f"/projects/{A}").get_data(as_text=True)
-    for needle in ('id="pf"', "window.PROJ_loadFinancialSummary", "/api/company/portal/projects/"):
-        assert needle in dash_cs, needle
+    assert 'id="jx-money"' in dash_cs
+    assert 'id="pf"' not in dash_cs and "PROJ_loadFinancialSummary" not in dash_cs, "#358: the old card is gone"
     pm = _login("pm")
     r = pm.get(f"/projects/{A}")
     assert r.status_code == 200, r.status_code
     dash_pm = r.get_data(as_text=True)
-    # the view switcher names the loader behind a typeof guard (same as SOV_load) — what
-    # must be absent is the DEFINITION, the card, the markers and the endpoint path
-    for needle in ('id="pf"', "window.PROJ_loadFinancialSummary = ", "SECTION:company_portal", "/api/company/portal/projects/"):
+    for needle in ('id="jx-money"', "<!-- SECTION:financial:start -->", "SECTION:company_portal", "/api/company/portal/projects/"):
         assert needle not in dash_pm, f"pm must not receive {needle}"
     assert pm.get(f"{API}/{A}").status_code == 403, "the endpoint behind the card stays company-only"
     passed += 1; print("  job dashboard card ok")

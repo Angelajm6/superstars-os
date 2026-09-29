@@ -168,6 +168,28 @@ grant, or elevation code.
   as patches and never picks COL-REPAIR as its patch line. The new SOV line shows in the
   financial Schedule of Values with no unit rate until one is set.
 * **Test:** `tests/smoke_column_repair_352.py` (both gates).
+### #358 — Job dashboard: executive summary (Bookore, 2026-09-29)
+
+* **`project_summary.py`:** one call builds the job's summary — header (status, billing
+  type, start → target, days left / over, % of time used, client, PM, superintendent),
+  schedule (drops complete / active / behind / not started from the Drop Plan rollups,
+  worst three), field today (on site, DCR issued today + last DCR, safety last 7 days),
+  risk (open + overdue RFIs, drawing-markup questions, ACTIVE DOB violations / complaints,
+  crew certs expiring ≤ 30 days), contacts (main per role), latest 6 photos. **money**
+  (contract incl. change orders, invoiced, collected, open AR aged 0 / 1–30 / 31–60 /
+  61–90 / 90+, balance to finish, costs to date) is BUILT only for admin / c_suite — the
+  key is absent for pm / super. Each block is safe-wrapped: a missing table reads as zero.
+* **Where it rides:** a `summary` part of `/api/projects/<code>/bootstrap` (no extra
+  page-load request — perf budget unchanged) and `GET /api/projects/<code>/summary`
+  (internal roles, project scoping applies).
+* **Page:** Project Health is now header + chips, a KPI band (every tile drills through),
+  and cards: Schedule health, Money (inside `SECTION:financial`), Field today, Open items
+  & risk, Key contacts, Latest photos — each with a "View →" link. The old widget grid
+  sits under a collapsible **Operations** bar (closed for admin / c_suite, open for
+  pm / super; remembered per browser). The old fixed money block and the dead 30 s
+  `refresh()` poll are gone (the RFI table now loads when its tab opens).
+* **Test:** `tests/smoke_job_dashboard_358.py` (both gates).
+
 ### #357 — Project contacts: ownership group, property managers, consultants, site supervisors (Bookore, 2026-09-29)
 
 * **`project_contacts.py`:** `project_contact` links a job to a CRM person (`contact_id`) or,
