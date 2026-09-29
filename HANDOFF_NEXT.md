@@ -168,6 +168,29 @@ grant, or elevation code.
   as patches and never picks COL-REPAIR as its patch line. The new SOV line shows in the
   financial Schedule of Values with no unit rate until one is set.
 * **Test:** `tests/smoke_column_repair_352.py` (both gates).
+### #360 — Client portal tab; Company vs Settings untangled (Bookore, 2026-09-29)
+
+* **Why:** Settings (`/#settings`) drew the Company sub-tabs and Team & access sat under
+  Company, so the two read as the same place; client-portal access was spread over Team &
+  access (login), Projects → Assignments (project + section toggles) and the project
+  dashboard (per-item sharing).
+* **Sidebar (`company_nav.js`, v=360):** new **Client portal** tab (`/company#portal`).
+  Company = Documents & vehicles · Compliance documents · Specs. Settings (pinned) owns
+  **Team & access** (`/admin/users`) + **Preferences & security** (`/#settings`, the old
+  "coming next" placeholder replaced by link cards); it lights up on `/admin/users`.
+* **`portal_access.py`:** `GET /api/company/portal-access` (@requires_company) — one read
+  joining each external login's state (inactive → link a project → nothing unlocked →
+  invited → live), linked project + client company, sections, matching preset, counts;
+  architects listed separately with what their role opens; `can_create` = admin. Nothing
+  logged. Every write reuses its owning endpoint and gate (pm-assignments, client-grants,
+  preset, reset-password, create user — admin only, unchanged).
+* **Tab UI (`company_portal.html`):** KPI band, a 4-step "how it works" strip, the logins
+  table (Preview · Manage), a Manage dialog (project, section switches, preset, preview,
+  password reset with the one-time password shown once) and "+ Add client login" (admin).
+  The old client cards on Projects → Assignments are removed; that section links here.
+* **Test:** `tests/smoke_client_portal_tab_360.py` (both gates); `smoke_one_home_339`
+  updated for eight tabs and the Settings sub-tabs.
+
 ### #359 — Collapsible sidebar rail + layout base (Bookore, 2026-09-29)
 
 * **Rail:** `static/js/shell.js` adds a « button to the sidebar's brand row on every

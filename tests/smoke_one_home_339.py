@@ -3,7 +3,7 @@
 
 Boots the real app (`import server`) on an ISOLATED database. Proves:
   * every company page (portal, console, the four admin pages) mounts the SAME sidebar
-    from static/js/company_nav.js — exactly seven tabs, in order, no CRM / Job sites /
+    from static/js/company_nav.js — exactly eight tabs (#360: + Client portal), in order, no CRM / Job sites /
     Office Console anywhere; each page carries its tab's sub-tab row
   * the console's own dashboard + CRM panels are gone from the served page; its retired
     hashes (`/`, `/#projects`, `/#crm`) and the portal's (`#buildings`, `#compliance`)
@@ -48,8 +48,8 @@ import server  # noqa: E402  (boots the whole app)
 TAG = "oh339"
 PW = "OneHomeSmoke2026"
 PROJ = "OH339-A"
-TABS = ["Dashboard", "Projects", "Clients", "Proposals", "Finance", "Workforce", "Company"]
-ADMIN_PAGES = {"/admin/projects": "projects", "/admin/users": "company", "/estimating": "proposals", "/admin/labor-rates": "finance"}
+TABS = ["Dashboard", "Projects", "Clients", "Client portal", "Proposals", "Finance", "Workforce", "Company"]   # #360 + Client portal
+ADMIN_PAGES = {"/admin/projects": "projects", "/admin/users": "settings", "/estimating": "proposals", "/admin/labor-rates": "finance"}   # #360 — Team & access lives under Settings
 
 
 def _db():
@@ -105,13 +105,13 @@ def main() -> int:
     _seed()
     passed = 0
 
-    # ---- the sidebar: one definition, seven tabs + one pinned entry, on every company page
+    # ---- the sidebar: one definition, eight tabs + one pinned entry, on every company page
     js = (ROOT / "static" / "js" / "company_nav.js").read_text(encoding="utf-8")
     tabs_src, _, pinned_src = js.partition("var PINNED")
     labels = re.findall(r"\{ key: '[a-z]+', label: '([^']+)'", tabs_src)
     assert labels == TABS, labels
     # #341 — Settings is an eighth, PINNED destination (rendered outside <nav>, not
-    # one of the seven scrollable tabs) — it must exist exactly once, after the split.
+    # one of the scrollable tabs) — it must exist exactly once, after the split.
     assert re.findall(r"\{ key: '[a-z]+', label: '([^']+)'", pinned_src) == ["Settings"], pinned_src
     assert "key: 'settings', label: 'Settings', href: '/#settings'" in js
     for gone in ("'CRM'", "Job sites", "Office Console", "Company Portal", "Quick actions", "Hours Log"):
@@ -119,7 +119,7 @@ def main() -> int:
     assert "'/': { '': '/company#overview', 'projects': '/company#overview', 'crm': '/company#clients' }" in js
     assert "'/company': { 'buildings': '/company#projects', 'compliance': '/company#company' }" in js
     for sub in ("'Weekly payroll', '/#labor-rate'", "'Pay rates', '/admin/labor-rates'", "'Calendar', '/company#calendar'",
-                "'Estimating queue', '/estimating', ['estimator']", "'Team & access', '/admin/users'"):
+                "'Estimating queue', '/estimating', ['estimator']", "'Team & access', '/admin/users'", "'Preferences & security', '/#settings'"):
         assert sub in js, sub
     # #341 — Settings must NOT be duplicated inside the Company tab's own sub-nav
     # anymore; its only home is the pinned entry asserted above.
@@ -143,7 +143,7 @@ def main() -> int:
     for kept in ('data-panel="workforce"', 'data-panel="hours"', 'data-panel="cert-library"', 'data-panel="estimates"',
                  'data-panel="labor-rate"', 'data-panel="compliance"', 'data-panel="specs"', 'data-panel="settings"'):
         assert kept in con, kept
-    assert con.count('data-subtabs="workforce"') == 3 and con.count('data-subtabs="company"') == 3
+    assert con.count('data-subtabs="workforce"') == 3 and con.count('data-subtabs="company"') == 2 and con.count('data-subtabs="settings"') == 1   # #360
     assert con.count('data-subtabs="proposals"') == 1 and con.count('data-subtabs="finance"') == 1
     assert "SSC_NAV.redirectIfRetired()" in con and "window.location.replace('/company#overview')" in con
     assert "if(!$('cc-grid')) return;" in con, "the retired widgets module must not poll"
