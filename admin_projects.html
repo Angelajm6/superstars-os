@@ -4,10 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=321">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=359">
 <link rel="stylesheet" href="/files/static/css/shell.css?v=341">
 <script src="/files/static/js/company_nav.js?v=341"></script>
-<script src="/files/static/js/shell.js?v=312" defer></script>
+<!-- #359 — apply a remembered collapsed rail before the first paint -->
+<script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
+<script src="/files/static/js/shell.js?v=359" defer></script>
 <title>Project Assignments · Superstars Contracting</title>
 <!-- #263 — admin/c_suite project-assignment + project-close screen. Two axes wired here:
      who manages which projects (pm_project_assignment) and which projects are active vs
@@ -176,6 +178,7 @@
       <div class="np-field full"><label for="np-address">Building address</label><input id="np-address" placeholder="890 E 135th St, Bronx" autocomplete="off"></div>
       <div class="np-field full"><label for="np-name">Project name (optional)</label><input id="np-name" placeholder="defaults to the address" autocomplete="off"></div>
       <div class="np-field"><label for="np-contract">Contract value (USD)</label><input id="np-contract" inputmode="decimal" placeholder="optional" autocomplete="off"></div>
+      <div class="np-field"><label for="np-billing">How is it billed?</label><select id="np-billing"><option value="">— choose —</option></select><div class="np-hint">AIA / Schedule of values gets the SOV and pay applications</div></div>
       <div class="np-field"><label for="np-start">Start date</label><input id="np-start" type="date" class="ssc-date"></div>
       <div class="np-field"><label for="np-end">Target completion</label><input id="np-end" type="date" class="ssc-date" title="Optional — the job shows on the calendar from start to this date"></div>
       <div class="np-field"><label for="np-pm">Project manager</label><select id="np-pm"><option value="">— assign later —</option></select></div>
@@ -271,6 +274,7 @@
       $('np-client').innerHTML = '<option value="">— choose a client —</option>' + m.clients.map(function(c){ return '<option value="'+c.id+'">'+esc(c.name)+'</option>'; }).join('') + '<option value="__new">+ New client…</option>';
       $('np-type').innerHTML = m.types.map(function(t){ return '<option value="'+esc(t.code)+'">'+esc(t.code)+' · '+esc(t.label)+'</option>'; }).join('');
       $('np-borough').innerHTML = (m.regions || m.boroughs.map(function(b){ return {code: b, label: b}; })).map(function(r){ return '<option value="'+esc(r.code)+'">'+esc(r.label)+' ('+esc(r.code)+')</option>'; }).join('');   // #331
+      $('np-billing').innerHTML = '<option value="">— choose —</option>' + (m.billing_types || []).map(function(b){ return '<option value="'+esc(b.code)+'">'+esc(b.label)+'</option>'; }).join('');   // #356
       $('np-pm').innerHTML = '<option value="">— assign later —</option>' + m.pms.map(function(p){ return '<option value="'+p.user_id+'">'+esc(p.name)+'</option>'; }).join('');
       var p=window.SSCDatePicker; if(p && typeof p.wire==='function'){ ['np-start','np-end'].forEach(function(id){ if(!$(id).dataset.sscDp){ try{ p.wire($(id), {}); }catch(e){} } }); }
       npDateSet($('np-start'), npToday()); npDateSet($('np-end'), '');
@@ -301,11 +305,12 @@
     var isNew = $('np-client').value==='__new';
     var payload = { client_org_id: isNew ? null : ($('np-client').value||null), new_org_name: isNew ? $('np-neworg').value.trim() : '',
       est_type: $('np-type').value, borough: $('np-borough').value, address: $('np-address').value.trim(), name: $('np-name').value.trim(),
-      contract_value: $('np-contract').value.trim() || null, start_date: npDateGet($('np-start')) || null, target_completion: npDateGet($('np-end')) || null, pm_user_id: $('np-pm').value || null, notes: $('np-notes').value.trim(),
+      contract_value: $('np-contract').value.trim() || null, start_date: npDateGet($('np-start')) || null, target_completion: npDateGet($('np-end')) || null, pm_user_id: $('np-pm').value || null, notes: $('np-notes').value.trim(), billing_type: $('np-billing').value || null,
       site_lat: $('np-lat').value.trim() || null, site_lng: $('np-lng').value.trim() || null, geofence_m: $('np-radius').value.trim() || null, crew: crewChecked($('np-crew')) };
     if((payload.site_lat && !payload.site_lng) || (!payload.site_lat && payload.site_lng)){ err.textContent='Enter both latitude and longitude, or leave both blank.'; err.className='np-err show'; return; }
     if(!payload.client_org_id && !payload.new_org_name){ err.textContent='Pick a client or type a new client name.'; err.className='np-err show'; return; }
     if(payload.address.length < 4){ err.textContent='Enter the building address.'; err.className='np-err show'; return; }
+    if(!payload.billing_type){ err.textContent='Pick how the job is billed.'; err.className='np-err show'; return; }   // #356
     $('np-go').disabled = true;
     try{
       var r = await fetch('/api/admin/projects/onboard', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });

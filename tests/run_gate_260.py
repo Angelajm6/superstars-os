@@ -87,6 +87,10 @@ GATE = [
     "smoke_column_repair_352.py", # #352 — Drop Plan column repair (L x W x D) per drop, totalled apart from patches
     "smoke_photoreal_3d_353.py", # #353 — Drawing Markup photoreal (Google 3D tiles): availability rules, vendored lib complete, import map wiring
     "smoke_fleet_355.py", # #355 — vehicles: odometer log, service due, E-ZPass statement import, car bills -> payables
+    "smoke_billing_type_356.py", # #356 — billing type per job: backfill, set/gates, AIA guards, list chip, page reacts
+    "smoke_project_contacts_357.py", # #357 — project contacts: add/validate/primary/remove, access + PII, DCR header people
+    "smoke_job_dashboard_358.py",   # #358 — job dashboard summary: bootstrap part, money C-suite only, blocks, drill-through
+    "smoke_layout_rail_359.py",     # #359 — collapsible sidebar rail (desktop only, remembered, no flash) + 1440 px view cap
     "smoke_dashboard_week_338.py",   # #338 guard — "This week" strip on the company Dashboard: served, week window, company-only
     "smoke_job_sites_337.py",        # #337 guard — job sites without a project offered with a one-click path; ledger records boot-ensured migrations
     "smoke_building3d_336.py",       # #336 guard — the building in 3D: geocode/footprint cache (stubbed), maths, model, gates incl. client audience, page + vendored three.js

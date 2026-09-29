@@ -94,6 +94,11 @@ def aggregate_dcr(project_code, date_str, audience='internal'):
         conn.close()
         raise KeyError(f"Unknown project_code: {project_code}")
     proj = dict(proj_row)
+    try:   # #357 — the live people (primary site supervisor / assigned PM / client org)
+        import project_contacts
+        _people = project_contacts.project_people(conn, project_code)
+    except Exception:
+        _people = {}
 
     # DCR-1: build a deduped one-line address. If projects.address already
     # contains city_zip (e.g. older rows store the full address on the
@@ -118,9 +123,9 @@ def aggregate_dcr(project_code, date_str, audience='internal'):
         'address': address,
         'date': date_str,
         'day_of_week': _day_of_week(date_str),
-        'superintendent': proj.get('superintendent'),
-        'project_manager': None,
-        'owner_client': proj.get('client'),
+        'superintendent': _people.get('superintendent') or proj.get('superintendent'),
+        'project_manager': _people.get('project_manager'),
+        'owner_client': _people.get('owner_client') or proj.get('client'),
         'status': proj.get('status'),
     }
 
@@ -376,8 +381,8 @@ def aggregate_dcr(project_code, date_str, audience='internal'):
         'inspections': inspections,
         'photos': photos,
         'signoff': {
-            'superintendent_name': proj.get('superintendent'),
-            'pm_name': None,
+            'superintendent_name': _people.get('superintendent') or proj.get('superintendent'),
+            'pm_name': _people.get('project_manager'),
             'date': date_str,
             'time_signed': None,
         },

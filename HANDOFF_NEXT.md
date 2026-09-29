@@ -168,6 +168,88 @@ grant, or elevation code.
   as patches and never picks COL-REPAIR as its patch line. The new SOV line shows in the
   financial Schedule of Values with no unit rate until one is set.
 * **Test:** `tests/smoke_column_repair_352.py` (both gates).
+### #359 — Collapsible sidebar rail + layout base (Bookore, 2026-09-29)
+
+* **Rail:** `static/js/shell.js` adds a « button to the sidebar's brand row on every
+  company page (`aside.ssc-side`) and on the project dashboard (`<aside class="sidebar"
+  data-rail>`; the client portal has none). It toggles `html.side-rail` — a 68 px icon
+  rail; labels stay in the markup (font-size 0) and become each link's tooltip +
+  aria-label (a link's own tooltip is kept). Remembered per browser (`ssc.side.rail`);
+  each internal page sets the class in `<head>` before the first paint. Desktop only:
+  every rule sits inside `@media (min-width: 861px)` in `widgets.css`, so the phone
+  Menu drawer is unchanged.
+* **Layout:** project views stop at 1440 px and centre (Drawing Markup stays full-bleed),
+  side gutters shrink with the window, the Live line is slimmer and views start closer
+  to it; the dead top-bar CSS is gone.
+* **Cache keys:** `widgets.css?v=359` and `shell.js?v=359` on all eight shells (one key
+  each, asserted).
+* **Test:** `tests/smoke_layout_rail_359.py` (both gates).
+
+### #358 — Job dashboard: executive summary (Bookore, 2026-09-29)
+
+* **`project_summary.py`:** one call builds the job's summary — header (status, billing
+  type, start → target, days left / over, % of time used, client, PM, superintendent),
+  schedule (drops complete / active / behind / not started from the Drop Plan rollups,
+  worst three), field today (on site, DCR issued today + last DCR, safety last 7 days),
+  risk (open + overdue RFIs, drawing-markup questions, ACTIVE DOB violations / complaints,
+  crew certs expiring ≤ 30 days), contacts (main per role), latest 6 photos. **money**
+  (contract incl. change orders, invoiced, collected, open AR aged 0 / 1–30 / 31–60 /
+  61–90 / 90+, balance to finish, costs to date) is BUILT only for admin / c_suite — the
+  key is absent for pm / super. Each block is safe-wrapped: a missing table reads as zero.
+* **Where it rides:** a `summary` part of `/api/projects/<code>/bootstrap` (no extra
+  page-load request — perf budget unchanged) and `GET /api/projects/<code>/summary`
+  (internal roles, project scoping applies).
+* **Page:** Project Health is now header + chips, a KPI band (every tile drills through),
+  and cards: Schedule health, Money (inside `SECTION:financial`), Field today, Open items
+  & risk, Key contacts, Latest photos — each with a "View →" link. The old widget grid
+  sits under a collapsible **Operations** bar (closed for admin / c_suite, open for
+  pm / super; remembered per browser). The old fixed money block and the dead 30 s
+  `refresh()` poll are gone (the RFI table now loads when its tab opens).
+* **Test:** `tests/smoke_job_dashboard_358.py` (both gates).
+
+### #357 — Project contacts: ownership group, property managers, consultants, site supervisors (Bookore, 2026-09-29)
+
+* **`project_contacts.py`:** `project_contact` links a job to a CRM person (`contact_id`) or,
+  for OUR site supervisors, an employee (`employee_id`), with role owner | property_manager
+  | consultant (discipline architect | structural_engineer | mep_engineer | expeditor |
+  other) | site_supervisor; one main contact per (role, side); soft remove. Adding a new
+  person can create the company too (relationship type from the role).
+  `crm.RELATIONSHIP_TYPES` + owner, property_manager, consultant, expeditor.
+* **Access:** new section `project_contacts` = admin / c_suite / pm / super (read, with
+  phone + email so the field can call); writes `requires_company`; `/contacts/lookup`
+  names only; employees' phones never shown; contact PII never logged (test captures logs).
+* **`project_people(conn, code)`** is the single source for document headers:
+  superintendent = our main site supervisor (else the legacy column), project manager =
+  first assigned PM, owner / client = the client company. Wired into `dcr_aggregator`
+  (header + sign-off), the RFI render route, and `portal_projects.project_detail`. Old
+  issued DCR files are untouched; regenerating one prints the current people.
+* **UI:** project sidebar Overview → **Contacts**: Our team (PM, our supervisors, crew) +
+  Ownership group, Property management, Consultants (by discipline), Owner / GC site
+  supervisors; Call / Email buttons, ★ main contact, Remove; "+ Add contact" modal (pick
+  from the CRM, new person + company, or one of our workers).
+* **Not done:** `rfi_workflow.py` still routes RFIs through its hard-coded demo map — a
+  follow-up could route to the job's consultants.
+* **Test:** `tests/smoke_project_contacts_357.py` (both gates).
+
+### #356 — Billing type per project (Bookore, 2026-09-29)
+
+* **Why:** C-suite — "some projects do or don't have schedules of values". Nothing recorded how
+  a job is billed; "has an SOV" was only inferred from `billing_sov` rows.
+* **`billing_type.py`:** `projects.billing_type` = `aia_sov | lump_sum | time_materials |
+  unit_price | NULL` ("Not set"), catalog-checked ALTER, idempotent backfill (NULL + has
+  billing_sov rows -> aia_sov; a picked value is never overwritten). `GET
+  /api/projects/<code>/profile` (status + billing), `PUT /api/admin/projects/<code>/billing-type`
+  (`requires_company`; 409 when AIA pay applications exist and the new type isn't AIA).
+* **Effects:** onboarding asks "How is it billed?" (required in the modal; the API accepts it
+  optional so estimate conversion still works); the page renders `<body data-billing-type>`
+  (server-side, `_render_billing_type`) — `.aia-only` pieces (SOV editor, AIA card) hide on
+  other types via CSS, `.bt-note` explains, a warn banner shows when not set; the Schedule of
+  Values nav link is rendered `hidden` on non-AIA jobs; Settings shows the real status and an
+  editable billing row (admin / c_suite; read-only for others); AIA write routes (save SOV,
+  import, new application) 409 on non-AIA jobs, not-set still allowed; Projects list gets a
+  Billing chip. Drop-plan unit rates stay visible (they are field tracking, not billing).
+* **Test:** `tests/smoke_billing_type_356.py` (both gates).
+
 ### #355 — Company vehicles: mileage, service, E-ZPass tolls, car bills (Bookore, 2026-09-29)
 
 * **Ask:** per company car — E-ZPass assignment, mileage, service dates, which tolls it pays,

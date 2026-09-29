@@ -5,8 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Company · Superstars Contracting</title>
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=3432">
-<script src="/files/static/js/shell.js?v=312" defer></script>
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=359">
+<!-- #359 — apply a remembered collapsed rail before the first paint -->
+<script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
+<script src="/files/static/js/shell.js?v=359" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=341">
 <script src="/files/static/js/company_nav.js?v=341"></script>
 <script src="/files/static/js/datepicker.js?v=302" defer></script>
@@ -236,6 +238,9 @@
                 <option value="lead">Leads</option>
                 <option value="architect">Architects</option>
                 <option value="vendor">Vendors</option>
+                <option value="owner">Owners</option>
+                <option value="property_manager">Property managers</option>
+                <option value="consultant">Consultants</option>
                 <option value="all">All organizations</option>
               </select>
               <label class="cp-muted" style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="cl-inactive"> include inactive</label>
@@ -669,7 +674,7 @@
     <div class="cp-modal-head"><h2 id="cl-title">Add client</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">The organization first; a main contact is optional and can be added later.</p></div>
     <div class="cp-modal-body">
       <div class="cp-field full"><label for="cl-name">Organization</label><input id="cl-name" required placeholder="e.g. Compass Point, LLC"></div>
-      <div class="cp-field"><label for="cl-rel">Relationship</label><select id="cl-rel"><option value="client">Client</option><option value="lead">Lead</option><option value="architect">Architect</option><option value="engineer">Engineer</option><option value="vendor">Vendor</option><option value="sub">Subcontractor</option><option value="partner">Partner</option><option value="other">Other</option></select></div>
+      <div class="cp-field"><label for="cl-rel">Relationship</label><select id="cl-rel"><option value="client">Client</option><option value="lead">Lead</option><option value="architect">Architect</option><option value="engineer">Engineer</option><option value="vendor">Vendor</option><option value="sub">Subcontractor</option><option value="partner">Partner</option><option value="owner">Owner</option><option value="property_manager">Property manager</option><option value="consultant">Consultant</option><option value="expeditor">Expeditor</option><option value="other">Other</option></select></div>
       <div class="cp-field"><label for="cl-cname">Main contact (optional)</label><input id="cl-cname" placeholder="Full name"></div>
       <div class="cp-field"><label for="cl-ctitle">Contact title</label><input id="cl-ctitle" placeholder="e.g. Property manager"></div>
       <div class="cp-field"><label for="cl-cemail">Contact email</label><input id="cl-cemail" type="email" placeholder="name@example.com"></div>
@@ -1194,6 +1199,7 @@
         { key: 'project_code', label: 'Job', render: r => `<span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:12px">${esc(r.name || '')}</div>` },
         { key: 'address', label: 'Address', render: r => `${esc(r.address || '—')}<div class="cp-muted" style="font-size:12px">${esc(r.city_zip || '')}</div>` },
         { key: 'client_name', label: 'Client', render: r => esc(r.client_name || '—') },
+        { key: 'billing_short', label: 'Billing', render: r => r.billing_type ? `<span class="cp-pill ${r.billing_type === 'aia_sov' ? 'active' : ''}" title="${esc(r.billing_label)}">${esc(r.billing_short)}</span>` : '<span class="cp-muted" title="How this job is billed is not set — pick it in the project Settings">not set</span>' },   // #356
         { key: 'pms', label: 'PM', render: r => r.pms.length ? esc(r.pms.map(x => x.name).join(', ')) : '<span class="cp-muted">unassigned</span>' },
         { key: 'crew_count', label: 'Crew', num: true },
         { key: 'contract', label: 'Contract', num: true, render: r => r.contract.value != null ? money.format(r.contract.value) : '—' },

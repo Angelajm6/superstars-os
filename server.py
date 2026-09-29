@@ -212,6 +212,12 @@ import pm_scoping  # noqa: E402
 pm_scoping.register(app)
 import project_onboard  # noqa: E402
 project_onboard.register(app)   # #324 — onboard an already-won job
+import billing_type  # noqa: E402
+billing_type.register(app)      # #356 — AIA / lump sum / T&M / unit price per job
+import project_contacts  # noqa: E402
+project_contacts.register(app)  # #357 — owners, property managers, consultants, site supervisors
+import project_summary  # noqa: E402
+project_summary.register(app)   # #358 — the job dashboard summary (bootstrap part + /summary)
 
 # #264 — the per-item VISIBILITY ENGINE (default-deny) + the read-only CLIENT portal.
 # client_portal registers a default-deny before_request gate (a `client` reaches ONLY the
@@ -548,11 +554,29 @@ def _serve_dashboard_no_store(project_code=None, role_override=None):
     # #281 — and WHERE this shell fetches from: the internal project namespace for
     # internal roles, the curated portal namespace for external ones.
     html = access.render_api_base(html, role, project_code)
+    html = _render_billing_type(html, project_code)   # #356
     resp = Response(html, mimetype="text/html")
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"
     return resp
+
+
+def _render_billing_type(html, project_code):
+    """#356 — the job's billing type rides on <body data-billing-type> so the SOV / AIA
+    pieces can react without a request, and the Schedule of Values nav link (already
+    stripped for non-financial roles) is hidden on a job billed another way."""
+    if not project_code:
+        return html
+    conn = db()
+    try:
+        bt = billing_type.get(conn, project_code) or ""
+    finally:
+        conn.close()
+    html = html.replace("<body>", f'<body data-billing-type="{bt}">', 1)
+    if bt and bt != "aia_sov":
+        html = html.replace('<a class="nav-link" data-view="sov">', '<a class="nav-link" data-view="sov" hidden>', 1)
+    return html
 
 
 @app.route('/projects/<project_code>')
@@ -1852,6 +1876,11 @@ def render_rfi(rfi_id):
                 (rfi.get('project_code'),),
             ).fetchone()
             project = dict(project_row) if project_row else {}
+            if project:   # #357 — the header prints the live people, not the dead columns
+                import project_contacts
+                people = project_contacts.project_people(conn, project["project_code"])
+                project["client"] = people["owner_client"] or project.get("client")
+                project["superintendent"] = people["superintendent"] or project.get("superintendent")
         finally:
             conn.close()
         html = render_rfi_html(rfi, project)
@@ -11895,6 +11924,7 @@ def api_project_bootstrap(project_code):
         "drops": ("api_dropplan_drops", (project_code,)),
         "on_site": ("api_project_on_site", (project_code,)),
         "workers": ("api_project_workers", (project_code,)),
+        "summary": ("api_project_summary", (project_code,)),   # #358 — the job dashboard's executive summary
     })
     return response_wrapper({k: v for k, v in parts.items() if v is not None})
 

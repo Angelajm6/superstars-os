@@ -158,7 +158,7 @@
     .acct-mi.acct-signout:hover { background: rgba(177,30,46,.06); }
     .acct-mi:disabled { opacity: .6; cursor: not-allowed; }
     /* content corner — faint "Live · date" (Option 1) */
-    .content-corner { display: flex; justify-content: flex-end; padding: 14px 28px 0; }
+    .content-corner { display: flex; justify-content: flex-end; padding: 10px clamp(16px, 2.6vw, 28px) 0; }   /* #359 — slimmer */
     .cc-live { display: inline-flex; align-items: center; gap: 6px; color: var(--muted, #8c92a0); font-size: 12px; }
     .cc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--status-complete, #15a07e); }
 
@@ -497,18 +497,6 @@
 
     /* Main Content */
     .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-    .topbar {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      background: rgba(250, 247, 241, 0.95);
-      backdrop-filter: blur(8px);
-      border-bottom: 1px solid var(--line, #eceef3);
-      padding: 14px 32px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
     .eyebrow {
       font-size: 10px;
       letter-spacing: 0.18em;
@@ -516,31 +504,21 @@
       color: var(--muted, #8c92a0);
       margin-bottom: 8px;
     }
-    .topbar-title {
-      font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      font-weight: 600;
-      font-size: 17px;
-      color: var(--ink, #222633);
-    }
-    .topbar-meta {
-      display: flex;
-      gap: 16px;
-      align-items: center;
-      font-size: 11px;
-      color: var(--muted, #8c92a0);
-    }
-    .live-indicator { color: var(--status-complete-deep, #0c7a5f); font-weight: 600; }
+    /* #359 — the old top-bar rules (bar, title, meta, live indicator) went with the top bar markup (#213) */
 
     /* Views Container */
     .views-container { flex: 1; overflow-y: auto; }
-    .view { display: none; padding: 32px; }
+    /* #359 — content stops growing at 1440 px and centres (wide monitors read as a page,
+       not a strip); side gutters shrink with the window; the Live line above already
+       spaces the top, so the view starts closer to it */
+    .view { display: none; padding: 20px clamp(16px, 2.6vw, 32px) 32px; max-width: 1440px; margin-inline: auto; }
     .view.active { display: block; animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }   /* #311 */
 
     /* #280 — the Drawing Markup view is full-bleed: the embedded v2 page brings its own
        padding, header and tokens, so the v1 32px gutter would double it. The frame owns
        the height and the drawing scrolls INSIDE it — the dashboard itself must never
        scroll sideways because the elevation is wide. */
-    .view[data-view="drawings"] { padding: 0; }
+    .view[data-view="drawings"] { padding: 0; max-width: none; }
     .view[data-view="drawings"].active { display: flex; flex-direction: column; min-height: 0; }
     .drawings-frame {
       flex: 1 1 auto; display: block; width: 100%; border: 0;
@@ -838,8 +816,27 @@
 <!-- #211 calm-blue widget accent — applied via the SHARED widgets.css, loaded
      AFTER the inline #208 styles so the accent (blue band + inward shading + blue
      rings) wins, giving the project page + the company console one source of truth. -->
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=3432">
-<script src="/files/static/js/shell.js?v=312" defer></script>
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=359">
+<!-- #359 — apply a remembered collapsed rail before the first paint -->
+<script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
+<script src="/files/static/js/shell.js?v=359" defer></script>
+<style>
+  /* #356 — billing type per job: AIA-only pieces hide on jobs billed another way */
+  body[data-billing-type]:not([data-billing-type=""]):not([data-billing-type="aia_sov"]) .aia-only { display: none !important; }
+  .bt-note { display: none; margin: 0 0 14px; padding: 12px 14px; border-radius: 10px; font-size: 13.5px; line-height: 1.5;
+             background: var(--fill, #F4F5F8); border: 1px solid var(--line, #eceef3); color: var(--ink, #222633); }
+  .bt-note.warn { background: var(--status-warn-soft, #FFF4E5); border-color: var(--status-warn-edge, #E8C9A0); color: var(--status-warn, #9A5B00); }
+  body[data-billing-type]:not([data-billing-type=""]):not([data-billing-type="aia_sov"]) .bt-note.bt-off { display: block; }
+  body[data-billing-type=""] .bt-note.bt-unset { display: block; }
+  .bt-note a { color: var(--ui, #24418C); font-weight: 700; cursor: pointer; }
+  .ps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .ps-card { background: #fff; border: 1px solid var(--line, #eceef3); border-radius: 12px; padding: 16px 18px; }
+  .ps-k { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted, #8c92a0); margin-bottom: 8px; }
+  .ps-v { font-size: 16px; font-weight: 700; color: var(--ink, #222633); }
+  .ps-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ps-row select { font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--line, #eceef3); border-radius: 8px; min-width: 220px; }
+  .ps-hint { font-size: 13px; color: var(--muted, #8c92a0); margin-top: 8px; line-height: 1.5; }
+</style>
 </head>
 <body>
 <!-- #281 — ONE source for the project code, filled server-side from the URL.
@@ -897,7 +894,7 @@
 
 <div class="app-shell">
   <!-- SIDEBAR -->
-  <aside class="sidebar">
+  <aside class="sidebar" data-rail>
     <div class="sidebar-header">
       <!-- #265 — canonical filled-star lockup (single source: brand.py) -->
       <img class="brand-mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
@@ -946,6 +943,7 @@
         <div class="nav-group-label"><span class="nav-group-name">Overview</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
           <a class="nav-link active" data-view="dashboard"><svg class="nav-ic"><use href="#i-gauge"/></svg>Project Health</a>
+          <a class="nav-link" data-view="contacts"><svg class="nav-ic"><use href="#i-msg"/></svg>Contacts</a>
         </div>
       </div>
       <div class="nav-group" data-group="field">
@@ -1063,188 +1061,180 @@
       <!-- PROJECT HEALTH / DASHBOARD -->
       <section class="view active" data-view="dashboard">
         <div class="ph-wrap">
-          <div class="ph-head">
-            <div class="ph-eyebrow">Project Health</div>
-            <!-- #281 SCRUB: project identity is FILLED SERVER-SIDE per request from the
-                 project_code in the URL (access.render_project_identity). The address, project code and client
-                 org name used to be hard-coded here, binding the whole shell to one job
-                 and one client. Empty by design — a second project, or a second client,
-                 must not require a second file. -->
-            <h1 data-project-title>&nbsp;</h1>
-            <div class="ph-sub" data-project-client>&nbsp;</div>
-            <div class="ph-actions">
-              <button class="ph-btn" data-link="/dropplan">Drop Plan</button>
-              <!-- #281 SCRUB: the "Weekly Summary" and "2-Week Lookahead" buttons are REMOVED.
-                   Each pointed at a per-project report FILENAME hard-coded into a shared
-                   shell, and one of them named the INTERNAL variant of a document that
-                   also has a client variant. Neither file exists for this project, so both
-                   were dead links; the danger was that generating them would silently turn
-                   an externally-visible button into a live internal-document link. They
-                   return only as generated, per-project, audience-correct links — never as
-                   static markup. -->
-              <button class="ph-btn ghost" data-link="/rfi_submission_form.html">Submit RFI</button>
-            </div>
-          </div>
-
-
-          <!-- WIDGET: KPI tiles (live) -->
-          <div class="ph-kpis" data-widget="kpis">
-            <!-- SECTION:workforce_kpi:start --><div class="ph-kpi"><div><div class="ph-kpi-k">Workers on site</div><div class="ph-kpi-v" id="ph-kpi-workers">—</div><div class="ph-kpi-sub" id="ph-kpi-workers-sub">today</div></div></div>
-            <div class="ph-kpi"><div><div class="ph-kpi-k">Certs expiring ≤30d</div><div class="ph-kpi-v" id="ph-kpi-certs">—</div><div class="ph-kpi-sub" id="ph-kpi-certs-sub">incl. expired</div></div></div><!-- SECTION:workforce_kpi:end -->
-            <div class="ph-kpi"><div><div class="ph-kpi-k">Active drops</div><div class="ph-kpi-v" id="ph-kpi-active">—</div><div class="ph-kpi-sub">of <span id="ph-kpi-active-total">—</span> drops</div></div></div>
-            <div class="ph-kpi"><span id="ph-kpi-progress-ring"></span><div><div class="ph-kpi-k">Overall progress</div><div class="ph-kpi-v" id="ph-kpi-progress">—</div><div class="ph-kpi-sub">drop plan</div></div></div>
-          </div>
-
-          <!-- SECTION:company_portal:start -->
-          <!-- #343 — the job's contract, paperwork and crew, folded in from the Company
-               Portal's old per-job summary page so a job is ONE page. Same data, same
-               endpoint (/api/company/portal/projects/<code>). Gated on the SAME section
-               key that endpoint is gated on, so the markup and the API can never drift:
-               pm/super never receive this block — this comment included (stripped
-               server-side, access.render_sections) — and the endpoint 403s them anyway. -->
+          <!-- #358 — the job dashboard: an executive summary that answers the C-suite's
+               questions at a glance and drills into the tabs. Data = the `summary` part of
+               /api/projects/<code>/bootstrap (project_summary.py). Money is inside
+               SECTION:financial AND omitted from the payload for other roles. -->
           <style>
-            /* #343 — pf- namespace. Built on the shared widgets.css :root tokens (the
-               first Project Health surface that is), so it already matches the portal. */
-            .pf { margin: 0 0 22px; }
-            .pf-head { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin:4px 0 12px; }
-            .pf-head h2 { margin:0; font-size:16px; font-weight:700; color:var(--ink, #222633); }
-            .pf-hint { font-size:12px; color:var(--muted, #8c92a0); }
-            .pf-spacer { flex:1; }
-            .pf-btn { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; text-decoration:none;
-              color:var(--ui, #24418C); background:#fff; border:1px solid var(--ui, #24418C); border-radius:8px; padding:7px 12px; }
-            .pf-btn:hover { background:var(--ui-soft, #E8EDF8); }
-            .pf .ph-kpis { margin:0 0 14px; }
-            .pf-grid { display:grid; grid-template-columns:minmax(0,3fr) minmax(0,2fr); gap:14px; }
-            .pf-col { display:flex; flex-direction:column; gap:14px; min-width:0; }
-            @media (max-width:1100px){ .pf-grid { grid-template-columns:minmax(0,1fr); } }
-            .pf .ph-widget-head .pf-sub { font-size:12px; color:var(--muted, #8c92a0); text-transform:none; letter-spacing:0; font-weight:400; }
-            .pf-table-wrap { overflow-x:auto; }
-            .pf-table { width:100%; border-collapse:collapse; font-size:13px; color:var(--ink, #222633); }
-            .pf-table th { text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
-              color:var(--muted, #8c92a0); padding:0 10px 8px; border-bottom:1px solid var(--line, #eceef3); white-space:nowrap; }
-            .pf-table td { padding:9px 10px; border-bottom:1px solid var(--line, #eceef3); vertical-align:top; }
-            .pf-table tr:last-child td { border-bottom:0; }
-            .pf-table .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
-            .pf-muted { color:var(--muted, #8c92a0); }
-            .pf-small { font-size:12px; }
-            /* internal identifiers: the row's sans, weight + brand red (CLAUDE.md terminology rule) */
-            .pf-id { font-weight:700; color:var(--brand-red, #B11E2E); }
-            .pf-pill { display:inline-block; font-size:11px; font-weight:700; padding:3px 8px; border-radius:999px; white-space:nowrap;
-              background:var(--status-oat-soft, #f3f0e9); color:var(--oat-ink, #8a8064); }
-            .pf-pill.ok { background:var(--status-complete-soft, #e7f6f0); color:var(--status-complete-deep, #0c7a5f); }
-            .pf-pill.active { background:var(--status-active-soft, #ebf0fe); color:var(--accent-ink, #3a5fd0); }
-            .pf-pill.warn { background:var(--status-warn-soft, #FFF4E5); color:var(--status-warn, #9A5B00); }
-            .pf-pill.bad { background:var(--status-behind-soft, #fceeec); color:var(--status-behind-deep, #A8382B); }
-            .pf-tags { margin-top:10px; }
-            .pf-tags span { display:inline-block; font-size:12px; padding:3px 9px; border-radius:999px; background:var(--fill, #F4F5F8); margin:0 6px 6px 0; }
-            .pf-list { list-style:none; margin:0; padding:0; }
-            .pf-list li { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid var(--line, #eceef3); font-size:13px; }
-            .pf-list li:last-child { border-bottom:0; }
-            .pf-list li > span:last-child { text-align:right; }
-            .pf-link { color:var(--ui, #24418C); font-weight:600; text-decoration:none; }
-            .pf-link:hover { text-decoration:underline; }
+            .jx-head { display: flex; align-items: flex-end; gap: 12px 20px; flex-wrap: wrap; margin: 2px 0 16px; }
+            .jx-title { flex: 1 1 320px; min-width: 0; }
+            .jx-title .ph-eyebrow { font-size: 12px; color: var(--muted, #8c92a0); text-transform: uppercase; letter-spacing: .1em; font-weight: 700; }
+            .jx-title h1 { font-size: 22px; margin: 2px 0 2px; line-height: 1.25; }
+            .jx-sub { font-size: 14px; color: var(--ink-2, #4A4F59); }
+            .jx-chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+            .jx-chip { font-size: 13px; font-weight: 700; padding: 5px 11px; border-radius: 999px; background: var(--fill, #F4F5F8); color: var(--ink-2, #4A4F59); border: 1px solid var(--line, #eceef3); white-space: nowrap; }
+            .jx-chip.ok { background: var(--status-complete-soft, #e7f6f0); color: var(--status-complete-deep, #0c7a5f); border-color: transparent; }
+            .jx-chip.warn { background: var(--status-warn-soft, #FFF4E5); color: var(--status-warn, #9A5B00); border-color: transparent; }
+            .jx-chip.bad { background: var(--status-behind-soft, #fceeec); color: var(--status-behind-deep, #A8382B); border-color: transparent; }
+            .jx-chip.ui { background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); border-color: transparent; }
+            .jx-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 0 0 18px; }
+            .jx-kpi { background: #fff; border: 1px solid var(--line, #eceef3); border-radius: 14px; padding: 14px 16px; cursor: pointer; text-align: left; font: inherit; color: inherit; transition: border-color .15s, box-shadow .15s; }
+            .jx-kpi:hover { border-color: var(--ui-edge, rgba(36,65,140,.35)); box-shadow: 0 2px 10px rgba(20,22,28,.06); }
+            .jx-kpi-k { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted, #8c92a0); }
+            .jx-kpi-v { font-size: 26px; font-weight: 800; color: var(--ink, #222633); margin: 4px 0 2px; line-height: 1.1; }
+            .jx-kpi-v.bad { color: var(--status-behind-deep, #A8382B); } .jx-kpi-v.ok { color: var(--status-complete-deep, #0c7a5f); }
+            .jx-kpi-s { font-size: 13px; color: var(--ink-2, #4A4F59); }
+            .jx-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin: 0 0 22px; }
+            .jx-card { background: #fff; border: 1px solid var(--line, #eceef3); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; }
+            .jx-card h2 { margin: 0 0 12px; font-size: 16px; display: flex; align-items: baseline; gap: 8px; }
+            .jx-card h2 a { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--ui, #24418C); cursor: pointer; white-space: nowrap; }
+            .jx-line { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line, #eceef3); font-size: 14px; }
+            .jx-line:first-of-type { border-top: 0; }
+            .jx-line .k { color: var(--ink-2, #4A4F59); flex: 1; min-width: 0; } .jx-line .v { font-weight: 700; color: var(--ink, #222633); white-space: nowrap; }
+            .jx-line .v.bad { color: var(--status-behind-deep, #A8382B); } .jx-line .v.ok { color: var(--status-complete-deep, #0c7a5f); } .jx-line .v.warn { color: var(--status-warn, #9A5B00); }
+            .jx-line[data-goto] { cursor: pointer; } .jx-line[data-goto]:hover .k { color: var(--ui, #24418C); }
+            .jx-bar { height: 10px; border-radius: 999px; background: var(--fill, #F4F5F8); position: relative; overflow: hidden; margin: 6px 0 4px; }
+            .jx-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: var(--ui, #24418C); }
+            .jx-bar b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink, #222633); }
+            .jx-legend { font-size: 13px; color: var(--ink-2, #4A4F59); display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+            .jx-aging { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 6px 0 2px; }
+            .jx-aging div { text-align: center; font-size: 12px; color: var(--ink-2, #4A4F59); }
+            .jx-aging div b { display: block; font-size: 13.5px; color: var(--ink, #222633); }
+            .jx-aging div.late b { color: var(--status-behind-deep, #A8382B); }
+            .jx-empty { font-size: 14px; color: var(--muted, #8c92a0); padding: 4px 0; }
+            .jx-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+            .jx-photos a { display: block; aspect-ratio: 4/3; border-radius: 8px; overflow: hidden; background: var(--fill, #F4F5F8); }
+            .jx-photos img { width: 100%; height: 100%; object-fit: cover; display: block; }
+            .jx-person { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line, #eceef3); }
+            .jx-person:first-of-type { border-top: 0; }
+            .jx-person .who { flex: 1; min-width: 0; font-size: 14px; } .jx-person .who b { display: block; }
+            .jx-person .who span { font-size: 13px; color: var(--muted, #8c92a0); }
+            .jx-person a.btn { font-size: 13px; font-weight: 700; color: var(--ui, #24418C); border: 1px solid var(--line, #eceef3); border-radius: 8px; padding: 5px 10px; text-decoration: none; }
+            .jx-ops-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0 12px; }
+            .jx-ops-bar h2 { margin: 0; font-size: 16px; }
+            .jx-ops-bar button { font: inherit; font-size: 13px; font-weight: 700; color: var(--ui, #24418C); background: #fff; border: 1px solid var(--line, #eceef3); border-radius: 8px; padding: 5px 11px; cursor: pointer; }
+            .ph-wrap.ops-closed .ph-gridbar, .ph-wrap.ops-closed #ph-grid { display: none; }
           </style>
-          <section class="pf" id="pf" aria-label="Contract, paperwork and crew">
-            <div class="pf-head">
-              <h2>Contract, paperwork &amp; crew</h2>
-              <span class="pf-hint">company view · admin and C-suite</span>
-              <span class="pf-spacer"></span>
-              <a class="pf-btn" href="/admin/projects">Crew &amp; site</a>
+          <div class="jx-head">
+            <div class="jx-title">
+              <div class="ph-eyebrow">Job dashboard</div>
+              <h1 data-project-title>&nbsp;</h1>
+              <div class="jx-sub"><span data-project-client>&nbsp;</span><span id="jx-address"></span></div>
             </div>
-            <div class="ph-kpis" id="pf-kpis"><div class="ph-kpi"><div><div class="ph-kpi-k">Contract</div><div class="ph-kpi-v">—</div><div class="ph-kpi-sub">loading…</div></div></div></div>
-            <div class="pf-grid">
-              <div class="pf-col">
-                <section class="ph-widget"><div class="ph-widget-head"><h3>Money</h3><span class="pf-sub">invoices and AIA applications on this job</span></div><div class="ph-widget-body" id="pf-money"><div class="ph-loading">Loading…</div></div></section>
-                <section class="ph-widget"><div class="ph-widget-head"><h3>Permits &amp; insurance</h3><span class="pf-sub" id="pf-pkg-sub">what secures this job</span></div><div class="ph-widget-body" id="pf-pkg"><div class="ph-loading">Loading…</div></div></section>
-                <section class="ph-widget"><div class="ph-widget-head"><h3>Documents expiring</h3></div><div class="ph-widget-body" id="pf-docs"><div class="ph-loading">Loading…</div></div></section>
-              </div>
-              <div class="pf-col">
-                <section class="ph-widget"><div class="ph-widget-head"><h3>Job</h3></div><div class="ph-widget-body" id="pf-job"><div class="ph-loading">Loading…</div></div></section>
-                <section class="ph-widget"><div class="ph-widget-head"><h3>Crew</h3><span class="pf-sub" id="pf-crew-sub"></span></div><div class="ph-widget-body" id="pf-crew"><div class="ph-loading">Loading…</div></div></section>
-                <section class="ph-widget" id="pf-contacts-card" hidden><div class="ph-widget-head"><h3>Client contacts</h3></div><div class="ph-widget-body" id="pf-contacts"></div></section>
-              </div>
-            </div>
-          </section>
+            <div class="jx-chips" id="jx-chips"></div>
+          </div>
+          <div class="jx-kpis" id="jx-kpis"></div>
+          <div class="jx-grid">
+            <div class="jx-card" id="jx-schedule"><h2>Schedule health <a data-goto="drop-plans">Drop plan →</a></h2><div class="jx-empty">Loading…</div></div>
+            <!-- SECTION:financial:start --><div class="jx-card" id="jx-money"><h2>Money <a data-goto="payments">Payments →</a></h2><div class="jx-empty">Loading…</div></div><!-- SECTION:financial:end -->
+            <div class="jx-card" id="jx-field"><h2>Field today <a data-goto="daily-report">Daily report →</a></h2><div class="jx-empty">Loading…</div></div>
+            <div class="jx-card" id="jx-risk"><h2>Open items &amp; risk <a data-goto="rfis">RFIs →</a></h2><div class="jx-empty">Loading…</div></div>
+            <div class="jx-card" id="jx-contacts"><h2>Key contacts <a data-goto="contacts">All contacts →</a></h2><div class="jx-empty">Loading…</div></div>
+            <div class="jx-card" id="jx-photos"><h2>Latest photos <a data-goto="field-photos">Field photos →</a></h2><div class="jx-empty">Loading…</div></div>
+          </div>
+          <div class="jx-ops-bar"><h2>Operations</h2><span class="ph-gridbar-hint">drops · charts · roster · weather · certs</span><span style="flex:1"></span><button type="button" id="jx-ops-toggle">Hide</button></div>
           <script>
-          (function(){
-            const $ = (id) => document.getElementById(id);
-            if (!$('pf')) return;
-            const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
-            const money = new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', maximumFractionDigits:0 });
-            const money2 = new Intl.NumberFormat('en-US', { style:'currency', currency:'USD' });
-            const mdy = (iso) => { if (!iso) return '—'; const p = String(iso).slice(0,10).split('-'); return p.length === 3 ? p[1] + '/' + p[2] + '/' + p[0] : esc(iso); };
-            const empty = (t, s) => `<div class="ph-empty"><div class="ph-empty-title">${esc(t)}</div>${s ? `<div class="ph-empty-sub">${esc(s)}</div>` : ''}</div>`;
-            const kpi = (k, v, sub) => `<div class="ph-kpi"><div><div class="ph-kpi-k">${esc(k)}</div><div class="ph-kpi-v">${v}</div><div class="ph-kpi-sub">${sub || ''}</div></div></div>`;
-            const fact = (k, v) => `<li><span class="pf-muted">${esc(k)}</span><span>${v == null || v === '' ? '—' : v}</span></li>`;
-            const pkgPill = (s) => `<span class="pf-pill ${({ on_file:'ok', expiring:'warn', expired:'bad' })[s] || ''}">${esc(String(s || '').replace('_', ' '))}</span>`;
-            const code = () => window.SSC_PROJECT_CODE || decodeURIComponent((location.pathname.match(/\/projects\/([^\/]+)/) || [])[1] || '');
-
-            function render(d) {
-              const p = d.project || {}, m = (d.money && d.money.summary) || {}, a = (d.aia && d.aia.summary) || {};
-              const pk = (d.package && d.package.summary) || {}, pms = d.pms || [], crew = d.crew || [];
-              const src = d.contract && d.contract.source;
-              $('pf-kpis').innerHTML =
-                kpi('Contract', d.contract && d.contract.value != null ? money.format(d.contract.value) : '—',
-                    src === 'schedule_of_values' ? 'schedule of values' : (src === 'estimate' ? 'from ' + esc(d.contract.estimate_code || 'the estimate') : 'not set')) +
-                kpi('Invoiced', money.format(m.invoiced_total || 0), 'issued + paid') +
-                kpi('Collected', money.format(m.collected || 0), 'payments received') +
-                kpi('Open', money.format(m.open_value || 0), `${m.open_count || 0} unpaid${m.overdue_count ? ' · <span class="pf-pill bad">' + m.overdue_count + ' overdue</span>' : ''}`) +
-                (a.contract_sum_to_date ? kpi('Balance to finish', money.format(a.balance_to_finish || 0), money.format(a.retainage_held || 0) + ' retainage held') : '');
-
-              const inv = (d.money && d.money.invoices) || [];
-              const invHtml = inv.length ? `<div class="pf-table-wrap"><table class="pf-table"><thead><tr><th>Invoice</th><th>Description</th><th class="num">Amount</th><th class="num">Open</th><th>Due</th><th>Status</th></tr></thead><tbody>${inv.map(r => `<tr><td class="pf-id">${esc(r.number)}</td><td>${esc(r.description || '')}<div class="pf-muted pf-small">${esc(r.kind || '')}</div></td><td class="num">${money2.format(r.amount || 0)}</td><td class="num">${r.status === 'issued' ? '<strong>' + money2.format(r.balance || 0) + '</strong>' : '—'}</td><td>${r.status === 'draft' ? '<span class="pf-muted">draft</span>' : mdy(r.due_at)}</td><td><span class="pf-pill ${r.overdue ? 'bad' : (r.status === 'paid' ? 'ok' : (r.status === 'issued' ? 'active' : ''))}">${r.overdue ? 'overdue' : esc(r.status)}</span></td></tr>`).join('')}</tbody></table></div>`
-                : empty('No invoices on this job yet', 'Create one under Money → Payments, or issue an AIA application.');
-              const apps = (d.aia && d.aia.applications) || [];
-              $('pf-money').innerHTML = invHtml + (apps.length ? `<div class="pf-tags">${apps.map(x => `<span>App #${esc(x.number)} · ${esc(x.status)} · ${money2.format(x.current_payment_due || 0)} · ${esc(x.pct_complete)}%</span>`).join('')}</div>` : '');
-
-              const items = (d.package && d.package.items) || [], ls = d.package && d.package.last_sent;
-              $('pf-pkg-sub').textContent = pk.required ? `${pk.on_file} of ${pk.required} on file · ${pk.pct}%` : 'what secures this job';
-              $('pf-pkg').innerHTML = (items.length ? `<div class="pf-tags" style="margin-top:0">${items.map(i => `<span>${esc(i.label)} ${pkgPill(i.status)}${i.expiry_date ? ' <span class="pf-muted">· ' + mdy(i.expiry_date) + '</span>' : ''}</span>`).join('')}</div>`
-                  : empty('No package defined', 'COI, bond and permits appear here once the job has document requirements.')) +
-                (ls ? `<div class="pf-muted pf-small" style="margin-top:8px">Sent to ${esc(ls.sent_name || ls.sent_to || '')} on ${mdy(ls.sent_at)}${ls.viewed_at ? ' · opened ' + mdy(ls.viewed_at) : ' · not opened yet'}${d.package.sends > 1 ? ' · ' + esc(d.package.sends) + ' sends' : ''}</div>` : '');
-
-              const docs = d.documents_expiring || [];
-              $('pf-docs').innerHTML = docs.length ? `<div class="pf-table-wrap"><table class="pf-table"><thead><tr><th>Document</th><th>Category</th><th>Expires</th></tr></thead><tbody>${docs.map(x => `<tr><td>${esc(x.title)}</td><td class="pf-muted">${esc(x.category)}</td><td>${mdy(x.expiry_date)} ${x.days_left != null ? (x.days_left < 0 ? '<span class="pf-pill bad">expired</span>' : (x.days_left <= 30 ? '<span class="pf-pill warn">' + esc(x.days_left) + 'd</span>' : '')) : ''}</td></tr>`).join('')}</tbody></table></div>`
-                : empty('No dated documents', 'COIs, permits and contracts with an expiry date will show here.');
-
-              // a portal-relative link (#clients/<id>) is re-rooted on the company portal
-              const clientHref = d.client && d.links && d.links.client ? '/company' + d.links.client : null;
-              $('pf-job').innerHTML = `<ul class="pf-list">
-                ${fact('Client', d.client ? (clientHref ? `<a class="pf-link" href="${esc(clientHref)}">${esc(d.client.name)}</a>` : esc(d.client.name)) : null)}
-                ${fact('PM', pms.length ? esc(pms.map(x => x.name).join(', ')) : null)}
-                ${fact('Superintendent', p.superintendent ? esc(p.superintendent) : null)}
-                ${fact('Type', p.project_type ? esc(p.project_type) : null)}
-                ${fact('Status', `<span class="pf-pill ${p.status === 'active' ? 'ok' : ''}">${esc(p.status || '—')}</span>`)}
-                ${fact('Start', p.start_date ? mdy(p.start_date) : null)}
-                ${fact('Target completion', p.target_completion ? mdy(p.target_completion) : null)}
-                ${fact('Region', d.building && d.building.borough ? esc(d.building.borough) : null)}
-              </ul>`;
-
-              $('pf-crew-sub').textContent = `${crew.length} on the job`;
-              $('pf-crew').innerHTML = crew.length
-                ? `<div class="pf-tags" style="margin-top:0">${crew.map(w => `<span><b class="pf-id">${esc(w.worker_id || w.employee_id)}</b> — ${esc(w.name || '')}${w.trade ? ' · ' + esc(w.trade) : ''}${w.role_on_project ? ' · ' + esc(w.role_on_project) : ''}</span>`).join('')}</div>`
-                : `<div class="pf-muted">No crew assigned — workers are offered every active job until one is set. <a class="pf-link" href="/admin/projects">Assign crew →</a></div>`;
-
-              const contacts = d.contacts || [];
-              $('pf-contacts-card').hidden = !contacts.length;
-              $('pf-contacts').innerHTML = contacts.length ? `<ul class="pf-list">${contacts.map(c => `<li><span>${esc(c.full_name)}</span><span class="pf-muted">${esc(c.email || c.phone || '')}</span></li>`).join('')}</ul>` : '';
-            }
-
-            window.PROJ_loadFinancialSummary = async function () {
-              const c = code(); if (!c) return;
-              try {
-                const r = await fetch('/api/company/portal/projects/' + encodeURIComponent(c), { credentials: 'same-origin' });
-                const j = await r.json().catch(() => ({}));
-                if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
-                render(j.data || {});
-              } catch (e) {
-                ['pf-money', 'pf-pkg', 'pf-docs', 'pf-job', 'pf-crew'].forEach(id => { $(id).innerHTML = empty('Could not load this section', e.message); });
+          (function () {
+            const $j = id => document.getElementById(id);
+            const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+            const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+            const n = v => (v == null ? '—' : Number(v).toLocaleString('en-US'));
+            const mdy = iso => { if (!iso) return '—'; const [y, m, d] = String(iso).slice(0, 10).split('-'); return m + '/' + d + '/' + y; };
+            const line = (k, v, cls, go) => '<div class="jx-line"' + (go ? ' data-goto="' + go + '"' : '') + '><span class="k">' + k + '</span><span class="v ' + (cls || '') + '">' + v + '</span></div>';
+            const head = (id) => { const h = $j(id).querySelector('h2'); return h ? h.outerHTML : ''; };
+            function kpi(k, v, sub, go, cls) { return '<button type="button" class="jx-kpi" data-goto="' + go + '"><div class="jx-kpi-k">' + esc(k) + '</div><div class="jx-kpi-v ' + (cls || '') + '">' + v + '</div><div class="jx-kpi-s">' + sub + '</div></button>'; }
+            window.JX_render = function (S) {
+              if (!S) return;
+              const H = S.header || {}, SC = S.schedule, F = S.field_today, R = S.risk, M = S.money;
+              const cl = document.querySelector('.jx-sub [data-project-client]');
+              if (cl) cl.textContent = H.client || '';
+              $j('jx-address').textContent = (H.client && H.address ? ' · ' : '') + (H.address || '');
+              const chips = [];
+              chips.push('<span class="jx-chip ' + (H.status === 'active' ? 'ok' : '') + '">' + esc((H.status || 'active').replace(/^./, c => c.toUpperCase())) + '</span>');
+              chips.push('<span class="jx-chip ' + (H.billing_type ? 'ui' : 'warn') + '" title="' + esc(H.billing_label || '') + '">' + esc(H.billing_type ? H.billing_short : 'Billing not set') + '</span>');
+              if (H.start_date || H.target_completion) chips.push('<span class="jx-chip">' + mdy(H.start_date) + ' → ' + mdy(H.target_completion) + '</span>');
+              if (H.days_left != null) chips.push('<span class="jx-chip ' + (H.days_left < 0 ? 'bad' : H.days_left <= 14 ? 'warn' : '') + '">' + (H.days_left < 0 ? Math.abs(H.days_left) + ' days over' : H.days_left + ' days left') + '</span>');
+              $j('jx-chips').innerHTML = chips.join('');
+              // ---- KPI band
+              const k = [];
+              if (SC) k.push(kpi('Complete', n(Math.round(SC.overall_pct)) + '%', H.time_elapsed_pct != null ? n(Math.round(H.time_elapsed_pct)) + '% of the time used' : n(SC.total) + (SC.total === 1 ? ' drop' : ' drops'), 'drop-plans'));
+              if (SC) k.push(kpi('Drops behind', n(SC.behind), 'of ' + n(SC.total) + (SC.total === 1 ? ' drop' : ' drops'), 'drop-plans', SC.behind ? 'bad' : 'ok'));
+              if (F) k.push(kpi('On site today', n(F.on_site), 'signed in', 'daily-report'));
+              if (F) k.push(kpi("Today's report", F.dcr_today ? 'Issued' : 'Not yet', F.last_dcr ? 'last ' + esc(F.last_dcr.number) + ' · ' + mdy(F.last_dcr.date) : 'none issued yet', 'daily-report', F.dcr_today ? 'ok' : 'bad'));
+              if (R) k.push(kpi('Open RFIs', n(R.rfis_open), R.rfis_overdue ? '<span style="color:var(--status-behind-deep, #A8382B);font-weight:700">' + n(R.rfis_overdue) + ' overdue</span>' : 'none overdue', 'rfis'));
+              if (M && M.contract) k.push(kpi('Balance to finish', money.format(M.balance_to_finish || 0), 'of ' + money.format(M.contract) + ' contract', 'payments'));
+              $j('jx-kpis').innerHTML = k.join('');
+              // ---- schedule
+              if (SC) {
+                const el = H.time_elapsed_pct;
+                const verdict = el == null ? '' : (SC.overall_pct + 5 < el ? '<span class="jx-chip bad">behind the calendar</span>' : SC.overall_pct > el + 5 ? '<span class="jx-chip ok">ahead of the calendar</span>' : '<span class="jx-chip ok">on pace</span>');
+                $j('jx-schedule').innerHTML = head('jx-schedule')
+                  + '<div class="jx-legend"><span><b>' + n(Math.round(SC.overall_pct)) + '%</b> complete</span>' + (el != null ? '<span>' + n(Math.round(el)) + '% of the time used</span>' : '') + verdict + '</div>'
+                  + '<div class="jx-bar"><i style="width:' + Math.min(100, SC.overall_pct) + '%"></i>' + (el != null ? '<b style="left:' + Math.min(100, el) + '%"></b>' : '') + '</div>'
+                  + line('Complete', n(SC.complete), 'ok', 'drop-plans') + line('In progress', n(SC.active), '', 'drop-plans')
+                  + line('Behind target', n(SC.behind), SC.behind ? 'bad' : '', 'drop-plans') + line('Not started', n(SC.not_started), '', 'drop-plans')
+                  + (SC.worst_behind.length ? '<div class="jx-legend" style="margin-top:8px">Most behind: ' + SC.worst_behind.map(w => esc(w.label) + ' (' + n(w.days_behind) + ' d)').join(' · ') + '</div>' : '');
               }
+              // ---- money (financial roles only — the payload has no `money` otherwise)
+              if (M && $j('jx-money')) {
+                const a = M.aging || {};
+                const cell = (label, v, late) => '<div class="' + (late && v > 0 ? 'late' : '') + '"><b>' + money.format(v || 0) + '</b>' + label + '</div>';
+                $j('jx-money').innerHTML = head('jx-money')
+                  + (M.contract ? line('Contract' + (M.change_orders ? ' <span style="color:var(--muted, #8c92a0)">incl. ' + money.format(M.change_orders) + ' change orders</span>' : ''), money.format(M.contract)) : line('Contract', 'not set', 'warn'))
+                  + line('Invoiced' + (M.billed_pct != null ? ' <span style="color:var(--muted, #8c92a0)">' + M.billed_pct + '% billed</span>' : ''), money.format(M.invoiced), '', 'payments')
+                  + line('Collected', money.format(M.collected), 'ok', 'payments')
+                  + line('Open receivables', money.format(M.open_ar), M.overdue ? 'warn' : '', 'payments')
+                  + '<div class="jx-aging">' + cell('current', a.current) + cell('1–30', a.d1_30, 1) + cell('31–60', a.d31_60, 1) + cell('61–90', a.d61_90, 1) + cell('90+', a.d90p, 1) + '</div>'
+                  + (M.costs_to_date != null ? line('Costs to date (labor + expenses)' + (M.cost_pct_of_contract != null ? ' <span style="color:var(--muted, #8c92a0)">' + M.cost_pct_of_contract + '% of contract</span>' : ''), money.format(M.costs_to_date), '', 'expenses') : '');
+              }
+              // ---- field today
+              if (F) {
+                $j('jx-field').innerHTML = head('jx-field')
+                  + line('Workers on site', n(F.on_site), '', 'employees')
+                  + line("Today's daily report", F.dcr_today ? 'Issued' : 'Not issued yet', F.dcr_today ? 'ok' : 'warn', 'daily-report')
+                  + line('Last report', F.last_dcr ? esc(F.last_dcr.number) + ' · ' + mdy(F.last_dcr.date) : '—', '', 'daily-report')
+                  + line('Safety events · last 7 days', n(F.safety_7d), F.safety_7d ? 'bad' : 'ok', 'daily-report');
+              }
+              // ---- risk
+              if (R) {
+                $j('jx-risk').innerHTML = head('jx-risk')
+                  + line('Open RFIs', n(R.rfis_open) + (R.rfis_overdue ? ' · ' + n(R.rfis_overdue) + ' overdue' : ''), R.rfis_overdue ? 'bad' : '', 'rfis')
+                  + line('Questions on the drawings', n(R.markup_rfis_open), '', 'drawings')
+                  + line('DOB violations (active)', n(R.violations_active), R.violations_active ? 'bad' : 'ok', 'compliance')
+                  + line('DOB complaints (active)', n(R.complaints_active), R.complaints_active ? 'warn' : 'ok', 'compliance')
+                  + line('Crew certifications', (R.certs_expired ? n(R.certs_expired) + ' expired' : '') + (R.certs_expired && R.certs_expiring_30 ? ' · ' : '') + (R.certs_expiring_30 ? n(R.certs_expiring_30) + ' expiring ≤30d' : '') || 'all current', R.certs_expired ? 'bad' : R.certs_expiring_30 ? 'warn' : 'ok', 'employees');
+              }
+              // ---- contacts
+              const C = S.contacts || [];
+              $j('jx-contacts').innerHTML = head('jx-contacts') + (C.length ? C.map(c => '<div class="jx-person"><div class="who"><b>' + esc(c.name) + '</b><span>' + esc([c.role, c.org].filter(Boolean).join(' · ')) + '</span></div>'
+                + (c.phone ? '<a class="btn" href="tel:' + esc(String(c.phone).replace(/[^+\d]/g, '')) + '">Call</a>' : '') + (c.email ? '<a class="btn" href="mailto:' + esc(c.email) + '">Email</a>' : '') + '</div>').join('')
+                : '<div class="jx-empty">No contacts yet — add the owner, property manager and consultants under Contacts.</div>');
+              // ---- photos
+              const P = S.photos || [];
+              $j('jx-photos').innerHTML = head('jx-photos') + (P.length ? '<div class="jx-photos">' + P.map(ph => '<a data-goto="field-photos" title="' + esc((ph.caption || '') + ' ' + mdy(ph.taken_at)) + '"><img loading="lazy" alt="" src="' + esc(ph.thumb_url) + '"></a>').join('') + '</div>'
+                : '<div class="jx-empty">No photos yet.</div>');
             };
-            window.PROJ_loadFinancialSummary();
+            document.addEventListener('click', (e) => {
+              const g = e.target.closest('.jx-kpi[data-goto], .jx-card [data-goto]'); if (!g) return;
+              e.preventDefault();
+              const l = document.querySelector('.nav-link[data-view="' + g.dataset.goto + '"]'); if (l) { l.click(); window.scrollTo(0, 0); }
+            });
+            // Operations (the drag-grid): open for field roles, closed for the C-suite; remembered
+            function setOps(open) {
+              const w = document.querySelector('.ph-wrap'); if (!w) return;
+              w.classList.toggle('ops-closed', !open); $j('jx-ops-toggle').textContent = open ? 'Hide' : 'Show';
+              if (open) setTimeout(() => window.dispatchEvent(new Event('resize')), 30);
+            }
+            let pref = null; try { pref = localStorage.getItem('ssc.jx.ops'); } catch (e) {}
+            function initOps(role) { setOps(pref != null ? pref === '1' : !(role === 'admin' || role === 'c_suite')); }
+            if (window.__SSC_USER) initOps(window.__SSC_USER.role); else document.addEventListener('ssc:user-loaded', ev => initOps((ev.detail || {}).role), { once: true });
+            $j('jx-ops-toggle').addEventListener('click', () => {
+              const open = document.querySelector('.ph-wrap').classList.contains('ops-closed');
+              try { localStorage.setItem('ssc.jx.ops', open ? '1' : '0'); } catch (e) {}
+              pref = open ? '1' : '0'; setOps(open);
+            });
           })();
           </script>
-          <!-- SECTION:company_portal:end -->
 
           <!-- layout controls -->
           <div class="ph-gridbar">
@@ -4901,7 +4891,8 @@
           .aia-sov thead th,.aia-grid thead th{background:transparent;color:var(--muted, #8c92a0)} .aia-sov td:nth-child(2){min-width:260px}
         </style>
         <div class="pay-wrap">
-          <div class="pay-card" id="aia-card">
+          <div class="bt-note bt-unset warn">How this job is billed isn't set yet. <a data-goto-settings>Set it in Settings</a> to show or hide AIA progress billing.</div>
+          <div class="pay-card aia-only" id="aia-card">
             <div class="pay-head" style="margin-bottom:8px"><div><h2 style="margin:0;font-size:16px;font-weight:800">AIA progress billing</h2><div class="pay-sub" id="aia-sub">G702 Application for Payment + G703 Continuation Sheet, billed against the Schedule of Values</div></div>
               <div class="pay-toolbar"><a class="pay-btn" data-view="sov" href="#" id="aia-goto-sov">Schedule of Values</a><button type="button" class="pay-btn primary" id="aia-new">+ New application</button></div></div>
             <div class="pay-kpis" id="aia-kpis"></div>
@@ -5227,7 +5218,9 @@
       <section class="view" data-view="sov">
         <!-- #317 — the BILLING schedule of values (what applications for payment bill
              against). Editor + contract sums; the drop-plan unit rates stay below. -->
-        <div class="section pay-wrap">
+        <div class="bt-note bt-off" data-bt-off>This job is billed <strong data-bt-label></strong>, so it has no schedule of values or AIA pay applications. <a data-goto-settings>Change the billing type</a></div>
+        <div class="bt-note bt-unset warn">How this job is billed isn't set yet. <a data-goto-settings>Set it in Settings</a> — AIA / Schedule of values jobs get this editor and pay applications.</div>
+        <div class="section pay-wrap aia-only">
           <h2>Schedule of Values</h2>
           <div class="pay-muted" style="margin:-4px 0 12px">The approved billing breakdown for this job. Applications for Payment (AIA G702 / G703, under Payments) bill against these lines. Change orders sit as their own lines.</div>
           <div class="pay-kpis" id="aia-sov-summary"></div>
@@ -5634,6 +5627,187 @@
       </section>
 
       <!-- SETTINGS -->
+      <!-- #357 — the people on this job -->
+      <section class="view" data-view="contacts">
+        <style>
+          .pc-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+          .pc-head h1 { margin: 0; font-size: 22px; } .pc-head p { margin: 4px 0 0; color: var(--muted, #8c92a0); font-size: 14px; }
+          .pc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+          .pc-card { background: #fff; border: 1px solid var(--line, #eceef3); border-radius: 14px; padding: 16px 18px; }
+          .pc-card h2 { margin: 0 0 10px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+          .pc-card h2 .pc-count { font-size: 12px; font-weight: 700; color: var(--muted, #8c92a0); background: var(--fill, #F4F5F8); border-radius: 999px; padding: 2px 8px; }
+          .pc-sub { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted, #8c92a0); margin: 12px 0 4px; }
+          .pc-row { display: flex; align-items: center; gap: 8px 10px; padding: 10px 0; border-top: 1px solid var(--line, #eceef3); flex-wrap: wrap; }
+          .pc-row:first-of-type { border-top: 0; }
+          .pc-who { flex: 1 1 190px; min-width: 0; } .pc-name { font-weight: 700; font-size: 14.5px; color: var(--ink, #222633); }
+          .pc-meta { font-size: 13px; color: var(--muted, #8c92a0); margin-top: 2px; }
+          .pc-acts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-left: auto; }
+          .pc-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 34px; padding: 0 10px; border: 1px solid var(--line, #eceef3); border-radius: 8px; background: #fff; color: var(--ui, #24418C); font: 600 13px Inter, system-ui, sans-serif; text-decoration: none; cursor: pointer; }
+          .pc-btn:hover { background: var(--ui-soft, #E8EDF8); }
+          .pc-star { color: var(--muted, #8c92a0); } .pc-star.on { color: #C58B00; border-color: #F1DDA3; background: #FFF8E6; }
+          .pc-empty { font-size: 13.5px; color: var(--muted, #8c92a0); padding: 6px 0; }
+          .pc-modal-bg { position: fixed; inset: 0; background: rgba(20,22,28,.45); display: none; align-items: center; justify-content: center; z-index: 60; padding: 16px; }
+          .pc-modal-bg.open { display: flex; }
+          .pc-modal { background: #fff; border-radius: 14px; width: 100%; max-width: 620px; max-height: 92vh; overflow: auto; box-shadow: 0 24px 64px rgba(20,22,28,.25); }
+          .pc-mh { padding: 18px 20px 4px; } .pc-mh h3 { margin: 0; font-size: 17px; }
+          .pc-mb { padding: 10px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+          .pc-mb .full { grid-column: 1 / -1; }
+          .pc-f label { display: block; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted, #8c92a0); margin-bottom: 5px; }
+          .pc-f input, .pc-f select { width: 100%; font: inherit; font-size: 14px; padding: 9px 10px; border: 1px solid var(--line, #eceef3); border-radius: 8px; background: #fff; }
+          .pc-seg { display: inline-flex; border: 1px solid var(--line, #eceef3); border-radius: 9px; padding: 2px; background: var(--fill, #F4F5F8); }
+          .pc-seg button { font: inherit; font-size: 13px; font-weight: 700; border: 0; background: transparent; color: var(--muted, #8c92a0); padding: 6px 12px; border-radius: 7px; cursor: pointer; }
+          .pc-seg button.on { background: #fff; color: var(--ui, #24418C); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+          .pc-results { border: 1px solid var(--line, #eceef3); border-radius: 8px; max-height: 200px; overflow: auto; }
+          .pc-results div { padding: 9px 11px; font-size: 14px; cursor: pointer; border-top: 1px solid var(--line, #eceef3); }
+          .pc-results div:first-child { border-top: 0; } .pc-results div:hover, .pc-results div.sel { background: var(--ui-soft, #E8EDF8); }
+          .pc-results small { color: var(--muted, #8c92a0); }
+          .pc-mf { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 20px 18px; }
+          .pc-err { color: var(--status-behind-deep, #A8382B); font-size: 13px; min-height: 16px; }
+          @media (max-width: 600px) { .pc-mb { grid-template-columns: 1fr; } .pc-grid { grid-template-columns: 1fr; } }
+        </style>
+        <div class="pc-head"><div style="flex:1"><h1>Contacts</h1><p>Everyone around this job — the ownership group, property managers, consultants and site supervisors.</p></div>
+          <button type="button" class="btn-primary" id="pc-add" hidden>+ Add contact</button></div>
+        <div class="pc-grid" id="pc-grid"><div class="pc-card"><div class="pc-empty">Loading…</div></div></div>
+
+        <div class="pc-modal-bg" id="pc-modal" role="dialog" aria-modal="true" aria-labelledby="pc-mtitle">
+          <form class="pc-modal" id="pc-form" novalidate>
+            <div class="pc-mh"><h3 id="pc-mtitle">Add a contact</h3></div>
+            <div class="pc-mb">
+              <div class="pc-f"><label for="pc-role">Role on this job</label><select class="ssc-field" id="pc-role"><option value="owner">Ownership group</option><option value="property_manager">Property management</option><option value="consultant">Consultant</option><option value="site_supervisor">Site supervisor</option></select></div>
+              <div class="pc-f" id="pc-disc-wrap" hidden><label for="pc-disc">Discipline</label><select class="ssc-field" id="pc-disc"></select></div>
+              <div class="pc-f" id="pc-side-wrap" hidden><label>Whose</label><div class="pc-seg"><button type="button" data-side="theirs" class="on">Owner / GC</button><button type="button" data-side="ours">Ours</button></div></div>
+              <div class="pc-f full" id="pc-mode-wrap"><div class="pc-seg"><button type="button" data-mode="pick" class="on">Pick someone in the CRM</button><button type="button" data-mode="new">New person</button></div></div>
+              <div class="pc-f full" id="pc-pick-wrap"><label for="pc-q" id="pc-q-label">Search by name or company</label><input class="ssc-field" id="pc-q" autocomplete="off" placeholder="Start typing…"><div class="pc-results" id="pc-results" style="margin-top:6px"></div></div>
+              <div class="pc-f" data-new hidden><label for="pc-name">Full name</label><input class="ssc-field" id="pc-name" autocomplete="off"></div>
+              <div class="pc-f" data-new hidden><label for="pc-title">Title</label><input class="ssc-field" id="pc-title" autocomplete="off" placeholder="e.g. Property manager"></div>
+              <div class="pc-f" data-new hidden><label for="pc-email">Email</label><input class="ssc-field" id="pc-email" type="email" autocomplete="off"></div>
+              <div class="pc-f" data-new hidden><label for="pc-phone">Phone</label><input class="ssc-field" id="pc-phone" inputmode="tel" autocomplete="off"></div>
+              <div class="pc-f full" data-new hidden><label for="pc-org">Company</label><input class="ssc-field" id="pc-org" autocomplete="off" placeholder="Search a company, or type a new one"><div class="pc-results" id="pc-org-results" style="margin-top:6px"></div></div>
+              <div class="pc-f"><label for="pc-jobtitle">Title on this job (optional)</label><input class="ssc-field" id="pc-jobtitle" autocomplete="off" placeholder="e.g. Superintendent, Building super"></div>
+              <div class="pc-f" style="display:flex;align-items:flex-end;gap:8px"><label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink, #222633);margin:0 0 10px"><input type="checkbox" id="pc-primary" style="width:auto"> Main contact for this role</label></div>
+              <div class="pc-err full" id="pc-err" role="alert"></div>
+            </div>
+            <div class="pc-mf"><button type="button" class="btn-ghost" id="pc-cancel">Cancel</button><button type="submit" class="btn-primary" id="pc-save">Add to this job</button></div>
+          </form>
+        </div>
+        <script>
+        (function () {
+          const code = () => (location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || '';
+          const $c = id => document.getElementById(id);
+          const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+          const API = () => '/api/projects/' + encodeURIComponent(code()) + '/contacts';
+          const canEdit = () => ['admin', 'c_suite'].indexOf((window.__SSC_USER || {}).role) !== -1;
+          const PC = { d: null, side: 'theirs', mode: 'pick', pick: null, org: null };
+          async function call(url, opts) {
+            const r = await fetch(url, Object.assign({ credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } }, opts || {}));
+            const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || ('Request failed (' + r.status + ')')); return j.data;
+          }
+          function row(x) {
+            const acts = [];
+            if (x.phone) acts.push('<a class="pc-btn" href="tel:' + esc(x.phone.replace(/[^+\d]/g, '')) + '" title="Call ' + esc(x.phone) + '">Call</a>');
+            if (x.email) acts.push('<a class="pc-btn" href="mailto:' + esc(x.email) + '" title="' + esc(x.email) + '">Email</a>');
+            if (canEdit()) {
+              acts.push('<button type="button" class="pc-btn pc-star' + (x.is_primary ? ' on' : '') + '" data-pc-primary="' + x.id + '" title="' + (x.is_primary ? 'Main contact for this role' : 'Make main contact') + '">★</button>');
+              acts.push('<button type="button" class="pc-btn" data-pc-remove="' + x.id + '" title="Remove from this job" style="color:var(--status-behind-deep, #A8382B)">Remove</button>');
+            } else if (x.is_primary) acts.push('<span class="pc-btn pc-star on" title="Main contact">★</span>');
+            const meta = [x.title, x.org].filter(Boolean).join(' · ');
+            const reach = [x.phone, x.email].filter(Boolean).join(' · ');
+            return '<div class="pc-row"><div class="pc-who"><div class="pc-name">' + esc(x.name) + '</div><div class="pc-meta">' + esc(meta || '—') + (reach ? '<br>' + esc(reach) : '') + '</div></div><div class="pc-acts">' + acts.join('') + '</div></div>';
+          }
+          function card(title, list, empty) {
+            return '<div class="pc-card"><h2>' + esc(title) + ' <span class="pc-count">' + list.length + '</span></h2>' + (list.length ? list.map(row).join('') : '<div class="pc-empty">' + esc(empty) + '</div>') + '</div>';
+          }
+          function render() {
+            const d = PC.d, g = d.groups, t = d.team;
+            const team = '<div class="pc-card"><h2>Our team</h2>'
+              + '<div class="pc-sub">Project manager</div>' + (t.pms.length ? t.pms.map(p => '<div class="pc-row"><div class="pc-who"><div class="pc-name">' + esc(p.name) + '</div>' + (p.email ? '<div class="pc-meta">' + esc(p.email) + '</div>' : '') + '</div>' + (p.email ? '<div class="pc-acts"><a class="pc-btn" href="mailto:' + esc(p.email) + '">Email</a></div>' : '') + '</div>').join('') : '<div class="pc-empty">No PM assigned — assign one under Projects &amp; assignments.</div>')
+              + '<div class="pc-sub">Site supervisors (ours)</div>' + (t.supervisors.length ? t.supervisors.map(row).join('') : '<div class="pc-empty">None yet — the main one prints as Superintendent on the Daily Report.</div>')
+              + '<div class="pc-sub">Crew</div><div class="pc-row"><div class="pc-who"><div class="pc-name">' + t.crew_count + ' worker(s) assigned</div></div><div class="pc-acts"><a class="pc-btn" data-goto-view="employees">Open</a></div></div></div>';
+            const cons = g.consultant;
+            const byDisc = {}; cons.forEach(x => { (byDisc[x.discipline_label || 'Other'] = byDisc[x.discipline_label || 'Other'] || []).push(x); });
+            const consCard = '<div class="pc-card"><h2>Consultants <span class="pc-count">' + cons.length + '</span></h2>' + (cons.length ? Object.keys(byDisc).sort().map(k => '<div class="pc-sub">' + esc(k) + '</div>' + byDisc[k].map(row).join('')).join('') : '<div class="pc-empty">Architects, engineers, expeditors on this job.</div>') + '</div>';
+            $c('pc-grid').innerHTML = team
+              + card('Ownership group', g.owner, 'The building owner and their representatives.')
+              + card('Property management', g.property_manager, 'The property manager and building super.')
+              + consCard
+              + card('Owner / GC site supervisors', g.site_supervisor, 'Their people we coordinate with on site.');
+          }
+          async function load() {
+            $c('pc-add').hidden = !canEdit();
+            try { PC.d = await call(API()); render(); } catch (e) { $c('pc-grid').innerHTML = '<div class="pc-card"><div class="pc-empty">' + esc(e.message) + '</div></div>'; }
+          }
+          document.querySelectorAll('.nav-link[data-view="contacts"]').forEach(l => l.addEventListener('click', load));
+          document.addEventListener('ssc:user-loaded', () => { if (document.querySelector('.view.active[data-view="contacts"]')) load(); });
+          $c('pc-grid').addEventListener('click', async (e) => {
+            const go = e.target.closest('[data-goto-view]'); if (go) { const l = document.querySelector('.nav-link[data-view="' + go.dataset.gotoView + '"]'); if (l) l.click(); return; }
+            const pr = e.target.closest('[data-pc-primary]'); const rm = e.target.closest('[data-pc-remove]');
+            try {
+              if (pr) { PC.d = await call(API() + '/' + pr.dataset.pcPrimary, { method: 'PATCH', body: JSON.stringify({ is_primary: true }) }); render(); }
+              if (rm && confirm('Remove this person from the job? They stay in the CRM.')) { PC.d = await call(API() + '/' + rm.dataset.pcRemove, { method: 'DELETE' }); render(); }
+            } catch (x) { alert(x.message); }
+          });
+          // ---- add modal
+          function setMode(m) { PC.mode = m; document.querySelectorAll('#pc-mode-wrap [data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === m)); syncForm(); }
+          function syncForm() {
+            const role = $c('pc-role').value, ours = role === 'site_supervisor' && PC.side === 'ours';
+            $c('pc-disc-wrap').hidden = role !== 'consultant'; $c('pc-side-wrap').hidden = role !== 'site_supervisor';
+            $c('pc-mode-wrap').hidden = ours;
+            const pick = ours || PC.mode === 'pick';
+            $c('pc-pick-wrap').hidden = !pick; document.querySelectorAll('#pc-form [data-new]').forEach(el => { el.hidden = pick; });
+            $c('pc-q-label').textContent = ours ? 'Search our roster (name or W-number)' : 'Search by name or company';
+            PC.pick = null; $c('pc-results').innerHTML = ''; $c('pc-q').value = '';
+          }
+          $c('pc-add').addEventListener('click', () => {
+            if (PC.d) $c('pc-disc').innerHTML = Object.entries(PC.d.disciplines).map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('');
+            ['pc-name', 'pc-title', 'pc-email', 'pc-phone', 'pc-org', 'pc-jobtitle'].forEach(id => { $c(id).value = ''; });
+            $c('pc-primary').checked = false; $c('pc-err').textContent = ''; PC.side = 'theirs'; PC.org = null; $c('pc-org-results').innerHTML = '';
+            document.querySelectorAll('#pc-side-wrap [data-side]').forEach(b => b.classList.toggle('on', b.dataset.side === 'theirs'));
+            setMode('pick'); $c('pc-modal').classList.add('open'); setTimeout(() => $c('pc-role').focus(), 30);
+          });
+          $c('pc-cancel').addEventListener('click', () => $c('pc-modal').classList.remove('open'));
+          $c('pc-role').addEventListener('change', syncForm);
+          document.querySelectorAll('#pc-mode-wrap [data-mode]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+          document.querySelectorAll('#pc-side-wrap [data-side]').forEach(b => b.addEventListener('click', () => { PC.side = b.dataset.side; document.querySelectorAll('#pc-side-wrap [data-side]').forEach(x => x.classList.toggle('on', x === b)); syncForm(); }));
+          let qt = null;
+          $c('pc-q').addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(async () => {
+            const ours = $c('pc-role').value === 'site_supervisor' && PC.side === 'ours';
+            try {
+              const list = await call(API() + '/lookup?kind=' + (ours ? 'employee' : 'contact') + '&q=' + encodeURIComponent($c('pc-q').value));
+              $c('pc-results').innerHTML = list.map((x, i) => '<div data-i="' + i + '">' + esc(x.name) + ' <small>' + esc([x.title, x.org, x.trade].filter(Boolean).join(' · ')) + '</small></div>').join('') || '<div><small>No match — use “New person”.</small></div>';
+              $c('pc-results').onclick = (e) => { const el = e.target.closest('[data-i]'); if (!el) return; PC.pick = list[Number(el.dataset.i)]; $c('pc-results').querySelectorAll('[data-i]').forEach(x => x.classList.toggle('sel', x === el)); };
+            } catch (x) { $c('pc-results').innerHTML = '<div><small>' + esc(x.message) + '</small></div>'; }
+          }, 220); });
+          let ot = null;
+          $c('pc-org').addEventListener('input', () => { PC.org = null; clearTimeout(ot); ot = setTimeout(async () => {
+            const q = $c('pc-org').value.trim(); if (!q) { $c('pc-org-results').innerHTML = ''; return; }
+            try {
+              const list = await call(API() + '/lookup?kind=org&q=' + encodeURIComponent(q));
+              $c('pc-org-results').innerHTML = list.map((x, i) => '<div data-i="' + i + '">' + esc(x.name) + '</div>').join('') + '<div data-new-org="1"><small>+ New company “' + esc(q) + '”</small></div>';
+              $c('pc-org-results').onclick = (e) => { const el = e.target.closest('[data-i],[data-new-org]'); if (!el) return; PC.org = el.dataset.newOrg ? { new: q } : list[Number(el.dataset.i)]; $c('pc-org-results').querySelectorAll('div').forEach(x => x.classList.toggle('sel', x === el)); };
+            } catch (x) { $c('pc-org-results').innerHTML = ''; }
+          }, 220); });
+          $c('pc-form').addEventListener('submit', async (e) => {
+            e.preventDefault(); const err = $c('pc-err'); err.textContent = '';
+            const role = $c('pc-role').value, ours = role === 'site_supervisor' && PC.side === 'ours';
+            const body = { role, title_on_job: $c('pc-jobtitle').value.trim() || null, is_primary: $c('pc-primary').checked };
+            if (role === 'consultant') body.discipline = $c('pc-disc').value;
+            if (ours || PC.mode === 'pick') {
+              if (!PC.pick) { err.textContent = ours ? 'Pick one of our workers from the list.' : 'Pick someone from the list, or switch to “New person”.'; return; }
+              if (ours) body.employee_id = PC.pick.employee_id; else body.contact_id = PC.pick.id;
+            } else {
+              const name = $c('pc-name').value.trim(); if (!name) { err.textContent = 'Enter the person’s name.'; return; }
+              body.new_contact = { full_name: name, title: $c('pc-title').value.trim(), email: $c('pc-email').value.trim(), phone: $c('pc-phone').value.trim() };
+              const typed = $c('pc-org').value.trim();
+              if (PC.org && PC.org.id) body.org_id = PC.org.id; else if (typed) body.new_org = typed;
+            }
+            $c('pc-save').disabled = true;
+            try { PC.d = await call(API(), { method: 'POST', body: JSON.stringify(body) }); render(); $c('pc-modal').classList.remove('open'); }
+            catch (x) { err.textContent = x.message; } finally { $c('pc-save').disabled = false; }
+          });
+        })();
+        </script>
+      </section>
+
       <section class="view" data-view="settings">
         <div class="section">
           <h2>Project Settings</h2>
@@ -5645,12 +5819,66 @@
             <div class="card-title">Project Name</div>
             <div class="card-status" data-project-name>&nbsp;</div>
           </div>
-          <div class="card" style="margin-top: 16px;">
-            <div class="card-title">Status</div>
-            <div class="card-status"><span class="badge badge-ok">Active</span></div>
+          <div class="ps-grid" style="margin-top:16px">
+            <div class="ps-card"><div class="ps-k">Status</div><div class="ps-v" id="ps-status">—</div></div>
+            <div class="ps-card" style="grid-column: span 2"><div class="ps-k">How this job is billed</div>
+              <div class="ps-row"><span class="ps-v" id="ps-billing">—</span>
+                <select id="ps-billing-select" hidden aria-label="Billing type"></select>
+                <button type="button" class="btn-primary" id="ps-billing-save" hidden>Save</button></div>
+              <div class="ps-hint">AIA / Schedule of values jobs get the Schedule of Values and AIA pay applications (under Money). Lump sum, T&amp;M and unit-price jobs bill with plain invoices.</div>
+              <div class="ps-hint" id="ps-billing-err" style="color:var(--status-behind-deep, #A8382B)"></div></div>
           </div>
         </div>
       </section>
+      <script>
+      // #356 — Project Settings: real status + the billing type (editable by admin / c_suite)
+      (function () {
+        const code = () => (location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || '';
+        const $s = id => document.getElementById(id);
+        function applyType(bt, label) {
+          document.body.dataset.billingType = bt || '';
+          document.querySelectorAll('[data-bt-label]').forEach(el => { el.textContent = (label || '').toLowerCase(); });
+          const nav = document.querySelector('.nav-link[data-view=sov]');
+          if (nav) nav.hidden = !!(bt && bt !== 'aia_sov');
+        }
+        async function loadSettings() {
+          try {
+            const r = await fetch('/api/projects/' + encodeURIComponent(code()) + '/profile', { credentials: 'same-origin' });
+            const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
+            const p = j.data;
+            $s('ps-status').textContent = (p.status || 'active').replace(/^./, c => c.toUpperCase());
+            $s('ps-billing').textContent = p.billing_label;
+            applyType(p.billing_type, p.billing_label);
+            const role = (window.__SSC_USER || {}).role;
+            if (role === 'admin' || role === 'c_suite') {
+              const sel = $s('ps-billing-select');
+              sel.innerHTML = (p.billing_type ? '' : '<option value="">— choose —</option>') + p.billing_options.map(o => '<option value="' + o.code + '">' + o.label + '</option>').join('');
+              sel.value = p.billing_type || ''; sel.hidden = false; $s('ps-billing-save').hidden = false; $s('ps-billing').hidden = true;
+            }
+          } catch (e) { $s('ps-billing').textContent = 'Could not load'; }
+        }
+        document.addEventListener('click', async (e) => {
+          if (e.target.closest('[data-goto-settings]')) {
+            e.preventDefault(); const l = document.querySelector('.nav-link[data-view="settings"]'); if (l) l.click(); return;
+          }
+          if (e.target.id !== 'ps-billing-save') return;
+          const err = $s('ps-billing-err'); err.textContent = '';
+          const v = $s('ps-billing-select').value; if (!v) { err.textContent = 'Pick a billing type.'; return; }
+          e.target.disabled = true;
+          try {
+            const r = await fetch('/api/admin/projects/' + encodeURIComponent(code()) + '/billing-type', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ billing_type: v }) });
+            const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
+            applyType(j.data.billing_type, j.data.billing_label); $s('ps-billing').textContent = j.data.billing_label;
+            err.style.color = 'var(--status-complete-deep, #0c7a5f)'; err.textContent = 'Saved.';
+            setTimeout(() => { err.textContent = ''; err.style.color = ''; }, 2500);
+          } catch (x) { err.style.color = ''; err.textContent = x.message; } finally { e.target.disabled = false; }
+        });
+        document.querySelectorAll('.nav-link[data-view="settings"]').forEach(l => l.addEventListener('click', loadSettings));
+        // label the "billed as" notes once, from the server-rendered type
+        const LABEL = { aia_sov: 'AIA / Schedule of values', lump_sum: 'Lump sum', time_materials: 'Time & materials', unit_price: 'Unit price' };
+        applyType(document.body.dataset.billingType, LABEL[document.body.dataset.billingType] || '');
+      })();
+      </script>
 
     </div>
   </main>
@@ -5688,9 +5916,6 @@ document.querySelectorAll('.nav-link').forEach(link => {
       document.querySelector('.views-container').scrollTo({top: 0, behavior: 'smooth'});
     }
     // Per-view lazy loads
-    if (targetView === 'dashboard') {   // #343 — company-only card; absent (server-stripped) for pm/super
-      if (typeof window.PROJ_loadFinancialSummary === 'function') window.PROJ_loadFinancialSummary();
-    }
     if (targetView === 'sov') {   // #262 — Financial; SOV_load is absent (server-stripped) for non-admin/c_suite
       if (typeof window.SOV_load === 'function') window.SOV_load();
     }
@@ -7365,8 +7590,9 @@ document.querySelectorAll('.nav-link').forEach(link => {
     tbody.innerHTML = html;
   }
 
-  refresh();
-  setInterval(refresh, 30000);
+  // #358 — the rest of this legacy poll's targets were removed from the page long ago; the
+  // RFI tab's "on site today" line is all it still fills, so it runs when that tab opens
+  document.querySelectorAll('.nav-link[data-view="rfis"]').forEach(function (l) { l.addEventListener('click', refresh); });
 })();
 
 // Make rows/cards with data-link clickable
@@ -7466,6 +7692,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     // the observed churners): unchanged data = zero DOM/chart work.
     const rw=(k,slice,fn)=>{ if(window.SSC_PERF){ SSC_PERF.renderIfChanged('ph.'+k,slice,fn); } else { fn(); } };
     rw('kpis',[R,D,bd.on_site,bd.workers],()=>{ try{ renderKpis(R,D,wrap('on_site'),wrap('workers')); }catch(e){ console.warn('[PH] kpis',e); } });
+    rw('summary',[bd.summary],()=>{ try{ if(window.JX_render) JX_render(bd.summary); }catch(e){ console.warn('[PH] summary',e); } });   // #358
     rw('active',[D],()=>{ try{ renderActive(D); }catch(e){ console.warn('[PH] active',e); } });
     rw('donut',[D],()=>{ try{ renderDonut(D); }catch(e){ console.warn('[PH] donut',e); } });
     rw('bar',[D],()=>{ try{ renderBar(D); }catch(e){ console.warn('[PH] bar',e); } });
@@ -7483,7 +7710,8 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     const FALLBACK={rollup:`/api/dropplan/projects/${encodeURIComponent(PROJECT)}/rollup`,
       drops:`/api/dropplan/projects/${encodeURIComponent(PROJECT)}/drops`,
       on_site:`/api/projects/${encodeURIComponent(PROJECT)}/on-site?date=${t}`,
-      workers:`/api/projects/${encodeURIComponent(PROJECT)}/workers`};
+      workers:`/api/projects/${encodeURIComponent(PROJECT)}/workers`,
+      summary:`/api/projects/${encodeURIComponent(PROJECT)}/summary`};   // #358
     await Promise.all(Object.keys(FALLBACK).filter(k=>bd[k]===undefined).map(k=>
       jget(FALLBACK[k]).then(r=>{ if(r&&r.data!==undefined)bd[k]=r.data; }).catch(()=>{})));
     renderAll(bd);
