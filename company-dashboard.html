@@ -14,7 +14,7 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=359" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=341">
-<script src="/files/static/js/company_nav.js?v=341"></script>
+<script src="/files/static/js/company_nav.js?v=360"></script>
 <script src="/files/static/vendor/gridstack-all.js"></script>
 <script src="/files/static/js/dash_layout.js?v=292" defer></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -162,6 +162,12 @@
 
   /* ==== PLACEHOLDER ==== */
   .placeholder { padding: 30px; text-align: center; color: var(--mute); font-style: italic; border: 1px dashed var(--hairline); border-radius: 8px; }
+  /* #360 — Settings: the two "who can sign in" destinations as link cards */
+  .set-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .set-link { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--hairline); border-radius: 10px; text-decoration: none; color: var(--ink); background: #fff; transition: border-color .12s ease, background .12s ease; }
+  .set-link:hover { border-color: var(--ui-edge, rgba(36,65,140,.35)); background: var(--ui-soft, #E8EDF8); }
+  .set-link b { font-size: 14px; } .set-link b::after { content: " →"; color: var(--ui, #24418C); }
+  .set-link span { font-size: 12.5px; color: var(--mute); }
 
   /* #242 — tinted status chips (soft bg + saturated text), never solid fills.
      PENDING moved off dead gray onto the oat (not-started) family. */
@@ -1379,10 +1385,16 @@
   <!-- #266 — CRM / OPS CORE (C-suite function; page is admin/c_suite-only, endpoints @requires_section('crm')) -->
   <div class="panel" data-panel="settings">
     <div class="section">
-      <div class="ssc-subtabs" data-subtabs="company"></div>
-      <h2 data-i18n="p-settings-title">Settings</h2>
-      <div class="h2-sub" data-i18n="p-settings-sub">Company info, issuer signature, integrations.</div>
-      <div class="placeholder" data-i18n="p-settings-placeholder">Settings UI — coming next. Today, edit api-keys.txt directly.</div>
+      <div class="ssc-subtabs" data-subtabs="settings"></div>
+      <!-- #360 — Settings = who can sign in (Team & access) + this account's preferences
+           and security. The old placeholder card is gone; the Company sub-tabs
+           no longer draw here. -->
+      <h2 data-i18n="p-settings-title">Preferences &amp; security</h2>
+      <div class="h2-sub" data-i18n="p-settings-sub">Your display preferences and sign-in security.</div>
+      <div class="set-links">
+        <a class="set-link" href="/admin/users"><b data-i18n="p-set-team">Team &amp; access</b><span data-i18n="p-set-team-sub">Staff logins and roles — who can sign in to the dashboard.</span></a>
+        <a class="set-link" href="/company#portal"><b data-i18n="p-set-portal">Client portal</b><span data-i18n="p-set-portal-sub">Client logins, their project and what each one can see.</span></a>
+      </div>
     </div>
     <!-- #329 — Interface preferences folded in here (was its own sidebar entry) -->
     <div class="section" id="interface-section" style="margin-top:16px;">
@@ -1785,9 +1797,10 @@ const I18N = {
     'lrt-strip-text': 'active workers had no sign-ins this week — not shown above.',
     'lrt-strip-show': 'Show them ▾',
     'lrt-strip-hide': 'Hide them ▴',
-    'p-settings-title': 'Settings',
-    'p-settings-sub': 'Company info, issuer signature, integrations.',
-    'p-settings-placeholder': 'Settings UI — coming next. Today, edit api-keys.txt directly.',
+    'p-settings-title': 'Preferences & security',
+    'p-settings-sub': 'Your display preferences and sign-in security.',
+    'p-set-team': 'Team & access', 'p-set-team-sub': 'Staff logins and roles — who can sign in to the dashboard.',
+    'p-set-portal': 'Client portal', 'p-set-portal-sub': 'Client logins, their project and what each one can see.',
     'modal-title': 'New Worker Intake',
     'modal-step1': 'Step 1 · Worker Identity',
     'modal-step2': 'Step 2 · Project Assignment',
@@ -1944,9 +1957,10 @@ const I18N = {
     'lrt-strip-text': 'trabajadores activos sin registros esta semana — no se muestran arriba.',
     'lrt-strip-show': 'Mostrarlos ▾',
     'lrt-strip-hide': 'Ocultarlos ▴',
-    'p-settings-title': 'Ajustes',
-    'p-settings-sub': 'Información de la empresa, firma del emisor, integraciones.',
-    'p-settings-placeholder': 'Interfaz de ajustes — próximamente. Por ahora, edita api-keys.txt directamente.',
+    'p-settings-title': 'Preferencias y seguridad',
+    'p-settings-sub': 'Tus preferencias de pantalla y la seguridad de inicio de sesión.',
+    'p-set-team': 'Equipo y acceso', 'p-set-team-sub': 'Usuarios del personal y sus roles — quién puede entrar al panel.',
+    'p-set-portal': 'Portal de clientes', 'p-set-portal-sub': 'Usuarios de clientes, su proyecto y lo que cada uno puede ver.',
     'modal-title': 'Registro de Nuevo Trabajador',
     'modal-step1': 'Paso 1 · Identidad del Trabajador',
     'modal-step2': 'Paso 2 · Asignación a Proyecto',

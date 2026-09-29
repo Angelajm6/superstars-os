@@ -10,7 +10,7 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=359" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=341">
-<script src="/files/static/js/company_nav.js?v=341"></script>
+<script src="/files/static/js/company_nav.js?v=360"></script>
 <script src="/files/static/js/datepicker.js?v=302" defer></script>
 <script src="/files/static/js/auth_menu.js?v=302" defer></script>
 <style>
@@ -118,6 +118,30 @@
   .cp-field input:focus, .cp-field select:focus, .cp-field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .cp-field textarea { min-height: 70px; resize: vertical; }
 .cp-modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 6px 20px 18px; }
+  /* #360 — Client portal tab */
+  .pa-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0 0 14px; padding: 0; list-style: none; counter-reset: pa; }
+  .pa-steps li { counter-increment: pa; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 10px 40px; position: relative; font-size: 12.5px; color: var(--muted); background: #fff; }
+  .pa-steps li::before { content: counter(pa); position: absolute; left: 12px; top: 10px; width: 20px; height: 20px; border-radius: 50%; background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); font-weight: 800; font-size: 11.5px; display: flex; align-items: center; justify-content: center; }
+  .pa-steps b { display: block; color: var(--ink); font-size: 13px; margin-bottom: 2px; }
+  @media (max-width: 1100px) { .pa-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 640px) { .pa-steps { grid-template-columns: 1fr; } }
+  .pa-secs { display: flex; flex-wrap: wrap; gap: 4px; }
+  .pa-secs span { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); white-space: nowrap; }
+  .pa-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+  #pa-body { grid-template-columns: minmax(0, 1fr); }
+  .pa-block { grid-column: 1 / -1; min-width: 0; border-top: 1px solid var(--line); padding-top: 12px; }
+  .pa-block:first-child { border-top: 0; padding-top: 0; }
+  .pa-block h3 { margin: 0 0 4px; font-size: 13px; }
+  .pa-block .cp-muted { font-size: 12px; margin: 0 0 10px; }
+  .pa-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .pa-row select { flex: 1 1 220px; min-width: 0; max-width: 100%; text-overflow: ellipsis; font: inherit; font-size: 13px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
+  .pa-togs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pa-tog { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; padding: 7px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--muted); cursor: pointer; user-select: none; }
+  .pa-tog input { accent-color: var(--ui, #24418C); margin: 0; }
+  .pa-tog.on { background: var(--ui-soft, #E8EDF8); border-color: var(--ui-edge, rgba(36,65,140,.35)); color: var(--ui, #24418C); }
+  .pa-tog.busy { opacity: .55; pointer-events: none; }
+  .pa-temp { border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px; background: #F7F8FA; }
+  .pa-temp .tp { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 16px; font-weight: 700; letter-spacing: .5px; margin-top: 4px; user-select: all; }
   /* #355 — vehicle fleet panel */
   .cp-modal.vf { max-width: 980px; }
   .vf-tabs { display: flex; gap: 6px; padding: 12px 20px 0; flex-wrap: wrap; }
@@ -251,6 +275,29 @@
           </div>
         </div>
         <div id="client-detail" hidden></div>
+      </section>
+
+      <!-- ================= CLIENT PORTAL (#360) — who can sign in to the client portal, and how each is set up ================= -->
+      <section class="cp-view" id="view-portal" hidden>
+        <div class="cp-kpis" id="pa-kpis"></div>
+        <div class="cp-card">
+          <div class="cp-toolbar">
+            <div><strong>Client logins</strong><div class="cp-muted" style="font-size:12px">Everyone who signs in to the client portal, the project they see and what is unlocked for them.</div></div>
+            <span style="flex:1"></span>
+            <button class="btn-primary btn-sm" id="pa-add" type="button" hidden>+ Add client login</button>
+          </div>
+          <ol class="pa-steps" aria-label="How client portal access works">
+            <li><b>Login</b>Add the client's login. They get a one-time password and choose their own at first sign-in.</li>
+            <li><b>Project</b>Link the login to their job — one project per client.</li>
+            <li><b>What they see</b>Unlock sections: Progress, Photos, Daily Reports… Everything starts locked; with nothing unlocked they only see a welcome page.</li>
+            <li><b>Photos &amp; documents</b>Shared one at a time from the project dashboard — unlocking the section never shows anything you haven't shared.</li>
+          </ol>
+          <div class="cp-table-wrap"><table class="cp-table" id="pa-table"></table></div>
+        </div>
+        <div class="cp-card" id="pa-others-card" hidden style="margin-top:16px">
+          <div class="cp-toolbar"><div><strong>Architects &amp; engineers</strong><div class="cp-muted" style="font-size:12px">They open Drawing Markup, RFIs and Documents on their linked project — their role decides what they see, nothing to unlock.</div></div></div>
+          <div class="cp-table-wrap"><table class="cp-table" id="pa-others"></table></div>
+        </div>
       </section>
 
       <!-- ================= CALENDAR (#332) — what is happening on which day ================= -->
@@ -506,6 +553,26 @@
 </div>
 
 <!-- proposal modals (#307) -->
+<!-- #360 — Client portal: manage one client login (project, sections, preset, preview, password) -->
+<div class="cp-overlay" id="pa-overlay" role="dialog" aria-modal="true" aria-labelledby="pa-title">
+  <div class="cp-modal" style="max-width:640px">
+    <div class="cp-modal-head"><h2 id="pa-title">Client access</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="pa-sub"></p></div>
+    <div class="cp-modal-body" id="pa-body"></div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pa-close">Done</button></div>
+  </div>
+</div>
+<!-- #360 — add a client login (admin only; the server enforces it) -->
+<div class="cp-overlay" id="pa-new-overlay" role="dialog" aria-modal="true" aria-labelledby="pa-new-title">
+  <form class="cp-modal" id="pa-new-form" novalidate>
+    <div class="cp-modal-head"><h2 id="pa-new-title">Add client login</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Creates a portal login with a one-time password. Next you link their project and choose what they can see.</p></div>
+    <div class="cp-modal-body" id="pa-new-body">
+      <div class="cp-field"><label for="pa-new-name">Name</label><input id="pa-new-name" class="ssc-field" autocomplete="off" placeholder="e.g. Dana Rivera"></div>
+      <div class="cp-field"><label for="pa-new-email">Email</label><input id="pa-new-email" class="ssc-field" type="email" autocomplete="off" placeholder="name@theircompany.com"></div>
+      <div class="cp-form-err" id="pa-new-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot" id="pa-new-foot"><button class="btn-ghost" type="button" id="pa-new-cancel">Cancel</button><button class="btn-primary" type="submit" id="pa-new-go">Create login</button></div>
+  </form>
+</div>
 <div class="cp-overlay" id="pr-new-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-new-title">
   <form class="cp-modal" id="pr-new-form" novalidate>
     <div class="cp-modal-head"><h2 id="pr-new-title">New proposal</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">A proposal is generated from an estimate: client, contact, address and price come across; you edit the scope and terms before sending.</p></div>
@@ -2266,9 +2333,123 @@
   $('inv-search').addEventListener('input', () => debounce(() => renderInvoices()));
   document.querySelectorAll('.cp-overlay').forEach(o => o.addEventListener('click', (e) => { if (e.target === o) o.classList.remove('open'); }));
 
+  // ---------- #360 client portal: who can sign in, and how each login is set up ----------
+  const PA = { data: null, open: null, temp: null };
+  const PA_TONE = { live: 'ok', invited: 'active', locked: 'warn', no_project: 'warn', inactive: '' };
+  function paSecs(r) {
+    if (!r.sections.length) return '<span class="cp-muted">Nothing yet</span>';
+    const L = PA.data.section_labels || {};
+    return '<div class="pa-secs">' + r.sections.map(s => `<span>${esc(L[s] || s)}</span>`).join('') + '</div>';
+  }
+  function paWho(r) { return `<span class="cp-id">${esc(r.name)}</span><div class="cp-muted" style="font-size:12px">${esc(r.email)}</div>`; }
+  function paProject(r) { return r.project_code ? `${esc(r.project_name || r.project_code)}<div class="cp-muted" style="font-size:12px">${esc(r.project_code)}</div>` : '<span class="cp-muted">—</span>'; }
+  async function loadPortalAccess() {
+    skeleton($('pa-table'), 4);
+    try {
+      const { data: d } = await api('/company/portal-access', null, true);
+      PA.data = d;
+      const c = d.counts;
+      $('pa-kpis').innerHTML = kpi('Client logins', c.clients, 'active accounts') + kpi('Live', c.live, 'signed in and seeing their job', c.live ? 'good' : '')
+        + kpi('Invited', c.invited, "haven't signed in yet") + kpi('Needs setup', c.needs_setup, 'no project or nothing unlocked', c.needs_setup ? 'warn' : '')
+        + kpi('Projects shared', c.projects, 'jobs a client can open');
+      $('pa-add').hidden = !d.can_create;
+      table($('pa-table'), [
+        { key: 'name', label: 'Client', render: paWho },
+        { key: 'org_name', label: 'Company', render: r => r.org_name ? esc(r.org_name) : '<span class="cp-muted">—</span>' },
+        { key: 'project_code', label: 'Project', render: paProject },
+        { key: 'sections', label: 'Can see', sortVal: r => r.sections.length, render: paSecs },
+        { key: 'state', label: 'Status', render: r => `<span class="cp-pill ${PA_TONE[r.state] || ''}">${esc(r.state_label)}</span>` },
+        { key: 'last_login_at', label: 'Last sign-in', render: r => r.last_login_at ? fmtDate(r.last_login_at) : '<span class="cp-muted">never</span>' },
+        { key: '_a', label: '', render: r => `<div class="pa-actions">${r.project_code && r.active ? `<a class="btn-ghost btn-sm" href="/portal/${encodeURIComponent(r.project_code)}?preview_client=${r.user_id}" target="_blank" rel="noopener" title="See their portal exactly as they do — read-only">Preview</a>` : ''}<button class="btn-primary btn-sm" type="button" data-pa="${r.user_id}">Manage</button></div>` },
+      ], d.clients, { defaultSort: { key: 'name', dir: 'asc' },
+        emptyTitle: 'No client logins yet', emptySub: d.can_create ? 'Use "+ Add client login" to give a client access to their job.' : 'An admin adds client logins; you can then link their project and unlock what they see.' });
+      $('pa-others-card').hidden = !d.others.length;
+      if (d.others.length) table($('pa-others'), [
+        { key: 'name', label: 'Name', render: paWho },
+        { key: 'role_label', label: 'Role' },
+        { key: 'project_code', label: 'Project', render: paProject },
+        { key: 'sections', label: 'Can see', render: paSecs },
+        { key: 'last_login_at', label: 'Last sign-in', render: r => r.last_login_at ? fmtDate(r.last_login_at) : '<span class="cp-muted">never</span>' },
+      ], d.others, { defaultSort: { key: 'name', dir: 'asc' } });
+      if (PA.open) paRender();
+    } catch (e) { toast(e.message, true); $('pa-table').innerHTML = empty('Could not load client logins', e.message); }
+  }
+  function paRow(id) { return ((PA.data && PA.data.clients) || []).find(r => r.user_id === id); }
+  function paRender() {
+    const r = paRow(PA.open), d = PA.data;
+    if (!r) { $('pa-overlay').classList.remove('open'); PA.open = null; return; }
+    $('pa-title').textContent = r.name;
+    $('pa-sub').innerHTML = `${esc(r.email)} · <span class="cp-pill ${PA_TONE[r.state] || ''}">${esc(r.state_label)}</span>`;
+    const L = d.section_labels || {}, noProj = !r.project_code;
+    const projOpts = '<option value="">— no project —</option>' + d.projects.map(p =>
+      `<option value="${esc(p.project_code)}"${p.project_code === r.project_code ? ' selected' : ''}>${esc(p.name || p.project_code)}${p.org_name ? ' · ' + esc(p.org_name) : ''}</option>`).join('')
+      + (r.project_code && !d.projects.some(p => p.project_code === r.project_code) ? `<option value="${esc(r.project_code)}" selected>${esc(r.project_name || r.project_code)} (closed)</option>` : '');
+    const togs = d.sections.map(s => `<label class="pa-tog${r.sections.includes(s) ? ' on' : ''}"><input type="checkbox" data-sec="${esc(s)}"${r.sections.includes(s) ? ' checked' : ''}${noProj ? ' disabled' : ''}>${esc(L[s] || s)}</label>`).join('');
+    const order = ['minimal', 'standard', 'full'];
+    const presets = Object.keys(d.presets).sort((a, b) => order.indexOf(a) - order.indexOf(b)).map(k =>
+      `<option value="${esc(k)}"${r.preset === k ? ' selected' : ''}>${esc(d.preset_labels[k] || k)} — ${d.presets[k].map(s => L[s] || s).join(', ')}</option>`).join('');
+    const presetOpts = (r.preset ? '' : '<option value="" selected>Choose a preset…</option>') + presets;
+    $('pa-body').innerHTML = `
+      <div class="pa-block"><h3>1 · Project</h3><p class="cp-muted">The one job this client sees. Changing it locks every section again.</p>
+        <div class="pa-row"><select id="pa-proj" aria-label="Project">${projOpts}</select><button class="btn-primary btn-sm" type="button" id="pa-proj-save">Save project</button></div></div>
+      <div class="pa-block"><h3>2 · What they can see</h3><p class="cp-muted">${noProj ? 'Link a project first.' : 'Each switch applies right away. With nothing on, they only see a welcome page.'}</p>
+        <div class="pa-togs" id="pa-togs">${togs}</div>
+        <div class="pa-row" style="margin-top:10px"><select id="pa-preset" aria-label="Preset"${noProj ? ' disabled' : ''}>${presetOpts}</select><button class="btn-ghost btn-sm" type="button" id="pa-preset-go"${noProj ? ' disabled' : ''}>Apply preset</button></div>
+        <p class="cp-muted" style="margin:8px 0 0">Photos and Documents show only the items shared with clients from the project dashboard.</p></div>
+      <div class="pa-block"><h3>3 · Login</h3><p class="cp-muted">Last sign-in: ${r.last_login_at ? fmtDate(r.last_login_at) : 'never'}. A reset signs them out and gives them a new one-time password.</p>
+        <div class="pa-row">${r.project_code ? `<a class="btn-ghost btn-sm" href="/portal/${encodeURIComponent(r.project_code)}?preview_client=${r.user_id}" target="_blank" rel="noopener">Preview their portal</a>` : ''}<button class="btn-ghost btn-sm" type="button" id="pa-reset"${r.active ? '' : ' disabled'}>Reset password</button></div>
+        ${PA.temp && PA.temp.id === r.user_id ? `<div class="pa-temp" style="margin-top:10px"><div class="cp-muted" style="font-size:12px">One-time password — shown once. Give it to them securely; they choose their own at sign-in.</div><div class="tp">${esc(PA.temp.pw)}</div></div>` : ''}</div>`;
+    $('pa-proj-save').onclick = async (e) => {
+      const btn = e.currentTarget, code = $('pa-proj').value; btn.disabled = true;
+      try { await api('/admin/pm-assignments', { method: 'PUT', body: JSON.stringify({ user_id: r.user_id, project_codes: code ? [code] : [] }) }, true);
+        toast(code ? 'Project linked — now choose what they can see.' : 'Project removed — every section is locked.'); await loadPortalAccess(); }
+      catch (ex) { toast(ex.message, true); } finally { btn.disabled = false; }
+    };
+    $('pa-togs').querySelectorAll('input[data-sec]').forEach(box => box.addEventListener('change', async () => {
+      const lab = box.parentElement; lab.classList.add('busy');
+      try { await api('/admin/client-grants', { method: 'POST', body: JSON.stringify({ user_id: r.user_id, section: box.dataset.sec, on: box.checked }) }, true);
+        toast((L[box.dataset.sec] || box.dataset.sec) + (box.checked ? ' unlocked.' : ' locked.')); await loadPortalAccess(); }
+      catch (ex) { box.checked = !box.checked; toast(ex.message, true); } finally { lab.classList.remove('busy'); }
+    }));
+    $('pa-preset-go').onclick = async (e) => {
+      if (!$('pa-preset').value) return;
+      const btn = e.currentTarget; btn.disabled = true;
+      try { await api('/admin/client-grants/preset', { method: 'POST', body: JSON.stringify({ user_id: r.user_id, preset: $('pa-preset').value }) }, true);
+        toast('Preset applied.'); await loadPortalAccess(); }
+      catch (ex) { toast(ex.message, true); } finally { btn.disabled = false; }
+    };
+    $('pa-reset').onclick = async (e) => {
+      if (!confirm('Reset the password for ' + r.name + '? They are signed out and need the new one-time password.')) return;
+      const btn = e.currentTarget; btn.disabled = true;
+      try { const j = await api('/admin/users/' + r.user_id + '/reset-password', { method: 'POST' }, true);
+        PA.temp = { id: r.user_id, pw: j.temp_password }; await loadPortalAccess(); }
+      catch (ex) { toast(ex.message, true); btn.disabled = false; }
+    };
+  }
+  function paOpen(id) { PA.open = id; PA.temp = null; paRender(); $('pa-overlay').classList.add('open'); }
+  function paClose() { $('pa-overlay').classList.remove('open'); PA.open = null; PA.temp = null; $('pa-body').innerHTML = ''; }
+  $('pa-table').addEventListener('click', (e) => { const b = e.target.closest('[data-pa]'); if (b) paOpen(+b.dataset.pa); });
+  $('pa-close').addEventListener('click', paClose);
+  $('pa-overlay').addEventListener('click', (e) => { if (e.target === $('pa-overlay')) paClose(); });
+  $('pa-add').addEventListener('click', () => {
+    $('pa-new-form').reset(); $('pa-new-err').className = 'cp-form-err'; $('pa-new-go').disabled = false;
+    $('pa-new-overlay').classList.add('open'); $('pa-new-name').focus();
+  });
+  $('pa-new-cancel').addEventListener('click', () => $('pa-new-overlay').classList.remove('open'));
+  $('pa-new-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('pa-new-err'); err.className = 'cp-form-err'; $('pa-new-go').disabled = true;
+    try {
+      const j = await api('/admin/users', { method: 'POST', body: JSON.stringify({ display_name: $('pa-new-name').value.trim(), email: $('pa-new-email').value.trim(), role: 'client' }) }, true);
+      $('pa-new-overlay').classList.remove('open');
+      await loadPortalAccess();
+      paOpen(j.data.id); PA.temp = { id: j.data.id, pw: j.temp_password }; paRender();
+      toast('Login created — link their project next.');
+    } catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; $('pa-new-go').disabled = false; }
+  });
+
   // ---------- router ----------
-  const TITLES = { overview: 'Dashboard', clients: 'Clients', calendar: 'Projects · Calendar', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance · Expenses', workforce: 'Workforce', company: 'Company' };
-  const LOADERS = { overview: loadOverview, clients: loadClients, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance };
+  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Client portal', calendar: 'Projects · Calendar', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance · Expenses', workforce: 'Workforce', company: 'Company' };
+  const LOADERS = { overview: loadOverview, clients: loadClients, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance };
   const ALIASES = { buildings: 'projects', compliance: 'company' };   // #339 — old bookmarks and links keep working
   function route() {
     const h = (location.hash || '#overview').slice(1);

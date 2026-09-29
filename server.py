@@ -242,6 +242,11 @@ import portal_matrix  # noqa: E402
 import portal_sections  # noqa: E402
 portal_sections.register(app)
 
+# #360 — the Client portal tab: one read of who has portal access and how it is set up
+# (login state, linked project, unlocked sections). Writes stay on their own endpoints.
+import portal_access  # noqa: E402
+portal_access.register(app)
+
 # #272a — Materials & Deliveries: per-project catalog + txn ledger + expected
 # deliveries + weekly count. Operational section (all dashboard roles; pm via the
 # central scoping hook on /api/projects/<code>/ paths + per-resource checks on by-id
