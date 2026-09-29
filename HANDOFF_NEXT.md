@@ -168,6 +168,34 @@ grant, or elevation code.
   as patches and never picks COL-REPAIR as its patch line. The new SOV line shows in the
   financial Schedule of Values with no unit rate until one is set.
 * **Test:** `tests/smoke_column_repair_352.py` (both gates).
+### #355 — Company vehicles: mileage, service, E-ZPass tolls, car bills (Bookore, 2026-09-29)
+
+* **Ask:** per company car — E-ZPass assignment, mileage, service dates, which tolls it pays,
+  car bills; "know how many miles they've driven, when they were last serviced".
+* **Angela's choices:** tolls by **statement import** (E-ZPass has no API), mileage as an
+  **odometer log**, car bills **into Accounts Payable**.
+* **Module `fleet.py`** (registered after payables; company gate = admin / c_suite):
+  `vehicle` + `ezpass_tag/ezpass_account/service_every_miles/service_every_months`;
+  `vehicle_odometer` (manual | service | bill), `vehicle_service`, `vehicle_toll`
+  (`dedupe_key` UNIQUE), `payable.vehicle_id`, `payable_file` (under
+  `data_room/payables/<id>/`, served only by `/api/company/portal/payables/files/<id>`).
+* **Numbers:** miles in a period = last reading ≤ end − last reading before start (else the
+  first inside); avg/month over the span the readings cover (≤ 12 mo); next service =
+  last service + every N months / N miles (default 6 mo / 5,000 mi), "soon" within 30 days
+  or 500 mi, "overdue" past either; a reading lower than an earlier one is refused.
+* **E-ZPass import** (`POST /api/company/portal/vehicles/tolls/import`, CSV or XLSX): finds
+  the header row below account-info lines, fuzzy column match (date/time/tag/plate/agency/
+  entry/exit/amount), skips payment rows (no tag/plate), matches by tag (digits, leading
+  zeros ignored) else plate; unknown tags are REPORTED, not stored; re-upload is a no-op.
+  The real E-ZPass NY export layout hasn't been seen yet — if a statement doesn't parse,
+  the error names the missing column; adjust `parse_statement` `_pick` keywords.
+* **Car bill** = `payables.create(category='vehicle')` + `vehicle_id` + optional file +
+  optional odometer + "already paid" (`payables.pay`). It shows in Finance → Accounts payable.
+* **UI:** Company → Vehicles table gains Mileage / Service / Tolls (month) / Open bills;
+  "Open" = fleet panel (KPIs + Mileage (12-month bars) / Service / Tolls / Bills /
+  E-ZPass & intervals tabs); "Import E-ZPass statement" on the card.
+* **Test:** `tests/smoke_fleet_355.py` (both gates).
+
 ### #354 — Photoreal: the drop grid sits on the real building (Bookore, 2026-09-29)
 
 * **Seen on production:** the building rendered, but the grid floated above it. Causes:

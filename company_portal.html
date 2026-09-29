@@ -115,7 +115,20 @@
   .cp-field input, .cp-field select, .cp-field textarea { width: 100%; font: inherit; font-size: 13px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); outline: none; }
   .cp-field input:focus, .cp-field select:focus, .cp-field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .cp-field textarea { min-height: 70px; resize: vertical; }
-  .cp-modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 6px 20px 18px; }
+.cp-modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 6px 20px 18px; }
+  /* #355 — vehicle fleet panel */
+  .cp-modal.vf { max-width: 980px; }
+  .vf-tabs { display: flex; gap: 6px; padding: 12px 20px 0; flex-wrap: wrap; }
+  .vf-tabs button { font: inherit; font-size: 13px; font-weight: 700; border: 1px solid var(--line); background: #fff; color: var(--muted); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+  .vf-tabs button.on { background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); border-color: transparent; }
+  .vf-sec { padding: 12px 20px 18px; }
+  .vf-form { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; align-items: end; margin-bottom: 12px; }
+  .vf-form .w2 { grid-column: span 2; } .vf-form .w3 { grid-column: span 3; } .vf-form .w6 { grid-column: 1 / -1; }
+  @media (max-width: 720px) { .vf-form { grid-template-columns: 1fr 1fr; } .vf-form .w2, .vf-form .w3 { grid-column: span 2; } }
+  .vf-bars { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; align-items: end; height: 120px; margin: 6px 0 4px; }
+  .vf-bars div { background: var(--ui-soft, #E8EDF8); border-radius: 5px 5px 0 0; position: relative; min-height: 2px; }
+  .vf-bars div b { position: absolute; top: -16px; left: 0; right: 0; text-align: center; font-size: 10.5px; color: var(--ink); font-weight: 700; }
+  .vf-months { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; font-size: 10.5px; color: var(--muted); text-align: center; }
   .cp-form-err { grid-column: 1 / -1; color: #A8382B; background: var(--status-behind-soft, #fceeec); border-radius: 8px; padding: 8px 10px; font-size: 13px; display: none; }
   .cp-form-err.show { display: block; }
 
@@ -465,8 +478,9 @@
         <div class="ssc-subtabs" data-subtabs="company"></div>
         <div class="cp-kpis" id="co-kpis"></div>
         <div class="cp-card">
-          <div class="cp-card-head"><h2>Vehicles</h2><span class="hint">registration · insurance · inspection per vehicle</span>
-            <button class="btn-primary btn-sm" id="vh-add" type="button">+ Add vehicle</button></div>
+          <div class="cp-card-head"><h2>Vehicles</h2><span class="hint">mileage · service · E-ZPass tolls · bills · paper</span>
+            <span style="display:flex;gap:8px"><button class="btn-ghost btn-sm" id="vh-import" type="button" title="Upload the E-ZPass account activity statement (CSV or Excel)">Import E-ZPass statement</button><input type="file" id="vh-import-file" accept=".csv,.xlsx,.xlsm,.txt" hidden>
+            <button class="btn-primary btn-sm" id="vh-add" type="button">+ Add vehicle</button></span></div>
           <div class="cp-table-wrap"><table class="cp-table" id="vh-table"></table></div>
         </div>
         <div class="cp-card">
@@ -593,6 +607,22 @@
     </div>
     <div class="cp-modal-foot"><button type="button" class="btn-ghost" id="vh-cancel">Cancel</button><button type="submit" class="btn-primary" id="vh-save">Save vehicle</button></div>
   </form>
+</div>
+
+<!-- #355 vehicle fleet panel: mileage · service · tolls · bills -->
+<div class="cp-overlay" id="vf-overlay" role="dialog" aria-modal="true" aria-labelledby="vf-title">
+  <div class="cp-modal vf">
+    <div class="cp-modal-head" style="display:flex;align-items:flex-start;gap:12px">
+      <div style="flex:1"><h2 id="vf-title">Vehicle</h2><div class="cp-muted" id="vf-sub" style="font-size:13px;margin-top:4px"></div></div>
+      <button type="button" class="btn-ghost btn-sm" id="vf-close">Close</button>
+    </div>
+    <div class="cp-kpis" id="vf-kpis" style="padding:12px 20px 0"></div>
+    <div class="vf-tabs" role="tablist">
+      <button type="button" data-vftab="mileage" class="on">Mileage</button><button type="button" data-vftab="service">Service</button>
+      <button type="button" data-vftab="tolls">Tolls</button><button type="button" data-vftab="bills">Bills</button><button type="button" data-vftab="setup">E-ZPass &amp; intervals</button>
+    </div>
+    <div class="vf-sec" id="vf-body"></div>
+  </div>
 </div>
 
 <!-- #319 payables modals -->
@@ -1919,12 +1949,17 @@
       { key: 'plate', label: 'Plate', render: v => v.plate ? `<span class="cp-id">${esc(v.plate)}</span>` : '—' },
       { key: 'driver', label: 'Driver', render: v => esc(v.driver || '—') },
       { key: 'status', label: 'Status', render: v => `<span class="cp-pill ${v.status === 'active' ? 'ok' : ''}">${esc(v.status)}</span>` },
+      { key: 'odo', label: 'Mileage', num: true, sortVal: v => (v.fleet || {}).odometer || 0, render: v => vfMilesCell(v) },   // #355
+      { key: 'svc', label: 'Service', sortVal: v => ({ overdue: 0, soon: 1, unknown: 2, ok: 3 })[((v.fleet || {}).service || {}).state] ?? 9, render: v => vfServiceCell(v) },
+      { key: 'tolls', label: 'Tolls (month)', num: true, sortVal: v => ((v.fleet || {}).tolls || {}).month || 0, render: v => { const t = (v.fleet || {}).tolls; return t && t.month ? money2.format(t.month) + `<div class="cp-muted" style="font-size:12px">${t.count_month} toll(s)</div>` : '<span class="cp-muted">—</span>'; } },
+      { key: 'bills', label: 'Open bills', num: true, sortVal: v => ((v.fleet || {}).bills || {}).open || 0, render: v => { const b = (v.fleet || {}).bills; return b && b.open_count ? `<span class="cp-pill warn">${money2.format(b.open)}</span>` : '<span class="cp-muted">—</span>'; } },
       { key: 'next_expiry_days', label: 'Registration', sortVal: v => (v.documents.vehicle_registration || {}).days_left, render: v => vhDocCell(v, 'vehicle_registration') },
       { key: 'ins', label: 'Insurance', sortVal: v => (v.documents.vehicle_insurance || {}).days_left, render: v => vhDocCell(v, 'vehicle_insurance') },
       { key: 'insp', label: 'Inspection', sortVal: v => (v.documents.vehicle_inspection || {}).days_left, render: v => vhDocCell(v, 'vehicle_inspection') },
-      { key: 'id', label: '', render: v => `<div class="cp-actions"><button type="button" class="cp-link" data-vdoc="${v.id}">+ Paper</button><button type="button" class="cp-link" data-vedit="${v.id}">Edit</button>${v.status === 'active' ? `<button type="button" class="cp-link" data-vretire="${v.id}" style="color:#A8382B">Retire</button>` : ''}</div>` },
+      { key: 'id', label: '', render: v => `<div class="cp-actions"><button type="button" class="cp-link" data-vfleet="${v.id}"><strong>Open</strong></button><button type="button" class="cp-link" data-vdoc="${v.id}">+ Paper</button><button type="button" class="cp-link" data-vedit="${v.id}">Edit</button>${v.status === 'active' ? `<button type="button" class="cp-link" data-vretire="${v.id}" style="color:#A8382B">Retire</button>` : ''}</div>` },
     ], rows, { defaultSort: { key: 'label', dir: 'asc' }, emptyTitle: 'No vehicles yet', emptySub: 'Add the six trucks and vans; then attach each one’s registration, insurance and inspection so renewals show up here.' });
     $('vh-table').querySelectorAll('[data-vedit]').forEach(b => b.addEventListener('click', () => openVehicleModal(rows.find(v => String(v.id) === b.dataset.vedit))));
+    $('vh-table').querySelectorAll('[data-vfleet]').forEach(b => b.addEventListener('click', () => openFleet(Number(b.dataset.vfleet))));   // #355
     $('vh-table').querySelectorAll('[data-vdoc]').forEach(b => b.addEventListener('click', () => { openDocModal.presetVehicle = b.dataset.vdoc; openDocModal(null); $('cd-category').value = 'vehicle_registration'; cdFieldsForCategory(); $('cd-vehicle').value = b.dataset.vdoc; }));
     $('vh-table').querySelectorAll('[data-vretire]').forEach(b => b.addEventListener('click', async () => {
       const v = rows.find(x => String(x.id) === b.dataset.vretire);
@@ -1932,6 +1967,139 @@
       try { await api('/vehicles/' + v.id, { method: 'DELETE' }); toast('Vehicle retired'); loadCompliance(); } catch (e) { toast(e.message, true); }
     }));
   }
+  // ---------- #355 — fleet: mileage · service · E-ZPass tolls · car bills ----------
+  const VF_SVC = { oil_change: 'Oil change', tires: 'Tires', brakes: 'Brakes', inspection: 'Inspection', repair: 'Repair', maintenance: 'Maintenance', other: 'Other' };
+  const VF_BILL = { repair: 'Repair', service: 'Service', insurance: 'Insurance', registration: 'Registration', fuel: 'Fuel', parking: 'Parking', toll_violation: 'Toll violation', other: 'Other' };
+  const vfn = n => (n == null ? '—' : Number(n).toLocaleString('en-US'));
+  function vfMilesCell(v) {
+    const f = v.fleet || {};
+    if (f.odometer == null) return '<span class="cp-muted">no reading</span>';
+    return `${vfn(f.odometer)} mi<div class="cp-muted" style="font-size:12px">${f.miles_month != null ? vfn(f.miles_month) + ' this month' : 'as of ' + fmtDate(f.odometer_date)}</div>`;
+  }
+  function vfServiceCell(v) {
+    const s = (v.fleet || {}).service || {};
+    if (s.state === 'unknown' || !s.state) return '<span class="cp-muted">not logged</span>';
+    const pill = { ok: 'ok', soon: 'warn', overdue: 'bad' }[s.state];
+    const due = [s.due_date ? fmtDate(s.due_date) : null, s.due_miles ? vfn(s.due_miles) + ' mi' : null].filter(Boolean).join(' / ');
+    return `<span class="cp-pill ${pill}">${s.state === 'ok' ? 'up to date' : s.state}</span><div class="cp-muted" style="font-size:12px">next ${due}</div>`;
+  }
+  async function apiForm(path, fd) {   // multipart (bill file / statement) — no JSON content-type
+    const res = await fetch('/api/company/portal' + path, { method: 'POST', credentials: 'same-origin', body: fd });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((j && j.error) || ('Request failed (' + res.status + ')'));
+    return j;
+  }
+  const VF = { id: null, d: null, tab: 'mileage' };
+  async function openFleet(id, tab) {
+    VF.id = id; if (tab) VF.tab = tab;
+    $('vf-overlay').classList.add('open'); $('vf-body').innerHTML = '<div class="cp-skel"></div>';
+    try { VF.d = (await api('/vehicles/' + id + '/fleet')).data; renderFleet(); } catch (e) { $('vf-body').innerHTML = empty('Could not load this vehicle', e.message); }
+  }
+  function renderFleet() {
+    const d = VF.d, v = d.vehicle, s = d.summary, sv = s.service;
+    $('vf-title').textContent = v.label;
+    $('vf-sub').textContent = [v.plate ? 'Plate ' + v.plate : null, v.ezpass_tag ? 'E-ZPass tag ' + v.ezpass_tag : 'No E-ZPass tag on file'].filter(Boolean).join(' · ');
+    const svcState = { ok: 'good', soon: 'warn', overdue: 'warn' }[sv.state] || '';
+    $('vf-kpis').innerHTML =
+      kpi('Odometer', s.odometer != null ? vfn(s.odometer) + ' mi' : '—', s.odometer_date ? 'as of ' + fmtDate(s.odometer_date) : 'log a reading') +
+      kpi('Miles this month', vfn(s.miles_month), s.miles_ytd != null ? vfn(s.miles_ytd) + ' this year' : '') +
+      kpi('Avg / month', vfn(s.miles_per_month), 'last 12 months') +
+      kpi('Next service', sv.state === 'unknown' ? '—' : (sv.due_date ? fmtDate(sv.due_date) : '—'), sv.state === 'unknown' ? 'no service logged yet' : `${sv.state === 'ok' ? 'up to date' : sv.state}${sv.due_miles ? ' · at ' + vfn(sv.due_miles) + ' mi' : ''}`, svcState) +
+      kpi('Tolls this month', money2.format(s.tolls.month || 0), `${s.tolls.count_month} toll(s) · ${money2.format(s.tolls.ytd || 0)} this year`) +
+      kpi('Open bills', money2.format(s.bills.open || 0), `${money2.format(s.bills.ytd || 0)} billed this year`, s.bills.open ? 'warn' : '');
+    document.querySelectorAll('[data-vftab]').forEach(b => b.classList.toggle('on', b.dataset.vftab === VF.tab));
+    const t = VF.tab, B = $('vf-body'), today = todayLocal();
+    const del = (kind, id) => `<button type="button" class="cp-link" data-vfdel="${kind}:${id}" style="color:#A8382B">Remove</button>`;
+    if (t === 'mileage') {
+      const mx = Math.max(1, ...d.miles_by_month.map(m => m.miles || 0));
+      B.innerHTML = `<form class="vf-form" id="vf-f-read"><div class="cp-field w2"><label>Date</label><input type="date" name="reading_date" value="${today}"></div>
+          <div class="cp-field w2"><label>Odometer (miles)</label><input name="odometer" inputmode="numeric" placeholder="e.g. 48,210" required></div>
+          <div class="w2"><button class="btn-primary" type="submit">Log reading</button></div></form>
+        <div class="cp-muted" style="font-size:12px;margin-bottom:4px">Miles driven per month (a reading is also taken from every service and car bill that has one)</div>
+        <div class="vf-bars">${d.miles_by_month.map(m => `<div style="height:${Math.round(((m.miles || 0) / mx) * 100)}%">${m.miles ? `<b>${vfn(m.miles)}</b>` : ''}</div>`).join('')}</div>
+        <div class="vf-months">${d.miles_by_month.map(m => `<span>${fmtMonth(m.month)}</span>`).join('')}</div>
+        <table class="cp-table" style="margin-top:14px"><thead><tr><th>Date</th><th class="num">Odometer</th><th>From</th><th></th></tr></thead><tbody>
+        ${d.readings.map(r => `<tr><td>${fmtDate(r.reading_date)}</td><td class="num">${vfn(r.odometer)} mi</td><td>${esc({ manual: 'Reading', service: 'Service', bill: 'Bill' }[r.source] || r.source)}</td><td>${del('readings', r.id)}</td></tr>`).join('') || '<tr><td colspan="4" class="cp-muted">No readings yet.</td></tr>'}</tbody></table>`;
+    } else if (t === 'service') {
+      B.innerHTML = `<form class="vf-form" id="vf-f-svc"><div class="cp-field"><label>Date</label><input type="date" name="service_date" value="${today}"></div>
+          <div class="cp-field"><label>What</label><select name="service_type">${Object.entries(VF_SVC).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></div>
+          <div class="cp-field"><label>Odometer</label><input name="odometer" inputmode="numeric" placeholder="miles"></div>
+          <div class="cp-field"><label>Shop</label><input name="vendor"></div>
+          <div class="cp-field"><label>Cost</label><input name="cost" inputmode="decimal" placeholder="$"></div>
+          <div><button class="btn-primary" type="submit">Log service</button></div>
+          <div class="cp-field w6"><label>Notes</label><input name="notes" placeholder="optional"></div></form>
+        <div class="cp-note" style="margin:0 0 12px">Next service is due every <strong>${vfn(sv.every_miles)} miles</strong> or <strong>${sv.every_months} months</strong>, whichever comes first (change it under “E-ZPass &amp; intervals”). To pay the shop, add the invoice under <strong>Bills</strong>.</div>
+        <table class="cp-table"><thead><tr><th>Date</th><th>What</th><th class="num">Odometer</th><th>Shop</th><th class="num">Cost</th><th>Notes</th><th></th></tr></thead><tbody>
+        ${d.services.map(r => `<tr><td>${fmtDate(r.service_date)}</td><td>${esc(VF_SVC[r.service_type] || r.service_type)}</td><td class="num">${r.odometer != null ? vfn(r.odometer) + ' mi' : '—'}</td><td>${esc(r.vendor || '—')}</td><td class="num">${r.cost != null ? money2.format(r.cost) : '—'}</td><td>${esc(r.notes || '')}</td><td>${del('services', r.id)}</td></tr>`).join('') || '<tr><td colspan="7" class="cp-muted">No service logged yet.</td></tr>'}</tbody></table>`;
+    } else if (t === 'tolls') {
+      B.innerHTML = `<div class="cp-note" style="margin:0 0 12px">Tolls come in from the <strong>E-ZPass statement</strong>: download your account activity (CSV or Excel) from the E-ZPass website each month and use <strong>Import E-ZPass statement</strong> on the Vehicles card. Each toll is matched to this car by its tag${v.ezpass_tag ? ' (' + esc(v.ezpass_tag) + ')' : ''} or plate. Uploading the same statement twice is safe.</div>
+        <form class="vf-form" id="vf-f-toll"><div class="cp-field"><label>Date</label><input type="date" name="txn_date" value="${today}"></div>
+          <div class="cp-field w2"><label>Where</label><input name="location" placeholder="e.g. RFK Bridge"></div>
+          <div class="cp-field"><label>Amount</label><input name="amount" inputmode="decimal" placeholder="$" required></div>
+          <div class="w2"><button class="btn-ghost" type="submit">Add a toll by hand</button></div></form>
+        <table class="cp-table"><thead><tr><th>Date</th><th>Time</th><th>Agency</th><th>Where</th><th class="num">Amount</th><th></th></tr></thead><tbody>
+        ${d.tolls.map(r => `<tr><td>${fmtDate(r.txn_date)}</td><td>${esc(r.txn_time || '')}</td><td>${esc(r.agency || '—')}</td><td>${esc(r.location || '—')}</td><td class="num">${money2.format(r.amount)}</td><td>${del('tolls', r.id)}</td></tr>`).join('') || '<tr><td colspan="6" class="cp-muted">No tolls yet.</td></tr>'}</tbody></table>`;
+    } else if (t === 'bills') {
+      B.innerHTML = `<form class="vf-form" id="vf-f-bill"><div class="cp-field"><label>Type</label><select name="kind">${Object.entries(VF_BILL).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></div>
+          <div class="cp-field w2"><label>From (vendor)</label><input name="vendor" required></div>
+          <div class="cp-field"><label>Amount</label><input name="amount" inputmode="decimal" placeholder="$" required></div>
+          <div class="cp-field"><label>Bill date</label><input type="date" name="issued_at" value="${today}"></div>
+          <div class="cp-field"><label>Due</label><input type="date" name="due_at"></div>
+          <div class="cp-field w2"><label>What for</label><input name="description" placeholder="e.g. front brakes"></div>
+          <div class="cp-field"><label>Invoice #</label><input name="doc_number"></div>
+          <div class="cp-field"><label>Odometer</label><input name="odometer" inputmode="numeric" placeholder="optional"></div>
+          <div class="cp-field w2"><label>Bill file</label><input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp"></div>
+          <div class="cp-field w2" style="display:flex;align-items:center;gap:8px"><input type="checkbox" name="paid" value="1" id="vf-paid" style="width:auto"><label for="vf-paid" style="margin:0;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink)">Already paid</label></div>
+          <div class="w2" style="text-align:right"><button class="btn-primary" type="submit">Add bill</button></div></form>
+        <div class="cp-note" style="margin:0 0 12px">Car bills go into <strong>Finance → Accounts payable</strong> (category Vehicle) so they show up in what needs to be paid.</div>
+        <table class="cp-table"><thead><tr><th>Date</th><th>From</th><th>What</th><th class="num">Amount</th><th>Due</th><th>Status</th><th>File</th></tr></thead><tbody>
+        ${d.bills.map(r => `<tr><td>${fmtDate(r.issued_at)}</td><td>${esc(r.vendor)}</td><td>${esc(r.description || '')}</td><td class="num">${money2.format(r.amount)}</td><td>${fmtDate(r.due_at)}</td><td><span class="cp-pill ${r.status === 'paid' ? 'ok' : r.status === 'open' ? 'warn' : ''}">${esc(r.status)}</span></td><td>${(r.files || []).map(f => `<a class="cp-link" href="${esc(f.file_url)}" target="_blank" rel="noopener">${esc(f.file_name)}</a>`).join('<br>') || '—'}</td></tr>`).join('') || '<tr><td colspan="7" class="cp-muted">No bills yet.</td></tr>'}</tbody></table>`;
+    } else {
+      B.innerHTML = `<form class="vf-form" id="vf-f-setup"><div class="cp-field w2"><label>E-ZPass tag number</label><input name="ezpass_tag" value="${esc(v.ezpass_tag || '')}" placeholder="printed on the transponder"></div>
+          <div class="cp-field w2"><label>E-ZPass account</label><input name="ezpass_account" value="${esc(v.ezpass_account || '')}" placeholder="optional"></div>
+          <div class="cp-field"><label>Service every (miles)</label><input name="service_every_miles" inputmode="numeric" value="${esc(v.service_every_miles || sv.every_miles)}"></div>
+          <div class="cp-field"><label>… or every (months)</label><input name="service_every_months" inputmode="numeric" value="${esc(v.service_every_months || sv.every_months)}"></div>
+          <div class="w6" style="text-align:right"><button class="btn-primary" type="submit">Save</button></div></form>
+        <div class="cp-note" style="margin:0">The tag number is how tolls from the E-ZPass statement find this car. Without it, tolls are matched by plate.</div>`;
+    }
+  }
+  async function vfSubmit(form) {
+    const fd = new FormData(form), id = VF.id;
+    const json = o => ({ method: 'POST', body: JSON.stringify(o) });
+    const obj = Object.fromEntries(fd.entries());
+    if (form.id === 'vf-f-read') VF.d = (await api('/vehicles/' + id + '/readings', json(obj))).data;
+    else if (form.id === 'vf-f-svc') VF.d = (await api('/vehicles/' + id + '/services', json(obj))).data;
+    else if (form.id === 'vf-f-toll') VF.d = (await api('/vehicles/' + id + '/tolls', json(obj))).data;
+    else if (form.id === 'vf-f-setup') VF.d = (await api('/vehicles/' + id + '/fleet', { method: 'PATCH', body: JSON.stringify(obj) })).data;
+    else if (form.id === 'vf-f-bill') { if (!fd.get('file') || !fd.get('file').name) fd.delete('file'); VF.d = (await apiForm('/vehicles/' + id + '/bills', fd)).data; }
+    renderFleet(); toast('Saved'); vfDirty = true;
+  }
+  let vfDirty = false;
+  $('vf-body').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type=submit]'); if (btn) btn.disabled = true;
+    try { await vfSubmit(e.target); } catch (err) { toast(err.message, true); if (btn) btn.disabled = false; }
+  });
+  $('vf-body').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-vfdel]'); if (!b) return;
+    const [kind, rid] = b.dataset.vfdel.split(':');
+    if (!confirm('Remove this entry?')) return;
+    try { VF.d = (await api('/vehicles/' + VF.id + '/' + kind + '/' + rid, { method: 'DELETE' })).data; renderFleet(); vfDirty = true; } catch (err) { toast(err.message, true); }
+  });
+  document.querySelectorAll('[data-vftab]').forEach(b => b.addEventListener('click', () => { VF.tab = b.dataset.vftab; if (VF.d) renderFleet(); }));
+  $('vf-close').addEventListener('click', () => { closeOverlay('vf-overlay'); if (vfDirty) { vfDirty = false; loadCompliance(); } });
+  $('vh-import').addEventListener('click', () => $('vh-import-file').click());
+  $('vh-import-file').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const fd = new FormData(); fd.append('file', f); e.target.value = '';
+    try {
+      const r = (await apiForm('/vehicles/tolls/import', fd)).data;
+      const lines = [`${r.imported} new toll(s) imported` + (r.duplicates ? `, ${r.duplicates} already on file` : '') + '.'];
+      r.by_vehicle.forEach(x => lines.push(`• ${x.vehicle}: ${x.tolls} toll(s), ${money2.format(x.amount)}`));
+      if (r.unmatched.length) lines.push('', 'Not matched to a car (add the tag to the car under Open → E-ZPass & intervals, then upload again):', ...r.unmatched.map(u => `• ${u.who}: ${u.tolls} toll(s)`));
+      alert(lines.join('\n')); loadCompliance();
+    } catch (err) { toast(err.message, true); }
+  });
   function openVehicleModal(v) {
     $('vh-form').dataset.id = v ? v.id : ''; $('vh-title').textContent = v ? 'Edit vehicle' : 'Add vehicle';
     $('vh-label').value = v ? v.label : ''; $('vh-year').value = v && v.year ? v.year : ''; $('vh-make').value = v ? (v.make || '') : ''; $('vh-model').value = v ? (v.model || '') : '';

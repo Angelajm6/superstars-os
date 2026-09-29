@@ -192,6 +192,16 @@ def list_vehicles(conn, *, include_archived: bool = False, today: Optional[date]
         v["doc_count"] = len(mine)
         left = [d["days_left"] for d in v["documents"].values() if d["days_left"] is not None]
         v["next_expiry_days"] = min(left) if left else None
+    try:   # #355 — mileage / service / tolls / bills per car (tables may be absent on an old fixture)
+        import fleet
+        for v in out:
+            v["fleet"] = fleet.summary(conn, v, today)
+    except Exception as e:
+        log.info("#355 fleet summary unavailable: %s", e)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
     return out
 
 

@@ -109,6 +109,8 @@ import aia_billing
 aia_billing.register(app)    # #317 — AIA G702/G703 progress billing on the invoice model
 import payables
 payables.register(app)       # #319 — accounts payable + the 30-day cash view
+import fleet
+fleet.register(app)          # #355 — vehicles: mileage, service, E-ZPass tolls, car bills
 import portal_projects
 portal_projects.register(app)   # #330 — Company Portal Projects tab = jobs; a job's own page
 import portal_calendar
