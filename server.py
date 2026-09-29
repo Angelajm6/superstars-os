@@ -214,6 +214,8 @@ import project_onboard  # noqa: E402
 project_onboard.register(app)   # #324 — onboard an already-won job
 import billing_type  # noqa: E402
 billing_type.register(app)      # #356 — AIA / lump sum / T&M / unit price per job
+import project_contacts  # noqa: E402
+project_contacts.register(app)  # #357 — owners, property managers, consultants, site supervisors
 
 # #264 — the per-item VISIBILITY ENGINE (default-deny) + the read-only CLIENT portal.
 # client_portal registers a default-deny before_request gate (a `client` reaches ONLY the
@@ -1872,6 +1874,11 @@ def render_rfi(rfi_id):
                 (rfi.get('project_code'),),
             ).fetchone()
             project = dict(project_row) if project_row else {}
+            if project:   # #357 — the header prints the live people, not the dead columns
+                import project_contacts
+                people = project_contacts.project_people(conn, project["project_code"])
+                project["client"] = people["owner_client"] or project.get("client")
+                project["superintendent"] = people["superintendent"] or project.get("superintendent")
         finally:
             conn.close()
         html = render_rfi_html(rfi, project)

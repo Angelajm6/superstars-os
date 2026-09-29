@@ -229,6 +229,12 @@ def project_detail(conn, code: str, *, today: Optional[date] = None) -> Optional
         "documents": _safe(lambda: int(_one(conn.execute(
             "SELECT COUNT(1) AS n FROM project_documents WHERE project_code = ? AND COALESCE(superseded,0) = 0", (code,)))["n"]), 0),
     }
+    try:   # #357 — the live superintendent (our primary site supervisor), not the dead column
+        import project_contacts
+        people = project_contacts.project_people(conn, code)
+        p["superintendent"] = people.get("superintendent") or p.get("superintendent")
+    except Exception as e:
+        log.info("#357 people not added to project detail: %s", e)
     return {
         "project": p, "client": ({"id": client["id"], "name": client["name"]} if client else None), "contacts": contacts,
         "pms": _pms(conn, [code]).get(code, []), "crew": crew, "building": building, "contract": _contract(conn, code),

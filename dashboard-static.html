@@ -963,6 +963,7 @@
         <div class="nav-group-label"><span class="nav-group-name">Overview</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
           <a class="nav-link active" data-view="dashboard"><svg class="nav-ic"><use href="#i-gauge"/></svg>Project Health</a>
+          <a class="nav-link" data-view="contacts"><svg class="nav-ic"><use href="#i-msg"/></svg>Contacts</a>
         </div>
       </div>
       <div class="nav-group" data-group="field">
@@ -5654,6 +5655,187 @@
       </section>
 
       <!-- SETTINGS -->
+      <!-- #357 — the people on this job -->
+      <section class="view" data-view="contacts">
+        <style>
+          .pc-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+          .pc-head h1 { margin: 0; font-size: 22px; } .pc-head p { margin: 4px 0 0; color: var(--muted, #8c92a0); font-size: 14px; }
+          .pc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+          .pc-card { background: #fff; border: 1px solid var(--line, #eceef3); border-radius: 14px; padding: 16px 18px; }
+          .pc-card h2 { margin: 0 0 10px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+          .pc-card h2 .pc-count { font-size: 12px; font-weight: 700; color: var(--muted, #8c92a0); background: var(--fill, #F4F5F8); border-radius: 999px; padding: 2px 8px; }
+          .pc-sub { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted, #8c92a0); margin: 12px 0 4px; }
+          .pc-row { display: flex; align-items: center; gap: 8px 10px; padding: 10px 0; border-top: 1px solid var(--line, #eceef3); flex-wrap: wrap; }
+          .pc-row:first-of-type { border-top: 0; }
+          .pc-who { flex: 1 1 190px; min-width: 0; } .pc-name { font-weight: 700; font-size: 14.5px; color: var(--ink, #222633); }
+          .pc-meta { font-size: 13px; color: var(--muted, #8c92a0); margin-top: 2px; }
+          .pc-acts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-left: auto; }
+          .pc-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 34px; padding: 0 10px; border: 1px solid var(--line, #eceef3); border-radius: 8px; background: #fff; color: var(--ui, #24418C); font: 600 13px Inter, system-ui, sans-serif; text-decoration: none; cursor: pointer; }
+          .pc-btn:hover { background: var(--ui-soft, #E8EDF8); }
+          .pc-star { color: var(--muted, #8c92a0); } .pc-star.on { color: #C58B00; border-color: #F1DDA3; background: #FFF8E6; }
+          .pc-empty { font-size: 13.5px; color: var(--muted, #8c92a0); padding: 6px 0; }
+          .pc-modal-bg { position: fixed; inset: 0; background: rgba(20,22,28,.45); display: none; align-items: center; justify-content: center; z-index: 60; padding: 16px; }
+          .pc-modal-bg.open { display: flex; }
+          .pc-modal { background: #fff; border-radius: 14px; width: 100%; max-width: 620px; max-height: 92vh; overflow: auto; box-shadow: 0 24px 64px rgba(20,22,28,.25); }
+          .pc-mh { padding: 18px 20px 4px; } .pc-mh h3 { margin: 0; font-size: 17px; }
+          .pc-mb { padding: 10px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+          .pc-mb .full { grid-column: 1 / -1; }
+          .pc-f label { display: block; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted, #8c92a0); margin-bottom: 5px; }
+          .pc-f input, .pc-f select { width: 100%; font: inherit; font-size: 14px; padding: 9px 10px; border: 1px solid var(--line, #eceef3); border-radius: 8px; background: #fff; }
+          .pc-seg { display: inline-flex; border: 1px solid var(--line, #eceef3); border-radius: 9px; padding: 2px; background: var(--fill, #F4F5F8); }
+          .pc-seg button { font: inherit; font-size: 13px; font-weight: 700; border: 0; background: transparent; color: var(--muted, #8c92a0); padding: 6px 12px; border-radius: 7px; cursor: pointer; }
+          .pc-seg button.on { background: #fff; color: var(--ui, #24418C); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+          .pc-results { border: 1px solid var(--line, #eceef3); border-radius: 8px; max-height: 200px; overflow: auto; }
+          .pc-results div { padding: 9px 11px; font-size: 14px; cursor: pointer; border-top: 1px solid var(--line, #eceef3); }
+          .pc-results div:first-child { border-top: 0; } .pc-results div:hover, .pc-results div.sel { background: var(--ui-soft, #E8EDF8); }
+          .pc-results small { color: var(--muted, #8c92a0); }
+          .pc-mf { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 20px 18px; }
+          .pc-err { color: var(--status-behind-deep, #A8382B); font-size: 13px; min-height: 16px; }
+          @media (max-width: 600px) { .pc-mb { grid-template-columns: 1fr; } .pc-grid { grid-template-columns: 1fr; } }
+        </style>
+        <div class="pc-head"><div style="flex:1"><h1>Contacts</h1><p>Everyone around this job — the ownership group, property managers, consultants and site supervisors.</p></div>
+          <button type="button" class="btn-primary" id="pc-add" hidden>+ Add contact</button></div>
+        <div class="pc-grid" id="pc-grid"><div class="pc-card"><div class="pc-empty">Loading…</div></div></div>
+
+        <div class="pc-modal-bg" id="pc-modal" role="dialog" aria-modal="true" aria-labelledby="pc-mtitle">
+          <form class="pc-modal" id="pc-form" novalidate>
+            <div class="pc-mh"><h3 id="pc-mtitle">Add a contact</h3></div>
+            <div class="pc-mb">
+              <div class="pc-f"><label for="pc-role">Role on this job</label><select class="ssc-field" id="pc-role"><option value="owner">Ownership group</option><option value="property_manager">Property management</option><option value="consultant">Consultant</option><option value="site_supervisor">Site supervisor</option></select></div>
+              <div class="pc-f" id="pc-disc-wrap" hidden><label for="pc-disc">Discipline</label><select class="ssc-field" id="pc-disc"></select></div>
+              <div class="pc-f" id="pc-side-wrap" hidden><label>Whose</label><div class="pc-seg"><button type="button" data-side="theirs" class="on">Owner / GC</button><button type="button" data-side="ours">Ours</button></div></div>
+              <div class="pc-f full" id="pc-mode-wrap"><div class="pc-seg"><button type="button" data-mode="pick" class="on">Pick someone in the CRM</button><button type="button" data-mode="new">New person</button></div></div>
+              <div class="pc-f full" id="pc-pick-wrap"><label for="pc-q" id="pc-q-label">Search by name or company</label><input class="ssc-field" id="pc-q" autocomplete="off" placeholder="Start typing…"><div class="pc-results" id="pc-results" style="margin-top:6px"></div></div>
+              <div class="pc-f" data-new hidden><label for="pc-name">Full name</label><input class="ssc-field" id="pc-name" autocomplete="off"></div>
+              <div class="pc-f" data-new hidden><label for="pc-title">Title</label><input class="ssc-field" id="pc-title" autocomplete="off" placeholder="e.g. Property manager"></div>
+              <div class="pc-f" data-new hidden><label for="pc-email">Email</label><input class="ssc-field" id="pc-email" type="email" autocomplete="off"></div>
+              <div class="pc-f" data-new hidden><label for="pc-phone">Phone</label><input class="ssc-field" id="pc-phone" inputmode="tel" autocomplete="off"></div>
+              <div class="pc-f full" data-new hidden><label for="pc-org">Company</label><input class="ssc-field" id="pc-org" autocomplete="off" placeholder="Search a company, or type a new one"><div class="pc-results" id="pc-org-results" style="margin-top:6px"></div></div>
+              <div class="pc-f"><label for="pc-jobtitle">Title on this job (optional)</label><input class="ssc-field" id="pc-jobtitle" autocomplete="off" placeholder="e.g. Superintendent, Building super"></div>
+              <div class="pc-f" style="display:flex;align-items:flex-end;gap:8px"><label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink, #222633);margin:0 0 10px"><input type="checkbox" id="pc-primary" style="width:auto"> Main contact for this role</label></div>
+              <div class="pc-err full" id="pc-err" role="alert"></div>
+            </div>
+            <div class="pc-mf"><button type="button" class="btn-ghost" id="pc-cancel">Cancel</button><button type="submit" class="btn-primary" id="pc-save">Add to this job</button></div>
+          </form>
+        </div>
+        <script>
+        (function () {
+          const code = () => (location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || '';
+          const $c = id => document.getElementById(id);
+          const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+          const API = () => '/api/projects/' + encodeURIComponent(code()) + '/contacts';
+          const canEdit = () => ['admin', 'c_suite'].indexOf((window.__SSC_USER || {}).role) !== -1;
+          const PC = { d: null, side: 'theirs', mode: 'pick', pick: null, org: null };
+          async function call(url, opts) {
+            const r = await fetch(url, Object.assign({ credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } }, opts || {}));
+            const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || ('Request failed (' + r.status + ')')); return j.data;
+          }
+          function row(x) {
+            const acts = [];
+            if (x.phone) acts.push('<a class="pc-btn" href="tel:' + esc(x.phone.replace(/[^+\d]/g, '')) + '" title="Call ' + esc(x.phone) + '">Call</a>');
+            if (x.email) acts.push('<a class="pc-btn" href="mailto:' + esc(x.email) + '" title="' + esc(x.email) + '">Email</a>');
+            if (canEdit()) {
+              acts.push('<button type="button" class="pc-btn pc-star' + (x.is_primary ? ' on' : '') + '" data-pc-primary="' + x.id + '" title="' + (x.is_primary ? 'Main contact for this role' : 'Make main contact') + '">★</button>');
+              acts.push('<button type="button" class="pc-btn" data-pc-remove="' + x.id + '" title="Remove from this job" style="color:var(--status-behind-deep, #A8382B)">Remove</button>');
+            } else if (x.is_primary) acts.push('<span class="pc-btn pc-star on" title="Main contact">★</span>');
+            const meta = [x.title, x.org].filter(Boolean).join(' · ');
+            const reach = [x.phone, x.email].filter(Boolean).join(' · ');
+            return '<div class="pc-row"><div class="pc-who"><div class="pc-name">' + esc(x.name) + '</div><div class="pc-meta">' + esc(meta || '—') + (reach ? '<br>' + esc(reach) : '') + '</div></div><div class="pc-acts">' + acts.join('') + '</div></div>';
+          }
+          function card(title, list, empty) {
+            return '<div class="pc-card"><h2>' + esc(title) + ' <span class="pc-count">' + list.length + '</span></h2>' + (list.length ? list.map(row).join('') : '<div class="pc-empty">' + esc(empty) + '</div>') + '</div>';
+          }
+          function render() {
+            const d = PC.d, g = d.groups, t = d.team;
+            const team = '<div class="pc-card"><h2>Our team</h2>'
+              + '<div class="pc-sub">Project manager</div>' + (t.pms.length ? t.pms.map(p => '<div class="pc-row"><div class="pc-who"><div class="pc-name">' + esc(p.name) + '</div>' + (p.email ? '<div class="pc-meta">' + esc(p.email) + '</div>' : '') + '</div>' + (p.email ? '<div class="pc-acts"><a class="pc-btn" href="mailto:' + esc(p.email) + '">Email</a></div>' : '') + '</div>').join('') : '<div class="pc-empty">No PM assigned — assign one under Projects &amp; assignments.</div>')
+              + '<div class="pc-sub">Site supervisors (ours)</div>' + (t.supervisors.length ? t.supervisors.map(row).join('') : '<div class="pc-empty">None yet — the main one prints as Superintendent on the Daily Report.</div>')
+              + '<div class="pc-sub">Crew</div><div class="pc-row"><div class="pc-who"><div class="pc-name">' + t.crew_count + ' worker(s) assigned</div></div><div class="pc-acts"><a class="pc-btn" data-goto-view="employees">Open</a></div></div></div>';
+            const cons = g.consultant;
+            const byDisc = {}; cons.forEach(x => { (byDisc[x.discipline_label || 'Other'] = byDisc[x.discipline_label || 'Other'] || []).push(x); });
+            const consCard = '<div class="pc-card"><h2>Consultants <span class="pc-count">' + cons.length + '</span></h2>' + (cons.length ? Object.keys(byDisc).sort().map(k => '<div class="pc-sub">' + esc(k) + '</div>' + byDisc[k].map(row).join('')).join('') : '<div class="pc-empty">Architects, engineers, expeditors on this job.</div>') + '</div>';
+            $c('pc-grid').innerHTML = team
+              + card('Ownership group', g.owner, 'The building owner and their representatives.')
+              + card('Property management', g.property_manager, 'The property manager and building super.')
+              + consCard
+              + card('Owner / GC site supervisors', g.site_supervisor, 'Their people we coordinate with on site.');
+          }
+          async function load() {
+            $c('pc-add').hidden = !canEdit();
+            try { PC.d = await call(API()); render(); } catch (e) { $c('pc-grid').innerHTML = '<div class="pc-card"><div class="pc-empty">' + esc(e.message) + '</div></div>'; }
+          }
+          document.querySelectorAll('.nav-link[data-view="contacts"]').forEach(l => l.addEventListener('click', load));
+          document.addEventListener('ssc:user-loaded', () => { if (document.querySelector('.view.active[data-view="contacts"]')) load(); });
+          $c('pc-grid').addEventListener('click', async (e) => {
+            const go = e.target.closest('[data-goto-view]'); if (go) { const l = document.querySelector('.nav-link[data-view="' + go.dataset.gotoView + '"]'); if (l) l.click(); return; }
+            const pr = e.target.closest('[data-pc-primary]'); const rm = e.target.closest('[data-pc-remove]');
+            try {
+              if (pr) { PC.d = await call(API() + '/' + pr.dataset.pcPrimary, { method: 'PATCH', body: JSON.stringify({ is_primary: true }) }); render(); }
+              if (rm && confirm('Remove this person from the job? They stay in the CRM.')) { PC.d = await call(API() + '/' + rm.dataset.pcRemove, { method: 'DELETE' }); render(); }
+            } catch (x) { alert(x.message); }
+          });
+          // ---- add modal
+          function setMode(m) { PC.mode = m; document.querySelectorAll('#pc-mode-wrap [data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === m)); syncForm(); }
+          function syncForm() {
+            const role = $c('pc-role').value, ours = role === 'site_supervisor' && PC.side === 'ours';
+            $c('pc-disc-wrap').hidden = role !== 'consultant'; $c('pc-side-wrap').hidden = role !== 'site_supervisor';
+            $c('pc-mode-wrap').hidden = ours;
+            const pick = ours || PC.mode === 'pick';
+            $c('pc-pick-wrap').hidden = !pick; document.querySelectorAll('#pc-form [data-new]').forEach(el => { el.hidden = pick; });
+            $c('pc-q-label').textContent = ours ? 'Search our roster (name or W-number)' : 'Search by name or company';
+            PC.pick = null; $c('pc-results').innerHTML = ''; $c('pc-q').value = '';
+          }
+          $c('pc-add').addEventListener('click', () => {
+            if (PC.d) $c('pc-disc').innerHTML = Object.entries(PC.d.disciplines).map(([k, l]) => '<option value="' + k + '">' + esc(l) + '</option>').join('');
+            ['pc-name', 'pc-title', 'pc-email', 'pc-phone', 'pc-org', 'pc-jobtitle'].forEach(id => { $c(id).value = ''; });
+            $c('pc-primary').checked = false; $c('pc-err').textContent = ''; PC.side = 'theirs'; PC.org = null; $c('pc-org-results').innerHTML = '';
+            document.querySelectorAll('#pc-side-wrap [data-side]').forEach(b => b.classList.toggle('on', b.dataset.side === 'theirs'));
+            setMode('pick'); $c('pc-modal').classList.add('open'); setTimeout(() => $c('pc-role').focus(), 30);
+          });
+          $c('pc-cancel').addEventListener('click', () => $c('pc-modal').classList.remove('open'));
+          $c('pc-role').addEventListener('change', syncForm);
+          document.querySelectorAll('#pc-mode-wrap [data-mode]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+          document.querySelectorAll('#pc-side-wrap [data-side]').forEach(b => b.addEventListener('click', () => { PC.side = b.dataset.side; document.querySelectorAll('#pc-side-wrap [data-side]').forEach(x => x.classList.toggle('on', x === b)); syncForm(); }));
+          let qt = null;
+          $c('pc-q').addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(async () => {
+            const ours = $c('pc-role').value === 'site_supervisor' && PC.side === 'ours';
+            try {
+              const list = await call(API() + '/lookup?kind=' + (ours ? 'employee' : 'contact') + '&q=' + encodeURIComponent($c('pc-q').value));
+              $c('pc-results').innerHTML = list.map((x, i) => '<div data-i="' + i + '">' + esc(x.name) + ' <small>' + esc([x.title, x.org, x.trade].filter(Boolean).join(' · ')) + '</small></div>').join('') || '<div><small>No match — use “New person”.</small></div>';
+              $c('pc-results').onclick = (e) => { const el = e.target.closest('[data-i]'); if (!el) return; PC.pick = list[Number(el.dataset.i)]; $c('pc-results').querySelectorAll('[data-i]').forEach(x => x.classList.toggle('sel', x === el)); };
+            } catch (x) { $c('pc-results').innerHTML = '<div><small>' + esc(x.message) + '</small></div>'; }
+          }, 220); });
+          let ot = null;
+          $c('pc-org').addEventListener('input', () => { PC.org = null; clearTimeout(ot); ot = setTimeout(async () => {
+            const q = $c('pc-org').value.trim(); if (!q) { $c('pc-org-results').innerHTML = ''; return; }
+            try {
+              const list = await call(API() + '/lookup?kind=org&q=' + encodeURIComponent(q));
+              $c('pc-org-results').innerHTML = list.map((x, i) => '<div data-i="' + i + '">' + esc(x.name) + '</div>').join('') + '<div data-new-org="1"><small>+ New company “' + esc(q) + '”</small></div>';
+              $c('pc-org-results').onclick = (e) => { const el = e.target.closest('[data-i],[data-new-org]'); if (!el) return; PC.org = el.dataset.newOrg ? { new: q } : list[Number(el.dataset.i)]; $c('pc-org-results').querySelectorAll('div').forEach(x => x.classList.toggle('sel', x === el)); };
+            } catch (x) { $c('pc-org-results').innerHTML = ''; }
+          }, 220); });
+          $c('pc-form').addEventListener('submit', async (e) => {
+            e.preventDefault(); const err = $c('pc-err'); err.textContent = '';
+            const role = $c('pc-role').value, ours = role === 'site_supervisor' && PC.side === 'ours';
+            const body = { role, title_on_job: $c('pc-jobtitle').value.trim() || null, is_primary: $c('pc-primary').checked };
+            if (role === 'consultant') body.discipline = $c('pc-disc').value;
+            if (ours || PC.mode === 'pick') {
+              if (!PC.pick) { err.textContent = ours ? 'Pick one of our workers from the list.' : 'Pick someone from the list, or switch to “New person”.'; return; }
+              if (ours) body.employee_id = PC.pick.employee_id; else body.contact_id = PC.pick.id;
+            } else {
+              const name = $c('pc-name').value.trim(); if (!name) { err.textContent = 'Enter the person’s name.'; return; }
+              body.new_contact = { full_name: name, title: $c('pc-title').value.trim(), email: $c('pc-email').value.trim(), phone: $c('pc-phone').value.trim() };
+              const typed = $c('pc-org').value.trim();
+              if (PC.org && PC.org.id) body.org_id = PC.org.id; else if (typed) body.new_org = typed;
+            }
+            $c('pc-save').disabled = true;
+            try { PC.d = await call(API(), { method: 'POST', body: JSON.stringify(body) }); render(); $c('pc-modal').classList.remove('open'); }
+            catch (x) { err.textContent = x.message; } finally { $c('pc-save').disabled = false; }
+          });
+        })();
+        </script>
+      </section>
+
       <section class="view" data-view="settings">
         <div class="section">
           <h2>Project Settings</h2>
