@@ -504,3 +504,44 @@ tbody tr { transition: background var(--ssc-t-fast) ease; }
   .hv-lift:hover, .cp-kpis .cp-kpi:hover, .prp-card:hover, .pm-card:hover, .shc-tile:hover, .kpis .tile:hover, .project-card:hover { transform: none; box-shadow: none; }
   .hv-edge:hover::before, .cp-list li:has(a):hover::before, .doc-row:hover::before { height: 0; }
 }
+
+/* ===== #359 — collapsible icon rail (above 860 px). shell.js adds .ssc-rail-btn to
+   the brand row and toggles html.side-rail; labels stay in the markup (font-size 0)
+   and become tooltips. Below 860 px none of this applies — the #312 Menu drawer rules. ===== */
+.ssc-rail-btn { display: none; margin-left: auto; flex: 0 0 auto; width: 28px; height: 28px; align-items: center; justify-content: center;
+  color: var(--side-muted, #8A8F99); background: transparent; border: 1px solid transparent; border-radius: 8px; cursor: pointer;
+  transition: background var(--ssc-t-fast, .12s) ease, color var(--ssc-t-fast, .12s) ease, transform var(--ssc-t, .18s) var(--ssc-ease, ease); }
+.ssc-rail-btn:hover { background: var(--side-hover, rgba(20,22,28,.05)); color: var(--ink, #14161C); }
+.ssc-rail-btn:focus-visible { outline: 2px solid var(--ui, #24418C); outline-offset: 1px; }
+@media (min-width: 861px) {
+  .ssc-rail-btn { display: inline-flex; }
+  html.side-rail .ssc-rail-btn { margin: 8px auto 0; transform: rotate(180deg); }
+
+  /* company shell (.ssc-side) */
+  html.side-rail .ssc-shell { grid-template-columns: 68px minmax(0, 1fr); }
+  html.side-rail .ssc-side .brand { flex-direction: column; gap: 0; padding: 16px 8px 10px; }
+  html.side-rail .ssc-side .brand > div { display: none; }
+  html.side-rail .ssc-side .ssc-nav, html.side-rail .ssc-side .ssc-side-foot { padding-left: 8px; padding-right: 8px; }
+  html.side-rail .ssc-side .ssc-nav .ssc-nav-label { display: none; }
+  html.side-rail .ssc-side .ssc-nav a, html.side-rail .ssc-side .ssc-nav .nav-tab,
+  html.side-rail .ssc-side .ssc-side-foot a { font-size: 0; gap: 0; justify-content: center; padding: 10px 0; }
+  html.side-rail .ssc-side .ssc-nav a svg, html.side-rail .ssc-side .ssc-side-foot a svg { width: 18px; height: 18px; }
+  html.side-rail .ssc-side .ssc-nav .ssc-nav-ext::after { content: none; }
+
+  /* project dashboard (.sidebar[data-rail]) */
+  html.side-rail .sidebar[data-rail] { width: 68px; padding: 16px 8px; }
+  html.side-rail .sidebar[data-rail] .sidebar-header { flex-direction: column; gap: 0; padding: 0 0 10px; }
+  html.side-rail .sidebar[data-rail] .sidebar-header > div,
+  html.side-rail .sidebar[data-rail] .proj-line,
+  html.side-rail .sidebar[data-rail] .nav-group-label { display: none; }
+  html.side-rail .sidebar[data-rail] > a[href] { font-size: 0 !important; justify-content: center; padding: 10px 0 !important; }
+  html.side-rail .sidebar[data-rail] > a[href]::before { content: "\2190"; font-size: 16px; }
+  html.side-rail .sidebar[data-rail] .nav-group { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line, #eceef3); }
+  html.side-rail .sidebar[data-rail] .nav-group.collapsed .nav-items { display: block; }
+  html.side-rail .sidebar[data-rail] .nav-subitems { margin-left: 0 !important; padding-left: 0 !important; border-left: 0 !important; }
+  html.side-rail .sidebar[data-rail] .nav-link { font-size: 0 !important; gap: 0; justify-content: center; padding: 9px 0; border-left: 0; }
+  html.side-rail .sidebar[data-rail] .nav-link:hover { transform: none; }
+  html.side-rail .sidebar[data-rail] .acct { justify-content: center; padding: 8px 0; }
+  html.side-rail .sidebar[data-rail] .acct-info, html.side-rail .sidebar[data-rail] .acct-chev { display: none; }
+  html.side-rail .sidebar[data-rail] .acct-menu { right: auto; width: 220px; }
+}

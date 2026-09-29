@@ -158,7 +158,7 @@
     .acct-mi.acct-signout:hover { background: rgba(177,30,46,.06); }
     .acct-mi:disabled { opacity: .6; cursor: not-allowed; }
     /* content corner — faint "Live · date" (Option 1) */
-    .content-corner { display: flex; justify-content: flex-end; padding: 14px 28px 0; }
+    .content-corner { display: flex; justify-content: flex-end; padding: 10px clamp(16px, 2.6vw, 28px) 0; }   /* #359 — slimmer */
     .cc-live { display: inline-flex; align-items: center; gap: 6px; color: var(--muted, #8c92a0); font-size: 12px; }
     .cc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--status-complete, #15a07e); }
 
@@ -497,18 +497,6 @@
 
     /* Main Content */
     .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-    .topbar {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      background: rgba(250, 247, 241, 0.95);
-      backdrop-filter: blur(8px);
-      border-bottom: 1px solid var(--line, #eceef3);
-      padding: 14px 32px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
     .eyebrow {
       font-size: 10px;
       letter-spacing: 0.18em;
@@ -516,31 +504,21 @@
       color: var(--muted, #8c92a0);
       margin-bottom: 8px;
     }
-    .topbar-title {
-      font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      font-weight: 600;
-      font-size: 17px;
-      color: var(--ink, #222633);
-    }
-    .topbar-meta {
-      display: flex;
-      gap: 16px;
-      align-items: center;
-      font-size: 11px;
-      color: var(--muted, #8c92a0);
-    }
-    .live-indicator { color: var(--status-complete-deep, #0c7a5f); font-weight: 600; }
+    /* #359 — the old top-bar rules (bar, title, meta, live indicator) went with the top bar markup (#213) */
 
     /* Views Container */
     .views-container { flex: 1; overflow-y: auto; }
-    .view { display: none; padding: 32px; }
+    /* #359 — content stops growing at 1440 px and centres (wide monitors read as a page,
+       not a strip); side gutters shrink with the window; the Live line above already
+       spaces the top, so the view starts closer to it */
+    .view { display: none; padding: 20px clamp(16px, 2.6vw, 32px) 32px; max-width: 1440px; margin-inline: auto; }
     .view.active { display: block; animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }   /* #311 */
 
     /* #280 — the Drawing Markup view is full-bleed: the embedded v2 page brings its own
        padding, header and tokens, so the v1 32px gutter would double it. The frame owns
        the height and the drawing scrolls INSIDE it — the dashboard itself must never
        scroll sideways because the elevation is wide. */
-    .view[data-view="drawings"] { padding: 0; }
+    .view[data-view="drawings"] { padding: 0; max-width: none; }
     .view[data-view="drawings"].active { display: flex; flex-direction: column; min-height: 0; }
     .drawings-frame {
       flex: 1 1 auto; display: block; width: 100%; border: 0;
@@ -838,8 +816,10 @@
 <!-- #211 calm-blue widget accent — applied via the SHARED widgets.css, loaded
      AFTER the inline #208 styles so the accent (blue band + inward shading + blue
      rings) wins, giving the project page + the company console one source of truth. -->
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=3432">
-<script src="/files/static/js/shell.js?v=312" defer></script>
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=359">
+<!-- #359 — apply a remembered collapsed rail before the first paint -->
+<script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
+<script src="/files/static/js/shell.js?v=359" defer></script>
 <style>
   /* #356 — billing type per job: AIA-only pieces hide on jobs billed another way */
   body[data-billing-type]:not([data-billing-type=""]):not([data-billing-type="aia_sov"]) .aia-only { display: none !important; }
@@ -914,7 +894,7 @@
 
 <div class="app-shell">
   <!-- SIDEBAR -->
-  <aside class="sidebar">
+  <aside class="sidebar" data-rail>
     <div class="sidebar-header">
       <!-- #265 — canonical filled-star lockup (single source: brand.py) -->
       <img class="brand-mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
