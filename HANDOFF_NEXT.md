@@ -168,6 +168,25 @@ grant, or elevation code.
   as patches and never picks COL-REPAIR as its patch line. The new SOV line shows in the
   financial Schedule of Values with no unit rate until one is set.
 * **Test:** `tests/smoke_column_repair_352.py` (both gates).
+### #361 — Density pass, global rules (project dashboard) (Bookore, 2026-09-29)
+
+* **Type floor:** no screen text under 11px; under 12px only for uppercase / letter-spaced
+  labels and the dense grids (`.dp-*` drop board, `.ph-*` health widgets, `.wx-*`,
+  `.cal-*`, `.la-*` look-ahead, photo-thumbnail overlays). 187 sizes moved (8–11.5px →
+  11/12px). `@media print` / `@page` are exempt (printed reports keep their sizes).
+* **Table headers:** ONE rule — light fill (`--fill`) + `--ink-2` 11px/600 caps. The dark
+  default is gone (it showed grey-on-dark wherever a module set only the colour); the 10
+  module header rules and 34 inline `<th style>` keep only padding / alignment.
+* **Titles:** view 20px, dialog 18px, card 15px (was 16–28px).
+* **Dialogs:** four sizes, `--modal-sm/md/lg/xl` = 480/640/880/1080px (were ten widths).
+* **Primary buttons:** DCR, pick-list, payments and hero primaries moved from navy
+  `--ui` to the one primary colour `--accent` (the #236 rule).
+* **Breakpoints:** 1024 / 860 / 640 only (920→1024; 900, 768, 760→860; 680, 600→640).
+* **Guard:** `smoke_design_conventions` gains `density_*` checks (type floor with a
+  self-test, light header + no dark overrides, title scale, dialog sizes, one primary,
+  breakpoints). Verified: every tab at desktop and 375px — no sideways scroll, no clipped
+  text, nothing under 11px.
+
 ### #360 — Client portal tab; Company vs Settings untangled (Bookore, 2026-09-29)
 
 * **Why:** Settings (`/#settings`) drew the Company sub-tabs and Team & access sat under

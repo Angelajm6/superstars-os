@@ -336,6 +336,57 @@ def page_modal_field_violations(page_text, widgets_css):
     return fields, bad
 
 
+# ---------- #361 — density rules for the project dashboard ----------
+def _print_spans(s):
+    spans = []
+    for m in re.finditer(r"@media\s+print\b[^{]*\{|@page\b[^{]*\{", s):
+        depth, i = 1, m.end()
+        while depth and i < len(s):
+            depth += {"{": 1, "}": -1}.get(s[i], 0); i += 1
+        spans.append((m.start(), i))
+    return spans
+
+
+_DENSE = re.compile(r"^\s*([.#](dp|ph|wx|cal|la)[-_]|.*\.(fp-photo|exp-thumb)\b)")
+
+
+def _floor(block, selector):
+    """The smallest size a rule may use: 11px for an uppercase / letter-spaced label or a
+    dense grid (drop board, health widgets, weather, look-ahead, photo overlays); 12px
+    for every other piece of screen text."""
+    if re.search(r"text-transform:\s*uppercase", block):
+        return 11.0
+    ls = re.search(r"letter-spacing:\s*([\d.]+)(em|px)", block)
+    if ls and ((ls.group(2) == "em" and float(ls.group(1)) >= 0.08) or (ls.group(2) == "px" and float(ls.group(1)) >= 0.6)):
+        return 11.0
+    if selector is not None and all(_DENSE.match(x) for x in selector.split(",") if x.strip()):
+        return 11.0
+    return 12.0
+
+
+def density_violations(page):
+    """[(where, size, floor)] for screen text below its floor — CSS rules and inline
+    style attributes (HTML and JS strings); @media print / @page are exempt."""
+    skip = _print_spans(page)
+    out = []
+    def scan(start, block, sel, where):
+        if any(a <= start < b for a, b in skip):
+            return
+        for fm in re.finditer(r"font-size:\s*([\d.]+)px", block):
+            v, fl = float(fm.group(1)), _floor(block, sel)
+            if v < fl:
+                out.append((where, v, fl))
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", page):
+        sel = m.group(1).strip().split("\n")[-1].strip()
+        if not sel.startswith("@"):
+            scan(m.start(2), m.group(2), sel, sel[:60])
+    for m in re.finditer(r"style=(\\?[\"'])", page):
+        q = m.group(1)[-1]; a = m.end(); b = page.find(q, a)
+        if b > 0:
+            scan(a, page[a:b], None, "inline:" + page[a:b][:50])
+    return out
+
+
 def main():
     print("== #236 design-conventions guard ==")
     css = requests.get(f"{BASE}/files/static/css/widgets.css", timeout=15).text
@@ -695,6 +746,39 @@ def main():
         t = (root_dir / fn).read_text(encoding="utf-8", errors="replace")
         ok(f"logo_renderer_{fn}", ("brand.star_svg" in t) and not any(h in t for h in HOLLOW),
            "renderer must emit brand.star_svg + carry no hollow star")
+
+    # ---- #361 — density: type floor, one table header, title scale, dialog sizes,
+    #      one primary colour, three breakpoints (project dashboard) ----
+    ok("density_selftest",
+       density_violations(".a{font-size:10px}") and not density_violations(".a{font-size:11px;text-transform:uppercase}")
+       and not density_violations("@media print{.a{font-size:9px}}") and density_violations('<i style="font-size:9px">'),
+       "the floor scanner catches a 10px body rule / 9px inline style and exempts labels + print")
+    dv = density_violations(html)
+    ok("density_type_floor", not dv, f"{len(dv)} below the floor: {dv[:4]}")
+    th = re.search(r"(?m)^\s*th\s*\{([^{}]*)\}", inline)                 # the bare element rule
+    ok("density_th_light", bool(th) and "var(--fill" in th.group(1) and "var(--ink-2" in th.group(1) and "--ink," not in th.group(1),
+       "the one table header is light fill + ink-2 text")
+    dark_th = [m.group(0)[:80] for m in re.finditer(r"[^{}]*(?<![-\w.#])th(?![-\w])[^{}]*\{[^{}]*(background[^;]*--ink\b|color:\s*(#fff\b|white))[^{}]*\}", inline)]
+    dark_th += re.findall(r"<th[^>]*style=\"[^\"]*(?:background|color:\s*(?:#fff|white))[^\"]*\"", html)
+    ok("density_th_no_overrides", not dark_th, f"module header overrides: {dark_th[:3]}")
+    titles = {".ph-head h1": 20, ".dcr-head h1": 20, ".dp-h1": 20, ".pay-h1": 20, ".pc-head h1": 20, ".section h2": 20,
+              ".pay-mhead h3": 18, ".pc-mh h3": 18, ".jx-card h2": 15}
+    bad_t = []
+    for sel, want in titles.items():
+        m = re.search(r"(?:^|[\s}])" + re.escape(sel) + r"\s*\{([^{}]*)\}", inline)
+        fs = m and re.search(r"font-size:\s*([\d.]+)px", m.group(1))
+        if not fs or float(fs.group(1)) != want:
+            bad_t.append(sel)
+    ok("density_title_scale", not bad_t, f"off the 20/18/15 scale: {bad_t}")
+    modals = [".dr-sheet", ".pk-modal", ".pd-modal", ".la-modal", ".dcrg-panel", ".mt-modal", ".pay-modal", ".aia-modal", ".fp-modal", ".pc-modal"]
+    bad_m = [sel for sel in modals if not re.search(r"(?:^|[\s}])" + re.escape(sel) + r"\s*\{[^{}]*max-width:\s*var\(--modal-(sm|md|lg|xl)\)", inline)]
+    ok("density_modal_sizes", not bad_m and "--modal-md: 640px" in inline, f"dialogs off the four sizes: {bad_m}")
+    bad_p = [sel for sel in (".dcr-primary", ".pk-btn.primary", ".pay-btn.primary")
+             if not re.search(re.escape(sel) + r"\s*\{[^{}]*background:\s*var\(--accent", inline)]
+    ok("density_one_primary", not bad_p, f"primary buttons not on --accent: {bad_p}")
+    skip = _print_spans(inline)
+    bps = {m.group(1) for m in re.finditer(r"@media[^{]*max-width:\s*(\d+)px", inline) if not any(a <= m.start() < b for a, b in skip)}
+    ok("density_breakpoints", bps <= {"640", "860", "1024"}, f"breakpoints in use: {sorted(bps)}")
 
     print(f"\n== RESULT: {len(PASS)} PASS / {len(FAIL)} FAIL ==")
     if FAIL:
