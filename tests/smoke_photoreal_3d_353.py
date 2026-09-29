@@ -142,6 +142,12 @@ def check_page() -> None:
     assert "from '/files/static/vendor/three.module.min.js'" in js, "same URL as the import map -> one three.js instance"
     assert "azimuth: Math.PI" in js and "GoogleCloudAuthPlugin" in js and "logoUrl: pr.logo_url" in js
     assert "getAttributions" in js and "alt = 'Google Maps'" in js, "Google logo + data credits must be shown"
+    # #354 — the grid is fitted to the real mesh continuously (median street level, facade snap),
+    # sized from the drawing over photoreal, and labelled per drop
+    assert "function fitToTiles" in js and "ys[Math.floor((ys.length - 1) / 2)]" in js, "median street level"
+    assert "performance.now() - lastFit > 1500" in js, "re-fit keeps converging as sharper tiles load"
+    assert "sy = pr ? 1 : H / (hf * FT)" in js, "over photoreal the drawing is the height truth"
+    assert "'DROP ' + d.idx" in js and "f.fg.position.set" in js
     print("  page + module wiring ok")
 
 

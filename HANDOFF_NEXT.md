@@ -168,6 +168,21 @@ grant, or elevation code.
   as patches and never picks COL-REPAIR as its patch line. The new SOV line shows in the
   financial Schedule of Values with no unit rate until one is set.
 * **Test:** `tests/smoke_column_repair_352.py` (both gates).
+### #354 — Photoreal: the drop grid sits on the real building (Bookore, 2026-09-29)
+
+* **Seen on production:** the building rendered, but the grid floated above it. Causes:
+  (1) street level came from the FIRST downward ray, taken while only Google's coarse root
+  tiles were loaded, and was then locked; (2) the grid was stretched to NYC's recorded height
+  instead of the traced drawing; (3) the elevation label didn't follow the grid's offset.
+* **Fix (`building3d.js` `fitToTiles`):** re-fits every ~1.5 s and on each tile load —
+  street level = the MEDIAN of downward rays 5 m outside each wall (one probe on a roof / in
+  the rail cut can't win); each wall's grid is its own group, slid along the normal onto the
+  real facade found by a sideways ray (±12 m window). Over photoreal the drawing's height is
+  used (sy = 1). Labels follow; each drop column gets a "DROP n" tag.
+* **Test seam:** `opts.photoreal.__testTiles` = a stand-in mesh (no network); `debugState()`
+  exposes `fit`, `world`, `faceGroups`. Verified: ground -20 -> -26 guess corrected, facade
+  snapped exactly 3 m out, 12 drop tags.
+
 ### #353 — Drawing Markup: the real building in 3D (Google Photorealistic 3D Tiles) (Bookore, 2026-09-28)
 
 * **What:** the 3D view gets a **Photoreal / Massing** toggle. Photoreal streams Google's
