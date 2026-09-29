@@ -136,6 +136,9 @@ def list_projects(conn, *, status: str = "active", search: Optional[str] = None,
     rfis = _safe(lambda: {r["project_code"]: int(r["n"]) for r in _rows(conn.execute(
         f"SELECT project_code, COUNT(1) AS n FROM rfi_log WHERE project_code IN ({marks}) "
         f"AND LOWER(COALESCE(status,'open')) NOT IN ('closed','answered','responded') GROUP BY project_code", codes))} if codes else {}, {})
+    import billing_type as _bt   # #356
+    bts = _safe(lambda: {r["project_code"]: r["billing_type"] for r in _rows(conn.execute(
+        f"SELECT project_code, billing_type FROM projects WHERE project_code IN ({marks})", codes))} if codes else {}, {})
     out = []
     for r in rows:
         c = r["project_code"]
@@ -144,7 +147,9 @@ def list_projects(conn, *, status: str = "active", search: Optional[str] = None,
                     "contract": _contract(conn, c),
                     "invoiced": round(_num(i.get("invoiced")), 2), "open_value": round(_num(i.get("open_value")), 2),
                     "overdue_value": round(_num(i.get("overdue_value")), 2), "collected": round(_num(i.get("collected")), 2),
-                    "last_report_date": last_rep.get(c), "open_rfis": rfis.get(c, 0)})
+                    "last_report_date": last_rep.get(c), "open_rfis": rfis.get(c, 0),
+                    "billing_type": bts.get(c), "billing_label": _bt.label(bts.get(c)),
+                    "billing_short": _bt.SHORT.get(bts.get(c) or "", "Not set")})
     return out
 
 

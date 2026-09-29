@@ -840,6 +840,23 @@
      rings) wins, giving the project page + the company console one source of truth. -->
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=3432">
 <script src="/files/static/js/shell.js?v=312" defer></script>
+<style>
+  /* #356 — billing type per job: AIA-only pieces hide on jobs billed another way */
+  body[data-billing-type]:not([data-billing-type=""]):not([data-billing-type="aia_sov"]) .aia-only { display: none !important; }
+  .bt-note { display: none; margin: 0 0 14px; padding: 12px 14px; border-radius: 10px; font-size: 13.5px; line-height: 1.5;
+             background: var(--fill, #F4F5F8); border: 1px solid var(--line, #eceef3); color: var(--ink, #222633); }
+  .bt-note.warn { background: var(--status-warn-soft, #FFF4E5); border-color: var(--status-warn-edge, #E8C9A0); color: var(--status-warn, #9A5B00); }
+  body[data-billing-type]:not([data-billing-type=""]):not([data-billing-type="aia_sov"]) .bt-note.bt-off { display: block; }
+  body[data-billing-type=""] .bt-note.bt-unset { display: block; }
+  .bt-note a { color: var(--ui, #24418C); font-weight: 700; cursor: pointer; }
+  .ps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .ps-card { background: #fff; border: 1px solid var(--line, #eceef3); border-radius: 12px; padding: 16px 18px; }
+  .ps-k { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted, #8c92a0); margin-bottom: 8px; }
+  .ps-v { font-size: 16px; font-weight: 700; color: var(--ink, #222633); }
+  .ps-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ps-row select { font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--line, #eceef3); border-radius: 8px; min-width: 220px; }
+  .ps-hint { font-size: 13px; color: var(--muted, #8c92a0); margin-top: 8px; line-height: 1.5; }
+</style>
 </head>
 <body>
 <!-- #281 — ONE source for the project code, filled server-side from the URL.
@@ -4901,7 +4918,8 @@
           .aia-sov thead th,.aia-grid thead th{background:transparent;color:var(--muted, #8c92a0)} .aia-sov td:nth-child(2){min-width:260px}
         </style>
         <div class="pay-wrap">
-          <div class="pay-card" id="aia-card">
+          <div class="bt-note bt-unset warn">How this job is billed isn't set yet. <a data-goto-settings>Set it in Settings</a> to show or hide AIA progress billing.</div>
+          <div class="pay-card aia-only" id="aia-card">
             <div class="pay-head" style="margin-bottom:8px"><div><h2 style="margin:0;font-size:16px;font-weight:800">AIA progress billing</h2><div class="pay-sub" id="aia-sub">G702 Application for Payment + G703 Continuation Sheet, billed against the Schedule of Values</div></div>
               <div class="pay-toolbar"><a class="pay-btn" data-view="sov" href="#" id="aia-goto-sov">Schedule of Values</a><button type="button" class="pay-btn primary" id="aia-new">+ New application</button></div></div>
             <div class="pay-kpis" id="aia-kpis"></div>
@@ -5227,7 +5245,9 @@
       <section class="view" data-view="sov">
         <!-- #317 — the BILLING schedule of values (what applications for payment bill
              against). Editor + contract sums; the drop-plan unit rates stay below. -->
-        <div class="section pay-wrap">
+        <div class="bt-note bt-off" data-bt-off>This job is billed <strong data-bt-label></strong>, so it has no schedule of values or AIA pay applications. <a data-goto-settings>Change the billing type</a></div>
+        <div class="bt-note bt-unset warn">How this job is billed isn't set yet. <a data-goto-settings>Set it in Settings</a> — AIA / Schedule of values jobs get this editor and pay applications.</div>
+        <div class="section pay-wrap aia-only">
           <h2>Schedule of Values</h2>
           <div class="pay-muted" style="margin:-4px 0 12px">The approved billing breakdown for this job. Applications for Payment (AIA G702 / G703, under Payments) bill against these lines. Change orders sit as their own lines.</div>
           <div class="pay-kpis" id="aia-sov-summary"></div>
@@ -5645,12 +5665,66 @@
             <div class="card-title">Project Name</div>
             <div class="card-status" data-project-name>&nbsp;</div>
           </div>
-          <div class="card" style="margin-top: 16px;">
-            <div class="card-title">Status</div>
-            <div class="card-status"><span class="badge badge-ok">Active</span></div>
+          <div class="ps-grid" style="margin-top:16px">
+            <div class="ps-card"><div class="ps-k">Status</div><div class="ps-v" id="ps-status">—</div></div>
+            <div class="ps-card" style="grid-column: span 2"><div class="ps-k">How this job is billed</div>
+              <div class="ps-row"><span class="ps-v" id="ps-billing">—</span>
+                <select id="ps-billing-select" hidden aria-label="Billing type"></select>
+                <button type="button" class="btn-primary" id="ps-billing-save" hidden>Save</button></div>
+              <div class="ps-hint">AIA / Schedule of values jobs get the Schedule of Values and AIA pay applications (under Money). Lump sum, T&amp;M and unit-price jobs bill with plain invoices.</div>
+              <div class="ps-hint" id="ps-billing-err" style="color:var(--status-behind-deep, #A8382B)"></div></div>
           </div>
         </div>
       </section>
+      <script>
+      // #356 — Project Settings: real status + the billing type (editable by admin / c_suite)
+      (function () {
+        const code = () => (location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || '';
+        const $s = id => document.getElementById(id);
+        function applyType(bt, label) {
+          document.body.dataset.billingType = bt || '';
+          document.querySelectorAll('[data-bt-label]').forEach(el => { el.textContent = (label || '').toLowerCase(); });
+          const nav = document.querySelector('.nav-link[data-view="sov"]');
+          if (nav) nav.hidden = !!(bt && bt !== 'aia_sov');
+        }
+        async function loadSettings() {
+          try {
+            const r = await fetch('/api/projects/' + encodeURIComponent(code()) + '/profile', { credentials: 'same-origin' });
+            const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
+            const p = j.data;
+            $s('ps-status').textContent = (p.status || 'active').replace(/^./, c => c.toUpperCase());
+            $s('ps-billing').textContent = p.billing_label;
+            applyType(p.billing_type, p.billing_label);
+            const role = (window.__SSC_USER || {}).role;
+            if (role === 'admin' || role === 'c_suite') {
+              const sel = $s('ps-billing-select');
+              sel.innerHTML = (p.billing_type ? '' : '<option value="">— choose —</option>') + p.billing_options.map(o => '<option value="' + o.code + '">' + o.label + '</option>').join('');
+              sel.value = p.billing_type || ''; sel.hidden = false; $s('ps-billing-save').hidden = false; $s('ps-billing').hidden = true;
+            }
+          } catch (e) { $s('ps-billing').textContent = 'Could not load'; }
+        }
+        document.addEventListener('click', async (e) => {
+          if (e.target.closest('[data-goto-settings]')) {
+            e.preventDefault(); const l = document.querySelector('.nav-link[data-view="settings"]'); if (l) l.click(); return;
+          }
+          if (e.target.id !== 'ps-billing-save') return;
+          const err = $s('ps-billing-err'); err.textContent = '';
+          const v = $s('ps-billing-select').value; if (!v) { err.textContent = 'Pick a billing type.'; return; }
+          e.target.disabled = true;
+          try {
+            const r = await fetch('/api/admin/projects/' + encodeURIComponent(code()) + '/billing-type', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ billing_type: v }) });
+            const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
+            applyType(j.data.billing_type, j.data.billing_label); $s('ps-billing').textContent = j.data.billing_label;
+            err.style.color = 'var(--status-complete-deep, #0c7a5f)'; err.textContent = 'Saved.';
+            setTimeout(() => { err.textContent = ''; err.style.color = ''; }, 2500);
+          } catch (x) { err.style.color = ''; err.textContent = x.message; } finally { e.target.disabled = false; }
+        });
+        document.querySelectorAll('.nav-link[data-view="settings"]').forEach(l => l.addEventListener('click', loadSettings));
+        // label the "billed as" notes once, from the server-rendered type
+        const LABEL = { aia_sov: 'AIA / Schedule of values', lump_sum: 'Lump sum', time_materials: 'Time & materials', unit_price: 'Unit price' };
+        applyType(document.body.dataset.billingType, LABEL[document.body.dataset.billingType] || '');
+      })();
+      </script>
 
     </div>
   </main>
