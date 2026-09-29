@@ -208,7 +208,7 @@
   }
   async function loadSov(){
     // #292 — cache-first (paint from last visit, live refresh diff-skips)
-    const apply=d=>{ SOV=d||[]; PATCH_SOV = SOV.find(s=>s.unit==='CF') || SOV[0] || null; };
+    const apply=d=>{ SOV=d||[]; PATCH_SOV = SOV.find(s=>s.unit==='CF'&&s.sov_code!=='COL-REPAIR') || SOV.find(s=>s.sov_code!=='COL-REPAIR') || null;   // #352 };
     try{
       if(window.SSC_PERF&&SSC_PERF.cacheFirstJSON&&window.SSC_BOOT){ await SSC_PERF.cacheFirstJSON('dropplan.sov.'+PROJECT, `/api/dropplan/projects/${encodeURIComponent(PROJECT)}/sov-lines`, apply); }
       else{ const j=await (await fetch(`/api/dropplan/projects/${encodeURIComponent(PROJECT)}/sov-lines`,{credentials:'include'})).json(); apply((j&&j.data)||[]); }
@@ -498,7 +498,7 @@
     const sec=$('patch-section'); sec.innerHTML=patchFormHtml();
     bindPatchForm();
     const j=await (await fetch(`/api/dropplan/drops/${encodeURIComponent(CUR_DROP)}/quantity-entries`,{credentials:'include'})).json();
-    const patches=((j&&j.data)||[]).filter(e=>e.volume_cf!=null);
+    const patches=((j&&j.data)||[]).filter(e=>e.volume_cf!=null&&e.sov_code!=='COL-REPAIR');   // #352 — column repairs are logged on the project dashboard
     const list=$('patch-list');
     if(!patches.length){ list.innerHTML='<div style="color:var(--mute);font-size:13px;padding:6px 0;">No patches logged yet.</div>'; return; }
     let sum=0; patches.forEach(p=>sum+=p.volume_cf);

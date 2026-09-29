@@ -189,6 +189,24 @@ def drop_expense_total(conn: sqlite3.Connection, drop_id: str) -> float:
 
 # ---------------- assemblers (omit-not-zero) ----------------
 
+# #352 — column repair: a second dimensioned repair (L x W x D -> CF) with its own SOV
+# line, so it is quantified per drop WITHOUT being counted as a concrete patch.
+COLUMN_REPAIR_CODE = "COL-REPAIR"
+COLUMN_REPAIR_DESC = "Column repair"
+
+
+def ensure_column_repair_sov(conn, project_code: str) -> int:
+    """The project's column-repair SOV line (created on first use; caller commits)."""
+    r = conn.execute("SELECT sov_id FROM sov_line_items WHERE project_code=? AND sov_code=?",
+                     (project_code, COLUMN_REPAIR_CODE)).fetchone()
+    if r:
+        return r["sov_id"]
+    conn.execute("INSERT INTO sov_line_items(project_code, sov_code, description, unit) VALUES (?,?,?,?)",
+                 (project_code, COLUMN_REPAIR_CODE, COLUMN_REPAIR_DESC, "CF"))
+    return conn.execute("SELECT sov_id FROM sov_line_items WHERE project_code=? AND sov_code=?",
+                        (project_code, COLUMN_REPAIR_CODE)).fetchone()["sov_id"]
+
+
 def drop_summary(conn: sqlite3.Connection, drop_id: str, include_cost: bool) -> Optional[dict]:
     """List-row summary for a drop. NEVER includes dollars (list view)."""
     d = conn.execute(
@@ -203,10 +221,19 @@ def drop_summary(conn: sqlite3.Connection, drop_id: str, include_cost: bool) -> 
     # #224 — patch volume to date so the By-Elevation cards + progress hero can show
     # CF without one detail call per drop. No schema change: summed straight from the
     # quantity_entries ledger (the single source of truth). full precision + ceil-tenth.
-    vt = conn.execute(
-        "SELECT SUM(volume_cf) FROM quantity_entries WHERE drop_id=?", (drop_id,)).fetchone()[0]
+    # #352 — concrete patches and column repairs are totalled apart (volume_to_date keeps
+    # meaning "patch CF"; column_repair_to_date is the new line).
+    r = conn.execute(
+        "SELECT SUM(CASE WHEN s.sov_code = ? THEN 0 ELSE q.volume_cf END), "
+        "       SUM(CASE WHEN s.sov_code = ? THEN q.volume_cf ELSE 0 END) "
+        "FROM quantity_entries q LEFT JOIN sov_line_items s ON s.sov_id = q.sov_line_item "
+        "WHERE q.drop_id=? AND q.volume_cf IS NOT NULL",
+        (COLUMN_REPAIR_CODE, COLUMN_REPAIR_CODE, drop_id)).fetchone()
+    vt, cr = (r[0], r[1]) if r else (None, None)
     out["volume_to_date"] = round(vt, 6) if vt is not None else 0.0
     out["volume_to_date_display"] = ceil_tenth(vt) if vt is not None else 0.0
+    out["column_repair_to_date"] = round(cr, 6) if cr else 0.0
+    out["column_repair_to_date_display"] = ceil_tenth(cr) if cr else 0.0
     return out
 
 

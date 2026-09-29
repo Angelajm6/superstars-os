@@ -8,8 +8,22 @@ without silently breaking a C-suite pre-production review.
 from __future__ import annotations
 
 import os
+import re
 
 from flask import request
+
+# #351 — the ONLY pages the app shows inside its own frames (the project dashboard
+# embeds them). They may be framed by the same origin; nothing may frame them from
+# another site, and every other page stays unframeable. Without this the browser
+# showed "refuses to connect" in both panels.
+_SAME_ORIGIN_FRAMEABLE = (
+    re.compile(r"^/drawing-markup(?:/\d+)?/?$"),   # the page + a chosen elevation (/drawing-markup/<id>)
+    re.compile(r"^/api/projects/[^/]+/weekly/render$"),
+)
+
+
+def _frameable_by_self(path: str) -> bool:
+    return any(rx.match(path or "") for rx in _SAME_ORIGIN_FRAMEABLE)
 
 
 def _edge_is_https() -> bool:
@@ -25,12 +39,14 @@ def apply_http_security_headers(app) -> None:
     @app.after_request
     def _http_security_headers(response):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("X-Frame-Options", "DENY")
+        self_frame = _frameable_by_self(request.path)
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN" if self_frame else "DENY")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault("Permissions-Policy", "camera=(self), geolocation=(self), microphone=()")
         response.headers.setdefault(
             "Content-Security-Policy",
-            "base-uri 'self'; frame-ancestors 'none'; object-src 'none'",
+            "base-uri 'self'; frame-ancestors " + ("'self'" if self_frame else "'none'")
+            + "; object-src 'none'",
         )
         if _edge_is_https():
             response.headers.setdefault(

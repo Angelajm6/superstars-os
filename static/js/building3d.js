@@ -8,7 +8,15 @@
  * label or the N/E/S/W buttons to fly there.
  *
  * hooks: { toneColor(tone) -> css color, statusOf(elevPayload, key) -> {label, tone},
- *          onPick(elevId, dropId, cellId), onHover(text|null) }
+ *          onPick(elevId, dropId, cellId), onHover(text|null),
+ *          onMode(mode) (#353: 'photoreal' | 'massing'), onPhotorealError(message) }
+ *
+ * #353 — opts.photoreal = model.photoreal (available/key/lat/lng/logo_url/ground_ellipsoid_m).
+ * When set, Google's Photorealistic 3D Tiles replace the massing, anchored at the model's
+ * reference point (the same origin as every local coordinate here), and the drop x level
+ * grid floats semi-transparent on the real walls, still clickable. The tiles library is
+ * loaded only in this mode; the page's import map resolves its bare "three" imports to
+ * the vendored build. Google's logo + data credits are shown along the bottom (policy).
  */
 import * as THREE from '/files/static/vendor/three.module.min.js';
 
@@ -57,8 +65,12 @@ function wallsFromBox(w, d) {
   };
 }
 
-export function open(host, model, elevations, hooks) {
+const TILES = '/files/static/vendor/3d-tiles-renderer/';
+const DRACO = '/files/static/vendor/three-addons/libs/draco/gltf/';
+
+export function open(host, model, elevations, hooks, opts) {
   close();
+  const pr = (opts && opts.photoreal && opts.photoreal.available) ? opts.photoreal : null;
   host.innerHTML = '';
   const width = host.clientWidth || 800, height = Math.max(420, Math.round(width * 0.62));
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -76,15 +88,19 @@ export function open(host, model, elevations, hooks) {
   const H = (g && g.available) ? g.height_m : fb.height_m;
   const walls = (g && g.available) ? g.walls : wallsFromBox(fb.width_m, fb.depth_m);
 
-  // ground + neighbours
-  const radius = 120;
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(radius, 64), new THREE.MeshLambertMaterial({ color: 0xe9ecf2 }));
-  ground.rotation.x = -Math.PI / 2; ground.position.y = -0.05; scene.add(ground);
-  const grid = new THREE.GridHelper(radius * 2, 24, 0xd5d9e2, 0xe3e6ec); grid.position.y = -0.02; scene.add(grid);
-  ((g && g.neighbours) || []).forEach(n => (n.rings || []).forEach(r => extrude(r, n.height_m || 8, 0xd8dce4, 0.95).forEach(m => scene.add(m))));
-
-  // the building
-  extrude(ring, H, 0xfdfcf9, 1).forEach(m => scene.add(m));
+  // the facade grid (and, in massing mode, the whole model) lives in one group so photoreal
+  // mode can lift it onto the real ground height
+  const world = new THREE.Group(); scene.add(world);
+  if (!pr) {
+    // ground + neighbours
+    const radius = 120;
+    const ground = new THREE.Mesh(new THREE.CircleGeometry(radius, 64), new THREE.MeshLambertMaterial({ color: 0xe9ecf2 }));
+    ground.rotation.x = -Math.PI / 2; ground.position.y = -0.05; world.add(ground);
+    const grid = new THREE.GridHelper(radius * 2, 24, 0xd5d9e2, 0xe3e6ec); grid.position.y = -0.02; world.add(grid);
+    ((g && g.neighbours) || []).forEach(n => (n.rings || []).forEach(r => extrude(r, n.height_m || 8, 0xd8dce4, 0.95).forEach(m => world.add(m))));
+    // the building
+    extrude(ring, H, 0xfdfcf9, 1).forEach(m => world.add(m));
+  }
 
   // facade grids
   const pickables = [], labels = [];
@@ -96,7 +112,7 @@ export function open(host, model, elevations, hooks) {
     const wf = fac.width_ft || 1, hf = fac.height_ft || 1;
     const sx = wall.length_m / (wf * FT), sy = H / (hf * FT);   // fit the traced facade onto the real wall
     const dir = [(wall.x1 - wall.x0) / wall.length_m, (wall.y1 - wall.y0) / wall.length_m];
-    const nrm = wall.normal, off = 0.12;
+    const nrm = wall.normal, off = pr ? 0.8 : 0.12;
     const lv = {}; levels.forEach(l => { lv[l.id] = l; });
     const byDrop = {}; (ep.drops || []).forEach(d => { byDrop[d.id] = d; });
     const yaw = Math.atan2(nrm[0], -nrm[1]);  // rotation about y so the plane faces outward (world z = -north)
@@ -106,15 +122,19 @@ export function open(host, model, elevations, hooks) {
       const z0 = L.bot * FT * sy, z1 = L.top * FT * sy, h = Math.max(0.2, z1 - z0 - 0.08);
       const st = hooks.statusOf(ep, c.status);
       const filled = c.status !== 'not_started';
-      const mat = new THREE.MeshLambertMaterial({ color: filled ? toneHex(st.tone) : 0xffffff, transparent: !filled, opacity: filled ? 1 : 0.35, side: THREE.DoubleSide });
+      // Lambert in both modes: hover/highlight drive .emissive. Over the photo the cells are
+      // see-through and never hide the real facade behind them.
+      const mat = pr
+        ? new THREE.MeshLambertMaterial({ color: filled ? toneHex(st.tone) : 0xffffff, transparent: true, opacity: filled ? 0.55 : 0.12, side: THREE.DoubleSide, depthWrite: false })
+        : new THREE.MeshLambertMaterial({ color: filled ? toneHex(st.tone) : 0xffffff, transparent: !filled, opacity: filled ? 1 : 0.35, side: THREE.DoubleSide });
       const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
       const um = (u0 + u1) / 2, zm = (z0 + z1) / 2;
       const px = wall.x0 + dir[0] * um + nrm[0] * off, py = wall.y0 + dir[1] * um + nrm[1] * off;
       m.position.set(px, zm, -py); m.rotation.y = yaw;
       m.userData = { elevId: Number(elevId), dropId: d.id, cellId: c.id, text: 'DROP ' + d.idx + ' · ' + (c.level_name || '') + ' · ' + (st.label || c.status) + (c.reason ? ' — ' + c.reason : '') };
-      scene.add(m); pickables.push(m);
-      const line = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: 0x14161c, transparent: true, opacity: 0.25 }));
-      line.position.copy(m.position); line.rotation.copy(m.rotation); scene.add(line);
+      world.add(m); pickables.push(m);
+      const line = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: pr ? 0xffffff : 0x14161c, transparent: true, opacity: pr ? 0.7 : 0.25 }));
+      line.position.copy(m.position); line.rotation.copy(m.rotation); world.add(line);
     });
     const mx = wall.x0 + dir[0] * wall.length_m / 2 + nrm[0] * 1.5, my = wall.y0 + dir[1] * wall.length_m / 2 + nrm[1] * 1.5;
     labels.push({ face, elevId: Number(elevId), pos: new THREE.Vector3(mx, H + 1.2, -my), text: ({ N: 'North', S: 'South', E: 'East', W: 'West' })[face] + (ep.name ? ' · ' + ep.name : '') });
@@ -123,7 +143,7 @@ export function open(host, model, elevations, hooks) {
   // camera + controls
   const target = new THREE.Vector3(0, H / 2, 0);
   const size = Math.max(H, ...ring.map(p => Math.hypot(p[0], p[1]) * 2), 20);
-  const cam = new THREE.PerspectiveCamera(45, width / height, 0.5, 2000);
+  const cam = new THREE.PerspectiveCamera(45, width / height, 0.5, pr ? 20000 : 2000);
   const view = { yaw: Math.PI * 0.75, pitch: 0.42, dist: size * 1.9 };
   function place() {
     cam.position.set(target.x + Math.sin(view.yaw) * Math.cos(view.pitch) * view.dist, target.y + Math.sin(view.pitch) * view.dist, target.z + Math.cos(view.yaw) * Math.cos(view.pitch) * view.dist);
@@ -140,8 +160,11 @@ export function open(host, model, elevations, hooks) {
   const btn = (t, fn, title) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.title = title || ''; b.style.cssText = 'font:700 12px Inter,system-ui,sans-serif;padding:6px 10px;border-radius:8px;border:1px solid #E3E5EA;background:#fff;color:#24418C;cursor:pointer'; b.addEventListener('click', fn); bar.appendChild(b); return b; };
   ['N', 'E', 'S', 'W'].forEach(f => { if (walls[f]) btn(f, () => flyTo(f), 'Face the ' + f + ' wall'); });
   btn('Reset', () => { view.yaw = Math.PI * 0.75; view.pitch = 0.42; view.dist = size * 1.9; place(); }, 'Reset the view');
+  if (hooks.onMode && opts && opts.prAvailable) {   // #353 — shown in both modes once set up
+    btn(pr ? 'Massing' : 'Photoreal', () => hooks.onMode(pr ? 'massing' : 'photoreal'), pr ? 'Show the simple massing model' : 'Show the real building (Google 3D)');
+  }
   overlay.appendChild(bar);
-  const hint = document.createElement('div'); hint.textContent = (g && g.available ? 'Real footprint and height from NYC Open Data' : 'Footprint not available — sized from the drawings') + ' · drag to orbit · scroll to zoom · tap a cell'; hint.style.cssText = 'position:absolute;left:10px;bottom:8px;font:11.5px Inter,system-ui,sans-serif;color:#8C92A0;pointer-events:none'; overlay.appendChild(hint);
+  const hint = document.createElement('div'); hint.textContent = (pr ? 'Real building (Google 3D) with your drop grid' : (g && g.available ? 'Real footprint and height from NYC Open Data' : 'Footprint not available — sized from the drawings')) + ' · drag to orbit · scroll to zoom · tap a cell'; hint.style.cssText = 'position:absolute;left:10px;bottom:' + (pr ? '30px' : '8px') + ';font:11.5px Inter,system-ui,sans-serif;color:' + (pr ? '#fff' : '#8C92A0') + ';text-shadow:' + (pr ? '0 1px 2px rgba(0,0,0,.6)' : 'none') + ';pointer-events:none'; overlay.appendChild(hint);
 
   function flyTo(face) {
     const yawFor = { N: Math.PI, E: Math.PI / 2, S: 0, W: -Math.PI / 2 }[face];
@@ -172,18 +195,72 @@ export function open(host, model, elevations, hooks) {
   el.addEventListener('touchstart', ev => { if (ev.touches.length === 2) { pinch.d = Math.hypot(ev.touches[0].clientX - ev.touches[1].clientX, ev.touches[0].clientY - ev.touches[1].clientY); drag = null; } }, { passive: true });
   el.addEventListener('touchmove', ev => { if (ev.touches.length === 2 && pinch.d) { const d = Math.hypot(ev.touches[0].clientX - ev.touches[1].clientX, ev.touches[0].clientY - ev.touches[1].clientY); view.dist = Math.max(size * 0.5, Math.min(size * 6, view.dist * (pinch.d / d))); pinch.d = d; place(); } }, { passive: true });
 
+  // #353 — Google Photorealistic 3D Tiles
+  let tiles = null, credits = null, groundFound = false;
+  if (pr) {
+    world.position.y = pr.ground_ellipsoid_m || 0;   // first guess; refined by the ray below
+    target.y = world.position.y + H / 2; place();
+    renderer.domElement.style.background = '#cfd8e6';
+    credits = document.createElement('div');
+    credits.style.cssText = 'position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:8px;padding:5px 10px;background:rgba(255,255,255,.85);font:11px Inter,system-ui,sans-serif;color:#3c414d;pointer-events:none;border-radius:0 0 12px 12px';
+    const logo = document.createElement('img'); logo.src = pr.logo_url; logo.alt = 'Google Maps'; logo.style.cssText = 'height:18px;width:auto;margin:0 10px 0 0';   // Google: 16-19px tall, unmodified
+    const txt = document.createElement('span'); credits.appendChild(logo); credits.appendChild(txt); overlay.appendChild(credits);
+    const fail = msg => { if (hooks.onPhotorealError) hooks.onPhotorealError(msg); };
+    Promise.all([import(TILES + 'index.three.js'), import(TILES + 'index.three-plugins.js'), import(TILES + 'index.core-plugins.js'),
+                 import('/files/static/vendor/three-addons/loaders/DRACOLoader.js')])
+      .then(([core, plugins, corePlugins, draco]) => {
+        if (!R) return;
+        tiles = new core.TilesRenderer();
+        tiles.registerPlugin(new corePlugins.GoogleCloudAuthPlugin({ apiToken: pr.key, autoRefreshToken: true, logoUrl: pr.logo_url }));
+        tiles.registerPlugin(new plugins.GLTFExtensionsPlugin({ dracoLoader: new draco.DRACOLoader().setDecoderPath(DRACO) }));
+        tiles.registerPlugin(new plugins.TileCompressionPlugin());
+        // anchor the globe at the model's reference point; azimuth pi turns the library's
+        // (+Z north, +X west) frame into this file's (+X east, -Z north)
+        tiles.registerPlugin(new plugins.ReorientationPlugin({ lat: pr.lat * Math.PI / 180, lon: pr.lng * Math.PI / 180, height: 0, azimuth: Math.PI }));
+        tiles.errorTarget = 6;
+        tiles.setCamera(cam); tiles.setResolutionFromRenderer(cam, renderer);
+        tiles.addEventListener('load-error', e => { if (!tiles.root && e && e.url && String(e.url).indexOf('root') !== -1) fail('Google 3D tiles could not load (key, quota or coverage).'); });
+        tiles.addEventListener('load-model', () => { if (!groundFound) seatOnGround(); });
+        scene.add(tiles.group);
+        R.tiles = tiles;
+      })
+      .catch(() => fail('The Google 3D viewer could not load.'));
+  }
+  // cast straight down just outside a wall to find the real street level in the tiles
+  const down = new THREE.Raycaster(), probe = new THREE.Vector3(), dirDown = new THREE.Vector3(0, -1, 0);
+  function seatOnGround() {
+    if (!tiles) return;
+    const w = walls.S || walls.N || Object.values(walls)[0]; if (!w) return;
+    const mx = (w.x0 + w.x1) / 2 + w.normal[0] * 4, my = (w.y0 + w.y1) / 2 + w.normal[1] * 4;
+    probe.set(mx, 400, -my); down.set(probe, dirDown);
+    const hit = down.intersectObject(tiles.group, true)[0];
+    if (hit && Math.abs(hit.point.y - world.position.y) < 80) {
+      world.position.y = hit.point.y; target.y = hit.point.y + H / 2; place();
+      groundFound = true;
+    }
+  }
+  let creditTick = 0;
+
   // resize + loop
   const onResize = () => { const w = host.clientWidth || width, h = Math.max(420, Math.round(w * 0.62)); renderer.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix(); };
   window.addEventListener('resize', onResize);
   const v = new THREE.Vector3();
   function frame() {
     if (!R) return;
+    if (tiles) {
+      cam.updateMatrixWorld(); tiles.update();
+      if (credits && performance.now() - creditTick > 1000) {   // Google data credits, most frequent first
+        creditTick = performance.now();
+        const a = (tiles.getAttributions ? tiles.getAttributions() : []).filter(x => x.type === 'string').map(x => x.value);
+        credits.lastChild.textContent = a.join(' · ');
+      }
+    }
     renderer.render(scene, cam);
     const r = el.getBoundingClientRect();
     labels.forEach((l, i) => { v.copy(l.pos).project(cam); const vis = v.z < 1; labelEls[i].style.display = vis ? '' : 'none'; if (vis) { labelEls[i].style.left = ((v.x + 1) / 2 * r.width) + 'px'; labelEls[i].style.top = ((1 - v.y) / 2 * r.height) + 'px'; } });
     requestAnimationFrame(frame);
   }
-  R = { renderer, scene, onResize, pickables };
+  R = { renderer, scene, onResize, pickables, tiles: null, cam };
   frame();
   return { flyTo, cells: pickables.length, faces: labels.map(l => l.face), highlight(cellId) { pickables.forEach(m => { m.material.emissive.setHex(m.userData.cellId === cellId ? 0x2a4a99 : 0); }); } };
 }
@@ -191,7 +268,11 @@ export function open(host, model, elevations, hooks) {
 export function close() {
   if (!R) return;
   window.removeEventListener('resize', R.onResize);
+  if (R.tiles) { try { R.scene.remove(R.tiles.group); R.tiles.dispose(); } catch (e) {} }   // #353
   R.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose()); } });
   R.renderer.dispose();
   R = null;
 }
+
+// read-only hook for debugging in the browser console (renderer state of the open view)
+export function debugState() { return R; }

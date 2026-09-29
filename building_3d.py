@@ -28,6 +28,8 @@ from __future__ import annotations
 import json
 import logging
 import math
+import os
+from pathlib import Path
 from datetime import date, datetime, timedelta
 from typing import Optional
 
@@ -108,6 +110,10 @@ def ensure_schema(conn) -> None:
         f"  fetched_at        TEXT NOT NULL"
         f")")
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_building_geometry_project ON building_geometry(project_code)")
+    # #353 — photoreal sessions handed out per (server-local) day: the app-side cap that keeps
+    # Google's Map Tiles usage inside the free monthly allowance (Google's own daily quota
+    # for root requests is not adjustable)
+    conn.execute("CREATE TABLE IF NOT EXISTS photoreal_usage (day TEXT PRIMARY KEY, sessions INTEGER NOT NULL DEFAULT 0)")
     conn.commit()
 
 
@@ -396,7 +402,71 @@ def model(conn, code: str, *, fetch=None, refresh: bool = False) -> Optional[dic
     return {"project": {"project_code": p["project_code"], "name": p.get("name"), "address": p.get("address_line") or p.get("address"),
                         "borough": p.get("borough"), "stories": stories},
             "geometry": geometry, "fallback": fallback, "elevations": elevs, "mapping": mapping,
+            "photoreal": photoreal(geometry, conn),   # #353
             "audience": _elev.audience(), "can_refresh": internal}
+
+
+# ---------------------------------------------------------------- #353 photoreal
+# Google Photorealistic 3D Tiles, drawn by the vendored NASA-AMMOS 3d-tiles-renderer.
+# SSC_GOOGLE_TILES_KEY is a BROWSER key (HTTP-referrer + Map Tiles API restricted, daily
+# quota capped) — public by nature, so it may reach any viewer who can open the model.
+# Google's policy requires its Maps logo on screen, so photoreal only switches on when the
+# official logo file is vendored too. Without either, the massing view is used as today.
+GOOGLE_LOGO_REL = "static/vendor/google/google_maps_logo.svg"
+GEOID_NYC_M = -32.7   # NAVD88 -> WGS84 ellipsoid offset around New York City (approx.)
+
+
+def _key() -> str:
+    return (os.environ.get("SSC_GOOGLE_TILES_KEY") or "").strip()
+
+
+def daily_cap() -> int:
+    try:
+        return max(0, int(os.environ.get("SSC_GOOGLE_TILES_DAILY_CAP") or 30))
+    except ValueError:
+        return 30
+
+
+def used_today(conn) -> int:
+    try:
+        r = conn.execute("SELECT sessions FROM photoreal_usage WHERE day = ?", (date.today().isoformat(),)).fetchone()
+        return int(r[0]) if r else 0
+    except Exception:
+        return 0
+
+
+def claim_session(conn) -> bool:
+    """Count one photoreal session for today if the cap allows it (atomic; caller commits)."""
+    day = date.today().isoformat()
+    conn.execute("INSERT INTO photoreal_usage (day, sessions) VALUES (?, 0) ON CONFLICT(day) DO NOTHING", (day,))
+    cur = conn.execute("UPDATE photoreal_usage SET sessions = sessions + 1 WHERE day = ? AND sessions < ?",
+                       (day, daily_cap()))
+    return (cur.rowcount or 0) > 0
+
+
+def photoreal(geometry: dict, conn=None) -> dict:
+    """Whether the photoreal view can be offered. The key itself is NOT in here: the
+    browser gets it from /photoreal-session only when a session actually starts (counted)."""
+    key = _key()
+    logo = Path(__file__).resolve().parent / GOOGLE_LOGO_REL
+    out = {"available": False, "reason": None}
+    if not key:
+        out["reason"] = "no_key"
+    elif not logo.is_file():
+        out["reason"] = "no_logo"
+    elif not (geometry or {}).get("available") or geometry.get("lat") is None:
+        out["reason"] = "no_location"
+    else:
+        ground_ft = geometry.get("ground_ft")
+        if conn is not None and used_today(conn) >= daily_cap():
+            out["reason"] = "daily_cap"
+            return out
+        out.update({"available": True, "lat": geometry["lat"], "lng": geometry["lng"],
+                    "logo_url": "/files/" + GOOGLE_LOGO_REL,
+                    # starting guess for the ground on Google's ellipsoid; the browser refines
+                    # it by casting a ray onto the loaded tiles
+                    "ground_ellipsoid_m": round((ground_ft or 0.0) * FT + GEOID_NYC_M, 2)})
+    return out
 
 
 # ---------------------------------------------------------------- routes
@@ -427,6 +497,30 @@ def _api_refresh(project_code):
         conn.close()
 
 
+def _api_photoreal_session(project_code):
+    """#353 — start one photoreal session: counts it against today's cap and returns the
+    browser key. 429 once the cap is used up (the page then shows the massing view)."""
+    conn = _conn()
+    try:
+        blocked = _elev._require_project(conn, project_code)
+        if blocked:
+            return blocked
+        m = model(conn, project_code)
+        if not m:
+            return _err("project not found", 404)
+        pr = m.get("photoreal") or {}
+        if not pr.get("available"):
+            code = 429 if pr.get("reason") == "daily_cap" else 409
+            return jsonify({"error": "photoreal unavailable", "reason": pr.get("reason")}), code
+        if not claim_session(conn):
+            conn.commit()
+            return jsonify({"error": "photoreal unavailable", "reason": "daily_cap"}), 429
+        conn.commit()
+        return jsonify({"data": {"key": _key(), "remaining_today": max(0, daily_cap() - used_today(conn))}})
+    finally:
+        conn.close()
+
+
 def register(app) -> None:
     conn = _conn()
     try:
@@ -440,3 +534,5 @@ def register(app) -> None:
     # containment allowlists already admit for the drawing markup (client_portal, elevation)
     app.add_url_rule("/api/elevation/model3d/<project_code>", "building3d_model", _api_model, methods=["GET"])
     app.add_url_rule("/api/elevation/model3d/<project_code>/refresh", "building3d_refresh", _api_refresh, methods=["POST"])
+    app.add_url_rule("/api/elevation/model3d/<project_code>/photoreal-session", "building3d_photoreal_session",
+                     _api_photoreal_session, methods=["POST"])   # #353
