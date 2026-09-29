@@ -168,6 +168,23 @@ grant, or elevation code.
   as patches and never picks COL-REPAIR as its patch line. The new SOV line shows in the
   financial Schedule of Values with no unit rate until one is set.
 * **Test:** `tests/smoke_column_repair_352.py` (both gates).
+### #359 — Collapsible sidebar rail + layout base (Bookore, 2026-09-29)
+
+* **Rail:** `static/js/shell.js` adds a « button to the sidebar's brand row on every
+  company page (`aside.ssc-side`) and on the project dashboard (`<aside class="sidebar"
+  data-rail>`; the client portal has none). It toggles `html.side-rail` — a 68 px icon
+  rail; labels stay in the markup (font-size 0) and become each link's tooltip +
+  aria-label (a link's own tooltip is kept). Remembered per browser (`ssc.side.rail`);
+  each internal page sets the class in `<head>` before the first paint. Desktop only:
+  every rule sits inside `@media (min-width: 861px)` in `widgets.css`, so the phone
+  Menu drawer is unchanged.
+* **Layout:** project views stop at 1440 px and centre (Drawing Markup stays full-bleed),
+  side gutters shrink with the window, the Live line is slimmer and views start closer
+  to it; the dead top-bar CSS is gone.
+* **Cache keys:** `widgets.css?v=359` and `shell.js?v=359` on all eight shells (one key
+  each, asserted).
+* **Test:** `tests/smoke_layout_rail_359.py` (both gates).
+
 ### #358 — Job dashboard: executive summary (Bookore, 2026-09-29)
 
 * **`project_summary.py`:** one call builds the job's summary — header (status, billing
