@@ -103,14 +103,20 @@ export function open(host, model, elevations, hooks, opts) {
   }
 
   // facade grids
-  const pickables = [], labels = [];
+  const pickables = [], labels = [], faceGroups = [];
   const toneHex = t => cssColor(hooks.toneColor(t), 0x9aa3ae);
+  // #354 — over the real building the DRAWING is the height truth (NYC's recorded height is
+  // roof-to-grade of whatever footprint matched); massing keeps fitting the grid to NYC's H.
+  let Hv = H;
   Object.entries(model.mapping || {}).forEach(([face, elevId]) => {
     const wall = walls[face], ep = elevations[elevId];
     if (!wall || !ep || !ep.geometry || !ep.geometry.facade) return;
     const fac = ep.geometry.facade, levels = ep.geometry.levels || [];
     const wf = fac.width_ft || 1, hf = fac.height_ft || 1;
-    const sx = wall.length_m / (wf * FT), sy = H / (hf * FT);   // fit the traced facade onto the real wall
+    const sx = wall.length_m / (wf * FT), sy = pr ? 1 : H / (hf * FT);   // fit the traced facade onto the real wall
+    if (pr) Hv = Math.max(Hv === H ? 0 : Hv, hf * FT);
+    const fg = new THREE.Group(); world.add(fg);   // one group per wall: photoreal snaps it onto the real facade
+    faceGroups.push({ fg, wall, nrm: wall.normal, hf: hf * FT });
     const dir = [(wall.x1 - wall.x0) / wall.length_m, (wall.y1 - wall.y0) / wall.length_m];
     const nrm = wall.normal, off = pr ? 0.8 : 0.12;
     const lv = {}; levels.forEach(l => { lv[l.id] = l; });
@@ -132,16 +138,22 @@ export function open(host, model, elevations, hooks, opts) {
       const px = wall.x0 + dir[0] * um + nrm[0] * off, py = wall.y0 + dir[1] * um + nrm[1] * off;
       m.position.set(px, zm, -py); m.rotation.y = yaw;
       m.userData = { elevId: Number(elevId), dropId: d.id, cellId: c.id, text: 'DROP ' + d.idx + ' · ' + (c.level_name || '') + ' · ' + (st.label || c.status) + (c.reason ? ' — ' + c.reason : '') };
-      world.add(m); pickables.push(m);
+      fg.add(m); pickables.push(m);
       const line = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: pr ? 0xffffff : 0x14161c, transparent: true, opacity: pr ? 0.7 : 0.25 }));
-      line.position.copy(m.position); line.rotation.copy(m.rotation); world.add(line);
+      line.position.copy(m.position); line.rotation.copy(m.rotation); fg.add(line);
     });
+    if (pr) {   // #354 — "DROP n" tags along the top of the wall so each column reads at a glance
+      (ep.drops || []).forEach(d => {
+        const um = ((d.x0 + d.x1) / 2) * FT * sx;
+        labels.push({ small: true, fg, pos: new THREE.Vector3(wall.x0 + dir[0] * um + nrm[0] * off, hf * FT + 0.9, -(wall.y0 + dir[1] * um + nrm[1] * off)), text: 'DROP ' + d.idx });
+      });
+    }
     const mx = wall.x0 + dir[0] * wall.length_m / 2 + nrm[0] * 1.5, my = wall.y0 + dir[1] * wall.length_m / 2 + nrm[1] * 1.5;
-    labels.push({ face, elevId: Number(elevId), pos: new THREE.Vector3(mx, H + 1.2, -my), text: ({ N: 'North', S: 'South', E: 'East', W: 'West' })[face] + (ep.name ? ' · ' + ep.name : '') });
+    labels.push({ face, fg, elevId: Number(elevId), pos: new THREE.Vector3(mx, (pr ? hf * FT : H) + (pr ? 3.2 : 1.2), -my), text: ({ N: 'North', S: 'South', E: 'East', W: 'West' })[face] + (ep.name ? ' · ' + ep.name : '') });
   });
 
   // camera + controls
-  const target = new THREE.Vector3(0, H / 2, 0);
+  const target = new THREE.Vector3(0, Hv / 2, 0);
   const size = Math.max(H, ...ring.map(p => Math.hypot(p[0], p[1]) * 2), 20);
   const cam = new THREE.PerspectiveCamera(45, width / height, 0.5, pr ? 20000 : 2000);
   const view = { yaw: Math.PI * 0.75, pitch: 0.42, dist: size * 1.9 };
@@ -154,7 +166,17 @@ export function open(host, model, elevations, hooks, opts) {
   // overlay: labels, tooltip, buttons
   host.style.position = 'relative';
   const overlay = document.createElement('div'); overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;'; host.appendChild(overlay);
-  const labelEls = labels.map(l => { const e = document.createElement('button'); e.type = 'button'; e.textContent = l.text; e.style.cssText = 'position:absolute;transform:translate(-50%,-100%);pointer-events:auto;font:700 12px/1 Inter,system-ui,sans-serif;color:#14161C;background:#fff;border:1px solid #E3E5EA;border-radius:999px;padding:6px 10px;box-shadow:0 2px 8px rgba(0,0,0,.08);cursor:pointer;white-space:nowrap'; e.addEventListener('click', () => flyTo(l.face)); overlay.appendChild(e); return e; });
+  const labelEls = labels.map(l => {
+    const e = document.createElement(l.small ? 'span' : 'button'); e.textContent = l.text;
+    if (l.small) {
+      e.style.cssText = 'position:absolute;transform:translate(-50%,-100%);pointer-events:none;font:800 10.5px/1 Inter,system-ui,sans-serif;color:#fff;background:rgba(20,22,28,.72);border-radius:6px;padding:3px 5px;white-space:nowrap';
+    } else {
+      e.type = 'button';
+      e.style.cssText = 'position:absolute;transform:translate(-50%,-100%);pointer-events:auto;font:700 12px/1 Inter,system-ui,sans-serif;color:#14161C;background:#fff;border:1px solid #E3E5EA;border-radius:999px;padding:6px 10px;box-shadow:0 2px 8px rgba(0,0,0,.08);cursor:pointer;white-space:nowrap';
+      e.addEventListener('click', () => flyTo(l.face));
+    }
+    overlay.appendChild(e); return e;
+  });
   const tip = document.createElement('div'); tip.style.cssText = 'position:absolute;display:none;background:#14161C;color:#fff;font:12.5px/1.35 Inter,system-ui,sans-serif;padding:8px 10px;border-radius:8px;max-width:260px;pointer-events:none;box-shadow:0 8px 24px rgba(20,22,28,.3)'; overlay.appendChild(tip);
   const bar = document.createElement('div'); bar.style.cssText = 'position:absolute;left:10px;top:10px;display:flex;gap:6px;pointer-events:auto;flex-wrap:wrap';
   const btn = (t, fn, title) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.title = title || ''; b.style.cssText = 'font:700 12px Inter,system-ui,sans-serif;padding:6px 10px;border-radius:8px;border:1px solid #E3E5EA;background:#fff;color:#24418C;cursor:pointer'; b.addEventListener('click', fn); bar.appendChild(b); return b; };
@@ -199,14 +221,17 @@ export function open(host, model, elevations, hooks, opts) {
   let tiles = null, credits = null, groundFound = false;
   if (pr) {
     world.position.y = pr.ground_ellipsoid_m || 0;   // first guess; refined by the ray below
-    target.y = world.position.y + H / 2; place();
+    target.y = world.position.y + Hv / 2; place();
     renderer.domElement.style.background = '#cfd8e6';
     credits = document.createElement('div');
     credits.style.cssText = 'position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:8px;padding:5px 10px;background:rgba(255,255,255,.85);font:11px Inter,system-ui,sans-serif;color:#3c414d;pointer-events:none;border-radius:0 0 12px 12px';
     const logo = document.createElement('img'); logo.src = pr.logo_url; logo.alt = 'Google Maps'; logo.style.cssText = 'height:18px;width:auto;margin:0 10px 0 0';   // Google: 16-19px tall, unmodified
     const txt = document.createElement('span'); credits.appendChild(logo); credits.appendChild(txt); overlay.appendChild(credits);
     const fail = msg => { if (hooks.onPhotorealError) hooks.onPhotorealError(msg); };
-    Promise.all([import(TILES + 'index.three.js'), import(TILES + 'index.three-plugins.js'), import(TILES + 'index.core-plugins.js'),
+    if (pr.__testTiles) {   // test seam: a stand-in mesh with a known ground + facade (no network)
+      tiles = pr.__testTiles; scene.add(tiles.group);
+      setTimeout(() => { if (R) { R.tiles = tiles; fitToTiles(true); } }, 0);
+    } else Promise.all([import(TILES + 'index.three.js'), import(TILES + 'index.three-plugins.js'), import(TILES + 'index.core-plugins.js'),
                  import('/files/static/vendor/three-addons/loaders/DRACOLoader.js')])
       .then(([core, plugins, corePlugins, draco]) => {
         if (!R) return;
@@ -220,24 +245,49 @@ export function open(host, model, elevations, hooks, opts) {
         tiles.errorTarget = 6;
         tiles.setCamera(cam); tiles.setResolutionFromRenderer(cam, renderer);
         tiles.addEventListener('load-error', e => { if (!tiles.root && e && e.url && String(e.url).indexOf('root') !== -1) fail('Google 3D tiles could not load (key, quota or coverage).'); });
-        tiles.addEventListener('load-model', () => { if (!groundFound) seatOnGround(); });
+        tiles.addEventListener('load-model', () => { fitToTiles(); });
         scene.add(tiles.group);
         R.tiles = tiles;
       })
       .catch(() => fail('The Google 3D viewer could not load.'));
   }
-  // cast straight down just outside a wall to find the real street level in the tiles
-  const down = new THREE.Raycaster(), probe = new THREE.Vector3(), dirDown = new THREE.Vector3(0, -1, 0);
-  function seatOnGround() {
-    if (!tiles) return;
-    const w = walls.S || walls.N || Object.values(walls)[0]; if (!w) return;
-    const mx = (w.x0 + w.x1) / 2 + w.normal[0] * 4, my = (w.y0 + w.y1) / 2 + w.normal[1] * 4;
-    probe.set(mx, 400, -my); down.set(probe, dirDown);
-    const hit = down.intersectObject(tiles.group, true)[0];
-    if (hit && Math.abs(hit.point.y - world.position.y) < 80) {
-      world.position.y = hit.point.y; target.y = hit.point.y + H / 2; place();
+  // #354 — fit the grid to the real mesh, again and again as sharper tiles stream in:
+  //  * street level = the MEDIAN of downward rays just outside each wall (one probe landing
+  //    on a roof or in a rail cut can't drag it), never locked on the first coarse hit;
+  //  * each wall's grid slides along its normal onto the real facade (a sideways ray),
+  //    kept a little in front so the photo shows through.
+  const ray2 = new THREE.Raycaster(), p0 = new THREE.Vector3(), dDown = new THREE.Vector3(0, -1, 0), dIn = new THREE.Vector3();
+  let lastFit = 0;
+  function hitY(x, z) {
+    p0.set(x, world.position.y + 400, z); ray2.set(p0, dDown);
+    const h = ray2.intersectObject(tiles.group, true)[0];
+    return h ? h.point.y : null;
+  }
+  function fitToTiles(force) {
+    if (!tiles || (!force && performance.now() - lastFit < 400)) return;
+    lastFit = performance.now();
+    const ys = [];
+    Object.values(walls).forEach(w => {
+      const mx = (w.x0 + w.x1) / 2 + w.normal[0] * 5, my = (w.y0 + w.y1) / 2 + w.normal[1] * 5;
+      const y = hitY(mx, -my); if (y != null && Math.abs(y - (pr.ground_ellipsoid_m || 0)) < 120) ys.push(y);
+    });
+    if (ys.length) {
+      ys.sort((a, b) => a - b);
+      const g = ys[Math.floor((ys.length - 1) / 2)];
+      if (Math.abs(g - world.position.y) > 0.05) { world.position.y = g; target.y = g + Hv / 2; place(); }
       groundFound = true;
     }
+    faceGroups.forEach(f => {
+      const w = f.wall, n = f.nrm, back = 25;
+      const mx = (w.x0 + w.x1) / 2 + n[0] * back, my = (w.y0 + w.y1) / 2 + n[1] * back;
+      p0.set(mx, world.position.y + Math.min(f.hf / 2, 12), -my); dIn.set(-n[0], 0, n[1]);
+      ray2.set(p0, dIn);
+      const h = ray2.intersectObject(tiles.group, true)[0];
+      if (h && h.distance > back - 12 && h.distance < back + 12) {
+        const shift = back - h.distance;      // + = the real facade stands proud of the footprint line
+        f.fg.position.set(n[0] * shift, 0, -n[1] * shift);
+      }
+    });
   }
   let creditTick = 0;
 
@@ -249,6 +299,7 @@ export function open(host, model, elevations, hooks, opts) {
     if (!R) return;
     if (tiles) {
       cam.updateMatrixWorld(); tiles.update();
+      if (performance.now() - lastFit > 1500) fitToTiles();   // keep converging as detail arrives
       if (credits && performance.now() - creditTick > 1000) {   // Google data credits, most frequent first
         creditTick = performance.now();
         const a = (tiles.getAttributions ? tiles.getAttributions() : []).filter(x => x.type === 'string').map(x => x.value);
@@ -257,10 +308,10 @@ export function open(host, model, elevations, hooks, opts) {
     }
     renderer.render(scene, cam);
     const r = el.getBoundingClientRect();
-    labels.forEach((l, i) => { v.copy(l.pos).project(cam); const vis = v.z < 1; labelEls[i].style.display = vis ? '' : 'none'; if (vis) { labelEls[i].style.left = ((v.x + 1) / 2 * r.width) + 'px'; labelEls[i].style.top = ((1 - v.y) / 2 * r.height) + 'px'; } });
+    labels.forEach((l, i) => { v.copy(l.pos); if (l.fg) { v.x += l.fg.position.x; v.z += l.fg.position.z; } v.y += world.position.y; v.project(cam); const vis = v.z < 1; labelEls[i].style.display = vis ? '' : 'none'; if (vis) { labelEls[i].style.left = ((v.x + 1) / 2 * r.width) + 'px'; labelEls[i].style.top = ((1 - v.y) / 2 * r.height) + 'px'; } });
     requestAnimationFrame(frame);
   }
-  R = { renderer, scene, onResize, pickables, tiles: null, cam };
+  R = { renderer, scene, onResize, pickables, tiles: null, cam, world, faceGroups, fit: () => fitToTiles(true) };
   frame();
   return { flyTo, cells: pickables.length, faces: labels.map(l => l.face), highlight(cellId) { pickables.forEach(m => { m.material.emissive.setHex(m.userData.cellId === cellId ? 0x2a4a99 : 0); }); } };
 }
