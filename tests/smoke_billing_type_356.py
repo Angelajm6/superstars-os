@@ -186,7 +186,7 @@ def main() -> int:
     page_a = cs.get(f"/projects/{A}").get_data(as_text=True)
     assert '<body data-billing-type="aia_sov">' in page_a and '<a class="nav-link" data-view="sov">' in page_a
     page_pm = pm.get(f"/projects/{A}").get_data(as_text=True)
-    assert '<a class="nav-link" data-view="sov"' not in page_pm and '<section class="view" data-view="sov">' not in page_pm \
+    assert 'data-view="sov"' not in page_pm and 'data-group="financial"' not in page_pm \
         and 'id="ps-billing"' in page_pm, "pm: no money nav / SOV view, read-only billing in Settings"
     prof = pm.get(f"/api/projects/{L}/profile").get_json()["data"]
     assert prof["billing_label"] == "Lump sum" and len(prof["billing_options"]) == 4
