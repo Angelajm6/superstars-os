@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=359">
 <link rel="stylesheet" href="/files/static/css/shell.css?v=341">
-<script src="/files/static/js/company_nav.js?v=341"></script>
+<script src="/files/static/js/company_nav.js?v=360"></script>
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=359" defer></script>
@@ -86,27 +86,9 @@
   .proj-checks label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);cursor:pointer;}
   .proj-checks label.is-closed{color:var(--muted);}
   .proj-checks .clbl{font-size:10.5px;color:var(--muted);margin-left:4px;}
-  /* #269 — per-section access toggles (default OFF; boxed, design-system tokens) */
-  .sec-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
-  .sec-tog{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;
-           padding:7px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;
-           color:var(--muted);cursor:pointer;user-select:none;transition:border-color .12s,background .12s,color .12s;}
-  .sec-tog input{accent-color:var(--accent);margin:0;cursor:pointer;}
-  .sec-tog:hover{border-color:var(--accent-edge);}
-  .sec-tog.on{background:var(--accent-soft);border-color:var(--accent-edge);color:var(--accent-ink);}
-  .sec-tog.busy{opacity:.55;pointer-events:none;}
-  .sec-status{font-size:12px;color:var(--muted);margin-top:10px;}
-  .sec-status b{color:var(--ink);font-weight:700;}
-  .sec-status .contained{color:#a23b30;font-weight:700;}
-  .sec-status .open-n{color:#0c7a5f;font-weight:700;}
-  .sec-note{font-size:11.5px;color:var(--muted);margin-top:6px;}
-  /* #270 — preset row + preview button (design-system: boxed, :root tokens) */
-  .preset-row{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11.5px;color:var(--muted);font-weight:700;}
-  .preset-row select{height:30px;border:1px solid var(--line);border-radius:8px;padding:0 8px;font:inherit;font-size:12px;background:#fff;color:var(--ink);}
   .btn-ghost-sm{font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
   .btn-ghost-sm:hover{border-color:var(--accent-edge);background:var(--accent-soft);color:var(--accent-ink);}
   .btn-ghost-sm:disabled{opacity:.5;cursor:not-allowed;}
-  .pv-open{display:inline-flex;align-items:center;gap:6px;}
   .ph-build{text-align:center;color:#9aa3ae;font-size:11px;margin-top:30px;}
   .brand-mark,.mark{object-fit:contain;}  /* #265 swap-safe logo */
 </style>
@@ -154,12 +136,13 @@
     <div id="pm-list"><div class="empty">Loading…</div></div>
   </section>
 
+  <!-- #360 — client portal access moved to its own company tab (Client portal): logins,
+       linked project, unlocked sections, presets, preview and password resets in one place. -->
   <section>
     <div class="head-row">
-      <h2>Client Access <span style="font-size:12px;font-weight:600;color:var(--muted);">· per-section, default OFF</span></h2>
-      <div class="sub">Assign each external client to ONE project, then unlock their portal one section at a time. Every section starts locked — a client with nothing unlocked stays on the welcome page. Within Photos and Documents, only the items you individually share are ever visible. Onboard clients in <a href="/admin/users" style="color:var(--accent);font-weight:700;text-decoration:none;">User Management</a>.</div>
+      <h2>Client portal access</h2>
+      <div class="sub">Client logins, the project each one is linked to and what they can see now live on their own tab. <a href="/company#portal" style="color:var(--accent);font-weight:700;text-decoration:none;">Open Client portal →</a></div>
     </div>
-    <div id="client-list"><div class="empty">Loading…</div></div>
   </section>
 
   <div class="ph-build" id="ap-build-stamp" hidden>build #270 · 2026-07-02 · Client access — section toggles + presets (Minimal/Standard/Full) + read-only portal preview (admin/c_suite)</div>
@@ -214,7 +197,6 @@
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   var ROLE_LABEL = { admin:'Admin', c_suite:'C-Suite', pm:'PM', super:'Super' };
-  var SECTION_LABEL = { progress:'Progress', photos:'Photos', documents:'Documents', daily:'Daily Reports', schedule:'Schedule' };
   function showErr(m){ var e=$('err'); e.textContent=m; e.classList.add('show'); $('ok').classList.remove('show'); }
   function showOk(m){ var e=$('ok'); e.textContent=m; e.classList.add('show'); setTimeout(function(){e.classList.remove('show');},2600); }
   function clearBars(){ $('err').classList.remove('show'); $('ok').classList.remove('show'); }
@@ -230,9 +212,7 @@
     if(u.role!=='admin' && u.role!=='c_suite'){ document.body.innerHTML='<div style="max-width:520px;margin:18vh auto;text-align:center;font-family:Inter,sans-serif;color:#76777E">This screen is limited to admin and C-suite.</div>'; }
   });
 
-  var STATE = { projects: [], pms: [], clients: [], grantable: ['progress','photos','documents','daily','schedule'],
-                presets: {minimal:['progress'], standard:['progress','photos','daily'], full:['progress','photos','documents','daily','schedule']},
-                presetLabels: {minimal:'Minimal', standard:'Standard', full:'Full view'} };
+  var STATE = { projects: [], pms: [] };   // #360 — client access moved to the Client portal tab
 
   async function load(){
     clearBars();
@@ -241,23 +221,8 @@
       if(resp.error){ showErr(resp.error); return; }
       STATE.projects = (resp.data && resp.data.projects) || [];
       STATE.pms = (resp.data && resp.data.pms) || [];
-      STATE.clients = (resp.data && resp.data.clients) || [];
-      // #281 — the catalog, labels and presets all come from the API now. The hard-coded
-      // fallbacks below stay only for a server too old to send them; a new grantable
-      // section should never need an edit in this file again.
-      if(resp.data && resp.data.grantable_sections){ STATE.grantable = resp.data.grantable_sections; }
-      // #283 — only sections whose portal payload exists render as toggles; a
-      // catalogued-but-unserved key (weekly, materials) must not offer a grant
-      // that opens to nothing.
-      if(resp.data && resp.data.served_sections){
-        STATE.grantable = STATE.grantable.filter(function(s){ return resp.data.served_sections.indexOf(s) !== -1; });
-      }
-      if(resp.data && resp.data.presets){ STATE.presets = resp.data.presets; }
-      if(resp.data && resp.data.section_labels){ Object.assign(SECTION_LABEL, resp.data.section_labels); }
-      if(resp.data && resp.data.preset_labels){ STATE.presetLabels = resp.data.preset_labels; }
       renderProjects();
       renderPMs();
-      renderClients();
     }catch(e){ showErr('Could not load: '+e.message); }
   }
 
@@ -415,133 +380,6 @@
         + '</div>';
     }).join('');
   }
-
-  // #269 — the per-section access summary line under each client card.
-  function sectionStatusHTML(c){
-    var n=(c.sections||[]).length, total=STATE.grantable.length;
-    if(!c.project_code){
-      return '<div class="sec-status">Assign a project to enable section access.</div>';
-    }
-    if(n===0){
-      return '<div class="sec-status"><span class="contained">Nothing unlocked</span> — this client is contained on the welcome page.</div>';
-    }
-    return '<div class="sec-status"><span class="open-n">'+n+' of '+total+' sections unlocked</span> — the portal shows only these sections.</div>';
-  }
-
-  function renderClients(){
-    var host=$('client-list');
-    var clients=STATE.clients||[];
-    if(!clients.length){ host.innerHTML='<div class="empty">No active client users yet. Create one in <a href="/admin/users" style="color:var(--accent);font-weight:700;text-decoration:none;">User Management</a> (role: Client), then assign their project here.</div>'; return; }
-    var activeProjects=(STATE.projects||[]).filter(function(p){ return (p.status||'active').toLowerCase()!=='closed'; });
-    host.innerHTML = clients.map(function(c){
-      var opts='<option value="">— no project —</option>'+activeProjects.map(function(p){
-        return '<option value="'+esc(p.project_code)+'"'+(c.project_code===p.project_code?' selected':'')+'>'+esc(p.name||p.project_code)+'</option>';
-      }).join('');
-      // #269 — one toggle per grantable section, DEFAULT OFF; disabled until a project is assigned.
-      var toggles = STATE.grantable.map(function(s){
-        var on = (c.sections||[]).indexOf(s)>=0;
-        var dis = !c.project_code;
-        return '<label class="sec-tog'+(on?' on':'')+'"'+(dis?' style="opacity:.5;pointer-events:none;"':'')+'>'
-          + '<input type="checkbox" '+(on?'checked':'')+(dis?' disabled':'')
-          + ' onchange="toggleSection('+c.user_id+', \''+esc(s)+'\', this)">'
-          + esc(SECTION_LABEL[s]||s) + '</label>';
-      }).join('');
-      // #270 — preset select (apply = replace-set) + read-only preview entry.
-      // Order smallest->largest bundle (jsonify sorts dict keys, so order here).
-      var PRESET_ORDER=['minimal','standard','full'];
-      var presetNames=Object.keys(STATE.presets||{}).sort(function(a,b){
-        var ia=PRESET_ORDER.indexOf(a),ib=PRESET_ORDER.indexOf(b);
-        return (ia<0?99:ia)-(ib<0?99:ib);
-      });
-      var presetOpts=presetNames.map(function(k){ return '<option value="'+esc(k)+'">'+esc((STATE.presetLabels||{})[k]||k)+'</option>'; }).join('');
-      var dis0=!c.project_code;
-      var presetRow='<div class="preset-row">Preset:'
-        +'<select id="cl-preset-'+c.user_id+'"'+(dis0?' disabled':'')+'>'+presetOpts+'</select>'
-        +'<button class="btn-ghost-sm" onclick="applyPreset('+c.user_id+', this)"'+(dis0?' disabled':'')+'>Apply</button>'
-        +'<span style="font-weight:600;">replaces the toggles above with the bundle</span></div>';
-      return '<div class="pm-card"><div class="pm-head"><div><div class="pm-nm">'+esc(c.display_name||c.email)+'</div>'
-        +'<div class="pm-em">'+esc(c.email)+'</div></div>'
-        +'<div class="pm-save" style="display:flex;gap:8px;align-items:center;">'
-        // #286 — ONE preview, the portal clients actually land on (#284 flip). The
-        // Classic/New pair is gone with Classic as a preview surface; the Classic
-        // engine remains server-side purely as the rollback path. URL built at
-        // render time — only the finished string enters the attribute (#281 lesson).
-        +'<button class="btn-ghost-sm pv-open" onclick="window.open(\''
-        + '/portal/' + encodeURIComponent(c.project_code||'') + '?preview_client=' + c.user_id
-        + '\',\'_blank\')"'
-        +((dis0||!c.project_code)?' disabled title="Assign a project first"'
-              :' title="See this client\\u2019s portal exactly as they see it — read-only, logged"')
-        +'>👁 Preview</button>'
-        +'<select id="cl-sel-'+c.user_id+'" style="height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font:inherit;font-size:13px;background:#fff;color:var(--ink);">'+opts+'</select>'
-        +'<button class="btn-primary" onclick="saveClientAssignment('+c.user_id+', this)">Save</button></div></div>'
-        +'<div class="sec-grid" id="cl-secs-'+c.user_id+'">'+toggles+'</div>'
-        +presetRow
-        +sectionStatusHTML(c)
-        +'<div class="sec-note">Photos and Documents show only the items individually shared with this client — unlocking the section never exposes unshared items.</div>'
-        +'</div>';
-    }).join('');
-  }
-
-  // #270 — apply a named preset: REPLACES the client's grant set with the bundle
-  // (server validates admin/c_suite + active client + assigned project, transactional).
-  window.applyPreset = async function(user_id, btn){
-    clearBars();
-    var sel=document.getElementById('cl-preset-'+user_id);
-    if(!sel || !sel.value) return;
-    if(btn){ btn.disabled=true; btn.textContent='Applying…'; }
-    try{
-      var resp = await fetch('/api/admin/client-grants/preset', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ user_id: user_id, preset: sel.value })
-      }).then(function(r){ return r.json(); });
-      if(resp.error){ showErr(resp.error); return; }
-      var d=resp.data||{};
-      var c=(STATE.clients||[]).find(function(x){ return x.user_id===user_id; });
-      if(c){ c.sections=d.sections||[]; }
-      showOk(((STATE.presetLabels||{})[d.preset]||d.preset)+' applied — '+((d.sections||[]).length)+' section'+(((d.sections||[]).length)===1?'':'s')+' unlocked.');
-      renderClients();
-    }catch(e){ showErr('Network error: '+e.message); }
-    finally{ if(btn){ btn.disabled=false; btn.textContent='Apply'; } }
-  };
-
-  // #269 — grant / revoke ONE section (applies immediately; server re-checks admin/c_suite).
-  window.toggleSection = async function(user_id, section, box){
-    clearBars();
-    var lab = box.parentElement; lab.classList.add('busy');
-    var on = box.checked;
-    try{
-      var resp = await fetch('/api/admin/client-grants', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ user_id: user_id, section: section, on: on })
-      }).then(function(r){ return r.json(); });
-      if(resp.error){ showErr(resp.error); box.checked=!on; return; }
-      var d=resp.data||{};
-      showOk((SECTION_LABEL[section]||section)+(on?' unlocked.':' locked.')+' '+((d.sections||[]).length)+' section'+(((d.sections||[]).length)===1?'':'s')+' open.');
-      // refresh this client's card state from the server truth
-      var c=(STATE.clients||[]).find(function(x){ return x.user_id===user_id; });
-      if(c){ c.sections=d.sections||[]; }
-      renderClients();
-    }catch(e){ showErr('Network error: '+e.message); box.checked=!on; }
-    finally{ lab.classList.remove('busy'); }
-  };
-
-  window.saveClientAssignment = async function(user_id, btn){
-    clearBars();
-    var sel=document.getElementById('cl-sel-'+user_id);
-    var code=sel?sel.value:'';
-    var codes=code?[code]:[];
-    if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
-    try{
-      var resp = await fetch('/api/admin/pm-assignments', {
-        method:'PUT', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ user_id: user_id, project_codes: codes })
-      }).then(function(r){ return r.json(); });
-      if(resp.error){ showErr(resp.error); return; }
-      showOk(code ? ('Client assigned to '+code+'. All sections start locked — unlock below.') : 'Client project access removed (section grants cleared).');
-      await load();
-    }catch(e){ showErr('Network error: '+e.message); }
-    finally{ if(btn){ btn.disabled=false; btn.textContent='Save'; } }
-  };
 
   window.setStatus = async function(code, status){
     clearBars();
