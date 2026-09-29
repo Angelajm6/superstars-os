@@ -216,6 +216,8 @@ import billing_type  # noqa: E402
 billing_type.register(app)      # #356 — AIA / lump sum / T&M / unit price per job
 import project_contacts  # noqa: E402
 project_contacts.register(app)  # #357 — owners, property managers, consultants, site supervisors
+import project_summary  # noqa: E402
+project_summary.register(app)   # #358 — the job dashboard summary (bootstrap part + /summary)
 
 # #264 — the per-item VISIBILITY ENGINE (default-deny) + the read-only CLIENT portal.
 # client_portal registers a default-deny before_request gate (a `client` reaches ONLY the
@@ -11922,6 +11924,7 @@ def api_project_bootstrap(project_code):
         "drops": ("api_dropplan_drops", (project_code,)),
         "on_site": ("api_project_on_site", (project_code,)),
         "workers": ("api_project_workers", (project_code,)),
+        "summary": ("api_project_summary", (project_code,)),   # #358 — the job dashboard's executive summary
     })
     return response_wrapper({k: v for k, v in parts.items() if v is not None})
 
