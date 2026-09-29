@@ -1194,6 +1194,7 @@
         { key: 'project_code', label: 'Job', render: r => `<span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:12px">${esc(r.name || '')}</div>` },
         { key: 'address', label: 'Address', render: r => `${esc(r.address || '—')}<div class="cp-muted" style="font-size:12px">${esc(r.city_zip || '')}</div>` },
         { key: 'client_name', label: 'Client', render: r => esc(r.client_name || '—') },
+        { key: 'billing_short', label: 'Billing', render: r => r.billing_type ? `<span class="cp-pill ${r.billing_type === 'aia_sov' ? 'active' : ''}" title="${esc(r.billing_label)}">${esc(r.billing_short)}</span>` : '<span class="cp-muted" title="How this job is billed is not set — pick it in the project Settings">not set</span>' },   // #356
         { key: 'pms', label: 'PM', render: r => r.pms.length ? esc(r.pms.map(x => x.name).join(', ')) : '<span class="cp-muted">unassigned</span>' },
         { key: 'crew_count', label: 'Crew', num: true },
         { key: 'contract', label: 'Contract', num: true, render: r => r.contract.value != null ? money.format(r.contract.value) : '—' },

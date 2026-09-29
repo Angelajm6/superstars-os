@@ -23,6 +23,7 @@ from typing import Optional
 
 from flask import jsonify, request
 
+import billing_type
 import crm
 import db_layer
 import estimates
@@ -72,6 +73,7 @@ def meta(conn) -> dict:
         "pms": [{"user_id": p["id"], "name": p.get("display_name") or p.get("full_name") or p.get("email")} for p in pms],
         "workers": active_workers(conn),   # #325 — the crew picker
         "geofence_default_m": GEOFENCE_DEFAULT,
+        "billing_types": billing_type.options(),   # #356
     }
 
 
@@ -248,6 +250,9 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
         raise LookupError("client not found")
 
     # ---- PM (optional)
+    bt = None   # #356 — how the job is billed (the modal requires it; API callers may omit)
+    if p.get("billing_type") not in (None, ""):
+        bt = billing_type.validate(p.get("billing_type"))
     pm_user_id = p.get("pm_user_id")
     if pm_user_id in (None, ""):
         pm_user_id = None
@@ -299,6 +304,16 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
         sets = ", ".join(f"{k} = ?" for k in site)
         conn.execute(f"UPDATE projects SET {sets} WHERE project_code = ?", (*site.values(), code))
         conn.commit()
+    if bt:
+        try:
+            conn.execute("UPDATE projects SET billing_type = ? WHERE project_code = ?", (bt, code))
+            conn.commit()
+        except Exception as e:
+            log.warning("#356 billing type not written: %s", e)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
     crew_change = _apply_crew(conn, code, crew_ids, today=start) if crew_ids else {"added": [], "removed": []}
     try:
         crm.add_activity(conn, entity_type="organization", entity_id=org_id, activity_type="system",
@@ -316,7 +331,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     project = _one(conn.execute("SELECT project_code, name, address, status, client_org_id, building_id, "
                                 "site_lat, site_lng, geofence_m FROM projects WHERE project_code = ?", (code,)))
     return {"project_code": code, "project": project, "estimate_id": est["id"], "estimate_code": est["code"],
-            "client_org_id": org_id, "pm_user_id": pm_user_id, "start_date": provided_start, "target_completion": target, "contract_value": contract,
+            "client_org_id": org_id, "pm_user_id": pm_user_id, "billing_type": bt, "start_date": provided_start, "target_completion": target, "contract_value": contract,
             "crew": crew_change["added"]}
 
 

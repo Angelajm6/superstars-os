@@ -640,6 +640,10 @@ def _api_sov_put(project_code):
     try:
         if not _project(conn, project_code):
             return _err("project not found", 404)
+        import billing_type   # #356
+        blocked = billing_type.aia_blocked(conn, project_code)
+        if blocked:
+            return _err(blocked, 409)
         try:
             rows = save_sov(conn, project_code, body.get("rows") if isinstance(body, dict) else body)
         except ValueError as e:
@@ -656,6 +660,10 @@ def _api_sov_import(project_code):
     try:
         if not _project(conn, project_code):
             return _err("project not found", 404)
+        import billing_type   # #356
+        blocked = billing_type.aia_blocked(conn, project_code)
+        if blocked:
+            return _err(blocked, 409)
         n = import_sov(conn, project_code)
         return jsonify({"data": sov_rows(conn, project_code), "meta": {"imported": n}})
     finally:
@@ -667,6 +675,10 @@ def _api_app_create(project_code):
     body = request.get_json(silent=True) or {}
     conn = _conn()
     try:
+        import billing_type   # #356
+        blocked = billing_type.aia_blocked(conn, project_code)
+        if blocked:
+            return _err(blocked, 409)
         try:
             return jsonify({"data": create_application(conn, project_code, body, created_by=_uid())}), 201
         except LookupError as e:

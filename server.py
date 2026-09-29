@@ -212,6 +212,8 @@ import pm_scoping  # noqa: E402
 pm_scoping.register(app)
 import project_onboard  # noqa: E402
 project_onboard.register(app)   # #324 — onboard an already-won job
+import billing_type  # noqa: E402
+billing_type.register(app)      # #356 — AIA / lump sum / T&M / unit price per job
 
 # #264 — the per-item VISIBILITY ENGINE (default-deny) + the read-only CLIENT portal.
 # client_portal registers a default-deny before_request gate (a `client` reaches ONLY the
@@ -548,11 +550,29 @@ def _serve_dashboard_no_store(project_code=None, role_override=None):
     # #281 — and WHERE this shell fetches from: the internal project namespace for
     # internal roles, the curated portal namespace for external ones.
     html = access.render_api_base(html, role, project_code)
+    html = _render_billing_type(html, project_code)   # #356
     resp = Response(html, mimetype="text/html")
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"
     return resp
+
+
+def _render_billing_type(html, project_code):
+    """#356 — the job's billing type rides on <body data-billing-type> so the SOV / AIA
+    pieces can react without a request, and the Schedule of Values nav link (already
+    stripped for non-financial roles) is hidden on a job billed another way."""
+    if not project_code:
+        return html
+    conn = db()
+    try:
+        bt = billing_type.get(conn, project_code) or ""
+    finally:
+        conn.close()
+    html = html.replace("<body>", f'<body data-billing-type="{bt}">', 1)
+    if bt and bt != "aia_sov":
+        html = html.replace('<a class="nav-link" data-view="sov">', '<a class="nav-link" data-view="sov" hidden>', 1)
+    return html
 
 
 @app.route('/projects/<project_code>')

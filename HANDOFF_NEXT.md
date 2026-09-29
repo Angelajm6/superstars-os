@@ -168,6 +168,25 @@ grant, or elevation code.
   as patches and never picks COL-REPAIR as its patch line. The new SOV line shows in the
   financial Schedule of Values with no unit rate until one is set.
 * **Test:** `tests/smoke_column_repair_352.py` (both gates).
+### #356 — Billing type per project (Bookore, 2026-09-29)
+
+* **Why:** C-suite — "some projects do or don't have schedules of values". Nothing recorded how
+  a job is billed; "has an SOV" was only inferred from `billing_sov` rows.
+* **`billing_type.py`:** `projects.billing_type` = `aia_sov | lump_sum | time_materials |
+  unit_price | NULL` ("Not set"), catalog-checked ALTER, idempotent backfill (NULL + has
+  billing_sov rows -> aia_sov; a picked value is never overwritten). `GET
+  /api/projects/<code>/profile` (status + billing), `PUT /api/admin/projects/<code>/billing-type`
+  (`requires_company`; 409 when AIA pay applications exist and the new type isn't AIA).
+* **Effects:** onboarding asks "How is it billed?" (required in the modal; the API accepts it
+  optional so estimate conversion still works); the page renders `<body data-billing-type>`
+  (server-side, `_render_billing_type`) — `.aia-only` pieces (SOV editor, AIA card) hide on
+  other types via CSS, `.bt-note` explains, a warn banner shows when not set; the Schedule of
+  Values nav link is rendered `hidden` on non-AIA jobs; Settings shows the real status and an
+  editable billing row (admin / c_suite; read-only for others); AIA write routes (save SOV,
+  import, new application) 409 on non-AIA jobs, not-set still allowed; Projects list gets a
+  Billing chip. Drop-plan unit rates stay visible (they are field tracking, not billing).
+* **Test:** `tests/smoke_billing_type_356.py` (both gates).
+
 ### #355 — Company vehicles: mileage, service, E-ZPass tolls, car bills (Bookore, 2026-09-29)
 
 * **Ask:** per company car — E-ZPass assignment, mileage, service dates, which tolls it pays,
