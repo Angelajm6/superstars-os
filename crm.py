@@ -17,7 +17,8 @@ from datetime import date, datetime
 from typing import Optional
 
 # ---- controlled vocabularies (light validation; stage is intentionally free/enum) ----
-RELATIONSHIP_TYPES = {"client", "vendor", "lead", "architect", "engineer", "sub", "partner", "other"}
+RELATIONSHIP_TYPES = {"client", "vendor", "lead", "architect", "engineer", "sub", "partner", "other",
+                      "owner", "property_manager", "consultant", "expeditor"}   # #357 — the people around a job
 ORG_STATUSES = {"active", "inactive"}
 ACTIVITY_TYPES = {"note", "call", "email", "meeting", "stage_change", "system"}
 ACTIVITY_ENTITIES = {"organization", "contact", "project"}

@@ -168,6 +168,30 @@ grant, or elevation code.
   as patches and never picks COL-REPAIR as its patch line. The new SOV line shows in the
   financial Schedule of Values with no unit rate until one is set.
 * **Test:** `tests/smoke_column_repair_352.py` (both gates).
+### #357 — Project contacts: ownership group, property managers, consultants, site supervisors (Bookore, 2026-09-29)
+
+* **`project_contacts.py`:** `project_contact` links a job to a CRM person (`contact_id`) or,
+  for OUR site supervisors, an employee (`employee_id`), with role owner | property_manager
+  | consultant (discipline architect | structural_engineer | mep_engineer | expeditor |
+  other) | site_supervisor; one main contact per (role, side); soft remove. Adding a new
+  person can create the company too (relationship type from the role).
+  `crm.RELATIONSHIP_TYPES` + owner, property_manager, consultant, expeditor.
+* **Access:** new section `project_contacts` = admin / c_suite / pm / super (read, with
+  phone + email so the field can call); writes `requires_company`; `/contacts/lookup`
+  names only; employees' phones never shown; contact PII never logged (test captures logs).
+* **`project_people(conn, code)`** is the single source for document headers:
+  superintendent = our main site supervisor (else the legacy column), project manager =
+  first assigned PM, owner / client = the client company. Wired into `dcr_aggregator`
+  (header + sign-off), the RFI render route, and `portal_projects.project_detail`. Old
+  issued DCR files are untouched; regenerating one prints the current people.
+* **UI:** project sidebar Overview → **Contacts**: Our team (PM, our supervisors, crew) +
+  Ownership group, Property management, Consultants (by discipline), Owner / GC site
+  supervisors; Call / Email buttons, ★ main contact, Remove; "+ Add contact" modal (pick
+  from the CRM, new person + company, or one of our workers).
+* **Not done:** `rfi_workflow.py` still routes RFIs through its hard-coded demo map — a
+  follow-up could route to the job's consultants.
+* **Test:** `tests/smoke_project_contacts_357.py` (both gates).
+
 ### #356 — Billing type per project (Bookore, 2026-09-29)
 
 * **Why:** C-suite — "some projects do or don't have schedules of values". Nothing recorded how
