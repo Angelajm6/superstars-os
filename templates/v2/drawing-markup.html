@@ -956,7 +956,7 @@
   function open3d() {
     var code = S.data && S.data.project_code; if (!code) return;
     $('stage3d').hidden = false; $('stage').hidden = true; $('stage3d').innerHTML = '<div class="v2-muted" style="padding:24px">Building the model…</div>';
-    var load = V3.mod ? Promise.resolve(V3.mod) : import('/files/static/js/building3d.js?v=353d').then(function (m) { V3.mod = m; return m; });
+    var load = V3.mod ? Promise.resolve(V3.mod) : import('/files/static/js/building3d.js?v=354').then(function (m) { V3.mod = m; return m; });
     var model = fetch('/api/elevation/model3d/' + encodeURIComponent(code), { credentials:'same-origin' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (j) { return j.data; });
     Promise.all([load, model]).then(function (res) {
       var mod = res[0], m = res[1];
