@@ -57,6 +57,9 @@ PW = "PortalSmokePassword2026"
 TODAY = date.today()
 D = lambda n: (TODAY + timedelta(days=n)).isoformat()  # noqa: E731
 YM = TODAY.isoformat()[:7]
+# a decision "a few days ago" that is still THIS month — early in the month, 5 days back
+# falls in the previous one and the won-this-month assertion read the wrong bucket
+DECIDED = max(TODAY - timedelta(days=5), TODAY.replace(day=1)).isoformat()
 ROLES = ("c_suite", "admin", "pm", "super", "estimator", "client")
 
 
@@ -99,7 +102,7 @@ def _seed() -> dict:
         conn.execute("DELETE FROM estimate WHERE code LIKE 'P302-%'")
         for code, addr, status, amt, sub, dec, org in (
                 ("P302-E1", "890 East 135th St", "submitted", 50000, D(-10), None, ids["org_a"]),
-                ("P302-E2", "890 East 135th St", "approved", 120000, D(-40), D(-5), ids["org_a"]),
+                ("P302-E2", "890 East 135th St", "approved", 120000, D(-40), DECIDED, ids["org_a"]),
                 ("P302-E3", "12 Harbor Way", "lost", 30000, D(-60), D(-30), ids["org_b"])):
             conn.execute("INSERT INTO estimate (code, est_type, borough, seq, client_org_id, building_address, "
                          "status, final_amount, submitted_date, decided_date, created_at, updated_at) "
@@ -274,7 +277,7 @@ def main() -> int:
         fin = fin["data"]
         assert len(fin["months"]) == 6 and fin["months"][-1] == YM
         assert fin["series"]["receipts"][-1] >= 1250.50 and fin["series"]["ledger"][-1] >= 400.0
-        assert fin["series"]["won"][-1] >= 120000, "decided 5 days ago lands in the current month"
+        assert fin["series"]["won"][-1] >= 120000, "decided earlier this month lands in the current month"
         cats = {(c["category"], c["source"]): c["total"] for c in fin["spend_by_category"]}
         assert cats.get(("materials", "receipts"), 0) >= 1250.50 and cats.get(("equipment", "ledger"), 0) >= 400.0
         assert not any(c["total"] >= 999.0 and c["source"] == "receipts" and c["n"] == 1 for c in fin["spend_by_category"]
