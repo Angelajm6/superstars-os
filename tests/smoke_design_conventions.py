@@ -780,6 +780,25 @@ def main():
     bps = {m.group(1) for m in re.finditer(r"@media[^{]*max-width:\s*(\d+)px", inline) if not any(a <= m.start() < b for a, b in skip)}
     ok("density_breakpoints", bps <= {"640", "860", "1024"}, f"breakpoints in use: {sorted(bps)}")
 
+    # ---- #362 — per-tab clean-up: a ceiling on inline styles, one header per tab,
+    #      no fixed inline grids, no inline brand-red primary buttons ----
+    src = (Path(__file__).resolve().parents[1] / "dashboard-static.html").read_text(encoding="utf-8")
+    n_inline = len(re.findall(r'style=\\?["\']', src))
+    INLINE_CEILING = 393   # #362: 531 -> 393. Lower it as tabs are cleaned; never raise it.
+    ok("tabs_inline_ceiling", n_inline <= INLINE_CEILING, f"{n_inline} inline styles (ceiling {INLINE_CEILING})")
+    heads = ("tab-head", "jx-head", "dcr-head", "exp-head", "pd-head", "pay-head", "fp-head", "dp-head", "mt-head", "ec-head", "pc-head", "la-top")
+    sections = list(re.finditer(r'<section class="view(?: active)?" data-view="([^"]+)"', html))
+    no_head = []
+    for i, m in enumerate(sections):
+        body = html[m.end(): sections[i + 1].start() if i + 1 < len(sections) else len(html)]
+        if m.group(1) != "drawings" and not any(f'class="{h}' in body or f' {h}"' in body or f'class="{h} ' in body for h in heads):
+            no_head.append(m.group(1))
+    ok("tabs_every_tab_has_header", not no_head, f"tabs without a header: {no_head}")
+    fixed = [g for g in re.findall(r'style=\\?["\'][^"\']*grid-template-columns:\s*(repeat\(\s*[3-9][^)]*\))', src)]
+    ok("tabs_no_fixed_inline_grids", not fixed, f"fixed inline grids override the responsive rules: {fixed}")
+    red = re.findall(r'<(?:button|a)\b[^>]*style="[^"]*background:\s*var\(--brand-red[^"]*color:\s*(?:white|#fff)', src)
+    ok("tabs_no_inline_red_primary", not red, f"{len(red)} inline red primary buttons")
+
     print(f"\n== RESULT: {len(PASS)} PASS / {len(FAIL)} FAIL ==")
     if FAIL:
         print("FAILURES: " + ", ".join(FAIL))
