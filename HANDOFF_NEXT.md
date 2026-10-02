@@ -168,6 +168,27 @@ grant, or elevation code.
   as patches and never picks COL-REPAIR as its patch line. The new SOV line shows in the
   financial Schedule of Values with no unit rate until one is set.
 * **Test:** `tests/smoke_column_repair_352.py` (both gates).
+### #362 — Per-tab clean-up: one tab header, responsive grids, inline styles (Bookore, 2026-10-02)
+
+* **One tab header** (`.tab-head` + `.tab-sub` + `.tab-actions`, `.tab-lbl`, `.tab-sel`):
+  Drop Report, Weekly Summary, Toolbox Talks, RFI Log, Violations, Schedule of Values,
+  NYC Compliance, Templates and Project Settings now share it (the other tabs already had
+  a module head; Drawing Markup stays full-bleed). A shared empty state `.tab-empty` exists
+  for the per-tab rework (#363–#367).
+* **Responsive fixes:** three inline fixed grids beat their own media queries — the DCR
+  project-info card (4 cols), the DCR weather block (3) and the AIA application row (5).
+  They are classes now and collapse at 1024 / 640.
+* **One primary colour, finished:** the inline red primaries (Compliance refresh, New RFI,
+  Weekly Summary Open, DCR Issue / tile Save) are `.btn-primary`; secondary actions are
+  `.btn-ghost`. Templates' category chips use the shared chip style (the script toggles
+  `.active` only), and the Toolbox chip handler is scoped to its own filter row so the two
+  no longer switch each other.
+* **Inline styles 531 → 393:** repeated ones became classes (`.dcr-sec`, `.dcr-add`,
+  `.dcr-in`, `.dcr-block`, `th.th-snug`, `td.td-snug`, `td.td-empty`, `.t-sub`, `.cw-*`).
+* **Guard:** `smoke_design_conventions` `tabs_*` checks — an inline-style ceiling (393;
+  lower it as tabs are cleaned, never raise it), a header on every tab, no fixed inline
+  grids, no inline red primary buttons.
+
 ### #361 — Density pass, global rules (project dashboard) (Bookore, 2026-09-29)
 
 * **Type floor:** no screen text under 11px; under 12px only for uppercase / letter-spaced

@@ -653,6 +653,45 @@
     .phase-pct { text-align: right; font-size: 12px; color: var(--muted, #8c92a0); }
 
     /* Site Card */
+    /* #362 — the ONE tab header: title (+ subtitle) on the left, actions on the right */
+    .tab-head { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px 16px; margin: 0 0 16px; }
+    .tab-head h1, .tab-head h2 { margin: 0; font-size: 20px; line-height: 1.25; }
+    .tab-head .tab-sub { font-size: 13px; color: var(--muted, #8c92a0); margin-top: 3px; }
+    .tab-head .tab-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .tab-head .tab-lbl { font-size: 11px; color: var(--muted, #8c92a0); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+    .tab-sel { padding: 7px 10px; border: 1px solid var(--line, #eceef3); border-radius: 8px; font-family: inherit; font-size: 13px; background: #fff; color: var(--ink, #222633); }
+    .btn-sm { padding: 6px 12px !important; font-size: 12px !important; }
+    /* #362 — the ONE empty state */
+    .tab-empty { padding: 28px 16px; text-align: center; color: var(--muted, #8c92a0); font-size: 13px; }
+    .tab-empty b { display: block; color: var(--ink, #222633); font-size: 14px; margin-bottom: 4px; }
+    /* NYC Compliance Watch (was inline) */
+    .cw-k { text-transform: uppercase; letter-spacing: .05em; }
+    .cw-v { font-size: 32px; margin-top: 8px; color: var(--ink, #222633); }
+    .cw-v.sm { font-size: 24px; }
+    .cw-note { font-size: 12px; color: var(--muted, #8c92a0); margin-top: 4px; }
+    .cw-note.warn { color: var(--status-warn, #9A5B00); }
+    .card.cw-go { cursor: pointer; }
+    .cw-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .cw-table tbody tr { border-bottom: 1px solid var(--line, #eceef3); }
+
+    /* #362 — named classes for what used to be repeated inline styles */
+    .dcr-sec { font-size: 13px; font-weight: 700; color: var(--brand-red, #B11E2E); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; border-bottom: 2px solid var(--brand-red, #B11E2E); padding-bottom: 6px; }
+    .dcr-sec.dcr-sec-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .dcr-add { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; padding: 5px 12px; border: none; border-radius: 6px; background: var(--ink, #222633); color: #fff; cursor: pointer; }
+    .dcr-add:hover { background: var(--ink-2, #4A4F59); }
+    .dcr-in { padding: 6px 10px; border: 1px solid var(--line, #eceef3); border-radius: 6px; font-size: 13px; font-family: inherit; }
+    .dcr-block { margin-bottom: 24px; }
+    th.th-snug { padding: 10px 8px; }
+    td.td-snug { padding: 8px; }
+    td.td-empty { padding: 20px; text-align: center; color: var(--muted, #8c92a0); }
+    .t-sub { font-size: 12px; color: var(--muted, #8c92a0); }
+    /* #362 — grids that used to be fixed inline (they beat the responsive rules) */
+    .site-card.site-card-4 { grid-template-columns: repeat(4, 1fr); }
+    .dcr-wx { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; align-items: center; }
+    .dcr-wx-v { font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 24px; color: var(--ink, #222633); }
+    .dcr-wx-v.sm { font-size: 18px; }
+    @media (max-width: 1024px) { .site-card.site-card-4 { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 640px) { .site-card.site-card-4 { grid-template-columns: 1fr; } .dcr-wx { gap: 12px; } .dcr-wx-v { font-size: 20px; } }
     .site-card {
       background: white;
       border: 1px solid var(--line, #eceef3);
@@ -1842,15 +1881,14 @@
       <!-- DROP REPORT (#212) — one report per drop, auto-pulled LIVE from the Drop
            Plan (existing drop-detail + quantity endpoints; NO new data model). -->
       <section class="view" data-view="drop-report">
-        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
+        <div class="tab-head">
           <div>
-            <div class="eyebrow">Field</div>
-            <h1 style="font-size:20px;margin:2px 0;">Drop Report</h1>
-            <div style="font-size:12px;color:var(--muted, #8c92a0);">One report per drop · auto-pulled from the Drop Plan (DCR cadence).</div>
+            <h1>Drop Report</h1>
+            <div class="tab-sub">One report per drop · auto-pulled from the Drop Plan (DCR cadence).</div>
           </div>
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <label for="dr-select" style="font-size:11px;color:var(--muted, #8c92a0);text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Drop</label>
-            <select id="dr-select" style="padding:8px 10px;border:1px solid var(--line, #eceef3);border-radius:8px;font-family:inherit;font-size:14px;min-width:220px;background:#fff;"><option>Loading…</option></select>
+          <div class="tab-actions">
+            <label for="dr-select" class="tab-lbl">Drop</label>
+            <select id="dr-select" class="tab-sel" style="min-width:220px;"><option>Loading…</option></select>
             <!-- #224 — "Edit / log →" jump removed: Drop Plan is now its own nav item (nested under Drop Report); no surprise-jump. -->
           </div>
         </div>
@@ -1947,7 +1985,7 @@
             </div>
             <div class="la-controls">
               <label class="la-lbl">Start</label>
-              <input type="text" id="la-start" class="ssc-date" placeholder="MM-DD-YYYY">
+              <input type="text" id="la-start" class="ssc-date ssc-field" placeholder="MM-DD-YYYY">
               <button id="la-refresh" type="button" class="btn-ghost la-btn"><svg class="la-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>Refresh</button>
               <button id="la-add" type="button" class="btn-ghost la-btn"><svg class="la-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add activity</button>
               <button id="la-print" type="button" class="btn-primary la-btn"><svg class="la-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v6H8z"/></svg>Print</button>
@@ -2235,7 +2273,7 @@
           <!-- Controls bar: date picker + refresh + No-Work + status -->
           <div style="display:flex;gap:16px;align-items:center;background:white;border:1px solid var(--line, #eceef3);border-radius:4px;padding:14px 16px;margin-bottom:14px;flex-wrap:wrap;">
             <label for="dcr-date" style="font-size:11px;color:var(--muted, #8c92a0);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Date</label>
-            <input type="date" id="dcr-date" style="padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:13px;font-family:inherit;">
+            <input type="date" id="dcr-date" class="dcr-in">
             <button id="dcr-refresh" type="button" style="padding:6px 14px;border:none;border-radius:4px;background:var(--ink, #222633);color:white;font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;">Refresh from data</button>
             <!-- No-Work Day toggle. Reason dropdown lives next to the button —
                  visible whether or not the flag is set so the operator can
@@ -2271,20 +2309,20 @@
           </div>
 
           <!-- 1. PROJECT INFO -->
-          <div style="margin-bottom:24px;">
-            <h3 style="font-size:13px;font-weight:700;color:var(--brand-red, #B11E2E);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;border-bottom:2px solid var(--brand-red, #B11E2E);padding-bottom:6px;">1. Project Info</h3>
-            <div id="dcr-project-info" class="site-card" style="grid-template-columns:repeat(4, 1fr);margin-bottom:0;"></div>
+          <div class="dcr-block">
+            <h3 class="dcr-sec">1. Project Info</h3>
+            <div id="dcr-project-info" class="site-card site-card-4" style="margin-bottom:0;"></div>
           </div>
 
           <!-- 2. WEATHER -->
-          <div style="margin-bottom:24px;">
-            <h3 style="font-size:13px;font-weight:700;color:var(--brand-red, #B11E2E);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;border-bottom:2px solid var(--brand-red, #B11E2E);padding-bottom:6px;">2. Weather</h3>
+          <div class="dcr-block">
+            <h3 class="dcr-sec">2. Weather</h3>
             <div id="dcr-weather" style="background:white;border:1px solid var(--line, #eceef3);border-radius:4px;padding:20px;"></div>
           </div>
 
           <!-- 3. LABOR (auto from sign_in_log + manual backdated entry) -->
-          <div style="margin-bottom:24px;">
-            <h3 style="font-size:13px;font-weight:700;color:var(--brand-red, #B11E2E);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;border-bottom:2px solid var(--brand-red, #B11E2E);padding-bottom:6px;">3. Labor (Sign-Ins)</h3>
+          <div class="dcr-block">
+            <h3 class="dcr-sec">3. Labor (Sign-Ins)</h3>
             <div id="dcr-labor-summary" style="margin-bottom:8px;font-size:13px;color:var(--muted, #8c92a0);"></div>
             <div class="table-wrapper">
               <table>
@@ -2304,8 +2342,8 @@
                 <select id="dcr-labor-add-worker" style="flex:2;min-width:200px;padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:13px;font-family:inherit;">
                   <option value="">— Select worker —</option>
                 </select>
-                <input type="time" id="dcr-labor-add-in" value="07:00" style="padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:13px;font-family:inherit;">
-                <input type="time" id="dcr-labor-add-out" value="15:30" style="padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:13px;font-family:inherit;">
+                <input type="time" id="dcr-labor-add-in" value="07:00" class="dcr-in">
+                <input type="time" id="dcr-labor-add-out" value="15:30" class="dcr-in">
                 <button type="button" id="dcr-labor-add-btn" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:6px 14px;border:none;border-radius:4px;background:var(--ink, #222633);color:white;cursor:pointer;">Add</button>
                 <span id="dcr-labor-add-status" style="font-size:12px;color:var(--muted, #8c92a0);"></span>
               </div>
@@ -2313,52 +2351,52 @@
           </div>
 
           <!-- 4-10. OPERATOR ENTRY -->
-          <div style="margin-bottom:24px;">
-            <h3 style="font-size:13px;font-weight:700;color:var(--brand-red, #B11E2E);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;border-bottom:2px solid var(--brand-red, #B11E2E);padding-bottom:6px;display:flex;align-items:center;justify-content:space-between;">4. Work Performed<button type="button" data-dcr-add="work" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 12px;border:none;border-radius:4px;background:var(--ink, #222633);color:white;cursor:pointer;">+ Add row</button></h3>
+          <div class="dcr-block">
+            <h3 class="dcr-sec dcr-sec-row">4. Work Performed<button type="button" data-dcr-add="work" class="dcr-add">+ Add row</button></h3>
             <div id="dcr-rows-work" data-dcr-rows="work"></div>
           </div>
 
-          <div style="margin-bottom:24px;">
-            <h3 style="font-size:13px;font-weight:700;color:var(--brand-red, #B11E2E);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;border-bottom:2px solid var(--brand-red, #B11E2E);padding-bottom:6px;display:flex;align-items:center;justify-content:space-between;">5. Materials &amp; Deliveries<button type="button" data-dcr-add="deliveries" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 12px;border:none;border-radius:4px;background:var(--ink, #222633);color:white;cursor:pointer;">+ Add row</button></h3>
+          <div class="dcr-block">
+            <h3 class="dcr-sec dcr-sec-row">5. Materials &amp; Deliveries<button type="button" data-dcr-add="deliveries" class="dcr-add">+ Add row</button></h3>
             <div id="dcr-rows-deliveries" data-dcr-rows="deliveries"></div>
           </div>
 
-          <div style="margin-bottom:24px;">
-            <h3 style="font-size:13px;font-weight:700;color:var(--brand-red, #B11E2E);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;border-bottom:2px solid var(--brand-red, #B11E2E);padding-bottom:6px;display:flex;align-items:center;justify-content:space-between;">6. Equipment Delivered to Site<button type="button" data-dcr-add="equipment" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 12px;border:none;border-radius:4px;background:var(--ink, #222633);color:white;cursor:pointer;">+ Add row</button></h3>
+          <div class="dcr-block">
+            <h3 class="dcr-sec dcr-sec-row">6. Equipment Delivered to Site<button type="button" data-dcr-add="equipment" class="dcr-add">+ Add row</button></h3>
             <div id="dcr-rows-equipment" data-dcr-rows="equipment"></div>
           </div>
 
-          <div style="margin-bottom:24px;">
-            <h3 style="font-size:13px;font-weight:700;color:var(--brand-red, #B11E2E);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;border-bottom:2px solid var(--brand-red, #B11E2E);padding-bottom:6px;">7. Safety</h3>
+          <div class="dcr-block">
+            <h3 class="dcr-sec">7. Safety</h3>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
               <h4 style="font-size:12px;font-weight:600;color:var(--muted, #8c92a0);text-transform:uppercase;letter-spacing:0.05em;">7a. Toolbox Talk</h4>
-              <button type="button" data-dcr-add="toolbox" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 12px;border:none;border-radius:4px;background:var(--ink, #222633);color:white;cursor:pointer;">+ Add row</button>
+              <button type="button" data-dcr-add="toolbox" class="dcr-add">+ Add row</button>
             </div>
             <div id="dcr-rows-toolbox" data-dcr-rows="toolbox" style="margin-bottom:18px;"></div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
               <h4 style="font-size:12px;font-weight:600;color:var(--muted, #8c92a0);text-transform:uppercase;letter-spacing:0.05em;">7b. Safety Events</h4>
-              <button type="button" data-dcr-add="safety" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 12px;border:none;border-radius:4px;background:var(--ink, #222633);color:white;cursor:pointer;">+ Add row</button>
+              <button type="button" data-dcr-add="safety" class="dcr-add">+ Add row</button>
             </div>
             <div id="dcr-rows-safety" data-dcr-rows="safety"></div>
           </div>
 
-          <div style="margin-bottom:24px;">
-            <h3 style="font-size:13px;font-weight:700;color:var(--brand-red, #B11E2E);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;border-bottom:2px solid var(--brand-red, #B11E2E);padding-bottom:6px;display:flex;align-items:center;justify-content:space-between;">8. Issues / Delays<button type="button" data-dcr-add="issues" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 12px;border:none;border-radius:4px;background:var(--ink, #222633);color:white;cursor:pointer;">+ Add row</button></h3>
+          <div class="dcr-block">
+            <h3 class="dcr-sec dcr-sec-row">8. Issues / Delays<button type="button" data-dcr-add="issues" class="dcr-add">+ Add row</button></h3>
             <div id="dcr-rows-issues" data-dcr-rows="issues"></div>
           </div>
 
-          <div style="margin-bottom:24px;">
-            <h3 style="font-size:13px;font-weight:700;color:var(--brand-red, #B11E2E);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;border-bottom:2px solid var(--brand-red, #B11E2E);padding-bottom:6px;display:flex;align-items:center;justify-content:space-between;">9. Inspections<button type="button" data-dcr-add="inspections" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 12px;border:none;border-radius:4px;background:var(--ink, #222633);color:white;cursor:pointer;">+ Add row</button></h3>
+          <div class="dcr-block">
+            <h3 class="dcr-sec dcr-sec-row">9. Inspections<button type="button" data-dcr-add="inspections" class="dcr-add">+ Add row</button></h3>
             <div id="dcr-rows-inspections" data-dcr-rows="inspections"></div>
           </div>
 
-          <div style="margin-bottom:24px;">
-            <h3 style="font-size:13px;font-weight:700;color:var(--brand-red, #B11E2E);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;border-bottom:2px solid var(--brand-red, #B11E2E);padding-bottom:6px;display:flex;align-items:center;justify-content:space-between;">10. Visitors<button type="button" data-dcr-add="visitors" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 12px;border:none;border-radius:4px;background:var(--ink, #222633);color:white;cursor:pointer;">+ Add row</button></h3>
+          <div class="dcr-block">
+            <h3 class="dcr-sec dcr-sec-row">10. Visitors<button type="button" data-dcr-add="visitors" class="dcr-add">+ Add row</button></h3>
             <div id="dcr-rows-visitors" data-dcr-rows="visitors"></div>
           </div>
 
-          <div style="margin-bottom:24px;">
-            <h3 style="font-size:13px;font-weight:700;color:var(--brand-red, #B11E2E);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;border-bottom:2px solid var(--brand-red, #B11E2E);padding-bottom:6px;">11. Photos</h3>
+          <div class="dcr-block">
+            <h3 class="dcr-sec">11. Photos</h3>
             <!-- Upload-first flow (#108): pick photo → see it → caption against
                  the visible image → explicit Save. The two text inputs below
                  are OPTIONAL defaults that pre-fill each new draft tile's
@@ -2367,7 +2405,7 @@
                  inside the draft override the defaults. -->
             <div style="background:white;border:1px solid var(--line, #eceef3);border-radius:4px;padding:14px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
               <input type="file" id="dcr-photo-input" accept="image/*" multiple style="display:none;">
-              <button type="button" id="dcr-photo-trigger" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:6px 14px;border:none;border-radius:4px;background:var(--brand-red, #B11E2E);color:white;cursor:pointer;">+ Upload photo(s)</button>
+              <button type="button" id="dcr-photo-trigger" class="btn-ghost btn-sm">+ Upload photo(s)</button>
               <input type="text" id="dcr-photo-location" placeholder="Default location (optional — e.g., South elevation L7)" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:13px;font-family:inherit;">
               <input type="text" id="dcr-photo-description" placeholder="Default caption (optional)" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:13px;font-family:inherit;">
             </div>
@@ -2379,7 +2417,7 @@
           <!-- Action pair: Cancel (secondary) + Issue DCR (primary) -->
           <div style="margin-top:12px;padding-top:24px;border-top:2px solid var(--line, #eceef3);display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
             <div id="dcr-issue-status" style="font-size:12px;color:var(--muted, #8c92a0);margin-right:auto;"></div>
-            <button id="dcr-issue" type="button" style="font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:12px 24px;border:none;border-radius:4px;background:var(--brand-red, #B11E2E);color:white;cursor:pointer;display:inline-flex;align-items:center;gap:8px;">
+            <button id="dcr-issue" type="button" class="btn-primary">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
               Issue DCR
             </button>
@@ -2434,15 +2472,15 @@
             const sourceLabel = sourceLabels[w.source] || w.source || '—';
             const fmtT = (t) => (t == null) ? '—°' : Math.round(t) + '°';
             el.innerHTML =
-              '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;align-items:center;">' +
+              '<div class="dcr-wx">' +
                 '<div><div class="site-label" style="margin-bottom:4px;">AM</div>' +
-                '<div style="font-family:\'Archivo\', -apple-system, BlinkMacSystemFont, \'Helvetica Neue\', Helvetica, Arial, sans-serif;font-size:24px;color:var(--ink, #222633);">' + fmtT(w.am && w.am.temp_f) + '</div>' +
-                '<div style="font-size:12px;color:var(--muted, #8c92a0);">' + (esc(w.am && w.am.conditions) || '—') + '</div></div>' +
+                '<div class="dcr-wx-v">' + fmtT(w.am && w.am.temp_f) + '</div>' +
+                '<div class="t-sub">' + (esc(w.am && w.am.conditions) || '—') + '</div></div>' +
                 '<div><div class="site-label" style="margin-bottom:4px;">PM</div>' +
-                '<div style="font-family:\'Archivo\', -apple-system, BlinkMacSystemFont, \'Helvetica Neue\', Helvetica, Arial, sans-serif;font-size:24px;color:var(--ink, #222633);">' + fmtT(w.pm && w.pm.temp_f) + '</div>' +
-                '<div style="font-size:12px;color:var(--muted, #8c92a0);">' + (esc(w.pm && w.pm.conditions) || '—') + '</div></div>' +
+                '<div class="dcr-wx-v">' + fmtT(w.pm && w.pm.temp_f) + '</div>' +
+                '<div class="t-sub">' + (esc(w.pm && w.pm.conditions) || '—') + '</div></div>' +
                 '<div><div class="site-label" style="margin-bottom:4px;">Wind</div>' +
-                '<div style="font-family:\'Archivo\', -apple-system, BlinkMacSystemFont, \'Helvetica Neue\', Helvetica, Arial, sans-serif;font-size:18px;color:var(--ink, #222633);">' + (esc(w.wind) || '—') + '</div></div>' +
+                '<div class="dcr-wx-v sm">' + (esc(w.wind) || '—') + '</div></div>' +
               '</div>' +
               '<div style="margin-top:12px;padding-top:8px;border-top:1px solid var(--line, #eceef3);font-size:12px;color:var(--muted, #8c92a0);text-align:right;">' + esc(sourceLabel) + '</div>';
           }
@@ -3000,7 +3038,7 @@
                 '<div data-tile-actions style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">' +
                   '<label data-tile-replace style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 10px;border:1px solid var(--line, #eceef3);border-radius:3px;background:white;color:var(--muted, #8c92a0);cursor:pointer;">Replace<input data-tile-replace-input type="file" accept="image/*" style="display:none;"></label>' +
                   '<button data-tile-cancel type="button" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 10px;border:1px solid var(--line, #eceef3);border-radius:3px;background:white;color:var(--brand-red, #B11E2E);cursor:pointer;">Cancel</button>' +
-                  '<button data-tile-save type="button" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 12px;border:none;border-radius:3px;background:var(--brand-red, #B11E2E);color:white;cursor:pointer;">Save</button>' +
+                  '<button data-tile-save type="button" class="btn-primary btn-sm">Save</button>' +
                 '</div>' +
               '</div>';
 
@@ -4333,20 +4371,20 @@
       <!-- WEEKLY SUMMARY -->
       <section class="view" data-view="weekly-summary">
         <div class="section">
-          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap;gap:12px;">
+          <div class="tab-head">
             <div>
-              <h2 style="margin-bottom:0;">Weekly Summary Report</h2>
-              <div style="font-size:12px;color:var(--muted, #8c92a0);margin-top:4px;">13-section roll-up of the week's daily reports. Live RFI counts. References the Two-Week Look-Ahead.</div>
+              <h2>Weekly Summary Report</h2>
+              <div class="tab-sub">13-section roll-up of the week's daily reports. Live RFI counts. References the Two-Week Look-Ahead.</div>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <label style="font-size:11px;color:var(--muted, #8c92a0);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Week ending</label>
-              <input type="date" id="ws-week" style="padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:13px;font-family:inherit;">
-              <select id="ws-audience" style="padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:13px;font-family:inherit;background:white;">
+            <div class="tab-actions">
+              <label class="tab-lbl" for="ws-week">Week ending</label>
+              <input type="date" id="ws-week" class="dcr-in">
+              <select id="ws-audience" class="tab-sel">
                 <option value="internal">Internal</option>
                 <option value="owner">Owner-facing</option>
               </select>
-              <button id="ws-refresh" type="button" style="background:white;border:1px solid var(--brand-red, #B11E2E);color:var(--brand-red, #B11E2E);padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">Refresh</button>
-              <button id="ws-open" type="button" style="background:var(--brand-red, #B11E2E);color:white;border:none;padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">Open ↗</button>
+              <button id="ws-refresh" type="button" class="btn-ghost btn-sm">Refresh</button>
+              <button id="ws-open" type="button" class="btn-primary btn-sm">Open ↗</button>
             </div>
           </div>
           <!-- Live Weekly renders inline via /api/projects/<code>/weekly/render?week_ending=YYYY-MM-DD&audience=... -->
@@ -4610,10 +4648,10 @@
       <!-- SECTION:internal_ops:start -->
       <section class="view" data-view="toolbox-talks">
         <div class="section">
-          <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:10px;">
+          <div class="tab-head">
             <div>
-              <h2 style="margin-bottom:4px;">Toolbox Talks</h2>
-              <div style="font-size:12px;color:var(--muted, #8c92a0);">DOB Ch 33-sourced safety talks · English + Spanish · ~15 min each · print, run pre-shift, collect signatures.</div>
+              <h2>Toolbox Talks</h2>
+              <div class="tab-sub">DOB Ch 33-sourced safety talks · English + Spanish · ~15 min each · print, run pre-shift, collect signatures.</div>
             </div>
             <div class="tbx-filters" id="tbx-cat-filters">
               <button type="button" class="tbx-chip active" data-cat="">All</button>
@@ -4770,12 +4808,12 @@
       <!-- SECTION:financial:end -->
       <section class="view" data-view="rfis">
         <div class="section">
-          <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
+          <div class="tab-head">
             <div>
-              <h2 style="margin-bottom:4px;">RFI Log</h2>
-              <div id="rfi-reg-summary" style="font-size:12px;color:var(--muted, #8c92a0);">Loading…</div>
+              <h2>RFI Log</h2>
+              <div id="rfi-reg-summary" class="tab-sub">Loading…</div>
             </div>
-            <a href="/rfi_submission_form.html" target="_blank" style="font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:10px 18px;border:none;border-radius:4px;background:var(--brand-red, #B11E2E);color:white;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px;">
+            <a href="/rfi_submission_form.html" target="_blank" class="btn-primary" style="text-decoration:none;">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               New RFI
             </a>
@@ -4796,9 +4834,9 @@
             </div>
             <div style="flex-basis:100%;height:0;"></div>
             <span style="font-size:11px;color:var(--muted, #8c92a0);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Due Between</span>
-            <input type="date" id="rfi-reg-due-after" style="padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:13px;font-family:inherit;">
+            <input type="date" id="rfi-reg-due-after" class="dcr-in">
             <span style="font-size:12px;color:var(--muted, #8c92a0);">and</span>
-            <input type="date" id="rfi-reg-due-before" style="padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:13px;font-family:inherit;">
+            <input type="date" id="rfi-reg-due-before" class="dcr-in">
             <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink, #222633);cursor:pointer;">
               <input type="checkbox" id="rfi-reg-sched-only" style="cursor:pointer;">
               Schedule impact only
@@ -4831,7 +4869,7 @@
       <!-- VIOLATIONS — redirects to Compliance & Permits view -->
       <section class="view" data-view="violations">
         <div class="section">
-          <h2>Violations</h2>
+          <div class="tab-head"><div><h2>Violations</h2><div class="tab-sub">DOB and ECB violations for this building.</div></div></div>
           <div class="placeholder-card">
             DOB and ECB violations are tracked live in the
             <a href="#" onclick="document.querySelector('[data-view=compliance]').click(); return false;" style="color:var(--brand-red, #B11E2E);font-weight:600;">Compliance & Permits</a>
@@ -4873,7 +4911,9 @@
           .pay-field input,.pay-field select,.pay-field textarea{width:100%;font:inherit;font-size:13px;padding:9px 10px;border:1px solid var(--line, #eceef3);border-radius:8px;background:#fff;color:var(--ink, #222633);box-sizing:border-box}
           .pay-err{grid-column:1 / -1;color:var(--status-behind-deep, #A8382B);background:var(--status-behind-soft, #fceeec);border-radius:8px;padding:8px 10px;font-size:13px;display:none} .pay-err.show{display:block}
           .pay-mfoot{padding:12px 20px 18px;display:flex;justify-content:flex-end;gap:8px}
-          @media (max-width:640px){ .pay-mbody{grid-template-columns:1fr} }
+          .pay-mbody.pay-mbody-5{grid-template-columns:repeat(5,1fr)}   /* #362 — was inline; now collapses */
+          @media (max-width:1024px){ .pay-mbody.pay-mbody-5{grid-template-columns:repeat(3,1fr)} }
+          @media (max-width:640px){ .pay-mbody, .pay-mbody.pay-mbody-5{grid-template-columns:1fr} }
         </style>
         <div class="pay-wrap">
           <div class="pay-head"><div><h1 class="pay-h1">Payments</h1><div class="pay-sub" id="pay-sub">Invoices on this job · email them to the client from here</div></div>
@@ -4907,7 +4947,7 @@
         </div>
         <div class="pay-overlay" id="aia-overlay"><form class="pay-modal aia-modal" id="aia-form" novalidate>
           <div class="pay-mhead"><h3 id="aia-title">Application for Payment</h3><p id="aia-msub"></p></div>
-          <div class="pay-mbody" style="grid-template-columns:repeat(5,1fr)">
+          <div class="pay-mbody pay-mbody-5">
             <div class="pay-field"><label for="aia-from">Period from</label><input id="aia-from" type="date"></div>
             <div class="pay-field"><label for="aia-to">Period to</label><input id="aia-to" type="date"></div>
             <div class="pay-field"><label for="aia-date">Application date</label><input id="aia-date" type="date"></div>
@@ -5227,8 +5267,8 @@
         <div class="bt-note bt-off" data-bt-off>This job is billed <strong data-bt-label></strong>, so it has no schedule of values or AIA pay applications. <a data-goto-settings>Change the billing type</a></div>
         <div class="bt-note bt-unset warn">How this job is billed isn't set yet. <a data-goto-settings>Set it in Settings</a> — AIA / Schedule of values jobs get this editor and pay applications.</div>
         <div class="section pay-wrap aia-only">
-          <h2>Schedule of Values</h2>
-          <div class="pay-muted" style="margin:-4px 0 12px">The approved billing breakdown for this job. Applications for Payment (AIA G702 / G703, under Payments) bill against these lines. Change orders sit as their own lines.</div>
+          <div class="tab-head"><div><h2>Schedule of Values</h2>
+          <div class="tab-sub">The approved billing breakdown for this job. Applications for Payment (AIA G702 / G703, under Payments) bill against these lines. Change orders sit as their own lines.</div></div></div>
           <div class="pay-kpis" id="aia-sov-summary"></div>
           <div class="pay-toolbar"><button type="button" class="pay-btn" id="aia-sov-add">+ Line</button><button type="button" class="pay-btn" id="aia-sov-addco">+ Change order</button><button type="button" class="pay-btn" id="aia-sov-import" title="Copy the drop-plan line descriptions in, then fill in the dollars">Import drop-plan lines</button><span style="flex:1"></span><button type="button" class="pay-btn primary" id="aia-sov-save">Save</button></div>
           <div style="overflow:auto"><table class="pay-table aia-sov" id="aia-sov-table"><tbody><tr><td class="pay-empty">Loading…</td></tr></tbody></table></div>
@@ -5281,15 +5321,14 @@
       <!-- COMPLIANCE & PERMITS — live from NYC OpenData -->
       <section class="view" data-view="compliance">
         <div class="section">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;margin-bottom:8px;">
+          <div class="tab-head">
             <div>
-              <h2 style="margin-bottom:4px;">NYC Compliance Watch</h2>
-              <div style="font-size:12px;color:var(--muted, #8c92a0);">
+              <h2>NYC Compliance Watch</h2>
+              <div class="tab-sub">
                 Live data from NYC OpenData & DOB BIS · BIN <span id="cw-bin">—</span> · Last refresh: <span id="cw-last-refresh">never</span>
               </div>
             </div>
-            <button id="cw-refresh-btn"
-                    style="background:var(--brand-red, #B11E2E);color:white;border:none;border-radius:6px;padding:10px 18px;font-weight:600;cursor:pointer;font-size:13px;letter-spacing:0.3px;display:inline-flex;align-items:center;gap:8px;">
+            <button id="cw-refresh-btn" class="btn-primary" type="button">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
               <span data-label>Refresh from NYC</span>
             </button>
@@ -5298,23 +5337,23 @@
           <!-- Status pills row -->
           <div class="card-grid" id="cw-status-cards">
             <div class="card">
-              <div class="card-status" style="text-transform:uppercase;letter-spacing:0.5px;">Overall</div>
-              <div class="card-title" id="cw-overall-light" style="font-size:24px;margin-top:8px;">—</div>
+              <div class="card-status cw-k">Overall</div>
+              <div class="card-title cw-v sm" id="cw-overall-light">—</div>
             </div>
-            <div class="card" style="cursor:pointer;" onclick="cwScrollTo('cw-permits')">
-              <div class="card-status" style="text-transform:uppercase;letter-spacing:0.5px;">Open Permits</div>
-              <div class="card-title" id="cw-permits-open" style="font-size:32px;margin-top:8px;color:var(--ink, #222633);">—</div>
-              <div style="font-size:12px;color:var(--status-warn, #9A5B00);margin-top:4px;"><span id="cw-permits-expiring">0</span> expiring in 30 days</div>
+            <div class="card cw-go" onclick="cwScrollTo('cw-permits')">
+              <div class="card-status cw-k">Open Permits</div>
+              <div class="card-title cw-v" id="cw-permits-open">—</div>
+              <div class="cw-note warn"><span id="cw-permits-expiring">0</span> expiring in 30 days</div>
             </div>
-            <div class="card" style="cursor:pointer;" onclick="cwScrollTo('cw-violations')">
-              <div class="card-status" style="text-transform:uppercase;letter-spacing:0.5px;">Active Violations</div>
-              <div class="card-title" id="cw-viol-active" style="font-size:32px;margin-top:8px;color:var(--ink, #222633);">—</div>
-              <div style="font-size:12px;color:var(--muted, #8c92a0);margin-top:4px;"><span id="cw-viol-recent">0</span> issued in last 90 days</div>
+            <div class="card cw-go" onclick="cwScrollTo('cw-violations')">
+              <div class="card-status cw-k">Active Violations</div>
+              <div class="card-title cw-v" id="cw-viol-active">—</div>
+              <div class="cw-note"><span id="cw-viol-recent">0</span> issued in last 90 days</div>
             </div>
-            <div class="card" style="cursor:pointer;" onclick="cwScrollTo('cw-complaints')">
-              <div class="card-status" style="text-transform:uppercase;letter-spacing:0.5px;">Active Complaints</div>
-              <div class="card-title" id="cw-comp-active" style="font-size:32px;margin-top:8px;color:var(--ink, #222633);">—</div>
-              <div style="font-size:12px;color:var(--muted, #8c92a0);margin-top:4px;"><span id="cw-comp-recent">0</span> filed in last 30 days</div>
+            <div class="card cw-go" onclick="cwScrollTo('cw-complaints')">
+              <div class="card-status cw-k">Active Complaints</div>
+              <div class="card-title cw-v" id="cw-comp-active">—</div>
+              <div class="cw-note"><span id="cw-comp-recent">0</span> filed in last 30 days</div>
             </div>
           </div>
         </div>
@@ -5323,19 +5362,19 @@
         <div class="section" id="cw-permits">
           <h2>Permits</h2>
           <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <table class="cw-table">
               <thead>
-                <tr style="border-bottom:2px solid var(--line, #eceef3);text-align:left;">
-                  <th style="padding:10px 8px;">Work Permit</th>
-                  <th style="padding:10px 8px;">Type</th>
-                  <th style="padding:10px 8px;">Status</th>
-                  <th style="padding:10px 8px;">Issued</th>
-                  <th style="padding:10px 8px;">Expires</th>
-                  <th style="padding:10px 8px;">Permittee</th>
+                <tr>
+                  <th class="th-snug">Work Permit</th>
+                  <th class="th-snug">Type</th>
+                  <th class="th-snug">Status</th>
+                  <th class="th-snug">Issued</th>
+                  <th class="th-snug">Expires</th>
+                  <th class="th-snug">Permittee</th>
                 </tr>
               </thead>
               <tbody id="cw-permits-tbody">
-                <tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted, #8c92a0);">No data — click "Refresh from NYC" above.</td></tr>
+                <tr><td colspan="6" class="td-empty">No data — click "Refresh from NYC" above.</td></tr>
               </tbody>
             </table>
           </div>
@@ -5345,20 +5384,20 @@
         <div class="section" id="cw-violations">
           <h2>Violations</h2>
           <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <table class="cw-table">
               <thead>
-                <tr style="border-bottom:2px solid var(--line, #eceef3);text-align:left;">
-                  <th style="padding:10px 8px;">Source</th>
-                  <th style="padding:10px 8px;">Number</th>
-                  <th style="padding:10px 8px;">Type</th>
-                  <th style="padding:10px 8px;">Issued</th>
-                  <th style="padding:10px 8px;">Status</th>
-                  <th style="padding:10px 8px;">Penalty</th>
-                  <th style="padding:10px 8px;">Description</th>
+                <tr>
+                  <th class="th-snug">Source</th>
+                  <th class="th-snug">Number</th>
+                  <th class="th-snug">Type</th>
+                  <th class="th-snug">Issued</th>
+                  <th class="th-snug">Status</th>
+                  <th class="th-snug">Penalty</th>
+                  <th class="th-snug">Description</th>
                 </tr>
               </thead>
               <tbody id="cw-violations-tbody">
-                <tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted, #8c92a0);">No data yet.</td></tr>
+                <tr><td colspan="7" class="td-empty">No data yet.</td></tr>
               </tbody>
             </table>
           </div>
@@ -5368,19 +5407,19 @@
         <div class="section" id="cw-complaints">
           <h2>Complaints</h2>
           <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <table class="cw-table">
               <thead>
-                <tr style="border-bottom:2px solid var(--line, #eceef3);text-align:left;">
-                  <th style="padding:10px 8px;">Complaint #</th>
-                  <th style="padding:10px 8px;">Category</th>
-                  <th style="padding:10px 8px;">Status</th>
-                  <th style="padding:10px 8px;">Entered</th>
-                  <th style="padding:10px 8px;">Disposition</th>
-                  <th style="padding:10px 8px;">Inspected</th>
+                <tr>
+                  <th class="th-snug">Complaint #</th>
+                  <th class="th-snug">Category</th>
+                  <th class="th-snug">Status</th>
+                  <th class="th-snug">Entered</th>
+                  <th class="th-snug">Disposition</th>
+                  <th class="th-snug">Inspected</th>
                 </tr>
               </thead>
               <tbody id="cw-complaints-tbody">
-                <tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted, #8c92a0);">No data yet.</td></tr>
+                <tr><td colspan="6" class="td-empty">No data yet.</td></tr>
               </tbody>
             </table>
           </div>
@@ -5595,19 +5634,19 @@
 
       <section class="view" data-view="templates">
         <div class="section">
-          <h2>Templates</h2>
+          <div class="tab-head"><div><h2>Templates</h2><div class="tab-sub">Printable site signs and forms for this job.</div></div></div>
           <div style="margin: 10px 0 16px;">
             <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:10px;">
               <div>
                 <h3 style="font-size:13px;font-weight:700;color:var(--brand-red, #B11E2E);text-transform:uppercase;letter-spacing:0.08em;margin:0 0 4px;">Signage Templates</h3>
-                <div style="font-size:12px;color:var(--muted, #8c92a0);">Printable full-page site signs (Letter) — ANSI Z535 + NYC DOB. Open, print, post.</div>
+                <div class="t-sub">Printable full-page site signs (Letter) — ANSI Z535 + NYC DOB. Open, print, post.</div>
               </div>
               <div style="display:flex;gap:6px;flex-wrap:wrap;" id="sig-cat-filters">
-                <button type="button" class="sig-cat-btn active" data-cat="" style="background:var(--ink, #222633);color:white;border:1px solid var(--ink, #222633);border-radius:4px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;">All</button>
-                <button type="button" class="sig-cat-btn" data-cat="Safety" style="background:white;color:var(--ink, #222633);border:1px solid var(--line, #eceef3);border-radius:4px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;">Safety</button>
-                <button type="button" class="sig-cat-btn" data-cat="PPE" style="background:white;color:var(--ink, #222633);border:1px solid var(--line, #eceef3);border-radius:4px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;">PPE</button>
-                <button type="button" class="sig-cat-btn" data-cat="DOB" style="background:white;color:var(--ink, #222633);border:1px solid var(--line, #eceef3);border-radius:4px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;">DOB</button>
-                <button type="button" class="sig-cat-btn" data-cat="Site" style="background:white;color:var(--ink, #222633);border:1px solid var(--line, #eceef3);border-radius:4px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;">Site</button>
+                <button type="button" class="tbx-chip sig-cat-btn active" data-cat="">All</button>
+                <button type="button" class="tbx-chip sig-cat-btn" data-cat="Safety">Safety</button>
+                <button type="button" class="tbx-chip sig-cat-btn" data-cat="PPE">PPE</button>
+                <button type="button" class="tbx-chip sig-cat-btn" data-cat="DOB">DOB</button>
+                <button type="button" class="tbx-chip sig-cat-btn" data-cat="Site">Site</button>
               </div>
             </div>
             <div id="proj-signage-templates" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;">
@@ -5623,7 +5662,7 @@
           <div style="border-top:1px solid var(--line, #eceef3);margin-top:8px;padding-top:18px;">
             <div style="margin-bottom:10px;">
               <h3 style="font-size:13px;font-weight:700;color:var(--brand-red, #B11E2E);text-transform:uppercase;letter-spacing:0.08em;margin:0 0 4px;">Blank Forms</h3>
-              <div style="font-size:12px;color:var(--muted, #8c92a0);">Reusable safety / compliance form templates — print fresh each shift.</div>
+              <div class="t-sub">Reusable safety / compliance form templates — print fresh each shift.</div>
             </div>
             <div id="proj-blank-forms" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));gap:10px;">
               <div style="padding:14px;text-align:center;color:var(--muted, #8c92a0);font-style:italic;background:white;border:1px solid var(--line, #eceef3);border-radius:4px;">Loading…</div>
@@ -5816,7 +5855,7 @@
 
       <section class="view" data-view="settings">
         <div class="section">
-          <h2>Project Settings</h2>
+          <div class="tab-head"><div><h2>Project Settings</h2><div class="tab-sub">Status, billing type and the basics for this job.</div></div></div>
           <div class="card">
             <div class="card-title">Project Code</div>
             <div class="card-status" data-project-code>&nbsp;</div>
@@ -6460,10 +6499,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     activeCategory = btn.getAttribute('data-cat') || '';
     document.querySelectorAll('.sig-cat-btn').forEach(b => {
       const on = (b.getAttribute('data-cat') || '') === activeCategory;
-      b.style.background = on ? '#14161C' : 'white';
-      b.style.color = on ? 'white' : '#14161C';
-      b.style.borderColor = on ? '#14161C' : '#E8E4DD';
-      b.classList.toggle('active', on);
+      b.classList.toggle('active', on);   // #362 — the shared chip style draws the state
     });
     if (cachedRows) _render(cachedRows); else load();
   });
@@ -6536,10 +6572,10 @@ document.querySelectorAll('.nav-link').forEach(link => {
   }
 
   document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.tbx-chip');
+    const btn = e.target.closest('#tbx-cat-filters .tbx-chip');   // #362 — Templates uses the same chip style
     if (!btn) return;
     activeCategory = btn.getAttribute('data-cat') || '';
-    document.querySelectorAll('.tbx-chip').forEach(b => {
+    document.querySelectorAll('#tbx-cat-filters .tbx-chip').forEach(b => {
       b.classList.toggle('active', (b.getAttribute('data-cat') || '') === activeCategory);
     });
     if (cachedRows) _render(cachedRows); else load();
@@ -7074,7 +7110,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
       const rows = (resp && resp.data) || [];
       const tbody = document.getElementById('cw-permits-tbody');
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted, #8c92a0);">No permits on file.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="td-empty">No permits on file.</td></tr>';
         return;
       }
       // Sort by issuance date, most recent first; show last 50
@@ -7096,12 +7132,12 @@ document.querySelectorAll('.nav-link').forEach(link => {
         } else {
           badge = `<span style="font-size:12px;color:var(--muted, #8c92a0);">${status}</span>`;
         }
-        return `<tr style="border-bottom:1px solid var(--line, #eceef3);">
+        return `<tr>
           <td style="padding:8px;font-family:monospace;font-size:12px;">${r.work_permit || '—'}</td>
-          <td style="padding:8px;">${r.permit_type || '—'} ${r.work_type ? '· ' + r.work_type : ''}</td>
-          <td style="padding:8px;">${badge}</td>
-          <td style="padding:8px;">${fmtDate(r.issuance_date)}</td>
-          <td style="padding:8px;">${fmtDate(r.expiration_date)}</td>
+          <td class="td-snug">${r.permit_type || '—'} ${r.work_type ? '· ' + r.work_type : ''}</td>
+          <td class="td-snug">${badge}</td>
+          <td class="td-snug">${fmtDate(r.issuance_date)}</td>
+          <td class="td-snug">${fmtDate(r.expiration_date)}</td>
           <td style="padding:8px;font-size:12px;">${(r.permittee_business_name || '—').substring(0, 40)}</td>
         </tr>`;
       }).join('');
@@ -7116,7 +7152,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
       const rows = (resp && resp.data) || [];
       const tbody = document.getElementById('cw-violations-tbody');
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted, #8c92a0);">No violations.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="td-empty">No violations.</td></tr>';
         return;
       }
       // Top 50 most recent
@@ -7126,13 +7162,13 @@ document.querySelectorAll('.nav-link').forEach(link => {
         const badge = closed
           ? statusBadge(r.status || 'Closed', 'green')
           : statusBadge(r.status || 'Active', 'red');
-        return `<tr style="border-bottom:1px solid var(--line, #eceef3);">
-          <td style="padding:8px;"><strong>${r.source || '—'}</strong></td>
+        return `<tr>
+          <td class="td-snug"><strong>${r.source || '—'}</strong></td>
           <td style="padding:8px;font-family:monospace;font-size:12px;">${r.violation_number || '—'}</td>
-          <td style="padding:8px;">${r.violation_type || '—'}</td>
-          <td style="padding:8px;">${fmtDate(r.issue_date)}</td>
-          <td style="padding:8px;">${badge}</td>
-          <td style="padding:8px;">${fmtMoney(r.penalty_imposed)}</td>
+          <td class="td-snug">${r.violation_type || '—'}</td>
+          <td class="td-snug">${fmtDate(r.issue_date)}</td>
+          <td class="td-snug">${badge}</td>
+          <td class="td-snug">${fmtMoney(r.penalty_imposed)}</td>
           <td style="padding:8px;font-size:12px;">${escapeHtml((r.description || '—').substring(0, 80))}</td>
         </tr>`;
       }).join('');
@@ -7147,7 +7183,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
       const rows = (resp && resp.data) || [];
       const tbody = document.getElementById('cw-complaints-tbody');
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted, #8c92a0);">No complaints.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="td-empty">No complaints.</td></tr>';
         return;
       }
       rows.sort((a, b) => (b.date_entered || '').localeCompare(a.date_entered || ''));
@@ -7156,13 +7192,13 @@ document.querySelectorAll('.nav-link').forEach(link => {
         const badge = closed
           ? statusBadge(r.status || 'Closed', 'green')
           : statusBadge(r.status || 'Active', 'red');
-        return `<tr style="border-bottom:1px solid var(--line, #eceef3);">
+        return `<tr>
           <td style="padding:8px;font-family:monospace;font-size:12px;">${r.complaint_number || '—'}</td>
-          <td style="padding:8px;">${r.complaint_category || '—'}</td>
-          <td style="padding:8px;">${badge}</td>
-          <td style="padding:8px;">${fmtDate(r.date_entered)}</td>
+          <td class="td-snug">${r.complaint_category || '—'}</td>
+          <td class="td-snug">${badge}</td>
+          <td class="td-snug">${fmtDate(r.date_entered)}</td>
           <td style="padding:8px;font-size:12px;">${r.disposition_code || '—'} ${r.disposition_date ? '(' + fmtDate(r.disposition_date) + ')' : ''}</td>
-          <td style="padding:8px;">${fmtDate(r.inspection_date)}</td>
+          <td class="td-snug">${fmtDate(r.inspection_date)}</td>
         </tr>`;
       }).join('');
     } catch (e) {
