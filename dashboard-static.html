@@ -846,6 +846,17 @@
     @media (max-width: 860px) {
       .app-shell { flex-direction: column; }
       .sidebar { width: 100%; height: auto; }
+      /* phone: the closed bar is one slim header + a one-line back link. The job name is the page
+         title right below, so the identity card, "Company dashboard" and Settings live in the Menu. */
+      body .sidebar .proj-line { display: none; }
+      body .sidebar.nav-open .proj-line { display: flex; }
+      body .sidebar .bl-projects { padding: 2px 6px 8px !important; border-bottom: 0 !important; font-size: 12px !important; }
+      body .sidebar .bl-company, body .sidebar .sidebar-pinned { display: none; }
+      body .sidebar.nav-open .bl-company, body .sidebar.nav-open .sidebar-pinned { display: block; }
+      body .jx-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      body .jx-kpi { padding: 10px 12px; }
+      body .jx-kpi-v { font-size: 22px; }
+      body .jx-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
       .kpi-strip { grid-template-columns: repeat(2, 1fr); }
       .hero-stats { grid-template-columns: 1fr; }
       .hero-meta { grid-template-columns: 1fr; }
@@ -974,13 +985,13 @@
          a pm keeps the projects link (to /projects, their assigned list). A pm is never
          served a path to the company console (which 403s for them anyway). -->
     <!-- BACKLINK_COMPANY:start -->
-    <a href="/company#projects" style="display:flex;align-items:center;gap:8px;padding:10px 18px;color:var(--muted, #8c92a0);font-size:12px;text-decoration:none;border-bottom:1px solid var(--line, #eceef3);letter-spacing:0.5px;text-transform:uppercase;font-weight:600;transition:color 0.15s;" onmouseover="this.style.color='#B11E2E'" onmouseout="this.style.color='#76777E'">
+    <a href="/company#projects" class="bl-projects" style="display:flex;align-items:center;gap:8px;padding:10px 18px;color:var(--muted, #8c92a0);font-size:12px;text-decoration:none;border-bottom:1px solid var(--line, #eceef3);letter-spacing:0.5px;text-transform:uppercase;font-weight:600;transition:color 0.15s;" onmouseover="this.style.color='#B11E2E'" onmouseout="this.style.color='#76777E'">
       ← All projects
     </a>
     <a href="/company#overview" class="bl-company">Company dashboard</a>
     <!-- BACKLINK_COMPANY:end -->
     <!-- BACKLINK_PROJECTS:start -->
-    <a href="/projects" style="display:flex;align-items:center;gap:8px;padding:10px 18px;color:var(--muted, #8c92a0);font-size:12px;text-decoration:none;border-bottom:1px solid var(--line, #eceef3);letter-spacing:0.5px;text-transform:uppercase;font-weight:600;transition:color 0.15s;" onmouseover="this.style.color='#B11E2E'" onmouseout="this.style.color='#76777E'">
+    <a href="/projects" class="bl-projects" style="display:flex;align-items:center;gap:8px;padding:10px 18px;color:var(--muted, #8c92a0);font-size:12px;text-decoration:none;border-bottom:1px solid var(--line, #eceef3);letter-spacing:0.5px;text-transform:uppercase;font-weight:600;transition:color 0.15s;" onmouseover="this.style.color='#B11E2E'" onmouseout="this.style.color='#76777E'">
       ← Back to Projects
     </a>
     <!-- BACKLINK_PROJECTS:end -->

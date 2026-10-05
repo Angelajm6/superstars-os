@@ -135,6 +135,16 @@ def main() -> int:
         ok("pm: back link still goes to their projects list", 'href="/projects"' in phtml and "← Back to Projects" in phtml)
         ok("pm: never offered the company console", 'href="/company#projects"' not in phtml)
 
+        # ---- phone layout: the closed bar is one slim header + back link; the rest lives in the Menu
+        ok("both back links carry the phone hook class", 'class="bl-projects"' in html and 'class="bl-projects"' in phtml)
+        i0 = html.index("/* phone: the closed bar is one slim header")
+        phone = html[i0: html.index("\n    }", i0)]   # the rest of that 860px media block
+        ok("phone: identity card, Company dashboard and Settings are menu-only",
+           "body .sidebar .proj-line { display: none; }" in phone and "body .sidebar .bl-company, body .sidebar .sidebar-pinned { display: none; }" in phone
+           and "body .sidebar.nav-open .bl-company, body .sidebar.nav-open .sidebar-pinned { display: block; }" in phone)
+        ok("phone: KPI tiles are two columns, cards one", "body .jx-kpis { grid-template-columns: repeat(2, minmax(0, 1fr))" in phone and "body .jx-grid { grid-template-columns: minmax(0, 1fr)" in phone)
+        ok("phone rules are phone-only (no unscoped desktop override)", "body .sidebar .proj-line { display: none; }" not in html.replace(phone, ""))
+
         # ---- console Projects tab opens the form in place
         con = cs.get("/company").get_data(as_text=True)
         ok("console: + New project is a button, not a link to another page",
