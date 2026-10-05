@@ -1,0 +1,124 @@
+/* Job dashboard — v2 preview (job_v2.py). Every rule is scoped to body.jv2, so v1 is untouched.
+ *
+ * ONE font family (Inter) and ONE type scale for the whole page:
+ *     12 · 14 · 16 · 20 · 28 px      weights 400 / 500 / 600
+ * Older screens keep their own markup; the family is forced everywhere and the sizes below are
+ * applied to the shared building blocks (headers, cards, tables, KPI tiles, buttons).
+ */
+body.jv2 {
+  --jv-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --jv-t12: 12px; --jv-t14: 14px; --jv-t16: 16px; --jv-t20: 20px; --jv-t28: 28px;
+  --jv-ink: var(--ink, #222633); --jv-ink-2: #5b6272; --jv-ink-3: var(--muted, #8c92a0);
+  --jv-line: #e6e8ee; --jv-bg: #f7f8fb; --jv-card: #ffffff;
+  --jv-accent: var(--accent, #4364dc); --jv-accent-soft: var(--accent-soft, #ebf0fe);
+  --jv-ok: #0c7a5f; --jv-ok-bg: #e6f5f1; --jv-warn: #8a6000; --jv-warn-bg: #fdf4e0; --jv-bad: #b9412f; --jv-bad-bg: #fdeceb;
+  --jv-r: 12px; --jv-gutter: 24px; --jv-max: 1200px;
+  background: var(--jv-bg); color: var(--jv-ink); font-size: var(--jv-t14); line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+/* one family, everywhere (icons are SVG and unaffected) */
+body.jv2 :is(div, span, p, a, button, input, select, textarea, label, table, thead, tbody, tr, td, th, ul, ol, li, h1, h2, h3, h4, h5, h6, small, b, strong, em, i, summary, option, code, pre, dt, dd, section, header, main, nav, aside, details) {
+  font-family: var(--jv-font) !important;
+}
+
+/* ---- layout: top navigation instead of the sidebar ---- */
+body.jv2 .sidebar { display: none !important; }
+body.jv2 .app-shell, body.jv2 .main { display: block; min-height: 0; }
+body.jv2 .content-corner { display: none; }
+body.jv2 .views-container { overflow: visible; }
+body.jv2 .view { max-width: var(--jv-max); padding: 24px var(--jv-gutter) 64px; }
+body.jv2 .view[data-view="drawings"] { padding: 0; max-width: none; }
+
+#jv2-top { position: sticky; top: 0; z-index: 30; background: var(--jv-card); border-bottom: 1px solid var(--jv-line); }
+.jv2-row, .jv2-tabs, .jv2-pills { max-width: var(--jv-max); margin: 0 auto; padding-left: var(--jv-gutter); padding-right: var(--jv-gutter); }
+.jv2-row { display: flex; align-items: center; gap: 16px; padding-top: 12px; padding-bottom: 8px; }
+.jv2-back { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: var(--jv-t14); color: var(--jv-ink-2); text-decoration: none; padding: 6px 10px 6px 4px; border-radius: 8px; }
+.jv2-back:hover { background: var(--jv-bg); color: var(--jv-ink); }
+.jv2-title { flex: 1; min-width: 0; }
+.jv2-name { font-size: var(--jv-t20); font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jv2-sub { font-size: var(--jv-t14); color: var(--jv-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jv2-chips { flex: none; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.jv2-chips .jx-chip, .jv2-chips > span { display: inline-flex; align-items: center; font-size: var(--jv-t12); font-weight: 500; padding: 3px 10px; border-radius: 999px; background: #f0f2f7; color: var(--jv-ink-2); border: 0; }
+.jv2-chips .jx-chip.ok { background: var(--jv-ok-bg); color: var(--jv-ok); }
+.jv2-chips .jx-chip.warn { background: var(--jv-warn-bg); color: var(--jv-warn); }
+.jv2-chips .jx-chip.bad { background: var(--jv-bad-bg); color: var(--jv-bad); }
+.jv2-chips .jx-chip.ui { background: var(--jv-accent-soft); color: var(--jv-accent); }
+.jv2-iconbtn { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; min-width: 36px; padding: 0 10px; border: 1px solid var(--jv-line); background: #fff; border-radius: 10px; font-size: var(--jv-t14); font-weight: 500; color: var(--jv-ink); cursor: pointer; }
+.jv2-iconbtn:hover { background: var(--jv-bg); }
+.jv2-iconbtn.active { background: var(--jv-accent-soft); border-color: transparent; color: var(--jv-accent); }
+.jv2-iconbtn svg { width: 18px; height: 18px; flex: none; }
+.jv2-acct { position: relative; flex: none; }
+.jv2-menu { position: absolute; right: 0; top: 42px; min-width: 200px; background: #fff; border: 1px solid var(--jv-line); border-radius: 12px; padding: 6px; box-shadow: 0 8px 24px rgba(34, 38, 51, .12); z-index: 40; }
+.jv2-menu[hidden] { display: none; }
+.jv2-menu-who { padding: 8px 10px; font-size: var(--jv-t14); font-weight: 500; }
+.jv2-menu-who small { display: block; font-size: var(--jv-t12); font-weight: 400; color: var(--jv-ink-3); }
+.jv2-menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 8px; font-size: var(--jv-t14); color: var(--jv-ink); cursor: pointer; }
+.jv2-menu button:hover { background: var(--jv-bg); }
+
+.jv2-tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.jv2-tabs::-webkit-scrollbar, .jv2-pills::-webkit-scrollbar { display: none; }
+.jv2-tab { flex: none; padding: 10px 14px; font-size: var(--jv-t14); font-weight: 500; color: var(--jv-ink-2); border: 0; background: none; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+.jv2-tab:hover { color: var(--jv-ink); }
+.jv2-tab.active { color: var(--jv-accent); border-bottom-color: var(--jv-accent); }
+.jv2-pills { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-top: 10px; padding-bottom: 10px; border-top: 1px solid var(--jv-line); background: #fbfcfe; }
+.jv2-pills[hidden] { display: none; }
+.jv2-pill { flex: none; padding: 6px 12px; font-size: var(--jv-t14); font-weight: 500; color: var(--jv-ink-2); background: #fff; border: 1px solid var(--jv-line); border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.jv2-pill:hover { border-color: #cfd4e0; color: var(--jv-ink); }
+.jv2-pill.active { background: var(--jv-accent-soft); border-color: transparent; color: var(--jv-accent); }
+
+/* ---- Overview ---- */
+body.jv2 .jx-head { display: none; }   /* title + chips live in the top bar now */
+.jv2-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; margin: 0 0 16px; }
+.jv2-panel { background: var(--jv-card); border: 1px solid var(--jv-line); border-radius: var(--jv-r); padding: 16px 20px; }
+.jv2-panel h2 { margin: 0 0 8px; font-size: var(--jv-t16); font-weight: 600; }
+.jv2-attn-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 0; border: 0; border-top: 1px solid var(--jv-line); background: none; text-align: left; font-size: var(--jv-t14); color: var(--jv-ink); cursor: pointer; }
+.jv2-attn-row:first-of-type { border-top: 0; }
+.jv2-attn-row:hover .jv2-attn-go { color: var(--jv-accent); }
+.jv2-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #b3b9c6; }
+.jv2-dot.bad { background: #e9685a; } .jv2-dot.warn { background: #f0b429; } .jv2-dot.ok { background: #15a07e; }
+.jv2-attn-t { flex: 1; min-width: 0; }
+.jv2-attn-go { flex: none; color: var(--jv-ink-3); font-size: var(--jv-t14); }
+.jv2-clear { font-size: var(--jv-t14); color: var(--jv-ink-2); padding: 6px 0; }
+.jv2-quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.jv2-quick button { padding: 8px 14px; border: 1px solid var(--jv-line); background: #fff; border-radius: 10px; font-size: var(--jv-t14); font-weight: 500; color: var(--jv-ink); cursor: pointer; }
+.jv2-quick button:hover { background: var(--jv-accent-soft); border-color: transparent; color: var(--jv-accent); }
+
+body.jv2 .jx-kpis { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 0 0 16px; }
+body.jv2 .jx-kpi, body.jv2 .jx-card, body.jv2 .card, body.jv2 .ps-card { background: var(--jv-card); background-image: none; border: 1px solid var(--jv-line); border-radius: var(--jv-r); box-shadow: none; }
+body.jv2 .jx-kpi { padding: 14px 16px; }
+body.jv2 .jx-kpi:hover, body.jv2 .jx-card:hover { transform: none; box-shadow: none; border-color: #cfd4e0; }
+body.jv2 .jx-kpi-k { font-size: var(--jv-t12); font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--jv-ink-2); }
+body.jv2 .jx-kpi-v { font-size: var(--jv-t28); font-weight: 600; letter-spacing: -.01em; margin: 4px 0 2px; }
+body.jv2 .jx-kpi-s { font-size: var(--jv-t12); color: var(--jv-ink-3); }
+body.jv2 .jx-grid { grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 16px; }
+body.jv2 .jx-card { padding: 16px 20px; }
+body.jv2 .jx-card h2 { font-size: var(--jv-t16); font-weight: 600; margin: 0 0 8px; }
+body.jv2 .jx-card h2 a { font-size: var(--jv-t14); font-weight: 500; }
+body.jv2 .jx-line, body.jv2 .jx-empty, body.jv2 .jx-legend { font-size: var(--jv-t14); }
+body.jv2 .jx-ops-bar h2 { font-size: var(--jv-t16); font-weight: 600; }
+
+/* ---- shared building blocks used by every screen ---- */
+body.jv2 .tab-head h1, body.jv2 .tab-head h2, body.jv2 .section h2, body.jv2 .section > h1 { font-size: var(--jv-t20) !important; font-weight: 600; line-height: 1.25; letter-spacing: 0; }
+body.jv2 .tab-head .tab-sub, body.jv2 .tab-sub { font-size: var(--jv-t14); color: var(--jv-ink-2); }
+body.jv2 .card-title { font-size: var(--jv-t16); font-weight: 600; }
+body.jv2 .card-status, body.jv2 .ps-hint, body.jv2 .ps-k { font-size: var(--jv-t12); }
+body.jv2 table { font-size: var(--jv-t14); }
+body.jv2 th { font-size: var(--jv-t12); font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--jv-ink-2); }
+body.jv2 .tab-head .tab-lbl, body.jv2 .eyebrow, body.jv2 .ph-eyebrow { font-size: var(--jv-t12); font-weight: 500; letter-spacing: 0; text-transform: none; }
+body.jv2 .btn-primary, body.jv2 .btn-ghost, body.jv2 .btn { font-size: var(--jv-t14); font-weight: 500; border-radius: 10px; }
+body.jv2 .btn-sm { font-size: var(--jv-t12) !important; }
+body.jv2 input:not([type=checkbox]):not([type=radio]), body.jv2 select, body.jv2 textarea { font-size: var(--jv-t14); }
+
+/* ---- phone ---- */
+@media (max-width: 860px) {
+  body.jv2 { --jv-gutter: 16px; }
+  .jv2-row { gap: 10px; padding-top: 10px; }
+  .jv2-back-t { display: none; }
+  .jv2-back { font-size: var(--jv-t20); padding: 4px 8px 4px 0; }
+  .jv2-name { font-size: var(--jv-t16); }
+  .jv2-sub, .jv2-chips { display: none; }
+  .jv2-grid { grid-template-columns: minmax(0, 1fr); }
+  body.jv2 .jx-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  body.jv2 .jx-kpi { padding: 12px; }
+  body.jv2 .jx-kpi-v { font-size: var(--jv-t20); }
+  body.jv2 .view { padding-top: 16px; }
+}
