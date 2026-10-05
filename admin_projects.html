@@ -10,6 +10,7 @@
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=359" defer></script>
+<script src="/files/static/js/new_project_modal.js?v=361" defer></script>
 <title>Project Assignments · Superstars Contracting</title>
 <!-- #263 — admin/c_suite project-assignment + project-close screen. Two axes wired here:
      who manages which projects (pm_project_assignment) and which projects are active vs
@@ -55,23 +56,7 @@
   .btn-primary:hover{background:var(--accent-ink);}
   .btn-primary:disabled{opacity:.55;cursor:not-allowed;}
   /* #324 — new project modal */
-  .np-overlay{position:fixed;inset:0;background:rgba(20,22,28,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:16px;}
-  .np-overlay.open{display:flex;}
-  .np-modal{background:#fff;border-radius:14px;width:100%;max-width:600px;box-shadow:0 24px 64px rgba(20,22,28,.25);max-height:92vh;overflow:auto;}
-  .np-head{padding:18px 20px 6px;} .np-head h2{font-size:18px;font-weight:800;margin:0;} .np-head p{font-size:12.5px;color:var(--muted);margin:6px 0 0;}
-  .np-body{padding:14px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px;} .np-body .full{grid-column:1 / -1;}
-  .np-field label{display:block;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
-  .np-field input,.np-field select,.np-field textarea{width:100%;font:inherit;font-size:13px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);outline:none;box-sizing:border-box;}
-  .np-field input:focus,.np-field select:focus,.np-field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
-  .np-err{grid-column:1 / -1;color:#A8382B;background:var(--status-behind-soft,#fceeec);border-radius:8px;padding:8px 10px;font-size:13px;display:none;} .np-err.show{display:block;}
-  .np-foot{padding:12px 20px 18px;display:flex;justify-content:flex-end;gap:8px;}
   .btn-ghost{font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
-  .np-site{display:flex;gap:8px;flex-wrap:wrap;align-items:center;} .np-site input{flex:1;min-width:110px;}
-  .np-hint{font-size:12px;color:var(--muted);margin-top:6px;}
-  .np-crew{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 12px;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:10px;}
-  .np-crew label{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;} .np-crew input{width:auto;} .np-crew .wid{font-weight:700;color:#B11E2E;}
-  .np-crew .none{grid-column:1 / -1;color:var(--muted);font-size:12.5px;}
-  @media (max-width:600px){ .np-body{grid-template-columns:1fr;} }
   .err-bar{background:#fceeec;color:#a23b30;border:1px solid #f3c9c4;border-radius:9px;padding:9px 13px;font-size:13px;margin-bottom:14px;display:none;}
   .err-bar.show{display:block;}
   .ok-bar{background:#e7f6f0;color:#0c7a5f;border:1px solid #b9e6d5;border-radius:9px;padding:9px 13px;font-size:13px;margin-bottom:14px;display:none;}
@@ -149,32 +134,6 @@
 </div>
 
 
-<!-- #324 — onboard an already-won job -->
-<div class="np-overlay" id="np-overlay" role="dialog" aria-modal="true" aria-labelledby="np-title">
-  <form class="np-modal" id="np-form" novalidate>
-    <div class="np-head"><h2 id="np-title">New project</h2><p>For a job that is already won. It gets a code in the job's series, a back-dated approved estimate so Finance stays truthful, the building link, and its PM. New bids still start in Estimates.</p></div>
-    <div class="np-body">
-      <div class="np-field"><label for="np-client">Client</label><select id="np-client"><option value="">— choose a client —</option><option value="__new">+ New client…</option></select></div>
-      <div class="np-field" id="np-neworg-wrap" hidden><label for="np-neworg">New client name</label><input id="np-neworg" placeholder="Organization name" autocomplete="off"></div>
-      <div class="np-field"><label for="np-type">Job type</label><select id="np-type"></select></div>
-      <div class="np-field"><label for="np-borough">Borough / region</label><select id="np-borough"></select></div>
-      <div class="np-field full"><label for="np-address">Building address</label><input id="np-address" placeholder="890 E 135th St, Bronx" autocomplete="off"></div>
-      <div class="np-field full"><label for="np-name">Project name (optional)</label><input id="np-name" placeholder="defaults to the address" autocomplete="off"></div>
-      <div class="np-field"><label for="np-contract">Contract value (USD)</label><input id="np-contract" inputmode="decimal" placeholder="optional" autocomplete="off"></div>
-      <div class="np-field"><label for="np-billing">How is it billed?</label><select id="np-billing"><option value="">— choose —</option></select><div class="np-hint">AIA / Schedule of values gets the SOV and pay applications</div></div>
-      <div class="np-field"><label for="np-start">Start date</label><input id="np-start" type="date" class="ssc-date"></div>
-      <div class="np-field"><label for="np-end">Target completion</label><input id="np-end" type="date" class="ssc-date" title="Optional — the job shows on the calendar from start to this date"></div>
-      <div class="np-field"><label for="np-pm">Project manager</label><select id="np-pm"><option value="">— assign later —</option></select></div>
-      <div class="np-field full"><label for="np-notes">Notes</label><input id="np-notes" placeholder="optional" autocomplete="off"></div>
-      <div class="np-field full"><label>Site location · worker app check-in</label>
-        <div class="np-site"><input id="np-lat" inputmode="decimal" placeholder="Latitude" autocomplete="off"><input id="np-lng" inputmode="decimal" placeholder="Longitude" autocomplete="off"><input id="np-radius" inputmode="numeric" placeholder="200 m" autocomplete="off" style="max-width:90px"><button type="button" class="btn-ghost" id="np-geo">Use my location</button></div>
-        <div class="np-hint">Workers can only check in within this radius. Leave blank and the job accepts check-ins from anywhere until you set it (from the site, tap "Use my location").</div></div>
-      <div class="np-field full"><label>Crew · who can check in to this job</label><div class="np-crew" id="np-crew"></div></div>
-      <div class="np-err" id="np-err" role="alert"></div>
-    </div>
-    <div class="np-foot"><button type="button" class="btn-ghost" id="np-cancel">Cancel</button><button type="submit" class="btn-primary" id="np-go">Create project</button></div>
-  </form>
-</div>
 <!-- #325 — crew + site for an existing project -->
 <div class="np-overlay" id="cs-overlay" role="dialog" aria-modal="true" aria-labelledby="cs-title">
   <form class="np-modal" id="cs-form" novalidate>
@@ -226,67 +185,19 @@
     }catch(e){ showErr('Could not load: '+e.message); }
   }
 
-  // #324 — new project modal
-  var NP = { meta: null };
+  // #324 — the New project form is the shared modal in static/js/new_project_modal.js
+  // (also opened in place from the Projects tab). The date helpers below serve the Crew & site modal.
   function npDateGet(el){ var p=window.SSCDatePicker; if(p && typeof p.getISO==='function'){ var v=p.getISO(el); if(v!==undefined && v!==null) return v; } return el.value||''; }
   function npDateSet(el, iso){ var p=window.SSCDatePicker; if(p && typeof p.setISO==='function'){ try{ p.setISO(el, iso||''); return; }catch(e){} } el.value=iso||''; }
-  function npToday(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-  async function openNewProject(){
-    var err=$('np-err'); err.className='np-err'; $('np-overlay').classList.add('open');
-    try{
-      if(!NP.meta){ var r = await fetch('/api/admin/projects/onboard-meta').then(function(x){ return x.json(); }); if(r.error) throw new Error(r.error); NP.meta = r.data; }
-      var m = NP.meta;
-      $('np-client').innerHTML = '<option value="">— choose a client —</option>' + m.clients.map(function(c){ return '<option value="'+c.id+'">'+esc(c.name)+'</option>'; }).join('') + '<option value="__new">+ New client…</option>';
-      $('np-type').innerHTML = m.types.map(function(t){ return '<option value="'+esc(t.code)+'">'+esc(t.code)+' · '+esc(t.label)+'</option>'; }).join('');
-      $('np-borough').innerHTML = (m.regions || m.boroughs.map(function(b){ return {code: b, label: b}; })).map(function(r){ return '<option value="'+esc(r.code)+'">'+esc(r.label)+' ('+esc(r.code)+')</option>'; }).join('');   // #331
-      $('np-billing').innerHTML = '<option value="">— choose —</option>' + (m.billing_types || []).map(function(b){ return '<option value="'+esc(b.code)+'">'+esc(b.label)+'</option>'; }).join('');   // #356
-      $('np-pm').innerHTML = '<option value="">— assign later —</option>' + m.pms.map(function(p){ return '<option value="'+p.user_id+'">'+esc(p.name)+'</option>'; }).join('');
-      var p=window.SSCDatePicker; if(p && typeof p.wire==='function'){ ['np-start','np-end'].forEach(function(id){ if(!$(id).dataset.sscDp){ try{ p.wire($(id), {}); }catch(e){} } }); }
-      npDateSet($('np-start'), npToday()); npDateSet($('np-end'), '');
-      $('np-neworg-wrap').hidden = true; $('np-neworg').value=''; $('np-address').value=''; $('np-name').value=''; $('np-contract').value=''; $('np-notes').value='';
-      $('np-lat').value=''; $('np-lng').value=''; $('np-radius').value=''; renderCrewBoxes($('np-crew'), m.workers, {});
-      setTimeout(function(){ $('np-client').focus(); }, 30);
-    }catch(e){ err.textContent='Could not load the form: '+e.message; err.className='np-err show'; }
-  }
-  function closeNewProject(){ $('np-overlay').classList.remove('open'); }
-  $('np-open').addEventListener('click', openNewProject);
-  // #337 — /admin/projects?new=1&address=…&borough=…&client_org_id=…&name=… opens the modal filled in
-  // (the Company Portal's "Create project here" on a job site, and the Projects-tab notice)
+  $('np-open').addEventListener('click', function(){ SSCNewProject.open(); });
+  // #337 — /admin/projects?new=1&address=…&borough=…&client_org_id=…&name=… opens the form filled in
   async function openNewProjectWith(pre){
-    await openNewProject();
-    if(pre.address) $('np-address').value = pre.address;
-    if(pre.name) $('np-name').value = pre.name;
-    if(pre.client_org_id && $('np-client').querySelector('option[value="'+pre.client_org_id+'"]')) $('np-client').value = String(pre.client_org_id);
-    if(pre.borough){ var want = String(pre.borough).trim().toLowerCase(); var opt = Array.prototype.slice.call($('np-borough').options).find(function(o){ return o.value.toLowerCase() === want || o.textContent.toLowerCase().indexOf(want) === 0; }); if(opt) $('np-borough').value = opt.value; }
+    await SSCNewProject.open(pre);
     try{ history.replaceState(null, '', location.pathname); }catch(e){}
   }
   (function(){ var q = new URLSearchParams(location.search); if(q.get('new') === '1') openNewProjectWith({ address:q.get('address')||'', borough:q.get('borough')||'', client_org_id:q.get('client_org_id')||'', name:q.get('name')||'' }); })();
-  $('np-cancel').addEventListener('click', closeNewProject);
-  $('np-overlay').addEventListener('click', function(e){ if(e.target===$('np-overlay')) closeNewProject(); });
-  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && $('np-overlay').classList.contains('open')) closeNewProject(); if(e.key==='Escape' && $('cs-overlay').classList.contains('open')) $('cs-overlay').classList.remove('open'); });
-  $('np-client').addEventListener('change', function(){ var isNew = $('np-client').value==='__new'; $('np-neworg-wrap').hidden = !isNew; if(isNew) setTimeout(function(){ $('np-neworg').focus(); }, 30); });
-  $('np-form').addEventListener('submit', async function(e){
-    e.preventDefault(); var err=$('np-err'); err.className='np-err';
-    var isNew = $('np-client').value==='__new';
-    var payload = { client_org_id: isNew ? null : ($('np-client').value||null), new_org_name: isNew ? $('np-neworg').value.trim() : '',
-      est_type: $('np-type').value, borough: $('np-borough').value, address: $('np-address').value.trim(), name: $('np-name').value.trim(),
-      contract_value: $('np-contract').value.trim() || null, start_date: npDateGet($('np-start')) || null, target_completion: npDateGet($('np-end')) || null, pm_user_id: $('np-pm').value || null, notes: $('np-notes').value.trim(), billing_type: $('np-billing').value || null,
-      site_lat: $('np-lat').value.trim() || null, site_lng: $('np-lng').value.trim() || null, geofence_m: $('np-radius').value.trim() || null, crew: crewChecked($('np-crew')) };
-    if((payload.site_lat && !payload.site_lng) || (!payload.site_lat && payload.site_lng)){ err.textContent='Enter both latitude and longitude, or leave both blank.'; err.className='np-err show'; return; }
-    if(!payload.client_org_id && !payload.new_org_name){ err.textContent='Pick a client or type a new client name.'; err.className='np-err show'; return; }
-    if(payload.address.length < 4){ err.textContent='Enter the building address.'; err.className='np-err show'; return; }
-    if(!payload.billing_type){ err.textContent='Pick how the job is billed.'; err.className='np-err show'; return; }   // #356
-    $('np-go').disabled = true;
-    try{
-      var r = await fetch('/api/admin/projects/onboard', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      var j = await r.json().catch(function(){ return {}; });
-      if(!r.ok) throw new Error(j.error || ('Request failed ('+r.status+')'));
-      closeNewProject(); NP.meta = null;
-      showOk('Project '+j.data.project_code+' created' + (j.data.pm_user_id ? ' and assigned' : '') + ' — open it from the console');
-      await load();
-    }catch(ex){ err.textContent=ex.message; err.className='np-err show'; }
-    finally{ $('np-go').disabled=false; }
-  });
+  document.addEventListener('ssc:project-created', function(e){ var d=e.detail||{}; showOk('Project '+d.project_code+' created' + (d.pm_user_id ? ' and assigned' : '')); load(); });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && $('cs-overlay').classList.contains('open')) $('cs-overlay').classList.remove('open'); });
 
   // #325 — crew checkboxes + site geolocation, shared by both modals
   function renderCrewBoxes(host, workers, assigned){
@@ -300,7 +211,6 @@
     navigator.geolocation.getCurrentPosition(function(pos){ latEl.value=pos.coords.latitude.toFixed(6); lngEl.value=pos.coords.longitude.toFixed(6); btn.disabled=false; btn.textContent='Use my location'; },
       function(){ btn.disabled=false; btn.textContent='Use my location'; showErr('Location not available — allow location access and try again, or type the coordinates.'); }, { enableHighAccuracy:true, timeout:12000 });
   }
-  $('np-geo').addEventListener('click', function(){ useMyLocation($('np-lat'), $('np-lng'), $('np-geo')); });
   $('cs-geo').addEventListener('click', function(){ useMyLocation($('cs-lat'), $('cs-lng'), $('cs-geo')); });
   async function openCrew(code){
     var err=$('cs-err'); err.className='np-err'; $('cs-form').dataset.code=code; $('cs-overlay').classList.add('open');

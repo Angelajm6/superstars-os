@@ -25,6 +25,7 @@ Run:  venv/bin/python tests/smoke_password_reset_flow_301.py
 from __future__ import annotations
 
 import os
+os.environ.setdefault("SSC_ALLOW_TEST_SEAMS", "1")   # test-only seams are inert without this (runtime_seams.py)
 import re
 import shutil
 import sqlite3

@@ -18,6 +18,10 @@ SQLite snapshot from the versioned migrations when unset). Proves:
     real estimate created afterwards continues the series
   * a new client name creates the organization; IRA jobs open the inspection row
     when that table exists; the page carries the button + modal
+  * Phase A — a typed client name that matches an existing ACTIVE client (any case /
+    spacing) is reused, never duplicated (inactive and non-client orgs are not); the
+    form shows required fields first, the rest collapsed, per-field errors, no silent
+    defaults
   * #342 — an onboard with no start_date leaves projects.start_date NULL (never
     silently defaults to today) and the job never draws a bar on the portal
     calendar, landing in its `undated` bucket instead
@@ -307,7 +311,48 @@ def main() -> int:
 
     # ---- the page carries the button + modal
     html = admin.get("/admin/projects").get_data(as_text=True)
-    assert 'id="np-open"' in html and 'id="np-form"' in html and "/api/admin/projects/onboard" in html
+    mod_js = (ROOT / "static" / "js" / "new_project_modal.js").read_text(encoding="utf-8")   # the shared form
+    assert 'id="np-open"' in html and "new_project_modal.js" in html and "SSCNewProject.open" in html
+    assert 'id="np-form"' in mod_js and "/api/admin/projects/onboard" in mod_js
+    checks += 1
+
+    # ---- Phase A — typing an existing client reuses it (no duplicate), but only ACTIVE CLIENT orgs
+    def _org_count(like):
+        conn = _db()
+        try:
+            return conn.execute("SELECT COUNT(1) AS n FROM crm_organization WHERE LOWER(name) LIKE ?", (like,)).fetchone()["n"]
+        finally:
+            conn.close()
+    before = _org_count("np324 harbor owners%")
+    for variant in ("np324 harbor owners", "  NP324   Harbor  Owners ", "Np324 Harbor Owners"):
+        r = admin.post(f"{API}/onboard", json={"new_org_name": variant, "est_type": "FR", "borough": "BX", "address": "30 Np324 Quay"})
+        assert r.status_code == 201, r.get_json()
+        assert r.get_json()["data"]["client_org_id"] == ids["org"], f"{variant!r} must reuse the existing client"
+    assert _org_count("np324 harbor owners%") == before, "reusing a client must not create a duplicate organization"
+    r = admin.post(f"{API}/onboard", json={"new_org_name": "Np324 Former Client", "est_type": "FR", "borough": "BX", "address": "31 Np324 Quay"})
+    assert r.status_code == 201 and r.get_json()["data"]["client_org_id"] != ids["org_inactive"], "an inactive client is not silently reused"
+    r = admin.post(f"{API}/onboard", json={"new_org_name": "Np324 Vendor", "est_type": "FR", "borough": "BX", "address": "32 Np324 Quay"})
+    assert r.status_code == 201 and r.get_json()["data"]["client_org_id"] != ids["vendor"], "a vendor org is not reused as a client"
+    conn = _db()
+    try:
+        assert crm.get_org(conn, r.get_json()["data"]["client_org_id"]).get("relationship_type") == "client"
+    finally:
+        conn.close()
+    checks += 1
+
+    # ---- Phase A — the form: required fields up front, everything else collapsed, no silent defaults
+    i_req, i_more = mod_js.index('id="np-billing"'), mod_js.index('id="np-more"')
+    for fid in ("np-client", "np-type", "np-borough", "np-address", "np-billing"):
+        assert mod_js.index(f'id="{fid}"') < i_more, f"{fid} must be a required field shown before the optional block"
+    assert '<details class="np-more full" id="np-more">' in mod_js and 'id="np-more" open' not in mod_js, "optional block starts collapsed"
+    optional_html = mod_js[i_more: mod_js.index("</details>", i_more)]
+    for fid in ("np-name", "np-contract", "np-start", "np-end", "np-pm", "np-notes", "np-lat", "np-crew"):
+        assert f'id="{fid}"' in optional_html, f"{fid} belongs in the optional block"
+    for k in ("client", "neworg", "type", "borough", "address", "billing"):
+        assert f'id="np-ferr-{k}"' in mod_js, f"per-field error slot for {k}"
+    assert "function validate" in mod_js and "fieldError(b[0], b[1])" in mod_js, "all errors are shown at once, next to the fields"
+    assert "— choose job type —" in mod_js and "— choose borough / region —" in mod_js, "job type and borough start on a placeholder"
+    assert "npToday" not in mod_js, "start date must not silently prefill with today"
     checks += 1
 
     print(f"PASS: #324 onboard an already-won job — gates, meta, validation, estimate→approved→convert in one step, "

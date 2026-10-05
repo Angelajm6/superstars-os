@@ -3,7 +3,7 @@
 
 Boots the real app (`import server`) on an ISOLATED database. Proves:
   * every company page (portal, console, the four admin pages) mounts the SAME sidebar
-    from static/js/company_nav.js — exactly eight tabs (#360: + Client portal), in order, no CRM / Job sites /
+    from static/js/company_nav.js — exactly seven tabs (Client portal is a sub-tab of Clients), in order, no CRM / Job sites /
     Office Console anywhere; each page carries its tab's sub-tab row
   * the console's own dashboard + CRM panels are gone from the served page; its retired
     hashes (`/`, `/#projects`, `/#crm`) and the portal's (`#buildings`, `#compliance`)
@@ -48,7 +48,7 @@ import server  # noqa: E402  (boots the whole app)
 TAG = "oh339"
 PW = "OneHomeSmoke2026"
 PROJ = "OH339-A"
-TABS = ["Dashboard", "Projects", "Clients", "Client portal", "Proposals", "Finance", "Workforce", "Company"]   # #360 + Client portal
+TABS = ["Dashboard", "Projects", "Clients", "Proposals", "Finance", "Workforce", "Company"]   # Client portal is a sub-tab of Clients
 ADMIN_PAGES = {"/admin/projects": "projects", "/admin/users": "settings", "/estimating": "proposals", "/admin/labor-rates": "finance"}   # #360 — Team & access lives under Settings
 
 

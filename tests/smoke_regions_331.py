@@ -139,7 +139,8 @@ def main() -> int:
     passed += 1; print("  NJ estimate + LI job ok")
 
     ap = c.get("/admin/projects").get_data(as_text=True)
-    assert "m.regions" in ap and "Borough / region" in ap
+    mod = c.get("/files/static/js/new_project_modal.js").get_data(as_text=True)   # the shared "+ New project" form
+    assert "SSCNewProject.open" in ap and "m.regions" in mod and "Borough / region" in mod
     con = c.get("/", follow_redirects=True).get_data(as_text=True)
     assert "m.regions" in con and "Borough / region *" in con
     # #339 — the portal's job-site picker retired with the Job sites page; regions are picked on + New project

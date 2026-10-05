@@ -1,7 +1,7 @@
 /* #339 — ONE company sidebar.
  *
  * Every company-level page (the portal at /company, the console panels at /#…, the
- * admin pages) renders the SAME eight tabs from this file (#360 added Client portal), so the navigation can never
+ * admin pages) renders the SAME seven tabs from this file, so the navigation can never
  * drift between pages again. A tab is a destination; a page shows its tab's sub-tabs
  * in a row under the header (`<div class="ssc-subtabs" data-subtabs="finance">`).
  * #341 adds a pinned destination — Settings — rendered separately at the
@@ -13,7 +13,7 @@
  * anything paints), then `SSC_NAV.mount()` right after the empty <nav data-company-nav>.
  *
  * Roles: the sidebar shows what the role can open (server gates stay the control).
- * admin / c_suite see all eight tabs + pinned Settings; an estimator sees Proposals
+ * admin / c_suite see all seven tabs + pinned Settings; an estimator sees Proposals
  * (their queue) and nothing else. */
 (function () {
   'use strict';
@@ -25,7 +25,6 @@
     proposals: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
     finance: '<path d="M3 17l5-5 4 4 8-8"/><path d="M14 8h6v6"/>',
     workforce: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15 14.5a5 5 0 0 1 6.5 5"/>',
-    portal: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="12" cy="10" r="2.5"/><path d="M8.5 14.5a4 4 0 0 1 7 0"/>',
     company: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'
   };
@@ -38,12 +37,11 @@
     { key: 'projects', label: 'Projects', href: '/company#projects', roles: COMPANY,
       at: [['/company', 'projects'], ['/company', 'calendar'], ['/company', 'buildings'], ['/admin/projects', null]],
       sub: [['All projects', '/company#projects'], ['Calendar', '/company#calendar'], ['Assignments & onboarding', '/admin/projects']] },
+    // Client portal lives under Clients: who can sign in to the client portal and what each one
+    // sees sits next to the clients themselves (#360 made it a tab of its own; now a sub-tab).
     { key: 'clients', label: 'Clients', href: '/company#clients', roles: COMPANY,
-      at: [['/company', 'clients']] },
-    // #360 — who can sign in to the client portal and what each one sees, in one place
-    // (was split over Team & access, Projects → Assignments and the project dashboard)
-    { key: 'portal', label: 'Client portal', href: '/company#portal', roles: COMPANY,
-      at: [['/company', 'portal']] },
+      at: [['/company', 'clients'], ['/company', 'portal']],
+      sub: [['All clients', '/company#clients'], ['Client portal', '/company#portal']] },
     { key: 'proposals', label: 'Proposals', href: '/company#proposals', roles: COMPANY.concat(['estimator']),
       hrefFor: { estimator: '/estimating' },
       at: [['/company', 'proposals'], ['/', 'estimates'], ['/estimating', null]],

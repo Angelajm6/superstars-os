@@ -99,3 +99,8 @@ jinja2>=3.1
 # ~100-200ms each on the cloud and the parallel aggregates paid one PER PART).
 # PG-path only; SQLite untouched.
 psycopg-pool>=3.2
+
+# Field-level encryption for OAuth tokens / inbox content at rest (secret_box.py).
+# Official PyCA library (Fernet = AES + HMAC, authenticated). Key comes from the
+# 1Password-injected SSC_FIELD_ENCRYPTION_KEY env var — never stored on disk.
+cryptography>=43.0

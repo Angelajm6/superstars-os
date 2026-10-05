@@ -109,12 +109,15 @@ def main() -> int:
     passed += 1; print("  sites without project ok")
 
     html = c.get("/company").get_data(as_text=True)
-    for needle in ('id="pj-notice"', ">Create project</a>", "function newProjectHref", "sites_without_project"):
+    for needle in ('id="pj-notice"', ">Create project</a>", "function newProjectHref", "sites_without_project", 'id="pj-new"'):   # the console "+ New project" opens the shared form in place
         assert needle in html, needle
     assert "← All job sites" not in html and 'id="view-buildings"' not in html   # #339: no job-sites page
     ap = c.get("/admin/projects").get_data(as_text=True)
-    for needle in ("openNewProjectWith", "q.get('new') === '1'", "np-borough"):
+    for needle in ("openNewProjectWith", "q.get('new') === '1'", "SSCNewProject.open"):
         assert needle in ap, needle
+    mod = c.get("/files/static/js/new_project_modal.js").get_data(as_text=True)
+    assert "np-borough" in mod and "pre.borough" in mod, "the shared form matches the borough from the prefill"
+    assert 'data-newproj=' in html and "window.SSCNewProject.open(JSON.parse(a.dataset.newproj))" in html, "console notice opens the form in place"
     passed += 1; print("  pages ok")
 
     # ---- ledger reconciliation

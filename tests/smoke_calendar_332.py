@@ -187,7 +187,8 @@ def main() -> int:
     assert "'Calendar', '/company#calendar'" in (ROOT / "static" / "js" / "company_nav.js").read_text(encoding="utf-8")
     assert 'data-cal-view="3day"' in html and 'data-cal-view="week"' in html and 'data-cal-view="month"' in html
     ap = admin.get("/admin/projects").get_data(as_text=True)
-    assert 'id="np-end"' in ap and 'id="cs-start"' in ap and 'id="cs-end"' in ap and "target_completion" in ap
+    mod = admin.get("/files/static/js/new_project_modal.js").get_data(as_text=True)   # the shared "+ New project" form
+    assert 'id="np-end"' in mod and "target_completion" in mod and 'id="cs-start"' in ap and 'id="cs-end"' in ap and "target_completion" in ap
     passed += 1; print("  served pages ok")
 
     print(f"PASS smoke_calendar_332 ({passed} groups)")

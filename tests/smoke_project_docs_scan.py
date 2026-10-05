@@ -24,6 +24,7 @@ binds 127.0.0.1:5099 (never 5050) so production is never disturbed.
 import io
 import json
 import os
+os.environ.setdefault("SSC_ALLOW_TEST_SEAMS", "1")   # test-only seams are inert without this (runtime_seams.py)
 import sqlite3
 import subprocess
 import sys

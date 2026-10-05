@@ -50,6 +50,8 @@ import io
 import json
 import logging
 import os
+
+import runtime_seams
 import re
 import shutil
 from datetime import datetime
@@ -590,7 +592,7 @@ class TraceError(Exception):
 def call_trace_model(png_bytes: bytes) -> dict:
     """ONE vision call. SSC_TRACE_FAKE=<json path> short-circuits with planted
     raw JSON through the same validator (deterministic tests, no key, no net)."""
-    fake = (os.environ.get("SSC_TRACE_FAKE") or "").strip()
+    fake = runtime_seams.seam("SSC_TRACE_FAKE").strip()
     if fake:
         try:
             # utf-8-sig: a PowerShell-authored fake carries a BOM; tolerate it.

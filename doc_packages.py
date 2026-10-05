@@ -28,6 +28,8 @@ import hashlib
 import html as _html
 import logging
 import os
+
+import runtime_seams
 import secrets
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -207,7 +209,7 @@ def package(conn, project_code: str, *, today: Optional[date] = None) -> Optiona
 
 # ---------------------------------------------------------------- send
 def _deliver(to_email: str, subject: str, text: str, html: str) -> tuple:
-    fake_dir = (os.environ.get("SSC_MAIL_FAKE_DIR") or os.environ.get("SSC_RESET_MAIL_FAKE_DIR") or "").strip()
+    fake_dir = (runtime_seams.seam("SSC_MAIL_FAKE_DIR") or runtime_seams.seam("SSC_RESET_MAIL_FAKE_DIR")).strip()
     if fake_dir:
         out = Path(fake_dir)
         out.mkdir(parents=True, exist_ok=True)

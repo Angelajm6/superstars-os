@@ -13,6 +13,8 @@ import logging
 import math
 import json
 import os
+
+import runtime_seams
 import re
 import time
 import uuid
@@ -214,6 +216,8 @@ import project_onboard  # noqa: E402
 project_onboard.register(app)   # #324 — onboard an already-won job
 import billing_type  # noqa: E402
 billing_type.register(app)      # #356 — AIA / lump sum / T&M / unit price per job
+import project_modules  # noqa: E402
+project_modules.register(app)    # per-job dashboard modules (which optional tabs a job shows)
 import project_contacts  # noqa: E402
 project_contacts.register(app)  # #357 — owners, property managers, consultants, site supervisors
 import project_summary  # noqa: E402
@@ -560,11 +564,31 @@ def _serve_dashboard_no_store(project_code=None, role_override=None):
     # internal roles, the curated portal namespace for external ones.
     html = access.render_api_base(html, role, project_code)
     html = _render_billing_type(html, project_code)   # #356
+    html = _render_modules(html, project_code)         # per-job optional tabs
     resp = Response(html, mimetype="text/html")
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"
     return resp
+
+
+def _render_modules(html, project_code):
+    """Hide the nav links of optional modules this job has switched off, and put the off-list on
+    <body data-mod-off> so CSS / the dashboard script can hide the cards that belong to them.
+    A convenience, not access control (the endpoints behind keep their own checks)."""
+    if not project_code:
+        return html
+    conn = db()
+    try:
+        views = project_modules.disabled_views(conn, project_code)
+        keys = project_modules.disabled_keys(conn, project_code)
+    finally:
+        conn.close()
+    if not keys:
+        return html
+    for v in views:
+        html = re.sub(r'(<a class="nav-link[^"]*"[^>]*?\bdata-view="%s")' % re.escape(v), r'\1 hidden', html, count=1)
+    return re.sub(r'<body([^>]*)>', lambda m: '<body%s data-mod-off="%s">' % (m.group(1), " ".join(keys)), html, count=1)
 
 
 def _render_billing_type(html, project_code):
@@ -1086,29 +1110,6 @@ def response_wrapper(data, count=None, **extra_meta):
         }
     })
 
-# Per CLAUDE.md PII rule: PINs are derived from phone last-4, so plaintext
-# phones and PINs in server.log violate the same PII discipline as pasting
-# them into chats. Auth foundation (#48) extends this to passwords +
-# password hashes — login bodies and any future password-change calls
-# must never leave plaintext in server.log. Redact at the logging
-# boundary so the file accumulates only safe data.
-_PIN_BEARING_FIELDS = {'phone_or_pin', 'pin', 'phone', 'emergency_contact_phone'}
-_SECRET_BEARING_FIELDS = {'password', 'password_hash', 'new_password', 'old_password', 'current_password', 'token'}
-
-def _redact_pii(body):
-    if not isinstance(body, dict):
-        return body
-    def _redact_value(k, v):
-        if not v:
-            return v
-        if k in _SECRET_BEARING_FIELDS:
-            return '<redacted>'
-        if k in _PIN_BEARING_FIELDS:
-            return 'XXXX'
-        return v
-    return {k: _redact_value(k, v) for k, v in body.items()}
-
-
 def _fmt_mdy(value) -> str:
     """'2026-05-21' (or 'YYYY-MM-DDTHH:MM:SS', 'YYYY-MM-DD HH:MM:SS') -> '05-21-2026'.
 
@@ -1127,15 +1128,17 @@ def _fmt_mdy(value) -> str:
     except (ValueError, TypeError):
         return str(value)
 
-@app.before_request
-def log_request():
-    body = request.get_json(silent=True) if request.is_json else request.data
-    logging.info(f"{request.method} {request.path} | body: {_redact_pii(body)}")
+# Per CLAUDE.md PII rule: request logging records metadata only (method, sanitized
+# path, status, body size) — never request content. See request_logging.py.
+import request_logging
+request_logging.apply_request_logging(app)
 
-@app.after_request
-def log_response(response):
-    logging.info(f"Response: {response.status_code}")
-    return response
+# Cross-site write protection (Origin / Sec-Fetch-Site). Mode via SSC_CSRF_MODE: report (default) | enforce | off.
+import csrf_guard
+csrf_guard.apply_csrf_guard(app)
+
+# Test-only seams are inert unless a test run opts in (runtime_seams.py); name any ignored ones.
+runtime_seams.warn_if_ignored()
 
 # ============= DASHBOARD META =============
 
@@ -5215,7 +5218,7 @@ def api_project_documents_scan(project_code):
             return jsonify({"error": "unsupported file type — use PDF, JPG, PNG, or HEIC"}), 400
     # DOC_SCAN_FAKE (test-only, NEVER set in prod) bypasses the live model so the
     # pipeline can be proven deterministically when the API key is absent.
-    fake_path = os.environ.get('DOC_SCAN_FAKE')
+    fake_path = runtime_seams.seam('DOC_SCAN_FAKE')
     if not os.environ.get('ANTHROPIC_API_KEY') and not fake_path:
         return jsonify({"error": "AI auto-read unavailable — ANTHROPIC_API_KEY not configured. "
                                  "Enter the document details manually.", "ai_available": False}), 503
@@ -11730,7 +11733,7 @@ def api_expense_scan():
             return jsonify({"error": "Unsupported file type — use JPG, PNG, HEIC, or PDF"}), 400
     project_code = request.form.get('project_code') or 'FR-BX-001'
     # EXPENSE_SCAN_FAKE (test-only, NEVER set in prod) bypasses the live model.
-    fake_path = os.environ.get('EXPENSE_SCAN_FAKE')
+    fake_path = runtime_seams.seam('EXPENSE_SCAN_FAKE')
     if not os.environ.get('ANTHROPIC_API_KEY') and not fake_path:
         return jsonify({"error": "AI scan disabled — ANTHROPIC_API_KEY not configured. Enter the expense manually.",
                         "ai_available": False}), 503

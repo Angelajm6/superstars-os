@@ -33,6 +33,8 @@ import base64
 import json
 import logging
 import os
+
+import runtime_seams
 import secrets
 import urllib.parse
 
@@ -114,7 +116,7 @@ def _verify_google_code(code: str) -> dict | None:
     as base64url(JSON claims), so the smoke can inject a fully-controlled VERIFIED claim
     without calling Google. The domain + no-auto-provision + status checks still run on
     that claim, so the seam alone cannot authorize a non-company / non-existent user."""
-    if os.environ.get("GOOGLE_OAUTH_FAKE_VERIFY") == "1":
+    if runtime_seams.seam("GOOGLE_OAUTH_FAKE_VERIFY") == "1":
         try:
             pad = "=" * (-len(code) % 4)
             return json.loads(base64.urlsafe_b64decode(code + pad).decode("utf-8"))

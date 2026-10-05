@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="/files/static/css/shell.css?v=341">
 <script src="/files/static/js/company_nav.js?v=360"></script>
 <script src="/files/static/js/datepicker.js?v=302" defer></script>
+<script src="/files/static/js/new_project_modal.js?v=361" defer></script>
 <script src="/files/static/js/auth_menu.js?v=302" defer></script>
 <style>
   /* #302 Company Portal — tokens come from widgets.css :root (accent, ink, muted, line,
@@ -253,6 +254,7 @@
 
       <!-- ================= CLIENTS ================= -->
       <section class="cp-view" id="view-clients" hidden>
+        <div class="ssc-subtabs" data-subtabs="clients"></div>
         <div id="clients-list">
           <div class="cp-card">
             <div class="cp-toolbar">
@@ -279,6 +281,7 @@
 
       <!-- ================= CLIENT PORTAL (#360) — who can sign in to the client portal, and how each is set up ================= -->
       <section class="cp-view" id="view-portal" hidden>
+        <div class="ssc-subtabs" data-subtabs="clients"></div>
         <div class="cp-kpis" id="pa-kpis"></div>
         <div class="cp-card">
           <div class="cp-toolbar">
@@ -393,7 +396,7 @@
             <input class="cp-input search" id="pj-search" placeholder="Search code, name, address or client…" autocomplete="off">
             <select class="cp-select" id="pj-status"><option value="active">Active jobs</option><option value="closed">Closed</option><option value="all">All</option></select>
             <span style="flex:1"></span>
-            <a class="btn-primary btn-sm" href="/admin/projects" style="text-decoration:none">+ New project</a>
+            <button class="btn-primary btn-sm" type="button" id="pj-new">+ New project</button>
           </div>
           <div class="cp-table-wrap"><table class="cp-table" id="pj-table"></table></div>
         </div>
@@ -1261,7 +1264,7 @@
     try {
       const { data: rows, meta } = await api('/projects?' + q.toString());
       const sites = (meta && meta.sites_without_project) || [];   // #337
-      $('pj-notice').innerHTML = sites.length ? `<div class="cp-note" style="margin-bottom:12px"><strong>${sites.length} address${sites.length > 1 ? 'es were' : ' was'} added without a project.</strong> Create the project so it gets a dashboard, crew, calendar bar and daily reports.<ul class="cp-list" style="margin-top:8px">${sites.map(s => `<li><span>${esc(s.name || s.address_line)}${s.client_name ? ' <span class="cp-muted">· ' + esc(s.client_name) + '</span>' : ''}</span><a class="btn-primary btn-sm" style="text-decoration:none" href="${newProjectHref(s)}">Create project</a></li>`).join('')}</ul></div>` : '';
+      $('pj-notice').innerHTML = sites.length ? `<div class="cp-note" style="margin-bottom:12px"><strong>${sites.length} address${sites.length > 1 ? 'es were' : ' was'} added without a project.</strong> Create the project so it gets a dashboard, crew, calendar bar and daily reports.<ul class="cp-list" style="margin-top:8px">${sites.map(s => `<li><span>${esc(s.name || s.address_line)}${s.client_name ? ' <span class="cp-muted">· ' + esc(s.client_name) + '</span>' : ''}</span><a class="btn-primary btn-sm" style="text-decoration:none" href="${newProjectHref(s)}" data-newproj="${esc(JSON.stringify({ address: s.address_line || s.address || '', borough: s.borough || '', name: s.name || '', client_org_id: s.client_org_id || '' }))}">Create project</a></li>`).join('')}</ul></div>` : '';
       table($('pj-table'), [
         { key: 'project_code', label: 'Job', render: r => `<span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:12px">${esc(r.name || '')}</div>` },
         { key: 'address', label: 'Address', render: r => `${esc(r.address || '—')}<div class="cp-muted" style="font-size:12px">${esc(r.city_zip || '')}</div>` },
@@ -2448,7 +2451,7 @@
   });
 
   // ---------- router ----------
-  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Client portal', calendar: 'Projects · Calendar', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance · Expenses', workforce: 'Workforce', company: 'Company' };
+  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients · Client portal', calendar: 'Projects · Calendar', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance · Expenses', workforce: 'Workforce', company: 'Company' };
   const LOADERS = { overview: loadOverview, clients: loadClients, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance };
   const ALIASES = { buildings: 'projects', compliance: 'company' };   // #339 — old bookmarks and links keep working
   function route() {
@@ -2473,6 +2476,13 @@
   let t;
   const debounce = (fn) => { clearTimeout(t); t = setTimeout(fn, 250); };
   $('cl-search').addEventListener('input', () => debounce(loadClients));
+  // "+ New project" opens the form right here (static/js/new_project_modal.js)
+  $('pj-new').addEventListener('click', () => window.SSCNewProject.open());
+  $('pj-notice').addEventListener('click', e => {
+    const a = e.target.closest('[data-newproj]'); if (!a) return;
+    e.preventDefault(); try { window.SSCNewProject.open(JSON.parse(a.dataset.newproj)); } catch (x) { location.href = a.href; }
+  });
+  document.addEventListener('ssc:project-created', e => { const d = e.detail || {}; toast('Project ' + d.project_code + ' created'); if (state.view === 'projects') loadProjects(); else location.hash = '#projects'; });
   $('pj-search').addEventListener('input', () => debounce(loadProjects));
   $('pj-status').addEventListener('change', loadProjects);
   $('pr-search').addEventListener('input', () => debounce(loadProposals));

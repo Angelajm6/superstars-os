@@ -46,6 +46,8 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+
+import runtime_seams
 import secrets
 import smtplib
 import ssl
@@ -257,7 +259,7 @@ def delivery_config() -> Optional[dict]:
     base = public_base_url()
     if not base:
         return None
-    fake_dir = _env("SSC_RESET_MAIL_FAKE_DIR")
+    fake_dir = runtime_seams.seam("SSC_RESET_MAIL_FAKE_DIR").strip()
     if fake_dir:
         return {"transport": "fake", "base_url": base, "dir": fake_dir}
     if _env("SENDGRID_API_KEY"):

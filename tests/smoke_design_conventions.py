@@ -658,13 +658,30 @@ def main():
     # section-stripping only ever REMOVES markup, so disk is the superset).
     total_fields = 0
     all_ids = set()
+    # the shared "+ New project" form (static/js/new_project_modal.js) injects its own CSS + markup:
+    # pages that load it get that CSS, and the form's own fields are scanned as a surface of their own
+    _npm = root_dir / "static" / "js" / "new_project_modal.js"
+    _npm_src = _npm.read_text(encoding="utf-8", errors="replace") if _npm.exists() else ""
+    _m_css = re.search(r"var CSS = `(.*?)`;", _npm_src, re.S)
+    _m_html = re.search(r"var HTML = `(.*?)`;", _npm_src, re.S)
+    _npm_css = _m_css.group(1).replace("\\\\", "\\") if _m_css else ""
+    _npm_html = _m_html.group(1).replace("\\\\", "\\") if _m_html else ""
+    ok("shared_new_project_form_found", bool(_npm_css and _npm_html), "static/js/new_project_modal.js")
+    if _npm_css and _npm_html:
+        _f, _bad = page_modal_field_violations("<style>" + _npm_css + "</style>" + _npm_html, css)
+        total_fields += len(_f)
+        all_ids.update(f["id"] for f in _f if f["id"])
+        ok("modal_fields_boxed_new_project_modal.js", not _bad and len(_f) >= 10,
+           (f"{len(_f)} scanned; BOXLESS: " + ", ".join(_bad)) if _bad else f"{len(_f)} dialog field(s) scanned, all boxed")
     for fn in sorted(REGISTERED) + sorted(REGISTERED_PATHS):
         p = root_dir / fn
         if not p.exists():
             ok(f"modal_fields_{fn}", False, "registered page missing on disk")
             continue
-        fields, bad = page_modal_field_violations(
-            p.read_text(encoding="utf-8", errors="replace"), css)
+        _text = p.read_text(encoding="utf-8", errors="replace")
+        if "new_project_modal.js" in _text and _npm_css:
+            _text += "<style>" + _npm_css + "</style>"   # the CSS this page loads with the shared form
+        fields, bad = page_modal_field_violations(_text, css)
         total_fields += len(fields)
         all_ids.update(f["id"] for f in fields if f["id"])
         ok(f"modal_fields_boxed_{fn}", not bad,
