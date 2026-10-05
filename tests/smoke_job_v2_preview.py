@@ -143,6 +143,8 @@ def main() -> int:
         ok("pm can preview too", 'class="jv2"' in pv2)
         ok("pm keeps its own back link in the preview", 'class="bl-projects"' in pv2 and 'href="/projects"' in pv2)
         ok("anonymous is refused (auth gate), never a v2 page", anon.get(f"/projects/{code}?ui=2").status_code in (302, 401))
+        loc = anon.get(f"/projects/{code}?ui=2").headers.get("Location", "")
+        ok("the real app's login redirect keeps ?ui=2 (so signing in lands on the preview)", "next=" in loc and "%3Fui%3D2" in loc)
 
         # ---- SCOPE: the preview is for a project's own dashboard ONLY
         pv = cs.get(f"/portal/{code}?ui=2", follow_redirects=True).get_data(as_text=True)
