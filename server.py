@@ -216,6 +216,8 @@ import project_onboard  # noqa: E402
 project_onboard.register(app)   # #324 — onboard an already-won job
 import billing_type  # noqa: E402
 billing_type.register(app)      # #356 — AIA / lump sum / T&M / unit price per job
+import project_modules  # noqa: E402
+project_modules.register(app)    # per-job dashboard modules (which optional tabs a job shows)
 import project_contacts  # noqa: E402
 project_contacts.register(app)  # #357 — owners, property managers, consultants, site supervisors
 import project_summary  # noqa: E402
@@ -562,11 +564,31 @@ def _serve_dashboard_no_store(project_code=None, role_override=None):
     # internal roles, the curated portal namespace for external ones.
     html = access.render_api_base(html, role, project_code)
     html = _render_billing_type(html, project_code)   # #356
+    html = _render_modules(html, project_code)         # per-job optional tabs
     resp = Response(html, mimetype="text/html")
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"
     return resp
+
+
+def _render_modules(html, project_code):
+    """Hide the nav links of optional modules this job has switched off, and put the off-list on
+    <body data-mod-off> so CSS / the dashboard script can hide the cards that belong to them.
+    A convenience, not access control (the endpoints behind keep their own checks)."""
+    if not project_code:
+        return html
+    conn = db()
+    try:
+        views = project_modules.disabled_views(conn, project_code)
+        keys = project_modules.disabled_keys(conn, project_code)
+    finally:
+        conn.close()
+    if not keys:
+        return html
+    for v in views:
+        html = re.sub(r'(<a class="nav-link[^"]*"[^>]*?\bdata-view="%s")' % re.escape(v), r'\1 hidden', html, count=1)
+    return re.sub(r'<body([^>]*)>', lambda m: '<body%s data-mod-off="%s">' % (m.group(1), " ".join(keys)), html, count=1)
 
 
 def _render_billing_type(html, project_code):

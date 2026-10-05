@@ -24,6 +24,7 @@ from typing import Optional
 from flask import jsonify, request
 
 import billing_type
+import project_modules
 import crm
 import db_layer
 import estimates
@@ -271,6 +272,9 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     bt = None   # #356 — how the job is billed (the modal requires it; API callers may omit)
     if p.get("billing_type") not in (None, ""):
         bt = billing_type.validate(p.get("billing_type"))
+    # which optional dashboard tabs the job starts with (core only unless the caller says otherwise);
+    # validated up front so a bad value leaves nothing behind
+    modules = project_modules.validate(p["modules"]) if p.get("modules") is not None else list(project_modules.NEW_JOB_DEFAULT)
     pm_user_id = p.get("pm_user_id")
     if pm_user_id in (None, ""):
         pm_user_id = None
@@ -322,6 +326,14 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
         sets = ", ".join(f"{k} = ?" for k in site)
         conn.execute(f"UPDATE projects SET {sets} WHERE project_code = ?", (*site.values(), code))
         conn.commit()
+    try:
+        project_modules.set_modules(conn, code, modules, actor=actor)
+    except Exception as e:   # a job without the setting just shows every tab, as before
+        log.warning("project modules not written: %s", e)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
     if bt:
         try:
             conn.execute("UPDATE projects SET billing_type = ? WHERE project_code = ?", (bt, code))
@@ -349,7 +361,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     project = _one(conn.execute("SELECT project_code, name, address, status, client_org_id, building_id, "
                                 "site_lat, site_lng, geofence_m FROM projects WHERE project_code = ?", (code,)))
     return {"project_code": code, "project": project, "estimate_id": est["id"], "estimate_code": est["code"],
-            "client_org_id": org_id, "pm_user_id": pm_user_id, "billing_type": bt, "start_date": provided_start, "target_completion": target, "contract_value": contract,
+            "client_org_id": org_id, "pm_user_id": pm_user_id, "billing_type": bt, "modules": modules, "start_date": provided_start, "target_completion": target, "contract_value": contract,
             "crew": crew_change["added"]}
 
 
