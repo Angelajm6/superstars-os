@@ -1086,29 +1086,6 @@ def response_wrapper(data, count=None, **extra_meta):
         }
     })
 
-# Per CLAUDE.md PII rule: PINs are derived from phone last-4, so plaintext
-# phones and PINs in server.log violate the same PII discipline as pasting
-# them into chats. Auth foundation (#48) extends this to passwords +
-# password hashes — login bodies and any future password-change calls
-# must never leave plaintext in server.log. Redact at the logging
-# boundary so the file accumulates only safe data.
-_PIN_BEARING_FIELDS = {'phone_or_pin', 'pin', 'phone', 'emergency_contact_phone'}
-_SECRET_BEARING_FIELDS = {'password', 'password_hash', 'new_password', 'old_password', 'current_password', 'token'}
-
-def _redact_pii(body):
-    if not isinstance(body, dict):
-        return body
-    def _redact_value(k, v):
-        if not v:
-            return v
-        if k in _SECRET_BEARING_FIELDS:
-            return '<redacted>'
-        if k in _PIN_BEARING_FIELDS:
-            return 'XXXX'
-        return v
-    return {k: _redact_value(k, v) for k, v in body.items()}
-
-
 def _fmt_mdy(value) -> str:
     """'2026-05-21' (or 'YYYY-MM-DDTHH:MM:SS', 'YYYY-MM-DD HH:MM:SS') -> '05-21-2026'.
 
@@ -1127,15 +1104,10 @@ def _fmt_mdy(value) -> str:
     except (ValueError, TypeError):
         return str(value)
 
-@app.before_request
-def log_request():
-    body = request.get_json(silent=True) if request.is_json else request.data
-    logging.info(f"{request.method} {request.path} | body: {_redact_pii(body)}")
-
-@app.after_request
-def log_response(response):
-    logging.info(f"Response: {response.status_code}")
-    return response
+# Per CLAUDE.md PII rule: request logging records metadata only (method, sanitized
+# path, status, body size) — never request content. See request_logging.py.
+import request_logging
+request_logging.apply_request_logging(app)
 
 # ============= DASHBOARD META =============
 

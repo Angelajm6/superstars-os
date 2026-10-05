@@ -34,7 +34,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PY = sys.executable
 STATIC = ["smoke_http_security_297.py", "smoke_login_experience_298.py",
-          "smoke_client_building_hub_299.py", "smoke_password_reset_300.py"]
+          "smoke_client_building_hub_299.py", "smoke_password_reset_300.py",
+          "smoke_request_logging.py"]
 BEHAVIORAL = ["smoke_password_reset_flow_301.py", "smoke_company_portal_302.py",
               "smoke_buildings_304.py", "smoke_security_release_305.py", "smoke_migrations_306.py",
               "smoke_proposals_307.py", "smoke_client_proposals_308.py", "smoke_csuite_reset_309.py",
