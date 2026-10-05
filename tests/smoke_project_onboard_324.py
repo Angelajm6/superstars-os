@@ -311,7 +311,9 @@ def main() -> int:
 
     # ---- the page carries the button + modal
     html = admin.get("/admin/projects").get_data(as_text=True)
-    assert 'id="np-open"' in html and 'id="np-form"' in html and "/api/admin/projects/onboard" in html
+    mod_js = (ROOT / "static" / "js" / "new_project_modal.js").read_text(encoding="utf-8")   # the shared form
+    assert 'id="np-open"' in html and "new_project_modal.js" in html and "SSCNewProject.open" in html
+    assert 'id="np-form"' in mod_js and "/api/admin/projects/onboard" in mod_js
     checks += 1
 
     # ---- Phase A — typing an existing client reuses it (no duplicate), but only ACTIVE CLIENT orgs
@@ -339,18 +341,18 @@ def main() -> int:
     checks += 1
 
     # ---- Phase A — the form: required fields up front, everything else collapsed, no silent defaults
-    i_req, i_more = html.index('id="np-billing"'), html.index('id="np-more"')
+    i_req, i_more = mod_js.index('id="np-billing"'), mod_js.index('id="np-more"')
     for fid in ("np-client", "np-type", "np-borough", "np-address", "np-billing"):
-        assert html.index(f'id="{fid}"') < i_more, f"{fid} must be a required field shown before the optional block"
-    assert '<details class="np-more full" id="np-more">' in html and 'id="np-more" open' not in html, "optional block starts collapsed"
-    optional_html = html[i_more: html.index("</details>", i_more)]
+        assert mod_js.index(f'id="{fid}"') < i_more, f"{fid} must be a required field shown before the optional block"
+    assert '<details class="np-more full" id="np-more">' in mod_js and 'id="np-more" open' not in mod_js, "optional block starts collapsed"
+    optional_html = mod_js[i_more: mod_js.index("</details>", i_more)]
     for fid in ("np-name", "np-contract", "np-start", "np-end", "np-pm", "np-notes", "np-lat", "np-crew"):
         assert f'id="{fid}"' in optional_html, f"{fid} belongs in the optional block"
     for k in ("client", "neworg", "type", "borough", "address", "billing"):
-        assert f'id="np-ferr-{k}"' in html, f"per-field error slot for {k}"
-    assert "function npValidate" in html and "npFieldError(b[0], b[1])" in html, "all errors are shown at once, next to the fields"
-    assert "— choose job type —" in html and "— choose borough / region —" in html, "job type and borough start on a placeholder"
-    assert "npDateSet($('np-start'), npToday())" not in html, "start date must not silently prefill with today"
+        assert f'id="np-ferr-{k}"' in mod_js, f"per-field error slot for {k}"
+    assert "function validate" in mod_js and "fieldError(b[0], b[1])" in mod_js, "all errors are shown at once, next to the fields"
+    assert "— choose job type —" in mod_js and "— choose borough / region —" in mod_js, "job type and borough start on a placeholder"
+    assert "npToday" not in mod_js, "start date must not silently prefill with today"
     checks += 1
 
     print(f"PASS: #324 onboard an already-won job — gates, meta, validation, estimate→approved→convert in one step, "

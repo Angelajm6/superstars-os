@@ -876,6 +876,8 @@
   /* per-job modules (project_modules.py): a switched-off module's nav links and cards disappear.
      .nav-link is display:flex, which would otherwise override the `hidden` attribute. */
   .nav-link[hidden], .nav-group[hidden], .nav-subitems[hidden] { display: none !important; }
+  .bl-company { display: block; padding: 8px 18px; color: var(--muted, #8c92a0); font-size: 12px; text-decoration: none; border-bottom: 1px solid var(--line, #eceef3); }
+  .bl-company:hover { color: var(--ink, #222633); }
   body[data-mod-off~="drops"] [data-module="drops"], body[data-mod-off~="drops"] .jx-ops-bar,
   body[data-mod-off~="drops"] .ph-gridbar, body[data-mod-off~="drops"] #ph-grid { display: none !important; }
   body[data-mod-off~="rfis"][data-mod-off~="compliance"] [data-module-card="risk"] { display: none !important; }
@@ -972,9 +974,10 @@
          a pm keeps the projects link (to /projects, their assigned list). A pm is never
          served a path to the company console (which 403s for them anyway). -->
     <!-- BACKLINK_COMPANY:start -->
-    <a href="/company#overview" style="display:flex;align-items:center;gap:8px;padding:10px 18px;color:var(--muted, #8c92a0);font-size:12px;text-decoration:none;border-bottom:1px solid var(--line, #eceef3);letter-spacing:0.5px;text-transform:uppercase;font-weight:600;transition:color 0.15s;" onmouseover="this.style.color='#B11E2E'" onmouseout="this.style.color='#76777E'">
-      ← Back to Company
+    <a href="/company#projects" style="display:flex;align-items:center;gap:8px;padding:10px 18px;color:var(--muted, #8c92a0);font-size:12px;text-decoration:none;border-bottom:1px solid var(--line, #eceef3);letter-spacing:0.5px;text-transform:uppercase;font-weight:600;transition:color 0.15s;" onmouseover="this.style.color='#B11E2E'" onmouseout="this.style.color='#76777E'">
+      ← All projects
     </a>
+    <a href="/company#overview" class="bl-company">Company dashboard</a>
     <!-- BACKLINK_COMPANY:end -->
     <!-- BACKLINK_PROJECTS:start -->
     <a href="/projects" style="display:flex;align-items:center;gap:8px;padding:10px 18px;color:var(--muted, #8c92a0);font-size:12px;text-decoration:none;border-bottom:1px solid var(--line, #eceef3);letter-spacing:0.5px;text-transform:uppercase;font-weight:600;transition:color 0.15s;" onmouseover="this.style.color='#B11E2E'" onmouseout="this.style.color='#76777E'">

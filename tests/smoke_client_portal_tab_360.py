@@ -123,8 +123,11 @@ def main() -> int:
     nav = (ROOT / "static" / "js" / "company_nav.js").read_text(encoding="utf-8")
     tabs_src, _, pinned_src = nav.partition("var PINNED")
     labels = re.findall(r"\{ key: '[a-z]+', label: '([^']+)'", tabs_src)
-    assert labels == ["Dashboard", "Projects", "Clients", "Client portal", "Proposals", "Finance", "Workforce", "Company"], labels
-    assert "{ key: 'portal', label: 'Client portal', href: '/company#portal'" in nav
+    assert labels == ["Dashboard", "Projects", "Clients", "Proposals", "Finance", "Workforce", "Company"], labels
+    # Client portal is a sub-tab of Clients (not a top-level tab), reachable at /company#portal
+    assert "sub: [['All clients', '/company#clients'], ['Client portal', '/company#portal']]" in nav
+    assert "at: [['/company', 'clients'], ['/company', 'portal']]" in nav
+    assert "key: 'portal'" not in nav
     company = tabs_src[tabs_src.index("{ key: 'company'"):tabs_src.index("\n  ];")]
     assert "Team & access" not in company and "/admin/users" not in company, "Company keeps company records only"
     assert "at: [['/', 'settings'], ['/admin/users', null]]" in pinned_src
