@@ -217,6 +217,7 @@ project_onboard.register(app)   # #324 — onboard an already-won job
 import billing_type  # noqa: E402
 billing_type.register(app)      # #356 — AIA / lump sum / T&M / unit price per job
 import project_modules  # noqa: E402
+import job_v2  # noqa: E402
 project_modules.register(app)    # per-job dashboard modules (which optional tabs a job shows)
 import project_contacts  # noqa: E402
 project_contacts.register(app)  # #357 — owners, property managers, consultants, site supervisors
@@ -565,6 +566,7 @@ def _serve_dashboard_no_store(project_code=None, role_override=None):
     html = access.render_api_base(html, role, project_code)
     html = _render_billing_type(html, project_code)   # #356
     html = _render_modules(html, project_code)         # per-job optional tabs
+    html = job_v2.apply(html, role)                    # opt-in v2 preview (?ui=2 / saved preference); v1 is byte-identical
     resp = Response(html, mimetype="text/html")
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
