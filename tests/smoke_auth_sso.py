@@ -24,6 +24,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+os.environ.setdefault("SSC_ALLOW_TEST_SEAMS", "1")   # test-only seams are inert without this (runtime_seams.py)
 import secrets
 import subprocess
 import sys

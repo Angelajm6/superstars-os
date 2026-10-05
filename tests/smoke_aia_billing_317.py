@@ -20,6 +20,7 @@ Run:  venv/bin/python tests/smoke_aia_billing_317.py
 from __future__ import annotations
 
 import os
+os.environ.setdefault("SSC_ALLOW_TEST_SEAMS", "1")   # test-only seams are inert without this (runtime_seams.py)
 import shutil
 import sys
 import tempfile

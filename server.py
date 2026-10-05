@@ -13,6 +13,8 @@ import logging
 import math
 import json
 import os
+
+import runtime_seams
 import re
 import time
 import uuid
@@ -1108,6 +1110,9 @@ def _fmt_mdy(value) -> str:
 # path, status, body size) — never request content. See request_logging.py.
 import request_logging
 request_logging.apply_request_logging(app)
+
+# Test-only seams are inert unless a test run opts in (runtime_seams.py); name any ignored ones.
+runtime_seams.warn_if_ignored()
 
 # ============= DASHBOARD META =============
 
@@ -5187,7 +5192,7 @@ def api_project_documents_scan(project_code):
             return jsonify({"error": "unsupported file type — use PDF, JPG, PNG, or HEIC"}), 400
     # DOC_SCAN_FAKE (test-only, NEVER set in prod) bypasses the live model so the
     # pipeline can be proven deterministically when the API key is absent.
-    fake_path = os.environ.get('DOC_SCAN_FAKE')
+    fake_path = runtime_seams.seam('DOC_SCAN_FAKE')
     if not os.environ.get('ANTHROPIC_API_KEY') and not fake_path:
         return jsonify({"error": "AI auto-read unavailable — ANTHROPIC_API_KEY not configured. "
                                  "Enter the document details manually.", "ai_available": False}), 503
@@ -11702,7 +11707,7 @@ def api_expense_scan():
             return jsonify({"error": "Unsupported file type — use JPG, PNG, HEIC, or PDF"}), 400
     project_code = request.form.get('project_code') or 'FR-BX-001'
     # EXPENSE_SCAN_FAKE (test-only, NEVER set in prod) bypasses the live model.
-    fake_path = os.environ.get('EXPENSE_SCAN_FAKE')
+    fake_path = runtime_seams.seam('EXPENSE_SCAN_FAKE')
     if not os.environ.get('ANTHROPIC_API_KEY') and not fake_path:
         return jsonify({"error": "AI scan disabled — ANTHROPIC_API_KEY not configured. Enter the expense manually.",
                         "ai_available": False}), 503
