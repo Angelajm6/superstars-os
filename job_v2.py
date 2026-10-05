@@ -11,8 +11,10 @@ second copy, the v2 preview re-presents it: when a request resolves to UI v2 (ui
                                              attention list + quick links on the Overview
   * /files/static/v2/switch-back.js          the "You're on the new interface · Switch back" bar
 
-Anything else — v1 requests, the SSC_UI_FORCE_V1 kill switch, external roles — is returned
-BYTE-FOR-BYTE unchanged. Nothing is renamed: every label comes from the existing nav links.
+Scope: ONLY a project's own dashboard (/projects/<code>, and /portal/<code> for internal roles) —
+never the company console, the projects list, admin pages, login, the worker app or the legacy
+/dashboard entry (no project). Anything else — v1 requests, the SSC_UI_FORCE_V1 kill switch,
+external roles — is returned BYTE-FOR-BYTE unchanged. Nothing is renamed: every label comes from the existing nav links.
 Hiding / re-grouping navigation is presentation only; the endpoints keep their own role checks.
 """
 from __future__ import annotations
@@ -36,13 +38,14 @@ def _asset_version() -> str:
         return "0"
 
 
-def active(role) -> bool:
-    """True when this request should get the v2 job dashboard."""
-    return role in INTERNAL_ROLES and ui_version.current() == 2
+def active(role, project_code) -> bool:
+    """True when this request should get the v2 job dashboard: a specific project's own page,
+    for an internal role, on a request that resolves to UI v2. Nothing else is ever touched."""
+    return bool(project_code) and role in INTERNAL_ROLES and ui_version.current() == 2
 
 
-def apply(html: str, role) -> str:
-    if not active(role):
+def apply(html: str, role, project_code=None) -> str:
+    if not active(role, project_code):
         return html
     out = re.sub(r"<body([^>]*)>", lambda m: '<body%s class="jv2">' % m.group(1), html, count=1)
     if out == html or "</head>" not in out or "</body>" not in out:
