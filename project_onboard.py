@@ -199,6 +199,21 @@ def set_crew(conn, code: str, payload: dict, *, actor=None) -> dict:
     return out
 
 
+def _norm_name(s: str) -> str:
+    return " ".join((s or "").split()).casefold()
+
+
+def _existing_client_id(conn, name: str):
+    """Id of an ACTIVE client org whose name matches `name` ignoring case and extra spaces, else None."""
+    want = _norm_name(name)
+    if not want:
+        return None
+    for o in crm.list_orgs(conn, relationship_type="client"):
+        if (o.get("status") or "active") == "active" and _norm_name(o.get("name")) == want:
+            return o["id"]
+    return None
+
+
 def onboard(conn, payload: dict, *, actor=None) -> dict:
     p = payload or {}
     est_type = (p.get("est_type") or "").strip().upper()
@@ -241,7 +256,10 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     org_id = p.get("client_org_id")
     new_org = (p.get("new_org_name") or "").strip()
     if org_id in (None, "") and new_org:
-        org_id = crm.create_org(conn, name=new_org, relationship_type="client", created_by=actor)
+        # Phase A — typing a client that already exists reuses it instead of creating a duplicate
+        # (case / spacing-insensitive, active clients only).
+        org_id = _existing_client_id(conn, new_org) or crm.create_org(
+            conn, name=new_org, relationship_type="client", created_by=actor)
     try:
         org_id = int(org_id)
     except (TypeError, ValueError):
