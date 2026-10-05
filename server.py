@@ -566,7 +566,7 @@ def _serve_dashboard_no_store(project_code=None, role_override=None):
     html = access.render_api_base(html, role, project_code)
     html = _render_billing_type(html, project_code)   # #356
     html = _render_modules(html, project_code)         # per-job optional tabs
-    html = job_v2.apply(html, role)                    # opt-in v2 preview (?ui=2 / saved preference); v1 is byte-identical
+    html = job_v2.apply(html, role, project_code)      # opt-in v2 preview, ONLY on a project's own dashboard; v1 is byte-identical
     resp = Response(html, mimetype="text/html")
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"

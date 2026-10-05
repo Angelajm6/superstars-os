@@ -5,7 +5,7 @@ Boots the real app (`import server`) on an ISOLATED database. Proves:
   * default (v1) requests are byte-identical: no v2 markup, no v2 assets
   * `?ui=2` serves the preview (body.jv2 + job.css + job.js + the switch-back bar) to company roles
     and a pm, and NOT to anonymous or when the SSC_UI_FORCE_V1 kill switch is set
-  * the v2 assets are served; JS parses (node --check when node exists)
+  * SCOPE: only a project's own dashboard is ever previewed — 9 other pages (console, admin,\n    login, worker app, legacy /dashboard ...) and the pm projects list never are\n  * the v2 assets are served; JS parses (node --check when node exists)
   * drift guard: every sidebar view belongs to exactly one top tab (or is Settings), and every tab
     view exists in the sidebar — a new nav item cannot silently vanish from the preview
   * one font family and one type scale are declared in job.css (no Archivo, no second family)
@@ -144,6 +144,36 @@ def main() -> int:
         ok("pm keeps its own back link in the preview", 'class="bl-projects"' in pv2 and 'href="/projects"' in pv2)
         ok("anonymous is refused (auth gate), never a v2 page", anon.get(f"/projects/{code}?ui=2").status_code in (302, 401))
 
+        # ---- SCOPE: the preview is for a project's own dashboard ONLY
+        pv = cs.get(f"/portal/{code}?ui=2", follow_redirects=True).get_data(as_text=True)
+        ok("/portal/<code> (internal role) is the same project dashboard, so it previews", 'class="jv2"' in pv)
+        others = ["/company", "/admin/projects", "/admin/users", "/admin/labor-rates", "/estimating", "/login", "/worker-app",
+                  "/dashboard", "/files/static/js/company_nav.js"]
+        leaked = []
+        for path in others:
+            for c_, who in ((cs, "c_suite"), (anon, "anon")):
+                resp = c_.get(path + "?ui=2", follow_redirects=True)
+                body = resp.get_data(as_text=True)
+                if "jv2" in body or "/static/v2/job." in body:
+                    leaked.append(f"{who}:{path}")
+        ok("no other page picks up the preview (?ui=2 on 9 pages, signed in and out)", not leaked)
+        if leaked:
+            print("    leaked on:", leaked)
+        pm_list = pm.get("/projects?ui=2", follow_redirects=True).get_data(as_text=True)
+        ok("the pm's projects list is not previewed", "jv2" not in pm_list)
+        ok("legacy /dashboard (no specific project) is not previewed", "jv2" not in cs.get("/dashboard?ui=2", follow_redirects=True).get_data(as_text=True))
+        import job_v2 as _jv
+        ok("apply() refuses a page with no project code", _jv.apply("<html><head></head><body></body></html>", "c_suite", None) == "<html><head></head><body></body></html>")
+        refs = []
+        for pth in list(ROOT.glob("*.html")) + list((ROOT / "templates").rglob("*.html")) + list((ROOT / "static").rglob("*.js")) + list((ROOT / "static").rglob("*.css")):
+            if pth.name in ("job.js", "job.css"):
+                continue
+            if "v2/job.css" in pth.read_text(encoding="utf-8", errors="ignore") or "v2/job.js" in pth.read_text(encoding="utf-8", errors="ignore"):
+                refs.append(pth.name)
+        ok("no page or script references the preview assets (only job_v2.py injects them)", not refs)
+        if refs:
+            print("    referenced by:", refs)
+
         # ---- the kill switch wins over ?ui=2
         os.environ["SSC_UI_FORCE_V1"] = "1"
         try:
@@ -179,7 +209,26 @@ def main() -> int:
         sizes = set(re.findall(r"font-size:\s*(\d+)px", job_css))
         ok("no raw font-size outside the scale", sizes <= {"12", "14", "16", "20", "28"})
         ok("only weights 400/500/600", set(re.findall(r"font-weight:\s*(\d+)", job_css)) <= {"400", "500", "600"})
-        ok("every rule is scoped to the preview", all(l.startswith(("body.jv2", "#jv2-top", ".jv2-", "@media", "/*", " *", "}", "  ", "\t", "")) for l in job_css.splitlines()))
+        css_nocomment = re.sub(r"/\*.*?\*/", "", job_css, flags=re.S)
+        unscoped = []
+        for sel in re.findall(r"([^{}]+)\{", css_nocomment):
+            sel = sel.strip()
+            if sel.startswith("@media"):
+                continue
+            parts, depth, cur = [], 0, ""
+            for ch in sel:                      # split on commas that are not inside (...)
+                depth += (ch == "(") - (ch == ")")
+                if ch == "," and depth == 0:
+                    parts.append(cur); cur = ""
+                else:
+                    cur += ch
+            parts.append(cur)
+            for part in parts:
+                if "jv2" not in part:
+                    unscoped.append(part.strip()[:60])
+        ok("every CSS selector is scoped to the preview (body.jv2 / #jv2-top / .jv2-*)", not unscoped)
+        if unscoped:
+            print("    unscoped selectors:", unscoped[:5])
     finally:
         _cleanup()
 
