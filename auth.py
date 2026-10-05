@@ -492,6 +492,23 @@ def _wants_json(path: str) -> bool:
     return "application/json" in accept and "text/html" not in accept
 
 
+# Query parameters that survive the bounce through /login (name -> allowed values). Deliberately
+# an ALLOW-LIST of harmless interface switches: copying an arbitrary query string into the login
+# URL would put whatever it carries (tokens, ids, search text) into logs, history and referrers.
+_LOGIN_NEXT_QUERY = {"ui": ("1", "2")}
+
+
+def _login_next(path: str) -> str:
+    """The same-origin return address for /login?next=: the path plus ONLY allow-listed query
+    parameters. Without this, a logged-out visitor of /projects/X?ui=2 lost ?ui=2 after signing in."""
+    keep = []
+    for name, allowed in _LOGIN_NEXT_QUERY.items():
+        value = request.args.get(name)
+        if value in allowed:
+            keep.append(f"{name}={value}")
+    return path + ("?" + "&".join(keep) if keep else "")
+
+
 def _before_request_gate():
     # OPTIONS preflight — let CORS handle it without auth.
     if request.method == "OPTIONS":
@@ -506,7 +523,7 @@ def _before_request_gate():
             return jsonify({"error": "auth required"}), 401
         # HTML route — redirect to /login with ?next= so we can bounce back post-login.
         # next is intentionally restricted to same-origin paths only (validated on login).
-        return redirect("/login?next=" + quote(path, safe="/"))   # #305 — no query splitting
+        return redirect("/login?next=" + quote(_login_next(path), safe="/"))   # #305 — no query splitting
     g.auth_user = user
     # Forced first-login reset (#257): a must_reset_password user can reach ONLY the
     # set-password screen + the public /api/auth/* endpoints. NO data loads behind it
