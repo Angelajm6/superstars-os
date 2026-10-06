@@ -21,6 +21,53 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Edit projects and clients (Bookore, 2026-10-06)
+
+* **Projects — `project_details.py`:** `GET /api/projects/<code>/details` (internal roles; the
+  #263 hook keeps a pm to their jobs; `can_edit` = admin / c_suite) and
+  `PUT /api/admin/projects/<code>/details` (admin / c_suite) for name, address, city / ZIP, client
+  (`client_org_id` or `new_org_name`, which reuses a same-named active client), start / target
+  dates and contract value. The project CODE never changes.
+  - Validates everything before writing; a refused edit leaves nothing behind (no orphan client).
+  - New address → the job and its approved estimate re-link to the building (`find_or_create`).
+  - New client → legacy `projects.client` text, the approved estimate and the building move
+    (the building stays if another client still has a job there).
+  - Contract value = the converted estimate's `final_amount`; an AIA job's contract is its
+    schedule of values, so editing it here is refused with that message.
+  - Each save lands on the client timeline(s): "Project X updated: name, address…"; values never
+    logged.
+* **UI — job Settings tab → Project details:** read-only list for everyone (contract value only for
+  company roles), **Edit details** for admin / C-suite; saving refreshes the name / address /
+  client across the page without a reload.
+* **Clients — company console client page:** **Edit client** (name, relationship, active /
+  inactive, notes) and an **Edit** link per contact (name, title, phone, email, **Remove contact** =
+  `status='inactive'`, hidden from the client page and contact counts). Uses the existing
+  `PUT /api/crm/organizations/<id>` and `/api/crm/contacts/<id>` (section `crm` = admin / c_suite),
+  now refusing a blank name / invalid contact status; client edits log "Client details updated: …".
+* **Test:** `tests/smoke_edit_projects_clients.py` (both gates).
+
+### Flow fixes after the 2026-10-05 work (Bookore, 2026-10-06)
+
+* **New jobs start with every tab on.** `project_modules.NEW_JOB_DEFAULT = None`: "+ New project"
+  leaves `projects.enabled_modules` NULL (never customized), exactly like existing jobs, so a
+  module added later is on for them too. Before, new jobs stored `[]` and hid Employees, Drawing
+  Markup, Drop Plan/Report, RFIs, Materials, Toolbox Talks, Compliance… from PMs and supers.
+  Jobs created with "+ New project" between the 2026-10-05 release and this fix still have `[]`
+  stored — switch their modules on from the job's Settings tab (or reset the column to NULL).
+* **Onboarding refuses before it creates.** Billing type, modules, PM and an existing client id
+  are validated before a new client company can be created (a refused onboarding used to leave an
+  orphan `crm_organization` row).
+* **Drill-throughs to switched-off tabs** on the job dashboard: header links hide, KPI tiles and
+  rows become plain text (`pruneGotos` after `JX_render`, `window.SSC_viewOn`); Contacts → Crew
+  → Open only shows when Employees & Certs is on.
+* **`/admin/projects?new=1…`** ("Create project" links opened in a new tab, bookmarks) waits for
+  DOMContentLoaded — `new_project_modal.js` is deferred, so the form never opened before.
+* **Job dashboard "Latest photos"** (#358) linked to `/api/photos/<id>/thumb`, which never
+  existed; it is `/api/field-photos/<id>/thumb` now (broken images in production since #358).
+* **Tests:** `smoke_project_modules` (new job = every tab on and NULL stored; three refused
+  onboardings leave no client; ?new=1 + pruning markup) and `smoke_job_dashboard_358` (a seeded
+  photo's card thumbnail loads, 200).
+
 ### #349 — Delete permanently: an ID card alone no longer blocks (Bookore, 2026-09-27)
 
 * Test worker W-0027 couldn't be deleted: it had one company ID card (issued during testing).

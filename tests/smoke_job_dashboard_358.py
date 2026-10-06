@@ -52,7 +52,7 @@ def _db():
 
 
 def _purge(conn):
-    for t, c in (("report_index", "project_code"), ("rfi_log", "project_code"), ("rfi", "project_code"),
+    for t, c in (("field_photos", "project_code"), ("report_index", "project_code"), ("rfi_log", "project_code"), ("rfi", "project_code"),
                  ("dob_violations", "project_code"), ("invoice", "project_code"), ("billing_sov", "project_code"),
                  ("drops", "project_code"), ("pm_project_assignment", "project_code"), ("projects", "project_code")):
         purge(conn, t, c, [P])
@@ -154,6 +154,21 @@ def main() -> int:
         conn.commit()
     finally:
         conn.close()
+    # the Latest photos card links must resolve (they pointed at a route that never existed)
+    base = Path(server._FP_BASE) / P
+    base.mkdir(parents=True, exist_ok=True)
+    thumb = base / "jx358-thumb.jpg"
+    thumb.write_bytes(bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9"))
+    conn = _db()
+    try:
+        conn.execute("INSERT INTO field_photos (project_code, taken_at, taken_at_estimated, uploaded_at, file_path, thumb_path, mime) "
+                     "VALUES (?, ?, 0, ?, ?, ?, 'image/jpeg')", (P, D(0) + "T09:00:00", D(0) + "T09:00:00", str(thumb), str(thumb)))
+        conn.commit()
+    finally:
+        conn.close()
+    ph = cs.get(f"/api/projects/{P}/summary").get_json()["data"]["photos"]
+    assert ph and ph[0]["thumb_url"].startswith("/api/field-photos/"), ph
+    assert cs.get(ph[0]["thumb_url"]).status_code == 200, "the photo card's thumbnail loads"
     f = cs.get(f"/api/projects/{P}/summary").get_json()["data"]["field_today"]
     assert f["dcr_today"] is True and f["last_dcr"]["number"] == f"DCR-{P}-007", f
     passed += 1; print("  blocks ok")

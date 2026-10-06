@@ -253,6 +253,32 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     site = _site_fields(p, partial=True)          # #325 — validated before anything is written
     crew_ids = _crew_ids(conn, p)
 
+    # ---- everything that can still refuse is checked BEFORE anything is created (a bad billing
+    # type, module list or PM used to leave a brand-new client company behind)
+    bt = None   # #356 — how the job is billed (the modal requires it; API callers may omit)
+    if p.get("billing_type") not in (None, ""):
+        bt = billing_type.validate(p.get("billing_type"))
+    # which optional dashboard tabs the job starts with: none named -> never customized -> every tab on
+    modules = project_modules.validate(p["modules"]) if p.get("modules") is not None else project_modules.NEW_JOB_DEFAULT
+    pm_user_id = p.get("pm_user_id")
+    if pm_user_id in (None, ""):
+        pm_user_id = None
+    else:
+        try:
+            pm_user_id = int(pm_user_id)
+        except (TypeError, ValueError):
+            raise ValueError("pm_user_id must be an integer")
+        pm = _one(conn.execute("SELECT id FROM users WHERE id = ? AND role = 'pm' AND COALESCE(is_active,1) = 1",
+                               (pm_user_id,)))
+        if not pm:
+            raise LookupError("that project manager is not an active PM user")
+    if p.get("client_org_id") not in (None, ""):
+        try:
+            if not crm.get_org(conn, int(p.get("client_org_id"))):
+                raise LookupError("client not found")
+        except (TypeError, ValueError):
+            raise ValueError("pick a client or type a new client name")
+
     # ---- client: existing org or a new one
     org_id = p.get("client_org_id")
     new_org = (p.get("new_org_name") or "").strip()
@@ -267,26 +293,6 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
         raise ValueError("pick a client or type a new client name")
     if not crm.get_org(conn, org_id):
         raise LookupError("client not found")
-
-    # ---- PM (optional)
-    bt = None   # #356 — how the job is billed (the modal requires it; API callers may omit)
-    if p.get("billing_type") not in (None, ""):
-        bt = billing_type.validate(p.get("billing_type"))
-    # which optional dashboard tabs the job starts with (core only unless the caller says otherwise);
-    # validated up front so a bad value leaves nothing behind
-    modules = project_modules.validate(p["modules"]) if p.get("modules") is not None else list(project_modules.NEW_JOB_DEFAULT)
-    pm_user_id = p.get("pm_user_id")
-    if pm_user_id in (None, ""):
-        pm_user_id = None
-    else:
-        try:
-            pm_user_id = int(pm_user_id)
-        except (TypeError, ValueError):
-            raise ValueError("pm_user_id must be an integer")
-        pm = _one(conn.execute("SELECT id FROM users WHERE id = ? AND role = 'pm' AND COALESCE(is_active,1) = 1",
-                               (pm_user_id,)))
-        if not pm:
-            raise LookupError("that project manager is not an active PM user")
 
     # ---- 1. the estimate in the series, 2. approved on the start date
     est = estimates.create_estimate(conn, est_type=est_type, borough=borough, client_org_id=org_id,
@@ -327,7 +333,8 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
         conn.execute(f"UPDATE projects SET {sets} WHERE project_code = ?", (*site.values(), code))
         conn.commit()
     try:
-        project_modules.set_modules(conn, code, modules, actor=actor)
+        if modules is not None:                     # only a caller-chosen list is stored
+            project_modules.set_modules(conn, code, modules, actor=actor)
     except Exception as e:   # a job without the setting just shows every tab, as before
         log.warning("project modules not written: %s", e)
         try:
@@ -361,7 +368,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     project = _one(conn.execute("SELECT project_code, name, address, status, client_org_id, building_id, "
                                 "site_lat, site_lng, geofence_m FROM projects WHERE project_code = ?", (code,)))
     return {"project_code": code, "project": project, "estimate_id": est["id"], "estimate_code": est["code"],
-            "client_org_id": org_id, "pm_user_id": pm_user_id, "billing_type": bt, "modules": modules, "start_date": provided_start, "target_completion": target, "contract_value": contract,
+            "client_org_id": org_id, "pm_user_id": pm_user_id, "billing_type": bt, "modules": list(project_modules.KEYS) if modules is None else modules, "start_date": provided_start, "target_completion": target, "contract_value": contract,
             "crew": crew_change["added"]}
 
 
