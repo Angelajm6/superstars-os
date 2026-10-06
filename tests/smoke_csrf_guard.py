@@ -72,20 +72,29 @@ ok("blocked response is JSON 403", c.post("/api/x", headers={"Host": HOST, "Sec-
 for p in ("/login", "/api/auth/login", "/p/tok", "/api/p/tok/sign", "/api/worker-sign-in"):
     ok(f"public path {p} is guarded too", call("POST", {"Sec-Fetch-Site": "cross-site"}, path=p) == 403)
 
-# --- report mode: allowed through, but logged; default mode is report ---
+# --- report mode: allowed through, but logged; default mode is enforce ---
 buf = io.StringIO(); h = logging.StreamHandler(buf); logging.getLogger().addHandler(h)
 setmode("report")
 ok("report mode lets a cross-site POST through", call("POST", {"Sec-Fetch-Site": "cross-site"}) == 200)
+ok("report mode: origin mismatch let through", call("POST", {"Origin": "https://evil.example.invalid"}) == 200)
 setmode(None)
-ok("default mode is report", csrf_guard.mode() == "report")
-ok("default mode lets a cross-site POST through", call("POST", {"Origin": "https://evil.example.invalid"}) == 200)
+ok("default mode is enforce", csrf_guard.mode() == "enforce")
+ok("default mode blocks a cross-site POST", call("POST", {"Sec-Fetch-Site": "cross-site"}) == 403)
+ok("default mode still allows same-origin and non-browser writes",
+   call("POST", {"Sec-Fetch-Site": "same-origin"}) == 200 and call("POST") == 200)
 setmode("bogus")
-ok("unknown mode behaves as report, not off", csrf_guard.mode() == "report" and call("POST", {"Sec-Fetch-Site": "cross-site"}) == 200)
+ok("unknown mode behaves as enforce, never off or report", csrf_guard.mode() == "enforce" and call("POST", {"Sec-Fetch-Site": "cross-site"}) == 403)
 logging.getLogger().removeHandler(h)
 out = buf.getvalue()
 ok("would-block is logged in report mode", "WOULD-BLOCK" in out and "reason=sec-fetch-site:cross-site" in out)
 ok("origin-mismatch reason logged", "reason=origin-mismatch" in out)
 ok("log never contains an Origin value", "evil.example.invalid" not in out)
+
+# --- the mode in force is logged once at boot (so a deploy can be checked in Render logs) ---
+buf = io.StringIO(); h = logging.StreamHandler(buf); logging.getLogger().addHandler(h)
+csrf_guard.apply_csrf_guard(Flask("t_csrf_boot"))
+logging.getLogger().removeHandler(h)
+ok("boot logs the mode", "csrf guard mode=enforce" in buf.getvalue())
 
 # --- off mode ---
 setmode("off")
@@ -96,7 +105,7 @@ ok("nothing is exempt", csrf_guard.EXEMPT_PREFIXES == ())
 server_src = (ROOT / "server.py").read_text(encoding="utf-8")
 ok("server.py registers the guard", "csrf_guard.apply_csrf_guard(app)" in server_src)
 render = (ROOT / "render.yaml").read_text(encoding="utf-8")
-ok("render.yaml starts in report mode", "SSC_CSRF_MODE" in render and 'value: report' in render)
+ok("render.yaml ships enforce mode", "SSC_CSRF_MODE" in render and "value: enforce" in render and "value: report" not in render)
 ok("render.yaml allows only the app origin", "https://app.superstarscontracting.com" in render)
 
 setmode(None)

@@ -58,7 +58,7 @@ services:
       - key: SSC_TRUSTED_PROXY
         value: "1"                # #289 — peel 1 XFF hop (Render's proxy). M5: set to "2" once Cloudflare proxying is ON in front of Render.
       - key: SSC_CSRF_MODE
-        value: report             # Origin/Sec-Fetch-Site guard: report = log would-be blocks, allow. Switch to "enforce" after a few days of clean logs (csrf_guard.py).
+        value: enforce            # Origin/Sec-Fetch-Site guard: cross-site writes get 403 (csrf_guard.py). "report" = log only, the escape hatch.
       - key: SSC_ALLOWED_ORIGINS
         value: https://app.superstarscontracting.com   # the only origin allowed to write besides the request's own Host
       - key: GOOGLE_OAUTH_ALLOWED_DOMAIN

@@ -1137,7 +1137,7 @@ def _fmt_mdy(value) -> str:
 import request_logging
 request_logging.apply_request_logging(app)
 
-# Cross-site write protection (Origin / Sec-Fetch-Site). Mode via SSC_CSRF_MODE: report (default) | enforce | off.
+# Cross-site write protection (Origin / Sec-Fetch-Site). Mode via SSC_CSRF_MODE: enforce (default) | report | off.
 import csrf_guard
 csrf_guard.apply_csrf_guard(app)
 

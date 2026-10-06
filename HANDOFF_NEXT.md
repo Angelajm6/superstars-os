@@ -62,10 +62,13 @@ another workstation; this entry records it after the fact.
     mail and reset-mail dirs) only work with `SSC_ALLOW_TEST_SEAMS=1` AND off Render
     (`RENDER=true` or `SSC_ENVIRONMENT=production`) — this includes **preprod**, so a fake mail
     dir set there no longer diverts mail.
-  - `csrf_guard.py` — Origin / Sec-Fetch-Site check on every write; `render.yaml` ships
-    `SSC_CSRF_MODE=report` (logs would-be blocks, allows) with
-    `SSC_ALLOWED_ORIGINS=https://app.superstarscontracting.com`. The 2026-10-06 review found no
-    legitimate flow that `enforce` would block.
+  - `csrf_guard.py` — Origin / Sec-Fetch-Site check on every write. **Enforce by default since
+    2026-10-06** (cross-site writes get 403; code default and `render.yaml` both say `enforce`,
+    an unknown value also enforces) with
+    `SSC_ALLOWED_ORIGINS=https://app.superstarscontracting.com`. Switched after production logs
+    since the 2026-10-05 release showed no would-be block from a real user (the only one was a
+    curl probe). Boot logs `csrf guard mode=...` — check it after a deploy. Escape hatch if a
+    legitimate flow is ever refused: set `SSC_CSRF_MODE=report` on the Render service.
 * **New project flow** — "+ New project" opens the shared `static/js/new_project_modal.js`
   in place (console and Assignments page); five required fields first, the rest under "More
   details"; typing an existing active client's name reuses it.
