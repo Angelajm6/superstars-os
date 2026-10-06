@@ -92,6 +92,15 @@ GATE = [
     "smoke_job_dashboard_358.py",   # #358 — job dashboard summary: bootstrap part, money C-suite only, blocks, drill-through
     "smoke_layout_rail_359.py",     # #359 — collapsible sidebar rail (desktop only, remembered, no flash) + 1440 px view cap
     "smoke_edit_projects_clients.py",  # edit a job (name/address/client/dates/contract) + edit clients and contacts
+    "smoke_project_modules.py",       # per-job tabs: NULL = every tab on; new jobs every tab on; admin/c_suite switch them
+    "smoke_projects_flow.py",         # projects navigation: All projects back link, New project in place, Client portal under Clients, phone layout
+    "smoke_job_v2_preview.py",        # job dashboard v2 preview (?ui=2): only on a project's own page, v1 byte-identical
+    "smoke_login_next_query.py",      # login redirect keeps only ?ui=1|2 in next=
+    "smoke_company_dashboard_links.py",  # console Dashboard tiles / rows link to the view behind each number
+    "smoke_csrf_guard.py",            # Origin / Sec-Fetch-Site guard (report vs enforce)
+    "smoke_runtime_seams.py",         # test-only seams inert unless opted in, hard-off on Render
+    "smoke_secret_box.py",            # Fernet field encryption helper (key rotation, fails closed)
+    "smoke_request_logging.py",       # metadata-only request logging, token / worker paths masked
     "smoke_client_portal_tab_360.py",  # #360 — Client portal tab (who has access + setup state) + Company / Settings split
     "smoke_dashboard_week_338.py",   # #338 guard — "This week" strip on the company Dashboard: served, week window, company-only
     "smoke_job_sites_337.py",        # #337 guard — job sites without a project offered with a one-click path; ledger records boot-ensured migrations
