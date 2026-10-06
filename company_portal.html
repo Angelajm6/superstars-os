@@ -150,6 +150,10 @@
   .pa-tog.busy { opacity: .55; pointer-events: none; }
   .pa-temp { border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px; background: #F7F8FA; }
   .pa-temp .tp { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 16px; font-weight: 700; letter-spacing: .5px; margin-top: 4px; user-select: all; }
+  /* client page: per-contact Edit + Remove */
+  .ct-right { display: flex; align-items: center; gap: 12px; }
+  .ct-edit { background: none; border: 0; padding: 0; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .ct-remove { color: var(--status-behind-deep, #A8382B); }
   /* #355 — vehicle fleet panel */
   .cp-modal.vf { max-width: 980px; }
   .vf-tabs { display: flex; gap: 6px; padding: 12px 20px 0; flex-wrap: wrap; }
@@ -772,7 +776,20 @@
       <div class="cp-field full"><label for="ct-email">Email</label><input id="ct-email" type="email"></div>
       <div class="cp-form-err" id="ct-err" role="alert"></div>
     </div>
-    <div class="cp-modal-foot"><button class="btn-ghost" type="button" data-cancel>Cancel</button><button class="btn-primary" type="submit" id="ct-save">Add contact</button></div>
+    <div class="cp-modal-foot"><button class="btn-ghost ct-remove" type="button" id="ct-remove" hidden>Remove contact</button><span style="flex:1"></span><button class="btn-ghost" type="button" data-cancel>Cancel</button><button class="btn-primary" type="submit" id="ct-save">Add contact</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="ce-overlay" role="dialog" aria-modal="true" aria-labelledby="ce-title">
+  <form class="cp-modal" id="ce-form" novalidate>
+    <div class="cp-modal-head"><h2 id="ce-title">Edit client</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Changes show everywhere this client appears — jobs, proposals, invoices and the client portal.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><label for="ce-name">Organization</label><input id="ce-name" class="ssc-field" required maxlength="200"></div>
+      <div class="cp-field"><label for="ce-rel">Relationship</label><select id="ce-rel" class="ssc-field"></select></div>
+      <div class="cp-field"><label for="ce-status">Status</label><select id="ce-status" class="ssc-field"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+      <div class="cp-field full"><label for="ce-notes">Notes</label><textarea id="ce-notes" class="ssc-field"></textarea></div>
+      <div class="cp-form-err" id="ce-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" data-cancel>Cancel</button><button class="btn-primary" type="submit" id="ce-save">Save</button></div>
   </form>
 </div>
 <div class="cp-overlay" id="nt-overlay" role="dialog" aria-modal="true" aria-labelledby="nt-title">
@@ -974,7 +991,7 @@
       host.innerHTML = `
         <div class="cp-toolbar"><a class="cp-link" href="#clients">← All clients</a><span style="flex:1"></span>
           <span class="cp-pill ${o.status === 'active' ? 'active' : ''}">${esc(o.status || 'active')}</span>${o.stage ? `<span class="cp-pill">${esc(o.stage)}</span>` : ''}
-          <button class="btn-ghost btn-sm" type="button" id="cl-contact-add">+ Contact</button><button class="btn-ghost btn-sm" type="button" id="cl-note-add">+ Note</button><button class="btn-primary btn-sm" type="button" id="cl-task-add">+ Follow-up</button></div>
+          <button class="btn-ghost btn-sm" type="button" id="cl-edit">Edit client</button><button class="btn-ghost btn-sm" type="button" id="cl-contact-add">+ Contact</button><button class="btn-ghost btn-sm" type="button" id="cl-note-add">+ Note</button><button class="btn-primary btn-sm" type="button" id="cl-task-add">+ Follow-up</button></div>
         <div class="cp-kpis">
           ${kpi('Projects', t.projects, `${t.projects_active} active`)}
           ${kpi('Open pipeline', money.format(t.pipeline_value), `${t.estimates_open} open estimate(s)`)}
@@ -990,7 +1007,7 @@
           </div>
           <div>
             <div class="cp-card"><div class="cp-card-head"><h2>Contacts</h2></div>
-              ${d.contacts.length ? `<ul class="cp-list">${d.contacts.map(c => `<li><div><strong>${esc(c.full_name)}</strong>${c.title ? `<div class="cp-muted" style="font-size:12px">${esc(c.title)}</div>` : ''}</div><div style="text-align:right;font-size:12px">${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a><br>` : ''}${esc(c.phone || '')}</div></li>`).join('')}</ul>` : empty('No contacts yet')}
+              ${d.contacts.length ? `<ul class="cp-list">${d.contacts.map(c => `<li><div><strong>${esc(c.full_name)}</strong>${c.title ? `<div class="cp-muted" style="font-size:12px">${esc(c.title)}</div>` : ''}</div><div class="ct-right"><div style="text-align:right;font-size:12px">${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a><br>` : ''}${esc(c.phone || '')}</div><button type="button" class="cp-link ct-edit" data-ct-edit="${c.id}">Edit</button></div></li>`).join('')}</ul>` : empty('No contacts yet')}
             </div>
             <div class="cp-card"><div class="cp-card-head"><h2>Follow-ups</h2></div>
               ${d.open_tasks.length ? `<ul class="cp-list">${d.open_tasks.map(x => `<li><span>${esc(x.title)}</span><span class="cp-muted">${fmtDate(x.due_date)} <button type="button" class="cp-link" data-task-done="${x.id}" style="margin-left:8px;background:none;border:0;padding:0;cursor:pointer;font:inherit">done</button></span></li>`).join('')}</ul>` : empty('No open follow-ups')}
@@ -1000,7 +1017,9 @@
             </div>
           </div>
         </div>`;
-      $('cl-contact-add').addEventListener('click', () => openClientModal('ct', o.id));
+      $('cl-edit').addEventListener('click', () => openClientEdit(o));
+      $('cl-contact-add').addEventListener('click', () => openContactModal(o.id, null));
+      host.querySelectorAll('[data-ct-edit]').forEach(b => b.addEventListener('click', () => openContactModal(o.id, d.contacts.find(c => String(c.id) === b.dataset.ctEdit))));
       $('cl-note-add').addEventListener('click', () => openClientModal('nt', o.id));
       $('cl-task-add').addEventListener('click', () => openClientModal('fu', o.id));
       host.querySelectorAll('[data-task-done]').forEach(b => b.addEventListener('click', async () => {
@@ -1010,7 +1029,7 @@
   }
 
   // ---------- CLIENTS: add / contact / note / follow-up (#339 — was the console's CRM tab) ----------
-  const CM = { cl: 'cl-overlay', ct: 'ct-overlay', nt: 'nt-overlay', fu: 'fu-overlay' };
+  const CM = { cl: 'cl-overlay', ct: 'ct-overlay', nt: 'nt-overlay', fu: 'fu-overlay', ce: 'ce-overlay' };
   function openClientModal(k, orgId) {
     const ov = $(CM[k]), f = ov.querySelector('form'); f.reset(); f.dataset.org = orgId || '';
     ov.querySelector('.cp-form-err').className = 'cp-form-err'; ov.classList.add('open');
@@ -1033,15 +1052,52 @@
     } catch (ex) { formErr('cl-err', ex.message); }
     finally { $('cl-save').disabled = false; }
   });
+  // one contact dialog for add and edit (edit = the contact's id on the form)
+  function openContactModal(orgId, c) {
+    openClientModal('ct', orgId);
+    const f = $('ct-form'); f.dataset.contact = c ? c.id : '';
+    $('ct-title').textContent = c ? 'Edit contact' : 'Add contact';
+    $('ct-save').textContent = c ? 'Save' : 'Add contact';
+    $('ct-remove').hidden = !c;
+    if (c) { $('ct-name').value = c.full_name || ''; $('ct-title-in').value = c.title || ''; $('ct-phone').value = c.phone || ''; $('ct-email').value = c.email || ''; }
+  }
   $('ct-form').addEventListener('submit', async (e) => {
-    e.preventDefault(); const org = $('ct-form').dataset.org; const name = $('ct-name').value.trim();
+    e.preventDefault(); const f = $('ct-form'), org = f.dataset.org, id = f.dataset.contact; const name = $('ct-name').value.trim();
     if (!name) { formErr('ct-err', 'Enter the contact name.'); return; }
     $('ct-save').disabled = true;
+    const fields = { full_name: name, email: $('ct-email').value.trim() || null, phone: $('ct-phone').value.trim() || null, title: $('ct-title-in').value.trim() || null };
     try {
-      await api('/crm/contacts', { method: 'POST', body: JSON.stringify({ full_name: name, org_id: Number(org), email: $('ct-email').value.trim() || null, phone: $('ct-phone').value.trim() || null, title: $('ct-title-in').value.trim() || null }) }, true);
-      toast('Contact added'); closeClientModal('ct'); loadClientDetail(org);
+      if (id) await api('/crm/contacts/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(fields) }, true);
+      else await api('/crm/contacts', { method: 'POST', body: JSON.stringify(Object.assign({ org_id: Number(org) }, fields)) }, true);
+      toast(id ? 'Contact saved' : 'Contact added'); closeClientModal('ct'); loadClientDetail(org);
     } catch (ex) { formErr('ct-err', ex.message); }
     finally { $('ct-save').disabled = false; }
+  });
+  $('ct-remove').addEventListener('click', async () => {
+    const f = $('ct-form'), id = f.dataset.contact, org = f.dataset.org; if (!id) return;
+    if (!confirm('Remove ' + ($('ct-name').value.trim() || 'this contact') + ' from this client? Their history stays on the timeline.')) return;
+    $('ct-remove').disabled = true;
+    try { await api('/crm/contacts/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify({ status: 'inactive' }) }, true); toast('Contact removed'); closeClientModal('ct'); loadClientDetail(org); }
+    catch (ex) { formErr('ct-err', ex.message); }
+    finally { $('ct-remove').disabled = false; }
+  });
+  // edit the client itself (name, type, active / inactive, notes)
+  function openClientEdit(o) {
+    openClientModal('ce', o.id);
+    $('ce-rel').innerHTML = $('cl-rel').innerHTML;
+    if (o.relationship_type && ![...$('ce-rel').options].some(x => x.value === o.relationship_type)) $('ce-rel').insertAdjacentHTML('afterbegin', `<option value="${esc(o.relationship_type)}">${esc(o.relationship_type)}</option>`);
+    $('ce-name').value = o.name || ''; $('ce-rel').value = o.relationship_type || 'client';
+    $('ce-status').value = o.status === 'inactive' ? 'inactive' : 'active'; $('ce-notes').value = o.notes || '';
+  }
+  $('ce-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const org = $('ce-form').dataset.org; const name = $('ce-name').value.trim();
+    if (!name) { formErr('ce-err', 'Enter the client name.'); return; }
+    $('ce-save').disabled = true;
+    try {
+      await api('/crm/organizations/' + encodeURIComponent(org), { method: 'PUT', body: JSON.stringify({ name, relationship_type: $('ce-rel').value, status: $('ce-status').value, notes: $('ce-notes').value.trim() || null }) }, true);
+      toast('Client saved'); closeClientModal('ce'); loadClientDetail(org);
+    } catch (ex) { formErr('ce-err', ex.message); }
+    finally { $('ce-save').disabled = false; }
   });
   $('nt-form').addEventListener('submit', async (e) => {
     e.preventDefault(); const org = $('nt-form').dataset.org; const summary = $('nt-summary').value.trim();

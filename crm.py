@@ -141,6 +141,8 @@ def update_org(conn, org_id, *, actor_user_id=None, **fields) -> bool:
             sets.append("function_tags = ?")
             params.append(norm_tags(v))
         elif k in allowed:
+            if k == "name" and not str(v or "").strip():
+                raise ValueError("the client name can't be blank")
             if k == "relationship_type" and v:
                 v = str(v).strip().lower()
                 if v not in RELATIONSHIP_TYPES:
@@ -161,6 +163,12 @@ def update_org(conn, org_id, *, actor_user_id=None, **fields) -> bool:
         add_activity(conn, entity_type="organization", entity_id=org_id,
                      activity_type="stage_change", author_user_id=actor_user_id,
                      summary=f"Stage: {old_stage or '—'} → {new_stage or '—'}")
+    labels = {"name": "name", "relationship_type": "type", "status": "status", "notes": "notes"}
+    moved = [labels[k] for k in labels if k in fields
+             and ((str(fields[k]).strip() or None) if fields[k] is not None else None) != (cur.get(k) or None)]
+    if moved:
+        add_activity(conn, entity_type="organization", entity_id=org_id, activity_type="system",
+                     author_user_id=actor_user_id, summary="Client details updated: " + ", ".join(moved))
     return True
 
 
@@ -206,6 +214,10 @@ def update_contact(conn, contact_id, **fields) -> bool:
     for k, v in fields.items():
         if k not in allowed:
             continue
+        if k == "full_name" and not str(v or "").strip():
+            raise ValueError("the contact name can't be blank")
+        if k == "status" and v and str(v).strip().lower() not in ORG_STATUSES:
+            raise ValueError(f"invalid status: {v}")
         if k == "relationship_type" and v:
             v = str(v).strip().lower()
             if v not in RELATIONSHIP_TYPES:
