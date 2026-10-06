@@ -21,6 +21,15 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### CSRF guard enforcing (Bookore, 2026-10-06)
+
+* Angelajm6/superstars-os#92, released as superstars-contracting/dashboard#37 (deploy 20:42 UTC). Production boot log reads
+  `csrf guard mode=enforce`; a cross-site POST to `/api/auth/login` returns 403, a same-origin
+  one goes through. The production deploy ran as a **blueprint sync**, so `render.yaml` env
+  values do reach the production service (the first instance of that deploy briefly booted with
+  the old `report` value before the synced env var took over). Details under the 2026-10-05 batch
+  (`csrf_guard.py`).
+
 ### Edit projects and clients (Bookore, 2026-10-06)
 
 * **Projects — `project_details.py`:** `GET /api/projects/<code>/details` (internal roles; the
