@@ -46,6 +46,51 @@ grant, or elevation code.
   now refusing a blank name / invalid contact status; client edits log "Client details updated: …".
 * **Test:** `tests/smoke_edit_projects_clients.py` (both gates).
 
+### 2026-10-05 batch — security hardening, New project flow, per-job tabs, job dashboard v2 preview (written up 2026-10-06)
+
+Shipped to production 2026-10-05 (release PRs superstars-contracting/dashboard #31–#35) from
+another workstation; this entry records it after the fact.
+
+* **Security**
+  - `request_logging.py` — metadata-only request log (method, sanitized path, status, body
+    size; no bodies or query strings; `/p` `/i` `/d` token links and `/worker-files` masked).
+  - `secret_box.py` — Fernet field encryption helper; key `SSC_FIELD_ENCRYPTION_KEY` (op://
+    reference in `.env.template`, comma list for rotation, fails closed). **Not wired to any
+    table yet**; existing plaintext values have no `v1:` prefix, so a future migration must
+    re-wrap them. `op run --env-file=.env.template` fails until the 1Password item exists.
+  - `runtime_seams.py` — the six test seams (fake Google verify, doc / expense scan, trace,
+    mail and reset-mail dirs) only work with `SSC_ALLOW_TEST_SEAMS=1` AND off Render
+    (`RENDER=true` or `SSC_ENVIRONMENT=production`) — this includes **preprod**, so a fake mail
+    dir set there no longer diverts mail.
+  - `csrf_guard.py` — Origin / Sec-Fetch-Site check on every write. **Enforce by default since
+    2026-10-06** (cross-site writes get 403; code default and `render.yaml` both say `enforce`,
+    an unknown value also enforces) with
+    `SSC_ALLOWED_ORIGINS=https://app.superstarscontracting.com`. Switched after production logs
+    since the 2026-10-05 release showed no would-be block from a real user (the only one was a
+    curl probe). Boot logs `csrf guard mode=...` — check it after a deploy. Escape hatch if a
+    legitimate flow is ever refused: set `SSC_CSRF_MODE=report` on the Render service.
+* **New project flow** — "+ New project" opens the shared `static/js/new_project_modal.js`
+  in place (console and Assignments page); five required fields first, the rest under "More
+  details"; typing an existing active client's name reuses it.
+* **Per-job tabs** — `project_modules.py`, `projects.enabled_modules` (NULL = every tab on);
+  9 optional modules switched in the job's Settings by admin / c_suite. (New jobs started with
+  none on until the 2026-10-06 fix above.)
+* **Console** — job dashboard "← All projects" + "Company dashboard" for company roles; Client
+  portal moved under Clients (`/company#portal` still works); console Dashboard tiles and rows
+  link to the view behind each number.
+* **Job dashboard** — compact phone layout (≤860px); **v2 preview** (`job_v2.py`,
+  `static/v2/job.css|js`): `?ui=2` or a saved v2 interface preference gives top tabs
+  (Overview, Work, Documents, Money, Team) over the same screens, only on a project's own page
+  for internal roles; the login redirect keeps `?ui=1|2`.
+* **Tests** — smoke_request_logging, smoke_secret_box, smoke_runtime_seams, smoke_csrf_guard,
+  smoke_project_modules, smoke_projects_flow (was `…_361`, renamed 2026-10-06 — #361 is the
+  density pass), smoke_job_v2_preview, smoke_login_next_query, smoke_company_dashboard_links;
+  all in both gates since 2026-10-06.
+* **Workflow change** — the fork's `preprod` branch was deleted; the preprod Render service
+  deploys from fork `main`. Review PRs target fork `main`; production release = fork `main` →
+  upstream `release/prod-<date>` → PR to `superstars-contracting/dashboard` main. The stale
+  `develop` branch (2026-08-27, nothing unique) was deleted 2026-10-06.
+
 ### Flow fixes after the 2026-10-05 work (Bookore, 2026-10-06)
 
 * **New jobs start with every tab on.** `project_modules.NEW_JOB_DEFAULT = None`: "+ New project"

@@ -13,10 +13,14 @@ Decision, in order (non-state-changing methods are never checked):
      needs a browser, and a browser sends at least one of the headers on a cross-site write.
 
 Mode, env SSC_CSRF_MODE:
-  report  (default)  log the would-be block (method, sanitized path, reason code only) and ALLOW
-  enforce            respond 403
+  enforce (default)  respond 403 (and log it)
+  report             log the would-be block (method, sanitized path, reason code only) and ALLOW
   off                do nothing
-An unrecognised value behaves as report (never silently off).
+An unrecognised value behaves as enforce (a typo never weakens the guard). The default moved
+from report to enforce on 2026-10-06, after production logs since the 2026-10-05 release showed
+no would-be block from a real user (the only one was a curl probe). `report` stays as the
+escape hatch: set SSC_CSRF_MODE=report on the service if a legitimate flow is ever refused.
+The mode in force is logged once at boot ("csrf guard mode=...") so a deploy can be checked.
 
 SSC_ALLOWED_ORIGINS: comma-separated origins (scheme://host[:port]) allowed besides the
 request's own host, e.g. https://app.superstarscontracting.com. Forwarded-Host headers are
@@ -43,8 +47,8 @@ MODES = ("off", "report", "enforce")
 
 
 def mode() -> str:
-    m = (os.environ.get("SSC_CSRF_MODE") or "report").strip().lower()
-    return m if m in MODES else "report"
+    m = (os.environ.get("SSC_CSRF_MODE") or "enforce").strip().lower()
+    return m if m in MODES else "enforce"
 
 
 def _host(value: str) -> str:
@@ -90,6 +94,8 @@ def violation_reason() -> str | None:
 
 
 def apply_csrf_guard(app) -> None:
+    logging.getLogger("ssc.csrf").warning("csrf guard mode=%s", mode())
+
     @app.before_request
     def _csrf_guard():
         m = mode()

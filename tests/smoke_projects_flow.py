@@ -8,7 +8,7 @@ Boots the real app (`import server`) on an ISOLATED database. Proves:
     (no detour through /admin/projects), the module is loaded on both pages, and the Assignments
     page keeps working through the same module
   * Client portal lives under Clients (sub-tab bar on both views), not as a top-level tab
-Run:  venv/bin/python tests/smoke_projects_flow_361.py
+Run:  venv/bin/python tests/smoke_projects_flow.py
 """
 from __future__ import annotations
 
