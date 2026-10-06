@@ -12,8 +12,9 @@ CORE tabs are never switchable: Project Health, Contacts, Project Documents, Fie
 Daily Report, Schedule, Payments, Expenses and Settings. The Schedule of Values tab follows the
 job's billing type (billing_type.py), not a module.
 
-New jobs created with "+ New project" start with NO optional modules (core only). admin / c_suite
-turn modules on or off from the project's Settings tab. Hiding a tab is a convenience, not access
+New jobs created with "+ New project" start with EVERY module on, exactly like existing jobs
+(enabled_modules stays NULL until someone customizes it, so a module added later is on for them
+too). admin / c_suite switch modules off from the project's Settings tab. Hiding a tab is a convenience, not access
 control: the endpoints behind it keep their own role / assignment checks.
 """
 from __future__ import annotations
@@ -47,7 +48,7 @@ MODULES = (
 )
 KEYS = tuple(m["key"] for m in MODULES)
 VIEWS_BY_KEY = {m["key"]: m["views"] for m in MODULES}
-NEW_JOB_DEFAULT: tuple = ()          # optional modules a brand-new job starts with
+NEW_JOB_DEFAULT = None               # a brand-new job is 'never customized' -> every module on
 
 
 def _has_column(conn, table, column) -> bool:

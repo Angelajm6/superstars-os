@@ -141,12 +141,12 @@ def main() -> int:
         finally:
             conn.close()
 
-        # ---- a new job starts core-only
+        # ---- a new job starts with every tab on (never customized), like every existing job
         r = cs.post("/api/admin/projects/onboard", json={**base, "address": "1 Pmod Way"})
         ok("onboard ok", r.status_code == 201)
         new = r.get_json()["data"]
         code = new["project_code"]
-        ok("new job reports no optional modules", new["modules"] == [])
+        ok("new job reports every module on", new["modules"] == list(pmod.KEYS))
         conn = _db()
         try:
             conn.execute("INSERT INTO pm_project_assignment (user_id, project_code, assigned_by, assigned_at) VALUES (?,?,?,?)",
@@ -156,13 +156,18 @@ def main() -> int:
             conn.close()
         p = cs.get(f"/api/projects/{code}/modules").get_json()["data"]
         ok("profile lists every module", [m["key"] for m in p["modules"]] == list(pmod.KEYS))
-        ok("every module is off on a new job", not any(m["enabled"] for m in p["modules"]))
+        ok("every module is on for a new job", all(m["enabled"] for m in p["modules"]))
+        conn = _db()
+        try:
+            ok("a new job stores nothing (NULL = never customized)", conn.execute("SELECT enabled_modules FROM projects WHERE project_code = ?", (code,)).fetchone()["enabled_modules"] is None)
+        finally:
+            conn.close()
 
         html = cs.get(f"/projects/{code}").get_data(as_text=True)
         optional_views = [v for m in pmod.MODULES for v in m["views"]]
-        ok("new job: every optional tab is hidden", all(_nav_hidden(html, v) for v in optional_views))
+        ok("new job: every optional tab is visible", not any(_nav_hidden(html, v) for v in optional_views))
         ok("new job: no core tab is hidden", not any(_nav_hidden(html, v) for v in CORE_VIEWS))
-        ok("new job: body lists every module as off", _body_off(html) == set(pmod.KEYS))
+        ok("new job: no module listed as off", _body_off(html) in (None, set()))
 
         # ---- turn modules on
         r = cs.put(f"/api/admin/projects/{code}/modules", json={"modules": ["rfis", "drops", "rfis"]})
@@ -224,6 +229,23 @@ def main() -> int:
         ok("onboard can start a job with named modules", r.status_code == 201 and r.get_json()["data"]["modules"] == ["rfis"])
         r = cs.post("/api/admin/projects/onboard", json={**base, "address": "3 Pmod Way", "modules": ["bogus"]})
         ok("onboard with an unknown module -> 400", r.status_code == 400)
+        # a refused onboarding leaves no brand-new client company behind
+        for bad in ({"modules": ["bogus"]}, {"billing_type": "barter"}, {"pm_user_id": 999999999}):
+            body = {k: v for k, v in base.items() if k != "client_org_id"}
+            body.update({"new_org_name": "Pmod Orphan Check", "address": "4 Pmod Way", **bad})
+            r = cs.post("/api/admin/projects/onboard", json=body)
+            c2 = _db()
+            try:
+                left = c2.execute("SELECT COUNT(*) FROM crm_organization WHERE name = 'Pmod Orphan Check'").fetchone()[0]
+            finally:
+                c2.close()
+            ok(f"refused onboarding ({list(bad)[0]}) creates no client ({r.status_code}, left={left})", r.status_code in (400, 404) and left == 0)
+        # the console's "Create project" link (?new=1) waits for the deferred form script;
+        # drill-throughs to switched-off tabs are pruned on the job dashboard
+        ap = cs.get("/admin/projects").get_data(as_text=True)
+        ok("?new=1 opens the form after DOMContentLoaded", "if(q.get('new') !== '1') return;" in ap and "addEventListener('DOMContentLoaded', go" in ap)
+        dash = cs.get(f"/projects/{code}").get_data(as_text=True)
+        ok("dashboard prunes drill-throughs to hidden tabs", "function pruneGotos(root)" in dash and "window.SSC_viewOn" in dash)
         conn = _db()
         try:
             ok("a rejected onboard leaves nothing behind", not conn.execute("SELECT 1 FROM estimate WHERE building_address LIKE '3 Pmod Way%'").fetchone())

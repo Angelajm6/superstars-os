@@ -113,7 +113,8 @@ def main() -> int:
         assert needle in html, needle
     assert "← All job sites" not in html and 'id="view-buildings"' not in html   # #339: no job-sites page
     ap = c.get("/admin/projects").get_data(as_text=True)
-    for needle in ("openNewProjectWith", "q.get('new') === '1'", "SSCNewProject.open"):
+    # ?new=1 prefill — opened only once the deferred form script has run (DOMContentLoaded)
+    for needle in ("openNewProjectWith", "q.get('new') !== '1'", "addEventListener('DOMContentLoaded', go", "SSCNewProject.open"):
         assert needle in ap, needle
     mod = c.get("/files/static/js/new_project_modal.js").get_data(as_text=True)
     assert "np-borough" in mod and "pre.borough" in mod, "the shared form matches the borough from the prefill"
