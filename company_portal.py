@@ -369,7 +369,8 @@ def list_clients(conn, *, search: Optional[str] = None, relationship_type: str =
         return []
 
     contacts = {r["org_id"]: r["n"] for r in _rows(conn.execute(
-        "SELECT org_id, COUNT(1) AS n FROM crm_contact WHERE org_id IS NOT NULL GROUP BY org_id"))}
+        "SELECT org_id, COUNT(1) AS n FROM crm_contact WHERE org_id IS NOT NULL "
+        "AND COALESCE(status, 'active') <> 'inactive' GROUP BY org_id"))}
     projects = {r["client_org_id"]: r for r in _rows(conn.execute(
         "SELECT client_org_id, COUNT(1) AS n, "
         "       SUM(CASE WHEN COALESCE(status,'active') = 'active' THEN 1 ELSE 0 END) AS active "
@@ -419,7 +420,8 @@ def client_detail(conn, org_id: int, today: Optional[date] = None) -> Optional[d
     today = today or _today()
     contacts = _rows(conn.execute(
         "SELECT id, full_name, email, phone, title, relationship_type, status "
-        "FROM crm_contact WHERE org_id = ? ORDER BY LOWER(full_name)", (org_id,)))
+        "FROM crm_contact WHERE org_id = ? AND COALESCE(status, 'active') <> 'inactive' "   # removed contacts stay out
+        "ORDER BY LOWER(full_name)", (org_id,)))
     buildings = (buildings_by_client(conn).get(org_id) or [])
     project_codes = [p["project_code"] for b in buildings for p in b["projects"]]
     docs = []

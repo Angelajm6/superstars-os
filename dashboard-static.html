@@ -904,6 +904,17 @@
   .ps-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .ps-row select { font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--line, #eceef3); border-radius: 8px; min-width: 220px; }
   .ps-hint { font-size: 13px; color: var(--muted, #8c92a0); margin-top: 8px; line-height: 1.5; }
+  /* project details (edit a job's basics) */
+  .ps-det-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .ps-det { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; margin: 0; font-size: 14px; }
+  .ps-det dt { color: var(--muted, #8c92a0); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding-top: 2px; }
+  .ps-det dd { margin: 0; color: var(--ink, #222633); font-weight: 600; }
+  .ps-det-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+  .ps-det-form .full { grid-column: 1 / -1; }
+  .ps-det-form[hidden], .ps-det[hidden], #ps-det-edit[hidden] { display: none; }
+  .ps-f label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted, #8c92a0); margin-bottom: 5px; }
+  .ps-f input, .ps-f select { width: 100%; }
+  @media (max-width: 640px) { .ps-det-form { grid-template-columns: 1fr; } .ps-det { grid-template-columns: 1fr; gap: 2px; } .ps-det dd { margin-bottom: 8px; } }
 </style>
 </head>
 <body>
@@ -5894,14 +5905,23 @@
 
       <section class="view" data-view="settings">
         <div class="section">
-          <div class="tab-head"><div><h2>Project Settings</h2><div class="tab-sub">Status, billing type and the basics for this job.</div></div></div>
-          <div class="card">
-            <div class="card-title">Project Code</div>
-            <div class="card-status" data-project-code>&nbsp;</div>
-          </div>
-          <div class="card" style="margin-top: 16px;">
-            <div class="card-title">Project Name</div>
-            <div class="card-status" data-project-name>&nbsp;</div>
+          <div class="tab-head"><div><h2>Project Settings</h2><div class="tab-sub">The job's details, status, billing type and tabs.</div></div></div>
+          <!-- project details: read for everyone, Edit for admin / C-suite (PUT /api/admin/projects/<code>/details) -->
+          <div class="card ps-det-card" id="ps-details">
+            <div class="ps-det-top"><div class="card-title">Project details</div><button type="button" class="btn-ghost btn-sm" id="ps-det-edit" hidden>Edit details</button></div>
+            <dl class="ps-det" id="ps-det-view"><dt>Project code</dt><dd data-project-code>&nbsp;</dd><dt>Name</dt><dd data-project-name>&nbsp;</dd></dl>
+            <form class="ps-det-form" id="ps-det-form" hidden novalidate>
+              <div class="ps-f full"><label for="ps-f-name">Project name</label><input id="ps-f-name" class="ssc-field" maxlength="200" autocomplete="off"></div>
+              <div class="ps-f"><label for="ps-f-address">Address</label><input id="ps-f-address" class="ssc-field" maxlength="300" autocomplete="off"></div>
+              <div class="ps-f"><label for="ps-f-cityzip">City / ZIP</label><input id="ps-f-cityzip" class="ssc-field" maxlength="120" autocomplete="off" placeholder="e.g. Bronx, NY 10454"></div>
+              <div class="ps-f"><label for="ps-f-client">Client</label><select id="ps-f-client" class="ssc-field"></select></div>
+              <div class="ps-f" id="ps-f-newclient-wrap" hidden><label for="ps-f-newclient">New client name</label><input id="ps-f-newclient" class="ssc-field" maxlength="200" autocomplete="off"></div>
+              <div class="ps-f"><label for="ps-f-start">Start date</label><input type="text" id="ps-f-start" class="ssc-date ssc-field" placeholder="MM-DD-YYYY"></div>
+              <div class="ps-f"><label for="ps-f-target">Target completion</label><input type="text" id="ps-f-target" class="ssc-date ssc-field" placeholder="MM-DD-YYYY"></div>
+              <div class="ps-f full"><label for="ps-f-contract">Contract value (USD)</label><input id="ps-f-contract" class="ssc-field" inputmode="decimal" autocomplete="off"><div class="ps-hint" id="ps-f-contract-note"></div></div>
+              <div class="ps-hint full">The project code stays the same — it is on every report and document.</div>
+              <div class="ps-row full"><button type="submit" class="btn-primary" id="ps-det-save">Save details</button><button type="button" class="btn-ghost" id="ps-det-cancel">Cancel</button><span class="ps-hint" id="ps-det-msg" role="alert"></span></div>
+            </form>
           </div>
           <div class="ps-grid" style="margin-top:16px">
             <div class="ps-card"><div class="ps-k">Status</div><div class="ps-v" id="ps-status">—</div></div>
@@ -5971,6 +5991,81 @@
             }
           } catch (e) { $s('ps-billing').textContent = 'Could not load'; }
         }
+        // ---- project details
+        let DET = null, CLIENTS = null;
+        const money0 = v => v == null ? '—' : '$' + Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
+        const mdy = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? m[2] + '/' + m[3] + '/' + m[1] : '—'; };
+        const escD = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        function renderDetails() {
+          const d = DET; if (!d) return;
+          const rows = [['Project code', d.project_code], ['Name', d.name || '—'], ['Address', [d.address, d.city_zip].filter(Boolean).join(', ') || '—'],
+            ['Client', d.client_name || '—'], ['Start', mdy(d.start_date)], ['Target completion', mdy(d.target_completion)]];
+          if (document.getElementById('jx-money') || d.can_edit) rows.push(['Contract value', money0(d.contract_value)]);   // money: company roles only
+          $s('ps-det-view').innerHTML = rows.map(r => '<dt>' + r[0] + '</dt><dd>' + escD(r[1]) + '</dd>').join('');
+          $s('ps-det-edit').hidden = !d.can_edit;
+        }
+        async function loadDetails() {
+          try {
+            const r = await fetch('/api/projects/' + encodeURIComponent(code()) + '/details', { credentials: 'same-origin' });
+            const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
+            DET = j.data; renderDetails();
+          } catch (e) { /* the server-rendered code / name stay */ }
+        }
+        async function openDetailsForm() {
+          const d = DET; if (!d) return;
+          if (!CLIENTS) {
+            try { const r = await fetch('/api/admin/projects/onboard-meta', { credentials: 'same-origin' }); const j = await r.json(); CLIENTS = (j.data && j.data.clients) || []; }
+            catch (e) { CLIENTS = []; }
+          }
+          const sel = $s('ps-f-client');
+          const list = CLIENTS.slice(); if (d.client_org_id && !list.some(c => c.id === d.client_org_id)) list.unshift({ id: d.client_org_id, name: d.client_name || ('#' + d.client_org_id) });
+          sel.innerHTML = (d.client_org_id ? '' : '<option value="">— choose a client —</option>') + list.map(c => '<option value="' + c.id + '">' + escD(c.name) + '</option>').join('') + '<option value="__new">+ New client…</option>';
+          sel.value = d.client_org_id ? String(d.client_org_id) : '';
+          $s('ps-f-newclient-wrap').hidden = true; $s('ps-f-newclient').value = '';
+          $s('ps-f-name').value = d.name || ''; $s('ps-f-address').value = d.address || ''; $s('ps-f-cityzip').value = d.city_zip || '';
+          $s('ps-f-start').value = (d.start_date || '').slice(0, 10); $s('ps-f-target').value = (d.target_completion || '').slice(0, 10);
+          const c = $s('ps-f-contract'); c.value = d.contract_value == null ? '' : d.contract_value; c.disabled = !d.contract_editable;
+          $s('ps-f-contract-note').textContent = d.contract_note || '';
+          $s('ps-det-msg').textContent = '';
+          $s('ps-det-view').hidden = true; $s('ps-det-edit').hidden = true; $s('ps-det-form').hidden = false;
+          if (window.SSCDatePicker) { try { SSCDatePicker.wire($s('ps-f-start')); SSCDatePicker.wire($s('ps-f-target')); } catch (e) {} }
+          $s('ps-f-name').focus();
+        }
+        function closeDetailsForm() { $s('ps-det-form').hidden = true; $s('ps-det-view').hidden = false; renderDetails(); }
+        $s('ps-f-client').addEventListener('change', e => { const n = e.target.value === '__new'; $s('ps-f-newclient-wrap').hidden = !n; if (n) $s('ps-f-newclient').focus(); });
+        $s('ps-det-edit').addEventListener('click', openDetailsForm);
+        $s('ps-det-cancel').addEventListener('click', closeDetailsForm);
+        $s('ps-det-form').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const msg = $s('ps-det-msg'); msg.style.color = ''; msg.textContent = '';
+          const body = { name: $s('ps-f-name').value.trim(), address: $s('ps-f-address').value.trim(), city_zip: $s('ps-f-cityzip').value.trim(),
+                         start_date: $s('ps-f-start').value.trim(), target_completion: $s('ps-f-target').value.trim() };
+          if (!body.name) { msg.textContent = 'Enter the project name.'; return; }
+          if (!body.address) { msg.textContent = 'Enter the address.'; return; }
+          const cv = $s('ps-f-client').value;
+          if (cv === '__new') { const n = $s('ps-f-newclient').value.trim(); if (!n) { msg.textContent = 'Type the new client name.'; return; } body.new_org_name = n; }
+          else if (cv) body.client_org_id = Number(cv);
+          if (DET.contract_editable && $s('ps-f-contract').value.trim() !== '') body.contract_value = $s('ps-f-contract').value.trim();
+          const btn = $s('ps-det-save'); btn.disabled = true;
+          try {
+            const r = await fetch('/api/admin/projects/' + encodeURIComponent(code()) + '/details', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
+            DET = j.data; CLIENTS = null;
+            // the job's name / address / client show all over the page — refresh them in place
+            document.querySelectorAll('[data-project-name]').forEach(el => { el.textContent = DET.name || ''; });
+            document.querySelectorAll('[data-project-address]').forEach(el => { el.textContent = [DET.address, DET.city_zip].filter(Boolean).join(', '); });
+            document.querySelectorAll('[data-project-client]').forEach(el => { el.textContent = DET.client_name || ''; });
+            document.querySelectorAll('[data-project-title]').forEach(el => { el.textContent = [DET.name, DET.project_code].filter(Boolean).join(' · '); });
+            document.querySelectorAll('[data-project-line]').forEach(el => { el.textContent = [DET.project_code, DET.name].filter(Boolean).join(' · '); });
+            document.title = DET.project_code + ' · ' + (DET.name || '') + ' — Superstars Contracting';
+            closeDetailsForm();
+            msg.style.color = 'var(--status-complete-deep, #0c7a5f)'; msg.textContent = '';
+            const ok = $s('ps-det-view'); ok.insertAdjacentHTML('afterend', '<div class="ps-hint" id="ps-det-saved" style="color:var(--status-complete-deep, #0c7a5f)">Saved.</div>');
+            setTimeout(() => { const s2 = document.getElementById('ps-det-saved'); if (s2) s2.remove(); }, 2500);
+          } catch (x) { msg.textContent = x.message; } finally { btn.disabled = false; }
+        });
+        document.querySelectorAll('.nav-link[data-view="settings"]').forEach(l => l.addEventListener('click', loadDetails));
+
         document.addEventListener('click', async (e) => {
           if (e.target.closest('[data-goto-settings]')) {
             e.preventDefault(); const l = document.querySelector('.nav-link[data-view="settings"]'); if (l) l.click(); return;

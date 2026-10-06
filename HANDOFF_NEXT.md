@@ -21,6 +21,31 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Edit projects and clients (Bookore, 2026-10-06)
+
+* **Projects — `project_details.py`:** `GET /api/projects/<code>/details` (internal roles; the
+  #263 hook keeps a pm to their jobs; `can_edit` = admin / c_suite) and
+  `PUT /api/admin/projects/<code>/details` (admin / c_suite) for name, address, city / ZIP, client
+  (`client_org_id` or `new_org_name`, which reuses a same-named active client), start / target
+  dates and contract value. The project CODE never changes.
+  - Validates everything before writing; a refused edit leaves nothing behind (no orphan client).
+  - New address → the job and its approved estimate re-link to the building (`find_or_create`).
+  - New client → legacy `projects.client` text, the approved estimate and the building move
+    (the building stays if another client still has a job there).
+  - Contract value = the converted estimate's `final_amount`; an AIA job's contract is its
+    schedule of values, so editing it here is refused with that message.
+  - Each save lands on the client timeline(s): "Project X updated: name, address…"; values never
+    logged.
+* **UI — job Settings tab → Project details:** read-only list for everyone (contract value only for
+  company roles), **Edit details** for admin / C-suite; saving refreshes the name / address /
+  client across the page without a reload.
+* **Clients — company console client page:** **Edit client** (name, relationship, active /
+  inactive, notes) and an **Edit** link per contact (name, title, phone, email, **Remove contact** =
+  `status='inactive'`, hidden from the client page and contact counts). Uses the existing
+  `PUT /api/crm/organizations/<id>` and `/api/crm/contacts/<id>` (section `crm` = admin / c_suite),
+  now refusing a blank name / invalid contact status; client edits log "Client details updated: …".
+* **Test:** `tests/smoke_edit_projects_clients.py` (both gates).
+
 ### Flow fixes after the 2026-10-05 work (Bookore, 2026-10-06)
 
 * **New jobs start with every tab on.** `project_modules.NEW_JOB_DEFAULT = None`: "+ New project"
