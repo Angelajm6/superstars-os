@@ -21,6 +21,28 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Flow fixes after the 2026-10-05 work (Bookore, 2026-10-06)
+
+* **New jobs start with every tab on.** `project_modules.NEW_JOB_DEFAULT = None`: "+ New project"
+  leaves `projects.enabled_modules` NULL (never customized), exactly like existing jobs, so a
+  module added later is on for them too. Before, new jobs stored `[]` and hid Employees, Drawing
+  Markup, Drop Plan/Report, RFIs, Materials, Toolbox Talks, Compliance… from PMs and supers.
+  Jobs created with "+ New project" between the 2026-10-05 release and this fix still have `[]`
+  stored — switch their modules on from the job's Settings tab (or reset the column to NULL).
+* **Onboarding refuses before it creates.** Billing type, modules, PM and an existing client id
+  are validated before a new client company can be created (a refused onboarding used to leave an
+  orphan `crm_organization` row).
+* **Drill-throughs to switched-off tabs** on the job dashboard: header links hide, KPI tiles and
+  rows become plain text (`pruneGotos` after `JX_render`, `window.SSC_viewOn`); Contacts → Crew
+  → Open only shows when Employees & Certs is on.
+* **`/admin/projects?new=1…`** ("Create project" links opened in a new tab, bookmarks) waits for
+  DOMContentLoaded — `new_project_modal.js` is deferred, so the form never opened before.
+* **Job dashboard "Latest photos"** (#358) linked to `/api/photos/<id>/thumb`, which never
+  existed; it is `/api/field-photos/<id>/thumb` now (broken images in production since #358).
+* **Tests:** `smoke_project_modules` (new job = every tab on and NULL stored; three refused
+  onboardings leave no client; ?new=1 + pruning markup) and `smoke_job_dashboard_358` (a seeded
+  photo's card thumbnail loads, 200).
+
 ### #349 — Delete permanently: an ID card alone no longer blocks (Bookore, 2026-09-27)
 
 * Test worker W-0027 couldn't be deleted: it had one company ID card (issued during testing).

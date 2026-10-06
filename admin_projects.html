@@ -195,7 +195,11 @@
     await SSCNewProject.open(pre);
     try{ history.replaceState(null, '', location.pathname); }catch(e){}
   }
-  (function(){ var q = new URLSearchParams(location.search); if(q.get('new') === '1') openNewProjectWith({ address:q.get('address')||'', borough:q.get('borough')||'', client_org_id:q.get('client_org_id')||'', name:q.get('name')||'' }); })();
+  // ?new=1 (the console's "Create project" links, bookmarks) opens the form prefilled. The form's
+  // script is deferred, so wait for DOMContentLoaded — deferred scripts have run by then.
+  (function(){ var q = new URLSearchParams(location.search); if(q.get('new') !== '1') return;
+    var go = function(){ openNewProjectWith({ address:q.get('address')||'', borough:q.get('borough')||'', client_org_id:q.get('client_org_id')||'', name:q.get('name')||'' }); };
+    if (window.SSCNewProject) go(); else window.addEventListener('DOMContentLoaded', go, { once: true }); })();
   document.addEventListener('ssc:project-created', function(e){ var d=e.detail||{}; showOk('Project '+d.project_code+' created' + (d.pm_user_id ? ' and assigned' : '')); load(); });
   document.addEventListener('keydown', function(e){ if(e.key==='Escape' && $('cs-overlay').classList.contains('open')) $('cs-overlay').classList.remove('open'); });
 

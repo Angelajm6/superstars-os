@@ -1162,6 +1162,7 @@
             .jx-line .k { color: var(--ink-2, #4A4F59); flex: 1; min-width: 0; } .jx-line .v { font-weight: 700; color: var(--ink, #222633); white-space: nowrap; }
             .jx-line .v.bad { color: var(--status-behind-deep, #A8382B); } .jx-line .v.ok { color: var(--status-complete-deep, #0c7a5f); } .jx-line .v.warn { color: var(--status-warn, #9A5B00); }
             .jx-line[data-goto] { cursor: pointer; } .jx-line[data-goto]:hover .k { color: var(--ui, #24418C); }
+            .jx-kpi.no-goto { cursor: default; } .jx-kpi.no-goto:disabled { opacity: 1; color: inherit; }   /* tab switched off for this job */
             .jx-bar { height: 10px; border-radius: 999px; background: var(--fill, #F4F5F8); position: relative; overflow: hidden; margin: 6px 0 4px; }
             .jx-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: var(--ui, #24418C); }
             .jx-bar b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink, #222633); }
@@ -1284,6 +1285,19 @@
               $j('jx-photos').innerHTML = head('jx-photos') + (P.length ? '<div class="jx-photos">' + P.map(ph => '<a data-goto="field-photos" title="' + esc((ph.caption || '') + ' ' + mdy(ph.taken_at)) + '"><img loading="lazy" alt="" src="' + esc(ph.thumb_url) + '"></a>').join('') + '</div>'
                 : '<div class="jx-empty">No photos yet.</div>');
             };
+            // a drill-through to a tab this job has switched off (project modules) goes nowhere —
+            // header links disappear, tiles and rows become plain text
+            window.SSC_viewOn = window.SSC_viewOn || function (v) { const l = document.querySelector('.nav-link[data-view="' + v + '"]'); return !!l && !l.hidden; };
+            function pruneGotos(root) {
+              (root || document).querySelectorAll('[data-goto]').forEach(el => {
+                if (window.SSC_viewOn(el.dataset.goto)) return;
+                if (el.matches('.jx-card h2 a')) { el.hidden = true; return; }
+                el.removeAttribute('data-goto'); el.classList.add('no-goto');
+                if (el.tagName === 'BUTTON') el.disabled = true;
+              });
+            }
+            const _jxRender = window.JX_render;
+            window.JX_render = function (S) { _jxRender(S); const v = document.querySelector('.view[data-view="dashboard"]'); if (v) pruneGotos(v); };
             document.addEventListener('click', (e) => {
               const g = e.target.closest('.jx-kpi[data-goto], .jx-card [data-goto]'); if (!g) return;
               e.preventDefault();
@@ -5792,7 +5806,7 @@
             const team = '<div class="pc-card"><h2>Our team</h2>'
               + '<div class="pc-sub">Project manager</div>' + (t.pms.length ? t.pms.map(p => '<div class="pc-row"><div class="pc-who"><div class="pc-name">' + esc(p.name) + '</div>' + (p.email ? '<div class="pc-meta">' + esc(p.email) + '</div>' : '') + '</div>' + (p.email ? '<div class="pc-acts"><a class="pc-btn" href="mailto:' + esc(p.email) + '">Email</a></div>' : '') + '</div>').join('') : '<div class="pc-empty">No PM assigned — assign one under Projects &amp; assignments.</div>')
               + '<div class="pc-sub">Site supervisors (ours)</div>' + (t.supervisors.length ? t.supervisors.map(row).join('') : '<div class="pc-empty">None yet — the main one prints as Superintendent on the Daily Report.</div>')
-              + '<div class="pc-sub">Crew</div><div class="pc-row"><div class="pc-who"><div class="pc-name">' + t.crew_count + ' worker(s) assigned</div></div><div class="pc-acts"><a class="pc-btn" data-goto-view="employees">Open</a></div></div></div>';
+              + '<div class="pc-sub">Crew</div><div class="pc-row"><div class="pc-who"><div class="pc-name">' + t.crew_count + ' worker(s) assigned</div></div><div class="pc-acts">' + (!window.SSC_viewOn || window.SSC_viewOn('employees') ? '<a class="pc-btn" data-goto-view="employees">Open</a>' : '') + '</div></div></div>';
             const cons = g.consultant;
             const byDisc = {}; cons.forEach(x => { (byDisc[x.discipline_label || 'Other'] = byDisc[x.discipline_label || 'Other'] || []).push(x); });
             const consCard = '<div class="pc-card"><h2>Consultants <span class="pc-count">' + cons.length + '</span></h2>' + (cons.length ? Object.keys(byDisc).sort().map(k => '<div class="pc-sub">' + esc(k) + '</div>' + byDisc[k].map(row).join('')).join('') : '<div class="pc-empty">Architects, engineers, expeditors on this job.</div>') + '</div>';
