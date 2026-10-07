@@ -688,6 +688,12 @@
       margin-top: 16px;
     }
 
+    .form-submit:disabled { opacity: .6; cursor: progress; }
+    .photo-status { margin-top: 12px; padding: 12px 14px; border-radius: 8px; font-size: 15px; font-weight: 600; text-align: center; }
+    .photo-status.err { background: #fdecee; color: #8b1623; border: 1px solid #f3c2c8; }
+    .photo-status[hidden] { display: none; }
+    .photo-banner.sent { background: #e6f4ec; color: #1f6b45; }
+
     .form-submit:active {
       transform: translateY(2px);
       box-shadow: 0 1px 4px rgba(177, 30, 46, 0.2);
@@ -934,6 +940,7 @@
     </div>
 
     <button class="form-submit" onclick="uploadPhoto()" id="submit-photo-text">Send</button>
+    <div class="photo-status" id="photo-status" role="status" aria-live="polite" hidden></div>
   </div>
 
   <div class="screen signout-screen" id="screen-signout">
@@ -982,7 +989,15 @@ const i18n = {
     loc_scaffold: "Scaffold",
     loc_roof: "Roof",
     loc_interior: "Interior",
-    loc_outside: "Outside"
+    loc_outside: "Outside",
+    photo_sending: "Sending…",
+    photo_sent: "✓ Photo sent",
+    photo_retry: "Try again",
+    photo_failed: "The photo did not send. Tap Try again.",
+    photo_offline: "No connection. Move to better signal and tap Try again.",
+    photo_session: "Your sign-in ended. Sign in again to send photos.",
+    photo_limit: "Photo limit for today reached. See the office.",
+    photo_missing: "Take the photo again."
   },
   es: {
     sign_in: "Iniciar Sesión",
@@ -1012,7 +1027,15 @@ const i18n = {
     loc_scaffold: "Andamio",
     loc_roof: "Techo",
     loc_interior: "Interior",
-    loc_outside: "Afuera"
+    loc_outside: "Afuera",
+    photo_sending: "Enviando…",
+    photo_sent: "✓ Foto enviada",
+    photo_retry: "Intentar de nuevo",
+    photo_failed: "La foto no se envió. Toca Intentar de nuevo.",
+    photo_offline: "Sin conexión. Busca mejor señal y toca Intentar de nuevo.",
+    photo_session: "Tu sesión terminó. Inicia sesión otra vez para enviar fotos.",
+    photo_limit: "Llegaste al límite de fotos de hoy. Habla con la oficina.",
+    photo_missing: "Toma la foto otra vez."
   }
 };
 
@@ -1406,6 +1429,8 @@ function keepPhoto() {
   // Worker accepted — proceed to location/scope form
   // Pre-highlight last picks so repeat photos at same spot are one-tap.
   applyLastSelections();
+  document.getElementById('submit-photo-text').textContent = t('send');
+  setPhotoStatus('', '');
   goToScreen('photo-form');
 }
 
@@ -1455,15 +1480,78 @@ function applyLastSelections() {
   }
 }
 
-function uploadPhoto() {
+// Data URL from the camera canvas -> Blob for the multipart upload.
+function dataUrlToBlob(dataUrl) {
+  const parts = dataUrl.split(',');
+  const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
+  const bin = atob(parts[1]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+function setPhotoStatus(text, kind) {
+  const el = document.getElementById('photo-status');
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = 'photo-status' + (kind ? ' ' + kind : '');
+  el.hidden = !text;
+}
+
+let photoUploading = false;
+async function uploadPhoto() {
+  if (photoUploading) return;
   if (!selectedLocation) { alert(lang === 'es' ? 'Selecciona dónde estás' : 'Select where you are'); return; }
   if (!selectedScope) { alert(lang === 'es' ? 'Selecciona el alcance' : 'Select a scope'); return; }
+  if (!capturedPhoto) { setPhotoStatus(t('photo_missing'), 'err'); return; }
+  const btn = document.getElementById('submit-photo-text');
+  const fd = new FormData();
+  fd.append('photo', dataUrlToBlob(capturedPhoto), 'photo.jpg');
+  fd.append('session_token', sessionData.sessionToken || '');
+  fd.append('employee_id', sessionData.employeeId || '');
+  fd.append('location', selectedLocation);
+  fd.append('scope', selectedScope);
+  photoUploading = true;
+  btn.disabled = true;
+  btn.textContent = t('photo_sending');
+  setPhotoStatus('', '');
+  let ok = false, msg = t('photo_failed');
+  try {
+    const r = await fetch('/api/worker/photos', { method: 'POST', body: fd });
+    // Sent only when the server says it stored the photo: offline, the service worker
+    // answers /api/* itself with a 200 {error:'offline'} that must not count as sent.
+    const body = await r.json().catch(() => null);
+    if (r.ok && body && body.data && body.data.id) ok = true;
+    else if (body && body.error === 'offline') msg = t('photo_offline');
+    else if (r.status === 401) msg = t('photo_session');
+    else if (r.status === 429) msg = t('photo_limit');
+  } catch (e) {
+    msg = t('photo_offline');
+  }
+  photoUploading = false;
+  btn.disabled = false;
+  if (!ok) {
+    // Keep the photo and the picks so one tap retries; nothing is lost.
+    btn.textContent = t('photo_retry');
+    setPhotoStatus(msg, 'err');
+    return;
+  }
+  btn.textContent = t('send');
   sessionData.photoCount++;
   // Don't reset — keep last selections so the NEXT photo defaults to same spot.
   // Just clear the photo itself.
   capturedPhoto = null;
   goToScreen('working');
   updateWorkingScreen();
+  flashPhotoSent();
+}
+
+function flashPhotoSent() {
+  const banner = document.getElementById('photo-banner');
+  if (!banner) return;
+  banner.textContent = t('photo_sent');
+  banner.classList.add('sent');
+  setTimeout(function () { banner.classList.remove('sent'); banner.textContent = t('photos_upload'); }, 2500);
 }
 
 function goToSignout() {
