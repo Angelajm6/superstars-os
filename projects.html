@@ -3,59 +3,153 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Superstars Contracting · My Projects</title>
+<title>Superstars Contracting · Home</title>
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=321">
-<!-- #263 — PM projects-only landing. A pm lands here (assigned ACTIVE projects only;
-     scoping + closed-exclusion enforced server-side in /api/projects). Brand + card
-     language mirrors the company console Projects tab, minus every company-level tab. -->
+<!-- #263 landing, rebuilt as the team HOME (2b, prototype accepted 2026-10-07). PMs and supers
+     land here: what is assigned to them first (with one-tap Google Maps directions), then the
+     TEAM week / month (every dated job by name and dates, everyone's tasks and events), then
+     their projects. Read-only for pm / super: they tick their own tasks done; admin and C-suite
+     create and edit on the company dashboard. Project scoping stays server-side (/api/projects,
+     /api/team/*); a job they cannot open is drawn but not linked. -->
 <script src="/files/static/js/auth_menu.js?v=292c" defer></script>
 <style>
   :root {
     --brand-red: #B11E2E;
-    --brand-red-deep: #8B1623;
     --ink: #14161C;
+    --ink-2: #4A4F59;
     --hairline: #E8E4DD;
+    --line: #E3E5EA;
     --mute: #76777E;
-    --ok: #2F7C57;
-    --warn: #B68838;
+    --canvas: #F6F7F9;
+    --accent: #4364DC;
+    --accent-ink: #24418C;
+    --accent-soft: #EEF2FF;
+    --ok: #1F8A5B; --ok-soft: #E4F4EC;
+    --bad: #A8382B; --bad-soft: #FCEEEC;
+    --ev: #0F766E; --ev-soft: #E7F6F1;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { background: #fff; color: var(--ink); font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+  html, body { background: var(--canvas); color: var(--ink); font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
   body { min-height: 100vh; }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  .topbar { background: white; border-bottom: 1px solid var(--hairline); padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-  .brand { display: flex; align-items: center; gap: 14px; }
-  .brand-mark { width: 42px; height: 42px; }
+  .topbar { background: white; border-bottom: 1px solid var(--hairline); padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.04); position: sticky; top: 0; z-index: 20; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark { width: 38px; height: 38px; object-fit: contain; }
   .brand-text { line-height: 1.1; }
-  .brand-name { font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 18px; font-weight: 700; letter-spacing: 0.5px; color: var(--ink); text-transform: uppercase; }
+  .brand-name { font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 16px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
   .brand-sub { font-size: 10px; color: var(--mute); letter-spacing: 1px; text-transform: uppercase; font-weight: 600; margin-top: 2px; }
-  .topbar-right { display: flex; align-items: center; gap: 16px; }
-  .console-pill { background: var(--ink); color: white; font-size: 10px; padding: 6px 12px; border-radius: 99px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
 
-  .wrap { max-width: 1200px; margin: 0 auto; padding: 32px; }
-  h1 { font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 24px; font-weight: 700; letter-spacing: 0.3px; }
-  .sub { font-size: 13px; color: var(--mute); margin-top: 6px; margin-bottom: 24px; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 24px 28px 48px; }
+  .hello h1 { font-family: 'Archivo', -apple-system, 'Helvetica Neue', Arial, sans-serif; font-size: 24px; font-weight: 700; }
+  .hello .sub { color: var(--mute); font-size: 13px; margin-top: 4px; }
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 18px; margin-top: 18px; align-items: start; }
+  .stack { display: grid; gap: 18px; min-width: 0; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+  .card-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+  .card-h h2 { font-family: 'Archivo', -apple-system, 'Helvetica Neue', Arial, sans-serif; font-size: 16px; font-weight: 700; }
+  .count { color: var(--mute); font-size: 12px; }
+  .empty { color: var(--mute); font-size: 13px; padding: 10px 0; }
 
-  .project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
-  .project-card { background: white; border: 1px solid var(--hairline); border-radius: 10px; padding: 18px 20px 16px; cursor: pointer; transition: all 0.15s; position: relative; text-decoration: none; color: var(--ink); display: block; }
-  .project-card:hover { border-color: var(--brand-red); box-shadow: 0 4px 14px rgba(177,30,46,0.08); transform: translateY(-1px); }
-  .project-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-  .project-card-name { font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 17px; font-weight: 700; line-height: 1.2; }
-  .project-card-code { font-size: 11px; color: var(--mute); margin-top: 3px; font-weight: 600; }
-  .project-card-addr { font-size: 12px; color: var(--mute); margin-top: 6px; line-height: 1.4; min-height: 17px; }
-  .project-card-stats { display: flex; gap: 18px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--hairline); font-size: 11px; color: var(--mute); }
-  .project-card-stats strong { color: var(--ink); font-weight: 700; }
-  .status-pill { font-size: 9px; padding: 3px 8px; border-radius: 99px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-  .status-active { background: var(--ok); color: white; }
-  .status-closed { background: var(--mute); color: white; }
-  .status-completed { background: var(--mute); color: white; }
-  .status-bidding { background: var(--warn); color: white; }
+  .grp { font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--mute); margin: 12px 0 2px; }
+  .grp.bad { color: var(--bad); }
+  .row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 2px; border-top: 1px solid var(--line); cursor: pointer; border-radius: 6px; }
+  .grp + .row { border-top: 0; }
+  .row:hover { background: #F7F8FB; }
+  .chk { flex: none; width: 24px; height: 24px; border-radius: 6px; border: 1.5px solid #B8BECB; background: #fff; display: grid; place-items: center; cursor: pointer; color: #fff; font-size: 13px; margin-top: 1px; }
+  .chk:hover { border-color: var(--accent); }
+  .row.done .chk { background: var(--ok); border-color: var(--ok); }
+  .evdot { flex: none; width: 24px; height: 24px; border-radius: 6px; background: var(--ev-soft); color: var(--ev); display: grid; place-items: center; font-size: 11px; margin-top: 1px; }
+  .r-main { min-width: 0; flex: 1; }
+  .r-t { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+  .row.done .r-t { text-decoration: line-through; color: var(--mute); }
+  .r-m { color: var(--ink-2); font-size: 12px; margin-top: 2px; display: flex; flex-wrap: wrap; gap: 2px 8px; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 99px; }
+  .pill.bad { background: var(--bad-soft); color: var(--bad); }
+  .dir { flex: none; align-self: center; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 12.5px; color: var(--accent-ink); background: var(--accent-soft); border-radius: 8px; padding: 8px 10px; text-decoration: none; min-height: 36px; white-space: nowrap; }
 
-  .placeholder { border: 1px dashed var(--hairline); border-radius: 10px; padding: 48px 24px; text-align: center; color: var(--mute); font-size: 14px; line-height: 1.6; }
-  .placeholder strong { color: var(--ink); display: block; font-size: 15px; margin-bottom: 6px; }
-  .ph-build { text-align: center; color: #9aa3ae; font-size: 11px; margin-top: 40px; }
-  .brand-mark,.mark{object-fit:contain;}  /* #265 swap-safe logo */
+  .seg { display: inline-flex; background: var(--canvas); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+  .seg button { border: 0; background: transparent; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12.5px; color: var(--ink-2); }
+  .seg button[aria-pressed="true"] { background: #fff; color: var(--accent-ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .nav { display: inline-flex; gap: 4px; align-items: center; }
+  .nav button { border: 1px solid var(--line); background: #fff; border-radius: 7px; padding: 4px 9px; cursor: pointer; font-weight: 600; font-size: 12.5px; }
+  .range { font-weight: 600; font-size: 13px; margin-right: 4px; }
+
+  .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .cal .dow { font-size: 10.5px; color: var(--mute); font-weight: 700; text-transform: uppercase; text-align: center; padding: 6px 0; background: var(--canvas); border-bottom: 1px solid var(--line); }
+  .day { border-left: 1px solid var(--line); border-top: 1px solid var(--line); min-width: 0; padding: 5px 4px 6px; min-height: 112px; cursor: pointer; position: relative; }
+  .cal.month .day { min-height: 84px; }
+  .day:nth-child(7n + 1) { border-left: 0; }
+  .day:hover { background: #F7F8FB; }
+  .day.today { background: var(--accent-soft); }
+  .day.other { background: #FAFAFB; color: var(--mute); }
+  .day .n { font-family: 'Archivo', -apple-system, 'Helvetica Neue', Arial, sans-serif; font-weight: 700; font-size: 13px; width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 50%; display: block; margin: 0 auto 4px; }
+  .day.today .n { background: var(--accent-ink); color: #fff; }
+  .day:hover .n { box-shadow: 0 0 0 2px rgba(67,100,220,.45); }
+  .bar { display: block; height: 6px; border-radius: 3px; margin: 2px 0; }
+  .bar.not-mine { opacity: .45; }
+  .chip { display: block; font-size: 10px; font-weight: 700; line-height: 1.3; padding: 2px 4px; border-radius: 4px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid; max-width: 100%; }
+  .chip.task { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent); }
+  .chip.event { background: var(--ev-soft); color: var(--ev); border-color: var(--ev); }
+  .chip.late { background: var(--bad-soft); color: var(--bad); border-color: var(--brand-red); }
+  .chip.done { opacity: .6; text-decoration: line-through; }
+  .chip.mine { box-shadow: inset 0 0 0 1px currentColor; }
+  .more { display: block; font-size: 10px; font-weight: 700; color: var(--mute); margin-top: 3px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--ink-2); margin-top: 10px; }
+  .legend i { display: inline-block; width: 18px; height: 6px; border-radius: 3px; vertical-align: middle; margin-right: 5px; }
+  .legend a { color: inherit; text-decoration: none; } .legend a:hover { text-decoration: underline; }
+  .legend .nm { color: var(--mute); }
+
+  .proj { display: flex; gap: 10px; align-items: center; padding: 10px 2px; border-top: 1px solid var(--line); text-decoration: none; color: inherit; border-radius: 6px; }
+  .proj:first-of-type { border-top: 0; }
+  .proj:hover { background: #F7F8FB; }
+  .proj .sw { width: 8px; height: 36px; border-radius: 4px; flex: none; }
+  .proj .t { font-weight: 600; font-size: 14px; }
+  .proj .m { color: var(--mute); font-size: 12px; }
+  .proj .go { margin-left: auto; color: var(--accent-ink); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+
+  /* details: a side panel on a computer, a bottom sheet on a phone */
+  .ov { position: fixed; inset: 0; background: rgba(15,17,22,.4); z-index: 50; display: flex; justify-content: flex-end; }
+  .ov[hidden] { display: none; }
+  .panel { background: #fff; width: 420px; max-width: 100%; height: 100%; overflow-y: auto; padding: 18px 20px 24px; box-shadow: -12px 0 32px rgba(0,0,0,.15); }
+  .x { float: right; border: 0; background: none; font-size: 22px; line-height: 1; cursor: pointer; color: var(--mute); padding: 2px 6px; }
+  .kind { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+  .panel h3 { font-family: 'Archivo', -apple-system, 'Helvetica Neue', Arial, sans-serif; font-size: 19px; margin: 4px 0 12px; overflow-wrap: anywhere; }
+  .facts { display: grid; gap: 8px; margin-bottom: 14px; }
+  .fact { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 8px; font-size: 13.5px; }
+  .fact b { color: var(--mute); font-weight: 600; font-size: 12px; padding-top: 1px; }
+  .fact span { overflow-wrap: anywhere; white-space: pre-wrap; }
+  .big { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; border-radius: 10px; padding: 13px; font-weight: 700; font-size: 15px; border: 0; cursor: pointer; text-decoration: none; margin-top: 8px; }
+  .big.primary { background: var(--accent); color: #fff; }
+  .big.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+  .big.done { background: var(--ok-soft); color: var(--ok); }
+  .note { font-size: 12px; color: var(--mute); text-align: center; margin-top: 12px; }
+  .dsec { font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--mute); margin: 14px 0 4px; }
+  .djob { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+  .djob:first-of-type { border-top: 0; }
+  .djob .sw { width: 8px; height: 28px; border-radius: 4px; flex: none; }
+  .djob a { margin-left: auto; color: var(--accent-ink); font-weight: 600; font-size: 12.5px; text-decoration: none; white-space: nowrap; }
+  .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 9px 16px; border-radius: 8px; font-size: 13px; z-index: 60; }
+  .toast[hidden] { display: none; }
+
+  @media (max-width: 900px) {
+    .cols { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .topbar { padding: 10px 14px; }
+    .brand-sub { display: none; }
+    .wrap { padding: 16px 12px 40px; }
+    .hello h1 { font-size: 20px; }
+    .day { min-height: 92px; padding: 4px 2px 5px; }
+    .cal.month .day { min-height: 60px; }
+    .cal.month .chip { display: none; }
+    .cal.month .more { text-align: center; }
+    .ov { align-items: flex-end; }
+    .panel { width: 100%; height: auto; max-height: 88%; border-radius: 18px 18px 0 0; padding-top: 10px; }
+    .panel::before { content: ""; display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 10px; }
+  }
 </style>
 </head>
 <body>
@@ -65,62 +159,250 @@
       <img class="brand-mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
       <div class="brand-text">
         <div class="brand-name">Superstars Contracting</div>
-        <div class="brand-sub">Projects</div>
+        <div class="brand-sub">Home</div>
       </div>
     </div>
-    <div class="topbar-right">
-      <span class="console-pill">Projects</span>
-      <div id="user-menu"></div>
-    </div>
+    <div id="user-menu"></div>
   </div>
 
   <div class="wrap">
-    <h1>My Projects</h1>
-    <div class="sub">The projects you're assigned to. Click any project to open its dashboard.</div>
-    <div class="project-grid" id="project-grid">
-      <div class="placeholder">Loading projects…</div>
+    <div class="hello"><h1 id="hello">Welcome</h1><div class="sub" id="today-line"></div></div>
+    <div class="cols">
+      <div class="stack">
+        <section class="card" id="todo-card" aria-labelledby="todo-h">
+          <div class="card-h"><h2 id="todo-h">Your to-do</h2><span class="count" id="todo-count"></span></div>
+          <div id="todo"><div class="empty">Loading…</div></div>
+        </section>
+      </div>
+      <div class="stack">
+        <section class="card" id="cal-card" aria-labelledby="cal-h">
+          <div class="card-h">
+            <h2 id="cal-h">Team calendar</h2>
+            <div class="nav"><span class="range" id="range"></span><button type="button" id="prev" aria-label="Previous">‹</button><button type="button" id="today-btn">Today</button><button type="button" id="next" aria-label="Next">›</button></div>
+            <div class="seg" role="group" aria-label="Calendar view"><button type="button" data-view="week" aria-pressed="true">Week</button><button type="button" data-view="month" aria-pressed="false">Month</button></div>
+          </div>
+          <div class="cal" id="cal" role="grid" aria-label="Team calendar"></div>
+          <div class="legend" id="legend"></div>
+        </section>
+        <section class="card" id="proj-card" aria-labelledby="proj-h">
+          <div class="card-h"><h2 id="proj-h">Your projects</h2></div>
+          <div id="projects"><div class="empty">Loading…</div></div>
+        </section>
+      </div>
     </div>
-    <div class="ph-build" id="proj-build-stamp">build #263 · 2026-06-29 · PM project-scoping — assigned-projects-only landing</div>
   </div>
 
+  <div class="ov" id="ov" hidden><div class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="panel-title"></div></div>
+  <div class="toast" id="toast" role="status" hidden></div>
+
 <script>
-  function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
+(function () {
+  'use strict';
+  var COLORS = ['#24418C', '#0F766E', '#B45309', '#7C3AED', '#BE185D', '#0369A1', '#4D7C0F', '#B11E2E'];
+  var DOWS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  var DOWL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  var MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var MONL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  var S = { me: null, todo: [], cal: null, view: 'week', anchor: new Date(), done: {} };
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  // LOCAL dates only (CLAUDE.md dates rule: never the UTC date string)
+  function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function parse(s) { var p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+  function addDays(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function monday(d) { return addDays(d, -((d.getDay() + 6) % 7)); }
+  function fmtTime(t) { if (!t) return ''; var p = t.split(':').map(Number); return (p[0] % 12 || 12) + (p[1] ? ':' + String(p[1]).padStart(2, '0') : '') + (p[0] < 12 ? ' AM' : ' PM'); }
+  function fmtDay(s) { if (!s) return ''; var d = parse(s); return DOWL[d.getDay()].slice(0, 3) + ', ' + MON3[d.getMonth()] + ' ' + d.getDate(); }
+  function when(it) {
+    if (it.kind === 'event') return fmtDay(it.start_date) + (it.end_date ? ' → ' + fmtDay(it.end_date) : '') + (it.start_time ? ' · ' + fmtTime(it.start_time) + (it.end_time ? '–' + fmtTime(it.end_time) : '') : '');
+    return it.due_date ? 'Due ' + fmtDay(it.due_date) + (it.due_time ? ' · ' + fmtTime(it.due_time) : '') : 'No deadline';
+  }
+  function toast(msg) { var t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(function () { t.hidden = true; }, 2000); }
+  async function api(path, opts) {
+    var r = await fetch(path, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' } }, opts || {}));
+    var j = await r.json().catch(function () { return {}; });
+    if (r.status === 401) { location.href = '/login?next=' + encodeURIComponent('/projects'); throw new Error('signed out'); }
+    if (!r.ok) throw new Error(j.error || ('Request failed (' + r.status + ')'));
+    return j;
   }
 
-  async function loadProjects() {
-    var grid = document.getElementById('project-grid');
-    try {
-      var resp = await fetch('/api/projects').then(function (r) { return r.json(); });
-      var projects = (resp && resp.data) || [];
-      if (!projects.length) {
-        grid.innerHTML = '<div class="placeholder"><strong>No projects assigned yet</strong>'
-          + 'When an admin assigns you to a project, it will appear here.</div>';
-        return;
-      }
-      grid.innerHTML = projects.map(function (p) {
-        var status = (p.status || 'active').toLowerCase();
-        var cls = status === 'closed' ? 'status-closed'
-                : status === 'completed' ? 'status-completed'
-                : status === 'bidding' ? 'status-bidding' : 'status-active';
-        var addr = (p.address ? esc(p.address) : '') + (p.city_zip ? ', ' + esc(p.city_zip) : '');
-        return '<a class="project-card" href="/projects/' + encodeURIComponent(p.project_code) + '">'
-          + '<div class="project-card-header"><div>'
-          + '<div class="project-card-name">' + esc(p.name || p.project_code) + '</div>'
-          + '<div class="project-card-code">' + esc(p.project_code) + '</div>'
-          + '</div><span class="status-pill ' + cls + '">' + esc(status) + '</span></div>'
-          + '<div class="project-card-addr">' + addr + '</div>'
-          + '<div class="project-card-stats">'
-          + '<span>' + (p.start_date ? 'Started ' + esc(p.start_date) : '&nbsp;') + '</span>'
-          + '</div></a>';
-      }).join('');
-    } catch (e) {
-      grid.innerHTML = '<div class="placeholder">Could not load projects. Please refresh.</div>';
-    }
+  // ---------- greeting ----------
+  var now = new Date();
+  $('today-line').textContent = DOWL[now.getDay()] + ', ' + MONL[now.getMonth()] + ' ' + now.getDate();
+  document.addEventListener('ssc:user-loaded', function (e) {
+    var u = e.detail || {}; S.me = u;
+    var first = String(u.display_name || u.full_name || '').trim().split(/\s+/)[0];
+    var h = now.getHours();
+    $('hello').textContent = (h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening') + (first ? ', ' + first : '');
+  });
+
+  // ---------- your to-do ----------
+  function row(it) {
+    var isDone = it.status === 'done';
+    var box = it.kind === 'event' ? '<span class="evdot" aria-hidden="true">●</span>'
+      : '<button type="button" class="chk" data-done="' + it.id + '" aria-label="' + (isDone ? 'Mark not done: ' : 'Mark done: ') + esc(it.title) + '">' + (isDone ? '✓' : '') + '</button>';
+    var meta = '<span>' + esc(when(it)) + '</span>' + (it.overdue && !isDone ? '<span class="pill bad">overdue</span>' : '') +
+      (it.project_name ? '<span>' + esc(it.project_name) + '</span>' : '') + (it.location ? '<span>@ ' + esc(it.location) + '</span>' : '');
+    var dir = it.address ? '<a class="dir" href="' + esc(it.directions_url) + '" target="_blank" rel="noopener" data-dir>Directions ↗</a>' : '';
+    return '<div class="row' + (isDone ? ' done' : '') + '" data-open="' + it.id + '" role="button" tabindex="0"><span>' + box + '</span>' +
+      '<div class="r-main"><div class="r-t">' + esc(it.title) + '</div><div class="r-m">' + meta + '</div></div>' + dir + '</div>';
   }
-  loadProjects();
+  async function loadTodo() {
+    try {
+      var j = await api('/api/team/items?status=open&mine=1');
+      var t = iso(new Date());
+      // an event that is over drops off the list (it stays on the calendar)
+      S.todo = (j.data || []).filter(function (it) { return !(it.kind === 'event' && (it.calendar_to || it.calendar_from) < t); });
+    } catch (e) { $('todo').innerHTML = '<div class="empty">Could not load your to-do.</div>'; return; }
+    renderTodo();
+  }
+  function renderTodo() {
+    var rows = S.todo;
+    var open = rows.filter(function (it) { return it.status !== 'done'; }).length;
+    $('todo-count').textContent = open ? open + ' open' : '';
+    if (!rows.length) { $('todo').innerHTML = '<div class="empty">Nothing assigned to you right now. When admin or C-suite assign you a task or an event, it shows up here.</div>'; return; }
+    var groups = [['Overdue', function (r) { return r.overdue && r.status !== 'done'; }, 'bad'],
+                  ['Today', function (r) { return !r.overdue && r.today && r.status !== 'done'; }, ''],
+                  ['Coming up', function (r) { return !r.overdue && !r.today && r.calendar_from && r.status !== 'done'; }, ''],
+                  ['No deadline', function (r) { return !r.calendar_from && r.status !== 'done'; }, ''],
+                  ['Done', function (r) { return r.status === 'done'; }, '']];
+    $('todo').innerHTML = groups.map(function (g) {
+      var list = rows.filter(g[1]);
+      return list.length ? '<div class="grp ' + g[2] + '">' + g[0] + ' · ' + list.length + '</div>' + list.map(row).join('') : '';
+    }).join('');
+  }
+
+  // ---------- team calendar ----------
+  function days() {
+    if (S.view === 'week') { var m = monday(S.anchor), out = []; for (var i = 0; i < 7; i++) out.push(addDays(m, i)); return out; }
+    var first = new Date(S.anchor.getFullYear(), S.anchor.getMonth(), 1), start = monday(first), list = [];
+    var last = new Date(S.anchor.getFullYear(), S.anchor.getMonth() + 1, 0);
+    for (var d = start; d <= last || list.length % 7; d = addDays(d, 1)) list.push(d);
+    return list;
+  }
+  function jobsOn(k) { return ((S.cal && S.cal.jobs) || []).filter(function (j) { return j.start_date <= k && (j.open_ended || (j.end_date && j.end_date >= k)); }); }
+  function itemsOn(k) { return ((S.cal && S.cal.items) || []).filter(function (it) { return it.calendar_from && it.calendar_from <= k && k <= (it.calendar_to || it.calendar_from); }); }
+  async function loadCal() {
+    var ds = days(), from = iso(ds[0]), to = iso(ds[ds.length - 1]);
+    $('range').textContent = S.view === 'week'
+      ? MON3[ds[0].getMonth()] + ' ' + ds[0].getDate() + ' – ' + (ds[6].getMonth() !== ds[0].getMonth() ? MON3[ds[6].getMonth()] + ' ' : '') + ds[6].getDate()
+      : MONL[S.anchor.getMonth()] + ' ' + S.anchor.getFullYear();
+    try { S.cal = (await api('/api/team/calendar?from=' + from + '&to=' + to)).data; }
+    catch (e) { $('cal').innerHTML = '<div class="empty" style="grid-column:1/-1;padding:16px">Could not load the calendar.</div>'; return; }
+    renderCal(ds);
+  }
+  function renderCal(ds) {
+    var t = iso(new Date()), month = S.view === 'month', maxChips = month ? 2 : 4;
+    $('cal').className = 'cal' + (month ? ' month' : '');
+    var html = DOWS.map(function (d) { return '<div class="dow">' + d + '</div>'; }).join('');
+    html += ds.map(function (d) {
+      var k = iso(d), js = jobsOn(k), its = itemsOn(k);
+      var bars = js.map(function (j) { return '<span class="bar' + (j.can_open ? '' : ' not-mine') + '" style="background:' + COLORS[j.color % COLORS.length] + '" title="' + esc(j.name) + '"></span>'; }).join('');
+      var chips = its.slice(0, maxChips).map(function (it) {
+        return '<span class="chip ' + it.kind + (it.overdue ? ' late' : '') + (it.status === 'done' ? ' done' : '') + (it.mine ? ' mine' : '') + '" title="' + esc(it.title) + '">' +
+          (it.kind === 'event' ? '● ' : (it.status === 'done' ? '✓ ' : '☐ ')) + esc((it.kind === 'event' && it.start_date === k && it.start_time ? fmtTime(it.start_time) + ' ' : '') + it.title) + '</span>';
+      }).join('');
+      var more = its.length > maxChips ? '<span class="more">+' + (its.length - maxChips) + ' more</span>' : (month && its.length ? '<span class="more">' + its.length + ' item' + (its.length > 1 ? 's' : '') + '</span>' : '');
+      var other = month && d.getMonth() !== S.anchor.getMonth();
+      return '<div class="day' + (k === t ? ' today' : '') + (other ? ' other' : '') + '" data-day="' + k + '" role="gridcell" tabindex="0" aria-label="' + esc(DOWL[d.getDay()] + ' ' + MONL[d.getMonth()] + ' ' + d.getDate() + ': ' + js.length + ' jobs, ' + its.length + ' tasks or events') + '">' +
+        '<span class="n">' + d.getDate() + '</span>' + bars + chips + more + '</div>';
+    }).join('');
+    $('cal').innerHTML = html;
+    var seen = {}, legend = [];
+    ((S.cal && S.cal.jobs) || []).forEach(function (j) {
+      if (seen[j.project_code]) return; seen[j.project_code] = 1;
+      var sw = '<i style="background:' + COLORS[j.color % COLORS.length] + (j.can_open ? '' : ';opacity:.45') + '"></i>';
+      legend.push(j.can_open ? '<a href="/projects/' + encodeURIComponent(j.project_code) + '">' + sw + esc(j.name) + '</a>' : '<span class="nm">' + sw + esc(j.name) + '</span>');
+    });
+    $('legend').innerHTML = legend.length ? legend.join('') : '<span class="nm">No dated jobs in this view.</span>';
+  }
+  document.querySelectorAll('[data-view]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      S.view = b.getAttribute('data-view');
+      document.querySelectorAll('[data-view]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      try { localStorage.setItem('ssc.home.view', S.view); } catch (e) {}
+      loadCal();
+    });
+  });
+  $('prev').addEventListener('click', function () { S.anchor = S.view === 'week' ? addDays(S.anchor, -7) : new Date(S.anchor.getFullYear(), S.anchor.getMonth() - 1, 1); loadCal(); });
+  $('next').addEventListener('click', function () { S.anchor = S.view === 'week' ? addDays(S.anchor, 7) : new Date(S.anchor.getFullYear(), S.anchor.getMonth() + 1, 1); loadCal(); });
+  $('today-btn').addEventListener('click', function () { S.anchor = new Date(); loadCal(); });
+
+  // ---------- details (an item, or a whole day) ----------
+  function findItem(id) {
+    var all = S.todo.concat((S.cal && S.cal.items) || []);
+    for (var i = 0; i < all.length; i++) if (String(all[i].id) === String(id)) return all[i];
+    return null;
+  }
+  function itemPanel(it) {
+    var who = it.assignee_name ? (it.mine ? 'You' : it.assignee_name) : 'Nobody yet';
+    var where = [it.location, it.address].filter(Boolean).join(' · ') || '—';
+    var facts = [['When', when(it)], ['Where', where], ['Job', it.project_name || '—'], ['For', who], ['From', it.created_by_name || 'Admin / C-suite']];
+    if (it.detail) facts.push(['Notes', it.detail]);
+    var dir = it.address ? '<a class="big primary" href="' + esc(it.directions_url) + '" target="_blank" rel="noopener">Get directions in Google Maps ↗</a>' : '';
+    var doneBtn = it.kind === 'task' && it.can_complete ? '<button type="button" class="big ' + (it.status === 'done' ? 'done' : 'ghost') + '" data-done="' + it.id + '">' + (it.status === 'done' ? '✓ Done · tap to reopen' : 'Mark as done') + '</button>' : '';
+    var job = it.project_code && it.project_name ? '<a class="big ghost" href="/projects/' + encodeURIComponent(it.project_code) + '">Open the job</a>' : '';
+    return '<button type="button" class="x" data-close aria-label="Close">×</button><div class="kind">' + (it.kind === 'event' ? 'Event' : 'Task') + (it.overdue ? ' · overdue' : '') + '</div>' +
+      '<h3 id="panel-title">' + esc(it.title) + '</h3><div class="facts">' +
+      facts.map(function (f) { return '<div class="fact"><b>' + f[0] + '</b><span>' + esc(f[1]) + '</span></div>'; }).join('') + '</div>' +
+      dir + doneBtn + (it.can_edit ? '' : job) + (it.can_edit ? '<a class="big ghost" href="/company#overview">Edit on the company dashboard</a>' : '<div class="note">Only admin and C-suite can change it.</div>');
+  }
+  function dayPanel(k) {
+    var d = parse(k), js = jobsOn(k), its = itemsOn(k);
+    var jobs = js.map(function (j) {
+      return '<div class="djob"><span class="sw" style="background:' + COLORS[j.color % COLORS.length] + '"></span><span>' + esc(j.name) + (j.mine ? ' <span class="count">· yours</span>' : '') + '</span>' +
+        (j.can_open ? '<a href="/projects/' + encodeURIComponent(j.project_code) + '">Open →</a>' : '') + '</div>';
+    }).join('');
+    return '<button type="button" class="x" data-close aria-label="Close">×</button><div class="kind">' + (k === iso(new Date()) ? 'Today' : 'Day') + '</div>' +
+      '<h3 id="panel-title">' + DOWL[d.getDay()] + ', ' + MONL[d.getMonth()] + ' ' + d.getDate() + '</h3>' +
+      '<div class="dsec">Jobs · ' + js.length + '</div>' + (jobs || '<div class="empty">No job is scheduled on this day.</div>') +
+      '<div class="dsec">Tasks &amp; events · ' + its.length + '</div>' + (its.length ? its.map(row).join('') : '<div class="empty">Nothing planned.</div>');
+  }
+  var lastFocus = null;
+  function openPanel(html) { lastFocus = document.activeElement; $('panel').innerHTML = html; $('ov').hidden = false; var x = $('panel').querySelector('[data-close]'); if (x) x.focus(); }
+  function closePanel() { $('ov').hidden = true; if (lastFocus && lastFocus.focus) lastFocus.focus(); }
+  async function toggleDone(id) {
+    var it = findItem(id); if (!it) return;
+    var want = it.status !== 'done';
+    try {
+      await api('/api/team/items/' + encodeURIComponent(id) + '/done', { method: 'POST', body: JSON.stringify({ done: want }) });
+      [S.todo, (S.cal && S.cal.items) || []].forEach(function (list) { list.forEach(function (x) { if (String(x.id) === String(id)) { x.status = want ? 'done' : 'open'; if (want) x.overdue = false; } }); });
+      renderTodo(); if (S.cal) renderCal(days());
+      if (!$('ov').hidden && $('panel').querySelector('[data-done="' + id + '"]')) $('panel').innerHTML = itemPanel(findItem(id));
+      toast(want ? 'Marked done' : 'Reopened');
+    } catch (e) { toast(e.message); }
+  }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-dir]') || e.target.closest('.legend a') || e.target.closest('.djob a')) return;
+    if (e.target.closest('[data-close]') || e.target === $('ov')) { closePanel(); return; }
+    var d = e.target.closest('[data-done]'); if (d) { e.stopPropagation(); toggleDone(d.getAttribute('data-done')); return; }
+    var o = e.target.closest('[data-open]'); if (o) { var it = findItem(o.getAttribute('data-open')); if (it) openPanel(itemPanel(it)); return; }
+    var day = e.target.closest('[data-day]'); if (day) openPanel(dayPanel(day.getAttribute('data-day')));
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !$('ov').hidden) { closePanel(); return; }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-open], [data-day]')) { e.preventDefault(); e.target.click(); }
+  });
+
+  // ---------- your projects ----------
+  async function loadProjects() {
+    var host = $('projects');
+    try {
+      var projects = (await api('/api/projects')).data || [];
+      if (!projects.length) { host.innerHTML = '<div class="empty"><strong>No projects assigned yet.</strong> When an admin assigns you to a project, it will appear here.</div>'; return; }
+      host.innerHTML = projects.map(function (p) {
+        var c = 0; for (var i = 0; i < p.project_code.length; i++) c += p.project_code.charCodeAt(i);
+        var addr = [p.address, p.city_zip].filter(Boolean).join(', ');
+        return '<a class="proj" href="/projects/' + encodeURIComponent(p.project_code) + '"><span class="sw" style="background:' + COLORS[c % COLORS.length] + '"></span>' +
+          '<div><div class="t">' + esc(p.name || p.project_code) + '</div><div class="m">' + esc(p.project_code) + (addr ? ' · ' + esc(addr) : '') + '</div></div><span class="go">Open →</span></a>';
+      }).join('');
+    } catch (e) { host.innerHTML = '<div class="empty">Could not load projects. Please refresh.</div>'; }
+  }
+
+  try { var v = localStorage.getItem('ssc.home.view'); if (v === 'month' || v === 'week') { S.view = v; document.querySelectorAll('[data-view]').forEach(function (x) { x.setAttribute('aria-pressed', String(x.getAttribute('data-view') === v)); }); } } catch (e) {}
+  loadTodo(); loadCal(); loadProjects();
+})();
 </script>
 </body>
 </html>

@@ -31,6 +31,10 @@ Titles and details can name people, so they never go to the log (ids only).
   PUT    /api/team/items/<id>
   POST   /api/team/items/<id>/done        {"done": true|false}
   DELETE /api/team/items/<id>             soft: status 'cancelled', kept for the record
+  GET    /api/team/calendar?from=&to=     the TEAM calendar for every team role (#2b): every dated job
+                                          (name, dates, colour, whether this person can open it, whether
+                                          they are on it) + every task / event in the window. Nothing else:
+                                          no clients, money, crew, on-site counts or reports
   GET    /api/team/address-suggest?q=     address suggestions while typing: the jobs' own addresses
                                           plus NYC GeoSearch (NYC Planning, free, no key); labels only
 """
@@ -315,6 +319,26 @@ def get_item(conn, item_id) -> Optional[dict]:
     return dict(r) if r else None
 
 
+def team_calendar(conn, start: date, end: date, *, role=None, uid=None) -> dict:
+    """The team week / month for anyone on the team. Built on the company calendar's job
+    window, then cut down to what the whole team may see."""
+    import pm_scoping
+    import portal_calendar
+    w = portal_calendar.window(conn, start, end)
+    mine_codes = pm_scoping.assigned_codes(uid, conn) if uid else set()
+    jobs = []
+    for j in w["jobs"]:
+        jobs.append({
+            "project_code": j["project_code"], "name": j["name"], "start_date": j["start_date"], "end_date": j["end_date"],
+            "open_ended": j["open_ended"], "color": j["color"], "status": j["status"], "today_on": j["today_on"],
+            "can_open": pm_scoping.pm_can_access_project(role, uid, j["project_code"], conn),
+            "mine": j["project_code"] in mine_codes,
+        })
+    items = list_items(conn, status="all", date_from=w["range"]["from"], date_to=w["range"]["to"], me=uid,
+                       can_edit=role in EDIT_ROLES)
+    return {"range": w["range"], "jobs": jobs, "items": items}
+
+
 # ------------------------------------------------------------------ writes
 def create(conn, p: dict, *, actor=None) -> int:
     v = _validate(conn, p)
@@ -386,6 +410,22 @@ def _with_conn(fn):
 @requires_role(*TEAM_ROLES)
 def _api_people():
     return jsonify({"data": _with_conn(people)})
+
+
+@requires_role(*TEAM_ROLES)
+def _api_calendar():
+    uid, role = _me()
+    try:
+        d_from, d_to = _date(request.args.get("from"), "from date"), _date(request.args.get("to"), "to date")
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    if not d_from or not d_to:
+        return jsonify({"error": "give both from and to"}), 400
+    try:
+        data = _with_conn(lambda c: team_calendar(c, date.fromisoformat(d_from), date.fromisoformat(d_to), role=role, uid=uid))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"data": data})
 
 
 @requires_role(*TEAM_ROLES)
@@ -461,6 +501,7 @@ def register(app) -> None:
     finally:
         conn.close()
     app.add_url_rule("/api/team/people", "team_people", _api_people, methods=["GET"])
+    app.add_url_rule("/api/team/calendar", "team_calendar", _api_calendar, methods=["GET"])
     app.add_url_rule("/api/team/address-suggest", "team_address_suggest", _api_suggest, methods=["GET"])
     app.add_url_rule("/api/team/items", "team_items_list", _api_list, methods=["GET"])
     app.add_url_rule("/api/team/items", "team_items_create", _api_create, methods=["POST"])
