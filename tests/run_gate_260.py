@@ -97,6 +97,7 @@ GATE = [
     "smoke_job_v2_preview.py",        # job dashboard v2 preview (?ui=2): only on a project's own page, v1 byte-identical
     "smoke_login_next_query.py",      # login redirect keeps only ?ui=1|2 in next=
     "smoke_company_dashboard_links.py",  # console Dashboard tiles / rows link to the view behind each number
+    "smoke_gcal_sync.py",             # each person's tasks & events in their own Google Calendar (Google faked)
     "smoke_team_home_2b.py",          # PM / super home: own to-do, team calendar, projects
     "smoke_team_items.py",            # team tasks & events: dashboard to-do list on the calendar
     "smoke_shell_titles_pin.py",      # one title per page; pinnable sidebar that slides open on hover
