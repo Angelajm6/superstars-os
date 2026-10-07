@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Company · Superstars Contracting</title>
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=359">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
-<script src="/files/static/js/shell.js?v=359" defer></script>
-<link rel="stylesheet" href="/files/static/css/shell.css?v=341">
-<script src="/files/static/js/company_nav.js?v=360"></script>
-<script src="/files/static/js/datepicker.js?v=302" defer></script>
+<script src="/files/static/js/shell.js?v=1007" defer></script>
+<link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
+<script src="/files/static/js/company_nav.js?v=1007"></script>
+<script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=361" defer></script>
 <script src="/files/static/js/auth_menu.js?v=302" defer></script>
 <style>
@@ -199,8 +199,7 @@
   <main class="ssc-main">
     <header class="ssc-top">
       <div>
-        <div class="ssc-crumb" id="cp-crumb" data-nav-crumb>Company</div>
-        <h1 id="cp-title">Dashboard</h1>
+        <h1 id="cp-title" data-nav-h1>Dashboard</h1>
       </div>
       <div class="ssc-top-right">
         <span id="cp-date"></span>
@@ -240,10 +239,49 @@
           .cc-week-foot a{color:var(--ui);font-weight:700;text-decoration:none}
           .cw0{background:#24418C}.cw1{background:#0F766E}.cw2{background:#B45309}.cw3{background:#7C3AED}.cw4{background:#BE185D}.cw5{background:#0369A1}.cw6{background:#4D7C0F}.cw7{background:#B11E2E}
           @media (max-width:760px){ .cc-week-bar small{display:none} .cc-week-hc{display:none} .cc-week-row{min-height:96px} }
+          /* tasks & events: chips on the week strip + calendar, and the dashboard list */
+          .cc-week-ms span.it, .cal-ms span.it{cursor:pointer;background:#EEF2FF;color:#24418C;border-left-color:#4364DC}
+          .cc-week-ms span.it.event, .cal-ms span.it.event{background:#E7F6F1;color:#0F5E57;border-left-color:#0F766E}
+          .cc-week-ms span.it.late, .cal-ms span.it.late{background:#FCEEEC;color:#A8382B;border-left-color:#B11E2E}
+          .cc-week-ms span.it.done, .cal-ms span.it.done{opacity:.6;text-decoration:line-through}
+          .cc-week-ms span.more{background:transparent;border-left:0;color:var(--muted,#8c92a0);padding-left:2px}
+          .cal-cell, .cc-week-cell, .cal-ms, .cc-week-ms{min-width:0}   /* a long chip truncates instead of widening its day */
+          .cal-ms span, .cc-week-ms span{max-width:100%}
+          .cal-date .n, .cc-week-date .n{flex:none}
+          .cal-date, .cc-week-date{min-width:0;overflow:hidden}
+          .cal-date small, .cal-hc{min-width:0;overflow:hidden;text-overflow:ellipsis}
+          #ov-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}   /* the dashboard keeps two numbers; they share the row */
+          .tk-head-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+          .tk-list{display:flex;flex-direction:column}
+          .tk-group{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#8c92a0);margin:12px 0 4px}
+          .tk-group:first-child{margin-top:4px}
+          .tk-row{display:flex;align-items:flex-start;gap:10px;padding:9px 4px;border-top:1px solid var(--line,#eceef3);cursor:pointer;border-radius:6px}
+          .tk-row:hover{background:#F7F8FB}
+          .tk-row .tk-check{flex:0 0 auto;width:20px;height:20px;margin-top:1px;border:1.5px solid #B8BECB;border-radius:5px;background:#fff;display:grid;place-items:center;cursor:pointer;padding:0;color:#fff;font-size:12px;line-height:1}
+          .tk-row .tk-check:hover{border-color:#4364DC}
+          .tk-row.done .tk-check{background:#1F8A5B;border-color:#1F8A5B}
+          .tk-row .tk-ev{flex:0 0 auto;width:20px;height:20px;margin-top:1px;border-radius:5px;background:#E7F6F1;color:#0F766E;display:grid;place-items:center;font-size:11px}
+          .tk-main{min-width:0;flex:1}
+          .tk-title{font-weight:600;font-size:13.5px;color:var(--ink,#222633);overflow-wrap:anywhere}
+          .tk-row.done .tk-title{text-decoration:line-through;color:var(--muted,#8c92a0)}
+          .tk-meta{font-size:12px;color:var(--ink-2,#4A4F59);margin-top:2px;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+          .tk-who{font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:99px;background:#F0F1F4;color:#4A4F59;white-space:nowrap}
+          .tk-who.me{background:#EEF2FF;color:#24418C}
+          .tk-kind-seg{display:flex;gap:6px}
+          .tk-kind-seg label{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line,#E3E5EA);border-radius:8px;padding:9px 10px;cursor:pointer;font-weight:600;font-size:13px;text-transform:none;letter-spacing:0;color:var(--ink,#222633);margin:0;position:relative}
+          .tk-lbl{display:block;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+          .tk-kind-seg input{position:absolute;opacity:0;pointer-events:none}
+          .tk-kind-seg label:has(input:checked){border-color:#4364DC;background:#EEF2FF;color:#24418C}
+          .tk-kind-seg label:focus-within{outline:2px solid #4364DC;outline-offset:1px}
+          .tk-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+          .tk-grid2 > div{display:flex;flex-direction:column;gap:6px;min-width:0}
+          .tk-fields[hidden]{display:none}
+          @media (max-width:560px){ .tk-grid2{grid-template-columns:1fr} }
+          #tk-delete[hidden]{display:none}
         </style>
         <div class="cp-card cc-week" id="cc-week">
           <div class="cc-week-head">
-            <div><h2>This week</h2><div class="cp-muted">Jobs running each day, who is on site, and what falls due. Click a job to open it.</div></div>
+            <div><h2>This week</h2><div class="cp-muted">Jobs running each day, who is on site, tasks, events and what falls due. Click one to open it.</div></div>
             <a class="cc-week-link" id="cc-week-open" href="#calendar">Open the calendar →</a>
           </div>
           <div class="cc-week-dow" id="cc-week-dow"></div>
@@ -252,9 +290,15 @@
         </div>
         <div class="cp-kpis" id="ov-kpis"></div>
         <div class="cp-grid2">
-          <div class="cp-card">
-            <div class="cp-card-head"><h2>Money at a glance</h2><span class="hint" id="ov-asof"></span></div>
-            <ul class="cp-list" id="ov-money"></ul>
+          <!-- the team to-do list: tasks (with or without a deadline) and events, on the calendar too -->
+          <div class="cp-card tk-card" id="tk-card">
+            <div class="cp-card-head"><h2>Tasks &amp; events</h2>
+              <div class="tk-head-right">
+                <div class="cal-seg" role="tablist" aria-label="Which tasks"><button type="button" data-tk-filter="open" class="on">Open</button><button type="button" data-tk-filter="mine">Mine</button><button type="button" data-tk-filter="done">Done</button></div>
+                <button type="button" class="btn-primary btn-sm" id="tk-new">+ New</button>
+              </div>
+            </div>
+            <div id="tk-list" class="tk-list"></div>
           </div>
           <div class="cp-card">
             <div class="cp-card-head"><h2>Needs attention</h2><a class="cp-link" href="#company">Open Company →</a></div>
@@ -381,7 +425,8 @@
         </style>
         <div class="cal" id="cal">
           <div class="cal-head">
-            <div><h2 class="cal-title" id="cal-range">—</h2><div class="cal-sub" id="cal-sub">Jobs by day · click a job to open it</div></div>
+            <div><h2 class="cal-title" id="cal-range">—</h2><div class="cal-sub" id="cal-sub">Jobs, tasks and events by day · click one to open it</div></div>
+            <button type="button" class="btn-primary btn-sm" id="cal-new-item">+ Task or event</button>
             <div class="cal-seg" role="tablist"><button type="button" data-cal-view="3day">3 days</button><button type="button" data-cal-view="week">Week</button><button type="button" data-cal-view="month" class="on">Month</button></div>
             <div class="cal-nav"><button type="button" id="cal-prev" title="Previous">‹</button><button type="button" id="cal-today">Today</button><button type="button" id="cal-next" title="Next">›</button><button type="button" id="cal-print" title="Print this view as a sheet for the foremen">Print</button></div>
           </div>
@@ -435,7 +480,7 @@
         <div class="cp-kpis" id="fin-kpis"></div>
         <!-- #319 — accounts payable + the 30-day cash view -->
         <div class="cp-card" id="pb-card">
-          <div class="cp-card-head"><h2>What needs to get paid</h2><span class="hint">bills we owe and invoices owed to us · next 30 days</span></div>
+          <div class="cp-card-head"><h2>Next 30 days</h2><span class="hint">bills we owe and invoices owed to us</span></div>
           <div class="cp-kpis" id="pb-kpis" style="margin-bottom:12px"></div>
           <div class="cp-toolbar">
             <select class="cp-select" id="pb-status"><option value="open">Open bills</option><option value="overdue">Overdue</option><option value="paid">Paid</option><option value="void">Void</option><option value="all">All</option></select>
@@ -522,7 +567,7 @@
         <div class="cp-kpis" id="wf-kpis"></div>
         <div class="cp-grid3">
           <div class="cp-card">
-            <div class="cp-card-head"><h2>Workers</h2><span class="hint">rates are company-confidential · never shown on field surfaces</span></div>
+            <div class="cp-card-head"><h2>Roster</h2><span class="hint">rates are company-confidential · never shown on field surfaces</span></div>
             <div class="cp-toolbar">
               <!-- #345 — Active / Inactive (former workers: archived, or deactivated in Pay rates) -->
               <div class="cal-seg" role="tablist" aria-label="Worker status"><button type="button" data-wf-status="active" class="on">Active <span id="wf-n-active"></span></button><button type="button" data-wf-status="inactive">Inactive <span id="wf-n-inactive"></span></button></div>
@@ -818,6 +863,37 @@
   </form>
 </div>
 
+<!-- team task / event: one dialog for new and edit -->
+<div class="cp-overlay" id="tk-overlay" role="dialog" aria-modal="true" aria-labelledby="tk-title">
+  <form class="cp-modal" id="tk-form" novalidate>
+    <div class="cp-modal-head"><h2 id="tk-title">New task or event</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">It shows on the team calendar for everyone. Leave the person or the deadline empty if there isn&#39;t one yet.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><span class="tk-lbl" id="tk-kind-label">Type</span>
+        <div class="tk-kind-seg" role="radiogroup" aria-labelledby="tk-kind-label">
+          <label><input type="radio" name="tk-kind" id="tk-kind-task" value="task" checked>☐ Task <span class="cp-muted" style="font-weight:400">a to-do</span></label>
+          <label><input type="radio" name="tk-kind" id="tk-kind-event" value="event">● Event <span class="cp-muted" style="font-weight:400">happens on a day</span></label>
+        </div></div>
+      <div class="cp-field full"><label for="tk-title-in">What</label><input id="tk-title-in" class="ssc-field" required maxlength="200" placeholder="e.g. Call the property manager, Job walkthrough, Send invoice"></div>
+      <div class="cp-field"><label for="tk-assignee">Assign to</label><select id="tk-assignee" class="ssc-field"><option value="">Nobody yet</option></select></div>
+      <div class="cp-field"><label for="tk-project">Job (optional)</label><select id="tk-project" class="ssc-field"><option value="">No job</option></select></div>
+      <div class="tk-fields tk-grid2 cp-field full" id="tk-task-fields">
+        <div><label for="tk-due">Deadline (optional)</label><input id="tk-due" type="date" class="ssc-field"></div>
+        <div><label for="tk-due-time">Time (optional)</label><input id="tk-due-time" type="time" class="ssc-field"></div>
+      </div>
+      <div class="tk-fields tk-grid2 cp-field full" id="tk-event-fields" hidden>
+        <div><label for="tk-start">Date</label><input id="tk-start" type="date" class="ssc-field"></div>
+        <div><label for="tk-end">Ends (if more than one day)</label><input id="tk-end" type="date" class="ssc-field"></div>
+        <div><label for="tk-start-time">Start time (optional)</label><input id="tk-start-time" type="time" class="ssc-field"></div>
+        <div><label for="tk-end-time">End time (optional)</label><input id="tk-end-time" type="time" class="ssc-field"></div>
+        <div style="grid-column:1 / -1"><label for="tk-location">Where (optional)</label><input id="tk-location" class="ssc-field" maxlength="200" placeholder="e.g. on site, office, client office"></div>
+      </div>
+      <div class="cp-field full"><label for="tk-detail">Details</label><textarea id="tk-detail" class="ssc-field" maxlength="2000"></textarea></div>
+      <div class="cp-form-err" id="tk-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="tk-delete" hidden style="margin-right:auto;color:#B11E2E">Delete</button><button class="btn-ghost" type="button" data-cancel>Cancel</button><button class="btn-primary" type="submit" id="tk-save">Add</button></div>
+  </form>
+</div>
+
 <!-- company document modal -->
 <div class="cp-overlay" id="cd-overlay" role="dialog" aria-modal="true" aria-labelledby="cd-title">
   <form class="cp-modal" id="cd-form" novalidate>
@@ -912,37 +988,15 @@
 
   // ---------- OVERVIEW ----------
   // Dashboard → the view behind each number (every target must be a real view: smoke_company_dashboard_links)
-  const OV_MONEY_LINKS = {
-    'Open pipeline value': '/#estimates', 'Won year to date': '/#estimates',
-    'Receipts this month': '#expenses', 'Expense ledger this month': '#expenses', 'Receipts needing review': '#expenses',
-    'Open invoices': '#finance', 'Collected year to date': '#finance', 'Bills to pay': '#finance',
-    'Cash, next 30 days': '#finance', 'IRA job deposits': '#finance',
-  };
   async function loadOverview() {
-    skeleton($('ov-kpis'), 1); skeleton($('ov-money'), 4); skeleton($('ov-attention'), 4);
-    loadWeekStrip();
+    skeleton($('ov-kpis'), 1); skeleton($('ov-attention'), 4);
+    loadWeekStrip(); loadTasks();
     try {
       const { data: d } = await api('/overview');
-      $('ov-asof').textContent = 'as of ' + fmtDate(d.as_of);
+      // the dashboard stays clean: two numbers, the week, the to-do list, what needs attention
       $('ov-kpis').innerHTML =
         kpi('Active projects', num.format(d.projects.active), `${num.format(d.clients.active)} active clients`, '', '#projects') +
-        kpi('Open pipeline', money.format(d.pipeline.open_value), `${d.pipeline.open_count} open estimates`, '', '/#estimates') +
-        kpi('Won this year', money.format(d.pipeline.won_value_ytd), `${d.pipeline.won_count_ytd} won · ${d.pipeline.lost_count_ytd} lost`, 'good', '/#estimates') +
-        kpi('Spend this month', money.format(d.spend.receipts_mtd + d.spend.ledger_mtd), `${money.format(d.spend.receipts_ytd + d.spend.ledger_ytd)} year to date`, '', '#expenses') +
-        kpi('Workforce', num.format(d.workforce.headcount), `${d.workforce.on_site_today} on site today · ${d.workforce.worked_hours_this_week} h worked this week`, '', '#workforce') +
-        kpi('Expiring soon', num.format(d.expiring.next_30), `${d.expiring.expired} already expired`, d.expiring.expired ? 'warn' : '', '#company');
-      $('ov-money').innerHTML = [
-        ['Open pipeline value', money2.format(d.pipeline.open_value)],
-        ['Won year to date', money2.format(d.pipeline.won_value_ytd)],
-        ['Receipts this month', money2.format(d.spend.receipts_mtd)],
-        ['Expense ledger this month', money2.format(d.spend.ledger_mtd)],
-        ['Open invoices', `${money2.format(d.invoices.open_value)} <span class="cp-muted">· ${d.invoices.open_count} open${d.invoices.overdue_count ? ' · <span class="cp-pill bad">' + d.invoices.overdue_count + ' overdue</span>' : ''}</span>`],
-        ['Collected year to date', money2.format(d.invoices.collected_ytd_value)],
-        ['Bills to pay', d.payables && d.payables.payables && d.payables.payables.open_count != null ? `${money2.format(d.payables.payables.open_value)} <span class="cp-muted">· ${d.payables.payables.open_count} open${d.payables.payables.overdue_count ? ' · <span class="cp-pill bad">' + d.payables.payables.overdue_count + ' overdue</span>' : ''} · <a class="cp-link" href="#finance">what needs to get paid →</a></span>` : '—'],
-        ['Cash, next 30 days', d.payables && d.payables.cash_30 && d.payables.cash_30.net != null ? `<span class="${d.payables.cash_30.net < 0 ? 'cp-pill bad' : 'cp-pill ok'}">${d.payables.cash_30.net < 0 ? '−' : '+'}${money2.format(Math.abs(d.payables.cash_30.net))}</span> <span class="cp-muted">· ${money2.format(d.payables.cash_30.in)} in · ${money2.format(d.payables.cash_30.out)} out</span>` : '—'],
-        ['IRA job deposits', `${money2.format(d.receivables.open_value)} <span class="cp-muted">· ${d.receivables.open_jobs} open · ${d.receivables.awaiting_deposit} awaiting deposit</span>`],
-        ['Receipts needing review', `${d.spend.receipts_needing_review}`],
-      ].map(([k, v]) => { const h = OV_MONEY_LINKS[k]; return h ? `<li class="has-link"><a href="${h}"><span>${esc(k)}</span><strong>${String(v).replace(/<a [^>]*>([^<]*)<\/a>/g, '<span class="cp-link">$1</span>')}</strong></a></li>` : `<li><span>${esc(k)}</span><strong>${v}</strong></li>`; }).join('');
+        kpi('Workforce', num.format(d.workforce.headcount), `${d.workforce.on_site_today} on site today · ${d.workforce.worked_hours_this_week} h worked this week`, '', '#workforce');
       const att = [];
       if (d.expiring.expired) att.push([`${d.expiring.expired} expired item(s)`, '<a class="cp-link" href="#company">review</a>']);
       if (d.expiring.next_30) att.push([`${d.expiring.next_30} item(s) expire within 30 days`, '<a class="cp-link" href="#company">review</a>']);
@@ -954,6 +1008,132 @@
       if (!d.pipeline.open_count) att.push(['No open estimates in the pipeline', '<a class="cp-link" href="/#estimates">estimates</a>']);
       $('ov-attention').innerHTML = att.length ? att.map(([k, v]) => { const m = /href="([^"]+)">([^<]+)</.exec(v); return m ? `<li class="has-link"><a href="${m[1]}"><span>${esc(k)}</span><span class="cp-link">${m[2]}</span></a></li>` : `<li><span>${esc(k)}</span>${v}</li>`; }).join('') : `<li><span class="cp-muted">All clear. Nothing needs attention right now.</span></li>`;
     } catch (e) { toast(e.message, true); $('ov-kpis').innerHTML = empty('Could not load the overview', e.message); }
+  }
+
+  // ---------- TASKS & EVENTS (the team to-do list; also drawn on the calendar) ----------
+  const TK = { filter: 'open', rows: [], people: null, projects: null };
+  const DOW3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function todayISO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function fmtTime(t) { if (!t) return ''; const [h, m] = t.split(':').map(Number); return (h % 12 || 12) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? ' AM' : ' PM'); }
+  function fmtDay(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); const x = new Date(y, m - 1, d); return DOW3[x.getDay()] + ', ' + MON3[m - 1] + ' ' + d; }
+  function itemWhen(it) {
+    if (it.kind === 'event') {
+      const t = it.start_time ? ' · ' + fmtTime(it.start_time) + (it.end_time ? '–' + fmtTime(it.end_time) : '') : '';
+      return fmtDay(it.start_date) + (it.end_date ? ' → ' + fmtDay(it.end_date) : '') + t;
+    }
+    return it.due_date ? 'Due ' + fmtDay(it.due_date) + (it.due_time ? ' · ' + fmtTime(it.due_time) : '') : 'No deadline';
+  }
+  function tkRow(it) {
+    const done = it.status === 'done';
+    const box = it.kind === 'event' ? '<span class="tk-ev" aria-hidden="true">●</span>'
+      : `<button type="button" class="tk-check" data-tk-done="${it.id}" ${it.can_complete ? '' : 'disabled'} aria-label="${done ? 'Mark not done' : 'Mark done'}: ${esc(it.title)}">${done ? '✓' : ''}</button>`;
+    const who = it.assignee_name ? `<span class="tk-who${it.mine ? ' me' : ''}">${it.mine ? 'You' : esc(it.assignee_name)}</span>` : '<span class="tk-who">Unassigned</span>';
+    const where = it.project_name ? `<span>${esc(it.project_name)}</span>` : (it.org_name ? `<span>${esc(it.org_name)}</span>` : '');
+    const loc = it.kind === 'event' && it.location ? `<span>@ ${esc(it.location)}</span>` : '';
+    return `<div class="tk-row${done ? ' done' : ''}" data-tk-open="${it.id}" role="button" tabindex="0">${box}<div class="tk-main"><div class="tk-title">${esc(it.title)}</div>` +
+      `<div class="tk-meta"><span>${esc(itemWhen(it))}</span>${it.overdue ? '<span class="cp-pill bad">overdue</span>' : ''}${where}${loc}${who}</div></div></div>`;
+  }
+  async function loadTasks() {
+    const host = $('tk-list'); if (!host) return;
+    skeleton(host, 3);
+    const q = TK.filter === 'done' ? 'status=done' : 'status=open' + (TK.filter === 'mine' ? '&mine=1' : '');
+    try {
+      const { data } = await api('/team/items?' + q, null, true);
+      const t = todayISO();
+      // an event that is over drops off the open list (it stays on the calendar)
+      TK.rows = TK.filter === 'done' ? data : data.filter(it => !(it.kind === 'event' && (it.calendar_to || it.calendar_from) < t));
+      if (!TK.rows.length) { host.innerHTML = empty(TK.filter === 'done' ? 'Nothing done yet' : (TK.filter === 'mine' ? 'Nothing assigned to you' : 'No open tasks or events'), TK.filter === 'done' ? '' : 'Use "+ New" to add a call, a walkthrough, an invoice to send, a proposal to submit…'); return; }
+      if (TK.filter === 'done') { host.innerHTML = TK.rows.slice(0, 30).map(tkRow).join(''); return; }
+      const groups = [['Overdue', r => r.overdue], ['Today', r => !r.overdue && r.today], ['Coming up', r => !r.overdue && !r.today && r.calendar_from], ['No deadline', r => !r.calendar_from]];
+      host.innerHTML = groups.map(([label, f]) => { const g = TK.rows.filter(f); return g.length ? `<div class="tk-group">${label} · ${g.length}</div>` + g.map(tkRow).join('') : ''; }).join('');
+    } catch (e) { host.innerHTML = empty('Could not load tasks', e.message); }
+  }
+  document.querySelectorAll('[data-tk-filter]').forEach(b => b.addEventListener('click', () => {
+    TK.filter = b.dataset.tkFilter; document.querySelectorAll('[data-tk-filter]').forEach(x => x.classList.toggle('on', x === b)); loadTasks();
+  }));
+  $('tk-list').addEventListener('click', async (e) => {
+    const done = e.target.closest('[data-tk-done]');
+    if (done) {
+      e.stopPropagation(); const it = TK.rows.find(r => String(r.id) === done.dataset.tkDone); if (!it) return;
+      done.disabled = true;
+      try { await api('/team/items/' + it.id + '/done', { method: 'POST', body: JSON.stringify({ done: it.status !== 'done' }) }, true); toast(it.status !== 'done' ? 'Marked done' : 'Reopened'); loadTasks(); loadWeekStrip(); }
+      catch (ex) { toast(ex.message, true); done.disabled = false; }
+      return;
+    }
+    const row = e.target.closest('[data-tk-open]'); if (row) openItem(TK.rows.find(r => String(r.id) === row.dataset.tkOpen));
+  });
+  $('tk-list').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-tk-open]')) { e.preventDefault(); e.target.click(); } });
+  async function tkLists() {
+    if (!TK.people) { try { TK.people = (await api('/team/people', null, true)).data; } catch (e) { TK.people = []; } }
+    if (!TK.projects) { try { const r = (await api('/projects', null, true)).data || []; TK.projects = r.filter(p => String(p.status || 'active').toLowerCase() !== 'closed'); } catch (e) { TK.projects = []; } }
+    $('tk-assignee').innerHTML = '<option value="">Nobody yet</option>' + TK.people.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+    $('tk-project').innerHTML = '<option value="">No job</option>' + TK.projects.map(p => `<option value="${esc(p.project_code)}">${esc(p.name || p.project_code)} · ${esc(p.project_code)}</option>`).join('');
+  }
+  function tkKind() { return $('tk-kind-event').checked ? 'event' : 'task'; }
+  function tkShowKind() { const ev = tkKind() === 'event'; $('tk-task-fields').hidden = ev; $('tk-event-fields').hidden = !ev; }
+  $('tk-kind-task').addEventListener('change', tkShowKind); $('tk-kind-event').addEventListener('change', tkShowKind);
+  async function openItem(it, preset) {
+    if (it && !it.can_edit) { toast('Only admin and C-suite can edit this. ' + itemWhen(it)); return; }
+    const ov = $('tk-overlay'), f = $('tk-form'); f.reset(); f.dataset.item = it ? it.id : '';
+    ['tk-due', 'tk-start', 'tk-end'].forEach(i => dateSet($(i), ''));   // reset() leaves the picker value behind
+    $('tk-err').className = 'cp-form-err';
+    ov.classList.add('open');   // open at once; the two pick-lists fill in a moment later on first use
+    $('tk-title').textContent = it ? (it.kind === 'event' ? 'Edit event' : 'Edit task') : 'New task or event';
+    $('tk-save').textContent = it ? 'Save' : 'Add'; $('tk-delete').hidden = !it;
+    $('tk-save').disabled = true;
+    await tkLists();
+    $('tk-save').disabled = false;
+    const kind = it ? it.kind : ((preset && preset.kind) || 'task');
+    $('tk-kind-task').checked = kind === 'task'; $('tk-kind-event').checked = kind === 'event'; tkShowKind();
+    if (it) {
+      $('tk-title-in').value = it.title || ''; $('tk-detail').value = it.detail || '';
+      $('tk-assignee').value = it.assignee_user_id || ''; $('tk-project').value = it.project_code || '';
+      dateSet($('tk-due'), it.due_date); $('tk-due-time').value = it.due_time || '';
+      dateSet($('tk-start'), it.start_date); dateSet($('tk-end'), it.end_date); $('tk-start-time').value = it.start_time || '';
+      $('tk-end-time').value = it.end_time || ''; $('tk-location').value = it.location || '';
+    } else if (preset && preset.date) { dateSet($('tk-due'), preset.date); dateSet($('tk-start'), preset.date); }
+    $('tk-title-in').focus();
+  }
+  function closeItem() { $('tk-overlay').classList.remove('open'); }
+  $('tk-overlay').querySelector('[data-cancel]').addEventListener('click', closeItem);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeItem(); });
+  $('tk-new').addEventListener('click', () => openItem(null));
+  $('cal-new-item').addEventListener('click', () => openItem(null, { date: todayISO() }));
+  function tkAfterSave(msg) { toast(msg); closeItem(); loadTasks(); loadWeekStrip(); CAL.cache = {}; if (location.hash.startsWith('#calendar')) loadCalendar(); }
+  $('tk-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); $('tk-err').className = 'cp-form-err';
+    const id = $('tk-form').dataset.item, kind = tkKind(), title = $('tk-title-in').value.trim();
+    if (!title) { formErr('tk-err', 'Say what it is.'); return; }
+    if (kind === 'event' && !dateGet($('tk-start'))) { formErr('tk-err', 'Pick the day of the event.'); return; }
+    const body = { kind, title, detail: $('tk-detail').value.trim() || null, assignee_user_id: $('tk-assignee').value ? Number($('tk-assignee').value) : null, project_code: $('tk-project').value || null };
+    if (kind === 'task') Object.assign(body, { due_date: dateGet($('tk-due')) || null, due_time: $('tk-due-time').value || null });
+    else Object.assign(body, { start_date: dateGet($('tk-start')), end_date: dateGet($('tk-end')) || null, start_time: $('tk-start-time').value || null, end_time: $('tk-end-time').value || null, location: $('tk-location').value.trim() || null });
+    $('tk-save').disabled = true;
+    try {
+      if (id) await api('/team/items/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) }, true);
+      else await api('/team/items', { method: 'POST', body: JSON.stringify(body) }, true);
+      tkAfterSave(id ? 'Saved' : (kind === 'event' ? 'Event added' : 'Task added'));
+    } catch (ex) { formErr('tk-err', ex.message); }
+    finally { $('tk-save').disabled = false; }
+  });
+  $('tk-delete').addEventListener('click', async () => {
+    const id = $('tk-form').dataset.item; if (!id) return;
+    if (!confirm('Delete "' + ($('tk-title-in').value.trim() || 'this item') + '"? It comes off the list and the calendar.')) return;
+    $('tk-delete').disabled = true;
+    try { await api('/team/items/' + encodeURIComponent(id), { method: 'DELETE' }, true); tkAfterSave('Deleted'); }
+    catch (ex) { formErr('tk-err', ex.message); }
+    finally { $('tk-delete').disabled = false; }
+  });
+  // calendar chips: a task on its deadline day, an event on each of its days
+  function itemsOn(d, iso) { return (d.items || []).filter(it => it.calendar_from && it.calendar_from <= iso && iso <= (it.calendar_to || it.calendar_from)); }
+  function itemChip(it, iso) {
+    const t = it.kind === 'event' ? (it.start_date === iso && it.start_time ? fmtTime(it.start_time) + ' ' : '') : (it.due_time ? fmtTime(it.due_time) + ' ' : '');
+    const icon = it.kind === 'event' ? '● ' : (it.status === 'done' ? '✓ ' : '☐ ');
+    const tip = (it.kind === 'event' ? 'Event' : 'Task') + ' · ' + it.title + ' · ' + itemWhen(it) + (it.assignee_name ? ' · ' + it.assignee_name : '');
+    return `<span class="it ${it.kind}${it.status === 'done' ? ' done' : ''}${it.overdue ? ' late' : ''}" data-item="${it.id}" title="${esc(tip)}">${icon}${esc(t)}${esc(it.title)}</span>`;
+  }
+  function wireItemChips(host, d) {
+    host.querySelectorAll('[data-item]').forEach(el => el.addEventListener('click', ev => { ev.stopPropagation(); ev.preventDefault(); openItem((d.items || []).find(x => String(x.id) === el.dataset.item)); }));
   }
 
   // ---------- CLIENTS ----------
@@ -1146,11 +1326,12 @@
       segs.push({ j, c0, c1, lane, starts: js >= from, ends: !j.open_ended && je <= to });
     });
     const laneCount = Math.min(lanes.length, maxLanes);
-    let msMax = 0; days.forEach(x => { msMax = Math.max(msMax, Math.min(((d.days[iso(x)] || {}).milestones || []).length, 3)); });
+    let msMax = 0; days.forEach(x => { msMax = Math.max(msMax, Math.min(((d.days[iso(x)] || {}).milestones || []).length + itemsOn(d, iso(x)).length, 3)); });
     const minH = Math.max(120, 44 + laneCount * laneH + 14 + msMax * 19);
     const cells = days.map(x => {
-      const k = iso(x), info = d.days[k] || {}, hc = info.headcount || 0, ms = (info.milestones || []).slice(0, 3);
-      const chips = ms.map(m => `<span class="${m.kind === 'invoice' ? 'inv' : ''}${m.late ? ' late' : ''}" title="${esc(m.kind === 'invoice' ? (m.number + ' · ' + (m.client_name || '')) : ((m.project_name || m.project_code || '') + ' · ' + m.label))}">${m.kind === 'invoice' ? '$ ' : '◆ '}${esc(m.kind === 'invoice' ? m.number : m.label)}</span>`).join('');
+      const k = iso(x), info = d.days[k] || {}, hc = info.headcount || 0, its = itemsOn(d, k), ms = (info.milestones || []).slice(0, Math.max(0, 3 - its.length));
+      const extra = its.length + (info.milestones || []).length - Math.min(3, its.length) - ms.length;
+      const chips = its.slice(0, 3).map(it => itemChip(it, k)).join('') + (extra > 0 ? `<span class="more">+${extra} more</span>` : '') + ms.map(m => `<span class="${m.kind === 'invoice' ? 'inv' : ''}${m.late ? ' late' : ''}" title="${esc(m.kind === 'invoice' ? (m.number + ' · ' + (m.client_name || '')) : ((m.project_name || m.project_code || '') + ' · ' + m.label))}">${m.kind === 'invoice' ? '$ ' : '◆ '}${esc(m.kind === 'invoice' ? m.number : m.label)}</span>`).join('');
       const who = Object.keys(info.on_site || {}).map(c => { const jj = d.jobs.find(z => z.project_code === c); return info.on_site[c] + ' · ' + ((jj && jj.name) || c); }).join(' · ');
       return `<div class="cc-week-cell ${(x.getDay() === 0 || x.getDay() === 6) ? 'wknd' : ''}${k === t ? ' today' : ''}" style="padding-top:${40 + laneCount * laneH}px;position:relative"><div class="cc-week-date" style="position:absolute;left:8px;right:8px;top:8px"><span class="n">${x.getDate()}</span>${hc ? `<span class="cc-week-hc" title="${esc(who)}">${hc} on site</span>` : ''}</div><div class="cc-week-ms">${chips}</div></div>`;
     }).join('');
@@ -1160,6 +1341,7 @@
     }).join('') + Object.keys(overflow).map(i => `<a class="cc-week-more" href="#calendar/${from}" style="left:calc(${(i / 7 * 100).toFixed(3)}% + 6px);top:${maxLanes * laneH}px">+${overflow[i]} more</a>`).join('');
     $('cc-week-row').style.minHeight = minH + 'px';
     $('cc-week-row').innerHTML = cells + `<div class="cc-week-lanes" style="height:${laneCount * laneH}px">${bars}</div>`;
+    wireItemChips($('cc-week-row'), d);
     const n = segs.length ? new Set(segs.map(s => s.j.project_code)).size : 0;
     const foot = [n ? `${n} job(s) this week` : 'No dated jobs this week.'];
     if (d.undated && d.undated.length) foot.push(`${d.undated.length} active job(s) have no start date yet — <a href="/admin/projects">set them under Crew &amp; site</a>`);
@@ -1225,13 +1407,14 @@
         segs.push({ j, c0, c1, lane, starts: js >= rf, ends: !j.open_ended && je <= rt, fade: j.open_ended && row === rows[rows.length - 1] });
       });
       const laneCount = Math.min(lanes.length, maxLanes);
-      const msRows = Math.max(0, ...row.map(x => Math.min(((d.days[calISO(x)] || {}).milestones || []).length, CAL.view === 'month' ? 2 : 6)));
+      const msRows = Math.max(0, ...row.map(x => Math.min(((d.days[calISO(x)] || {}).milestones || []).length + itemsOn(d, calISO(x)).length, CAL.view === 'month' ? 3 : 8)));
       const minH = (CAL.view === 'month' ? Math.max(112, 44 + laneCount * laneH + 18) : Math.max(170, 44 + laneCount * laneH + 40)) + msRows * 19;
       html += `<div class="cal-row" style="grid-template-columns:repeat(${cols},1fr);min-height:${minH}px">` + row.map((x, i) => {
         const iso = calISO(x); const wk = x.getDay() === 0 || x.getDay() === 6; const reps = ((d.days[iso] || {}).reports || []);
         const dots = reps.map(code => { const j = d.jobs.find(z => z.project_code === code); return `<span class="cal-dot c${j ? j.color : 0}" title="Daily report · ${esc(j ? j.name : code)}"></span>`; }).join('');
-        const info = d.days[iso] || {}; const hc = info.headcount || 0; const maxMs = CAL.view === 'month' ? 2 : 6; const msAll = info.milestones || [];
-        const ms = msAll.slice(0, maxMs).map(m => `<span class="${m.kind === 'invoice' ? 'inv' : ''} ${m.late ? 'late' : ''}" data-ms="${esc(m.project_code || '')}" title="${esc(m.kind === 'invoice' ? (m.number + ' · ' + (m.client_name || '') + ' · ' + money2.format(m.balance || 0) + (m.late ? ' · overdue' : ' due')) : ((m.project_name || m.project_code || '') + ' · ' + m.label + (m.late ? ' · expired' : ' expires')))}">${m.kind === 'invoice' ? '$ ' : '◆ '}${esc(m.kind === 'invoice' ? m.number : m.label)}</span>`).join('') + (msAll.length > maxMs ? `<span class="more">+${msAll.length - maxMs} more</span>` : '');
+        const info = d.days[iso] || {}; const hc = info.headcount || 0; const maxMs = CAL.view === 'month' ? 3 : 8; const its = itemsOn(d, iso); const msAll = info.milestones || [];
+        const room = Math.max(0, maxMs - its.length), hidden = Math.max(0, its.length - maxMs) + Math.max(0, msAll.length - room);
+        const ms = its.slice(0, maxMs).map(it => itemChip(it, iso)).join('') + msAll.slice(0, room).map(m => `<span class="${m.kind === 'invoice' ? 'inv' : ''} ${m.late ? 'late' : ''}" data-ms="${esc(m.project_code || '')}" title="${esc(m.kind === 'invoice' ? (m.number + ' · ' + (m.client_name || '') + ' · ' + money2.format(m.balance || 0) + (m.late ? ' · overdue' : ' due')) : ((m.project_name || m.project_code || '') + ' · ' + m.label + (m.late ? ' · expired' : ' expires')))}">${m.kind === 'invoice' ? '$ ' : '◆ '}${esc(m.kind === 'invoice' ? m.number : m.label)}</span>`).join('') + (hidden ? `<span class="more">+${hidden} more</span>` : '');
         const hcTag = hc ? `<span class="cal-hc" title="${Object.entries(info.on_site || {}).map(([c, n]) => n + ' · ' + esc((d.jobs.find(z => z.project_code === c) || {}).name || c)).join(' · ')}">${hc} on site</span>` : '';
         return `<div class="cal-cell ${wk ? 'wknd' : ''} ${inMonth(x) ? '' : 'other'} ${iso === today ? 'today' : ''}" data-day="${iso}" style="padding-top:${44 + laneCount * laneH}px;position:relative"><div class="cal-date" style="position:absolute;left:8px;right:8px;top:8px"><span class="n">${x.getDate()}</span>${CAL.view === 'month' && x.getDate() === 1 ? `<small>${MONTHS[x.getMonth()].slice(0, 3)}</small>` : ''}${iso === today ? '<small>Today</small>' : ''}${hcTag}</div><div class="cal-dots">${dots}</div><div class="cal-ms">${ms}</div></div>`;
       }).join('') + `<div class="cal-lanes" style="height:${laneCount * laneH}px">` + segs.map(s => {
@@ -1241,6 +1424,7 @@
       }).join('') + Object.keys(overflow).map(i => `<div class="cal-more" style="left:calc(${(i / cols * 100).toFixed(3)}% + 6px);top:${maxLanes * laneH}px" data-more="${calISO(row[i])}">+${overflow[i]} more</div>`).join('') + '</div></div>';
     });
     $('cal-grid').innerHTML = html;
+    wireItemChips($('cal-grid'), d);
     CAL.cols = cols;
     $('cal-grid').querySelectorAll('[data-ms]').forEach(el => el.addEventListener('click', ev => { ev.stopPropagation(); if (el.dataset.ms) location.hash = '#projects/' + encodeURIComponent(el.dataset.ms); }));
     $('cal-grid').querySelectorAll('[data-job]').forEach(el => {
@@ -2522,7 +2706,8 @@
   });
 
   // ---------- router ----------
-  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients · Client portal', calendar: 'Projects · Calendar', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance · Expenses', workforce: 'Workforce', company: 'Company' };
+  // the sidebar section only; the sub-tab row names the page (no title said twice)
+  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients', calendar: 'Projects', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance', workforce: 'Workforce', company: 'Company' };
   const LOADERS = { overview: loadOverview, clients: loadClients, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance };
   const ALIASES = { buildings: 'projects', compliance: 'company' };   // #339 — old bookmarks and links keep working
   function route() {

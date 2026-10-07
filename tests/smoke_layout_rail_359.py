@@ -115,8 +115,8 @@ def main() -> int:
     rules = [m.start() for m in re.finditer(r"html\.side-rail", block)]
     assert rules and all(r > media for r in rules), "every rail rule sits inside the desktop media query"
     assert "html.side-rail .ssc-shell { grid-template-columns: 68px" in block
-    assert "html.side-rail .sidebar[data-rail] { width: 68px" in block
-    assert "html.side-rail .sidebar " not in block.replace("html.side-rail .sidebar[data-rail]", ""), "only opted-in .sidebar"
+    assert "html.side-rail:not(.side-peek) .sidebar[data-rail] { width: 68px" in block
+    assert "html.side-rail .sidebar " not in block and "html.side-rail:not(.side-peek) .sidebar " not in block, "only opted-in .sidebar"
     passed += 1; print("  widgets.css ok")
 
     # ---- pages: pre-paint in <head> before shell.js; one key each

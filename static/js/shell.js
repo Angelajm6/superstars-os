@@ -45,14 +45,20 @@
    * dashboard opts in with <aside data-rail>. The choice is remembered per browser
    * under ssc.side.rail, and each page sets html.side-rail in its <head> before the
    * first paint so a collapsed rail never flashes open. Labels stay in the markup,
-   * hidden by CSS, and become each link's tooltip + accessible name. */
+   * hidden by CSS, and become each link's tooltip + accessible name.
+   *
+   * Pin: the button is a pin. Pinned (the default) = the sidebar stays open.
+   * Unpinned = the icon rail, which slides open OVER the page (html.side-peek; the
+   * content never shifts) while the pointer is on it or keyboard focus is inside it,
+   * and folds back when the pointer leaves, focus leaves, or Escape is pressed. */
   if (!(side.classList.contains('ssc-side') || side.hasAttribute('data-rail'))) return;
   var KEY = 'ssc.side.rail', root = document.documentElement;
   var LINKS = '.nav-link, .ssc-nav a, .ssc-side-foot a';
+  var PIN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3-1-6z"/><path d="M12 15v6"/></svg>';
   var rail = document.createElement('button');
   rail.type = 'button';
   rail.className = 'ssc-rail-btn';
-  rail.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>';
+  rail.innerHTML = PIN;
   brand.appendChild(rail);
 
   function label(el) {
@@ -69,17 +75,33 @@
     }
   }
   function sync() {
-    var on = root.classList.contains('side-rail');
-    rail.setAttribute('aria-pressed', String(on));
-    rail.setAttribute('aria-label', on ? 'Expand sidebar' : 'Collapse sidebar');
-    rail.title = on ? 'Expand sidebar' : 'Collapse sidebar';
+    var pinned = !root.classList.contains('side-rail');
+    rail.setAttribute('aria-pressed', String(pinned));
+    rail.setAttribute('aria-label', pinned ? 'Unpin sidebar' : 'Pin sidebar open');
+    rail.title = pinned ? 'Unpin sidebar (shrink to icons, open on hover)' : 'Pin sidebar open';
     Array.prototype.forEach.call(side.querySelectorAll(LINKS), label);
   }
+  var timer = null;
+  function peek(on, delay) {
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      root.classList.toggle('side-peek', on && root.classList.contains('side-rail') && mq.matches === false);
+    }, delay || 0);
+  }
   rail.addEventListener('click', function () {
-    var on = !root.classList.contains('side-rail');
-    root.classList.toggle('side-rail', on);
-    try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) { /* private window: not remembered */ }
+    var unpin = !root.classList.contains('side-rail');
+    root.classList.toggle('side-rail', unpin);
+    root.classList.remove('side-peek');
+    try { localStorage.setItem(KEY, unpin ? '1' : '0'); } catch (e) { /* private window: not remembered */ }
     sync();
+    if (unpin) rail.blur();   // focus inside would hold the panel open
+  });
+  side.addEventListener('mouseenter', function () { peek(true, 120); });
+  side.addEventListener('mouseleave', function () { peek(false, 250); });
+  side.addEventListener('focusin', function () { peek(true, 0); });
+  side.addEventListener('focusout', function (e) { if (!side.contains(e.relatedTarget)) peek(false, 0); });
+  side.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && root.classList.contains('side-peek')) { peek(false, 0); if (document.activeElement) document.activeElement.blur(); }
   });
   // the company nav renders its links after this runs — label late arrivals on first touch
   side.addEventListener('mouseover', function (e) { var a = e.target.closest(LINKS); if (a) label(a); });

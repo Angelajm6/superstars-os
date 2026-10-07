@@ -147,7 +147,7 @@ def main() -> int:
     assert con.count('data-subtabs="proposals"') == 1 and con.count('data-subtabs="finance"') == 1
     assert "SSC_NAV.redirectIfRetired()" in con and "window.location.replace('/company#overview')" in con
     assert "if(!$('cc-grid')) return;" in con, "the retired widgets module must not poll"
-    assert 'data-nav-crumb' in con and 'data-nav-h1' in con
+    assert 'data-nav-crumb' not in con and 'data-nav-h1' in con, "one title: no small label repeating it"
     assert "facade:'Exterior'" in con and "facade:'Facade'" not in con
     passed += 1; print("  console retired ok")
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
-<script src="/files/static/js/datepicker.js"></script>
+<script src="/files/static/js/datepicker.js?v=1007"></script>
 <script src="/files/static/js/timepicker.js"></script>
 <!-- Chart.js 4.4.6 vendored LOCALLY (#208) — served from the repo, not a CDN,
      so the field-reachable (Tailscale, offline) dashboard still renders charts.
@@ -872,10 +872,10 @@
 <!-- #211 calm-blue widget accent — applied via the SHARED widgets.css, loaded
      AFTER the inline #208 styles so the accent (blue band + inward shading + blue
      rings) wins, giving the project page + the company console one source of truth. -->
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=359">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
-<script src="/files/static/js/shell.js?v=359" defer></script>
+<script src="/files/static/js/shell.js?v=1007" defer></script>
 <style>
   /* #356 — billing type per job: AIA-only pieces hide on jobs billed another way */
   body[data-billing-type]:not([data-billing-type=""]):not([data-billing-type="aia_sov"]) .aia-only { display: none !important; }

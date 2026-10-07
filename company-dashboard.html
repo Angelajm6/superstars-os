@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
-<script src="/files/static/js/datepicker.js"></script>
+<script src="/files/static/js/datepicker.js?v=1007"></script>
 <script src="/files/static/js/timepicker.js"></script>
 <!-- #210 company console redesign — REUSES the #209 drag framework:
      vendored GridStack (offline-safe, no CDN) + the shared widget design language
      + the shared per-user layout helper (DashLayout → /api/dashboard/layout). -->
 <link rel="stylesheet" href="/files/static/vendor/gridstack.min.css">
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=359">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
-<script src="/files/static/js/shell.js?v=359" defer></script>
-<link rel="stylesheet" href="/files/static/css/shell.css?v=341">
-<script src="/files/static/js/company_nav.js?v=360"></script>
+<script src="/files/static/js/shell.js?v=1007" defer></script>
+<link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
+<script src="/files/static/js/company_nav.js?v=1007"></script>
 <script src="/files/static/vendor/gridstack-all.js"></script>
 <script src="/files/static/js/dash_layout.js?v=292" defer></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -505,7 +505,7 @@
 </script>
 
 <div class="topbar ssc-top">
-  <div class="ssc-top-title"><div class="ssc-crumb" data-nav-crumb>Company</div><h1 id="ssc-top-h1" data-nav-h1>&nbsp;</h1></div>
+  <div class="ssc-top-title"><h1 id="ssc-top-h1" data-nav-h1>&nbsp;</h1></div>
   <div class="brand">
     <img class="brand-mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
     <div class="brand-text">
