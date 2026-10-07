@@ -257,10 +257,10 @@
           .tk-group:first-child{margin-top:4px}
           .tk-row{display:flex;align-items:flex-start;gap:10px;padding:9px 4px;border-top:1px solid var(--line,#eceef3);cursor:pointer;border-radius:6px}
           .tk-row:hover{background:#F7F8FB}
-          .tk-row .tk-check{flex:0 0 auto;width:20px;height:20px;margin-top:1px;border:1.5px solid #B8BECB;border-radius:5px;background:#fff;display:grid;place-items:center;cursor:pointer;padding:0;color:#fff;font-size:12px;line-height:1}
+          .tk-row .tk-check, .dy-row .tk-check{flex:0 0 auto;width:20px;height:20px;margin-top:1px;border:1.5px solid #B8BECB;border-radius:5px;background:#fff;display:grid;place-items:center;cursor:pointer;padding:0;color:#fff;font-size:12px;line-height:1}
           .tk-row .tk-check:hover{border-color:#4364DC}
-          .tk-row.done .tk-check{background:#1F8A5B;border-color:#1F8A5B}
-          .tk-row .tk-ev{flex:0 0 auto;width:20px;height:20px;margin-top:1px;border-radius:5px;background:#E7F6F1;color:#0F766E;display:grid;place-items:center;font-size:11px}
+          .tk-row.done .tk-check, .dy-row .tk-check.on{background:#1F8A5B;border-color:#1F8A5B}
+          .tk-row .tk-ev, .dy-row .tk-ev{flex:0 0 auto;width:20px;height:20px;margin-top:1px;border-radius:5px;background:#E7F6F1;color:#0F766E;display:grid;place-items:center;font-size:11px}
           .tk-main{min-width:0;flex:1}
           .tk-title{font-weight:600;font-size:13.5px;color:var(--ink,#222633);overflow-wrap:anywhere}
           .tk-row.done .tk-title{text-decoration:line-through;color:var(--muted,#8c92a0)}
@@ -275,6 +275,24 @@
           .tk-kind-seg label:focus-within{outline:2px solid #4364DC;outline-offset:1px}
           .tk-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
           .tk-addr-wrap{position:relative}
+          .cal-cell, .cc-week-cell{cursor:pointer}
+          .cal-cell:hover, .cc-week-cell:hover{background-image:linear-gradient(rgba(67,100,220,.05),rgba(67,100,220,.05))}
+          .dy-modal{max-width:620px}
+          .cal-date .n, .cc-week-date .n{border-radius:999px;transition:box-shadow .12s ease}
+          .cal-cell:hover .cal-date .n, .cc-week-cell:hover .cc-week-date .n{box-shadow:0 0 0 2px rgba(67,100,220,.45)}
+          .dy-body{padding:6px 20px 14px;display:block;max-height:min(68vh,640px);overflow-y:auto}
+          .dy-sec{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted,#8c92a0);margin:14px 0 4px}
+          .dy-sec:first-child{margin-top:4px}
+          .dy-row{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--line,#eceef3)}
+          .dy-row:first-of-type{border-top:0}
+          .dy-sw{flex:none;width:8px;align-self:stretch;border-radius:4px;min-height:30px}
+          .dy-main{min-width:0;flex:1}
+          .dy-t{font-weight:600;font-size:13.5px;overflow-wrap:anywhere}
+          .dy-m{font-size:12px;color:var(--ink-2,#4A4F59);margin-top:2px;display:flex;flex-wrap:wrap;gap:3px 10px;align-items:center}
+          .dy-ok{color:#1F8A5B;font-weight:600} .dy-no{color:#A8670B;font-weight:600}
+          .dy-go{flex:none;align-self:center;font-weight:600;font-size:12.5px;color:#24418C;text-decoration:none;white-space:nowrap}
+          .dy-row.it{cursor:pointer;border-radius:6px} .dy-row.it:hover{background:#F7F8FB}
+          .dy-empty{font-size:13px;color:var(--muted,#8c92a0);padding:6px 0}
           .tk-addr-list{position:absolute;left:0;right:0;top:64px;z-index:5;margin:0;padding:4px;list-style:none;background:#fff;border:1px solid var(--line,#E3E5EA);border-radius:8px;box-shadow:0 8px 24px rgba(20,22,28,.12);max-height:240px;overflow:auto}
           .tk-addr-list[hidden]{display:none}
           .tk-addr-list li{padding:8px 10px;border-radius:6px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;gap:8px}
@@ -873,6 +891,14 @@
   </form>
 </div>
 
+<!-- one calendar day: everything on it -->
+<div class="cp-overlay" id="dy-overlay" role="dialog" aria-modal="true" aria-labelledby="dy-title">
+  <div class="cp-modal dy-modal">
+    <div class="cp-modal-head"><h2 id="dy-title">Day</h2><p class="cp-muted" id="dy-sub" style="margin:6px 0 0;font-size:13px"></p></div>
+    <div class="dy-body" id="dy-body"></div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" data-cancel>Close</button><button class="btn-primary" type="button" id="dy-add">+ Task or event on this day</button></div>
+  </div>
+</div>
 <!-- team task / event: one dialog for new and edit -->
 <div class="cp-overlay" id="tk-overlay" role="dialog" aria-modal="true" aria-labelledby="tk-title">
   <form class="cp-modal" id="tk-form" novalidate>
@@ -1175,6 +1201,65 @@
     catch (ex) { formErr('tk-err', ex.message); }
     finally { $('tk-delete').disabled = false; }
   });
+  // ---------- ONE DAY: click any calendar day for everything on it ----------
+  const DAY = { week: null, iso: null };
+  const DOWL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], MONL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const JOB_COLORS = ['#24418C', '#0F766E', '#B45309', '#7C3AED', '#BE185D', '#0369A1', '#4D7C0F', '#B11E2E'];
+  function openDay(iso, d) {
+    if (!d || !iso) return;
+    DAY.iso = iso;
+    const [y, m, dd] = iso.split('-').map(Number), x = new Date(y, m - 1, dd), today = todayISO();
+    const info = d.days[iso] || {}, onSite = info.on_site || {}, reports = info.reports || [];
+    const jobs = d.jobs.filter(j => j.start_date <= iso && (j.open_ended || (j.end_date && j.end_date >= iso)));
+    const its = itemsOn(d, iso), ms = info.milestones || [];
+    const past = iso <= today;
+    $('dy-title').textContent = DOWL[x.getDay()] + ', ' + MONL[m - 1] + ' ' + dd + (iso === today ? ' · Today' : '');
+    const filed = jobs.filter(j => reports.includes(j.project_code)).length;
+    $('dy-sub').textContent = [jobs.length + ' job' + (jobs.length === 1 ? '' : 's') + ' running', past ? (info.headcount || 0) + ' on site' : '',
+      past && jobs.length ? filed + ' of ' + jobs.length + ' daily reports filed' : '', its.length ? its.length + ' task' + (its.length === 1 ? '' : 's') + ' / event' + (its.length === 1 ? '' : 's') : ''].filter(Boolean).join(' · ');
+    const jobRows = jobs.map(j => {
+      const n = onSite[j.project_code] || 0, rep = reports.includes(j.project_code);
+      return `<div class="dy-row"><span class="dy-sw" style="background:${JOB_COLORS[j.color % JOB_COLORS.length]}"></span><div class="dy-main"><div class="dy-t">${esc(j.name)}</div><div class="dy-m">` +
+        `${j.client_name ? `<span>${esc(j.client_name)}</span>` : ''}${j.pm ? `<span>PM ${esc(j.pm)}</span>` : ''}` +
+        (past ? `<span>${n ? n + ' on site' : 'Nobody signed in'}</span>` + (rep ? '<span class="dy-ok">Daily report filed ✓</span>' : '<span class="dy-no">No daily report</span>') : `<span>${j.crew_count || 0} on the crew</span>`) +
+        `</div></div><a class="dy-go" href="/projects/${encodeURIComponent(j.project_code)}">Open job →</a></div>`;
+    }).join('');
+    const itemRows = its.map(it => {
+      const t = it.kind === 'event' ? (it.start_date === iso && it.start_time ? fmtTime(it.start_time) + (it.end_time ? '–' + fmtTime(it.end_time) : '') : 'All day') : (it.due_time ? 'Due ' + fmtTime(it.due_time) : 'Due today');
+      return `<div class="dy-row it" data-day-item="${it.id}" role="button" tabindex="0"><span class="${it.kind === 'event' ? 'tk-ev' : 'tk-check' + (it.status === 'done' ? ' on' : '')}" aria-hidden="true" style="pointer-events:none">${it.kind === 'event' ? '●' : (it.status === 'done' ? '✓' : '')}</span><div class="dy-main"><div class="dy-t"${it.status === 'done' ? ' style="text-decoration:line-through;color:var(--muted)"' : ''}>${esc(it.title)}</div><div class="dy-m"><span>${esc(t)}</span>` +
+        `${it.overdue ? '<span class="cp-pill bad">overdue</span>' : ''}${it.project_name ? `<span>${esc(it.project_name)}</span>` : ''}<span class="tk-who${it.mine ? ' me' : ''}">${it.assignee_name ? (it.mine ? 'You' : esc(it.assignee_name)) : 'Unassigned'}</span>` +
+        `${it.address ? `<span class="tk-addr-txt">📍 ${esc(it.address)}</span>` : ''}</div></div>${it.address ? `<a class="tk-dir" href="${esc(it.directions_url)}" target="_blank" rel="noopener" data-tk-dir>Directions ↗</a>` : ''}</div>`;
+    }).join('');
+    const msRows = ms.map(mm => `<div class="dy-row"><div class="dy-main"><div class="dy-t">${mm.kind === 'invoice' ? esc(mm.number) + ' due' : esc(mm.label) + (mm.late ? ' expired' : ' expires')}</div><div class="dy-m">` +
+      (mm.kind === 'invoice' ? `<span>${esc(mm.client_name || '')}</span><span>${money2.format(mm.balance || 0)} open</span>` : `<span>${esc(mm.project_name || mm.project_code || '')}</span>`) + `</div></div>` +
+      (mm.kind === 'invoice' ? '<a class="dy-go" href="#finance">Finance →</a>' : (mm.project_code ? `<a class="dy-go" href="/projects/${encodeURIComponent(mm.project_code)}">Open job →</a>` : '')) + '</div>').join('');
+    $('dy-body').innerHTML =
+      `<div class="dy-sec">Jobs · ${jobs.length}</div>` + (jobRows || '<div class="dy-empty">No job is scheduled on this day.</div>') +
+      `<div class="dy-sec">Tasks &amp; events · ${its.length}</div>` + (itemRows || '<div class="dy-empty">Nothing planned. Use the button below to add a task or event on this day.</div>') +
+      (ms.length ? `<div class="dy-sec">Due · ${ms.length}</div>` + msRows : '');
+    $('dy-body').querySelectorAll('[data-day-item]').forEach(el => {
+      const open = (ev) => { if (ev.target.closest('[data-tk-dir]')) return; const it = (d.items || []).find(z => String(z.id) === el.dataset.dayItem); closeDay(); openItem(it); };
+      el.addEventListener('click', open);
+      el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(ev); } });
+    });
+    $('dy-overlay').classList.add('open');
+    setTimeout(() => $('dy-overlay').querySelector('[data-cancel]').focus(), 30);
+  }
+  function closeDay() { $('dy-overlay').classList.remove('open'); }
+  $('dy-overlay').querySelector('[data-cancel]').addEventListener('click', closeDay);
+  $('dy-overlay').addEventListener('click', (e) => { if (e.target === $('dy-overlay')) closeDay(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('dy-overlay').classList.contains('open') && !$('tk-overlay').classList.contains('open')) closeDay(); });
+  $('dy-add').addEventListener('click', () => { const iso = DAY.iso; closeDay(); openItem(null, { date: iso }); });
+  // a click on a day's empty space (not a job bar, chip, link or "+ more") opens that day
+  function dayClicks(host, getData) {
+    host.addEventListener('click', (e) => {
+      if (e.target.closest('a, button, [data-item], [data-job], [data-more], [data-ms], .cal-bar, .cc-week-bar, .cal-grip')) return;
+      const cell = e.target.closest('[data-day]'); if (cell) openDay(cell.dataset.day, getData());
+    });
+  }
+  dayClicks($('cc-week-row'), () => DAY.week);
+  dayClicks($('cal-grid'), () => CAL.data);
+
   // calendar chips: a task on its deadline day, an event on each of its days
   function itemsOn(d, iso) { return (d.items || []).filter(it => it.calendar_from && it.calendar_from <= iso && iso <= (it.calendar_to || it.calendar_from)); }
   function itemChip(it, iso) {
@@ -1384,7 +1469,7 @@
       const extra = its.length + (info.milestones || []).length - Math.min(3, its.length) - ms.length;
       const chips = its.slice(0, 3).map(it => itemChip(it, k)).join('') + (extra > 0 ? `<span class="more">+${extra} more</span>` : '') + ms.map(m => `<span class="${m.kind === 'invoice' ? 'inv' : ''}${m.late ? ' late' : ''}" title="${esc(m.kind === 'invoice' ? (m.number + ' · ' + (m.client_name || '')) : ((m.project_name || m.project_code || '') + ' · ' + m.label))}">${m.kind === 'invoice' ? '$ ' : '◆ '}${esc(m.kind === 'invoice' ? m.number : m.label)}</span>`).join('');
       const who = Object.keys(info.on_site || {}).map(c => { const jj = d.jobs.find(z => z.project_code === c); return info.on_site[c] + ' · ' + ((jj && jj.name) || c); }).join(' · ');
-      return `<div class="cc-week-cell ${(x.getDay() === 0 || x.getDay() === 6) ? 'wknd' : ''}${k === t ? ' today' : ''}" style="padding-top:${40 + laneCount * laneH}px;position:relative"><div class="cc-week-date" style="position:absolute;left:8px;right:8px;top:8px"><span class="n">${x.getDate()}</span>${hc ? `<span class="cc-week-hc" title="${esc(who)}">${hc} on site</span>` : ''}</div><div class="cc-week-ms">${chips}</div></div>`;
+      return `<div class="cc-week-cell ${(x.getDay() === 0 || x.getDay() === 6) ? 'wknd' : ''}${k === t ? ' today' : ''}" data-day="${k}" title="See everything on ${DOW[(x.getDay() + 6) % 7]} ${x.getDate()}" style="padding-top:${40 + laneCount * laneH}px;position:relative"><div class="cc-week-date" style="position:absolute;left:8px;right:8px;top:8px"><span class="n">${x.getDate()}</span>${hc ? `<span class="cc-week-hc" title="${esc(who)}">${hc} on site</span>` : ''}</div><div class="cc-week-ms">${chips}</div></div>`;
     }).join('');
     const bars = segs.map(s => {
       const left = (s.c0 / 7 * 100).toFixed(3), width = ((s.c1 - s.c0 + 1) / 7 * 100).toFixed(3);
@@ -1393,6 +1478,7 @@
     $('cc-week-row').style.minHeight = minH + 'px';
     $('cc-week-row').innerHTML = cells + `<div class="cc-week-lanes" style="height:${laneCount * laneH}px">${bars}</div>`;
     wireItemChips($('cc-week-row'), d);
+    DAY.week = d;
     const n = segs.length ? new Set(segs.map(s => s.j.project_code)).size : 0;
     const foot = [n ? `${n} job(s) this week` : 'No dated jobs this week.'];
     if (d.undated && d.undated.length) foot.push(`${d.undated.length} active job(s) have no start date yet — <a href="/admin/projects">set them under Crew &amp; site</a>`);
