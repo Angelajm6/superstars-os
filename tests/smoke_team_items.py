@@ -15,6 +15,9 @@ Boots the real app on an ISOLATED database. Proves:
   * done: the assignee marks their own item done and reopens it; another pm or a super
     who is not the assignee -> 403; admin may
   * the company calendar feed carries the items; titles never reach the log
+  * address: kept on tasks and events (survives task <-> event), comes back with a Google Maps
+    directions link; too long -> 400; suggestions = the jobs' own addresses + NYC GeoSearch
+    (faked here, never the network), best-effort when the lookup fails; team roles only
   * the dashboard: two KPI tiles, the Tasks & events card, the shared dialog reading the
     date picker through dateGet / dateSet, chips on the week strip and the calendar;
     the shared date picker opens on the FIRST click (focus + click no longer cancel)
@@ -238,11 +241,47 @@ def main() -> int:
     assert cs.post(f"/api/team/items/{multi}/done", json={}).status_code == 404
     passed += 1; print("  calendar + delete ok")
 
+    # ---- address + directions + suggestions
+    r = cs.post("/api/team/items", json={"title": "Teamitems site visit", "address": "890 East 135 Street, Bronx, NY", "due_date": D(1)})
+    assert r.status_code == 201, r.get_json()
+    visit = r.get_json()["data"]["id"]
+    got = _items(pm)[visit]
+    assert got["address"] == "890 East 135 Street, Bronx, NY"
+    assert got["directions_url"] == "https://www.google.com/maps/dir/?api=1&destination=890%20East%20135%20Street%2C%20Bronx%2C%20NY"
+    assert cs.put(f"/api/team/items/{visit}", json={"kind": "event"}).status_code == 200 and _items(cs)[visit]["address"], "kept on task -> event"
+    assert cs.put(f"/api/team/items/{visit}", json={"address": ""}).status_code == 200 and _items(cs)[visit]["directions_url"] is None
+    assert cs.post("/api/team/items", json={"title": "Teamitems x", "address": "x" * 301}).status_code == 400
+    calls = []
+    def fake(q):
+        calls.append(q)
+        return ["1 TEAM STREET, Manhattan, NY, USA", "1 TEAM PLACE, Bronx, NY, USA"]
+    real = team_items._geo_fetch
+    team_items._geo_fetch = fake
+    team_items._SUGGEST_CACHE.clear()
+    try:
+        sug = pm.get("/api/team/address-suggest?q=1%20team").get_json()["data"]
+        assert sug[0] == {"label": "1 Team St", "source": "job", "job": "Teamitems Job"}, sug
+        assert {"label": "1 Team Street, Manhattan, NY", "source": "nyc", "job": None} in sug, sug
+        assert pm.get("/api/team/address-suggest?q=1%20team").status_code == 200 and len(calls) == 1, "cached"
+        assert pm.get("/api/team/address-suggest?q=1t").get_json()["data"] == [] and len(calls) == 1, "too short: no lookup"
+        def down(q):
+            raise TimeoutError("slow")
+        team_items._geo_fetch = down
+        team_items._SUGGEST_CACHE.clear()
+        sug = sup.get("/api/team/address-suggest?q=1%20team").get_json()["data"]
+        assert [x["source"] for x in sug] == ["job"], "the jobs still come back when the lookup is down"
+    finally:
+        team_items._geo_fetch = real
+        team_items._SUGGEST_CACHE.clear()
+    assert cl.get("/api/team/address-suggest?q=1%20team").status_code == 403 and anon.get("/api/team/address-suggest?q=x").status_code == 401
+    passed += 1; print("  address ok")
+
     # ---- the dashboard + the date picker
     html = (ROOT / "company_portal.html").read_text(encoding="utf-8")
     for needle in ('id="tk-card"', 'id="tk-overlay"', 'id="tk-kind-task"', 'id="tk-kind-event"', 'id="tk-assignee"', 'id="tk-project"',
                    'id="tk-due"', 'id="tk-due-time"', 'id="tk-start"', 'id="tk-end"', 'id="tk-start-time"', 'id="tk-end-time"',
-                   'id="tk-location"', 'id="tk-delete"', 'data-tk-filter="mine"', 'id="cal-new-item"',
+                   'id="tk-location"', 'id="tk-delete"', 'id="tk-address"', 'id="tk-addr-list"', 'data-tk-dir',
+                   "'https://www.google.com/maps/dir/?api=1&destination='", "address: $('tk-address').value.trim() || null", 'data-tk-filter="mine"', 'id="cal-new-item"',
                    "dateGet($('tk-due'))", "dateGet($('tk-start'))", "dateSet($('tk-due'), it.due_date)", "wireItemChips($('cc-week-row'), d);",
                    "wireItemChips($('cal-grid'), d);", "'/team/items/' + it.id + '/done'"):
         assert needle in html, needle

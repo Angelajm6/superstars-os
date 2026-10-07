@@ -12,7 +12,9 @@ constraints):
   project_code TEXT  optional link to a job
   due_time TEXT      task deadline time, HH:MM (only with a due_date)
   start_date, start_time, end_date, end_time   an event's when (end optional)
-  location TEXT      an event's where
+  location TEXT      an event's place name ("Client office")
+  address TEXT       a street address (task or event) — shown with a Google Maps directions
+                     link, so a phone opens turn-by-turn directions in one tap
   updated_at, updated_by
 A task's calendar day is its due_date; an event spans start_date..end_date. An event also
 keeps due_date = start_date so the older follow-up lists sort it correctly.
@@ -29,6 +31,8 @@ Titles and details can name people, so they never go to the log (ids only).
   PUT    /api/team/items/<id>
   POST   /api/team/items/<id>/done        {"done": true|false}
   DELETE /api/team/items/<id>             soft: status 'cancelled', kept for the record
+  GET    /api/team/address-suggest?q=     address suggestions while typing: the jobs' own addresses
+                                          plus NYC GeoSearch (NYC Planning, free, no key); labels only
 """
 from __future__ import annotations
 
@@ -36,6 +40,7 @@ import logging
 import re
 from datetime import date, datetime
 from typing import Optional
+from urllib.parse import quote
 
 from flask import jsonify, request
 
@@ -48,10 +53,10 @@ TEAM_ROLES = ("admin", "c_suite", "pm", "super")
 EDIT_ROLES = ("admin", "c_suite")
 KINDS = ("task", "event")
 STATUSES = ("open", "done", "cancelled")
-MAX_TITLE, MAX_DETAIL, MAX_LOCATION = 200, 2000, 200
+MAX_TITLE, MAX_DETAIL, MAX_LOCATION, MAX_ADDRESS = 200, 2000, 200, 300
 _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 COLUMNS = (("kind", "TEXT"), ("project_code", "TEXT"), ("due_time", "TEXT"), ("start_date", "TEXT"),
-           ("start_time", "TEXT"), ("end_date", "TEXT"), ("end_time", "TEXT"), ("location", "TEXT"),
+           ("start_time", "TEXT"), ("end_date", "TEXT"), ("end_time", "TEXT"), ("location", "TEXT"), ("address", "TEXT"),
            ("updated_at", "TEXT"), ("updated_by", "INTEGER"))
 
 
@@ -159,6 +164,7 @@ def _validate(conn, p: dict, cur: Optional[dict] = None) -> dict:
             "SELECT 1 FROM projects WHERE project_code = ?", (code,)).fetchone():
         raise LookupError("project not found")
     out["project_code"] = code
+    out["address"] = _text(get("address"), "address", MAX_ADDRESS)
     if kind == "task":
         due = _date(get("due_date"), "deadline")
         due_time = _time(get("due_time"), "deadline time")
@@ -185,6 +191,69 @@ def _validate(conn, p: dict, cur: Optional[dict] = None) -> dict:
     return out
 
 
+def directions_url(address) -> Optional[str]:
+    """Google Maps directions to the address (the Maps app on a phone; no API key needed)."""
+    a = str(address or "").strip()
+    return "https://www.google.com/maps/dir/?api=1&destination=" + quote(a, safe="") if a else None
+
+
+GEO_AUTOCOMPLETE = "https://geosearch.planninglabs.nyc/v2/autocomplete"
+_UA = "SuperstarsOS/1.0 (+facade restoration dashboard)"
+_SUGGEST_CACHE: dict = {}
+
+
+def _geo_fetch(q: str) -> list:
+    """NYC GeoSearch labels for a partial address. Tests swap this out (no network in CI)."""
+    import requests
+    r = requests.get(GEO_AUTOCOMPLETE, params={"text": q, "size": 6}, timeout=4,
+                     headers={"User-Agent": _UA, "Accept": "application/json"})
+    r.raise_for_status()
+    return [((f.get("properties") or {}).get("label") or "") for f in (r.json().get("features") or [])]
+
+
+def _tidy(label: str) -> str:
+    """'890 EAST 135 STREET, Bronx, NY, USA' -> '890 East 135 Street, Bronx, NY'."""
+    parts = [x.strip() for x in label.split(",") if x.strip()]
+    if parts and parts[-1].upper() == "USA":
+        parts = parts[:-1]
+    if parts and parts[0].isupper():
+        parts[0] = " ".join(w if any(ch.isdigit() for ch in w) else w.capitalize() for w in parts[0].split())
+    return ", ".join(parts)
+
+
+def suggest(conn, q: str, fetch=None) -> list:
+    """Up to 8 address suggestions: the jobs' own addresses first, then NYC addresses.
+    The outside lookup is best-effort — when it is slow or down, the jobs still come back."""
+    q = re.sub(r"\s+", " ", (q or "").strip())[:120]
+    if len(q) < 3:
+        return []
+    out, seen = [], set()
+
+    def add(label, source, job=None):
+        k = label.lower()
+        if label and k not in seen:
+            seen.add(k)
+            out.append({"label": label, "source": source, "job": job})
+    for r in _rows(conn.execute(
+            "SELECT name, address, city_zip FROM projects WHERE LOWER(address) LIKE ? AND COALESCE(status, 'active') <> 'closed' "
+            "ORDER BY name LIMIT 5", ("%" + q.lower() + "%",))):
+        add(", ".join(x for x in (r.get("address"), r.get("city_zip")) if x), "job", r.get("name"))
+    key = q.lower()
+    labels = _SUGGEST_CACHE.get(key)
+    if labels is None:
+        try:
+            labels = [_tidy(x) for x in (fetch or _geo_fetch)(q) if x]
+            if len(_SUGGEST_CACHE) > 500:
+                _SUGGEST_CACHE.clear()
+            _SUGGEST_CACHE[key] = labels
+        except Exception as e:   # never block typing on the outside lookup
+            log.info("address suggest lookup skipped: %s", type(e).__name__)
+            labels = []
+    for lab in labels:
+        add(lab, "nyc")
+    return out[:8]
+
+
 # ------------------------------------------------------------------ reads
 def _shape(r: dict, today: str, me: Optional[int], can_edit: bool) -> dict:
     kind = r.get("kind") or "task"
@@ -201,6 +270,7 @@ def _shape(r: dict, today: str, me: Optional[int], can_edit: bool) -> dict:
         "due_date": r.get("due_date") if kind == "task" else None, "due_time": r.get("due_time"),
         "start_date": first if kind == "event" else None, "start_time": r.get("start_time"),
         "end_date": r.get("end_date"), "end_time": r.get("end_time"), "location": r.get("location"),
+        "address": r.get("address"), "directions_url": directions_url(r.get("address")),
         "calendar_from": first, "calendar_to": last,
         "overdue": bool(kind == "task" and status == "open" and first and first < today),
         "today": bool(first and first <= today <= (last or first)),
@@ -252,10 +322,10 @@ def create(conn, p: dict, *, actor=None) -> int:
     conn.execute(
         "INSERT INTO crm_task (entity_type, entity_id, title, detail, due_date, assignee_user_id, status, priority, "
         "created_by, created_at, kind, project_code, due_time, start_date, start_time, end_date, end_time, location, "
-        "updated_at, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "address, updated_at, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         ("project" if v["project_code"] else "none", None, v["title"], v["detail"], v["due_date"], v["assignee_user_id"],
          "open", "normal", actor, now, v["kind"], v["project_code"], v["due_time"], v["start_date"], v["start_time"],
-         v["end_date"], v["end_time"], v["location"], now, actor))
+         v["end_date"], v["end_time"], v["location"], v["address"], now, actor))
     conn.commit()
     new_id = conn.execute("SELECT MAX(id) AS m FROM crm_task").fetchone()["m"]
     log.info("team item created id=%s kind=%s by user=%s", new_id, v["kind"], actor)
@@ -270,7 +340,7 @@ def update(conn, item_id, p: dict, *, actor=None) -> None:
         cur["kind"] = "task"
     v = _validate(conn, p, cur)
     cols = ["kind", "title", "detail", "assignee_user_id", "project_code", "due_date", "due_time", "start_date",
-            "start_time", "end_date", "end_time", "location"]
+            "start_time", "end_date", "end_time", "location", "address"]
     conn.execute(f"UPDATE crm_task SET {', '.join(c + ' = ?' for c in cols)}, updated_at = ?, updated_by = ? WHERE id = ?",
                  (*[v[c] for c in cols], _now(), actor, item_id))
     conn.commit()
@@ -316,6 +386,11 @@ def _with_conn(fn):
 @requires_role(*TEAM_ROLES)
 def _api_people():
     return jsonify({"data": _with_conn(people)})
+
+
+@requires_role(*TEAM_ROLES)
+def _api_suggest():
+    return jsonify({"data": _with_conn(lambda c: suggest(c, request.args.get("q", "")))})
 
 
 @requires_role(*TEAM_ROLES)
@@ -386,6 +461,7 @@ def register(app) -> None:
     finally:
         conn.close()
     app.add_url_rule("/api/team/people", "team_people", _api_people, methods=["GET"])
+    app.add_url_rule("/api/team/address-suggest", "team_address_suggest", _api_suggest, methods=["GET"])
     app.add_url_rule("/api/team/items", "team_items_list", _api_list, methods=["GET"])
     app.add_url_rule("/api/team/items", "team_items_create", _api_create, methods=["POST"])
     app.add_url_rule("/api/team/items/<int:item_id>", "team_items_update", _api_update, methods=["PUT"])

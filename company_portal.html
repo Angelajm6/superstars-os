@@ -274,6 +274,16 @@
           .tk-kind-seg label:has(input:checked){border-color:#4364DC;background:#EEF2FF;color:#24418C}
           .tk-kind-seg label:focus-within{outline:2px solid #4364DC;outline-offset:1px}
           .tk-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+          .tk-addr-wrap{position:relative}
+          .tk-addr-list{position:absolute;left:0;right:0;top:64px;z-index:5;margin:0;padding:4px;list-style:none;background:#fff;border:1px solid var(--line,#E3E5EA);border-radius:8px;box-shadow:0 8px 24px rgba(20,22,28,.12);max-height:240px;overflow:auto}
+          .tk-addr-list[hidden]{display:none}
+          .tk-addr-list li{padding:8px 10px;border-radius:6px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;gap:8px}
+          .tk-addr-list li[aria-selected="true"], .tk-addr-list li:hover{background:#EEF2FF}
+          .tk-addr-list li small{color:var(--muted,#8c92a0);white-space:nowrap}
+          .tk-addr-help{margin-top:4px;font-size:12px;display:flex;flex-wrap:wrap;gap:6px}
+          .tk-dir{display:inline-flex;align-items:center;gap:4px;font-weight:600;color:#24418C;text-decoration:none;white-space:nowrap;padding:2px 0}
+          .tk-dir:hover{text-decoration:underline}
+          .tk-addr-txt{overflow-wrap:anywhere}
           .tk-grid2 > div{display:flex;flex-direction:column;gap:6px;min-width:0}
           .tk-fields[hidden]{display:none}
           @media (max-width:560px){ .tk-grid2{grid-template-columns:1fr} }
@@ -885,7 +895,12 @@
         <div><label for="tk-end">Ends (if more than one day)</label><input id="tk-end" type="date" class="ssc-field"></div>
         <div><label for="tk-start-time">Start time (optional)</label><input id="tk-start-time" type="time" class="ssc-field"></div>
         <div><label for="tk-end-time">End time (optional)</label><input id="tk-end-time" type="time" class="ssc-field"></div>
-        <div style="grid-column:1 / -1"><label for="tk-location">Where (optional)</label><input id="tk-location" class="ssc-field" maxlength="200" placeholder="e.g. on site, office, client office"></div>
+        <div style="grid-column:1 / -1"><label for="tk-location">Place name (optional)</label><input id="tk-location" class="ssc-field" maxlength="200" placeholder="e.g. Client office, site trailer"></div>
+      </div>
+      <div class="cp-field full tk-addr-wrap"><label for="tk-address">Address (optional)</label>
+        <input id="tk-address" class="ssc-field" maxlength="300" autocomplete="off" placeholder="Start typing a street address, e.g. 890 East 135th Street" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="tk-addr-list">
+        <ul class="tk-addr-list" id="tk-addr-list" role="listbox" hidden></ul>
+        <div class="tk-addr-help"><span class="cp-muted">Anyone on the team can tap it for directions in Google Maps.</span> <a id="tk-addr-go" class="cp-link" target="_blank" rel="noopener" hidden>Test directions ↗</a></div>
       </div>
       <div class="cp-field full"><label for="tk-detail">Details</label><textarea id="tk-detail" class="ssc-field" maxlength="2000"></textarea></div>
       <div class="cp-form-err" id="tk-err" role="alert"></div>
@@ -1029,7 +1044,8 @@
       : `<button type="button" class="tk-check" data-tk-done="${it.id}" ${it.can_complete ? '' : 'disabled'} aria-label="${done ? 'Mark not done' : 'Mark done'}: ${esc(it.title)}">${done ? '✓' : ''}</button>`;
     const who = it.assignee_name ? `<span class="tk-who${it.mine ? ' me' : ''}">${it.mine ? 'You' : esc(it.assignee_name)}</span>` : '<span class="tk-who">Unassigned</span>';
     const where = it.project_name ? `<span>${esc(it.project_name)}</span>` : (it.org_name ? `<span>${esc(it.org_name)}</span>` : '');
-    const loc = it.kind === 'event' && it.location ? `<span>@ ${esc(it.location)}</span>` : '';
+    const loc = (it.kind === 'event' && it.location ? `<span>@ ${esc(it.location)}</span>` : '') +
+      (it.address ? `<span class="tk-addr-txt">📍 ${esc(it.address)}</span><a class="tk-dir" href="${esc(it.directions_url)}" target="_blank" rel="noopener" data-tk-dir>Directions ↗</a>` : '');
     return `<div class="tk-row${done ? ' done' : ''}" data-tk-open="${it.id}" role="button" tabindex="0">${box}<div class="tk-main"><div class="tk-title">${esc(it.title)}</div>` +
       `<div class="tk-meta"><span>${esc(itemWhen(it))}</span>${it.overdue ? '<span class="cp-pill bad">overdue</span>' : ''}${where}${loc}${who}</div></div></div>`;
   }
@@ -1052,6 +1068,7 @@
     TK.filter = b.dataset.tkFilter; document.querySelectorAll('[data-tk-filter]').forEach(x => x.classList.toggle('on', x === b)); loadTasks();
   }));
   $('tk-list').addEventListener('click', async (e) => {
+    if (e.target.closest('[data-tk-dir]')) return;   // the directions link just opens Maps
     const done = e.target.closest('[data-tk-done]');
     if (done) {
       e.stopPropagation(); const it = TK.rows.find(r => String(r.id) === done.dataset.tkDone); if (!it) return;
@@ -1090,13 +1107,47 @@
       $('tk-assignee').value = it.assignee_user_id || ''; $('tk-project').value = it.project_code || '';
       dateSet($('tk-due'), it.due_date); $('tk-due-time').value = it.due_time || '';
       dateSet($('tk-start'), it.start_date); dateSet($('tk-end'), it.end_date); $('tk-start-time').value = it.start_time || '';
-      $('tk-end-time').value = it.end_time || ''; $('tk-location').value = it.location || '';
+      $('tk-end-time').value = it.end_time || ''; $('tk-location').value = it.location || ''; $('tk-address').value = it.address || '';
     } else if (preset && preset.date) { dateSet($('tk-due'), preset.date); dateSet($('tk-start'), preset.date); }
+    tkAddrGo(); tkAddrClose();
     $('tk-title-in').focus();
   }
-  function closeItem() { $('tk-overlay').classList.remove('open'); }
+  function closeItem() { $('tk-overlay').classList.remove('open'); tkAddrClose(); }
   $('tk-overlay').querySelector('[data-cancel]').addEventListener('click', closeItem);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeItem(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('tk-addr-list').hidden) closeItem(); });
+  // ---- address: suggestions while typing (jobs first, then NYC addresses), the job's address on pick
+  const ADDR = { t: null, items: [], i: -1, seq: 0 };
+  function tkMapsUrl(a) { return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(a); }
+  function tkAddrGo() { const a = $('tk-address').value.trim(), go = $('tk-addr-go'); go.hidden = !a; if (a) go.href = tkMapsUrl(a); }
+  function tkAddrClose() { $('tk-addr-list').hidden = true; $('tk-address').setAttribute('aria-expanded', 'false'); ADDR.items = []; ADDR.i = -1; }
+  function tkAddrPick(k) { const it = ADDR.items[k]; if (!it) return; $('tk-address').value = it.label; tkAddrClose(); tkAddrGo(); }
+  function tkAddrRender() {
+    const ul = $('tk-addr-list');
+    if (!ADDR.items.length) { tkAddrClose(); return; }
+    ul.innerHTML = ADDR.items.map((x, k) => `<li role="option" id="tk-addr-${k}" aria-selected="${k === ADDR.i}" data-k="${k}"><span>${esc(x.label)}</span>${x.job ? `<small>${esc(x.job)}</small>` : ''}</li>`).join('');
+    ul.hidden = false; $('tk-address').setAttribute('aria-expanded', 'true');
+  }
+  $('tk-address').addEventListener('input', () => {
+    tkAddrGo(); clearTimeout(ADDR.t); const q = $('tk-address').value.trim();
+    if (q.length < 3) { tkAddrClose(); return; }
+    ADDR.t = setTimeout(async () => {
+      const seq = ++ADDR.seq;
+      try { const { data } = await api('/team/address-suggest?q=' + encodeURIComponent(q), null, true); if (seq !== ADDR.seq) return; ADDR.items = data; ADDR.i = -1; tkAddrRender(); }
+      catch (e) { tkAddrClose(); }
+    }, 250);
+  });
+  $('tk-address').addEventListener('keydown', (e) => {
+    if ($('tk-addr-list').hidden) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); ADDR.i = (ADDR.i + (e.key === 'ArrowDown' ? 1 : -1) + ADDR.items.length) % ADDR.items.length; tkAddrRender(); }
+    else if (e.key === 'Enter' && ADDR.i >= 0) { e.preventDefault(); tkAddrPick(ADDR.i); }
+    else if (e.key === 'Escape') { e.stopPropagation(); tkAddrClose(); }
+  });
+  $('tk-addr-list').addEventListener('mousedown', (e) => { const li = e.target.closest('[data-k]'); if (li) { e.preventDefault(); tkAddrPick(+li.dataset.k); } });
+  $('tk-address').addEventListener('blur', () => setTimeout(tkAddrClose, 150));
+  $('tk-project').addEventListener('change', () => {   // a linked job brings its address when none is typed yet
+    const p = (TK.projects || []).find(x => x.project_code === $('tk-project').value);
+    if (p && p.address && !$('tk-address').value.trim()) { $('tk-address').value = [p.address, p.city_zip].filter(Boolean).join(', '); tkAddrGo(); }
+  });
   $('tk-new').addEventListener('click', () => openItem(null));
   $('cal-new-item').addEventListener('click', () => openItem(null, { date: todayISO() }));
   function tkAfterSave(msg) { toast(msg); closeItem(); loadTasks(); loadWeekStrip(); CAL.cache = {}; if (location.hash.startsWith('#calendar')) loadCalendar(); }
@@ -1105,7 +1156,7 @@
     const id = $('tk-form').dataset.item, kind = tkKind(), title = $('tk-title-in').value.trim();
     if (!title) { formErr('tk-err', 'Say what it is.'); return; }
     if (kind === 'event' && !dateGet($('tk-start'))) { formErr('tk-err', 'Pick the day of the event.'); return; }
-    const body = { kind, title, detail: $('tk-detail').value.trim() || null, assignee_user_id: $('tk-assignee').value ? Number($('tk-assignee').value) : null, project_code: $('tk-project').value || null };
+    const body = { kind, title, detail: $('tk-detail').value.trim() || null, assignee_user_id: $('tk-assignee').value ? Number($('tk-assignee').value) : null, project_code: $('tk-project').value || null, address: $('tk-address').value.trim() || null };
     if (kind === 'task') Object.assign(body, { due_date: dateGet($('tk-due')) || null, due_time: $('tk-due-time').value || null });
     else Object.assign(body, { start_date: dateGet($('tk-start')), end_date: dateGet($('tk-end')) || null, start_time: $('tk-start-time').value || null, end_time: $('tk-end-time').value || null, location: $('tk-location').value.trim() || null });
     $('tk-save').disabled = true;
@@ -1129,7 +1180,7 @@
   function itemChip(it, iso) {
     const t = it.kind === 'event' ? (it.start_date === iso && it.start_time ? fmtTime(it.start_time) + ' ' : '') : (it.due_time ? fmtTime(it.due_time) + ' ' : '');
     const icon = it.kind === 'event' ? '● ' : (it.status === 'done' ? '✓ ' : '☐ ');
-    const tip = (it.kind === 'event' ? 'Event' : 'Task') + ' · ' + it.title + ' · ' + itemWhen(it) + (it.assignee_name ? ' · ' + it.assignee_name : '');
+    const tip = (it.kind === 'event' ? 'Event' : 'Task') + ' · ' + it.title + ' · ' + itemWhen(it) + (it.assignee_name ? ' · ' + it.assignee_name : '') + (it.address ? ' · ' + it.address : '');
     return `<span class="it ${it.kind}${it.status === 'done' ? ' done' : ''}${it.overdue ? ' late' : ''}" data-item="${it.id}" title="${esc(tip)}">${icon}${esc(t)}${esc(it.title)}</span>`;
   }
   function wireItemChips(host, d) {
