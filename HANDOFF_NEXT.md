@@ -21,6 +21,18 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### How changes ship now (Bookore, 2026-10-07)
+
+* **No preprod step.** Build on a branch, verify on a local isolated DB, send Angela screenshots
+  (and a clickable mockup first for visual work). On her "accepted": push the branch to
+  `upstream`, PR straight into `superstars-contracting/dashboard` main, merge when both gate
+  checks pass, verify production, then fast-forward fork `main` to `upstream/main`.
+* The preprod Render service (`ssc-dashboard-preprod`) is being suspended by Angela; the
+  `preprod` branch no longer exists anywhere.
+* Shipped today on this flow: one title per page + pinnable sidebar (#96), clean dashboard +
+  team tasks & events (`team_items.py`, #97), task/event addresses with Google Maps directions
+  (`/api/team/address-suggest` uses NYC GeoSearch; free, no key; best-effort).
+
 ### Worker app photos upload (Bookore, 2026-10-07)
 
 * Angelajm6/superstars-os#94, released as superstars-contracting/dashboard#38 (live 13:29 UTC).
