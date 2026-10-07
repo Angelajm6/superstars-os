@@ -225,6 +225,8 @@ import project_summary  # noqa: E402
 project_summary.register(app)   # #358 — the job dashboard summary (bootstrap part + /summary)
 import project_details  # noqa: E402
 project_details.register(app)   # edit a job's name, address, client, dates, contract value
+import team_items  # noqa: E402
+team_items.register(app)   # team tasks & events: the dashboard to-do list, synced onto the calendar
 
 # #264 — the per-item VISIBILITY ENGINE (default-deny) + the read-only CLIENT portal.
 # client_portal registers a default-deny before_request gate (a `client` reaches ONLY the

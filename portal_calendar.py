@@ -22,7 +22,7 @@ from typing import Optional
 from flask import jsonify, request
 
 import db_layer
-from auth import requires_section
+from auth import current_user, requires_section
 
 log = logging.getLogger("ssc.portal_calendar")
 
@@ -250,12 +250,22 @@ def _api_calendar():
         except ValueError:
             return jsonify({"error": "dates must be YYYY-MM-DD"}), 400
         try:
-            return jsonify({"data": window(conn, start, end)})
+            data = window(conn, start, end)
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
         except Exception as e:   # say what broke instead of a bare 500 (#334: a missing column on preprod)
             log.exception("#332 calendar failed")
             return jsonify({"error": f"calendar failed: {type(e).__name__}: {str(e)[:160]}"}), 500
+        # team tasks (by deadline) and events (by their days), open and done, on the same calendar
+        try:
+            import team_items
+            u = current_user() or {}
+            data["items"] = team_items.list_items(conn, status="all", date_from=data["range"]["from"], date_to=data["range"]["to"],
+                                                  me=u.get("id"), can_edit=u.get("role") in team_items.EDIT_ROLES)
+        except Exception as ex:
+            log.warning("calendar items skipped: %s", type(ex).__name__)
+            data["items"] = []
+        return jsonify({"data": data})
     finally:
         conn.close()
 
