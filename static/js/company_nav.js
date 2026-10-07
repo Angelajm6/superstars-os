@@ -139,16 +139,13 @@
       }).join('');
     }
   }
+  // ONE title per page: the top bar names the sidebar section ("Clients"); the sub-tab
+  // row under it names the page ("Client portal"). No small label repeating the title.
   function renderTitles() {
     var cur = activeTab();
     var pinnedHere = onPinned(here());
-    var crumb = document.querySelector('[data-nav-crumb]');
-    if (crumb) crumb.textContent = cur ? cur.label : (pinnedHere ? PINNED.label : 'Company');
     var h1 = document.querySelector('[data-nav-h1]');
-    if (h1) {
-      var on = document.querySelector('.ssc-subtabs[data-subtabs] .ssc-subtab.active');
-      h1.textContent = on ? on.textContent : (cur ? cur.label : (pinnedHere ? PINNED.label : h1.textContent));
-    }
+    if (h1) h1.textContent = cur ? cur.label : (pinnedHere ? PINNED.label : h1.textContent);
   }
   function refresh() { if (redirectIfRetired()) return; renderNav(); renderSubtabs(); renderTitles(); }
 

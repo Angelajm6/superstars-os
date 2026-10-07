@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Company · Superstars Contracting</title>
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=359">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
-<script src="/files/static/js/shell.js?v=359" defer></script>
-<link rel="stylesheet" href="/files/static/css/shell.css?v=341">
-<script src="/files/static/js/company_nav.js?v=360"></script>
+<script src="/files/static/js/shell.js?v=1007" defer></script>
+<link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
+<script src="/files/static/js/company_nav.js?v=1007"></script>
 <script src="/files/static/js/datepicker.js?v=302" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=361" defer></script>
 <script src="/files/static/js/auth_menu.js?v=302" defer></script>
@@ -199,8 +199,7 @@
   <main class="ssc-main">
     <header class="ssc-top">
       <div>
-        <div class="ssc-crumb" id="cp-crumb" data-nav-crumb>Company</div>
-        <h1 id="cp-title">Dashboard</h1>
+        <h1 id="cp-title" data-nav-h1>Dashboard</h1>
       </div>
       <div class="ssc-top-right">
         <span id="cp-date"></span>
@@ -435,7 +434,7 @@
         <div class="cp-kpis" id="fin-kpis"></div>
         <!-- #319 — accounts payable + the 30-day cash view -->
         <div class="cp-card" id="pb-card">
-          <div class="cp-card-head"><h2>What needs to get paid</h2><span class="hint">bills we owe and invoices owed to us · next 30 days</span></div>
+          <div class="cp-card-head"><h2>Next 30 days</h2><span class="hint">bills we owe and invoices owed to us</span></div>
           <div class="cp-kpis" id="pb-kpis" style="margin-bottom:12px"></div>
           <div class="cp-toolbar">
             <select class="cp-select" id="pb-status"><option value="open">Open bills</option><option value="overdue">Overdue</option><option value="paid">Paid</option><option value="void">Void</option><option value="all">All</option></select>
@@ -522,7 +521,7 @@
         <div class="cp-kpis" id="wf-kpis"></div>
         <div class="cp-grid3">
           <div class="cp-card">
-            <div class="cp-card-head"><h2>Workers</h2><span class="hint">rates are company-confidential · never shown on field surfaces</span></div>
+            <div class="cp-card-head"><h2>Roster</h2><span class="hint">rates are company-confidential · never shown on field surfaces</span></div>
             <div class="cp-toolbar">
               <!-- #345 — Active / Inactive (former workers: archived, or deactivated in Pay rates) -->
               <div class="cal-seg" role="tablist" aria-label="Worker status"><button type="button" data-wf-status="active" class="on">Active <span id="wf-n-active"></span></button><button type="button" data-wf-status="inactive">Inactive <span id="wf-n-inactive"></span></button></div>
@@ -2522,7 +2521,8 @@
   });
 
   // ---------- router ----------
-  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients · Client portal', calendar: 'Projects · Calendar', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance · Expenses', workforce: 'Workforce', company: 'Company' };
+  // the sidebar section only; the sub-tab row names the page (no title said twice)
+  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients', calendar: 'Projects', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance', workforce: 'Workforce', company: 'Company' };
   const LOADERS = { overview: loadOverview, clients: loadClients, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance };
   const ALIASES = { buildings: 'projects', compliance: 'company' };   // #339 — old bookmarks and links keep working
   function route() {
