@@ -340,6 +340,16 @@ def team_calendar(conn, start: date, end: date, *, role=None, uid=None) -> dict:
 
 
 # ------------------------------------------------------------------ writes
+def _sync_google(*user_ids) -> None:
+    """Push the change to the assignees' Google Calendars (gcal_sync). Best effort: a Google
+    problem never fails the app write."""
+    try:
+        import gcal_sync
+        gcal_sync.schedule(*user_ids)
+    except Exception as e:
+        log.info("google calendar sync not scheduled: %s", type(e).__name__)
+
+
 def create(conn, p: dict, *, actor=None) -> int:
     v = _validate(conn, p)
     now = _now()
@@ -353,6 +363,7 @@ def create(conn, p: dict, *, actor=None) -> int:
     conn.commit()
     new_id = conn.execute("SELECT MAX(id) AS m FROM crm_task").fetchone()["m"]
     log.info("team item created id=%s kind=%s by user=%s", new_id, v["kind"], actor)
+    _sync_google(v["assignee_user_id"])
     return new_id
 
 
@@ -369,6 +380,7 @@ def update(conn, item_id, p: dict, *, actor=None) -> None:
                  (*[v[c] for c in cols], _now(), actor, item_id))
     conn.commit()
     log.info("team item updated id=%s by user=%s", item_id, actor)
+    _sync_google(cur.get("assignee_user_id"), v["assignee_user_id"])   # old and new assignee
 
 
 def set_done(conn, item_id, done: bool, *, actor=None, actor_role=None) -> dict:
@@ -381,6 +393,7 @@ def set_done(conn, item_id, done: bool, *, actor=None, actor_role=None) -> dict:
                  ("done" if done else "open", _now() if done else None, _now(), actor, item_id))
     conn.commit()
     log.info("team item %s id=%s by user=%s", "done" if done else "reopened", item_id, actor)
+    _sync_google(cur.get("assignee_user_id"))
     return {"id": item_id, "status": "done" if done else "open"}
 
 
@@ -391,6 +404,7 @@ def cancel(conn, item_id, *, actor=None) -> None:
     conn.execute("UPDATE crm_task SET status = 'cancelled', updated_at = ?, updated_by = ? WHERE id = ?", (_now(), actor, item_id))
     conn.commit()
     log.info("team item deleted id=%s by user=%s", item_id, actor)
+    _sync_google(cur.get("assignee_user_id"))
 
 
 # ------------------------------------------------------------------ routes

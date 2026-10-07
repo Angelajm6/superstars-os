@@ -13,6 +13,7 @@
      create and edit on the company dashboard. Project scoping stays server-side (/api/projects,
      /api/team/*); a job they cannot open is drawn but not linked. -->
 <script src="/files/static/js/auth_menu.js?v=292c" defer></script>
+<script src="/files/static/js/gcal_connect.js?v=1007" defer></script>
 <style>
   :root {
     --brand-red: #B11E2E;
@@ -97,6 +98,7 @@
   .chip.done { opacity: .6; text-decoration: line-through; }
   .chip.mine { box-shadow: inset 0 0 0 1px currentColor; }
   .more { display: block; font-size: 10px; font-weight: 700; color: var(--mute); margin-top: 3px; }
+  .more.cnt { display: none; }   /* the chips say it on a computer; phones hide chips and show the count */
   .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--ink-2); margin-top: 10px; }
   .legend i { display: inline-block; width: 18px; height: 6px; border-radius: 3px; vertical-align: middle; margin-right: 5px; }
   .legend a { color: inherit; text-decoration: none; } .legend a:hover { text-decoration: underline; }
@@ -134,6 +136,19 @@
   .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 9px 16px; border-radius: 8px; font-size: 13px; z-index: 60; }
   .toast[hidden] { display: none; }
 
+  /* Google Calendar connect row (static/js/gcal_connect.js) */
+  .gcal { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; background: #F4F6FB; border: 1px solid #E3E5EA; border-radius: 9px; padding: 8px 10px; margin: 4px 0 8px; font-size: 12.5px; color: #4A4F59; }
+  .gcal[hidden] { display: none; }
+  .gcal.warn { background: #FBF0DC; border-color: #F0D9AE; }
+  .gcal-ic { flex: none; }
+  .gcal-t { flex: 1; min-width: 180px; }
+  .gcal-m { color: #8C92A0; }
+  .gcal-bad { color: #A8382B; }
+  .gcal-btn { flex: none; border: 1px solid #E3E5EA; background: #fff; color: #24418C; font: inherit; font-weight: 600; border-radius: 7px; padding: 5px 10px; cursor: pointer; text-decoration: none; }
+  .gcal-btn.primary { background: #4364DC; border-color: #4364DC; color: #fff; }
+  .gcal-btn:disabled { opacity: .6; cursor: progress; }
+  .gcal-note { font-size: 12.5px; color: #1F6B45; background: #E6F4EC; border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; }
+  .gcal-note.bad { color: #8B1623; background: #FDECEE; }
   @media (max-width: 900px) {
     .cols { grid-template-columns: 1fr; }
   }
@@ -145,6 +160,7 @@
     .day { min-height: 92px; padding: 4px 2px 5px; }
     .cal.month .day { min-height: 60px; }
     .cal.month .chip { display: none; }
+    .cal.month .more.cnt { display: block; }
     .cal.month .more { text-align: center; }
     .ov { align-items: flex-end; }
     .panel { width: 100%; height: auto; max-height: 88%; border-radius: 18px 18px 0 0; padding-top: 10px; }
@@ -171,6 +187,7 @@
       <div class="stack">
         <section class="card" id="todo-card" aria-labelledby="todo-h">
           <div class="card-h"><h2 id="todo-h">Your to-do</h2><span class="count" id="todo-count"></span></div>
+          <div data-gcal hidden></div>
           <div id="todo"><div class="empty">Loading…</div></div>
         </section>
       </div>
@@ -303,7 +320,7 @@
         return '<span class="chip ' + it.kind + (it.overdue ? ' late' : '') + (it.status === 'done' ? ' done' : '') + (it.mine ? ' mine' : '') + '" title="' + esc(it.title) + '">' +
           (it.kind === 'event' ? '● ' : (it.status === 'done' ? '✓ ' : '☐ ')) + esc((it.kind === 'event' && it.start_date === k && it.start_time ? fmtTime(it.start_time) + ' ' : '') + it.title) + '</span>';
       }).join('');
-      var more = its.length > maxChips ? '<span class="more">+' + (its.length - maxChips) + ' more</span>' : (month && its.length ? '<span class="more">' + its.length + ' item' + (its.length > 1 ? 's' : '') + '</span>' : '');
+      var more = its.length > maxChips ? '<span class="more">+' + (its.length - maxChips) + ' more</span>' : (month && its.length ? '<span class="more cnt">' + its.length + ' item' + (its.length > 1 ? 's' : '') + '</span>' : '');
       var other = month && d.getMonth() !== S.anchor.getMonth();
       return '<div class="day' + (k === t ? ' today' : '') + (other ? ' other' : '') + '" data-day="' + k + '" role="gridcell" tabindex="0" aria-label="' + esc(DOWL[d.getDay()] + ' ' + MONL[d.getMonth()] + ' ' + d.getDate() + ': ' + js.length + ' jobs, ' + its.length + ' tasks or events') + '">' +
         '<span class="n">' + d.getDate() + '</span>' + bars + chips + more + '</div>';
