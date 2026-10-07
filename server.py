@@ -4589,6 +4589,80 @@ def get_worker_session(session_id):
     """
     return jsonify({"error": "worker session lookup is not available"}), 410
 
+
+# Worker-app photo upload. Before this, the app's Send button only bumped a local counter
+# and every photo was thrown away while the screen said "Photos upload directly".
+_WORKER_PHOTO_LOCATIONS = {"S1": "Scaffold 1", "S2": "Scaffold 2", "S3": "Scaffold 3", "S4": "Scaffold 4",
+                           "S5": "Scaffold 5", "ROOF": "Roof", "INT": "Interior", "OUT": "Outside"}
+_WORKER_PHOTO_SCOPES = {"brick": "Brick", "pointing": "Pointing", "demo": "Demo", "sealant": "Sealant",
+                        "cleanup": "Cleanup", "other": "Other"}
+_WORKER_PHOTO_MAX_BYTES = 15 * 1024 * 1024   # one phone-camera JPEG is ~1-5 MB
+_WORKER_PHOTO_DAILY_CAP = 300                # per worker per job per day — bounds a stuck retry loop
+
+
+@app.route('/api/worker/photos', methods=['POST'])
+def worker_photo_upload():
+    """One photo from a signed-in worker (multipart: photo, session_token, employee_id,
+    location, scope). Authenticated by the worker-app bearer session, which must be on an
+    open shift; the photo always lands on THAT shift's job (never a client-chosen code),
+    in the job's Field Photos tab (Unassigned tray, caption "Scaffold 2 · Pointing") so the
+    office can sort it into a drop. Same image pipeline as the dashboard upload (downscale,
+    thumbnail, orientation baked in, GPS stripped). Logs carry the job and photo id only."""
+    import field_photos as fp
+    token = request.form.get('session_token') or ''
+    employee_id = (request.form.get('employee_id') or '').strip()
+    location = (request.form.get('location') or '').strip()
+    scope = (request.form.get('scope') or '').strip()
+    photo = request.files.get('photo')
+    if not employee_id:
+        return jsonify({"error": "employee_id required"}), 400
+    conn = db()
+    try:
+        session = _worker_session(conn, token, employee_id=employee_id)
+        if not session or session["started_sign_in_id"] is None or session["ended_at"] is not None \
+                or not session["project_code"]:
+            return jsonify({"error": "sign in to a job first", "session": False}), 401
+        if location not in _WORKER_PHOTO_LOCATIONS or scope not in _WORKER_PHOTO_SCOPES:
+            return jsonify({"error": "pick where and the scope"}), 400
+        if not photo or not photo.filename:
+            return jsonify({"error": "no photo in request"}), 400
+        data = photo.read(_WORKER_PHOTO_MAX_BYTES + 1)
+        if len(data) > _WORKER_PHOTO_MAX_BYTES:
+            return jsonify({"error": "photo too large"}), 413
+        project_code = session["project_code"]
+        today = date.today().isoformat()
+        sent_today = conn.execute(
+            "SELECT COUNT(*) FROM field_photos WHERE project_code = ? AND worker_id = ? AND substr(uploaded_at, 1, 10) = ?",
+            (project_code, employee_id, today)).fetchone()[0]
+        if sent_today >= _WORKER_PHOTO_DAILY_CAP:
+            return jsonify({"error": "daily photo limit reached — see the office"}), 429
+        try:
+            res = fp.process_image(data, photo.filename, fallback_dt_iso=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        except fp.SkipImage:
+            return jsonify({"error": "could not read that photo — take it again"}), 400
+        file_path, thumb_path = _fp_write(project_code, res)
+        caption = f"{_WORKER_PHOTO_LOCATIONS[location]} · {_WORKER_PHOTO_SCOPES[scope]}"
+        cur = conn.execute(
+            "INSERT INTO field_photos (project_code, drop_id, worker_id, stage, caption, taken_at, taken_at_estimated, "
+            "uploaded_at, uploaded_by_uid, file_path, thumb_path, file_name, file_size, mime, width, height, "
+            "orientation_applied) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (project_code, None, employee_id, None, caption, res["taken_at"], 1 if res["taken_at_estimated"] else 0,
+             datetime.now().strftime("%Y-%m-%d %H:%M:%S"), None, file_path, thumb_path, res["file_name"],
+             len(res["display_bytes"]), res["mime"], res["width"], res["height"], 1 if res["orientation_applied"] else 0))
+        conn.commit()
+        logging.info("worker photo stored project=%s id=%s", project_code, cur.lastrowid)
+        return response_wrapper({"id": cur.lastrowid, "project_code": project_code, "caption": caption,
+                                 "sent_today": sent_today + 1}), 201
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        logging.error("POST /api/worker/photos: %s", type(e).__name__)
+        return jsonify({"error": "upload failed — try again"}), 500
+    finally:
+        conn.close()
+
 @app.route('/api/photos/upload', methods=['POST'])
 def upload_photo():
     """Upload a site photo to disk + record metadata in the photos table.
