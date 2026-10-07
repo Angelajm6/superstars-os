@@ -430,14 +430,18 @@
       setISO(input, getISO(input));
     }
 
-    var live = null;
+    var live = null, openedByFocus = 0;
     function toggle(e) {
       if (e) e.preventDefault();
+      // A mouse click on an unfocused field fires focus (opens) and then click: that click
+      // must not close the popup it just opened, or every first click looks dead.
+      if (live && e && e.type === 'click' && Date.now() - openedByFocus < 500) return;
       if (live) { live.close(); live = null; return; }
       live = buildPopup(input, opts);
       var origClose = live.close;
       live.close = function() { origClose(); live = null; };
       live.open();
+      if (e && e.type === 'focus') openedByFocus = Date.now();
     }
     input.addEventListener('focus', toggle);
     input.addEventListener('click', toggle);
