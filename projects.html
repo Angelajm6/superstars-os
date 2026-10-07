@@ -14,6 +14,7 @@
      /api/team/*); a job they cannot open is drawn but not linked. -->
 <script src="/files/static/js/auth_menu.js?v=292c" defer></script>
 <script src="/files/static/js/gcal_connect.js?v=1007" defer></script>
+<script src="/files/static/js/gmail_suggest.js?v=1008" defer></script>
 <style>
   :root {
     --brand-red: #B11E2E;
@@ -149,6 +150,41 @@
   .gcal-btn:disabled { opacity: .6; cursor: progress; }
   .gcal-note { font-size: 12.5px; color: #1F6B45; background: #E6F4EC; border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; }
   .gcal-note.bad { color: #8B1623; background: #FDECEE; }
+  /* "From your email" card (static/js/gmail_suggest.js) */
+  [data-gmail-card][hidden] { display: none; }
+  .gm-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .gm-head h2 { font-family: 'Archivo', -apple-system, 'Helvetica Neue', Arial, sans-serif; font-size: 16px; font-weight: 700; margin: 0; }
+  .gm-count { font-size: 12px; color: #8C92A0; }
+  .gm-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; background: #F4F6FB; border: 1px solid #E3E5EA; border-radius: 9px; padding: 8px 10px; margin: 4px 0 8px; font-size: 12.5px; color: #4A4F59; }
+  .gm-row.warn { background: #FBF0DC; border-color: #F0D9AE; }
+  .gm-row span { flex: 1; min-width: 180px; }
+  .gm-mute { color: #8C92A0; } .gm-bad { color: #A8382B; }
+  .gm-btn { flex: none; border: 1px solid #E3E5EA; background: #fff; color: #24418C; font: inherit; font-size: 12.5px; font-weight: 600; border-radius: 7px; padding: 6px 10px; cursor: pointer; text-decoration: none; white-space: nowrap; }
+  .gm-btn.primary { background: #4364DC; border-color: #4364DC; color: #fff; }
+  .gm-btn.ghost { color: #4A4F59; }
+  .gm-btn:disabled { opacity: .6; cursor: progress; }
+  .gm-sug { border-top: 1px solid #E3E5EA; padding: 11px 0; display: grid; gap: 6px; }
+  .gm-row + .gm-sug { border-top: 0; }
+  .gm-from { font-size: 12px; color: #8C92A0; } .gm-from b { color: #4A4F59; font-weight: 600; }
+  .gm-subj { font-size: 12.5px; color: #4A4F59; overflow-wrap: anywhere; }
+  .gm-prop { display: flex; gap: 8px; align-items: flex-start; background: #EEF2FF; border-radius: 8px; padding: 8px 10px; }
+  .gm-prop.event { background: #E7F6F1; }
+  .gm-k { flex: none; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #24418C; padding-top: 1px; }
+  .gm-prop.event .gm-k { color: #0F766E; }
+  .gm-pm { min-width: 0; } .gm-t { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; } .gm-m { font-size: 12px; color: #4A4F59; overflow-wrap: anywhere; } .gm-why { color: #8C92A0; }
+  .gm-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .gm-open { font-size: 12px; color: #24418C; text-decoration: none; margin-left: auto; white-space: nowrap; }
+  .gm-done { font-size: 13px; color: #1F8A5B; background: #E4F4EC; border-radius: 8px; padding: 8px 10px; }
+  .gm-gone { font-size: 12.5px; color: #8C92A0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .gm-empty { font-size: 13px; color: #8C92A0; padding: 8px 0; }
+  .gm-flash { font-size: 12.5px; color: #1F6B45; background: #E6F4EC; border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; }
+  .gm-flash.bad { color: #8B1623; background: #FDECEE; }
+  .gm-edit { border: 1px solid #E3E5EA; border-radius: 9px; padding: 10px; display: grid; gap: 8px; }
+  .gm-edit[hidden] { display: none; }
+  .gm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .gm-grid label { display: grid; gap: 4px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #8C92A0; min-width: 0; }
+  .gm-grid label.wide { grid-column: 1 / -1; }
+  .gm-grid input, .gm-grid select { font: 14px 'Inter', -apple-system, sans-serif; color: #222633; border: 1px solid #E3E5EA; border-radius: 8px; padding: 7px 9px; width: 100%; text-transform: none; letter-spacing: 0; background: #fff; }
   @media (max-width: 900px) {
     .cols { grid-template-columns: 1fr; }
   }
@@ -190,6 +226,7 @@
           <div data-gcal hidden></div>
           <div id="todo"><div class="empty">Loading…</div></div>
         </section>
+        <section class="card" data-gmail-card hidden aria-label="From your email"></section>
       </div>
       <div class="stack">
         <section class="card" id="cal-card" aria-labelledby="cal-h">
@@ -418,6 +455,7 @@
   }
 
   try { var v = localStorage.getItem('ssc.home.view'); if (v === 'month' || v === 'week') { S.view = v; document.querySelectorAll('[data-view]').forEach(function (x) { x.setAttribute('aria-pressed', String(x.getAttribute('data-view') === v)); }); } } catch (e) {}
+  document.addEventListener('ssc:items-changed', function () { loadTodo(); loadCal(); });   // e.g. a task added from an email
   loadTodo(); loadCal(); loadProjects();
 })();
 </script>

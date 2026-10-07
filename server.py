@@ -229,6 +229,8 @@ import team_items  # noqa: E402
 team_items.register(app)   # team tasks & events: the dashboard to-do list, synced onto the calendar
 import gcal_sync  # noqa: E402
 gcal_sync.register(app)   # each person's tasks & events in their own Google Calendar (off until configured)
+import gmail_suggest  # noqa: E402
+gmail_suggest.register(app)   # to-dos spotted in each person's Gmail, one tap from their to-do (off until configured)
 
 # #264 — the per-item VISIBILITY ENGINE (default-deny) + the read-only CLIENT portal.
 # client_portal registers a default-deny before_request gate (a `client` reaches ONLY the
