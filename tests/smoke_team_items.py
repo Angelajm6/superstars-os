@@ -21,6 +21,10 @@ Boots the real app on an ISOLATED database. Proves:
   * the dashboard: two KPI tiles, the Tasks & events card, the shared dialog reading the
     date picker through dateGet / dateSet, chips on the week strip and the calendar;
     the shared date picker opens on the FIRST click (focus + click no longer cancel)
+  * one day: every week-strip and calendar day is clickable (data-day; job bars, chips and
+    links keep their own clicks) and opens that day: jobs running (on site + daily report
+    for today and past days), its tasks & events with directions, what is due; "+ Task or
+    event on this day" opens the dialog on that date
 Run:  venv/bin/python tests/smoke_team_items.py
 """
 from __future__ import annotations
@@ -283,7 +287,11 @@ def main() -> int:
                    'id="tk-location"', 'id="tk-delete"', 'id="tk-address"', 'id="tk-addr-list"', 'data-tk-dir',
                    "'https://www.google.com/maps/dir/?api=1&destination='", "address: $('tk-address').value.trim() || null", 'data-tk-filter="mine"', 'id="cal-new-item"',
                    "dateGet($('tk-due'))", "dateGet($('tk-start'))", "dateSet($('tk-due'), it.due_date)", "wireItemChips($('cc-week-row'), d);",
-                   "wireItemChips($('cal-grid'), d);", "'/team/items/' + it.id + '/done'"):
+                   "wireItemChips($('cal-grid'), d);", "'/team/items/' + it.id + '/done'",
+                   'id="dy-overlay"', 'id="dy-add"', "function openDay(iso, d)", "dayClicks($('cc-week-row'), () => DAY.week);",
+                   "dayClicks($('cal-grid'), () => CAL.data);", 'data-day="${k}"', "openItem(null, { date: iso })",
+                   "if (e.target.closest('a, button, [data-item], [data-job], [data-more], [data-ms], .cal-bar, .cc-week-bar, .cal-grip')) return;",
+                   "past ? (info.headcount || 0) + ' on site' : ''"):
         assert needle in html, needle
     ov = html[html.index("async function loadOverview()"):html.index("// ---------- TASKS & EVENTS")]
     assert re.findall(r"kpi\('([^']+)'", ov) == ["Active projects", "Workforce"]
