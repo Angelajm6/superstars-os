@@ -21,6 +21,38 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### How changes ship now (Bookore, 2026-10-07)
+
+* **No preprod step.** Build on a branch, verify on a local isolated DB, send Angela screenshots
+  (and a clickable mockup first for visual work). On her "accepted": push the branch to
+  `upstream`, PR straight into `superstars-contracting/dashboard` main, merge when both gate
+  checks pass, verify production, then fast-forward fork `main` to `upstream/main`.
+* The preprod Render service (`ssc-dashboard-preprod`) is being suspended by Angela; the
+  `preprod` branch no longer exists anywhere.
+* Shipped today on this flow: one title per page + pinnable sidebar (#96), clean dashboard +
+  team tasks & events (`team_items.py`, #97), task/event addresses with Google Maps directions
+  (`/api/team/address-suggest` uses NYC GeoSearch; free, no key; best-effort).
+
+### Worker app photos upload (Bookore, 2026-10-07)
+
+* Angelajm6/superstars-os#94, released as superstars-contracting/dashboard#38 (live 13:29 UTC).
+  * **Bug:** the worker app's Send only bumped a local counter, so every photo was discarded.
+    Photos taken before the fix can't be recovered.
+  * **`POST /api/worker/photos`** (under the public `/api/worker/` prefix):
+    * Authenticated by the worker-app bearer session on an OPEN shift. The photo lands on that
+      shift's job; a form `project_code` is ignored.
+    * Stored in `field_photos` with `drop_id` NULL (Unassigned) and `worker_id` = employee_id.
+      The caption comes from the location and scope buttons.
+    * Limits: 15 MB per photo, 300 per worker per job per day.
+  * **`worker-app.html`:** a photo counts as sent only when the response carries a stored id.
+    The service worker answers `/api/*` offline with 200 `{error:'offline'}`. On failure the
+    app keeps the photo and shows "Try again".
+  * **Service worker:** `CACHE_VERSION` bumped to `v8-2026-10-07a`. Bump it again on every
+    `worker-app.html` change.
+  * **Guard:** `tests/smoke_worker_photos.py`.
+  * **Still to check:** one real phone photo. Browser tests used a generated image because
+    the test browser has no camera.
+
 ### CSRF guard enforcing (Bookore, 2026-10-06)
 
 * Angelajm6/superstars-os#92, released as superstars-contracting/dashboard#37 (deploy 20:42 UTC). Production boot log reads
