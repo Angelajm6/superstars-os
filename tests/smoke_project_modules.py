@@ -260,8 +260,8 @@ def main() -> int:
         ok("sov follows billing type, not a module", "sov" not in optional_views)
         ok("Settings card present", 'id="ps-mod-list"' in dash and 'id="ps-mod-save"' in dash)
         ok("router refuses hidden tabs", "if (link.hidden) return;" in dash)
-        ok("KPIs honor switched-off modules", "!OFF.includes('drops')" in dash and "!OFF.includes('rfis')" in dash)
-        ok("operations panel + schedule card tagged for drops", 'id="jx-schedule" data-module="drops"' in dash and "jx-ops-bar" in dash)
+        ok("KPIs honor switched-off modules", "!OFF.includes('drops')" in dash)
+        ok("operations panel present; no schedule card (Oct 7 notes)", 'id="jx-schedule"' not in dash and "jx-ops-bar" in dash)
     finally:
         _cleanup()
 

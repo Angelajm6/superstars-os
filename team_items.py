@@ -284,8 +284,12 @@ def _shape(r: dict, today: str, me: Optional[int], can_edit: bool) -> dict:
     }
 
 
-def list_items(conn, *, status="open", mine_uid=None, date_from=None, date_to=None, me=None, can_edit=False) -> list:
+def list_items(conn, *, status="open", mine_uid=None, date_from=None, date_to=None, me=None, can_edit=False,
+               project_code=None) -> list:
     where, params = [], []
+    if project_code:
+        where.append("t.project_code = ?")
+        params.append(project_code)
     if status in ("open", "done", "cancelled"):
         where.append("COALESCE(t.status, 'open') = ?")
         params.append(status)
@@ -459,7 +463,8 @@ def _api_list():
         return jsonify({"error": "give both from and to, in order"}), 400
     status = (a.get("status") or "open").lower()
     rows = _with_conn(lambda c: list_items(c, status=status, mine_uid=uid if a.get("mine") in ("1", "true") else None,
-                                           date_from=d_from, date_to=d_to, me=uid, can_edit=role in EDIT_ROLES))
+                                           date_from=d_from, date_to=d_to, me=uid, can_edit=role in EDIT_ROLES,
+                                           project_code=(a.get("project") or "").strip() or None))
     return jsonify({"data": rows, "meta": {"count": len(rows), "can_edit": role in EDIT_ROLES}})
 
 

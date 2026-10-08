@@ -4892,7 +4892,8 @@ def api_project_crew_compliance(project_code):
         # include_archived=true stays the raw audit hatch.
         src = 'employees' if include_archived else 'v_active_workers'
         rows = conn.execute(
-            f"""SELECT e.employee_id, e.worker_id, e.name, e.trade, e.face_image_path, e.intake_status
+            f"""SELECT e.employee_id, e.worker_id, e.name, e.trade, e.face_image_path, e.intake_status,
+                       pa.role_on_project
                 FROM {src} e
                 JOIN project_assignments pa ON pa.employee_id = e.employee_id
                 WHERE pa.project_code = ? AND pa.status = 'active'
@@ -4953,7 +4954,8 @@ def api_project_crew_compliance(project_code):
             agg[compliance] += 1
             workers.append({
                 "employee_id": e["employee_id"], "worker_id": e["worker_id"],
-                "name": e["name"], "trade": e["trade"], "has_photo": bool(has_photo),
+                "name": e["name"], "trade": e["trade"], "role_on_project": e["role_on_project"],
+                "has_photo": bool(has_photo),
                 "intake_status": e["intake_status"], "cert_total": len(clist),
                 "cert_expiring": n_expiring, "cert_expired": n_expired,
                 "compliance": compliance, "certs": clist,

@@ -8,7 +8,10 @@ payload, served as a `summary` part of /api/projects/<code>/bootstrap (no extra 
 request) and on its own at GET /api/projects/<code>/summary.
 
 Blocks: header · schedule · money (ONLY for admin / c_suite — omitted from the payload for
-anyone else, not just hidden) · field_today · risk · contacts · photos. Every block is
+anyone else, not just hidden) · field_today · risk · open_items · contacts · photos.
+Oct 7 C-suite notes: the page shows On site today / % complete / Open items on top; open
+items are the job's own tasks and events (team_items, also on the team calendar); key
+contacts come in four groups (Our team, Owner, Engineer / Architect, General contractor). Every block is
 built independently and safely: one failing query (an optional table missing on a fresh
 fixture) blanks that block, never the page.
 """
@@ -161,13 +164,12 @@ def _field_today(conn, code, today):
     last = _safe(conn, lambda: _one(conn.execute(
         "SELECT report_date, dcr_sequence FROM report_index WHERE project_code = ? AND report_type = 'DCR' "
         "AND dcr_sequence IS NOT NULL ORDER BY report_date DESC, dcr_sequence DESC LIMIT 1", (code,))), None)
-    safety = _safe(conn, lambda: int(conn.execute(
-        "SELECT COUNT(1) FROM safety_events WHERE project_code = ? AND date >= ?",
-        (code, (today - timedelta(days=7)).isoformat())).fetchone()[0]), 0)
-    return {"on_site": on_site, "dcr_today": dcr_today,
+    assigned = _safe(conn, lambda: int(conn.execute(
+        "SELECT COUNT(1) FROM project_assignments WHERE project_code = ? AND COALESCE(status, 'active') = 'active'",
+        (code,)).fetchone()[0]), 0)
+    return {"on_site": on_site, "assigned": assigned, "dcr_today": dcr_today,
             "last_dcr": ({"date": str(last["report_date"])[:10], "number": f"DCR-{code}-{int(last['dcr_sequence']):03d}"}
-                         if last else None),
-            "safety_7d": safety}
+                         if last else None)}
 
 
 def _risk(conn, code, today):
@@ -199,18 +201,49 @@ def _risk(conn, code, today):
             "certs_expired": int(certs.get("expired") or 0), "certs_expiring_30": int(certs.get("soon") or 0)}
 
 
+# Key contacts: four groups (Oct 7 C-suite notes). Property managers sit with the Owner,
+# every consultant discipline (architect, engineers, expeditor) under Engineer / Architect,
+# and the owner's / GC's site people under General contractor.
+CONTACT_GROUPS = (("owner", "Owner", ("owner", "property_manager")),
+                  ("design", "Engineer / Architect", ("consultant",)),
+                  ("gc", "General contractor", ("site_supervisor",)))
+CONTACTS_PER_GROUP = 3
+
+
 def _contacts(conn, code):
     import project_contacts
     d = project_contacts.list_for_project(conn, code, with_pii=True) or {}
-    out = []
-    for role, label in project_contacts.ROLES.items():
-        for x in (d.get("groups") or {}).get(role, []):
-            if x.get("is_primary"):
-                out.append({"role": label, "name": x["name"], "org": x.get("org"), "phone": x.get("phone"), "email": x.get("email")})
-    for x in (d.get("team") or {}).get("supervisors", []):
-        if x.get("is_primary"):
-            out.insert(0, {"role": "Our superintendent", "name": x["name"], "org": None, "phone": None, "email": None})
+    groups, team = d.get("groups") or {}, d.get("team") or {}
+    ours = [{"name": p["name"], "role": "Project manager", "org": None, "phone": None, "email": p.get("email")}
+            for p in team.get("pms", [])]
+    sups = sorted(team.get("supervisors", []), key=lambda x: not x.get("is_primary"))
+    ours += [{"name": x["name"], "role": "Superintendent" if x.get("is_primary") else (x.get("title") or "Site supervisor"),
+              "org": None, "phone": None, "email": None} for x in sups]
+    out = [{"key": "team", "label": "Our team", "people": ours[:CONTACTS_PER_GROUP]}]
+    for key, label, roles in CONTACT_GROUPS:
+        rows = [x for r in roles for x in groups.get(r, [])]
+        rows.sort(key=lambda x: (not x.get("is_primary"), x.get("role") != roles[0]))   # main contact first, then the owner before the PM
+        out.append({"key": key, "label": label, "people": [
+            {"name": x["name"], "role": x.get("discipline_label") or x.get("title") or project_contacts.ROLES.get(x["role"]),
+             "org": x.get("org"), "phone": x.get("phone"), "email": x.get("email"), "primary": bool(x.get("is_primary"))}
+            for x in rows[:CONTACTS_PER_GROUP]], "more": max(0, len(rows) - CONTACTS_PER_GROUP)})
     return out
+
+
+def _open_items(conn, code, today, uid, role):
+    """The job's open tasks, plus events that have not ended yet: overdue first, then by date,
+    undated last. Anyone who can open the job sees them (the team calendar is shared);
+    admin / C-suite add and edit, the assignee ticks their own done."""
+    import team_items
+    t = today.isoformat()
+    rows = team_items.list_items(conn, status="open", project_code=code, me=uid, can_edit=role in FINANCIAL_ROLES)
+    rows = [r for r in rows if r["kind"] == "task" or (r.get("calendar_to") or r.get("calendar_from") or t) >= t]
+    rows.sort(key=lambda r: (not r["overdue"], r.get("calendar_from") is None, r.get("calendar_from") or "",
+                             r.get("start_time") or r.get("due_time") or "99:99"))
+    week = (today + timedelta(days=7)).isoformat()
+    return {"count": len(rows), "overdue": sum(1 for r in rows if r["overdue"]),
+            "events_this_week": sum(1 for r in rows if r["kind"] == "event" and (r.get("calendar_from") or "") <= week),
+            "can_add": role in FINANCIAL_ROLES, "items": rows[:25]}
 
 
 def _photos(conn, code):
@@ -220,7 +253,7 @@ def _photos(conn, code):
         "ORDER BY COALESCE(taken_at, uploaded_at) DESC, id DESC LIMIT 6", (code,)))]
 
 
-def summary(conn, code: str, role: Optional[str], today: Optional[date] = None) -> Optional[dict]:
+def summary(conn, code: str, role: Optional[str], today: Optional[date] = None, uid: Optional[int] = None) -> Optional[dict]:
     today = today or date.today()
     if not conn.execute("SELECT 1 FROM projects WHERE project_code = ?", (code,)).fetchone():
         return None
@@ -229,6 +262,7 @@ def summary(conn, code: str, role: Optional[str], today: Optional[date] = None) 
         "schedule": _safe(conn, lambda: _schedule(conn, code), None),
         "field_today": _safe(conn, lambda: _field_today(conn, code, today), None),
         "risk": _safe(conn, lambda: _risk(conn, code, today), None),
+        "open_items": _safe(conn, lambda: _open_items(conn, code, today, uid, role), None),
         "contacts": _safe(conn, lambda: _contacts(conn, code), []),
         "photos": _safe(conn, lambda: _photos(conn, code), []),
     }
@@ -241,12 +275,13 @@ def summary(conn, code: str, role: Optional[str], today: Optional[date] = None) 
 def _api_summary(project_code):
     # reached through /api/projects/<code>/… — the #263 scoping hook has already refused
     # an unassigned pm; external roles never reach the internal namespace
-    role = (current_user() or {}).get("role")
+    me = current_user() or {}
+    role = me.get("role")
     if role not in ("admin", "c_suite", "pm", "super"):
         return jsonify({"error": "forbidden"}), 403
     conn = db_layer.connect()
     try:
-        d = summary(conn, project_code, role)
+        d = summary(conn, project_code, role, uid=me.get("id"))
         return jsonify({"data": d}) if d else (jsonify({"error": "project not found"}), 404)
     finally:
         conn.close()
