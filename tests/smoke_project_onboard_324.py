@@ -340,14 +340,15 @@ def main() -> int:
         conn.close()
     checks += 1
 
-    # ---- Phase A — the form: required fields up front, everything else collapsed, no silent defaults
-    i_req, i_more = mod_js.index('id="np-billing"'), mod_js.index('id="np-more"')
-    for fid in ("np-client", "np-type", "np-borough", "np-address", "np-billing"):
-        assert mod_js.index(f'id="{fid}"') < i_more, f"{fid} must be a required field shown before the optional block"
-    assert '<details class="np-more full" id="np-more">' in mod_js and 'id="np-more" open' not in mod_js, "optional block starts collapsed"
-    optional_html = mod_js[i_more: mod_js.index("</details>", i_more)]
+    # ---- the form (Oct 7 notes batch C): one wide window in sections, the required fields in
+    # the first two, no silent defaults
+    i_client = mod_js.index('id="np-s-client"')
+    for fid in ("np-type", "np-borough", "np-address"):
+        assert mod_js.index(f'id="{fid}"') < i_client, f"{fid} sits in the first section (Job)"
+    for sec in ("np-s-job", "np-s-access", "np-s-client", "np-s-dates", "np-s-crew", "np-s-work", "np-s-dwg"):
+        assert f'id="{sec}"' in mod_js, sec
     for fid in ("np-name", "np-contract", "np-start", "np-end", "np-pm", "np-notes", "np-lat", "np-crew"):
-        assert f'id="{fid}"' in optional_html, f"{fid} belongs in the optional block"
+        assert f'id="{fid}"' in mod_js, fid
     for k in ("client", "neworg", "type", "borough", "address", "billing"):
         assert f'id="np-ferr-{k}"' in mod_js, f"per-field error slot for {k}"
     assert "function validate" in mod_js and "fieldError(b[0], b[1])" in mod_js, "all errors are shown at once, next to the fields"

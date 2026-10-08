@@ -328,6 +328,7 @@
       overflow-y: auto;
     }
 
+    .photo-btn[hidden], .photo-banner[hidden] { display: none !important; }   /* photos switched off for the job */
     .photo-btn {
       width: 160px;
       height: 160px;
@@ -879,7 +880,7 @@
   <div class="screen working-screen" id="screen-working">
     <div class="working-topbar" id="working-topbar">Signed in</div>
     <div class="working-content">
-      <button class="photo-btn" onclick="startPhotoCapture()">
+      <button class="photo-btn" id="photo-btn" onclick="startPhotoCapture()">
         <span style="font-size:48px;">📸</span>
         <div class="photo-btn-text" id="photo-btn-text">Take Photo</div>
       </button>
@@ -1339,6 +1340,8 @@ async function startShift(projectCode, certDiv, btn) {
   const pj = (sessionData.projects || []).find(p => p.project_code === projectCode);
   sessionData.projectCode = projectCode;
   sessionData.projectName = pj ? pj.name : projectCode;
+  // what this job's workers see (Create / Edit project → Workforce access); photos unless switched off
+  sessionData.photosOn = !pj || !Array.isArray(pj.features) || pj.features.indexOf('photos') !== -1;
   const startResp = await fetch('/api/worker/session/start', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -1394,6 +1397,9 @@ function updateWorkingScreen() {
   // Topbar shows just "Signed in" — no clock, no counter, no zone.
   // Workers don't need to see how long they've been on; PMs do, on the dashboard.
   document.getElementById('working-topbar').textContent = t('signed_in') + (sessionData.projectName ? ' · ' + sessionData.projectName : '');
+  const photosOn = sessionData.photosOn !== false;
+  document.getElementById('photo-btn').hidden = !photosOn;
+  document.getElementById('photo-banner').hidden = !photosOn;
 }
 
 let stream;

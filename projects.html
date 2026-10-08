@@ -254,7 +254,7 @@
 <script>
 (function () {
   'use strict';
-  var COLORS = ['#24418C', '#0F766E', '#B45309', '#7C3AED', '#BE185D', '#0369A1', '#4D7C0F', '#B11E2E'];
+  var COLORS = ['#24418C', '#0F766E', '#B45309', '#7C3AED', '#BE185D', '#0369A1', '#4D7C0F', '#B11E2E', '#C2410C', '#047857', '#1D4ED8', '#A21CAF', '#854D0E', '#475569', '#DB2777', '#0E7490'];   // = project_setup.PALETTE (each job's saved color)
   var DOWS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   var DOWL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   var MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -449,7 +449,7 @@
       var projects = (await api('/api/projects')).data || [];
       if (!projects.length) { host.innerHTML = '<div class="empty"><strong>No projects assigned yet.</strong> When an admin assigns you to a project, it will appear here.</div>'; return; }
       host.innerHTML = projects.map(function (p) {
-        var c = 0; for (var i = 0; i < p.project_code.length; i++) c += p.project_code.charCodeAt(i);
+        var c = 0; if (p.color_index != null) c = p.color_index; else { for (var i = 0; i < p.project_code.length; i++) c += p.project_code.charCodeAt(i); c = c % 8; }   // the old hash colors were 8
         var addr = [p.address, p.city_zip].filter(Boolean).join(', ');
         return '<a class="proj" href="/projects/' + encodeURIComponent(p.project_code) + '"><span class="sw" style="background:' + COLORS[c % COLORS.length] + '"></span>' +
           '<div><div class="t">' + esc(p.name || p.project_code) + '</div><div class="m">' + esc(p.project_code) + (addr ? ' · ' + esc(addr) : '') + '</div></div><span class="go">Open →</span></a>';

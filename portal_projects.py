@@ -139,17 +139,23 @@ def list_projects(conn, *, status: str = "active", search: Optional[str] = None,
     import billing_type as _bt   # #356
     bts = _safe(lambda: {r["project_code"]: r["billing_type"] for r in _rows(conn.execute(
         f"SELECT project_code, billing_type FROM projects WHERE project_code IN ({marks})", codes))} if codes else {}, {})
+    import project_setup   # Oct 7 notes batch C: job number, color, access method
+    setups = _safe(lambda: {r["project_code"]: dict(r) for r in _rows(conn.execute(
+        f"SELECT project_code, job_number, color_index, access_methods FROM projects WHERE project_code IN ({marks})", codes))} if codes else {}, {})
     out = []
     for r in rows:
         c = r["project_code"]
         i = inv.get(c) or {}
+        su = setups.get(c) or {"project_code": c}
         out.append({**r, "status": r.get("status") or "active", "pms": pms.get(c, []), "crew_count": crew.get(c, 0),
                     "contract": _contract(conn, c),
                     "invoiced": round(_num(i.get("invoiced")), 2), "open_value": round(_num(i.get("open_value")), 2),
                     "overdue_value": round(_num(i.get("overdue_value")), 2), "collected": round(_num(i.get("collected")), 2),
                     "last_report_date": last_rep.get(c), "open_rfis": rfis.get(c, 0),
                     "billing_type": bts.get(c), "billing_label": _bt.label(bts.get(c)),
-                    "billing_short": _bt.SHORT.get(bts.get(c) or "", "Not set")})
+                    "billing_short": _bt.SHORT.get(bts.get(c) or "", "Not set"),
+                    "job_number": su.get("job_number"), "color_index": project_setup.color_of(su), "color": project_setup.color_hex(su),
+                    "access_labels": project_setup.access_labels(su)})
     return out
 
 

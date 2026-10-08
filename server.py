@@ -235,6 +235,8 @@ import ui_usage  # noqa: E402
 ui_usage.register(app)   # job page redesign step 1: which views get opened (counts only) + each job's tool footprint
 import account  # noqa: E402
 account.register(app)    # Settings > Account: each person's own name, password, devices
+import project_setup  # noqa: E402
+project_setup.register(app)   # Oct 7 notes batch C: job numbers, a color per job, access method, worker access
 
 # #264 — the per-item VISIBILITY ENGINE (default-deny) + the read-only CLIENT portal.
 # client_portal registers a default-deny before_request gate (a `client` reaches ONLY the
@@ -4306,6 +4308,17 @@ def _haversine_m(lat1, lng1, lat2, lng2):
     return R * 2 * (a ** 0.5)
 
 
+def _worker_features(conn, project_code):
+    """What the worker app shows on this job (project_setup.worker_access; photos by default)."""
+    import project_setup
+    try:
+        r = conn.execute("SELECT worker_access FROM projects WHERE project_code = ?", (project_code,)).fetchone()
+        return project_setup.worker_access(dict(r) if r else {})
+    except Exception:
+        conn.rollback()
+        return list(project_setup.WORKER_DEFAULT)
+
+
 def _worker_projects(conn, employee_id, latitude=None, longitude=None):
     """#325 — the jobs a worker may check in to, each geofenced against ITS OWN site.
 
@@ -4333,6 +4346,7 @@ def _worker_projects(conn, employee_id, latitude=None, longitude=None):
             dist = _haversine_m(float(latitude), float(longitude), float(r["site_lat"]), float(r["site_lng"]))
             in_range = dist <= float(r["geofence_m"] or 200)
         out.append({"project_code": r["project_code"], "name": r["name"] or r["project_code"],
+                    "features": _worker_features(conn, r["project_code"]),
                     "has_geofence": has, "distance_m": (round(dist) if dist is not None else None),
                     "in_range": in_range, "assigned": assigned,
                     "eligible": (not has) or (in_range if in_range is not None else True)})
@@ -4632,6 +4646,8 @@ def worker_photo_upload():
         if not session or session["started_sign_in_id"] is None or session["ended_at"] is not None \
                 or not session["project_code"]:
             return jsonify({"error": "sign in to a job first", "session": False}), 401
+        if "photos" not in _worker_features(conn, session["project_code"]):
+            return jsonify({"error": "photos are switched off for this job"}), 403
         if location not in _WORKER_PHOTO_LOCATIONS or scope not in _WORKER_PHOTO_SCOPES:
             return jsonify({"error": "pick where and the scope"}), 400
         if not photo or not photo.filename:

@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
 <script src="/files/static/js/company_nav.js?v=1009"></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
-<script src="/files/static/js/new_project_modal.js?v=361" defer></script>
+<script src="/files/static/js/new_project_modal.js?v=1010" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
 <script src="/files/static/js/gcal_connect.js?v=1007" defer></script>
 <script src="/files/static/js/gmail_suggest.js?v=1008" defer></script>
@@ -77,6 +77,17 @@
   .cp-table tr.row-link { cursor: pointer; }
   .cp-table tr.row-link:hover td { background: #FAFAFC; }
   .cp-id { font-weight: 700; color: var(--brand-red, #B11E2E); }
+  /* Oct 7 notes batch C — job number, color square, access chips, Edit */
+  .pj-no { font-weight: 800; color: var(--brand-red, #B11E2E); font-variant-numeric: tabular-nums; }
+  .pj-job { display: flex; gap: 10px; align-items: flex-start; min-width: 230px; }
+  .pj-job .pj-edit { margin-left: auto; }
+  .pj-job .cp-id, .pj-no { white-space: nowrap; }
+  #pj-table td:nth-child(3) { min-width: 140px; }
+  .pj-sw { width: 12px; height: 12px; border-radius: 4px; flex: none; margin-top: 3px; }
+  .pj-acc { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+  .pj-acc span { font-size: 11px; font-weight: 600; border-radius: 999px; padding: 1px 8px; background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); white-space: nowrap; }
+  .pj-edit { font: inherit; font-size: 12.5px; font-weight: 600; border: 1px solid var(--line); background: #fff; border-radius: 7px; padding: 4px 10px; cursor: pointer; }
+  .pj-edit:hover { border-color: var(--accent); }
   .cp-muted { color: var(--muted); }
   .cp-pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--status-oat-soft, #f3f0e9); color: #6b6455; white-space: nowrap; }
   .cp-pill.ok { background: var(--status-complete-soft, #e7f6f0); color: var(--status-complete-deep, #0c7a5f); }
@@ -241,7 +252,7 @@
           .cc-week-ms span.inv{background:#E8F1FB;color:#1B4F8A;border-left-color:#3B82F6} .cc-week-ms span.late{background:#FCEEEC;color:#A8382B;border-left-color:#B11E2E}
           .cc-week-foot{font-size:12px;color:var(--muted);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
           .cc-week-foot a{color:var(--ui);font-weight:700;text-decoration:none}
-          .cw0{background:#24418C}.cw1{background:#0F766E}.cw2{background:#B45309}.cw3{background:#7C3AED}.cw4{background:#BE185D}.cw5{background:#0369A1}.cw6{background:#4D7C0F}.cw7{background:#B11E2E}
+          .cw0{background:#24418C}.cw1{background:#0F766E}.cw2{background:#B45309}.cw3{background:#7C3AED}.cw4{background:#BE185D}.cw5{background:#0369A1}.cw6{background:#4D7C0F}.cw7{background:#B11E2E}.cw8{background:#C2410C}.cw9{background:#047857}.cw10{background:#1D4ED8}.cw11{background:#A21CAF}.cw12{background:#854D0E}.cw13{background:#475569}.cw14{background:#DB2777}.cw15{background:#0E7490}
           @media (max-width:760px){ .cc-week-bar small{display:none} .cc-week-hc{display:none} .cc-week-row{min-height:96px} }
           /* tasks & events: chips on the week strip + calendar, and the dashboard list */
           .cc-week-ms span.it, .cal-ms span.it{cursor:pointer;background:#EEF2FF;color:#24418C;border-left-color:#4364DC}
@@ -487,7 +498,7 @@
           .cal-tip b{display:block;font-size:13px;margin-bottom:2px} .cal-tip .m{color:#B7BBC6}
           .cal-note{background:#FFF8E8;border:1px solid #F1DFA8;border-radius:10px;padding:8px 12px;font-size:12.5px;margin-bottom:12px}
           .cal.v3day .cal-row,.cal.vweek .cal-row{min-height:170px}
-          .c0{background:#24418C}.c1{background:#0F766E}.c2{background:#B45309}.c3{background:#7C3AED}.c4{background:#BE185D}.c5{background:#0369A1}.c6{background:#4D7C0F}.c7{background:#B11E2E}
+          .c0{background:#24418C}.c1{background:#0F766E}.c2{background:#B45309}.c3{background:#7C3AED}.c4{background:#BE185D}.c5{background:#0369A1}.c6{background:#4D7C0F}.c7{background:#B11E2E}.c8{background:#C2410C}.c9{background:#047857}.c10{background:#1D4ED8}.c11{background:#A21CAF}.c12{background:#854D0E}.c13{background:#475569}.c14{background:#DB2777}.c15{background:#0E7490}
           .cal-weather{display:grid;background:#fff;border:1px solid var(--cal-line);border-top:0;border-radius:0 0 12px 12px;margin:0 0 10px}
           .cal.has-wx .cal-dow{border-radius:12px 12px 0 0;border:1px solid var(--cal-line);border-bottom:0}
           .cal-weather div{padding:7px 10px;font-size:11.5px;color:var(--cal-mute);border-right:1px solid var(--cal-line);display:flex;gap:8px;align-items:baseline;white-space:nowrap;overflow:hidden}
@@ -1322,7 +1333,7 @@
   // ---------- ONE DAY: click any calendar day for everything on it ----------
   const DAY = { week: null, iso: null };
   const DOWL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], MONL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const JOB_COLORS = ['#24418C', '#0F766E', '#B45309', '#7C3AED', '#BE185D', '#0369A1', '#4D7C0F', '#B11E2E'];
+  const JOB_COLORS = ['#24418C', '#0F766E', '#B45309', '#7C3AED', '#BE185D', '#0369A1', '#4D7C0F', '#B11E2E', '#C2410C', '#047857', '#1D4ED8', '#A21CAF', '#854D0E', '#475569', '#DB2777', '#0E7490'];   // = project_setup.PALETTE (each job's saved color)
   function openDay(iso, d) {
     if (!d || !iso) return;
     DAY.iso = iso;
@@ -1776,7 +1787,8 @@
       const sites = (meta && meta.sites_without_project) || [];   // #337
       $('pj-notice').innerHTML = sites.length ? `<div class="cp-note" style="margin-bottom:12px"><strong>${sites.length} address${sites.length > 1 ? 'es were' : ' was'} added without a project.</strong> Create the project so it gets a dashboard, crew, calendar bar and daily reports.<ul class="cp-list" style="margin-top:8px">${sites.map(s => `<li><span>${esc(s.name || s.address_line)}${s.client_name ? ' <span class="cp-muted">· ' + esc(s.client_name) + '</span>' : ''}</span><a class="btn-primary btn-sm" style="text-decoration:none" href="${newProjectHref(s)}" data-newproj="${esc(JSON.stringify({ address: s.address_line || s.address || '', borough: s.borough || '', name: s.name || '', client_org_id: s.client_org_id || '' }))}">Create project</a></li>`).join('')}</ul></div>` : '';
       table($('pj-table'), [
-        { key: 'project_code', label: 'Job', render: r => `<span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:12px">${esc(r.name || '')}</div>` },
+        { key: 'job_number', label: '#', num: true, render: r => r.job_number != null ? `<span class="pj-no">#${r.job_number}</span>` : '—' },
+        { key: 'project_code', label: 'Job', render: r => `<div class="pj-job"><span class="pj-sw" style="background:${esc(r.color || '#475569')}" title="Calendar color"></span><div><span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:12px">${esc(r.name || '')}</div>${(r.access_labels || []).length ? `<div class="pj-acc">${r.access_labels.map(a => `<span>${esc(a)}</span>`).join('')}</div>` : ''}</div><button type="button" class="pj-edit" data-pj-edit="${esc(r.project_code)}" title="Edit project">Edit</button></div>` },
         { key: 'address', label: 'Address', render: r => `${esc(r.address || '—')}<div class="cp-muted" style="font-size:12px">${esc(r.city_zip || '')}</div>` },
         { key: 'client_name', label: 'Client', render: r => esc(r.client_name || '—') },
         { key: 'billing_short', label: 'Billing', render: r => r.billing_type ? `<span class="cp-pill ${r.billing_type === 'aia_sov' ? 'active' : ''}" title="${esc(r.billing_label)}">${esc(r.billing_short)}</span>` : '<span class="cp-muted" title="How this job is billed is not set — pick it in the project Settings">not set</span>' },   // #356
@@ -1786,7 +1798,7 @@
         { key: 'open_value', label: 'Open invoices', num: true, render: r => r.open_value ? `${money.format(r.open_value)}${r.overdue_value ? ' <span class="cp-pill bad">overdue</span>' : ''}` : '—' },
         { key: 'last_report_date', label: 'Last report', render: r => r.last_report_date ? fmtDate(r.last_report_date) : '<span class="cp-muted">none</span>' },
         { key: 'status', label: 'Status', render: r => `<span class="cp-pill ${r.status === 'active' ? 'ok' : ''}">${esc(r.status)}</span>` },
-      ], rows, { defaultSort: { key: 'project_code', dir: 'asc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.href = '/projects/' + encodeURIComponent(r.project_code); },
+      ], rows, { defaultSort: { key: 'job_number', dir: 'desc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.href = '/projects/' + encodeURIComponent(r.project_code); },
         emptyTitle: 'No jobs here', emptySub: 'Add one with "+ New project" — the daily report and the worker portal work for it right away.' });
     } catch (e) { toast(e.message, true); $('pj-table').innerHTML = empty('Could not load projects', e.message); }
   }
@@ -2994,6 +3006,8 @@
     const a = e.target.closest('[data-newproj]'); if (!a) return;
     e.preventDefault(); try { window.SSCNewProject.open(JSON.parse(a.dataset.newproj)); } catch (x) { location.href = a.href; }
   });
+  $('pj-table').addEventListener('click', e => { const b = e.target.closest('[data-pj-edit]'); if (b) window.SSCNewProject.edit(b.dataset.pjEdit); });
+  document.addEventListener('ssc:project-updated', e => { toast('Project ' + ((e.detail || {}).project_code || '') + ' saved'); if (state.view === 'projects') loadProjects(); });
   document.addEventListener('ssc:project-created', e => { const d = e.detail || {}; toast('Project ' + d.project_code + ' created'); if (state.view === 'projects') loadProjects(); else location.hash = '#projects'; });
   $('pj-search').addEventListener('input', () => debounce(loadProjects));
   $('pj-status').addEventListener('change', loadProjects);

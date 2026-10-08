@@ -27,7 +27,7 @@ from auth import current_user, requires_section
 log = logging.getLogger("ssc.portal_calendar")
 
 MAX_DAYS = 120
-PALETTE = 8
+PALETTE = 8                  # the old hash colors; saved colors run 0..15 (project_setup.PALETTE)
 WEATHER_MAX_DAYS = 14          # #333 — the strip is for the 3-day / week views only
 DEFAULT_SITE = (40.8083, -73.9162)   # the company's home borough when no job has coordinates
 
@@ -73,6 +73,13 @@ def window(conn, start: date, end: date) -> dict:
 
     codes = [r["project_code"] for r in rows]
     marks = ",".join("?" * len(codes)) if codes else "NULL"
+    colors = {}   # Oct 7 notes: each job's own saved color (project_setup); the old hash until it has one
+    try:
+        if codes:
+            colors = {r["project_code"]: int(r["color_index"]) for r in conn.execute(
+                f"SELECT project_code, color_index FROM projects WHERE project_code IN ({marks}) AND color_index IS NOT NULL", codes).fetchall()}
+    except Exception:
+        conn.rollback()
     pms: dict = {}
     if codes:
         try:
@@ -119,7 +126,7 @@ def window(conn, start: date, end: date) -> dict:
             "start_date": start_d, "end_date": end_d, "open_ended": open_ended,
             "days": ((date.fromisoformat(end_d) - date.fromisoformat(start_d)).days + 1) if end_d else None,
             "pm": ", ".join(pms.get(r["project_code"], [])) or None, "crew_count": crew.get(r["project_code"], 0),
-            "color": color_index(r["project_code"]), "today_on": start_d <= today and (open_ended or end_d >= today),
+            "color": colors.get(r["project_code"], color_index(r["project_code"])), "today_on": start_d <= today and (open_ended or end_d >= today),
         })
     undated = [r for r in _rows(conn.execute(
         "SELECT project_code, name, start_date FROM projects WHERE COALESCE(status,'active') = 'active' ORDER BY project_code"))
