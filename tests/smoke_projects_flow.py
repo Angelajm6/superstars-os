@@ -136,7 +136,9 @@ def main() -> int:
         ok("pm: never offered the company console", 'href="/company#projects"' not in phtml)
 
         # ---- phone layout: the closed bar is one slim header + back link; the rest lives in the Menu
-        ok("both back links carry the phone hook class", 'class="bl-projects"' in html and 'class="bl-projects"' in phtml)
+        ok("one back link each: company roles in the job header (sidebar keeps Company dashboard), pm in the sidebar",
+           html.count("← All projects") == 1 and 'id="jx-back"' in html and 'class="bl-projects"' not in html
+           and 'class="bl-projects"' in phtml and 'id="jx-back"' not in phtml)
         i0 = html.index("/* phone: the closed bar is one slim header")
         phone = html[i0: html.index("\n    }", i0)]   # the rest of that 860px media block
         ok("phone: identity card, Company dashboard and Settings are menu-only",
