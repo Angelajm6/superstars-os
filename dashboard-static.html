@@ -913,7 +913,7 @@
   .ps-det dd { margin: 0; color: var(--ink, #222633); font-weight: 600; }
   .ps-det-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
   .ps-det-form .full { grid-column: 1 / -1; }
-  .ps-det-form[hidden], .ps-det[hidden], #ps-det-edit[hidden] { display: none; }
+  .ps-det-form[hidden], .ps-det[hidden], #ps-det-edit[hidden], #ps-proj-edit[hidden] { display: none; }
   .ps-f label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted, #8c92a0); margin-bottom: 5px; }
   .ps-f input, .ps-f select { width: 100%; }
   @media (max-width: 640px) { .ps-det-form { grid-template-columns: 1fr; } .ps-det { grid-template-columns: 1fr; gap: 2px; } .ps-det dd { margin-bottom: 8px; } }
@@ -1261,6 +1261,8 @@
               if (cl) cl.textContent = H.client || '';
               $j('jx-address').textContent = (H.client && H.address ? ' · ' : '') + (H.address || '');
               const chips = [];
+              if (H.job_number != null) chips.push('<span class="jx-chip" style="color:var(--brand-red, #B11E2E);font-weight:800">#' + esc(H.job_number) + '</span>');
+              (H.access_labels || []).forEach(a => chips.push('<span class="jx-chip ui">' + esc(a) + '</span>'));
               chips.push('<span class="jx-chip ' + (H.status === 'active' ? 'ok' : '') + '">' + esc((H.status || 'active').replace(/^./, c => c.toUpperCase())) + '</span>');
               chips.push('<span class="jx-chip ' + (H.billing_type ? 'ui' : 'warn') + '" title="' + esc(H.billing_label || '') + '">' + esc(H.billing_type ? H.billing_short : 'Billing not set') + '</span>');
               if (H.start_date || H.target_completion) chips.push('<span class="jx-chip">' + mdy(H.start_date) + ' → ' + mdy(H.target_completion) + '</span>');
@@ -5950,7 +5952,7 @@
           <div class="tab-head"><div><h2>Project Settings</h2><div class="tab-sub">The job's details, status, billing type and tabs.</div></div></div>
           <!-- project details: read for everyone, Edit for admin / C-suite (PUT /api/admin/projects/<code>/details) -->
           <div class="card ps-det-card" id="ps-details">
-            <div class="ps-det-top"><div class="card-title">Project details</div><button type="button" class="btn-ghost btn-sm" id="ps-det-edit" hidden>Edit details</button></div>
+            <div class="ps-det-top"><div class="card-title">Project details</div><span style="display:flex;gap:8px"><button type="button" class="btn-primary btn-sm" id="ps-proj-edit" hidden title="Number, color, access method, crew, worker app, drawings">Edit project</button><button type="button" class="btn-ghost btn-sm" id="ps-det-edit" hidden>Edit details</button></span></div>
             <dl class="ps-det" id="ps-det-view"><dt>Project code</dt><dd data-project-code>&nbsp;</dd><dt>Name</dt><dd data-project-name>&nbsp;</dd></dl>
             <form class="ps-det-form" id="ps-det-form" hidden novalidate>
               <div class="ps-f full"><label for="ps-f-name">Project name</label><input id="ps-f-name" class="ssc-field" maxlength="200" autocomplete="off"></div>
@@ -6045,6 +6047,7 @@
           if (document.getElementById('jx-money') || d.can_edit) rows.push(['Contract value', money0(d.contract_value)]);   // money: company roles only
           $s('ps-det-view').innerHTML = rows.map(r => '<dt>' + r[0] + '</dt><dd>' + escD(r[1]) + '</dd>').join('');
           $s('ps-det-edit').hidden = !d.can_edit;
+          $s('ps-proj-edit').hidden = !d.can_edit;
         }
         async function loadDetails() {
           try {
@@ -6076,6 +6079,13 @@
         function closeDetailsForm() { $s('ps-det-form').hidden = true; $s('ps-det-view').hidden = false; renderDetails(); }
         $s('ps-f-client').addEventListener('change', e => { const n = e.target.value === '__new'; $s('ps-f-newclient-wrap').hidden = !n; if (n) $s('ps-f-newclient').focus(); });
         $s('ps-det-edit').addEventListener('click', openDetailsForm);
+        // Oct 7 notes batch C — the one Edit project window (the same one as Projects → Edit)
+        $s('ps-proj-edit').addEventListener('click', function () {
+          const go = () => window.SSCNewProject.edit(decodeURIComponent((location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || ''));
+          if (window.SSCNewProject) return go();
+          const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1010'; sc.onload = go; document.head.appendChild(sc);
+        });
+        document.addEventListener('ssc:project-updated', () => location.reload());
         $s('ps-det-cancel').addEventListener('click', closeDetailsForm);
         $s('ps-det-form').addEventListener('submit', async (e) => {
           e.preventDefault();

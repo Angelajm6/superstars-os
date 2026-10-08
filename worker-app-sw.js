@@ -1,6 +1,6 @@
 // Bump CACHE_VERSION any time worker-app.html changes
 // to force iPhones to grab the new version.
-const CACHE_VERSION = 'v8-2026-10-07a';
+const CACHE_VERSION = 'v9-2026-10-08a';
 const ASSETS = ['/worker-app.html', '/worker-app-manifest.json'];
 
 self.addEventListener('install', (e) => {

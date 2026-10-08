@@ -101,6 +101,7 @@ GATE = [
     "smoke_usage_footprint.py",       # which views get opened + which tools each job uses (job page redesign step 1)
     "smoke_account_settings.py",      # Settings > Account: each person's own name, password, two-step sign-in, devices
     "smoke_job_page_redesign.py",     # job page per the Oct 7 notes: 3 top numbers, open items, 4 contact groups, 3 sidebar groups, crew list, 3D first
+    "smoke_projects_batch_c.py",      # job numbers, a color per job, access method, worker access, the Create / Edit project window
     "smoke_gcal_sync.py",             # each person's tasks & events in their own Google Calendar (Google faked)
     "smoke_team_home_2b.py",          # PM / super home: own to-do, team calendar, projects
     "smoke_team_items.py",            # team tasks & events: dashboard to-do list on the calendar

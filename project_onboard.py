@@ -223,6 +223,8 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
         raise ValueError("pick the job type")
     if borough not in estimates.BOROUGHS:
         raise ValueError("pick the borough or region")
+    import project_setup   # checked before anything is created, so a bad value never leaves half a job
+    project_setup.validate({k: p.get(k) for k in ("color_index", "access_methods", "worker_access")}, est_type)
     address = (p.get("address") or "").strip()
     if len(address) < 4:
         raise ValueError("the building address is required")
@@ -352,6 +354,16 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
             except Exception:
                 pass
     crew_change = _apply_crew(conn, code, crew_ids, today=start) if crew_ids else {"added": [], "removed": []}
+    import project_setup   # Oct 7 notes batch C: number, color, type, access method, worker access
+    try:   # validated up front; never fail a created job over its setup
+        setup = project_setup.assign_new(conn, code, est_type, {k: p.get(k) for k in ("color_index", "access_methods", "worker_access")})
+    except Exception as e:
+        log.warning("job setup not written for %s: %s", code, type(e).__name__)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        setup = {}
     try:
         crm.add_activity(conn, entity_type="organization", entity_id=org_id, activity_type="system",
                          author_user_id=actor, function_tag="sales",
@@ -369,7 +381,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
                                 "site_lat, site_lng, geofence_m FROM projects WHERE project_code = ?", (code,)))
     return {"project_code": code, "project": project, "estimate_id": est["id"], "estimate_code": est["code"],
             "client_org_id": org_id, "pm_user_id": pm_user_id, "billing_type": bt, "modules": list(project_modules.KEYS) if modules is None else modules, "start_date": provided_start, "target_completion": target, "contract_value": contract,
-            "crew": crew_change["added"]}
+            "crew": crew_change["added"], "job_number": setup.get("job_number"), "setup": setup}
 
 
 # ---------------------------------------------------------------- routes
