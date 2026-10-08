@@ -1798,7 +1798,7 @@
         { key: 'open_value', label: 'Open invoices', num: true, render: r => r.open_value ? `${money.format(r.open_value)}${r.overdue_value ? ' <span class="cp-pill bad">overdue</span>' : ''}` : '—' },
         { key: 'last_report_date', label: 'Last report', render: r => r.last_report_date ? fmtDate(r.last_report_date) : '<span class="cp-muted">none</span>' },
         { key: 'status', label: 'Status', render: r => `<span class="cp-pill ${r.status === 'active' ? 'ok' : ''}">${esc(r.status)}</span>` },
-      ], rows, { defaultSort: { key: 'job_number', dir: 'desc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.href = '/projects/' + encodeURIComponent(r.project_code); },
+      ], rows, { defaultSort: { key: 'job_number', dir: 'asc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.href = '/projects/' + encodeURIComponent(r.project_code); },
         emptyTitle: 'No jobs here', emptySub: 'Add one with "+ New project" — the daily report and the worker portal work for it right away.' });
     } catch (e) { toast(e.message, true); $('pj-table').innerHTML = empty('Could not load projects', e.message); }
   }
