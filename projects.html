@@ -15,6 +15,8 @@
 <script src="/files/static/js/auth_menu.js?v=292c" defer></script>
 <script src="/files/static/js/gcal_connect.js?v=1007" defer></script>
 <script src="/files/static/js/gmail_suggest.js?v=1008" defer></script>
+<script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
+<script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
 <style>
   :root {
     --brand-red: #B11E2E;
@@ -374,6 +376,7 @@
   document.querySelectorAll('[data-view]').forEach(function (b) {
     b.addEventListener('click', function () {
       S.view = b.getAttribute('data-view');
+      SSC_track('home', 'home-' + S.view);
       document.querySelectorAll('[data-view]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
       try { localStorage.setItem('ssc.home.view', S.view); } catch (e) {}
       loadCal();
@@ -456,6 +459,7 @@
 
   try { var v = localStorage.getItem('ssc.home.view'); if (v === 'month' || v === 'week') { S.view = v; document.querySelectorAll('[data-view]').forEach(function (x) { x.setAttribute('aria-pressed', String(x.getAttribute('data-view') === v)); }); } } catch (e) {}
   document.addEventListener('ssc:items-changed', function () { loadTodo(); loadCal(); });   // e.g. a task added from an email
+  SSC_track('home', 'home');
   loadTodo(); loadCal(); loadProjects();
 })();
 </script>

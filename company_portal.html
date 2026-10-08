@@ -16,6 +16,8 @@
 <script src="/files/static/js/auth_menu.js?v=302" defer></script>
 <script src="/files/static/js/gcal_connect.js?v=1007" defer></script>
 <script src="/files/static/js/gmail_suggest.js?v=1008" defer></script>
+<script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
+<script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
 <style>
   /* #302 Company Portal — tokens come from widgets.css :root (accent, ink, muted, line,
      canvas, brand-red, status-*). This block only lays out the shell + portal components. */
@@ -254,6 +256,8 @@
           .cal-date small, .cal-hc{min-width:0;overflow:hidden;text-overflow:ellipsis}
           #ov-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}   /* the dashboard keeps two numbers; they share the row */
           .tk-head-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+          #fp-table td.opt, #fp-table th.opt{background:#F7F8FB} #fp-table td.zero{color:#B45309;font-weight:700} #fp-table td.off{color:#B8BECB} #us-table td.none{color:#B8BECB} #fp-table td:first-child{min-width:180px}
+          .us-roles{display:flex;gap:4px;flex-wrap:wrap} .us-roles span{font-size:11px;font-weight:600;background:#F0F1F4;color:#4A4F59;border-radius:99px;padding:1px 7px;white-space:nowrap}
           /* "From your email" card (static/js/gmail_suggest.js) */
           [data-gmail-card][hidden] { display: none; }
           .gm-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
@@ -687,6 +691,22 @@
           <div class="cp-table-wrap"><table class="cp-table" id="co-table"></table></div>
         </div>
       </section>
+
+      <!-- job page redesign step 1: which views get opened (counts only) + which tools each job uses -->
+      <section class="cp-view" id="view-usage" hidden>
+        <div class="ssc-subtabs" data-subtabs="settings"></div>
+        <div class="cp-card">
+          <div class="cp-card-head"><h2>Which tabs get opened</h2>
+            <div class="cal-seg" role="tablist" aria-label="Period"><button type="button" data-us-days="14" class="on">14 days</button><button type="button" data-us-days="30">30 days</button><button type="button" data-us-days="90">90 days</button></div></div>
+          <p class="cp-muted" id="us-note" style="margin:0 0 10px;font-size:13px"></p>
+          <div class="cp-table-wrap"><table class="cp-table" id="us-table"></table></div>
+        </div>
+        <div class="cp-card" style="margin-top:14px">
+          <div class="cp-card-head"><h2>Which tools each job uses</h2><span class="hint">rows of data per tool · active jobs</span></div>
+          <p class="cp-muted" style="margin:0 0 10px;font-size:13px">Shaded columns are the optional tabs a job can switch off. <b>0</b> on a switched-on optional tab means the job has never used it. This is what the job types will be based on.</p>
+          <div class="cp-table-wrap"><table class="cp-table" id="fp-table"></table></div>
+        </div>
+      </section>
     </div>
   </main>
 </div>
@@ -1102,6 +1122,51 @@
       $('ov-attention').innerHTML = att.length ? att.map(([k, v]) => { const m = /href="([^"]+)">([^<]+)</.exec(v); return m ? `<li class="has-link"><a href="${m[1]}"><span>${esc(k)}</span><span class="cp-link">${m[2]}</span></a></li>` : `<li><span>${esc(k)}</span>${v}</li>`; }).join('') : `<li><span class="cp-muted">All clear. Nothing needs attention right now.</span></li>`;
     } catch (e) { toast(e.message, true); $('ov-kpis').innerHTML = empty('Could not load the overview', e.message); }
   }
+
+  // ---------- USAGE & JOB TOOLS (Settings; job page redesign step 1) ----------
+  const US = { days: 14 };
+  const US_LABELS = {
+    job: { dashboard: 'Project Health', contacts: 'Contacts', employees: 'Employees & Certs', drawings: 'Drawing Markup', documents: 'Project Documents',
+      'field-photos': 'Field Photos', 'drop-report': 'Drop Report', 'drop-plans': 'Drop Plan', schedule: 'Schedule', 'daily-report': 'Daily Report',
+      'weekly-summary': 'Weekly Summary', materials: 'Materials & Deliveries', 'toolbox-talks': 'Toolbox Talks', rfis: 'RFI Log', violations: 'Violations',
+      compliance: 'Compliance & Permits', sov: 'Schedule of Values', payments: 'Payments', expenses: 'Expenses', 'product-usage': 'Product Usage',
+      templates: 'Templates', settings: 'Settings' },
+    company: { overview: 'Dashboard', clients: 'Clients', portal: 'Client portal', calendar: 'Calendar', projects: 'Projects', proposals: 'Proposals',
+      finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce', company: 'Company', usage: 'Usage & job tools' },
+    home: { home: 'Home', 'home-week': 'Home · week view', 'home-month': 'Home · month view' }
+  };
+  const US_WHERE = { job: 'Job page', company: 'Company', home: 'PM / super home' };
+  const US_ROLE = { admin: 'Admin', c_suite: 'C-suite', pm: 'PM', super: 'Super' };
+  async function loadUsage() {
+    skeleton($('us-table'), 6); skeleton($('fp-table'), 4);
+    try {
+      const { data: u } = await api('/admin/usage?days=' + US.days, null, true);
+      $('us-note').textContent = u.counting_since
+        ? `Counting since ${fmtDate(u.counting_since)}. Counts only: which tab, by which role, on which job, per day. Never who, never what was on screen.`
+        : 'Counting starts now. Tabs show up here as people open them. Counts only: never who, never what was on screen.';
+      const rows = u.views.filter(v => v.view !== 'usage');
+      $('us-table').innerHTML = '<thead><tr><th>Where</th><th>Tab</th><th class="num">Opens</th><th>By role</th><th class="num">Jobs</th><th class="num">Days used</th><th>Last opened</th></tr></thead><tbody>' +
+        rows.map(v => `<tr><td>${esc(US_WHERE[v.surface] || v.surface)}</td><td>${esc((US_LABELS[v.surface] || {})[v.view] || v.view)}</td>` +
+          `<td class="num ${v.opens ? '' : 'none'}">${v.opens}</td><td><div class="us-roles">${Object.entries(v.by_role).filter(([, n]) => n).map(([r, n]) => `<span>${US_ROLE[r] || r} ${n}</span>`).join('')}</div>${v.opens ? '' : '<span class="cp-muted">—</span>'}</td>` +
+          `<td class="num">${v.surface === 'job' ? v.jobs : '—'}</td><td class="num">${v.days || 0}</td><td>${v.last_day ? fmtDate(v.last_day) : '<span class="cp-muted">never</span>'}</td></tr>`).join('') + '</tbody>';
+    } catch (e) { $('us-table').innerHTML = empty('Could not load the usage', e.message); }
+    try {
+      const { data: f } = await api('/admin/projects/footprint', null, true);
+      if (!f.jobs.length) { $('fp-table').innerHTML = empty('No active jobs', ''); return; }
+      const modOf = { crew: 'crew', drawings: 'drawings', drops: 'drops', materials: 'materials', safety: 'safety', rfis: 'rfis', compliance: 'compliance' };
+      $('fp-table').innerHTML = '<thead><tr><th>Job</th>' + f.tools.map(t => `<th class="num${t.optional ? ' opt' : ''}">${esc(t.label)}</th>`).join('') + '</tr></thead><tbody>' +
+        f.jobs.map(j => `<tr><td><a class="cp-link" href="/projects/${encodeURIComponent(j.project_code)}">${esc(j.name)}</a><div class="cp-muted" style="font-size:12px">${esc(j.project_code)}${j.customized ? ' · tabs customized' : ' · every tab on'}</div></td>` +
+          f.tools.map(t => {
+            const n = j.counts[t.key], on = !t.optional || j.modules_on.includes(modOf[t.key]);
+            if (n === null || n === undefined) return `<td class="num off${t.optional ? ' opt' : ''}" title="Not set up on this database">·</td>`;
+            if (t.optional && !on) return `<td class="num off opt" title="Tab switched off">off${n ? ' · ' + n : ''}</td>`;
+            return `<td class="num${t.optional ? ' opt' : ''}${t.optional && !n ? ' zero' : ''}"${t.optional && !n ? ' title="Switched on, never used"' : ''}>${n}</td>`;
+          }).join('') + '</tr>').join('') + '</tbody>';
+    } catch (e) { $('fp-table').innerHTML = empty('Could not load the job tools', e.message); }
+  }
+  document.querySelectorAll('[data-us-days]').forEach(b => b.addEventListener('click', () => {
+    US.days = +b.dataset.usDays; document.querySelectorAll('[data-us-days]').forEach(x => x.classList.toggle('on', x === b)); loadUsage();
+  }));
 
   // ---------- TASKS & EVENTS (the team to-do list; also drawn on the calendar) ----------
   const TK = { filter: 'open', rows: [], people: null, projects: null };
@@ -2897,8 +2962,8 @@
 
   // ---------- router ----------
   // the sidebar section only; the sub-tab row names the page (no title said twice)
-  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients', calendar: 'Projects', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance', workforce: 'Workforce', company: 'Company' };
-  const LOADERS = { overview: loadOverview, clients: loadClients, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance };
+  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients', calendar: 'Projects', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance', workforce: 'Workforce', company: 'Company', usage: 'Settings' };
+  const LOADERS = { overview: loadOverview, clients: loadClients, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance, usage: loadUsage };
   const ALIASES = { buildings: 'projects', compliance: 'company' };   // #339 — old bookmarks and links keep working
   function route() {
     const h = (location.hash || '#overview').slice(1);
@@ -2909,6 +2974,7 @@
     if (view === 'projects' && arg) { location.replace('/projects/' + arg); return; }
     const v = LOADERS[view] ? view : 'overview';
     state.view = v;
+    SSC_track('company', v);   // redesign step 1: which views get opened (counts only)
     document.querySelectorAll('.cp-view').forEach(s => s.hidden = (s.id !== 'view-' + v));
     $('cp-title').textContent = TITLES[v];
     if (v === 'finance') $('inv-status').value = ['overdue', 'draft', 'issued', 'paid', 'void'].includes(arg) ? arg : '';

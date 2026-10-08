@@ -66,8 +66,8 @@
   // and security; Company keeps the company's records. Before, /#settings drew the
   // Company sub-tabs and Team & access sat under Company, so the two read as one place.
   var PINNED = { key: 'settings', label: 'Settings', href: '/#settings', roles: COMPANY,
-    at: [['/', 'settings'], ['/admin/users', null]],
-    sub: [['Team & access', '/admin/users'], ['Preferences & security', '/#settings']] };
+    at: [['/', 'settings'], ['/admin/users', null], ['/company', 'usage']],
+    sub: [['Team & access', '/admin/users'], ['Preferences & security', '/#settings'], ['Usage & job tools', '/company#usage']] };
 
   // ---- the old homes forward here (runs at include time, before paint) ----
   var REDIRECTS = {

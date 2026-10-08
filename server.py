@@ -231,6 +231,8 @@ import gcal_sync  # noqa: E402
 gcal_sync.register(app)   # each person's tasks & events in their own Google Calendar (off until configured)
 import gmail_suggest  # noqa: E402
 gmail_suggest.register(app)   # to-dos spotted in each person's Gmail, one tap from their to-do (off until configured)
+import ui_usage  # noqa: E402
+ui_usage.register(app)   # job page redesign step 1: which views get opened (counts only) + each job's tool footprint
 
 # #264 — the per-item VISIBILITY ENGINE (default-deny) + the read-only CLIENT portal.
 # client_portal registers a default-deny before_request gate (a `client` reaches ONLY the
