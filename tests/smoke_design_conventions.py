@@ -586,7 +586,8 @@ def main():
                   "ui_settings.html",      # #279 UI v2 interface switch (Classic / New)
                   "portal_shell.html",     # #285 client portal shell (gained its drop filter)
                   "company_portal.html",   # #302 C-suite company portal (company-document modal)
-                  "forgot_password.html", "reset_password.html"}  # #301 self-service password reset
+                  "forgot_password.html", "reset_password.html",  # #301 self-service password reset
+                  "account.html"}          # Settings > Account (each person's own account)
     # #283 — surfaces that live OUTSIDE the repo root still get the structural
     # sweep. drawing-markup is served from templates/v2 (the #279 v2 tree), so the
     # root glob above cannot see it; registering it by path keeps the "guard never
@@ -717,7 +718,8 @@ def main():
     LOGO_SURFACES = ["company-dashboard.html", "dashboard-static.html", "projects.html",
                      "client_portal.html", "login.html", "set_password.html", "admin_users.html",
                      "admin_projects.html", "admin_labor_rates.html", "dropplan.html",
-                     "estimating.html"]   # #276
+                     "estimating.html",   # #276
+                     "account.html"]      # Settings > Account
 
     # A swapped logo must NEVER shift surrounding layout. object-fit:contain alone is NOT
     # enough — the img also needs a RESERVED width+height box, else a bare <img> renders at

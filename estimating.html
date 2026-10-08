@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1007"></script>
+<script src="/files/static/js/company_nav.js?v=1009"></script>
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
@@ -468,7 +468,7 @@
 
   fetch('/api/auth/me', {credentials:'include'}).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){
     var u = j && j.data && j.data.user ? j.data.user : (j && j.data ? j.data : null);
-    if (u) q('who').innerHTML = '<b>'+esc(u.display_name||u.full_name||u.email)+'</b><span class="ssc-role">'+esc(u.role)
+    if (u) q('who').innerHTML = '<a href="/account" title="Your account" style="color:inherit;text-decoration:none"><b>'+esc(u.display_name||u.full_name||u.email)+'</b></a><span class="ssc-role">'+esc(u.role)
       + '</span><a id="signout">Sign out</a>';
     if (u && window.sscNavForRole) sscNavForRole(u.role);
     var so = q('signout');

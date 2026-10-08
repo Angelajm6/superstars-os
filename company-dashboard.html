@@ -14,7 +14,7 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1007"></script>
+<script src="/files/static/js/company_nav.js?v=1009"></script>
 <script src="/files/static/vendor/gridstack-all.js"></script>
 <script src="/files/static/js/dash_layout.js?v=292" defer></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -420,7 +420,7 @@
         var who=miss.map(function(m){return m.email;}).join(', ');
         b.textContent='⚠ Second factor still needed before public launch — '+
           j.data.missing_count+' of '+j.data.total+' staff accounts: '+who+
-          '. Enroll TOTP (Settings) or link Google SSO for each.';
+          '. Each person turns on two-step sign-in in Settings > Account, or links Google sign-in.';
         b.style.display='block';
       }).catch(function(){});
   }
@@ -523,7 +523,7 @@
     <span id="user-menu" aria-live="polite"></span>
   </div>
 </div>
-<script src="/files/static/js/auth_menu.js?v=292c" defer></script>
+<script src="/files/static/js/auth_menu.js?v=1009" defer></script>
 
 <div class="container">
 
@@ -1381,76 +1381,7 @@
     .lrt-grand { display: inline-block; background: linear-gradient(135deg, var(--status-complete), var(--status-complete-deep)); color: #fff; font-weight: 800; border-radius: 10px; padding: 6px 12px; font-size: 13.5px; box-shadow: 0 3px 10px rgba(21,160,126,.35); font-variant-numeric: tabular-nums; }
   </style>
 
-  <!-- SETTINGS -->
-  <!-- #266 — CRM / OPS CORE (C-suite function; page is admin/c_suite-only, endpoints @requires_section('crm')) -->
-  <div class="panel" data-panel="settings">
-    <div class="section">
-      <div class="ssc-subtabs" data-subtabs="settings"></div>
-      <!-- #360 — Settings = who can sign in (Team & access) + this account's preferences
-           and security. The old placeholder card is gone; the Company sub-tabs
-           no longer draw here. -->
-      <h2 data-i18n="p-settings-title">Preferences &amp; security</h2>
-      <div class="h2-sub" data-i18n="p-settings-sub">Your display preferences and sign-in security.</div>
-      <div class="set-links">
-        <a class="set-link" href="/admin/users"><b data-i18n="p-set-team">Team &amp; access</b><span data-i18n="p-set-team-sub">Staff logins and roles — who can sign in to the dashboard.</span></a>
-        <a class="set-link" href="/company#portal"><b data-i18n="p-set-portal">Client portal</b><span data-i18n="p-set-portal-sub">Client logins, their project and what each one can see.</span></a>
-      </div>
-    </div>
-    <!-- #329 — Interface preferences folded in here (was its own sidebar entry) -->
-    <div class="section" id="interface-section" style="margin-top:16px;">
-      <h2 data-i18n="p-interface-title">Interface</h2>
-      <div class="h2-sub" data-i18n="p-interface-sub">Layout and display preferences for this browser.</div>
-      <p style="margin:12px 0 0;"><a class="est-mini-btn" href="/settings/interface" style="text-decoration:none;" data-i18n="p-interface-open">Open interface preferences →</a></p>
-    </div>
-    <!-- #289 — Two-factor (TOTP) self-enrollment for the signed-in staff account. -->
-    <div class="section" id="twofa-section" style="margin-top:16px;">
-      <h2>Two-Factor Authentication (TOTP)</h2>
-      <div class="h2-sub">Add an authenticator app (Google Authenticator, Authy, 1Password) as your second factor before public launch.</div>
-      <div id="twofa-body" style="margin-top:12px;font-size:14px;">
-        <button id="twofa-enroll-btn" class="btn-primary" type="button">Set up authenticator</button>
-        <div id="twofa-enroll-area" style="display:none;margin-top:14px;max-width:520px;">
-          <div style="font-size:13px;color:#54505A;">1. In your authenticator app, add an account by pasting this setup key (or scanning the QR your app offers):</div>
-          <code id="twofa-secret" style="display:inline-block;margin:8px 0;padding:8px 12px;background:#F4F1EA;border-radius:6px;font-size:15px;letter-spacing:1px;user-select:all;"></code>
-          <div id="twofa-uri" style="font-size:11px;color:#76777E;word-break:break-all;margin-bottom:12px;"></div>
-          <div style="font-size:13px;color:#54505A;">2. Save these one-time recovery codes somewhere safe (each works once if you lose your phone):</div>
-          <pre id="twofa-recovery" style="background:#F4F1EA;border-radius:6px;padding:10px;font-size:13px;white-space:pre-wrap;"></pre>
-          <div style="font-size:13px;color:#54505A;">3. Enter the current 6-digit code from your app to finish:</div>
-          <input id="twofa-code" inputmode="numeric" maxlength="6" placeholder="123456"
-                 style="font-size:16px;letter-spacing:3px;width:130px;padding:8px 10px;border:1px solid #E8E4DD;border-radius:6px;margin:8px 8px 0 0;">
-          <button id="twofa-confirm-btn" class="btn-primary" type="button">Turn on</button>
-          <div id="twofa-msg" style="margin-top:8px;font-size:13px;"></div>
-        </div>
-      </div>
-    </div>
-    <script>
-    (function(){
-      var enrollBtn=document.getElementById('twofa-enroll-btn');
-      if(!enrollBtn) return;
-      enrollBtn.addEventListener('click', function(){
-        fetch('/api/2fa/begin',{method:'POST',credentials:'same-origin'})
-          .then(function(r){return r.json();}).then(function(j){
-            if(!j.data){ alert(j.error||'Could not start enrollment'); return; }
-            document.getElementById('twofa-secret').textContent=j.data.secret;
-            document.getElementById('twofa-uri').textContent=j.data.otpauth_uri;
-            document.getElementById('twofa-recovery').textContent=(j.data.recovery_codes||[]).join('\n');
-            document.getElementById('twofa-enroll-area').style.display='block';
-            enrollBtn.style.display='none';
-          }).catch(function(){ alert('Network error'); });
-      });
-      document.getElementById('twofa-confirm-btn').addEventListener('click', function(){
-        var code=(document.getElementById('twofa-code').value||'').trim();
-        fetch('/api/2fa/confirm',{method:'POST',credentials:'same-origin',
-          headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code})})
-          .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
-          .then(function(res){
-            var m=document.getElementById('twofa-msg');
-            if(res.ok){ m.style.color='#2F7C57'; m.textContent='✓ Two-factor is now on for your account.'; }
-            else { m.style.color='#B11E2E'; m.textContent='✗ '+(res.j.error||'Try again'); }
-          });
-      });
-    })();
-    </script>
-  </div>
+  <!-- Settings moved to /account (each person's own account); company_nav.js forwards /#settings there. -->
 
 </div>
 

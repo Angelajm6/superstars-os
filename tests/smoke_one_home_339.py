@@ -48,8 +48,8 @@ import server  # noqa: E402  (boots the whole app)
 TAG = "oh339"
 PW = "OneHomeSmoke2026"
 PROJ = "OH339-A"
-TABS = ["Dashboard", "Projects", "Clients", "Proposals", "Finance", "Workforce", "Company"]   # Client portal is a sub-tab of Clients
-ADMIN_PAGES = {"/admin/projects": "projects", "/admin/users": "settings", "/estimating": "proposals", "/admin/labor-rates": "finance"}   # #360 — Team & access lives under Settings
+TABS = ["Home", "Dashboard", "Projects", "Clients", "Proposals", "Finance", "Workforce", "Company"]   # Client portal is a sub-tab of Clients; Home = pm/super only (their way back from Account)
+ADMIN_PAGES = {"/admin/projects": "projects", "/admin/users": "settings", "/account": "settings", "/estimating": "proposals", "/admin/labor-rates": "finance"}   # #360 — Team & access lives under Settings
 
 
 def _db():
@@ -113,13 +113,13 @@ def main() -> int:
     # #341 — Settings is an eighth, PINNED destination (rendered outside <nav>, not
     # one of the scrollable tabs) — it must exist exactly once, after the split.
     assert re.findall(r"\{ key: '[a-z]+', label: '([^']+)'", pinned_src) == ["Settings"], pinned_src
-    assert "key: 'settings', label: 'Settings', href: '/#settings'" in js
+    assert "key: 'settings', label: 'Settings', href: '/account'" in js
     for gone in ("'CRM'", "Job sites", "Office Console", "Company Portal", "Quick actions", "Hours Log"):
         assert gone not in js, gone
-    assert "'/': { '': '/company#overview', 'projects': '/company#overview', 'crm': '/company#clients' }" in js
+    assert "'/': { '': '/company#overview', 'projects': '/company#overview', 'crm': '/company#clients', 'settings': '/account' }" in js
     assert "'/company': { 'buildings': '/company#projects', 'compliance': '/company#company' }" in js
     for sub in ("'Weekly payroll', '/#labor-rate'", "'Pay rates', '/admin/labor-rates'", "'Calendar', '/company#calendar'",
-                "'Estimating queue', '/estimating', ['estimator']", "'Team & access', '/admin/users'", "'Preferences & security', '/#settings'"):
+                "'Estimating queue', '/estimating', ['estimator']", "'Team & access', '/admin/users'", "'Account', '/account'"):
         assert sub in js, sub
     # #341 — Settings must NOT be duplicated inside the Company tab's own sub-nav
     # anymore; its only home is the pinned entry asserted above.
@@ -141,9 +141,9 @@ def main() -> int:
     for gone in ('data-panel="projects"', 'data-panel="crm"', "window.CRM", 'id="cc-week"', 'data-widget="quick-actions"', '.nav-tab[data-panel="specs"]'):
         assert gone not in con, gone
     for kept in ('data-panel="workforce"', 'data-panel="hours"', 'data-panel="cert-library"', 'data-panel="estimates"',
-                 'data-panel="labor-rate"', 'data-panel="compliance"', 'data-panel="specs"', 'data-panel="settings"'):
+                 'data-panel="labor-rate"', 'data-panel="compliance"', 'data-panel="specs"'):
         assert kept in con, kept
-    assert con.count('data-subtabs="workforce"') == 3 and con.count('data-subtabs="company"') == 2 and con.count('data-subtabs="settings"') == 1   # #360
+    assert con.count('data-subtabs="workforce"') == 3 and con.count('data-subtabs="company"') == 2 and con.count('data-subtabs="settings"') == 0   # Settings moved to /account
     assert con.count('data-subtabs="proposals"') == 1 and con.count('data-subtabs="finance"') == 1
     assert "SSC_NAV.redirectIfRetired()" in con and "window.location.replace('/company#overview')" in con
     assert "if(!$('cc-grid')) return;" in con, "the retired widgets module must not poll"

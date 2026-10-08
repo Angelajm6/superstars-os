@@ -186,7 +186,8 @@
     style.id = 'auth-menu-styles';
     style.textContent = [
       '.auth-menu { display: inline-flex; align-items: center; gap: 10px; font-size: 12px; color: #14161C; }',
-      '.auth-menu .au-name { font-weight: 600; }',
+      '.auth-menu .au-name { font-weight: 600; color: inherit; text-decoration: none; }',
+      '.auth-menu .au-name:hover { color: #B11E2E; text-decoration: underline; }',
       '.auth-menu .au-role {',
       '  font-size: 10px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;',
       '  color: #76777E; background: #F1ECE2; padding: 3px 8px; border-radius: 99px;',
@@ -216,7 +217,8 @@
       ? '<a class="au-users" href="/admin/users" title="User management">Users</a>' : '';
     host.innerHTML =
       '<div class="auth-menu" data-user-id="' + escapeHtml(user.id) + '">' +
-        '<span class="au-name">' + escapeHtml(user.full_name || user.email) + '</span>' +
+        // your name opens your own account (name, password, two-step sign-in, devices)
+        '<a class="au-name" href="/account" title="Your account">' + escapeHtml(user.display_name || user.full_name || user.email) + '</a>' +
         '<span class="au-role">' + escapeHtml(role) + '</span>' +
         adminLink +
         '<button type="button" class="au-logout" aria-label="Sign out">Sign out</button>' +
