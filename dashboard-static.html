@@ -1020,70 +1020,52 @@
          Employees & Certs folded into Field (crew is a field concern); Compliance
          folded into Tracking; Financial + Expenses merged into one gated Money group
          (was two separate SECTION:financial blocks). -->
+    <!-- Oct 7 C-suite notes: three groups. Overview (the job at a glance + its paperwork),
+         On Site (crew, drawings, drops, the daily record) and Finances (was Money). The
+         Finances group keeps the SECTION:financial gate: stripped from the HTML for pm/super. -->
     <nav class="nav">
       <div class="nav-group" data-group="overview">
         <div class="nav-group-label"><span class="nav-group-name">Overview</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
           <a class="nav-link active" data-view="dashboard"><svg class="nav-ic"><use href="#i-gauge"/></svg>Project Health</a>
           <a class="nav-link" data-view="contacts"><svg class="nav-ic"><use href="#i-msg"/></svg>Contacts</a>
+          <a class="nav-link" data-view="schedule"><svg class="nav-ic"><use href="#i-cal"/></svg>Schedule</a>
+          <a class="nav-link" data-view="documents"><svg class="nav-ic"><use href="#i-file"/></svg>Project Documents</a>
+          <a class="nav-link" data-view="rfis"><svg class="nav-ic"><use href="#i-msg"/></svg>RFI Log</a>
+          <a class="nav-link" data-view="violations"><svg class="nav-ic"><use href="#i-alert"/></svg>Violations</a>
+          <a class="nav-link" data-view="compliance"><svg class="nav-ic"><use href="#i-alert"/></svg>Compliance & Permits</a>
+          <a class="nav-link" data-view="templates"><svg class="nav-ic"><use href="#i-file"/></svg>Templates</a>
         </div>
       </div>
-      <div class="nav-group" data-group="field">
-        <div class="nav-group-label"><span class="nav-group-name">Field</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
+      <div class="nav-group" data-group="onsite">
+        <div class="nav-group-label"><span class="nav-group-name">On Site</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
-<!-- SECTION:internal_ops:start --><a class="nav-link" data-view="employees"><svg class="nav-ic"><use href="#i-users"/></svg>Employees & Certs</a><!-- SECTION:internal_ops:end -->
+<!-- SECTION:internal_ops:start --><a class="nav-link" data-view="employees"><svg class="nav-ic"><use href="#i-users"/></svg>Employees</a><!-- SECTION:internal_ops:end -->
           <a class="nav-link" data-view="drawings"><svg class="nav-ic"><use href="#i-pencil"/></svg>Drawing Markup</a>
-          <a class="nav-link" data-view="documents"><svg class="nav-ic"><use href="#i-file"/></svg>Project Documents</a>
           <a class="nav-link" data-view="field-photos"><svg class="nav-ic"><use href="#i-camera"/></svg>Field Photos</a>
           <a class="nav-link" data-view="drop-report" title="Drop Report — auto-pulled from the Drop Plan (one report per drop)"><svg class="nav-ic"><use href="#i-layers"/></svg>Drop Report</a>
           <div class="nav-subitems" style="margin-left:13px;padding-left:9px;border-left:2px solid var(--line, #eceef3);display:flex;flex-direction:column;">
             <a class="nav-link" data-view="drop-plans" title="Drop Plan — by elevation / by stage; expand a drop in place" style="font-size:12.5px;"><svg class="nav-ic"><use href="#i-layers"/></svg>Drop Plan</a>
           </div>
-          <a class="nav-link" data-view="schedule"><svg class="nav-ic"><use href="#i-cal"/></svg>Schedule</a>
-        </div>
-      </div>
-      <div class="nav-group" data-group="dailyops">
-        <div class="nav-group-label"><span class="nav-group-name">Daily</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
-        <div class="nav-items">
           <a class="nav-link" data-view="daily-report"><svg class="nav-ic"><use href="#i-file"/></svg>Daily Report</a>
           <a class="nav-link" data-view="weekly-summary"><svg class="nav-ic"><use href="#i-cal"/></svg>Weekly Summary</a>
           <a class="nav-link" data-view="materials"><svg class="nav-ic"><use href="#i-box"/></svg>Materials & Deliveries</a>
 <!-- SECTION:internal_ops:start --><a class="nav-link" data-view="toolbox-talks"><svg class="nav-ic"><use href="#i-mega"/></svg>Toolbox Talks</a><!-- SECTION:internal_ops:end -->        </div>
       </div>
-      <div class="nav-group" data-group="tracking">
-        <div class="nav-group-label"><span class="nav-group-name">Tracking</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
-        <div class="nav-items">
-          <a class="nav-link" data-view="rfis"><svg class="nav-ic"><use href="#i-msg"/></svg>RFI Log</a>
-          <a class="nav-link" data-view="violations"><svg class="nav-ic"><use href="#i-alert"/></svg>Violations</a>
-          <a class="nav-link" data-view="compliance"><svg class="nav-ic"><use href="#i-alert"/></svg>Compliance & Permits</a>
-        </div>
-      </div>
-      <!-- #262/#218 — Money group (was two separate SECTION:financial blocks: Financial
-           [SOV, Payments] and Expenses [Expenses, Product Usage]). One gate now covers
-           both: server STRIPS this whole block from the served HTML for pm/super (absent,
-           not just hidden), and every endpoint underneath still 403s them too. The old
-           client-side exp-nav-group/revealForAdmin toggle is gone — redundant now that
-           the whole group shares the server-side gate the SOV/Payments items already relied on. -->
+      <!-- #262/#218 — one gate covers the whole Finances group: the server STRIPS this block
+           from the served HTML for pm/super (absent, not just hidden), and every endpoint
+           underneath still 403s them too. -->
       <!-- SECTION:financial:start -->
       <div class="nav-group" data-group="financial" data-section="financial">
-        <div class="nav-group-label"><span class="nav-group-name">Money</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
+        <div class="nav-group-label"><span class="nav-group-name">Finances</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
           <a class="nav-link" data-view="sov"><svg class="nav-ic"><use href="#i-dollar"/></svg>Schedule of Values</a>
           <a class="nav-link" data-view="payments"><svg class="nav-ic"><use href="#i-dollar"/></svg>Payments</a>
           <a class="nav-link" data-view="expenses"><svg class="nav-ic"><use href="#i-receipt"/></svg>Expenses</a>
           <a class="nav-link" data-view="product-usage"><svg class="nav-ic"><use href="#i-layers"/></svg>Product Usage</a>
-          <!-- #328 — the company-wide Weekly Payroll (was "Labor Rate Tracker") no longer
-               sits in a project's sidebar: it is not per project. It lives on the Office
-               Console under Workforce, next to Hours Log and Pay Rates. -->
         </div>
       </div>
       <!-- SECTION:financial:end -->
-      <div class="nav-group" data-group="setup">
-        <div class="nav-group-label"><span class="nav-group-name">Setup</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
-        <div class="nav-items">
-          <a class="nav-link" data-view="templates"><svg class="nav-ic"><use href="#i-file"/></svg>Templates</a>
-        </div>
-      </div>
     </nav>
     <div class="sidebar-grow"></div>
     <!-- #341 — Settings pinned as its own entry above the account footer, not buried
@@ -1197,6 +1179,35 @@
             .jx-ops-bar h2 { margin: 0; font-size:15px; }
             .jx-ops-bar button { font: inherit; font-size: 13px; font-weight: 700; color: var(--ui, #24418C); background: #fff; border: 1px solid var(--line, #eceef3); border-radius: 8px; padding: 5px 11px; cursor: pointer; }
             .ph-wrap.ops-closed .ph-gridbar, .ph-wrap.ops-closed #ph-grid { display: none; }
+            .jx-card h2 .jx-add { margin-left: auto; font: inherit; font-size: 13px; font-weight: 700; color: #fff; background: var(--ui, #24418C); border: 0; border-radius: 8px; padding: 6px 11px; cursor: pointer; white-space: nowrap; }
+            .jx-alert { display: flex; align-items: center; gap: 8px; background: var(--status-behind-soft, #fceeec); color: var(--status-behind-deep, #A8382B); border-radius: 9px; padding: 8px 11px; font-size: 13.5px; font-weight: 700; margin: 0 0 6px; cursor: pointer; }
+            .jx-alert u { margin-left: auto; font-size: 13px; }
+            .jx-it { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 9px 0; border-top: 1px solid var(--line, #eceef3); }
+            .jx-it:first-of-type { border-top: 0; }
+            .jx-it input { width: 17px; height: 17px; margin: 1px 0 0; accent-color: var(--ui, #24418C); cursor: pointer; }
+            .jx-it input:disabled { cursor: default; }
+            .jx-it b { display: block; font-size: 14px; font-weight: 600; color: var(--ink, #222633); overflow-wrap: anywhere; }
+            .jx-it span.m { font-size: 12.5px; color: var(--muted, #8c92a0); }
+            .jx-it .tag { font-size: 12px; font-weight: 700; border-radius: 7px; padding: 2px 8px; white-space: nowrap; background: var(--fill, #F4F5F8); color: var(--ink-2, #4A4F59); }
+            .jx-it .tag.over { background: var(--status-behind-soft, #fceeec); color: var(--status-behind-deep, #A8382B); }
+            .jx-it .tag.ev { background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); }
+            .jx-cgroups { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px 18px; }
+            .jx-cg h3 { margin: 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted, #8c92a0); }
+            .jx-cg .jx-person { padding: 5px 0; border-top: 0; }
+            .jx-kpi-s .over { color: var(--status-behind-deep, #A8382B); font-weight: 700; }
+            .jx-modal-bg { position: fixed; inset: 0; background: rgba(20,22,28,.45); display: none; align-items: center; justify-content: center; z-index: 60; padding: 16px; }
+            .jx-modal-bg.open { display: flex; }
+            .jx-modal { background: #fff; border-radius: 14px; width: 100%; max-width: 480px; max-height: 92vh; overflow: auto; padding: 20px; display: grid; gap: 12px; box-shadow: 0 24px 64px rgba(20,22,28,.25); }
+            .jx-modal h3 { margin: 0; font-size: 18px; }
+            .jx-modal label { display: grid; gap: 5px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted, #8c92a0); }
+            .jx-modal .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+            .jx-modal .fixed { background: var(--fill, #F4F5F8); border-radius: 8px; padding: 9px 10px; font-size: 14px; color: var(--ink, #222633); text-transform: none; letter-spacing: 0; font-weight: 500; }
+            .jx-modal .err { color: var(--status-behind-deep, #A8382B); font-size: 13px; min-height: 16px; }
+            .jx-modal .foot { display: flex; justify-content: flex-end; gap: 8px; }
+            .jx-seg { display: inline-flex; border: 1px solid var(--line, #eceef3); border-radius: 9px; padding: 2px; background: var(--fill, #F4F5F8); justify-self: start; }
+            .jx-seg button { font: inherit; font-size: 13px; font-weight: 700; border: 0; background: transparent; color: var(--muted, #8c92a0); padding: 6px 14px; border-radius: 7px; cursor: pointer; }
+            .jx-seg button.on { background: #fff; color: var(--ui, #24418C); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+            @media (max-width: 640px) { .jx-modal .row2 { grid-template-columns: 1fr; } }
           </style>
           <div class="jx-head">
             <div class="jx-title">
@@ -1208,12 +1219,28 @@
           </div>
           <div class="jx-kpis" id="jx-kpis"></div>
           <div class="jx-grid">
-            <div class="jx-card" id="jx-schedule" data-module="drops"><h2>Schedule health <a data-goto="drop-plans">Drop plan →</a></h2><div class="jx-empty">Loading…</div></div>
-            <!-- SECTION:financial:start --><div class="jx-card" id="jx-money"><h2>Money <a data-goto="payments">Payments →</a></h2><div class="jx-empty">Loading…</div></div><!-- SECTION:financial:end -->
+            <!-- Oct 7 C-suite notes: no Schedule health card; Money reads Finances; Field today
+                 drops safety events; Open items = the job's own tasks and events -->
+            <div class="jx-card" id="jx-items"><h2>Open items <button type="button" class="jx-add" id="jx-add" hidden>+ Add task or event</button></h2><div class="jx-empty">Loading…</div></div>
             <div class="jx-card" id="jx-field"><h2>Field today <a data-goto="daily-report">Daily report →</a></h2><div class="jx-empty">Loading…</div></div>
-            <div class="jx-card" id="jx-risk" data-module-card="risk"><h2>Open items &amp; risk <a data-goto="rfis">RFIs →</a></h2><div class="jx-empty">Loading…</div></div>
+            <!-- SECTION:financial:start --><div class="jx-card" id="jx-money"><h2>Finances <a data-goto="payments">Payments →</a></h2><div class="jx-empty">Loading…</div></div><!-- SECTION:financial:end -->
             <div class="jx-card" id="jx-contacts"><h2>Key contacts <a data-goto="contacts">All contacts →</a></h2><div class="jx-empty">Loading…</div></div>
             <div class="jx-card" id="jx-photos"><h2>Latest photos <a data-goto="field-photos">Field photos →</a></h2><div class="jx-empty">Loading…</div></div>
+          </div>
+          <div class="jx-modal-bg" id="jx-modal" role="dialog" aria-modal="true" aria-labelledby="jx-mtitle">
+            <form class="jx-modal" id="jx-form" novalidate>
+              <h3 id="jx-mtitle">Add to this job</h3>
+              <div class="jx-seg" id="jx-kind"><button type="button" class="on" data-k="task">Task</button><button type="button" data-k="event">Event</button></div>
+              <label for="jx-title">What<input class="ssc-field" id="jx-title" maxlength="200" autocomplete="off" placeholder="e.g. Walk the north elevation with the engineer"></label>
+              <div class="row2">
+                <label for="jx-date"><span id="jx-date-l">Deadline (optional)</span><input class="ssc-field" id="jx-date" type="date"></label>
+                <label for="jx-who">Assign to<select class="ssc-field" id="jx-who"><option value="">Nobody yet</option></select></label>
+              </div>
+              <label>Job<div class="fixed" id="jx-job"></div></label>
+              <div style="font-size:13px;color:var(--muted, #8c92a0)">It shows here and on the team calendar.</div>
+              <div class="err" id="jx-err" role="alert"></div>
+              <div class="foot"><button type="button" class="btn-ghost" id="jx-cancel">Cancel</button><button type="submit" class="btn-primary" id="jx-save">Add</button></div>
+            </form>
           </div>
           <div class="jx-ops-bar"><h2>Operations</h2><span class="ph-gridbar-hint">drops · charts · roster · weather · certs</span><span style="flex:1"></span><button type="button" id="jx-ops-toggle">Hide</button></div>
           <script>
@@ -1239,26 +1266,15 @@
               if (H.start_date || H.target_completion) chips.push('<span class="jx-chip">' + mdy(H.start_date) + ' → ' + mdy(H.target_completion) + '</span>');
               if (H.days_left != null) chips.push('<span class="jx-chip ' + (H.days_left < 0 ? 'bad' : H.days_left <= 14 ? 'warn' : '') + '">' + (H.days_left < 0 ? Math.abs(H.days_left) + ' days over' : H.days_left + ' days left') + '</span>');
               $j('jx-chips').innerHTML = chips.join('');
-              // ---- KPI band
+              // ---- KPI band (Oct 7 C-suite notes): on site today · % complete · open items
+              const O = S.open_items;
               const k = [];
-              if (SC && !OFF.includes('drops')) k.push(kpi('Complete', n(Math.round(SC.overall_pct)) + '%', H.time_elapsed_pct != null ? n(Math.round(H.time_elapsed_pct)) + '% of the time used' : n(SC.total) + (SC.total === 1 ? ' drop' : ' drops'), 'drop-plans'));
-              if (SC && !OFF.includes('drops')) k.push(kpi('Drops behind', n(SC.behind), 'of ' + n(SC.total) + (SC.total === 1 ? ' drop' : ' drops'), 'drop-plans', SC.behind ? 'bad' : 'ok'));
-              if (F) k.push(kpi('On site today', n(F.on_site), 'signed in', 'daily-report'));
-              if (F) k.push(kpi("Today's report", F.dcr_today ? 'Issued' : 'Not yet', F.last_dcr ? 'last ' + esc(F.last_dcr.number) + ' · ' + mdy(F.last_dcr.date) : 'none issued yet', 'daily-report', F.dcr_today ? 'ok' : 'bad'));
-              if (R && !OFF.includes('rfis')) k.push(kpi('Open RFIs', n(R.rfis_open), R.rfis_overdue ? '<span style="color:var(--status-behind-deep, #A8382B);font-weight:700">' + n(R.rfis_overdue) + ' overdue</span>' : 'none overdue', 'rfis'));
-              if (M && M.contract) k.push(kpi('Balance to finish', money.format(M.balance_to_finish || 0), 'of ' + money.format(M.contract) + ' contract', 'payments'));
+              if (F) k.push(kpi('On site today', n(F.on_site), F.assigned ? 'of ' + n(F.assigned) + ' assigned' : 'signed in', 'employees'));
+              if (SC && !OFF.includes('drops')) k.push(kpi('Complete', n(Math.round(SC.overall_pct)) + '%', n(SC.complete) + ' of ' + n(SC.total) + (SC.total === 1 ? ' drop' : ' drops') + ' done', 'drop-plans'));
+              if (O) k.push('<button type="button" class="jx-kpi" data-jump="jx-items"><div class="jx-kpi-k">Open items</div><div class="jx-kpi-v">' + n(O.count) + '</div><div class="jx-kpi-s">'
+                + [O.overdue ? '<span class="over">' + n(O.overdue) + ' overdue</span>' : '', O.events_this_week ? n(O.events_this_week) + (O.events_this_week === 1 ? ' event' : ' events') + ' this week' : ''].filter(Boolean).join(' · ')
+                + (O.overdue || O.events_this_week ? '' : (O.count ? 'none overdue' : 'nothing open')) + '</div></button>');
               $j('jx-kpis').innerHTML = k.join('');
-              // ---- schedule
-              if (SC) {
-                const el = H.time_elapsed_pct;
-                const verdict = el == null ? '' : (SC.overall_pct + 5 < el ? '<span class="jx-chip bad">behind the calendar</span>' : SC.overall_pct > el + 5 ? '<span class="jx-chip ok">ahead of the calendar</span>' : '<span class="jx-chip ok">on pace</span>');
-                $j('jx-schedule').innerHTML = head('jx-schedule')
-                  + '<div class="jx-legend"><span><b>' + n(Math.round(SC.overall_pct)) + '%</b> complete</span>' + (el != null ? '<span>' + n(Math.round(el)) + '% of the time used</span>' : '') + verdict + '</div>'
-                  + '<div class="jx-bar"><i style="width:' + Math.min(100, SC.overall_pct) + '%"></i>' + (el != null ? '<b style="left:' + Math.min(100, el) + '%"></b>' : '') + '</div>'
-                  + line('Complete', n(SC.complete), 'ok', 'drop-plans') + line('In progress', n(SC.active), '', 'drop-plans')
-                  + line('Behind target', n(SC.behind), SC.behind ? 'bad' : '', 'drop-plans') + line('Not started', n(SC.not_started), '', 'drop-plans')
-                  + (SC.worst_behind.length ? '<div class="jx-legend" style="margin-top:8px">Most behind: ' + SC.worst_behind.map(w => esc(w.label) + ' (' + n(w.days_behind) + ' d)').join(' · ') + '</div>' : '');
-              }
               // ---- money (financial roles only — the payload has no `money` otherwise)
               if (M && $j('jx-money')) {
                 const a = M.aging || {};
@@ -1271,28 +1287,33 @@
                   + '<div class="jx-aging">' + cell('current', a.current) + cell('1–30', a.d1_30, 1) + cell('31–60', a.d31_60, 1) + cell('61–90', a.d61_90, 1) + cell('90+', a.d90p, 1) + '</div>'
                   + (M.costs_to_date != null ? line('Costs to date (labor + expenses)' + (M.cost_pct_of_contract != null ? ' <span style="color:var(--muted, #8c92a0)">' + M.cost_pct_of_contract + '% of contract</span>' : ''), money.format(M.costs_to_date), '', 'expenses') : '');
               }
-              // ---- field today
+              // ---- field today (no safety events: Oct 7 notes)
               if (F) {
                 $j('jx-field').innerHTML = head('jx-field')
-                  + line('Workers on site', n(F.on_site), '', 'employees')
-                  + line("Today's daily report", F.dcr_today ? 'Issued' : 'Not issued yet', F.dcr_today ? 'ok' : 'warn', 'daily-report')
-                  + line('Last report', F.last_dcr ? esc(F.last_dcr.number) + ' · ' + mdy(F.last_dcr.date) : '—', '', 'daily-report')
-                  + line('Safety events · last 7 days', n(F.safety_7d), F.safety_7d ? 'bad' : 'ok', 'daily-report');
+                  + line('Workers on site', n(F.on_site) + (F.assigned ? ' of ' + n(F.assigned) : ''), '', 'employees')
+                  + line('Last daily report', F.last_dcr ? esc(F.last_dcr.number) + ' · ' + mdy(F.last_dcr.date) : 'none issued yet', '', 'daily-report');
               }
-              // ---- risk
-              if (R) {
-                $j('jx-risk').innerHTML = head('jx-risk')
-                  + line('Open RFIs', n(R.rfis_open) + (R.rfis_overdue ? ' · ' + n(R.rfis_overdue) + ' overdue' : ''), R.rfis_overdue ? 'bad' : '', 'rfis')
-                  + line('Questions on the drawings', n(R.markup_rfis_open), '', 'drawings')
-                  + line('DOB violations (active)', n(R.violations_active), R.violations_active ? 'bad' : 'ok', 'compliance')
-                  + line('DOB complaints (active)', n(R.complaints_active), R.complaints_active ? 'warn' : 'ok', 'compliance')
-                  + line('Crew certifications', (R.certs_expired ? n(R.certs_expired) + ' expired' : '') + (R.certs_expired && R.certs_expiring_30 ? ' · ' : '') + (R.certs_expiring_30 ? n(R.certs_expiring_30) + ' expiring ≤30d' : '') || 'all current', R.certs_expired ? 'bad' : R.certs_expiring_30 ? 'warn' : 'ok', 'employees');
+              // ---- open items: the job's tasks and events (team_items); a DOB violation is the one alert kept
+              if (O) {
+                const tag = it => it.overdue ? '<span class="tag over">Overdue · ' + mdy(it.due_date) + '</span>'
+                  : it.kind === 'event' ? '<span class="tag ev">' + mdy(it.calendar_from) + (it.start_time ? ' · ' + esc(it.start_time) : '') + '</span>'
+                  : it.due_date ? '<span class="tag">Due ' + mdy(it.due_date) + '</span>' : '<span class="tag">No deadline</span>';
+                const alert = R && R.violations_active ? '<div class="jx-alert" data-goto="violations">⚠ ' + n(R.violations_active) + (R.violations_active === 1 ? ' active DOB violation' : ' active DOB violations') + ' on this building <u>View</u></div>' : '';
+                $j('jx-items').innerHTML = head('jx-items') + alert
+                  + (O.items.length ? O.items.map(it => '<div class="jx-it"><input type="checkbox" data-jx-done="' + it.id + '" aria-label="Mark done"' + (it.can_complete ? '' : ' disabled title="Only the person it is assigned to, or admin / C-suite"') + '>'
+                      + '<div><b>' + esc(it.title) + '</b><span class="m">' + esc([it.kind === 'event' ? 'Event' : 'Task', it.assignee_name || 'Nobody yet'].join(' · ')) + '</span></div>' + tag(it) + '</div>').join('')
+                    : '<div class="jx-empty">Nothing open on this job.' + (O.can_add ? ' Add a task or event and it lands on the team calendar too.' : '') + '</div>')
+                  + (O.count > O.items.length ? '<div class="jx-empty">+ ' + n(O.count - O.items.length) + ' more on the team calendar</div>' : '');
+                const add = $j('jx-add'); if (add) add.hidden = !O.can_add;
               }
-              // ---- contacts
+              // ---- contacts: Our team · Owner · Engineer / Architect · General contractor
               const C = S.contacts || [];
-              $j('jx-contacts').innerHTML = head('jx-contacts') + (C.length ? C.map(c => '<div class="jx-person"><div class="who"><b>' + esc(c.name) + '</b><span>' + esc([c.role, c.org].filter(Boolean).join(' · ')) + '</span></div>'
-                + (c.phone ? '<a class="btn" href="tel:' + esc(String(c.phone).replace(/[^+\d]/g, '')) + '">Call</a>' : '') + (c.email ? '<a class="btn" href="mailto:' + esc(c.email) + '">Email</a>' : '') + '</div>').join('')
-                : '<div class="jx-empty">No contacts yet — add the owner, property manager and consultants under Contacts.</div>');
+              const person = c => '<div class="jx-person"><div class="who"><b>' + esc(c.name) + '</b><span>' + esc([c.role, c.org].filter(Boolean).join(' · ')) + '</span></div>'
+                + (c.phone ? '<a class="btn" href="tel:' + esc(String(c.phone).replace(/[^+\d]/g, '')) + '">Call</a>' : '') + (c.email ? '<a class="btn" href="mailto:' + esc(c.email) + '">Email</a>' : '') + '</div>';
+              $j('jx-contacts').innerHTML = head('jx-contacts') + (C.some(g => g.people && g.people.length)
+                ? '<div class="jx-cgroups">' + C.map(g => '<div class="jx-cg"><h3>' + esc(g.label) + '</h3>' + (g.people.length ? g.people.map(person).join('') : '<div class="jx-empty">None yet</div>')
+                    + (g.more ? '<div class="jx-empty">+ ' + n(g.more) + ' more under Contacts</div>' : '') + '</div>').join('') + '</div>'
+                : '<div class="jx-empty">No contacts yet. Add the owner, engineer / architect and general contractor under Contacts.</div>');
               // ---- photos
               const P = S.photos || [];
               $j('jx-photos').innerHTML = head('jx-photos') + (P.length ? '<div class="jx-photos">' + P.map(ph => '<a data-goto="field-photos" title="' + esc((ph.caption || '') + ' ' + mdy(ph.taken_at)) + '"><img loading="lazy" alt="" src="' + esc(ph.thumb_url) + '"></a>').join('') + '</div>'
@@ -1316,6 +1337,74 @@
               e.preventDefault();
               const l = document.querySelector('.nav-link[data-view="' + g.dataset.goto + '"]'); if (l) { l.click(); window.scrollTo(0, 0); }
             });
+            // ---- open items: jump from the KPI, tick done, add a task / event for this job
+            const jxCode = () => (typeof PROJECT_CODE !== 'undefined' && PROJECT_CODE) || ((location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || '');
+            async function jxRefresh() {
+              try {
+                const r = await fetch('/api/projects/' + encodeURIComponent(jxCode()) + '/summary', { credentials: 'same-origin' });
+                const j = await r.json(); if (r.ok && j.data) window.JX_render(j.data);
+              } catch (e) { console.warn('[jx] refresh failed', e); }
+            }
+            window.JX_refresh = jxRefresh;
+            document.addEventListener('click', (e) => {
+              const j = e.target.closest('.jx-kpi[data-jump]'); if (!j) return;
+              const t = $j(j.dataset.jump); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+            document.addEventListener('change', async (e) => {
+              const box = e.target.closest('[data-jx-done]'); if (!box) return;
+              box.disabled = true;
+              try {
+                const r = await fetch('/api/team/items/' + encodeURIComponent(box.dataset.jxDone) + '/done', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ done: box.checked }) });
+                if (!r.ok) { box.checked = !box.checked; box.disabled = false; return; }
+                document.dispatchEvent(new CustomEvent('ssc:items-changed'));
+                jxRefresh();
+              } catch (err) { box.checked = !box.checked; box.disabled = false; }
+            });
+            const JXM = { kind: 'task', people: null };
+            function jxKind(k) {
+              JXM.kind = k;
+              $j('jx-kind').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.k === k));
+              $j('jx-date-l').textContent = k === 'event' ? 'Date' : 'Deadline (optional)';
+            }
+            async function jxOpen() {
+              $j('jx-form').reset(); jxKind('task'); $j('jx-err').textContent = '';
+              if (window.SSCDatePicker) SSCDatePicker.setISO($j('jx-date'), '');
+              const h1 = document.querySelector('[data-project-title]'), t = h1 ? h1.textContent.trim() : '';
+              $j('jx-job').textContent = t && t.indexOf(jxCode()) !== -1 ? t : (t ? t + ' · ' : '') + jxCode();
+              $j('jx-modal').classList.add('open'); $j('jx-title').focus();
+              if (!JXM.people) {
+                try {
+                  const r = await fetch('/api/team/people', { credentials: 'same-origin' }); const j = await r.json();
+                  JXM.people = (j && j.data) || [];
+                  $j('jx-who').innerHTML = '<option value="">Nobody yet</option>' + JXM.people.map(x => '<option value="' + x.id + '">' + esc(x.name) + '</option>').join('');
+                } catch (e) { JXM.people = null; }
+              }
+            }
+            const jxClose = () => $j('jx-modal').classList.remove('open');
+            if ($j('jx-form')) {
+              // the card's header (and this button) is redrawn on every render: listen on the document
+              document.addEventListener('click', e => { if (e.target.closest('#jx-add')) jxOpen(); });
+              $j('jx-cancel').addEventListener('click', jxClose);
+              $j('jx-modal').addEventListener('click', e => { if (e.target === $j('jx-modal')) jxClose(); });
+              $j('jx-kind').addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (b) jxKind(b.dataset.k); });
+              $j('jx-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const dEl = $j('jx-date'), day = (window.SSCDatePicker ? SSCDatePicker.getISO(dEl) : dEl.value) || '';   // the picker shows MM-DD-YYYY; read ISO
+                const title = $j('jx-title').value.trim(), who = $j('jx-who').value;
+                if (!title) { $j('jx-err').textContent = 'Say what needs doing.'; $j('jx-title').focus(); return; }
+                if (JXM.kind === 'event' && !day) { $j('jx-err').textContent = 'An event needs a date.'; return; }
+                const body = { kind: JXM.kind, title, project_code: jxCode(), assignee_user_id: who ? Number(who) : null };
+                if (JXM.kind === 'event') body.start_date = day; else if (day) body.due_date = day;
+                $j('jx-save').disabled = true;
+                try {
+                  const r = await fetch('/api/team/items', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                  const j = await r.json().catch(() => ({}));
+                  if (!r.ok) { $j('jx-err').textContent = j.error || 'Could not add it. Try again.'; return; }
+                  jxClose(); document.dispatchEvent(new CustomEvent('ssc:items-changed')); jxRefresh();
+                } catch (err) { $j('jx-err').textContent = 'No connection. Try again.'; }
+                finally { $j('jx-save').disabled = false; }
+              });
+            }
             // Operations (the drag-grid): open for field roles, closed for the C-suite; remembered
             function setOps(open) {
               const w = document.querySelector('.ph-wrap'); if (!w) return;
@@ -1415,105 +1504,52 @@
         </div>
       </section>
 
-      <!-- EMPLOYEES & CERTS — crafted card view (#223): readiness hero + worker cards + table toggle -->
+      <!-- EMPLOYEES — the crew on this job and their licenses (Oct 7 C-suite notes: the
+           certification readiness summary is gone; one row per assigned worker). Same data as
+           before (/crew-compliance), no pay data. -->
       <!-- SECTION:internal_ops:start -->
       <section class="view" data-view="employees">
         <style>
-          /* #223 — all classes ec- prefixed to avoid colliding with the shared dashboard CSS.
-             COLOR RULE: green/amber/red = COMPLIANCE STATUS ONLY (ring, pill, cert dots, hero,
-             meta). Avatars + trade chips use a calm NON-SEMANTIC palette (blue/slate/teal/violet). */
-          .ec-wrap{--ec-blue:var(--ui, #24418C);--ec-ink:#1b1d22;--ec-muted:var(--muted, #8c92a0);--ec-line:#ededf0;--ec-edge:rgba(36,65,140,.42);--ec-in:rgba(36,65,140,.14);--ec-green:var(--status-complete-deep, #0c7a5f);--ec-amber:var(--status-warn, #9A5B00);--ec-red:var(--brand-red, #B11E2E);color:var(--ec-ink);font:14px/1.5 -apple-system,"Segoe UI",Inter,Roboto,sans-serif}
-          .ec-note{background:var(--cream, #faf7f1);border-left:3px solid var(--status-warn, #9A5B00);padding:9px 13px;border-radius:4px;font-size:12px;color:var(--muted, #8c92a0);line-height:1.5;margin-bottom:14px}
-          .ec-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+          .ec-wrap{color:var(--ink, #222633)}
+          .ec-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px 16px;margin-bottom:14px;flex-wrap:wrap}
           .ec-head h2{margin:0;font-size:20px}
-          .ec-sub{color:var(--ec-muted);font-size:12.5px;margin-top:3px}
-          .ec-scan{background:var(--ec-blue);border:none;color:#fff;border-radius:11px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px;text-decoration:none;box-shadow:0 2px 8px rgba(36,65,140,.25)}
-          .ec-ic{width:16px;height:16px;flex:none}
-          .ec-hero{display:flex;align-items:center;gap:24px;background:#fff;border:1px solid var(--ec-edge);border-radius:18px;padding:18px 22px;margin-bottom:18px;box-shadow:inset 0 0 18px var(--ec-in),0 1px 6px rgba(0,0,0,.04);flex-wrap:wrap}
-          .ec-ring{position:relative;width:92px;height:92px;flex:none}
-          .ec-ring svg{transform:rotate(-90deg)}
-          .ec-ring .ec-pct{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-          .ec-ring .ec-pct b{font-size:22px;font-weight:700;line-height:1}
-          .ec-ring .ec-pct s{font-size:11px;color:var(--ec-muted);text-decoration:none;letter-spacing:.04em;text-transform:uppercase;margin-top:2px}
-          .ec-herobody{flex:1;min-width:240px}
-          .ec-ht{font-size:14px;font-weight:700;margin-bottom:9px}
-          .ec-bar{display:flex;height:11px;border-radius:7px;overflow:hidden;margin-bottom:10px;background:var(--fill, #F4F5F8)}
-          .ec-bar i{display:block;height:100%}
-          .ec-legend{display:flex;gap:10px;font-size:12px;color:var(--ec-muted);flex-wrap:wrap}
-          .ec-legend button{border:none;background:none;font:inherit;color:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:7px}
-          .ec-legend button:hover{background:var(--fill, #F4F5F8)}
-          .ec-legend button.ec-on{background:var(--ec-in);color:var(--ec-ink);font-weight:600}
-          .ec-dot{width:9px;height:9px;border-radius:50%;flex:none}
-          .ec-tools{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
-          .ec-search{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--ec-line);border-radius:10px;padding:8px 12px;color:var(--ec-muted);min-width:220px;flex:1;max-width:340px}
-          .ec-search input{border:none;background:transparent;outline:none;font-size:13px;color:var(--ec-ink);width:100%}
-          .ec-sel{height:38px;border:1px solid var(--ec-line);border-radius:10px;padding:0 10px;font-size:13px;background:#fff;color:var(--ec-ink)}
-          .ec-seg{margin-left:auto;display:flex;background:#fff;border:1px solid var(--ec-line);border-radius:10px;overflow:hidden}
-          .ec-seg button{border:none;background:#fff;padding:8px 14px;font-size:12.5px;font-weight:600;color:var(--ec-muted);cursor:pointer}
-          .ec-seg button.ec-on{background:var(--ec-blue);color:#fff}
-          .ec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
-          .ec-card{background:#fff;border:1px solid var(--ec-line);border-radius:16px;padding:16px;box-shadow:0 1px 5px rgba(0,0,0,.05);transition:border-color .15s,box-shadow .15s;cursor:pointer}
-          .ec-card:hover{border-color:var(--ec-edge);box-shadow:0 4px 16px rgba(36,65,140,.1)}
-          .ec-crow{display:flex;align-items:center;gap:13px}
-          .ec-avwrap{position:relative;width:54px;height:54px;flex:none}
-          .ec-rng{position:absolute;inset:-3px}
-          .ec-av{position:absolute;inset:3px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:700;overflow:hidden}
-          .ec-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-          .ec-who{flex:1;min-width:0}
-          .ec-who .ec-wid{font-weight:700;font-size:15px;color:var(--ec-ink)}
-          .ec-who .ec-nm{color:var(--ec-muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-          .ec-trade{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;color:var(--ec-blue);background:rgba(36,65,140,.1);margin-top:3px;display:inline-block}
-          .ec-stat{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;flex:none;white-space:nowrap}
-          .ec-stat.ok{color:var(--ec-green);background:rgba(12,122,95,.1)}
-          .ec-stat.act{color:var(--ec-amber);background:rgba(154,91,0,.13)}
-          .ec-stat.exp{color:var(--ec-red);background:rgba(177,30,46,.09)}
-          .ec-meta{display:flex;gap:18px;margin-top:14px;padding-top:13px;border-top:1px solid var(--line, #eceef3)}
-          .ec-m{display:flex;flex-direction:column}
-          .ec-m b{font-size:17px;font-weight:700;line-height:1}
-          .ec-m s{font-size:12px;color:var(--ec-muted);text-decoration:none;margin-top:3px}
-          .ec-m.a b{color:var(--ec-amber)}.ec-m.r b{color:var(--ec-red)}
-          .ec-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:13px}
-          .ec-chip{font-size:12px;font-weight:600;padding:3px 9px;border-radius:7px;background:var(--fill, #F4F5F8);color:var(--ink-2, #4A4F59);display:inline-flex;align-items:center;gap:5px}
-          .ec-cdot{width:7px;height:7px;border-radius:50%;flex:none}
-          .ec-exp{margin-top:13px;padding-top:13px;border-top:1px solid var(--line, #eceef3);display:none}
-          .ec-card.ec-open .ec-exp{display:block}
-          .ec-clist{width:100%;border-collapse:collapse;font-size:12px}
-          .ec-clist th{text-align:left;padding:4px 6px}
-          .ec-clist td{padding:5px 6px;border-bottom:1px solid var(--fill, #F4F5F8)}
-          .ec-cs{font-size:12px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap}
-          .ec-cs.ok{color:var(--ec-green);background:rgba(12,122,95,.1)}
-          .ec-cs.act{color:var(--ec-amber);background:rgba(154,91,0,.13)}
-          .ec-cs.exp{color:var(--ec-red);background:rgba(177,30,46,.09)}
-          .ec-cs.unk{color:var(--ec-muted);background:var(--fill, #F4F5F8)}
-          .ec-table-wrap{overflow-x:auto;background:#fff;border:1px solid var(--ec-line);border-radius:14px;padding:4px 14px}
-          table.ec-table{width:100%;border-collapse:collapse;font-size:13px}
-          table.ec-table th{text-align:left;padding:10px 8px}
-          table.ec-table td{padding:10px 8px;border-bottom:1px solid var(--line, #eceef3)}
-          table.ec-table tbody tr{cursor:pointer}
-          table.ec-table tbody tr:hover{background:var(--canvas, #fafbfd)}
-          .ec-empty{padding:30px;text-align:center;color:var(--ec-muted)}
-          .ec-hide{display:none!important}
+          .ec-sub{color:var(--muted, #8c92a0);font-size:13px;margin-top:3px}
+          .ec-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+          .ec-search{height:38px;border:1px solid var(--line, #eceef3);border-radius:10px;padding:0 12px;font:inherit;font-size:13px;background:#fff;min-width:220px}
+          .ec-sel{height:38px;border:1px solid var(--line, #eceef3);border-radius:10px;padding:0 10px;font-size:13px;background:#fff;color:var(--ink, #222633)}
+          .ec-table-wrap{overflow-x:auto;background:#fff;border:1px solid var(--line, #eceef3);border-radius:14px}
+          table.ec-table{width:100%;border-collapse:collapse;font-size:13.5px}
+          table.ec-table th{text-align:left;padding:11px 14px;white-space:nowrap}
+          table.ec-table td{padding:11px 14px;border-top:1px solid var(--line, #eceef3);vertical-align:top}
+          .ec-wid{font-weight:700;color:var(--brand-red, #B11E2E)}
+          table.ec-table td:first-child{white-space:nowrap}
+          .ec-lic{display:flex;gap:6px;flex-wrap:wrap}
+          .ec-lic span{font-size:12px;font-weight:600;border-radius:7px;padding:3px 9px;white-space:nowrap;color:var(--status-complete-deep, #0c7a5f);background:var(--status-complete-soft, #e7f6f0)}
+          .ec-lic span.soon{color:var(--status-warn, #9A5B00);background:var(--status-warn-soft, #FFF4E5)}
+          .ec-lic span.exp{color:var(--status-behind-deep, #A8382B);background:var(--status-behind-soft, #fceeec)}
+          .ec-lic span.unk{color:var(--muted, #8c92a0);background:var(--fill, #F4F5F8)}
+          .ec-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted, #8c92a0);margin-top:10px}
+          .ec-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+          .ec-empty{padding:30px;text-align:center;color:var(--muted, #8c92a0)}
+          .ec-note{font-size:12.5px;color:var(--muted, #8c92a0);margin-top:12px}
+          .ec-note a{color:var(--brand-red, #B11E2E);font-weight:600}
         </style>
         <div class="ec-wrap">
-          <div class="ec-note"><strong style="color:var(--ink, #222633);">📋 Office-managed:</strong> New workers, cert intake, and renewals happen<!-- COMPANYLINK:start --> in the <a href="/#workforce" style="color:var(--brand-red, #B11E2E);font-weight:600;text-decoration:none;">Company → Workforce</a><!-- COMPANYLINK:end -->. This view is read-only crew compliance for <em>this</em> project.</div>
           <div class="ec-head">
-            <div><h2>Employees &amp; Certifications</h2><div class="ec-sub" id="ec-sub">Crew credential readiness · live cert-health tracking</div></div>
-            <!-- COMPANYLINK:start --><a class="ec-scan" href="/#cert-library" title="Add or scan certifications under Company → Workforce → Certifications (camera → AI read → review → save)"><svg class="ec-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 012-2h3M16 3h3a2 2 0 012 2v3M21 16v3a2 2 0 01-2 2h-3M8 21H5a2 2 0 01-2-2v-3"/><rect x="7" y="9" width="10" height="6" rx="1"/></svg>Scan / add cert</a><!-- COMPANYLINK:end -->
+            <div><h2>Employees</h2><div class="ec-sub" id="ec-sub">Everyone assigned to this job and their licenses.</div></div>
+            <div class="ec-tools">
+              <input class="ec-search" id="ec-search" type="search" placeholder="Search name, Worker ID or license" aria-label="Search the crew">
+              <select class="ec-sel" id="ec-trade" aria-label="Trade"><option value="">All trades</option></select>
+            </div>
           </div>
-          <div class="ec-hero" id="ec-hero"><div class="ec-empty" style="margin:0">Loading crew readiness…</div></div>
-          <div class="ec-tools">
-            <div class="ec-search"><svg class="ec-ic" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg><input id="ec-search" placeholder="Search worker, trade, or cert…"></div>
-            <select class="ec-sel" id="ec-trade"><option value="">All trades</option></select>
-            <div class="ec-seg"><button id="ec-view-cards" class="ec-on">Cards</button><button id="ec-view-table">Table</button></div>
-          </div>
-          <div class="ec-grid" id="ec-grid"></div>
-          <div class="ec-table-wrap ec-hide" id="ec-table-wrap">
+          <div class="ec-table-wrap">
             <table class="ec-table">
-              <thead><tr><th>Worker</th><th>Trade</th><th>Certs</th><th>Expiring</th><th>Expired</th><th>Status</th></tr></thead>
-              <tbody id="ec-table-body"></tbody>
+              <thead><tr><th>Worker</th><th>Trade</th><th>Role on this job</th><th>Licenses</th></tr></thead>
+              <tbody id="ec-table-body"><tr><td colspan="4" class="ec-empty">Loading the crew…</td></tr></tbody>
             </table>
           </div>
-          <div class="ec-empty ec-hide" id="ec-none">No workers match.</div>
+          <div class="ec-legend"><span><i style="background:var(--status-complete-deep, #0c7a5f)"></i>valid</span><span><i style="background:var(--status-warn, #9A5B00)"></i>expires within 30 days</span><span><i style="background:var(--status-behind-deep, #A8382B)"></i>expired</span></div>
+          <div class="ec-note">The office assigns workers to the job and adds their licenses<!-- COMPANYLINK:start --> under <a href="/#workforce">Workforce</a><!-- COMPANYLINK:end -->.</div>
         </div>
       </section>
       <!-- SECTION:internal_ops:end -->
@@ -5762,7 +5798,7 @@
           .pc-err { color: var(--status-behind-deep, #A8382B); font-size: 13px; min-height: 16px; }
           @media (max-width: 640px) { .pc-mb { grid-template-columns: 1fr; } .pc-grid { grid-template-columns: 1fr; } }
         </style>
-        <div class="pc-head"><div style="flex:1"><h1>Contacts</h1><p>Everyone around this job — the ownership group, property managers, consultants and site supervisors.</p></div>
+        <div class="pc-head"><div style="flex:1"><h1>Contacts</h1><p>Everyone around this job: our team, the owner, the engineer / architect and the general contractor.</p></div>
           <button type="button" class="btn-primary" id="pc-add" hidden>+ Add contact</button></div>
         <div class="pc-grid" id="pc-grid"><div class="pc-card"><div class="pc-empty">Loading…</div></div></div>
 
@@ -5770,9 +5806,9 @@
           <form class="pc-modal" id="pc-form" novalidate>
             <div class="pc-mh"><h3 id="pc-mtitle">Add a contact</h3></div>
             <div class="pc-mb">
-              <div class="pc-f"><label for="pc-role">Role on this job</label><select class="ssc-field" id="pc-role"><option value="owner">Ownership group</option><option value="property_manager">Property management</option><option value="consultant">Consultant</option><option value="site_supervisor">Site supervisor</option></select></div>
+              <div class="pc-f"><label for="pc-role">Role on this job</label><select class="ssc-field" id="pc-role"><option value="owner">Owner</option><option value="property_manager">Owner: property manager</option><option value="consultant">Engineer / Architect</option><option value="site_supervisor">General contractor / site supervisor</option></select></div>
               <div class="pc-f" id="pc-disc-wrap" hidden><label for="pc-disc">Discipline</label><select class="ssc-field" id="pc-disc"></select></div>
-              <div class="pc-f" id="pc-side-wrap" hidden><label>Whose</label><div class="pc-seg"><button type="button" data-side="theirs" class="on">Owner / GC</button><button type="button" data-side="ours">Ours</button></div></div>
+              <div class="pc-f" id="pc-side-wrap" hidden><label>Whose</label><div class="pc-seg"><button type="button" data-side="theirs" class="on">General contractor</button><button type="button" data-side="ours">Ours</button></div></div>
               <div class="pc-f full" id="pc-mode-wrap"><div class="pc-seg"><button type="button" data-mode="pick" class="on">Pick someone in the CRM</button><button type="button" data-mode="new">New person</button></div></div>
               <div class="pc-f full" id="pc-pick-wrap"><label for="pc-q" id="pc-q-label">Search by name or company</label><input class="ssc-field" id="pc-q" autocomplete="off" placeholder="Start typing…"><div class="pc-results" id="pc-results" style="margin-top:6px"></div></div>
               <div class="pc-f" data-new hidden><label for="pc-name">Full name</label><input class="ssc-field" id="pc-name" autocomplete="off"></div>
@@ -5820,14 +5856,18 @@
               + '<div class="pc-sub">Project manager</div>' + (t.pms.length ? t.pms.map(p => '<div class="pc-row"><div class="pc-who"><div class="pc-name">' + esc(p.name) + '</div>' + (p.email ? '<div class="pc-meta">' + esc(p.email) + '</div>' : '') + '</div>' + (p.email ? '<div class="pc-acts"><a class="pc-btn" href="mailto:' + esc(p.email) + '">Email</a></div>' : '') + '</div>').join('') : '<div class="pc-empty">No PM assigned — assign one under Projects &amp; assignments.</div>')
               + '<div class="pc-sub">Site supervisors (ours)</div>' + (t.supervisors.length ? t.supervisors.map(row).join('') : '<div class="pc-empty">None yet — the main one prints as Superintendent on the Daily Report.</div>')
               + '<div class="pc-sub">Crew</div><div class="pc-row"><div class="pc-who"><div class="pc-name">' + t.crew_count + ' worker(s) assigned</div></div><div class="pc-acts">' + (!window.SSC_viewOn || window.SSC_viewOn('employees') ? '<a class="pc-btn" data-goto-view="employees">Open</a>' : '') + '</div></div></div>';
+            // Oct 7 C-suite notes: Owner (with the property managers), Engineer / Architect
+            // (every consultant, by discipline), General contractor (their site people)
+            const sub = (label, list) => list.length ? '<div class="pc-sub">' + esc(label) + '</div>' + list.map(row).join('') : '';
+            const owner = g.owner.concat(g.property_manager);
+            const ownerCard = '<div class="pc-card"><h2>Owner <span class="pc-count">' + owner.length + '</span></h2>' + (owner.length
+              ? (g.owner.length ? g.owner.map(row).join('') : '') + sub('Property manager', g.property_manager)
+              : '<div class="pc-empty">The building owner, their representative and the property manager.</div>') + '</div>';
             const cons = g.consultant;
             const byDisc = {}; cons.forEach(x => { (byDisc[x.discipline_label || 'Other'] = byDisc[x.discipline_label || 'Other'] || []).push(x); });
-            const consCard = '<div class="pc-card"><h2>Consultants <span class="pc-count">' + cons.length + '</span></h2>' + (cons.length ? Object.keys(byDisc).sort().map(k => '<div class="pc-sub">' + esc(k) + '</div>' + byDisc[k].map(row).join('')).join('') : '<div class="pc-empty">Architects, engineers, expeditors on this job.</div>') + '</div>';
-            $c('pc-grid').innerHTML = team
-              + card('Ownership group', g.owner, 'The building owner and their representatives.')
-              + card('Property management', g.property_manager, 'The property manager and building super.')
-              + consCard
-              + card('Owner / GC site supervisors', g.site_supervisor, 'Their people we coordinate with on site.');
+            const consCard = '<div class="pc-card"><h2>Engineer / Architect <span class="pc-count">' + cons.length + '</span></h2>' + (cons.length ? Object.keys(byDisc).sort().map(k => sub(k, byDisc[k])).join('') : '<div class="pc-empty">The architect, engineers and expeditor on this job.</div>') + '</div>';
+            $c('pc-grid').innerHTML = team + ownerCard + consCard
+              + card('General contractor', g.site_supervisor, 'The general contractor and their site people we coordinate with.');
           }
           async function load() {
             $c('pc-add').hidden = !canEdit();
@@ -6875,163 +6915,52 @@ document.querySelectorAll('.nav-link').forEach(link => {
     return String(raw);
   }
 
-  // ===== #223 Employees & Certifications — crafted card view =====
-  // COMPLIANCE colors (green/amber/red) used ONLY for status. Avatars + trade
-  // chips draw from a calm NON-SEMANTIC palette assigned deterministically by id.
-  const EC = { data: [], hero: null, filter: 'all', q: '', trade: '', view: 'cards', wired: false };
-  const EC_COLOR = { ready: '#0F6E56', expiring: '#BA7517', expired: '#C8102E' };
-  const EC_PALETTE = ['#2563EB','#1E73E8','#475569','#64748B','#0E7490','#0891B2','#6D28D9','#7C3AED','#4F46E5','#3730A3'];
+  // ===== Employees — the crew on this job and their licenses (Oct 7 C-suite notes) =====
+  // Status colours mean licence status only: valid / expires within 30 days / expired.
+  const EC = { data: [], q: '', trade: '', wired: false };
   function ecEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-  function ecAvatarColor(id){ let h=0; const s=String(id||''); for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; } return EC_PALETTE[h % EC_PALETTE.length]; }
-  function ecInitials(name, wid){ const p=String(name||'').trim().split(/\s+/).filter(Boolean); if(p.length>=2) return (p[0][0]+p[p.length-1][0]).toUpperCase(); if(p.length===1 && p[0].length) return p[0].slice(0,2).toUpperCase(); return (String(wid||'').replace(/[^0-9]/g,'').slice(-2)) || '··'; }
-  function ecStatusMeta(c){ return c==='expired' ? {cls:'exp',label:'Expired',color:EC_COLOR.expired} : c==='expiring' ? {cls:'act',label:'Action',color:EC_COLOR.expiring} : {cls:'ok',label:'Ready',color:EC_COLOR.ready}; }
-  function ecCertDot(sd){ return sd==='expired'?EC_COLOR.expired : sd==='expiring'?EC_COLOR.expiring : sd==='valid'?EC_COLOR.ready : '#9aa3ae'; }
-  function ecCertCs(sd){ return sd==='expired'?'exp' : sd==='expiring'?'act' : sd==='valid'?'ok' : 'unk'; }
-  function ecCertLabel(sd){ return sd==='expired'?'Expired' : sd==='expiring'?'Expiring' : sd==='valid'?'Current' : '—'; }
-  function ecMDY(iso){ if(!iso) return '—'; const m=String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? (m[2]+'/'+m[3]+'/'+m[1]) : iso; }
-
-  async function loadCrew(){
-    ecWire();
-    const grid = document.getElementById('ec-grid');
-    try {
-      const resp = await fetch('/api/projects/' + encodeURIComponent(PROJECT_CODE) + '/crew-compliance').then(r => r.json());
-      const d = (resp && resp.data) || {};
-      EC.data = d.workers || [];
-      EC.hero = d.hero || { total: 0, ready: 0, expiring: 0, expired: 0, pct_ready: 0 };
-      ecRenderHero();
-      ecPopulateTrades();
-      ecRender();
-    } catch (e) {
-      console.warn('[crew] load failed:', e);
-      if (grid) grid.innerHTML = '<div class="ec-empty">Could not load crew compliance.</div>';
-    }
+  function ecMDY(iso){ if(!iso) return ''; const m=String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? (m[2]+'/'+m[3]+'/'+m[1]) : iso; }
+  function ecLicense(c){
+    const sd = c.status_derived, cls = sd === 'expired' ? 'exp' : sd === 'expiring' ? 'soon' : sd === 'valid' ? '' : 'unk';
+    const tail = c.expiration_date ? (sd === 'expired' ? ' · expired ' : ' · exp ') + ecMDY(c.expiration_date) : '';
+    return '<span class="' + cls + '">' + ecEsc(c.cert_name) + ecEsc(tail) + '</span>';
   }
-  // Keep the existing view trigger + any lingering callers working.
-  async function loadRoster(){ return loadCrew(); }
-
-  function ecRenderHero(){
-    const h = EC.hero || {}, total = h.total || 0;
-    const C = 263.9, off = C * (1 - (h.pct_ready || 0) / 100);
-    const seg = n => total ? (100 * n / total) : 0;
-    const el = document.getElementById('ec-hero');
-    if (!el) return;
-    el.innerHTML =
-      '<div class="ec-ring"><svg width="92" height="92"><circle cx="46" cy="46" r="42" fill="none" stroke="#eef0f3" stroke-width="9"></circle>'
-      + '<circle cx="46" cy="46" r="42" fill="none" stroke="' + EC_COLOR.ready + '" stroke-width="9" stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + off.toFixed(1) + '"></circle></svg>'
-      + '<div class="ec-pct"><b>' + (h.pct_ready || 0) + '%</b><s>ready</s></div></div>'
-      + '<div class="ec-herobody"><div class="ec-ht">Crew credential readiness</div>'
-      + '<div class="ec-bar"><i style="width:' + seg(h.ready) + '%;background:' + EC_COLOR.ready + '"></i>'
-      + '<i style="width:' + seg(h.expiring) + '%;background:' + EC_COLOR.expiring + '"></i>'
-      + '<i style="width:' + seg(h.expired) + '%;background:' + EC_COLOR.expired + '"></i></div>'
-      + '<div class="ec-legend">'
-      + '<button data-f="all" class="' + (EC.filter==='all'?'ec-on':'') + '"><span class="ec-dot" style="background:' + EC_COLOR.ready + '"></span>' + (h.ready||0) + ' fully compliant</button>'
-      + '<button data-f="expiring" class="' + (EC.filter==='expiring'?'ec-on':'') + '"><span class="ec-dot" style="background:' + EC_COLOR.expiring + '"></span>' + (h.expiring||0) + ' expiring ≤30d</button>'
-      + '<button data-f="expired" class="' + (EC.filter==='expired'?'ec-on':'') + '"><span class="ec-dot" style="background:' + EC_COLOR.expired + '"></span>' + (h.expired||0) + ' expired</button>'
-      + '</div></div>';
-    el.querySelectorAll('.ec-legend button').forEach(b => b.addEventListener('click', () => {
-      const f = b.getAttribute('data-f');
-      EC.filter = (f === 'all') ? 'all' : (EC.filter === f ? 'all' : f);   // amber/red segments toggle as filters
-      ecRenderHero(); ecRender();
-    }));
-    const sub = document.getElementById('ec-sub');
-    if (sub) sub.textContent = total + ' on site · ' + (h.ready||0) + ' ready · ' + (h.expiring||0) + ' expiring · ' + (h.expired||0) + ' expired';
+  function ecRow(w){
+    const lic = (w.certs || []);
+    return '<tr><td><span class="ec-wid">' + ecEsc(w.worker_id || '—') + '</span> — ' + ecEsc(w.name || '') + '</td>'
+      + '<td>' + ecEsc(w.trade || '—') + '</td><td>' + ecEsc(w.role_on_project || '—') + '</td>'
+      + '<td>' + (lic.length ? '<div class="ec-lic">' + lic.map(ecLicense).join('') + '</div>' : '<span style="color:var(--muted, #8c92a0)">None on file</span>') + '</td></tr>';
   }
-
-  function ecPopulateTrades(){
-    const sel = document.getElementById('ec-trade'); if (!sel) return;
-    const cur = sel.value;
-    const trades = [...new Set(EC.data.map(w => w.trade).filter(Boolean))].sort();
-    sel.innerHTML = '<option value="">All trades</option>' + trades.map(t => '<option>' + ecEsc(t) + '</option>').join('');
-    sel.value = cur;
-  }
-
-  function ecFilteredSorted(){
-    const q = EC.q.toLowerCase().trim();
-    const rows = EC.data.filter(w => {
-      if (EC.filter !== 'all' && w.compliance !== EC.filter) return false;
-      if (EC.trade && w.trade !== EC.trade) return false;
-      if (q) {
-        const hay = ((w.worker_id||'') + ' ' + (w.name||'') + ' ' + (w.trade||'') + ' ' + (w.certs||[]).map(c => c.cert_name).join(' ')).toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-    const rank = { expired: 0, expiring: 1, ready: 2 };   // action-first
-    rows.sort((a, b) => (rank[a.compliance] - rank[b.compliance]) || String(a.worker_id || a.employee_id).localeCompare(String(b.worker_id || b.employee_id)));
-    return rows;
-  }
-
   function ecRender(){
-    const rows = ecFilteredSorted();
-    const grid = document.getElementById('ec-grid'), tw = document.getElementById('ec-table-wrap'), none = document.getElementById('ec-none');
-    if (!grid) return;
-    const showCards = EC.view === 'cards';
-    grid.classList.toggle('ec-hide', !showCards);
-    tw.classList.toggle('ec-hide', showCards);
-    if (!rows.length) { none.classList.remove('ec-hide'); grid.innerHTML = ''; document.getElementById('ec-table-body').innerHTML = ''; return; }
-    none.classList.add('ec-hide');
-    if (showCards) grid.innerHTML = rows.map(ecCard).join('');
-    else document.getElementById('ec-table-body').innerHTML = rows.map(ecTableRow).join('');
+    const tb = document.getElementById('ec-table-body'); if (!tb) return;
+    const q = EC.q.toLowerCase().trim();
+    const rows = EC.data.filter(w => (!EC.trade || w.trade === EC.trade) && (!q || [w.name, w.worker_id, w.trade, w.role_on_project]
+      .concat((w.certs || []).map(c => c.cert_name)).some(v => String(v || '').toLowerCase().includes(q))));
+    tb.innerHTML = rows.length ? rows.map(ecRow).join('')
+      : '<tr><td colspan="4" class="ec-empty">' + (EC.data.length ? 'No one matches.' : 'No one is assigned to this job yet.') + '</td></tr>';
   }
-
-  function ecCard(w){
-    const sm = ecStatusMeta(w.compliance);
-    const bg = ecAvatarColor(w.worker_id || w.employee_id);
-    const initials = ecEsc(ecInitials(w.name, w.worker_id));
-    const av = '<span class="ec-av" style="background:' + bg + '">' + initials
-      + (w.has_photo ? '<img loading="lazy" src="/api/employees/' + encodeURIComponent(w.employee_id) + '/face-photo" alt="" onerror="this.remove()">' : '') + '</span>';
-    const ring = '<svg class="ec-rng" width="60" height="60"><circle cx="30" cy="30" r="27" fill="none" stroke="' + sm.color + '" stroke-width="3"></circle></svg>';
-    const chips = (w.certs || []).slice(0, 3).map(c => {
-      const tail = c.status_derived === 'expired' ? ' · expired' : (c.status_derived === 'expiring' && c.days_to_expiry != null ? ' · ' + c.days_to_expiry + 'd' : '');
-      return '<span class="ec-chip"><span class="ec-cdot" style="background:' + ecCertDot(c.status_derived) + '"></span>' + ecEsc(c.cert_name) + ecEsc(tail) + '</span>';
-    }).join('');
-    return '<div class="ec-card" data-eid="' + ecEsc(w.employee_id) + '">'
-      + '<div class="ec-crow"><div class="ec-avwrap">' + ring + av + '</div>'
-      + '<div class="ec-who"><div class="ec-wid">' + ecEsc(w.worker_id || '—') + '</div><div class="ec-nm">' + ecEsc(w.name || '—') + '</div><span class="ec-trade">' + ecEsc(w.trade || '—') + '</span></div>'
-      + '<span class="ec-stat ' + sm.cls + '">' + sm.label + '</span></div>'
-      + '<div class="ec-meta"><div class="ec-m"><b>' + (w.cert_total || 0) + '</b><s>certs</s></div>'
-      + '<div class="ec-m' + (w.cert_expiring ? ' a' : '') + '"><b>' + (w.cert_expiring || '—') + '</b><s>expiring</s></div>'
-      + '<div class="ec-m' + (w.cert_expired ? ' r' : '') + '"><b>' + (w.cert_expired || '—') + '</b><s>expired</s></div></div>'
-      + (chips ? '<div class="ec-chips">' + chips + '</div>' : '')
-      + '<div class="ec-exp">' + ecCertTable(w) + '</div></div>';
-  }
-
-  function ecCertTable(w){
-    const cs = (w.certs || []);
-    if (!cs.length) return '<div style="color:var(--muted, #8c92a0);font-size:12px;padding:6px 0">No certifications on file.</div>';
-    return '<table class="ec-clist"><thead><tr><th>Certification</th><th>Issued</th><th>Expiry</th><th>Status</th></tr></thead><tbody>'
-      + cs.map(c => '<tr><td>' + ecEsc(c.cert_name) + '</td><td>' + ecEsc(ecMDY(c.date_obtained)) + '</td><td>' + ecEsc(ecMDY(c.expiration_date)) + '</td><td><span class="ec-cs ' + ecCertCs(c.status_derived) + '">' + ecCertLabel(c.status_derived) + '</span></td></tr>').join('')
-      + '</tbody></table>';
-  }
-
-  function ecTableRow(w){
-    const sm = ecStatusMeta(w.compliance);
-    return '<tr data-eid="' + ecEsc(w.employee_id) + '"><td><strong>' + ecEsc(w.worker_id || '—') + '</strong> <span style="color:var(--muted, #8c92a0)">' + ecEsc(w.name || '') + '</span></td>'
-      + '<td>' + ecEsc(w.trade || '—') + '</td><td>' + (w.cert_total || 0) + '</td>'
-      + '<td style="color:' + (w.cert_expiring ? EC_COLOR.expiring : 'inherit') + '">' + (w.cert_expiring || '—') + '</td>'
-      + '<td style="color:' + (w.cert_expired ? EC_COLOR.expired : 'inherit') + '">' + (w.cert_expired || '—') + '</td>'
-      + '<td><span class="ec-stat ' + sm.cls + '">' + sm.label + '</span></td></tr>';
-  }
-
   function ecWire(){
     if (EC.wired) return; EC.wired = true;
     const s = document.getElementById('ec-search'); if (s) s.addEventListener('input', () => { EC.q = s.value; ecRender(); });
     const t = document.getElementById('ec-trade'); if (t) t.addEventListener('change', () => { EC.trade = t.value; ecRender(); });
-    const vc = document.getElementById('ec-view-cards'), vt = document.getElementById('ec-view-table');
-    if (vc && vt) {
-      vc.addEventListener('click', () => { EC.view = 'cards'; vc.classList.add('ec-on'); vt.classList.remove('ec-on'); ecRender(); });
-      vt.addEventListener('click', () => { EC.view = 'table'; vt.classList.add('ec-on'); vc.classList.remove('ec-on'); ecRender(); });
-    }
-    const grid = document.getElementById('ec-grid');
-    if (grid) grid.addEventListener('click', e => { const card = e.target.closest('.ec-card'); if (card) card.classList.toggle('ec-open'); });
-    const tb = document.getElementById('ec-table-body');
-    if (tb) tb.addEventListener('click', e => {
-      const tr = e.target.closest('tr[data-eid]'); if (!tr) return;
-      EC.view = 'cards'; document.getElementById('ec-view-cards').classList.add('ec-on'); document.getElementById('ec-view-table').classList.remove('ec-on'); ecRender();
-      const eid = tr.getAttribute('data-eid');
-      setTimeout(() => { const card = document.querySelector('.ec-card[data-eid="' + (window.CSS && CSS.escape ? CSS.escape(eid) : eid) + '"]'); if (card) { card.classList.add('ec-open'); card.scrollIntoView({behavior:'smooth',block:'center'}); } }, 30);
-    });
   }
+  async function loadCrew(){
+    ecWire();
+    try {
+      const resp = await fetch('/api/projects/' + encodeURIComponent(PROJECT_CODE) + '/crew-compliance').then(r => r.json());
+      EC.data = ((resp && resp.data) || {}).workers || [];
+      EC.data.sort((a, b) => String(a.worker_id || a.employee_id).localeCompare(String(b.worker_id || b.employee_id), undefined, { numeric: true }));
+      const sel = document.getElementById('ec-trade');
+      if (sel) { const cur = sel.value; sel.innerHTML = '<option value="">All trades</option>' + [...new Set(EC.data.map(w => w.trade).filter(Boolean))].sort().map(t => '<option>' + ecEsc(t) + '</option>').join(''); sel.value = cur; }
+      const sub = document.getElementById('ec-sub'); if (sub) sub.textContent = EC.data.length + (EC.data.length === 1 ? ' worker' : ' workers') + ' assigned to this job, with their licenses.';
+      ecRender();
+    } catch (e) {
+      console.warn('[crew] load failed:', e);
+      const tb = document.getElementById('ec-table-body'); if (tb) tb.innerHTML = '<tr><td colspan="4" class="ec-empty">Could not load the crew. Refresh to try again.</td></tr>';
+    }
+  }
+  // Keep the existing view trigger + any lingering callers working.
+  async function loadRoster(){ return loadCrew(); }
 
   // Modal open/close
   const modal = document.getElementById('intake-modal');

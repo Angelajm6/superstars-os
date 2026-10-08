@@ -552,9 +552,9 @@ def behavioral_rbac_financial_check():
            ('data-group="financial"' in cs_html) and ('data-view="sov"' in cs_html),
            "c_suite sees the Money group + SoV view")
         ok("rbac_sidebar_split_two_groups",
-           all(t in cs_html for t in ('data-group="financial"', 'data-group="tracking"',
-                                      '>Money<', 'data-view="compliance"')),
-           "gated Money group is distinct from the ungated Tracking group that keeps Compliance & Permits")
+           all(t in cs_html for t in ('data-group="financial"', 'data-group="overview"',
+                                      '>Finances<', 'data-view="compliance"')),
+           "gated Finances group is distinct from the ungated Overview group that keeps Compliance & Permits")
 
         # (b) endpoints — pm 403, c_suite 200
         pm_sov = pm.get(f"{BASE}/api/projects/FR-BX-001/sov", timeout=15).status_code

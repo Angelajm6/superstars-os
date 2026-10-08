@@ -184,7 +184,7 @@ def main() -> int:
     assert 'id="jx-money"' in page and 'id="jx-kpis"' in page
     assert "setInterval(refresh, 30000)" not in page, "the legacy 30 s poll is gone"
     pm_page = pm.get(f"/projects/{P}").get_data(as_text=True)
-    assert 'id="jx-money"' not in pm_page and 'id="jx-schedule"' in pm_page, "pm: no Money card"
+    assert 'id="jx-money"' not in pm_page and 'id="jx-items"' in pm_page, "pm: no Finances card"
     passed += 1; print("  page ok")
 
     print(f"PASS smoke_job_dashboard_358 ({passed} groups)")

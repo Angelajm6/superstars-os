@@ -34,8 +34,10 @@ from auth import current_user, requires_company, requires_section
 
 log = logging.getLogger("ssc.project_contacts")
 
-ROLES = {"owner": "Ownership group", "property_manager": "Property management",
-         "consultant": "Consultants", "site_supervisor": "Site supervisors"}
+# Oct 7 C-suite notes: the groups read Owner / Engineer / Architect / General contractor
+# (labels only; the stored role keys are unchanged).
+ROLES = {"owner": "Owner", "property_manager": "Property manager",
+         "consultant": "Engineer / Architect", "site_supervisor": "General contractor"}
 DISCIPLINES = {"architect": "Architect", "structural_engineer": "Structural engineer",
                "mep_engineer": "MEP engineer", "expeditor": "Expeditor", "other": "Other consultant"}
 _RT_FOR = {"owner": "owner", "property_manager": "property_manager", "site_supervisor": "other"}
@@ -179,7 +181,7 @@ def add(conn, code, p: dict, *, actor=None) -> dict:
         raise LookupError("project not found")
     role = (p.get("role") or "").strip()
     if role not in ROLES:
-        raise ValueError("pick the role: ownership group, property management, consultant or site supervisor")
+        raise ValueError("pick the role: owner, property manager, engineer / architect or general contractor")
     disc = (p.get("discipline") or "").strip() or None
     if role == "consultant":
         if disc not in DISCIPLINES:

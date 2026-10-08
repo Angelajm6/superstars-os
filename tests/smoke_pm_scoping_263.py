@@ -194,7 +194,7 @@ def run():
     ok("pm_nav_no_financial_group", 'data-group="financial"' not in pm_html,
        "pm dashboard omits the Financial group (#262 still holds)")
     ok("pm_nav_keeps_employees", 'data-view="employees"' in pm_html,
-       "pm keeps the project-scoped Employees & Certs view")
+       "pm keeps the project-scoped Employees view")
     ok("csuite_nav_back_to_company",
        ('<a href="/projects"' not in cs_html) and 'data-group="financial"' in cs_html,
        "company role keeps the company back-link + Financial group")
