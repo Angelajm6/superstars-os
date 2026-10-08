@@ -3,7 +3,7 @@
 
 Boots the real app on an ISOLATED database. Proves:
   * the company sidebar: Client portal is its own tab; Company keeps company records only
-    (no Team & access); Settings owns Team & access + Preferences & security, lights up on
+    (no Team & access); Settings owns Account + Team & access, lights up on
     /admin/users, and its page no longer draws the Company sub-tabs or the old placeholder
   * the old client-access cards are gone from Projects → Assignments (one place to manage)
   * GET /api/company/portal-access: company roles only; one row per client with the
@@ -123,26 +123,26 @@ def main() -> int:
     nav = (ROOT / "static" / "js" / "company_nav.js").read_text(encoding="utf-8")
     tabs_src, _, pinned_src = nav.partition("var PINNED")
     labels = re.findall(r"\{ key: '[a-z]+', label: '([^']+)'", tabs_src)
-    assert labels == ["Dashboard", "Projects", "Clients", "Proposals", "Finance", "Workforce", "Company"], labels
+    assert labels == ["Home", "Dashboard", "Projects", "Clients", "Proposals", "Finance", "Workforce", "Company"], labels
     # Client portal is a sub-tab of Clients (not a top-level tab), reachable at /company#portal
     assert "sub: [['All clients', '/company#clients'], ['Client portal', '/company#portal']]" in nav
     assert "at: [['/company', 'clients'], ['/company', 'portal']]" in nav
     assert "key: 'portal'" not in nav
     company = tabs_src[tabs_src.index("{ key: 'company'"):tabs_src.index("\n  ];")]
     assert "Team & access" not in company and "/admin/users" not in company, "Company keeps company records only"
-    assert "at: [['/', 'settings'], ['/admin/users', null], ['/company', 'usage']]" in pinned_src
-    assert "sub: [['Team & access', '/admin/users'], ['Preferences & security', '/#settings'], ['Usage & job tools', '/company#usage']]" in pinned_src
+    assert "at: [['/account', null], ['/admin/users', null], ['/company', 'usage']]" in pinned_src
+    assert "sub: [['Account', '/account'], ['Team & access', '/admin/users'], ['Usage & job tools', '/company#usage']]" in pinned_src
     assert "if (bar.getAttribute('data-subtabs') === PINNED.key) tab = PINNED;" in nav
     passed += 1; print("  sidebar ok")
 
     # ---- the pages
     admin, cs, pm = _login("admin"), _login("c_suite"), _login("pm")
     con = cs.get("/").get_data(as_text=True)
-    panel = con[con.index('data-panel="settings"'):]
-    panel = panel[:panel.index('id="interface-section"')]
-    assert 'data-subtabs="settings"' in panel and 'data-subtabs="company"' not in panel, "Settings draws its own sub-tabs"
+    # Settings > Account replaced the console panel (and its Interface card)
+    assert 'data-panel="settings"' not in con and 'id="interface-section"' not in con
     assert "coming next" not in con and "api-keys.txt" not in con, "the placeholder is gone"
-    assert 'href="/admin/users"' in panel and 'href="/company#portal"' in panel
+    acc = cs.get("/account").get_data(as_text=True)
+    assert 'data-subtabs="settings"' in acc and 'data-subtabs="company"' not in acc, "Settings draws its own sub-tabs"
     assert 'data-subtabs="settings"' in cs.get("/admin/users").get_data(as_text=True)
     ap = cs.get("/admin/projects").get_data(as_text=True)
     assert 'id="client-list"' not in ap and "toggleSection" not in ap and "/api/admin/client-grants" not in ap

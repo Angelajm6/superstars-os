@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="/files/static/fonts/typography.css">
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1007"></script>
+<script src="/files/static/js/company_nav.js?v=1009"></script>
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
@@ -165,7 +165,7 @@
   fetch('/api/auth/me').then(function(r){ return r.ok ? r.json() : null; }).then(function(j){
     if(!j || !j.user){ window.location.href='/login'; return; }
     var u=j.user;
-    $('who').innerHTML='<b>'+esc(u.display_name||u.full_name||u.email)+'</b><span class="ssc-role">'+esc(ROLE_LABEL[u.role]||u.role)+'</span><a id="logout">Sign out</a>';
+    $('who').innerHTML='<a href="/account" title="Your account" style="color:inherit;text-decoration:none"><b>'+esc(u.display_name||u.full_name||u.email)+'</b></a><span class="ssc-role">'+esc(ROLE_LABEL[u.role]||u.role)+'</span><a id="logout">Sign out</a>';
     if(window.sscNavForRole) sscNavForRole(u.role);
     $('logout').onclick=function(){ fetch('/api/auth/logout',{method:'POST'}).then(function(){ window.location.href='/login'; }); };
     if(u.role!=='admin' && u.role!=='c_suite'){ document.body.innerHTML='<div style="max-width:520px;margin:18vh auto;text-align:center;font-family:Inter,sans-serif;color:#76777E">This screen is limited to admin and C-suite.</div>'; }

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/files/static/fonts/typography.css">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
+<script src="/files/static/js/company_nav.js?v=1009"></script>
+<!-- #359 — apply a remembered collapsed rail before the first paint -->
+<script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
+<script src="/files/static/js/shell.js?v=1007" defer></script>
+<title>Your account · Superstars Contracting</title>
+<!-- Settings > Account (prototype accepted 2026-10-08). Each signed-in staff member sees and
+     edits their OWN account: name, password, two-step sign-in, Google connections and the
+     devices they are signed in on. Replaces "Preferences & security" and its Interface card.
+     Admin / C-suite reach it from Settings; everyone reaches it by clicking their name in the
+     top bar. Every route acts on the caller only (account.py, auth_hardening.py). -->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--canvas);color:var(--ink);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;}
+  .brand-mark{object-fit:contain;}
+  [hidden]{display:none !important;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 26px 48px;display:grid;gap:16px;}
+  .ac-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 22px;display:grid;grid-template-columns:220px minmax(0,1fr);gap:22px;}
+  .ac-card h2{font-size:15px;font-weight:800;margin-bottom:4px;}
+  .ac-card .sub{font-size:12.5px;color:var(--muted);line-height:1.45;}
+  .rows{display:grid;gap:13px;min-width:0;}
+  .row{display:grid;grid-template-columns:160px minmax(0,1fr);gap:12px;align-items:center;font-size:13px;}
+  .row > label,.row > .k{font-size:12.5px;font-weight:600;color:var(--ink-2,#4A4F59);}
+  .ac-card input{width:100%;max-width:360px;}
+  .ac-card input[readonly]{background:#F4F5F8;color:var(--muted);}
+  .hint{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4;}
+  .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .btn-sm{font:inherit;font-size:12.5px;font-weight:700;padding:7px 13px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;text-decoration:none;display:inline-block;}
+  .btn-sm:hover{border-color:var(--accent-edge);}
+  .btn-sm.danger{color:#a23b30;}
+  .btn-sm.danger:hover{border-color:var(--status-behind);background:var(--status-behind-soft,#fceeec);}
+  .btn-sm:disabled{opacity:.6;cursor:default;}
+  .chip{display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap;}
+  .chip.ok{color:#0c7a5f;background:var(--status-complete-soft,#e7f6f0);}
+  .chip.warn{color:#8a6516;background:#fbf2dd;}
+  .chip.off{color:var(--muted);background:#F1F2F5;}
+  .rolechip{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:7px;background:var(--accent-soft);color:var(--accent-ink);}
+  .ok-msg{font-size:12.5px;font-weight:700;color:#0c7a5f;}
+  .err-msg{font-size:12.5px;font-weight:700;color:#a23b30;}
+  .note{background:#F4F5F8;border-radius:10px;padding:12px 14px;font-size:13px;color:var(--ink-2,#4A4F59);line-height:1.5;}
+  .list{border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+  .item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 14px;border-top:1px solid var(--line);flex-wrap:wrap;}
+  .item:first-child{border-top:0;}
+  .item b{font-weight:700;font-size:13px;}
+  .item .m{font-size:12px;color:var(--muted);margin-top:2px;}
+  .tf-steps{display:grid;gap:10px;max-width:560px;font-size:13px;color:var(--ink-2,#4A4F59);}
+  .tf-key{display:inline-block;padding:8px 12px;background:#F4F5F8;border-radius:8px;font-size:15px;letter-spacing:1px;user-select:all;word-break:break-all;}
+  .tf-uri{font-size:11px;color:var(--muted);word-break:break-all;}
+  .tf-codes{background:#F4F5F8;border-radius:8px;padding:10px 12px;font-size:13px;white-space:pre-wrap;user-select:all;}
+  .tf-code{max-width:140px !important;letter-spacing:3px;font-size:16px;}
+  .loading{color:var(--muted);font-size:13px;}
+  @media (max-width:860px){
+    .wrap{padding:16px 16px 40px;}
+    .ac-card{grid-template-columns:1fr;gap:12px;padding:16px;}
+    .row{grid-template-columns:1fr;gap:5px;}
+  }
+</style>
+</head>
+<body>
+<div class="ssc-shell">
+<aside class="ssc-side" aria-label="Company navigation">
+  <div class="brand">
+    <img class="brand-mark" width="34" height="34" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
+    <div><div class="brand-name">Superstars Contracting</div><div class="brand-sub">Company</div></div>
+  </div>
+  <nav class="ssc-nav" id="ssc-nav" data-company-nav></nav>
+  <script>SSC_NAV.mount();</script>
+</aside>
+<div class="ssc-main">
+<header class="ssc-top">
+  <div class="ssc-top-title"><h1 data-nav-h1>Your account</h1></div>
+  <div class="ssc-top-right"><div class="ssc-user" id="who">—</div></div>
+</header>
+
+<div class="wrap">
+  <div class="ssc-subtabs" data-subtabs="settings" id="subtabs" hidden></div>
+
+  <section class="ac-card" aria-labelledby="pf-h">
+    <div><h2 id="pf-h">Profile</h2><div class="sub">How you show up on the calendar, tasks, daily reports and to the rest of the team.</div></div>
+    <form class="rows" id="pf" novalidate>
+      <div class="row"><label for="pf-full">Full name</label><input class="ssc-field" id="pf-full" maxlength="120" autocomplete="name" required></div>
+      <div class="row"><label for="pf-disp">Display name</label><div><input class="ssc-field" id="pf-disp" maxlength="60" autocomplete="nickname"><div class="hint">Shown in the top bar and on tasks. Leave empty to use your full name.</div></div></div>
+      <div class="row"><label for="pf-email">Email</label><div><input class="ssc-field" id="pf-email" readonly><div class="hint">This is how you sign in. An admin changes it in Team &amp; access.</div></div></div>
+      <div class="row"><span class="k">Role</span><div><span class="rolechip" id="pf-role">—</span> <span class="hint" style="display:inline">Set by an admin.</span></div></div>
+      <div class="row"><span class="k">Member since</span><span id="pf-since">—</span></div>
+      <div class="row"><span></span><div class="actions"><button class="btn-primary" type="submit" id="pf-save">Save profile</button><span id="pf-msg"></span></div></div>
+    </form>
+  </section>
+
+  <section class="ac-card" aria-labelledby="pw-h">
+    <div><h2 id="pw-h">Password</h2><div class="sub">Change the password you use on the sign-in page.</div></div>
+    <div id="pw-body"><div class="loading">Loading…</div></div>
+  </section>
+
+  <section class="ac-card" aria-labelledby="tf-h">
+    <div><h2 id="tf-h">Two-step sign-in</h2><div class="sub">A 6-digit code from an authenticator app (Google Authenticator, Authy, 1Password) on top of your password.</div></div>
+    <div class="rows" id="tf-body"><div class="loading">Loading…</div></div>
+  </section>
+
+  <section class="ac-card" aria-labelledby="gg-h" id="gg-card" hidden>
+    <div><h2 id="gg-h">Google</h2><div class="sub">Connect your own Google account. Only you see what comes from it.</div></div>
+    <div class="list" id="gg-list"></div>
+  </section>
+
+  <section class="ac-card" aria-labelledby="dv-h">
+    <div><h2 id="dv-h">Where you are signed in</h2><div class="sub">Sign out a phone or computer you no longer use.</div></div>
+    <div class="rows">
+      <div class="list" id="dv-list"><div class="item loading">Loading…</div></div>
+      <div class="actions"><button class="btn-sm" type="button" id="dv-all" hidden>Sign out everywhere else</button><span id="dv-msg"></span></div>
+    </div>
+  </section>
+</div>
+</div><!-- /.ssc-main -->
+</div><!-- /.ssc-shell -->
+
+<script>
+(function () {
+  'use strict';
+  var ME = null;
+  var ROLE_LABEL = { admin: 'Admin', c_suite: 'C-Suite', pm: 'PM', super: 'Super', estimator: 'Estimator' };
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
+  function req(method, url, body) {
+    var o = { method: method, credentials: 'same-origin', headers: { 'Accept': 'application/json' } };
+    if (body !== undefined) { o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(body); }
+    return fetch(url, o).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, j: j || {} }; });
+    });
+  }
+  // stored times are LOCAL 'YYYY-MM-DDTHH:MM:SS' — read the digits, never through Date/UTC
+  function day(s) {
+    var m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? MONTHS[+m[2] - 1] + ' ' + (+m[3]) + ', ' + m[1] : '';
+  }
+  function when(s) {
+    var m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+    if (!m) return day(s);
+    var h = +m[4], ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12;
+    return day(s) + ' ' + h + ':' + m[5] + ' ' + ap;
+  }
+  function say(el, text, ok) { el.className = ok ? 'ok-msg' : 'err-msg'; el.textContent = text; }
+
+  // ---------------------------------------------------------------- profile
+  function drawProfile() {
+    $('pf-full').value = ME.full_name || '';
+    $('pf-disp').value = ME.display_name && ME.display_name !== ME.full_name ? ME.display_name : '';
+    $('pf-email').value = ME.email || '';
+    $('pf-role').textContent = ROLE_LABEL[ME.role] || ME.role;
+    var since = day(ME.created_at);
+    $('pf-since').textContent = (since || '—') + (ME.last_login_at ? ' · last sign-in ' + when(ME.last_login_at) : '');
+  }
+  function drawWho() {
+    $('who').innerHTML = '<a href="/account" title="Your account" style="color:inherit;text-decoration:none"><b>' + esc(ME.display_name || ME.full_name || ME.email) + '</b></a>' +
+      '<span class="ssc-role">' + esc(ROLE_LABEL[ME.role] || ME.role) + '</span><a id="signout">Sign out</a>';
+    $('signout').addEventListener('click', function () {
+      if (window.SSC_BOOT) window.SSC_BOOT.purge();
+      fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.href = '/login'; }, function () { location.href = '/login'; });
+    });
+  }
+  $('pf').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var msg = $('pf-msg'), full = $('pf-full').value.trim();
+    if (!full) { say(msg, 'Enter your full name.'); $('pf-full').focus(); return; }
+    $('pf-save').disabled = true;
+    req('PUT', '/api/account/profile', { full_name: full, display_name: $('pf-disp').value.trim() }).then(function (r) {
+      $('pf-save').disabled = false;
+      if (!r.ok) { say(msg, r.j.error || 'Could not save. Try again.'); return; }
+      ME.full_name = r.j.data.full_name; ME.display_name = r.j.data.display_name;
+      drawProfile(); drawWho(); say(msg, 'Saved', true);
+    }, function () { $('pf-save').disabled = false; say(msg, 'No connection. Try again.'); });
+  });
+
+  // ---------------------------------------------------------------- password
+  function drawPassword() {
+    var b = $('pw-body');
+    if (!ME.password_sign_in) {
+      b.innerHTML = '<div class="note">You sign in with Google, so there is no password to change here.</div>';
+      return;
+    }
+    b.innerHTML =
+      '<form class="rows" id="pw" novalidate>' +
+        '<div class="row"><label for="pw-cur">Current password</label><input class="ssc-field" id="pw-cur" type="password" autocomplete="current-password"></div>' +
+        '<div class="row"><label for="pw-new">New password</label><div><input class="ssc-field" id="pw-new" type="password" autocomplete="new-password">' +
+          '<div class="hint">At least 12 characters, with a letter and a number. Your other devices get signed out.</div></div></div>' +
+        '<div class="row"><label for="pw-new2">Repeat new password</label><input class="ssc-field" id="pw-new2" type="password" autocomplete="new-password"></div>' +
+        '<div class="row"><span></span><div class="actions"><button class="btn-primary" type="submit" id="pw-save">Change password</button><span id="pw-msg"></span></div></div>' +
+      '</form>' + (ME.google_sign_in ? '<div class="hint" style="margin-top:10px">You can also sign in with Google.</div>' : '');
+    $('pw').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var msg = $('pw-msg'), cur = $('pw-cur').value, a = $('pw-new').value, c = $('pw-new2').value;
+      if (!cur) { say(msg, 'Enter your current password.'); return; }
+      if (a.length < 12) { say(msg, 'The new password needs at least 12 characters.'); return; }
+      if (a !== c) { say(msg, 'The two new passwords do not match.'); return; }
+      $('pw-save').disabled = true;
+      req('POST', '/api/account/password', { current_password: cur, new_password: a }).then(function (r) {
+        $('pw-save').disabled = false;
+        if (!r.ok) { say(msg, r.j.error || 'Could not change the password. Try again.'); return; }
+        $('pw').reset();
+        var n = r.j.data.signed_out || 0;
+        say(msg, 'Password changed' + (n ? ' · ' + n + (n === 1 ? ' other device' : ' other devices') + ' signed out' : ''), true);
+        loadDevices();
+      }, function () { $('pw-save').disabled = false; say(msg, 'No connection. Try again.'); });
+    });
+  }
+
+  // ---------------------------------------------------------------- two-step sign-in
+  function drawTwoStep() {
+    var b = $('tf-body');
+    if (ME.totp_enabled) {
+      b.innerHTML =
+        '<div class="actions"><span class="chip ok">On</span><span class="hint" style="margin:0">You enter a code from your authenticator app when you sign in.</span></div>' +
+        '<div class="actions"><input class="ssc-field tf-code" id="tf-off-code" inputmode="numeric" maxlength="6" placeholder="123456" aria-label="Current 6-digit code">' +
+        '<button class="btn-sm danger" type="button" id="tf-off">Turn off</button><span id="tf-msg"></span></div>' +
+        '<div class="hint">To turn it off, enter the current code from your app.</div>';
+      $('tf-off').addEventListener('click', function () {
+        var code = $('tf-off-code').value.trim(), msg = $('tf-msg');
+        if (!/^\d{6}$/.test(code)) { say(msg, 'Enter the 6-digit code from your app.'); return; }
+        req('POST', '/api/2fa/disable', { code: code }).then(function (r) {
+          if (!r.ok) { say(msg, r.j.error || 'That code did not work.'); return; }
+          ME.totp_enabled = false; drawTwoStep(); say($('tf-msg'), 'Two-step sign-in is off', true);
+        });
+      });
+      return;
+    }
+    b.innerHTML =
+      '<div class="actions"><span class="chip off">Off</span><button class="btn-sm" type="button" id="tf-start">Set up authenticator</button><span id="tf-msg"></span></div>' +
+      '<div class="tf-steps" id="tf-steps" hidden>' +
+        '<div>1. In your authenticator app, add an account and paste this setup key:</div>' +
+        '<div><code class="tf-key" id="tf-secret"></code><div class="tf-uri" id="tf-uri"></div></div>' +
+        '<div>2. Save these one-time recovery codes somewhere safe. Each one works once if you lose your phone. They are shown only now.</div>' +
+        '<pre class="tf-codes" id="tf-codes"></pre>' +
+        '<div>3. Enter the 6-digit code your app shows now:</div>' +
+        '<div class="actions"><input class="ssc-field tf-code" id="tf-code" inputmode="numeric" maxlength="6" placeholder="123456" aria-label="6-digit code">' +
+        '<button class="btn-primary" type="button" id="tf-on">Turn on</button></div>' +
+      '</div>';
+    $('tf-start').addEventListener('click', function () {
+      var btn = $('tf-start'); btn.disabled = true;
+      req('POST', '/api/2fa/begin', {}).then(function (r) {
+        if (!r.ok || !r.j.data) { btn.disabled = false; say($('tf-msg'), r.j.error || 'Could not start. Try again.'); return; }
+        $('tf-secret').textContent = r.j.data.secret;
+        $('tf-uri').textContent = r.j.data.otpauth_uri;
+        $('tf-codes').textContent = (r.j.data.recovery_codes || []).join('\n');
+        $('tf-steps').hidden = false; btn.hidden = true;
+        $('tf-code').focus();
+      });
+    });
+    $('tf-on').addEventListener('click', function () {
+      var code = $('tf-code').value.trim();
+      if (!/^\d{6}$/.test(code)) { say($('tf-msg'), 'Enter the 6-digit code from your app.'); return; }
+      req('POST', '/api/2fa/confirm', { code: code }).then(function (r) {
+        if (!r.ok) { say($('tf-msg'), r.j.error || 'That code did not work.'); return; }
+        ME.totp_enabled = true; drawTwoStep(); say($('tf-msg'), 'Two-step sign-in is on', true);
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------- Google
+  var GOOGLE = [
+    { key: 'gcal', name: 'Google Calendar', what: 'Your tasks and events appear in a "Superstars" calendar.', status: '/api/google-calendar/status', connect: '/google-calendar/connect', disconnect: '/api/google-calendar/disconnect' },
+    { key: 'gmail', name: 'Gmail suggestions', what: 'Emails that look like a to-do become suggestions for you to accept.', status: '/api/gmail/status', connect: '/gmail/connect', disconnect: '/api/gmail/disconnect' }
+  ];
+  function loadGoogle() {
+    Promise.all(GOOGLE.map(function (g) { return req('GET', g.status).catch(function () { return { ok: false }; }); })).then(function (res) {
+      if (!res.some(function (r) { return r.ok; })) return;   // a role without Google features
+      $('gg-card').hidden = false;
+      $('gg-list').innerHTML = GOOGLE.map(function (g, i) {
+        var d = (res[i].ok && res[i].j.data) || {}, right;
+        if (!res[i].ok) right = '<span class="chip off">Not available</span>';
+        else if (!d.available) right = '<span class="chip warn">Not set up yet</span>';
+        else if (d.connected) right = '<span class="chip ' + (d.status === 'error' ? 'warn' : 'ok') + '">' + (d.status === 'error' ? 'Needs reconnecting' : 'Connected') + '</span>' +
+          '<button class="btn-sm danger" type="button" data-gdis="' + i + '">Disconnect</button>';
+        else right = '<a class="btn-sm" href="' + g.connect + '">Connect</a>';
+        var meta = d.connected && d.google_email ? esc(d.google_email) : esc(g.what);
+        return '<div class="item"><div><b>' + esc(g.name) + '</b><div class="m">' + meta + '</div></div><div class="actions">' + right + '</div></div>';
+      }).join('');
+    });
+  }
+  $('gg-list').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-gdis]'); if (!b) return;
+    b.disabled = true;
+    req('POST', GOOGLE[+b.getAttribute('data-gdis')].disconnect, {}).then(loadGoogle, loadGoogle);
+  });
+
+  // ---------------------------------------------------------------- devices
+  function loadDevices() {
+    req('GET', '/api/account/sessions').then(function (r) {
+      var rows = (r.ok && r.j.data) || [];
+      $('dv-list').innerHTML = rows.length ? rows.map(function (s) {
+        return '<div class="item"><div><b>' + esc(s.device) + '</b><div class="m">' +
+          (s.current ? 'This device · active now' : 'Last used ' + esc(when(s.last_used_at))) + '</div></div>' +
+          (s.current ? '<span class="chip ok">This device</span>' : '<button class="btn-sm danger" type="button" data-out="' + esc(s.key) + '">Sign out</button>') + '</div>';
+      }).join('') : '<div class="item m">No devices.</div>';
+      $('dv-all').hidden = rows.filter(function (s) { return !s.current; }).length < 1;
+    });
+  }
+  $('dv-list').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-out]'); if (!b) return;
+    b.disabled = true;
+    req('POST', '/api/account/sessions/' + encodeURIComponent(b.getAttribute('data-out')) + '/sign-out', {}).then(function (r) {
+      if (!r.ok) say($('dv-msg'), r.j.error || 'Could not sign that device out.');
+      loadDevices();
+    });
+  });
+  $('dv-all').addEventListener('click', function () {
+    $('dv-all').disabled = true;
+    req('POST', '/api/account/sessions/sign-out-others', {}).then(function (r) {
+      $('dv-all').disabled = false;
+      if (r.ok) say($('dv-msg'), 'Other devices signed out', true); else say($('dv-msg'), r.j.error || 'Try again.');
+      loadDevices();
+    });
+  });
+
+  // ---------------------------------------------------------------- boot
+  req('GET', '/api/account').then(function (r) {
+    if (r.status === 401) { location.href = '/login?next=/account'; return; }
+    if (!r.ok) { document.querySelector('.wrap').innerHTML = '<div class="note">Could not load your account. Refresh to try again.</div>'; return; }
+    ME = r.j.data;
+    if (window.sscNavForRole) window.sscNavForRole(ME.role);
+    var company = ME.role === 'admin' || ME.role === 'c_suite';
+    $('subtabs').hidden = !company;
+    if (!company) document.querySelector('[data-nav-h1]').textContent = 'Your account';
+    drawWho(); drawProfile(); drawPassword(); drawTwoStep(); loadGoogle(); loadDevices();
+  });
+})();
+</script>
+</body>
+</html>

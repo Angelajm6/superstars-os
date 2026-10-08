@@ -22,8 +22,9 @@ _COMMON_PREFIXES = ("/api/auth/", "/files/static/", "/auth/google/", "/p/", "/ap
 _COMMON_EXACT = {"/login", "/set-password", "/forgot-password", "/reset-password",
                  "/api/health", "/api/today"}
 
-ESTIMATOR_PREFIXES = _COMMON_PREFIXES + ("/estimating", "/api/estimating/", "/settings/interface", "/api/ui/")
-ESTIMATOR_EXACT = _COMMON_EXACT | {"/estimating"}
+ESTIMATOR_PREFIXES = _COMMON_PREFIXES + ("/estimating", "/api/estimating/", "/settings/interface", "/api/ui/",
+                                         "/api/account/", "/api/2fa/")   # their own account page
+ESTIMATOR_EXACT = _COMMON_EXACT | {"/estimating", "/account", "/api/account"}
 ESTIMATOR_HOME = "/estimating"
 
 
