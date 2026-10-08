@@ -1207,12 +1207,78 @@
             .jx-seg { display: inline-flex; border: 1px solid var(--line, #eceef3); border-radius: 9px; padding: 2px; background: var(--fill, #F4F5F8); justify-self: start; }
             .jx-seg button { font: inherit; font-size: 13px; font-weight: 700; border: 0; background: transparent; color: var(--muted, #8c92a0); padding: 6px 14px; border-radius: 7px; cursor: pointer; }
             .jx-seg button.on { background: #fff; color: var(--ui, #24418C); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+            /* ---- sleek layer (mockup accepted 2026-10-08): hero in the job's color, floating tiles, cards that rise */
+            .ph-wrap { --job: #24418C; --jx-ease: cubic-bezier(.2,.8,.2,1);
+              --jx-shadow: 0 1px 2px rgba(16,24,40,.05), 0 8px 24px -6px rgba(16,24,40,.10);
+              --jx-shadow-up: 0 2px 4px rgba(16,24,40,.06), 0 18px 40px -10px rgba(16,24,40,.22); }
+            .ph-wrap .jx-hero { position: relative; display: block; margin: 0 0 0; padding: 20px 26px 66px; border-radius: 22px; color: #fff; overflow: hidden; isolation: isolate;
+              background: linear-gradient(125deg, color-mix(in srgb, var(--job) 70%, #05070b) 0%, var(--job) 52%, color-mix(in srgb, var(--job) 72%, #fff) 130%); transition: background .6s var(--jx-ease); }
+            .jx-hero::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(600px 260px at 85% -10%, rgba(255,255,255,.22), transparent 60%), radial-gradient(500px 240px at 10% 120%, rgba(0,0,0,.25), transparent 60%); }
+            .jx-hero::after { content: ""; position: absolute; inset: 0; z-index: -1; opacity: .10; background-image: linear-gradient(rgba(255,255,255,.9) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.9) 1px, transparent 1px); background-size: 44px 44px; -webkit-mask-image: linear-gradient(90deg, transparent, #000 55%); mask-image: linear-gradient(90deg, transparent, #000 55%); }
+            .jx-htop { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+            .jx-glass { display: inline-flex; align-items: center; gap: 7px; border: 1px solid rgba(255,255,255,.28); background: rgba(255,255,255,.12); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); color: #fff; border-radius: 10px; padding: 7px 12px; font: inherit; font-weight: 600; font-size: 13px; cursor: pointer; text-decoration: none; transition: background .2s, transform .2s var(--jx-ease), box-shadow .2s; }
+            .jx-glass:hover { background: rgba(255,255,255,.22); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,.18); color: #fff; }
+            .jx-glass svg { width: 15px; height: 15px; }
+            .jx-glass.jx-edit, .jx-glass.jx-edit:hover { background: #fff; border-color: #fff; color: color-mix(in srgb, var(--job) 85%, #000); }
+            .jx-glass[hidden] { display: none; }
+            .jx-hero .jx-title { margin-top: 16px; }
+            .jx-htitle { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+            .jx-hno { font-weight: 900; font-size: 15px; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.3); border-radius: 9px; padding: 3px 9px; font-variant-numeric: tabular-nums; }
+            .jx-hno[hidden] { display: none; }
+            .jx-hero h1 { color: #fff; font-size: clamp(22px, 3vw, 32px); font-weight: 800; letter-spacing: -.01em; margin: 0; text-wrap: balance; }
+            .jx-hero .jx-sub { color: rgba(255,255,255,.85); margin-top: 6px; }
+            .jx-hero .jx-chips { margin-top: 14px; }
+            .jx-hero .jx-chip { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22); color: #fff; font-weight: 600; font-size: 12px; padding: 4px 11px; }
+            .jx-hero .jx-chip.ok { background: #fff; border-color: #fff; color: color-mix(in srgb, var(--job) 85%, #000); }
+            .jx-hero .jx-chip.warn, .jx-hero .jx-chip.bad { background: #fff; border-color: #fff; color: var(--status-behind-deep, #A8382B); }
+            .ph-wrap .jx-kpis { position: relative; margin: -44px 14px 18px; gap: 14px; }
+            .ph-wrap .jx-kpi { border: 0; border-radius: 18px; box-shadow: var(--jx-shadow); display: flex; gap: 14px; align-items: center; padding: 16px 18px; transition: transform .25s var(--jx-ease), box-shadow .25s var(--jx-ease); }
+            .ph-wrap .jx-kpi:hover { transform: translateY(-3px); box-shadow: var(--jx-shadow-up); border: 0; }
+            .jx-ic { width: 46px; height: 46px; border-radius: 14px; flex: none; display: grid; place-items: center; color: #fff; background: linear-gradient(140deg, color-mix(in srgb, var(--job) 70%, #fff), var(--job)); box-shadow: 0 8px 18px -6px color-mix(in srgb, var(--job) 60%, transparent); }
+            .jx-ic svg { width: 22px; height: 22px; }
+            .jx-ring { width: 54px; height: 54px; flex: none; transform: rotate(-90deg); }
+            .jx-ring circle { fill: none; stroke-width: 6; }
+            .jx-ring .bg { stroke: var(--fill, #F1F3F7); } .jx-ring .fg { stroke: url(#jx-rg); stroke-linecap: round; transition: stroke-dashoffset 1.2s var(--jx-ease); }
+            .ph-wrap .jx-kpi-v { font-size: 30px; font-variant-numeric: tabular-nums; }
+            .ph-wrap .jx-kpi-k { font-size: 11px; letter-spacing: .09em; }
+            .ph-wrap .jx-card { border: 0; border-radius: 18px; box-shadow: var(--jx-shadow); padding: 18px 20px; transition: box-shadow .25s var(--jx-ease); }
+            .ph-wrap .jx-card:hover { box-shadow: var(--jx-shadow-up); }
+            .ph-wrap .jx-card h2 a { color: color-mix(in srgb, var(--job) 80%, #14161C); }
+            .ph-wrap .jx-card h2 .jx-add { background: linear-gradient(135deg, color-mix(in srgb, var(--job) 75%, #fff), var(--job)); border-radius: 10px; box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--job) 70%, transparent); transition: transform .2s var(--jx-ease); }
+            .ph-wrap .jx-card h2 .jx-add:hover { transform: translateY(-1px); }
+            .ph-wrap .jx-alert { background: linear-gradient(90deg, var(--status-behind-soft, #fceeec), transparent); border-radius: 12px; }
+            .ph-wrap .jx-it { padding: 10px 8px; border-top: 0; border-radius: 12px; transition: background .2s; }
+            .ph-wrap .jx-it:hover { background: var(--fill, #F4F5F8); }
+            .ph-wrap .jx-it input { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; border: 1.5px solid var(--line, #e3e5ea); border-radius: 7px; background: #fff center / 13px no-repeat; transition: all .25s var(--jx-ease); }
+            .ph-wrap .jx-it input:checked { background-color: var(--job); border-color: var(--job); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E"); }
+            .ph-wrap .jx-it input:disabled { opacity: .5; }
+            .jx-bars { display: grid; gap: 10px; margin: 6px 0 4px; }
+            .jx-barrow { display: grid; gap: 5px; }
+            .jx-barrow .t { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-2, #4A4F59); } .jx-barrow .t b { color: var(--ink, #222633); font-variant-numeric: tabular-nums; }
+            .jx-track { height: 9px; border-radius: 99px; background: var(--fill, #F1F3F7); overflow: hidden; }
+            .jx-track i { display: block; height: 100%; width: 0; border-radius: 99px; transition: width 1.1s var(--jx-ease); background: linear-gradient(90deg, color-mix(in srgb, var(--job) 55%, #fff), var(--job)); }
+            .jx-track i.ok { background: linear-gradient(90deg, #5BD3A0, var(--status-complete-deep, #0c7a5f)); }
+            .jx-av { width: 32px; height: 32px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #fff; background: linear-gradient(140deg, color-mix(in srgb, var(--job) 60%, #fff), color-mix(in srgb, var(--job) 85%, #000)); }
+            .ph-wrap .jx-photos a { border-radius: 12px; }
+            .ph-wrap .jx-photos img { transition: transform .5s var(--jx-ease); }
+            .ph-wrap .jx-photos a:hover img { transform: scale(1.07); }
+            .jx-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+            .jx-rise { animation: jx-rise .6s var(--jx-ease) both; }
+            @keyframes jx-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+            @media (prefers-reduced-motion: reduce) { .ph-wrap *, .ph-wrap .jx-hero { animation: none !important; transition: none !important; } }
+            @media (max-width: 640px) { .ph-wrap .jx-hero { padding: 16px 16px 60px; border-radius: 16px; } .ph-wrap .jx-kpis { margin: -40px 8px 16px; } }
             @media (max-width: 640px) { .jx-modal .row2 { grid-template-columns: 1fr; } }
           </style>
-          <div class="jx-head">
+          <!-- the job header, painted in the job's own calendar color (project_setup); Edit project
+               top-left for admin / C-suite (mockup accepted 2026-10-08) -->
+          <svg width="0" height="0" class="jx-defs" aria-hidden="true" focusable="false"><defs><linearGradient id="jx-rg" x1="0" x2="1"><stop offset="0" stop-color="#7CE3B7"/><stop offset="1" stop-color="#0C7A5F"/></linearGradient></defs></svg>
+          <div class="jx-head jx-hero" id="jx-hero">
+            <div class="jx-htop">
+              <button type="button" class="jx-glass jx-edit" id="jx-edit" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Edit project</button>
+              <a class="jx-glass" id="jx-back" href="/projects">← All projects</a>
+            </div>
             <div class="jx-title">
-              <div class="ph-eyebrow">Job dashboard</div>
-              <h1 data-project-title>&nbsp;</h1>
+              <div class="jx-htitle"><span class="jx-hno" id="jx-hno" hidden></span><h1 data-project-title>&nbsp;</h1></div>
               <div class="jx-sub"><span data-project-client>&nbsp;</span><span id="jx-address"></span></div>
             </div>
             <div class="jx-chips" id="jx-chips"></div>
@@ -1252,7 +1318,40 @@
             const mdy = iso => { if (!iso) return '—'; const [y, m, d] = String(iso).slice(0, 10).split('-'); return m + '/' + d + '/' + y; };
             const line = (k, v, cls, go) => '<div class="jx-line"' + (go ? ' data-goto="' + go + '"' : '') + '><span class="k">' + k + '</span><span class="v ' + (cls || '') + '">' + v + '</span></div>';
             const head = (id) => { const h = $j(id).querySelector('h2'); return h ? h.outerHTML : ''; };
-            function kpi(k, v, sub, go, cls) { return '<button type="button" class="jx-kpi" data-goto="' + go + '"><div class="jx-kpi-k">' + esc(k) + '</div><div class="jx-kpi-v ' + (cls || '') + '">' + v + '</div><div class="jx-kpi-s">' + sub + '</div></button>'; }
+            // tile art: a gradient icon in the job's color; % complete gets a ring that fills
+            const JX_IC = { 'On site today': '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15 14.5a5 5 0 0 1 6.5 5"/>',
+              'Open items': '<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>' };
+            const JXA = { ring: 0, animated: false };
+            const art = k => k === 'Complete'
+              ? '<svg class="jx-ring" viewBox="0 0 56 56" aria-hidden="true"><circle class="bg" cx="28" cy="28" r="23"/><circle class="fg" cx="28" cy="28" r="23" stroke-dasharray="144.5" stroke-dashoffset="' + (JXA.animated ? 144.5 * (1 - JXA.ring / 100) : 144.5) + '" data-ring="' + JXA.ring + '"/></svg>'
+              : '<span class="jx-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (JX_IC[k] || '') + '</svg></span>';
+            function kpi(k, v, sub, go, cls) { return '<button type="button" class="jx-kpi" data-goto="' + go + '">' + art(k) + '<span><div class="jx-kpi-k">' + esc(k) + '</div><div class="jx-kpi-v ' + (cls || '') + '">' + v + '</div><div class="jx-kpi-s">' + sub + '</div></span></button>'; }
+            // the one orchestrated moment, first render only: numbers count up, the ring and bars fill, tiles and cards rise
+            function jxIntro(wrap) {
+              const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+              const settle = () => {
+                wrap.querySelectorAll('[data-ring]').forEach(c => { c.style.strokeDashoffset = String(144.5 * (1 - (+c.dataset.ring) / 100)); });
+                wrap.querySelectorAll('.jx-track i[data-w]').forEach(i => { i.style.width = i.dataset.w + '%'; });
+              };
+              if (JXA.animated || reduce) { JXA.animated = true; settle(); return; }
+              JXA.animated = true;
+              wrap.querySelectorAll('.jx-kpi, .jx-grid > .jx-card').forEach((el, i) => { el.classList.add('jx-rise'); el.style.animationDelay = (0.05 + i * 0.06).toFixed(2) + 's'; });
+              wrap.querySelectorAll('.jx-kpi-v').forEach(el => {
+                const m = el.textContent.trim().match(/^(\d[\d,]*)(%?)$/); if (!m) return;
+                const to = +m[1].replace(/,/g, ''), pct = m[2]; let t0 = null;
+                const step = t => { if (!t0) t0 = t; const q = Math.min(1, (t - t0) / 900); el.textContent = Math.round(to * (1 - Math.pow(1 - q, 3))).toLocaleString('en-US') + pct; if (q < 1) requestAnimationFrame(step); };
+                requestAnimationFrame(step);
+              });
+              setTimeout(settle, 150);
+            }
+            // Edit project, top-left of the header (the same window as Projects → Edit and Settings)
+            window.SSC_editProject = function () {
+              const code = decodeURIComponent((location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || '');
+              const go = () => window.SSCNewProject.edit(code);
+              if (window.SSCNewProject) return go();
+              const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1010'; sc.onload = go; document.head.appendChild(sc);
+            };
+            document.addEventListener('click', e => { if (e.target.closest('#jx-edit')) window.SSC_editProject(); });
             window.JX_render = function (S) {
               if (!S) return;
               const H = S.header || {}, SC = S.schedule, F = S.field_today, R = S.risk, M = S.money;
@@ -1260,8 +1359,12 @@
               const cl = document.querySelector('.jx-sub [data-project-client]');
               if (cl) cl.textContent = H.client || '';
               $j('jx-address').textContent = (H.client && H.address ? ' · ' : '') + (H.address || '');
+              const wrap = document.querySelector('.ph-wrap');
+              if (wrap && H.color) wrap.style.setProperty('--job', H.color);   // the job's own calendar color
+              $j('jx-hno').hidden = H.job_number == null; $j('jx-hno').textContent = H.job_number != null ? '#' + H.job_number : '';
+              $j('jx-edit').hidden = !H.can_edit;
+              $j('jx-back').href = H.can_edit ? '/company#projects' : '/projects';
               const chips = [];
-              if (H.job_number != null) chips.push('<span class="jx-chip" style="color:var(--brand-red, #B11E2E);font-weight:800">#' + esc(H.job_number) + '</span>');
               (H.access_labels || []).forEach(a => chips.push('<span class="jx-chip ui">' + esc(a) + '</span>'));
               chips.push('<span class="jx-chip ' + (H.status === 'active' ? 'ok' : '') + '">' + esc((H.status || 'active').replace(/^./, c => c.toUpperCase())) + '</span>');
               chips.push('<span class="jx-chip ' + (H.billing_type ? 'ui' : 'warn') + '" title="' + esc(H.billing_label || '') + '">' + esc(H.billing_type ? H.billing_short : 'Billing not set') + '</span>');
@@ -1272,10 +1375,11 @@
               const O = S.open_items;
               const k = [];
               if (F) k.push(kpi('On site today', n(F.on_site), F.assigned ? 'of ' + n(F.assigned) + ' assigned' : 'signed in', 'employees'));
+              JXA.ring = SC ? Math.max(0, Math.min(100, Math.round(SC.overall_pct))) : 0;
               if (SC && !OFF.includes('drops')) k.push(kpi('Complete', n(Math.round(SC.overall_pct)) + '%', n(SC.complete) + ' of ' + n(SC.total) + (SC.total === 1 ? ' drop' : ' drops') + ' done', 'drop-plans'));
-              if (O) k.push('<button type="button" class="jx-kpi" data-jump="jx-items"><div class="jx-kpi-k">Open items</div><div class="jx-kpi-v">' + n(O.count) + '</div><div class="jx-kpi-s">'
+              if (O) k.push('<button type="button" class="jx-kpi" data-jump="jx-items">' + art('Open items') + '<span><div class="jx-kpi-k">Open items</div><div class="jx-kpi-v">' + n(O.count) + '</div><div class="jx-kpi-s">'
                 + [O.overdue ? '<span class="over">' + n(O.overdue) + ' overdue</span>' : '', O.events_this_week ? n(O.events_this_week) + (O.events_this_week === 1 ? ' event' : ' events') + ' this week' : ''].filter(Boolean).join(' · ')
-                + (O.overdue || O.events_this_week ? '' : (O.count ? 'none overdue' : 'nothing open')) + '</div></button>');
+                + (O.overdue || O.events_this_week ? '' : (O.count ? 'none overdue' : 'nothing open')) + '</div></span></button>');
               $j('jx-kpis').innerHTML = k.join('');
               // ---- money (financial roles only — the payload has no `money` otherwise)
               if (M && $j('jx-money')) {
@@ -1283,8 +1387,10 @@
                 const cell = (label, v, late) => '<div class="' + (late && v > 0 ? 'late' : '') + '"><b>' + money.format(v || 0) + '</b>' + label + '</div>';
                 $j('jx-money').innerHTML = head('jx-money')
                   + (M.contract ? line('Contract' + (M.change_orders ? ' <span style="color:var(--muted, #8c92a0)">incl. ' + money.format(M.change_orders) + ' change orders</span>' : ''), money.format(M.contract)) : line('Contract', 'not set', 'warn'))
-                  + line('Invoiced' + (M.billed_pct != null ? ' <span style="color:var(--muted, #8c92a0)">' + M.billed_pct + '% billed</span>' : ''), money.format(M.invoiced), '', 'payments')
-                  + line('Collected', money.format(M.collected), 'ok', 'payments')
+                  + (M.contract ? '<div class="jx-bars">'
+                      + '<div class="jx-barrow"><div class="t"><span>Invoiced</span><b>' + money.format(M.invoiced) + ' · ' + Math.round(M.invoiced / M.contract * 100) + '%</b></div><div class="jx-track"><i data-w="' + Math.min(100, Math.round(M.invoiced / M.contract * 100)) + '"></i></div></div>'
+                      + '<div class="jx-barrow"><div class="t"><span>Collected</span><b>' + money.format(M.collected) + ' · ' + Math.round(M.collected / M.contract * 100) + '%</b></div><div class="jx-track"><i class="ok" data-w="' + Math.min(100, Math.round(M.collected / M.contract * 100)) + '"></i></div></div></div>'
+                    : line('Invoiced', money.format(M.invoiced), '', 'payments') + line('Collected', money.format(M.collected), 'ok', 'payments'))
                   + line('Open receivables', money.format(M.open_ar), M.overdue ? 'warn' : '', 'payments')
                   + '<div class="jx-aging">' + cell('current', a.current) + cell('1–30', a.d1_30, 1) + cell('31–60', a.d31_60, 1) + cell('61–90', a.d61_90, 1) + cell('90+', a.d90p, 1) + '</div>'
                   + (M.costs_to_date != null ? line('Costs to date (labor + expenses)' + (M.cost_pct_of_contract != null ? ' <span style="color:var(--muted, #8c92a0)">' + M.cost_pct_of_contract + '% of contract</span>' : ''), money.format(M.costs_to_date), '', 'expenses') : '');
@@ -1310,7 +1416,8 @@
               }
               // ---- contacts: Our team · Owner · Engineer / Architect · General contractor
               const C = S.contacts || [];
-              const person = c => '<div class="jx-person"><div class="who"><b>' + esc(c.name) + '</b><span>' + esc([c.role, c.org].filter(Boolean).join(' · ')) + '</span></div>'
+              const initials = nm => String(nm || '').replace(/^W-\d+\s*—\s*/, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+              const person = c => '<div class="jx-person"><span class="jx-av" aria-hidden="true">' + esc(initials(c.name)) + '</span><div class="who"><b>' + esc(c.name) + '</b><span>' + esc([c.role, c.org].filter(Boolean).join(' · ')) + '</span></div>'
                 + (c.phone ? '<a class="btn" href="tel:' + esc(String(c.phone).replace(/[^+\d]/g, '')) + '">Call</a>' : '') + (c.email ? '<a class="btn" href="mailto:' + esc(c.email) + '">Email</a>' : '') + '</div>';
               $j('jx-contacts').innerHTML = head('jx-contacts') + (C.some(g => g.people && g.people.length)
                 ? '<div class="jx-cgroups">' + C.map(g => '<div class="jx-cg"><h3>' + esc(g.label) + '</h3>' + (g.people.length ? g.people.map(person).join('') : '<div class="jx-empty">None yet</div>')
@@ -1333,7 +1440,7 @@
               });
             }
             const _jxRender = window.JX_render;
-            window.JX_render = function (S) { _jxRender(S); const v = document.querySelector('.view[data-view="dashboard"]'); if (v) pruneGotos(v); };
+            window.JX_render = function (S) { _jxRender(S); const v = document.querySelector('.view[data-view="dashboard"]'); if (v) pruneGotos(v); const w = document.querySelector('.ph-wrap'); if (w) jxIntro(w); };
             document.addEventListener('click', (e) => {
               const g = e.target.closest('.jx-kpi[data-goto], .jx-card [data-goto]'); if (!g) return;
               e.preventDefault();

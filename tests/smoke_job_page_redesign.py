@@ -197,6 +197,11 @@ def main() -> int:
         assert gone not in page[page.index('data-view="dashboard"'):page.index('id="jx-ops-toggle"')], gone
     assert 'id="jx-items"' in page and 'id="jx-form"' in page and "/api/team/items" in page
     assert '<h2>Finances <a data-goto="payments">' in page and 'id="jx-money"' not in pm_page
+    # the sleek header (accepted 2026-10-08): the job's own color, Edit project top-left for admin / C-suite only
+    hd = _summary(cs)["header"]
+    assert re.fullmatch(r"#[0-9A-F]{6}", hd["color"]) and hd["can_edit"] is True and _summary(pm)["header"]["can_edit"] is False
+    assert 'id="jx-hero"' in page and 'id="jx-edit"' in page and "window.SSC_editProject" in page and "--job" in page
+    assert "prefers-reduced-motion: reduce" in page and "function jxIntro" in page
     passed += 1; print("  dashboard page ok")
 
     # ---- sidebar: three groups, Finances for the C-suite only, every tab kept

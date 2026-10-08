@@ -59,7 +59,7 @@ def _num(v) -> float:
 
 
 # ---------------------------------------------------------------- blocks
-def _header(conn, code, today):
+def _header(conn, code, today, role=None):
     import billing_type
     import project_contacts
     p = _one(conn.execute("SELECT * FROM projects WHERE project_code = ?", (code,))) or {}
@@ -80,7 +80,8 @@ def _header(conn, code, today):
             pass
     bt = p.get("billing_type")
     import project_setup
-    return {"code": code, "name": p.get("name"), "job_number": p.get("job_number"), "access_labels": project_setup.access_labels(p), "address": p.get("address"), "status": p.get("status") or "active",
+    return {"code": code, "name": p.get("name"), "job_number": p.get("job_number"), "access_labels": project_setup.access_labels(p),
+            "color": project_setup.color_hex({**p, "project_code": code}), "can_edit": role in FINANCIAL_ROLES, "address": p.get("address"), "status": p.get("status") or "active",
             "billing_type": bt, "billing_label": billing_type.label(bt), "billing_short": billing_type.SHORT.get(bt or "", "Not set"),
             "start_date": start, "target_completion": end, "days_left": days_left, "time_elapsed_pct": elapsed,
             "client": people.get("owner_client"), "project_manager": people.get("project_manager"),
@@ -259,7 +260,7 @@ def summary(conn, code: str, role: Optional[str], today: Optional[date] = None, 
     if not conn.execute("SELECT 1 FROM projects WHERE project_code = ?", (code,)).fetchone():
         return None
     out = {
-        "header": _safe(conn, lambda: _header(conn, code, today), {"code": code}),
+        "header": _safe(conn, lambda: _header(conn, code, today, role), {"code": code}),
         "schedule": _safe(conn, lambda: _schedule(conn, code), None),
         "field_today": _safe(conn, lambda: _field_today(conn, code, today), None),
         "risk": _safe(conn, lambda: _risk(conn, code, today), None),
