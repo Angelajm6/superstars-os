@@ -876,6 +876,8 @@
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
+<script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
+<script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
 <style>
   /* #356 — billing type per job: AIA-only pieces hide on jobs billed another way */
   body[data-billing-type]:not([data-billing-type=""]):not([data-billing-type="aia_sov"]) .aia-only { display: none !important; }
@@ -6106,6 +6108,8 @@
 </div>
 
 <script>
+// the view a job page opens on counts as opened (redesign step 1)
+document.addEventListener('DOMContentLoaded', () => { const a = document.querySelector('.nav-link.active[data-view]'); if (a) SSC_track('job', a.getAttribute('data-view')); });
 // Sidebar navigation - view switching
 document.querySelectorAll('.nav-link').forEach(link => {
   link.addEventListener('click', (e) => {
@@ -6137,6 +6141,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
       targetSection.classList.add('active');
       document.querySelector('.views-container').scrollTo({top: 0, behavior: 'smooth'});
     }
+    SSC_track('job', targetView);   // redesign step 1: which tabs get opened (counts only)
     // Per-view lazy loads
     if (targetView === 'sov') {   // #262 — Financial; SOV_load is absent (server-stripped) for non-admin/c_suite
       if (typeof window.SOV_load === 'function') window.SOV_load();
