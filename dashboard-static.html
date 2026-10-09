@@ -1128,9 +1128,10 @@
       <style>
         .ov-back { --job: #24418C; position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 10px; padding: 10px 24px; background: color-mix(in srgb, var(--canvas, #F6F7F9) 86%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line, #eceef3); }
         .ov-back[hidden] { display: none; }
-        .ov-back-btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex: none; font: inherit; font-size: 13px; font-weight: 700; color: #fff; border: 0; border-radius: 10px; padding: 7px 13px 7px 9px; cursor: pointer;
-          background: linear-gradient(135deg, color-mix(in srgb, var(--job) 75%, #fff), var(--job)); box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--job) 70%, transparent); transition: transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .2s; }
-        .ov-back-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 20px -8px color-mix(in srgb, var(--job) 75%, transparent); }
+        .ov-back-btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex: none; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+          color: color-mix(in srgb, var(--job) 85%, #14161C); background: #fff; border: 1.5px solid var(--line, #e3e5ea); border-radius: 10px; padding: 6px 12px 6px 8px;
+          transition: border-color .2s cubic-bezier(.2,.8,.2,1), color .2s; }
+        .ov-back-btn:hover, .ov-back-btn:focus-visible { border-color: var(--job); color: var(--job); }
         .ov-back-btn svg { width: 16px; height: 16px; }
         .ov-where { font-size: 13px; color: var(--muted, #8c92a0); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .ov-where b { color: var(--ink, #222633); font-weight: 600; }
