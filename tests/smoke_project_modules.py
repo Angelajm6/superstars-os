@@ -261,7 +261,7 @@ def main() -> int:
         ok("Settings card present", 'id="ps-mod-list"' in dash and 'id="ps-mod-save"' in dash)
         ok("router refuses hidden tabs", "if (link.hidden) return;" in dash)
         ok("KPIs honor switched-off modules", "!OFF.includes('drops')" in dash)
-        ok("operations panel present; no schedule card (Oct 7 notes)", 'id="jx-schedule"' not in dash and "jx-ops-bar" in dash)
+        ok("no schedule card (Oct 7 notes), no Operations panel (Oct 9)", 'id="jx-schedule"' not in dash and "jx-ops-bar" not in dash)
     finally:
         _cleanup()
 
