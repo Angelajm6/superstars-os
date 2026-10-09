@@ -18,8 +18,8 @@
 .np-overlay.open{display:flex;}
 .np-modal{background:#fff;border-radius:16px;width:100%;max-width:1060px;box-shadow:0 24px 64px rgba(20,22,28,.25);display:flex;flex-direction:column;max-height:calc(100vh - 48px);}
 .np-head{padding:16px 22px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;}
-.np-head .np-no{font-weight:800;font-size:20px;color:#B11E2E;font-variant-numeric:tabular-nums;}
-.np-head h2{font-size:19px;font-weight:800;margin:0;} .np-head p{flex-basis:100%;font-size:12.5px;color:var(--muted);margin:2px 0 0;}
+.np-head .np-no{font-weight:600;font-size:20px;color:#B11E2E;font-variant-numeric:tabular-nums;}
+.np-head h2{font-size:19px;font-weight:600;margin:0;} .np-head p{flex-basis:100%;font-size:12.5px;color:var(--muted);margin:2px 0 0;}
 .np-main{display:grid;grid-template-columns:170px minmax(0,1fr) 240px;min-height:0;flex:1;overflow:auto;}
 .np-rail{border-right:1px solid var(--line);padding:12px 8px;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;align-self:start;}
 .np-rail a{display:block;padding:7px 10px;border-radius:7px;color:var(--ink);opacity:.75;text-decoration:none;font-size:13px;}
@@ -27,7 +27,7 @@
 .np-body{padding:4px 22px 18px;min-width:0;}
 .np-sec{padding:14px 0;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .np-sec:first-child{border-top:0;} .np-sec .full{grid-column:1 / -1;}
-.np-sec h3{grid-column:1 / -1;margin:0;font-size:14.5px;font-weight:800;} .np-sec h3 small{font-weight:500;color:var(--muted);font-size:12.5px;margin-left:6px;}
+.np-sec h3{grid-column:1 / -1;margin:0;font-size:14.5px;font-weight:600;} .np-sec h3 small{font-weight:500;color:var(--muted);font-size:12.5px;margin-left:6px;}
 .np-field label,.np-lab{display:block;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
 .np-field input,.np-field select{width:100%;font:inherit;font-size:13px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);outline:none;box-sizing:border-box;}
 .np-field input[readonly],.np-field select:disabled{background:#F4F5F8;color:var(--muted);}

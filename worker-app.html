@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-<link rel="stylesheet" href="/files/static/fonts/typography.css">
+<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1012">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -21,7 +21,7 @@
       --color-ink: #14161C;
       --color-hairline: #E8E4DD;
       --color-mute: #76777E;
-      --font-header: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      --font-header: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       color-scheme: light;
     }
@@ -168,7 +168,8 @@
       color: var(--color-ink);
       letter-spacing: 10px;
       margin-bottom: 8px;
-      font-family: monospace;
+      font-family: var(--font-body);
+      font-variant-numeric: tabular-nums;
       height: 48px;
     }
 

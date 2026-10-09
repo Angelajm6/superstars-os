@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Company · Superstars Contracting</title>
-<link rel="stylesheet" href="/files/static/fonts/typography.css">
+<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1012">
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
@@ -78,7 +78,7 @@
   .cp-table tr.row-link:hover td { background: #FAFAFC; }
   .cp-id { font-weight: 700; color: var(--brand-red, #B11E2E); }
   /* Oct 7 notes batch C — job number, color square, access chips, Edit */
-  .pj-no { font-weight: 800; color: var(--brand-red, #B11E2E); font-variant-numeric: tabular-nums; }
+  .pj-no { font-weight: 600; color: var(--brand-red, #B11E2E); font-variant-numeric: tabular-nums; }
   .pj-job { display: flex; gap: 10px; align-items: flex-start; min-width: 230px; }
   .pj-job .pj-edit { margin-left: auto; }
   .pj-job .cp-id, .pj-no { white-space: nowrap; }
@@ -144,7 +144,7 @@
   /* #360 — Client portal tab */
   .pa-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0 0 14px; padding: 0; list-style: none; counter-reset: pa; }
   .pa-steps li { counter-increment: pa; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 10px 40px; position: relative; font-size: 12.5px; color: var(--muted); background: #fff; }
-  .pa-steps li::before { content: counter(pa); position: absolute; left: 12px; top: 10px; width: 20px; height: 20px; border-radius: 50%; background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); font-weight: 800; font-size: 11.5px; display: flex; align-items: center; justify-content: center; }
+  .pa-steps li::before { content: counter(pa); position: absolute; left: 12px; top: 10px; width: 20px; height: 20px; border-radius: 50%; background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); font-weight: 600; font-size: 11.5px; display: flex; align-items: center; justify-content: center; }
   .pa-steps b { display: block; color: var(--ink); font-size: 13px; margin-bottom: 2px; }
   @media (max-width: 1100px) { .pa-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 640px) { .pa-steps { grid-template-columns: 1fr; } }
@@ -164,7 +164,7 @@
   .pa-tog.on { background: var(--ui-soft, #E8EDF8); border-color: var(--ui-edge, rgba(36,65,140,.35)); color: var(--ui, #24418C); }
   .pa-tog.busy { opacity: .55; pointer-events: none; }
   .pa-temp { border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px; background: #F7F8FA; }
-  .pa-temp .tp { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 16px; font-weight: 700; letter-spacing: .5px; margin-top: 4px; user-select: all; }
+  .pa-temp .tp { font-family: 'Inter', system-ui, sans-serif; font-variant-numeric: tabular-nums slashed-zero; font-size: 17px; font-weight: 600; letter-spacing: 1.5px; margin-top: 4px; user-select: all; }
   /* client page: per-contact Edit + Remove */
   .ct-right { display: flex; align-items: center; gap: 12px; }
   .ct-edit { background: none; border: 0; padding: 0; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
@@ -229,7 +229,7 @@
         <style>
           .cc-week{margin-bottom:18px}
           .cc-week-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:10px}
-          .cc-week-head h2{margin:0;font-size:16px;font-weight:800;letter-spacing:-.01em}
+          .cc-week-head h2{margin:0;font-size:16px;font-weight:600;letter-spacing:-.01em}
           .cc-week-head .cp-muted{font-size:12.5px;margin-top:2px}
           .cc-week-link{flex:none;font-size:12px;font-weight:700;color:var(--ui);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:7px 13px;white-space:nowrap;background:#fff}
           .cc-week-link:hover{background:var(--ui-soft,#E8EDF8)}
@@ -272,7 +272,7 @@
           /* "From your email" card (static/js/gmail_suggest.js) */
           [data-gmail-card][hidden] { display: none; }
           .gm-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
-          .gm-head h2 { font-family: 'Archivo', -apple-system, 'Helvetica Neue', Arial, sans-serif; font-size: 16px; font-weight: 700; margin: 0; }
+          .gm-head h2 { font-family: 'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif; font-size: 16px; font-weight: 700; margin: 0; }
           .gm-count { font-size: 12px; color: #8C92A0; }
           .gm-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; background: #F4F6FB; border: 1px solid #E3E5EA; border-radius: 9px; padding: 8px 10px; margin: 4px 0 8px; font-size: 12.5px; color: #4A4F59; }
           .gm-row.warn { background: #FBF0DC; border-color: #F0D9AE; }
@@ -459,7 +459,7 @@
         <style>
           .cal{--cal-line:#ECEEF3;--cal-soft:#F7F8FB;--cal-ink:#14161C;--cal-mute:#8C92A0}
           .cal-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-          .cal-title{font-size:20px;font-weight:800;letter-spacing:-.01em;margin:0;min-width:220px}
+          .cal-title{font-size:20px;font-weight:600;letter-spacing:-.01em;margin:0;min-width:220px}
           .cal-sub{font-size:12.5px;color:var(--cal-mute)}
           .cal-seg{display:inline-flex;background:var(--cal-soft);border:1px solid var(--cal-line);border-radius:10px;padding:3px}
           .cal-seg button{font:inherit;font-size:12.5px;font-weight:700;padding:6px 12px;border:0;background:transparent;border-radius:8px;color:var(--cal-mute);cursor:pointer}

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<link rel="stylesheet" href="/files/static/fonts/typography.css">
+<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1012">
 <script src="/files/static/js/datepicker.js?v=1007"></script>
 <script src="/files/static/js/timepicker.js"></script>
 <!-- #210 company console redesign — REUSES the #209 drag framework:
@@ -50,7 +50,7 @@
   .brand { display: flex; align-items: center; gap: 14px; }
   .brand-mark { width: 42px; height: 42px; }
   .brand-text { line-height: 1.1; }
-  .brand-name { font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 18px; font-weight: 700; letter-spacing: 0.5px; color: var(--ink); text-transform: uppercase; }
+  .brand-name { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 18px; font-weight: 700; letter-spacing: 0.5px; color: var(--ink); text-transform: uppercase; }
   .brand-sub { font-size: 10px; color: var(--mute); letter-spacing: 1px; text-transform: uppercase; font-weight: 600; margin-top: 2px; }
   .topbar-right { display: flex; align-items: center; gap: 16px; font-size: 12px; color: var(--mute); }
   .console-pill { background: var(--ink); color: white; font-size: 10px; padding: 6px 12px; border-radius: 99px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
@@ -87,14 +87,14 @@
   .container { max-width: 1400px; margin: 0 auto; padding: 32px; }
 
   .section { background: white; border-radius: 10px; padding: 24px 28px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(20,22,28,0.04), 0 0 0 1px var(--hairline); }
-  .section h2 { font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .section h2 { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 4px; }
   .section .h2-sub { font-size: 12px; color: var(--mute); margin-bottom: 18px; }
 
   /* ==== TOP METRICS ROW ==== */
   .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
   .metric { background: white; border-radius: 10px; padding: 20px 22px; box-shadow: 0 1px 3px rgba(20,22,28,0.04), 0 0 0 1px var(--hairline); position: relative; overflow: hidden; }
   .metric-label { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--mute); }
-  .metric-value { font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 34px; font-weight: 700; margin-top: 8px; line-height: 1; color: var(--ink); }
+  .metric-value { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 34px; font-weight: 700; margin-top: 8px; line-height: 1; color: var(--ink); }
   .metric-value.ok { color: var(--ok); }
   .metric-value.warn { color: var(--warn); }
   .metric-value.bad { color: var(--bad); }
@@ -116,8 +116,8 @@
   }
   .project-card:hover { border-color: var(--ui); box-shadow: 0 4px 14px rgba(36,65,140,0.10); transform: translateY(-1px); }
   .project-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-  .project-card-name { font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 17px; font-weight: 700; line-height: 1.2; }
-  .project-card-code { font-family: 'Consolas', monospace; font-size: 10px; color: var(--mute); margin-top: 2px; }
+  .project-card-name { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 17px; font-weight: 700; line-height: 1.2; }
+  .project-card-code { font-family: 'Inter', system-ui, sans-serif; font-size: 11px; color: var(--mute); margin-top: 2px; }
   .project-card-addr { font-size: 12px; color: var(--mute); margin-top: 6px; line-height: 1.4; }
   .project-card-stats { display: flex; gap: 18px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--hairline); font-size: 11px; color: var(--mute); }
   .project-card-stats strong { color: var(--ink); font-weight: 700; }
@@ -207,7 +207,7 @@
      label with a small azure rounded-square marker (replaces the red text +
      red rules). */
   #cert-lib-tbody tr.cl-cat td { background: var(--status-oat-soft); border-top: 1px solid var(--status-oat); border-bottom: 1px solid var(--status-oat);
-    color: var(--oat-ink); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; padding: 7px 12px; }
+    color: var(--oat-ink); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; padding: 7px 12px; }
   .cl-cat-mark { display: inline-block; width: 8px; height: 8px; border-radius: 2.5px; background: var(--accent); margin-right: 8px; }
   .cl-code { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .cl-name { font-weight: 600; color: var(--ink); }
@@ -228,7 +228,7 @@
   .pp-head { padding: 20px 28px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center;
     position: sticky; top: 0; background: #fff; z-index: 5; }
   .pp-wid { font-size: 11px; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; font-weight: 700; }
-  .pp-name-h { font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 24px; font-weight: 700; margin-top: 4px; }
+  .pp-name-h { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 24px; font-weight: 700; margin-top: 4px; }
   .pp-close { background: none; border: none; font-size: 30px; color: var(--muted); cursor: pointer; line-height: 1; }
   .pp-body { padding: 24px 28px; }
   .pp-h3 { font-size: 14px; font-weight: 700; color: var(--ink); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -287,7 +287,7 @@
   .crm-card { background:#fff; border:1px solid var(--accent-edge); border-radius:14px; padding:15px 17px;
               box-shadow: inset 0 0 13px var(--accent-in), 0 1px 4px rgba(0,0,0,.04); min-height:120px; }
   .crm-card h3 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#54505A; margin:0 0 10px; }
-  .crm-bignum { font-weight:800; font-size:30px; line-height:1; color:#14161C; }
+  .crm-bignum { font-weight:600; font-size:30px; line-height:1; color:#14161C; }
   .crm-bignum .crm-over { color:var(--status-behind); font-size:14px; font-weight:700; margin-left:8px; }
   .crm-chips { display:flex; flex-wrap:wrap; gap:6px; }
   .crm-chip { display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600; color:#41414c;
@@ -586,7 +586,7 @@
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <button id="hrs-prev" type="button" style="background:white;border:1px solid var(--ui);color:var(--ui);padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">‹ Prev</button>
-          <div id="hrs-range" style="font-family:'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;font-size:14px;font-weight:700;min-width:220px;text-align:center;">—</div>
+          <div id="hrs-range" style="font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:14px;font-weight:700;min-width:220px;text-align:center;">—</div>
           <button id="hrs-next" type="button" style="background:white;border:1px solid var(--ui);color:var(--ui);padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">Next ›</button>
           <button id="hrs-csv" type="button" style="background:#14161C;color:white;border:none;padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;margin-left:14px;display:inline-flex;align-items:center;gap:6px;">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -776,9 +776,9 @@
     .ira-wait-code { font-weight:700; color:var(--brand-red); cursor:pointer; }
     /* ===== #276 — VP table + pipeline strips + lead chips (mockup v2; color law:
        green/blue/coral/oat status-only, oat chips for divisions, red glow = attention) ===== */
-    .dchip { display:inline-block; font-size:9px; font-weight:800; letter-spacing:.6px; text-transform:uppercase;
+    .dchip { display:inline-block; font-size:9px; font-weight:600; letter-spacing:.6px; text-transform:uppercase;
              color:#7a6f5c; background:var(--status-oat-soft); border:1px solid #e8e2d6; border-radius:6px; padding:2px 8px; }
-    .kindchip { font-size:9px; font-weight:800; letter-spacing:.6px; text-transform:uppercase;
+    .kindchip { font-size:9px; font-weight:600; letter-spacing:.6px; text-transform:uppercase;
                 color:#5b6270; background:#eef0f4; border-radius:6px; padding:2px 8px; }
     .pipe { display:flex; align-items:center; gap:4px; margin-top:9px; }
     .pipe .seg { height:5px; flex:1; border-radius:99px; background:var(--status-oat-soft); }
@@ -790,7 +790,7 @@
     .vp-band { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
     .vp-stat { flex:1; min-width:200px; background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px 16px;
                box-shadow:0 1px 2px rgba(30,35,60,.04), 0 8px 24px rgba(30,35,60,.06); display:flex; align-items:center; gap:12px; }
-    .mini-ring { width:40px; height:40px; border-radius:50%; flex:none; position:relative; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; }
+    .mini-ring { width:40px; height:40px; border-radius:50%; flex:none; position:relative; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; }
     .mini-ring::before { content:""; position:absolute; inset:0; border-radius:50%; background:var(--ring-bg, var(--status-oat-soft)); }
     .mini-ring::after { content:""; position:absolute; inset:4px; background:#fff; border-radius:50%; }
     .mini-ring b { position:relative; z-index:1; }
@@ -804,16 +804,16 @@
     .vprow .vp-t { font-size:13px; font-weight:700; }
     .vprow .vp-t .code { color:var(--brand-red); }
     .vprow .vp-s { font-size:11px; color:var(--muted); margin-top:2px; }
-    .vprow .amount { flex:none; font-size:14px; font-weight:800; font-variant-numeric:tabular-nums; }
+    .vprow .amount { flex:none; font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; }
     /* ===== #278 — Project Cost widget (MOCKUP_payroll_widget_csuite_v2, binding).
        COLOR-LAW AMENDMENT: the segmented DISTRIBUTION BAR wears the drop-plan four
        as segment tones (the bar IS the drop-plan language); materials/equipment/
        other = neutral ink/greys; chips/borders/labels stay status-only. ===== */
-    .pc-lockchip { font-size:9px; font-weight:800; letter-spacing:.6px; text-transform:uppercase;
+    .pc-lockchip { font-size:9px; font-weight:600; letter-spacing:.6px; text-transform:uppercase;
                    color:#7a6f5c; background:var(--status-oat-soft); border:1px solid #e8e2d6;
                    border-radius:6px; padding:2px 8px; margin-left:8px; }
     .pc-heroline { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
-    .pc-big { font-size:30px; font-weight:800; font-variant-numeric:tabular-nums; }
+    .pc-big { font-size:30px; font-weight:600; font-variant-numeric:tabular-nums; }
     .pc-proj { font-size:12px; font-weight:700; color:var(--brand-red); }
     .pc-subline { font-size:12px; color:var(--muted); margin-top:6px; }
     .pc-costbar { height:13px; border-radius:99px; overflow:hidden; display:flex;
@@ -826,7 +826,7 @@
     .pc-statrow { display:flex; gap:0; margin-top:15px; border-top:1px solid var(--line); padding-top:13px; }
     .pc-stat { flex:1; text-align:center; }
     .pc-stat + .pc-stat { border-left:1px solid var(--line); }
-    .pc-stat .v { font-size:15.5px; font-weight:800; font-variant-numeric:tabular-nums; }
+    .pc-stat .v { font-size:15.5px; font-weight:600; font-variant-numeric:tabular-nums; }
     .pc-stat .k { font-size:9.5px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--muted); margin-top:3px; }
     .pc-weekbars { display:flex; align-items:flex-end; gap:4px; height:34px; margin-top:15px; }
     .pc-weekbars i { flex:1; border-radius:3px 3px 0 0; background:linear-gradient(180deg,#5d7bee,var(--accent)); }
@@ -837,13 +837,13 @@
                color:#a23b30; background:var(--status-behind-soft); border-radius:8px; padding:6px 11px; }
     .pc-tail { font-size:11px; color:var(--muted); margin-top:12px; }
     .pc-selchips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
-    .pc-selchip { font-size:10px; font-weight:800; letter-spacing:.4px; border:1px solid var(--line);
+    .pc-selchip { font-size:10px; font-weight:600; letter-spacing:.4px; border:1px solid var(--line);
                   border-radius:999px; padding:3px 10px; cursor:pointer; background:#fff; color:var(--muted); }
     .pc-selchip.on { color:var(--accent-ink); border-color:var(--accent-edge); background:var(--accent-soft); }
     .pc-exp-row { display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid #F2EFE7; font-size:12.5px; flex-wrap:wrap; }
     .pc-exp-row:last-child { border-bottom:none; }
     .pc-exp-row.voided { opacity:.5; text-decoration:line-through; }
-    .pc-exp-amt { margin-left:auto; font-weight:800; font-variant-numeric:tabular-nums; }
+    .pc-exp-amt { margin-left:auto; font-weight:600; font-variant-numeric:tabular-nums; }
   </style>
   <div class="panel" data-panel="estimates">
     <div class="section">
@@ -1317,8 +1317,8 @@
     /* #245 — single, calmer wash (operator amendment) */
     .lrt-hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; flex-wrap: wrap; padding: 18px 22px 16px; border-bottom: 1px solid var(--line);
       background: radial-gradient(520px 170px at 14% 0%, var(--accent-in) 0%, rgba(255,255,255,0) 60%), #fff; }
-    .lrt-money-label { font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-top: 12px; }
-    .lrt-money { font-size: 44px; font-weight: 800; line-height: 1.05; letter-spacing: -.01em; font-variant-numeric: tabular-nums;
+    .lrt-money-label { font-size: 10.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-top: 12px; }
+    .lrt-money { font-size: 44px; font-weight: 600; line-height: 1.05; letter-spacing: -.01em; font-variant-numeric: tabular-nums;
       background: linear-gradient(135deg, var(--status-complete), var(--status-complete-deep)); -webkit-background-clip: text; background-clip: text; color: transparent; }
     .lrt-money-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
     .lrt-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
@@ -1350,8 +1350,8 @@
        gradient cells, 2px top border, no bottom border. */
     #lrt-grid tfoot td { padding: 10px 6px; border-top: 2px solid var(--status-oat); border-bottom: none;
       background: linear-gradient(180deg, #fff, var(--cream, #faf7f1)); font-variant-numeric: tabular-nums; }
-    #lrt-grid tfoot .cap { font-size: 10px; font-weight: 800; letter-spacing: .1em; color: var(--oat-ink); text-transform: uppercase; }
-    #lrt-grid tfoot .lrt-foot-total { font-size: 13.5px; font-weight: 800; color: var(--ink); }
+    #lrt-grid tfoot .cap { font-size: 10px; font-weight: 600; letter-spacing: .1em; color: var(--oat-ink); text-transform: uppercase; }
+    #lrt-grid tfoot .lrt-foot-total { font-size: 13.5px; font-weight: 600; color: var(--ink); }
     /* #245 — collapsed no-sign-ins strip (dashed oat-soft box) */
     .lrt-strip { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
       border: 2px dashed var(--status-oat); background: var(--status-oat-soft); color: var(--oat-ink);
@@ -1378,7 +1378,7 @@
     /* #245 — amounts in deep money-green (green = hero figure, amounts, grand chip only) */
     #lrt-grid .lrt-amount { color: var(--status-complete-deep); font-weight: 700; font-variant-numeric: tabular-nums; }
     .lrt-nosign-tag { display: inline-block; background: var(--status-oat-soft); border: 1px solid var(--status-oat); color: var(--oat-ink); border-radius: 999px; padding: 1px 8px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; margin-left: 6px; vertical-align: 1px; }
-    .lrt-grand { display: inline-block; background: linear-gradient(135deg, var(--status-complete), var(--status-complete-deep)); color: #fff; font-weight: 800; border-radius: 10px; padding: 6px 12px; font-size: 13.5px; box-shadow: 0 3px 10px rgba(21,160,126,.35); font-variant-numeric: tabular-nums; }
+    .lrt-grand { display: inline-block; background: linear-gradient(135deg, var(--status-complete), var(--status-complete-deep)); color: #fff; font-weight: 600; border-radius: 10px; padding: 6px 12px; font-size: 13.5px; box-shadow: 0 3px 10px rgba(21,160,126,.35); font-variant-numeric: tabular-nums; }
   </style>
 
   <!-- Settings moved to /account (each person's own account); company_nav.js forwards /#settings there. -->
@@ -1559,7 +1559,7 @@
 <div class="modal-bg" id="intake-modal">
   <div class="modal">
     <div class="modal-header">
-      <h2 style="font-family:'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;" data-i18n="modal-title">New Worker Intake</h2>
+      <h2 style="font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;" data-i18n="modal-title">New Worker Intake</h2>
       <button class="modal-close" id="modal-close">×</button>
     </div>
 
@@ -2803,7 +2803,7 @@ applyLanguage();
           <span class="badge-pill ${statusChip}" style="flex-shrink:0;white-space:nowrap;">${esc(statusLabel)}</span>
         </div>
         <div style="font-size:11px;color:var(--muted);margin-top:4px;">
-          ${c.card_number ? `Card # <span style="font-family:monospace;">${esc(c.card_number)}</span> · ` : ''}${datesLine}${c.issuing_body ? ' · ' + esc(c.issuing_body) : ''}${c.is_cof_prerequisite ? ' · <strong>CoF prereq</strong>' : ''}
+          ${c.card_number ? `Card # <span style="font-variant-numeric:tabular-nums;">${esc(c.card_number)}</span> · ` : ''}${datesLine}${c.issuing_body ? ' · ' + esc(c.issuing_body) : ''}${c.is_cof_prerequisite ? ' · <strong>CoF prereq</strong>' : ''}
         </div>
       </div>
       <button onclick="event.stopPropagation();window.deleteCert(${c.cert_id})" title="Delete cert" class="pp-x">×</button>
@@ -2940,7 +2940,7 @@ applyLanguage();
       card.style.cssText = 'background:white;border-radius:12px;width:100%;max-width:680px;max-height:96vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.4);';
       card.innerHTML = `
         <div style="padding:14px 18px;border-bottom:1px solid #E8E4DD;display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-family:'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;font-size:18px;font-weight:700;color:#14161C;">${esc(title)}</div>
+          <div style="font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:18px;font-weight:700;color:#14161C;">${esc(title)}</div>
           <button data-role="cam-cancel" style="background:none;border:none;font-size:28px;color:#76777E;cursor:pointer;line-height:1;padding:0 4px;" aria-label="Close">×</button>
         </div>
         <div data-role="cam-body" style="position:relative;background:#000;min-height:240px;display:flex;align-items:center;justify-content:center;flex:1;">
@@ -3107,7 +3107,7 @@ applyLanguage();
       card.style.cssText = 'background:white;border-radius:12px;width:100%;max-width:460px;max-height:96vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.3);';
       card.innerHTML = `
         <div style="padding:14px 18px;border-bottom:1px solid #E8E4DD;display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-family:'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;font-size:18px;font-weight:700;color:#14161C;">Upload ${esc(docTypeLabel)}?</div>
+          <div style="font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:18px;font-weight:700;color:#14161C;">Upload ${esc(docTypeLabel)}?</div>
           <button data-role="x" style="background:none;border:none;font-size:26px;color:#76777E;cursor:pointer;line-height:1;padding:0 4px;" aria-label="Close">×</button>
         </div>
         <div style="padding:18px;overflow-y:auto;flex:1;">
@@ -3297,7 +3297,7 @@ applyLanguage();
       card.style.cssText = 'background:white;border-radius:12px;width:100%;max-width:560px;max-height:96vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.3);';
       card.innerHTML = `
         <div style="padding:14px 18px;border-bottom:1px solid #E8E4DD;display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-family:'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;font-size:18px;font-weight:700;color:#14161C;">Review & save certification</div>
+          <div style="font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:18px;font-weight:700;color:#14161C;">Review & save certification</div>
           <button data-role="x" style="background:none;border:none;font-size:26px;color:#76777E;cursor:pointer;line-height:1;padding:0 4px;" aria-label="Close">×</button>
         </div>
         <div style="padding:18px;overflow-y:auto;flex:1;">
@@ -3313,7 +3313,7 @@ applyLanguage();
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
             <div>
               <label style="font-size:11px;color:#76777E;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;display:block;margin-bottom:4px;">Card #</label>
-              <input data-role="card_number" type="text" value="${esc(extracted.card_number || '')}" style="width:100%;padding:8px 10px;border:1px solid #E8E4DD;border-radius:6px;font-size:13px;font-family:monospace;">
+              <input data-role="card_number" type="text" value="${esc(extracted.card_number || '')}" style="width:100%;padding:8px 10px;border:1px solid #E8E4DD;border-radius:6px;font-size:13px;font-variant-numeric:tabular-nums;">
             </div>
             <div>
               <label style="font-size:11px;color:#76777E;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;display:block;margin-bottom:4px;">Issuing body</label>
@@ -4131,7 +4131,7 @@ applyLanguage();
       const nw = noWorkByDate && noWorkByDate[d];
       if (nw) {
         const reason = (nw.reason || 'OTHER').toUpperCase();
-        return `<th class="lrt-num${wkndCls}" style="background:#FFE8D6;color:#7A2E1B;" title="${esc(reason)}${nw.note ? ' · ' + esc(nw.note) : ''}">${esc(labels[i])} ${dayNum}<div style="font-size:8px;font-weight:800;letter-spacing:0.5px;margin-top:1px;">NO WORK</div><div style="font-size:7.5px;font-weight:700;">${esc(reason)}</div></th>`;
+        return `<th class="lrt-num${wkndCls}" style="background:#FFE8D6;color:#7A2E1B;" title="${esc(reason)}${nw.note ? ' · ' + esc(nw.note) : ''}">${esc(labels[i])} ${dayNum}<div style="font-size:8px;font-weight:600;letter-spacing:0.5px;margin-top:1px;">NO WORK</div><div style="font-size:7.5px;font-weight:700;">${esc(reason)}</div></th>`;
       }
       return `<th class="lrt-num${wkndCls}">${esc(labels[i])} ${dayNum}</th>`;
     }).join('');
@@ -4477,7 +4477,7 @@ applyLanguage();
   function todayLocal(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
   function fmtMDY(iso){if(!iso)return '';const p=String(iso).slice(0,10).split('-');return p.length===3?`${p[1]}/${p[2]}/${p[0]}`:iso;}
   function ringSVG(pct,size,stroke){const r=(size-stroke)/2,cx=size/2,Ci=2*Math.PI*r,p=Math.max(0,Math.min(100,Math.round(pct||0))),arc=p/100*Ci;
-    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${C.track}" stroke-width="${stroke}"/><circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${C.ok}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${arc.toFixed(2)} ${(Ci-arc).toFixed(2)}" transform="rotate(-90 ${cx} ${cx})"/><text x="${cx}" y="${cx}" dy="0.35em" text-anchor="middle" style="font-size:${Math.round(size*0.3)}px;font-weight:800;fill:${C.ink}">${p}%</text></svg>`;}
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${C.track}" stroke-width="${stroke}"/><circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${C.ok}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${arc.toFixed(2)} ${(Ci-arc).toFixed(2)}" transform="rotate(-90 ${cx} ${cx})"/><text x="${cx}" y="${cx}" dy="0.35em" text-anchor="middle" style="font-size:${Math.round(size*0.3)}px;font-weight:600;fill:${C.ink}">${p}%</text></svg>`;}
   function statusOf(d){const lc=(d.lifecycle||'');if(lc==='not_started')return 'not_started';const pct=(d.progress&&d.progress.pct)||0;if(pct>=100||/complete|closed|done/.test(lc))return 'complete';return 'active';}
   const jget=(u)=>fetch(u,{credentials:'include'}).then(r=>r.ok?r.json():null).catch(()=>null);
 
