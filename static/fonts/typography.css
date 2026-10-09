@@ -41,3 +41,63 @@ h1, h2, h3, h4, h5, h6,
   font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
   letter-spacing: -0.01em;
 }
+
+/* =============================================================================
+   ONE TYPE SYSTEM for every screen (accepted 2026-10-09, option 1 "Inter only").
+   One family everywhere: Inter. Titles are medium weight (500), never heavy; labels are
+   small spaced capitals. Archivo is retired from screens (PDF / printed documents keep
+   their own fonts via typography.py). Internal IDs (job codes, Worker IDs, RFI numbers)
+   stay in Inter, never monospace (CLAUDE.md terminology rule).
+   Page CSS sets its own title sizes inline; every rule below is prefixed `html body` so it
+   outranks the page rule it replaces (same selector + two element hops) without !important.
+   ============================================================================= */
+:root {
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --t-title: 26px;   --t-title-w: 500;   /* page / tab titles (H1) */
+  --t-card: 16px;    --t-card-w: 500;    /* section and card titles (H2 / H3) */
+  --t-sub: 14.5px;                       /* the line under a title */
+  --t-label: 11px;   --t-label-w: 500;   /* spaced capitals: field labels, tile labels */
+  --t-num: 28px;     --t-num-w: 500;     /* numbers in tiles */
+  --t-ink: #1B1F27;  --t-ink-2: #5B6170; --t-mute: #868C98;
+}
+html body, html body button, html body input, html body select, html body textarea { font-family: var(--font); }
+html body :is(h1, h2, h3, h4, h5, h6), html body :is(.archivo, .title, .heading) { font-family: var(--font); font-weight: var(--t-title-w); letter-spacing: -.015em; }
+
+
+/* the line under a title */
+html body .tab-sub, html body .tab-head .tab-sub, html body .dcr-head .sub, html body .exp-head .sub, html body .ec-sub, html body .mt-head .mt-sub,
+html body .pc-head p, html body .la-sub, html body .pd-sub, html body .dp-sub, html body .pay-sub, html body .fp-sub,
+html body .hello .sub, html body .h2-sub, html body .head-row .sub {
+  font-size: var(--t-sub); font-weight: 400; color: var(--t-ink-2); line-height: 1.45;
+}
+
+/* section and card titles */
+html body .jx-card h2, html body .pc-card h2, html body .cp-card-head h2, html body .card-h h2, html body .ac-card h2,
+html body .section h2, html body .card-title, html body .jx-ops-bar h2 {
+  font-size: var(--t-card); font-weight: var(--t-card-w); letter-spacing: -.01em;
+}
+
+/* page and tab titles — every tab of a job, every company page, the PM home. After the card
+   rule on purpose: a tab title that sits inside a .section is still a title. */
+html body .ssc-top h1,
+html body .tab-head h1, html body .tab-head h2, html body .dcr-head h1, html body .exp-head h1, html body .ec-head h2,
+html body .mt-head h2, html body .pc-head h1, html body .la-top h2, html body .pd-h1, html body .dp-h1,
+html body .pay-h1, html body .fp-h1, html body .hello h1, html body .head-row h2 {
+  font-size: var(--t-title); font-weight: var(--t-title-w); letter-spacing: -.025em; line-height: 1.2; color: var(--t-ink); text-wrap: balance;
+}
+html body .jx-hero h1 { font-weight: var(--t-title-w); letter-spacing: -.025em; }   /* the job header keeps its own size, on the job color */
+
+/* small spaced capitals: field and tile labels */
+html body .jx-kpi-k, html body .cp-kpi-k, html body .ps-k, html body .ps-det dt, html body .pc-sub, html body .jx-cg h3,
+html body .ph-kpi-k, html body .shc-kpi-k {
+  font-size: var(--t-label); font-weight: var(--t-label-w); letter-spacing: .08em; text-transform: uppercase; color: var(--t-mute);
+}
+
+/* numbers in tiles */
+html body .ph-wrap .jx-kpi-v, html body .cp-kpi-v, html body .ph-kpi-v, html body .shc-kpi-v {
+  font-weight: var(--t-num-w); font-size: var(--t-num); letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+}
+
+/* the job sidebar's link to the company dashboard: capitals, regular weight */
+html body .bl-company { font-size: 11.5px; font-weight: 400; letter-spacing: .1em; text-transform: uppercase; color: var(--t-ink-2); padding: 11px 18px; }
+html body .bl-company:hover { color: var(--t-ink); }

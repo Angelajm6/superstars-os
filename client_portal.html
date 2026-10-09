@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Superstars Contracting · Project Portal</title>
-<link rel="stylesheet" href="/files/static/fonts/typography.css">
+<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1012">
 <!-- #264 — read-only CLIENT portal. #269 — SECTION-GATED: the page asks /api/portal/context
      which sections this client has been granted (progress / photos / documents / daily /
      schedule, all default OFF) and renders ONLY those. Every section's data endpoint
@@ -21,7 +21,7 @@
   .topbar{background:#fff;border-bottom:1px solid var(--hairline);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:5;}
   .brand{display:flex;align-items:center;gap:11px;min-width:0;}
   .brand svg, .brand img.brand-mark{width:34px;height:34px;flex:none;}  /* #265 — reserved box so a swapped logo can't shift layout */
-  .brand-name{font-family:'Archivo',-apple-system,sans-serif;font-size:15px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;line-height:1;}
+  .brand-name{font-family:'Inter',-apple-system,sans-serif;font-size:15px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;line-height:1;}
   .brand-sub{font-size:9px;color:var(--mute);letter-spacing:1px;text-transform:uppercase;font-weight:600;margin-top:3px;}
   .chip{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--mute);flex:none;}
   .chip b{color:var(--ink);font-weight:600;}
@@ -31,7 +31,7 @@
 
   .hero{margin:6px 0 22px;}
   .hero .pill{display:inline-block;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--brand-red);background:#fbeceb;padding:4px 10px;border-radius:99px;margin-bottom:10px;}
-  .hero h1{font-family:'Archivo',-apple-system,sans-serif;font-size:27px;font-weight:700;line-height:1.15;}
+  .hero h1{font-family:'Inter',-apple-system,sans-serif;font-size:27px;font-weight:700;line-height:1.15;}
   .hero .addr{color:var(--mute);font-size:14px;margin-top:6px;}
   .status-badge{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:3px 9px;border-radius:99px;background:var(--ok);color:#fff;margin-left:8px;vertical-align:middle;}
 
@@ -39,7 +39,7 @@
   @media (max-width:640px){.cards{grid-template-columns:1fr;}}
   .card{background:#fff;border:1px solid var(--hairline);border-radius:14px;padding:18px 20px;}
   .card .k{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--mute);}
-  .progress-num{font-size:34px;font-weight:800;font-family:'Archivo',sans-serif;line-height:1;margin:8px 0 4px;}
+  .progress-num{font-size:34px;font-weight:600;font-family:'Inter',sans-serif;line-height:1;margin:8px 0 4px;}
   .progress-label{font-size:13px;color:var(--mute);font-weight:600;}
   .bar{height:9px;background:#eee7df;border-radius:99px;overflow:hidden;margin-top:14px;}
   .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--brand-red),#d8453f);border-radius:99px;transition:width .5s;}
@@ -47,7 +47,7 @@
   .summary-meta{font-size:12px;color:var(--mute);margin-top:10px;}
 
   .sec-head{display:flex;align-items:baseline;justify-content:space-between;margin:26px 2px 14px;}
-  .sec-head h2{font-family:'Archivo',sans-serif;font-size:18px;font-weight:700;}
+  .sec-head h2{font-family:'Inter',sans-serif;font-size:18px;font-weight:700;}
   .sec-head .cnt{font-size:12px;color:var(--mute);}
   .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;}
   .ph{background:#fff;border:1px solid var(--hairline);border-radius:12px;overflow:hidden;cursor:pointer;transition:box-shadow .15s,transform .15s;display:block;}

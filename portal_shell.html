@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Superstars Contracting — Project Portal</title>
-  <link rel="stylesheet" href="/files/static/fonts/typography.css">
+  <link rel="stylesheet" href="/files/static/fonts/typography.css?v=1012">
   <link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
   <script src="/files/static/js/shell.js?v=1007" defer></script>
   <script src="/files/static/vendor/chart.umd.min.js"></script>
@@ -32,7 +32,7 @@
     .sidebar-header { display:flex; align-items:center; gap:10px; padding:0 10px 18px;
                       border-bottom:1px solid var(--hairline); margin-bottom:10px; }
     .sidebar-header img.brand-mark { width:24px; height:24px; object-fit:contain; } /* #265 reserved box */
-    .brand-name { font-family:'Archivo',-apple-system,sans-serif; font-size:13px; font-weight:700;
+    .brand-name { font-family:'Inter',-apple-system,sans-serif; font-size:13px; font-weight:700;
                   letter-spacing:.5px; text-transform:uppercase; line-height:1.2; }
     .brand-sub { font-size:9px; color:var(--mute); letter-spacing:1px; text-transform:uppercase;
                  font-weight:600; margin-top:2px; }
@@ -90,9 +90,9 @@
     /* #308 proposals */
     .prp-card { background:#fff; border:1px solid var(--hairline); border-radius:12px; padding:18px 20px; margin-bottom:14px; }
     .prp-head { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; flex-wrap:wrap; }
-    .prp-title { font-size:15px; font-weight:800; }
+    .prp-title { font-size:15px; font-weight:600; }
     .prp-meta { font-size:12px; color:var(--mute); margin-top:3px; }
-    .prp-price { font-size:22px; font-weight:800; text-align:right; }
+    .prp-price { font-size:22px; font-weight:600; text-align:right; }
     .prp-price s { display:block; font-size:11px; color:var(--mute); text-decoration:none; font-weight:600; }
     .prp-pill { display:inline-block; font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; background:#F3F0E9; color:#6b6455; }
     .prp-pill.open { background:#FFF4E5; color:#9A5B00; }
@@ -473,7 +473,7 @@
       '" stroke-linecap="round" stroke-dasharray="' + arc.toFixed(2) + ' ' + (Ci - arc).toFixed(2) +
       '" transform="rotate(-90 ' + cx + ' ' + cx + ')"/><text x="' + cx + '" y="' + cx +
       '" dy="0.35em" text-anchor="middle" style="font-size:' + Math.round(size * 0.3) +
-      'px;font-weight:800;fill:' + C.ink + '">' + p + '%</text></svg>';
+      'px;font-weight:600;fill:' + C.ink + '">' + p + '%</text></svg>';
   }
   function wIcon(name, sz) {
     return '<svg width="' + sz + '" height="' + sz + '"><use href="#w-' + esc(name || 'cloud') + '"/></svg>';

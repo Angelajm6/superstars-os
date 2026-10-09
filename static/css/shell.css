@@ -34,7 +34,7 @@
 .ssc-side { background: var(--side-bg, #F3F4F6); color: var(--side-ink, #2B2F38); border-right: 1px solid var(--side-edge, #E3E5EA); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 .ssc-side .brand { display: flex; align-items: center; gap: 10px; padding: 18px 18px 14px; border-bottom: 1px solid var(--side-edge, #E3E5EA); margin: 0; }
 .ssc-side .brand-mark { width: 34px; height: 34px; object-fit: contain; flex-shrink: 0; }
-.ssc-side .brand-name { font-family: 'Archivo', 'Inter', -apple-system, sans-serif; font-size: 13px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--ink, #14161C); line-height: 1.1; }
+.ssc-side .brand-name { font-family: 'Inter', -apple-system, sans-serif; font-size: 13px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--ink, #14161C); line-height: 1.1; }
 .ssc-side .brand-sub { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--side-muted, #8A8F99); margin-top: 2px; font-weight: 600; }
 
 .ssc-side .ssc-nav { padding: 10px 10px; display: flex; flex-direction: column; gap: 2px; }
@@ -118,7 +118,7 @@
 
 /* page head: eyebrow + title + sub + actions, used inside .ssc-main content */
 .ssc-page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 0 0 16px; }
-.ssc-page-head h2 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.3px; line-height: 1.15; }
+.ssc-page-head h2 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.3px; line-height: 1.15; }
 .ssc-page-head .sub { color: var(--muted, #8c92a0); font-size: 13px; margin-top: 4px; max-width: 70ch; }
 .ssc-page-head .ssc-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
