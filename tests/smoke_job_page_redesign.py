@@ -202,6 +202,11 @@ def main() -> int:
     assert re.fullmatch(r"#[0-9A-F]{6}", hd["color"]) and hd["can_edit"] is True and _summary(pm)["header"]["can_edit"] is False
     assert 'id="jx-hero"' in page and 'id="jx-edit"' in page and "window.SSC_editProject" in page and "--job" in page
     assert "prefers-reduced-motion: reduce" in page and "function jxIntro" in page
+    # one way back to the overview from every tab (Oct 9): pinned above the views, hidden on Project Health
+    i_bar, i_views = page.index('id="ov-back"'), page.index('<div class="views-container">')
+    assert i_bar < i_views and '<div class="ov-back" id="ov-back" hidden>' in page and "Back to overview" in page
+    assert ".nav-link[data-view=\"dashboard\"]" in page and "bar.hidden = key === 'dashboard'" in page
+    assert 'id="ov-back"' in pm_page, "PMs and supers get it too"
     passed += 1; print("  dashboard page ok")
 
     # ---- sidebar: three groups, Finances for the C-suite only, every tab kept

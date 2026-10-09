@@ -1119,6 +1119,51 @@
       })();
     </script>
 
+      <!-- one way back to the job's overview from every tab (Oct 9): sticky at the top of
+           the window (above the views: the page scrolls, not the views container), in the job's color; hidden on Project Health itself -->
+      <div class="ov-back" id="ov-back" hidden>
+        <button type="button" class="ov-back-btn" id="ov-back-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Back to overview</button>
+        <span class="ov-where" id="ov-where"></span>
+      </div>
+      <style>
+        .ov-back { --job: #24418C; position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 10px; padding: 10px 24px; background: color-mix(in srgb, var(--canvas, #F6F7F9) 86%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line, #eceef3); }
+        .ov-back[hidden] { display: none; }
+        .ov-back-btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex: none; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+          color: color-mix(in srgb, var(--job) 85%, #14161C); background: #fff; border: 1.5px solid var(--line, #e3e5ea); border-radius: 10px; padding: 6px 12px 6px 8px;
+          transition: border-color .2s cubic-bezier(.2,.8,.2,1), color .2s; }
+        .ov-back-btn:hover, .ov-back-btn:focus-visible { border-color: var(--job); color: var(--job); }
+        .ov-back-btn svg { width: 16px; height: 16px; }
+        .ov-where { font-size: 13px; color: var(--muted, #8c92a0); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ov-where b { color: var(--ink, #222633); font-weight: 600; }
+        @media (max-width: 860px) { .ov-back { top: var(--ov-top, 0px); z-index: 5; } }   /* under the phone's pinned top bar, and under its open menu */
+        @media (max-width: 640px) { .ov-back { padding: 8px 14px; } }
+        @media (prefers-reduced-motion: reduce) { .ov-back-btn { transition: none; } }
+      </style>
+      <script>
+      (function () {
+        const bar = document.getElementById('ov-back');
+        const sync = () => {
+          const v = document.querySelector('.view.active'), key = v ? v.getAttribute('data-view') : 'dashboard';
+          bar.hidden = key === 'dashboard';
+          if (bar.hidden) return;
+          const link = document.querySelector('.nav-link[data-view="' + key + '"]');
+          const job = (document.querySelector('[data-project-title]') || {}).textContent || '';
+          const tab = link ? link.textContent.trim() : '';
+          document.getElementById('ov-where').innerHTML = (job.trim() ? job.trim().replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]) + ' · ' : '') + '<b>' + tab.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]) + '</b>';
+        };
+        // on phones the sidebar becomes a pinned top bar: sit right under it
+        const place = () => { const sb = document.querySelector('.sidebar'); const st = sb && getComputedStyle(sb);
+          bar.style.setProperty('--ov-top', st && st.position === 'sticky' ? Math.round(sb.getBoundingClientRect().height) + 'px' : '0px'); };
+        window.addEventListener('resize', place); document.addEventListener('DOMContentLoaded', place);
+        document.addEventListener('click', e => { if (e.target.closest('.sidebar')) setTimeout(place, 50); });   // the menu opening / closing changes its height
+        document.getElementById('ov-back-btn').addEventListener('click', () => {
+          const home = document.querySelector('.nav-link[data-view="dashboard"]'); if (home) home.click();
+        });
+        // whatever switches the tab (the sidebar, a drill-through, a card link), the bar follows
+        const watch = () => { const mo = new MutationObserver(sync); document.querySelectorAll('.view[data-view]').forEach(v => mo.observe(v, { attributes: true, attributeFilter: ['class'] })); };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { sync(); watch(); }); else { sync(); watch(); }
+      })();
+      </script>
     <div class="views-container">
       <!-- PROJECT HEALTH / DASHBOARD -->
       <section class="view active" data-view="dashboard">
@@ -1359,6 +1404,7 @@
               $j('jx-address').textContent = (H.client && H.address ? ' · ' : '') + (H.address || '');
               const wrap = document.querySelector('.ph-wrap');
               if (wrap && H.color) wrap.style.setProperty('--job', H.color);   // the job's own calendar color
+              const ob = document.getElementById('ov-back'); if (ob && H.color) ob.style.setProperty('--job', H.color);   // and the Back to overview bar
               $j('jx-hno').hidden = H.job_number == null; $j('jx-hno').textContent = H.job_number != null ? '#' + H.job_number : '';
               $j('jx-edit').hidden = !H.can_edit;
               const chips = [];
