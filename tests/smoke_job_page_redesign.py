@@ -194,7 +194,16 @@ def main() -> int:
     band = page[i:page.index("$j('jx-kpis').innerHTML", i)]
     assert re.findall(r"kpi\('([^']+)'", band) == ["On site today", "Complete"] and ">Open items<" in band, band
     for gone in ("Drops behind", "Today\\'s report", "Balance to finish", "Open RFIs", 'id="jx-schedule"', "Safety events", 'id="jx-risk"'):
-        assert gone not in page[page.index('data-view="dashboard"'):page.index('id="jx-ops-toggle"')], gone
+        assert gone not in page[page.index('data-view="dashboard"'):page.index('data-view="employees"')], gone
+    # Project Health cleanup (accepted 2026-10-09): no Operations section, no saved layouts, no drag-grid
+    # widgets; weather sits in Field today; crew cert alerts are one amber line in Open items
+    for gone in ('id="jx-ops-toggle"', "jx-ops-bar", 'id="ph-grid"', "ph-reset-layout", "Reset layout", "gridstack",
+                 "chart.umd", "page_key=project_health", "ph-active-body", "ph-roster-body", "ph-certs-body", "ph-donut", 'id="ph-bar"'):
+        assert gone not in page, gone
+    fld = page[page.index('id="jx-field"'):page.index('id="jx-contacts"')]
+    assert 'id="jx-wx"' in fld and 'id="wx-days"' in fld and 'id="wx-temp"' in fld
+    assert "$j('jx-field').appendChild(jxWx)" in page and "loadWeather()" in page
+    assert "R.certs_expired" in page and "R.certs_expiring_30" in page and 'jx-alert warn" data-goto="employees"' in page
     assert 'id="jx-items"' in page and 'id="jx-form"' in page and "/api/team/items" in page
     assert '<h2>Finances <a data-goto="payments">' in page and 'id="jx-money"' not in pm_page
     # the sleek header (accepted 2026-10-08): the job's own color, Edit project top-left for admin / C-suite only

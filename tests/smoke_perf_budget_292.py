@@ -62,7 +62,7 @@ BUDGETS = {
     },
     "project_dashboard": {
         "page": "/projects/" + P,
-        "apis": ["/api/projects/" + P + "/bootstrap", "/api/dashboard/layout?page_key=project_health",
+        "apis": ["/api/projects/" + P + "/bootstrap",
                  "/api/auth/me", "/api/weather?project=" + P,
                  "/api/projects/" + P + "/reports/latest", "/api/toolbox-talks"],
         "reqs": 13, "kb": 120,

@@ -5,15 +5,6 @@
 <link rel="stylesheet" href="/files/static/fonts/typography.css?v=1012">
 <script src="/files/static/js/datepicker.js?v=1007"></script>
 <script src="/files/static/js/timepicker.js"></script>
-<!-- Chart.js 4.4.6 vendored LOCALLY (#208) — served from the repo, not a CDN,
-     so the field-reachable (Tailscale, offline) dashboard still renders charts.
-     A CDN would blank the charts offline — the exact failure to avoid. -->
-<script src="/files/static/vendor/chart.umd.min.js"></script>
-<!-- GridStack 10.3.1 vendored LOCALLY (#209) — drag/resize + layout serialization.
-     Same offline reasoning as Chart.js: field devices are offline on Tailscale,
-     a CDN would fail and the grid would not initialize. -->
-<link rel="stylesheet" href="/files/static/vendor/gridstack.min.css">
-<script src="/files/static/vendor/gridstack-all.js"></script>
 <style>
   /* ===== Project Health redesign (#208) — new design language, modular DRAG-READY widgets ===== */
   .ph-wrap { color:var(--ink, #222633); }
@@ -29,62 +20,6 @@
   .ph-actions .ph-btn[data-link]:hover, .ph-actions .ph-btn:hover { background:var(--ui-deep, #1B3272); color:#fff; }
   .ph-actions .ph-btn.ghost[data-link]:hover, .ph-actions .ph-btn.ghost:hover { background:var(--ui-soft, #E8EDF8); color:var(--ui, #24418C); }
 
-  /* KPI tiles */
-  .ph-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin:16px 0 20px; }
-  .ph-kpi { background:#fff; border:1px solid var(--line, #eceef3); border-radius:12px; padding:16px 18px; display:flex; align-items:center; gap:14px; }
-  .ph-kpi-k { font-size:11px; color:var(--muted, #8c92a0); text-transform:uppercase; letter-spacing:.06em; }
-  .ph-kpi-v { font-weight:600; font-size:26px; line-height:1; margin-top:4px; }
-  .ph-kpi-sub { font-size:11px; color:var(--muted, #8c92a0); margin-top:4px; }
-
-  /* uniform DRAG-READY widget wrapper — a future drag-grid (GridStack/Muuri) wraps
-     EACH .ph-widget node 1:1 as a grid item; nothing inside changes. The .ph-grip
-     is the pre-placed drag handle (inert until a grid is mounted). */
-  .ph-grid { display:grid; grid-template-columns:repeat(12,1fr); gap:16px; align-items:start; }
-  .ph-widget { background:#fff; border:1px solid var(--line, #eceef3); border-radius:12px; display:flex; flex-direction:column; overflow:hidden; }
-  .ph-widget-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 18px 0; }
-  .ph-widget-head h3 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-2, #4A4F59); margin:0; }
-  .ph-grip { color:var(--status-oat, #cabfad); font-size:15px; line-height:1; cursor:grab; user-select:none; }
-  .ph-widget-body { padding:14px 18px 18px; flex:1; }
-  .ph-col-12 { grid-column:span 12; } .ph-col-8 { grid-column:span 8; } .ph-col-6 { grid-column:span 6; } .ph-col-4 { grid-column:span 4; }
-  @media (max-width:1024px){ .ph-grid > .ph-widget { grid-column:span 12 !important; } }
-
-  /* rings */
-  .ph-ring text { font-family:inherit; }
-
-  /* active-drops panel */
-  .ph-active-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:12px; }
-  .ph-drop { display:flex; align-items:center; gap:12px; border:1px solid var(--line, #eceef3); border-radius:10px; padding:10px 12px; background:var(--cream, #faf7f1); }
-  .ph-drop-label { font-weight:600; font-size:14px; }
-  .ph-drop-stage { font-size:11px; color:var(--ink-2, #4A4F59); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .ph-drop-elev { font-size:11px; color:var(--muted, #8c92a0); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
-  .ph-more { font-size:12px; color:var(--muted, #8c92a0); margin-top:10px; }
-
-  /* donut + legend */
-  .ph-donut-wrap { position:relative; height:180px; }
-  .ph-donut-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; }
-  .ph-donut-center .n { font-size:26px; font-weight:600; line-height:1; }
-  .ph-donut-center .l { font-size:11px; color:var(--muted, #8c92a0); text-transform:uppercase; letter-spacing:.06em; }
-  .ph-legend { margin-top:12px; display:flex; flex-direction:column; gap:7px; }
-  .ph-leg { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-2, #4A4F59); }
-  .ph-leg .dot { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
-  .ph-leg b { margin-left:auto; color:var(--ink, #222633); font-weight:600; }
-
-  /* bar */
-  .ph-bar-wrap { position:relative; height:220px; }
-
-  /* roster (W-#### only) */
-  .ph-roster { width:100%; border-collapse:collapse; font-size:13px; }
-  .ph-roster th{text-align:left;padding:7px 10px}
-  .ph-roster td { padding:7px 10px; border-bottom:1px solid var(--line, #eceef3); }
-  .ph-wid { font-weight:700; color:var(--brand-red, #B11E2E); }
-  .ph-stillin { color:var(--status-warn, #9A5B00); font-weight:600; }
-
-  /* certs */
-  .ph-cert-row { display:flex; align-items:baseline; gap:10px; padding:8px 0; border-bottom:1px solid var(--line, #eceef3); }
-  .ph-cert-n { font-size:22px; font-weight:600; min-width:34px; }
-  .ph-cert-l { font-size:12px; color:var(--ink-2, #4A4F59); }
-  .ph-cert-foot { font-size:11px; color:var(--muted, #8c92a0); margin-top:10px; }
-
   /* empty / loading states — clean, never blank */
   .ph-empty { text-align:center; padding:22px 12px; color:var(--muted, #8c92a0); }
   .ph-empty-title { font-weight:700; color:var(--ink-2, #4A4F59); font-size:14px; }
@@ -94,19 +29,6 @@
   /* build-version stamp */
   .ph-build { margin:30px 0 8px; padding-top:14px; border-top:1px solid var(--line, #eceef3); color:var(--muted, #8c92a0); font-size:11px; letter-spacing:.04em; }
 
-  /* ===== GridStack integration (#209) — real drag + resize, per-user layouts ===== */
-  .ph-gridbar { display:flex; align-items:center; gap:12px; margin:8px 0 4px; }
-  .ph-reset { background:#fff; color:var(--ink-2, #4A4F59); border:1px solid var(--line, #eceef3); border-radius:8px; padding:7px 12px; font-size:12px; font-weight:700; cursor:pointer; }
-  .ph-reset:hover { border-color:var(--ui); color:var(--ui); }
-  .ph-gridbar-hint { font-size:11px; color:var(--muted, #8c92a0); }
-  .grid-stack { background:transparent; }
-  /* the .ph-widget card IS the visible surface; the grid item-content is just its box */
-  .grid-stack-item-content { background:transparent; border:0; padding:0; overflow:hidden; display:flex; }
-  .grid-stack-item-content > .ph-widget { width:100%; height:100%; overflow:auto; }
-  .ph-grip { cursor:grab; }
-  .grid-stack-item.ui-draggable-dragging { opacity:.9; }
-  .grid-stack-item.ui-draggable-dragging .ph-grip { cursor:grabbing; }
-  .grid-stack-item > .ui-resizable-handle { z-index:6; }
   .brand-mark,.mark{object-fit:contain;}  /* #265 swap-safe logo */
 </style>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -232,26 +154,26 @@
     .tbx-cat-demo     { --c:var(--muted, #8c92a0); --cbg:rgba(140,146,160,.12); }
     .tbx-cat-general  { --c:var(--ui, #24418C); --cbg:rgba(36,65,140,.10); }
 
-    /* #217 Weather widget — current conditions (calm-blue inward tile) + 5-day
-       forecast row with colored glyphs + blue rain-%. Icons carry their own
-       colors via the w-* symbols; rain blue is #2f86d6 per the mockup. */
-    .wx-now { display:flex; align-items:center; gap:12px; padding:11px 13px; border:1px solid rgba(36,65,140,.42); border-radius:13px; box-shadow:inset 0 0 13px rgba(36,65,140,.14),0 1px 4px rgba(0,0,0,.04); margin-bottom:13px; }
-    .wx-now-ico { width:44px; height:44px; flex-shrink:0; }
-    .wx-now-ico svg { width:44px; height:44px; display:block; }
+    /* #217 Weather — lives in the job dashboard "Field today" card: current conditions on a
+       soft job-color wash + 5 day tiles. Icons carry their own colors via the w-* symbols. */
+    .jx-wx { display:grid; gap:10px; margin-top:12px; padding-top:14px; border-top:1px solid var(--line, #eceef3); }
+    .wx-now { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:14px; background:linear-gradient(120deg, color-mix(in srgb, var(--job, #24418C) 10%, #fff), #fff); }
+    .wx-now-ico { width:40px; height:40px; flex-shrink:0; }
+    .wx-now-ico svg { width:40px; height:40px; display:block; }
     .wx-now-meta { flex:1; min-width:0; }
-    .wx-now-temp { font-size:34px; font-weight:600; line-height:1; color:var(--ink, #222633); }
-    .wx-now-cond { font-weight:600; font-size:14px; color:var(--ink, #222633); margin-top:3px; }
-    .wx-now-sub { color:var(--muted, #8c92a0); font-size:12px; margin-top:2px; }
-    .wx-now-rain { display:flex; align-items:center; gap:5px; color:var(--ui, #24418C); font-weight:600; font-size:13px; margin-top:4px; }
+    .wx-now-temp { font-size:28px; font-weight:500; letter-spacing:-.02em; line-height:1.05; color:var(--ink, #222633); font-variant-numeric:tabular-nums; }
+    .wx-now-cond { font-weight:500; font-size:13.5px; color:var(--ink, #222633); margin-top:3px; }
+    .wx-now-sub { color:var(--muted, #8c92a0); font-size:12.5px; margin-top:2px; }
+    .wx-now-rain { display:flex; align-items:center; gap:5px; color:color-mix(in srgb, var(--job, #24418C) 80%, #14161C); font-weight:600; font-size:12.5px; margin-top:3px; }
     .wx-drop { width:13px; height:13px; flex-shrink:0; }
-    .wx-fc-label { font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--muted, #8c92a0); margin:0 2px 9px; }
-    .wx-days { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
-    .wx-day { border:1px solid var(--line, #eceef3); border-radius:11px; padding:10px 4px; text-align:center; }
-    .wx-day .wx-dn { font-weight:700; font-size:12px; color:var(--ink, #222633); }
-    .wx-day .wx-di { width:26px; height:26px; display:block; margin:7px auto 6px; }
+    .wx-days { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:6px; }
+    .wx-day { border:1px solid var(--line, #eceef3); border-radius:12px; padding:8px 2px; text-align:center; transition:border-color .2s, transform .2s; }
+    .wx-day:hover { border-color:var(--job, #24418C); transform:translateY(-1px); }
+    .wx-day .wx-dn { font-size:11px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; color:var(--muted, #8c92a0); }
+    .wx-day .wx-di { width:24px; height:24px; display:block; margin:5px auto 4px; }
     .wx-day .wx-hi { font-weight:600; font-size:13px; color:var(--ink, #222633); }
-    .wx-day .wx-lo { color:var(--muted, #8c92a0); font-size:12px; }
-    .wx-day .wx-rn { display:inline-flex; align-items:center; gap:3px; color:var(--ui, #24418C); font-weight:600; font-size:11.5px; margin-top:7px; }
+    .wx-day .wx-lo { color:var(--muted, #8c92a0); font-size:12px; font-weight:500; }
+    .wx-day .wx-rn { display:inline-flex; align-items:center; gap:3px; color:color-mix(in srgb, var(--job, #24418C) 80%, #14161C); font-weight:600; font-size:11px; margin-top:4px; }
     .wx-day .wx-rn .wx-drop { width:11px; height:11px; }
 
     /* #218 Expense / Spend module — approved mockup (blue/white). Cost data:
@@ -891,8 +813,7 @@
   .nav-link[hidden], .nav-group[hidden], .nav-subitems[hidden] { display: none !important; }
   .bl-company { display: block; padding: 8px 18px; color: var(--muted, #8c92a0); font-size: 12px; text-decoration: none; border-bottom: 1px solid var(--line, #eceef3); }
   .bl-company:hover { color: var(--ink, #222633); }
-  body[data-mod-off~="drops"] [data-module="drops"], body[data-mod-off~="drops"] .jx-ops-bar,
-  body[data-mod-off~="drops"] .ph-gridbar, body[data-mod-off~="drops"] #ph-grid { display: none !important; }
+  body[data-mod-off~="drops"] [data-module="drops"] { display: none !important; }
   body[data-mod-off~="rfis"][data-mod-off~="compliance"] [data-module-card="risk"] { display: none !important; }
   .ps-mod-card { margin-top: 16px; } .ps-mod-intro { margin: 4px 0 10px; } .ps-mod-actions { margin-top: 10px; }
   .ps-mod-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 16px; }
@@ -1218,13 +1139,10 @@
             .jx-person .who { flex: 1; min-width: 0; font-size: 14px; } .jx-person .who b { display: block; }
             .jx-person .who span { font-size: 13px; color: var(--muted, #8c92a0); }
             .jx-person a.btn { font-size: 13px; font-weight: 700; color: var(--ui, #24418C); border: 1px solid var(--line, #eceef3); border-radius: 8px; padding: 5px 10px; text-decoration: none; }
-            .jx-ops-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0 12px; }
-            .jx-ops-bar h2 { margin: 0; font-size:15px; }
-            .jx-ops-bar button { font: inherit; font-size: 13px; font-weight: 700; color: var(--ui, #24418C); background: #fff; border: 1px solid var(--line, #eceef3); border-radius: 8px; padding: 5px 11px; cursor: pointer; }
-            .ph-wrap.ops-closed .ph-gridbar, .ph-wrap.ops-closed #ph-grid { display: none; }
             .jx-card h2 .jx-add { margin-left: auto; font: inherit; font-size: 13px; font-weight: 700; color: #fff; background: var(--ui, #24418C); border: 0; border-radius: 8px; padding: 6px 11px; cursor: pointer; white-space: nowrap; }
             .jx-alert { display: flex; align-items: center; gap: 8px; background: var(--status-behind-soft, #fceeec); color: var(--status-behind-deep, #A8382B); border-radius: 9px; padding: 8px 11px; font-size: 13.5px; font-weight: 700; margin: 0 0 6px; cursor: pointer; }
             .jx-alert u { margin-left: auto; font-size: 13px; }
+            .jx-alert.warn { background: linear-gradient(90deg, var(--status-warn-soft, #FBF1DE), transparent); color: var(--status-warn, #9A5B00); }
             .jx-it { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 9px 0; border-top: 1px solid var(--line, #eceef3); }
             .jx-it:first-of-type { border-top: 0; }
             .jx-it input { width: 17px; height: 17px; margin: 1px 0 0; accent-color: var(--ui, #24418C); cursor: pointer; }
@@ -1331,7 +1249,20 @@
             <!-- Oct 7 C-suite notes: no Schedule health card; Money reads Finances; Field today
                  drops safety events; Open items = the job's own tasks and events -->
             <div class="jx-card" id="jx-items"><h2>Open items <button type="button" class="jx-add" id="jx-add" hidden>+ Add task or event</button></h2><div class="jx-empty">Loading…</div></div>
-            <div class="jx-card" id="jx-field"><h2>Field today <a data-goto="daily-report">Daily report →</a></h2><div class="jx-empty">Loading…</div></div>
+            <div class="jx-card" id="jx-field"><h2>Field today <a data-goto="daily-report">Daily report →</a></h2><div class="jx-empty">Loading…</div>
+              <div class="jx-wx" id="jx-wx">
+                <div class="wx-now">
+                  <div class="wx-now-ico" id="wx-icon"></div>
+                  <div class="wx-now-meta">
+                    <div class="wx-now-temp" id="wx-temp">—°</div>
+                    <div class="wx-now-cond" id="wx-cond">Loading weather…</div>
+                    <div class="wx-now-sub" id="wx-sub">Feels —° · Wind — · H —°/L —°</div>
+                    <div class="wx-now-rain"><svg class="wx-drop"><use href="#w-drop"/></svg><span id="wx-rain-today">—% chance of rain today</span></div>
+                  </div>
+                </div>
+                <div class="wx-days" id="wx-days"></div>
+              </div>
+            </div>
             <!-- SECTION:financial:start --><div class="jx-card" id="jx-money"><h2>Finances <a data-goto="payments">Payments →</a></h2><div class="jx-empty">Loading…</div></div><!-- SECTION:financial:end -->
             <div class="jx-card" id="jx-contacts"><h2>Key contacts <a data-goto="contacts">All contacts →</a></h2><div class="jx-empty">Loading…</div></div>
             <div class="jx-card" id="jx-photos"><h2>Latest photos <a data-goto="field-photos">Field photos →</a></h2><div class="jx-empty">Loading…</div></div>
@@ -1351,7 +1282,6 @@
               <div class="foot"><button type="button" class="btn-ghost" id="jx-cancel">Cancel</button><button type="submit" class="btn-primary" id="jx-save">Add</button></div>
             </form>
           </div>
-          <div class="jx-ops-bar"><h2>Operations</h2><span class="ph-gridbar-hint">drops · charts · roster · weather · certs</span><span style="flex:1"></span><button type="button" id="jx-ops-toggle">Hide</button></div>
           <script>
           (function () {
             const $j = id => document.getElementById(id);
@@ -1395,6 +1325,7 @@
               const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1010'; sc.onload = go; document.head.appendChild(sc);
             };
             document.addEventListener('click', e => { if (e.target.closest('#jx-edit')) window.SSC_editProject(); });
+            const jxWx = $j('jx-wx');   // the weather block (filled by the weather loader), re-attached after each render
             window.JX_render = function (S) {
               if (!S) return;
               const H = S.header || {}, SC = S.schedule, F = S.field_today, R = S.risk, M = S.money;
@@ -1443,6 +1374,7 @@
                 $j('jx-field').innerHTML = head('jx-field')
                   + line('Workers on site', n(F.on_site) + (F.assigned ? ' of ' + n(F.assigned) : ''), '', 'employees')
                   + line('Last daily report', F.last_dcr ? esc(F.last_dcr.number) + ' · ' + mdy(F.last_dcr.date) : 'none issued yet', '', 'daily-report');
+                if (jxWx) $j('jx-field').appendChild(jxWx);   // weather stays in Field today across re-renders
               }
               // ---- open items: the job's tasks and events (team_items); a DOB violation is the one alert kept
               if (O) {
@@ -1450,7 +1382,10 @@
                   : it.kind === 'event' ? '<span class="tag ev">' + mdy(it.calendar_from) + (it.start_time ? ' · ' + esc(it.start_time) : '') + '</span>'
                   : it.due_date ? '<span class="tag">Due ' + mdy(it.due_date) + '</span>' : '<span class="tag">No deadline</span>';
                 const alert = R && R.violations_active ? '<div class="jx-alert" data-goto="violations">⚠ ' + n(R.violations_active) + (R.violations_active === 1 ? ' active DOB violation' : ' active DOB violations') + ' on this building <u>View</u></div>' : '';
-                $j('jx-items').innerHTML = head('jx-items') + alert
+                // crew certifications (the old Cert alerts widget): one amber line, only when something needs attention
+                const ce = R ? (R.certs_expired || 0) : 0, cs = R ? (R.certs_expiring_30 || 0) : 0;
+                const certs = ce || cs ? '<div class="jx-alert warn" data-goto="employees">⚠ ' + [ce ? n(ce) + (ce === 1 ? ' crew certification expired' : ' crew certifications expired') : '', cs ? n(cs) + ' expiring within 30 days' : ''].filter(Boolean).join(' · ') + ' <u>Employees</u></div>' : '';
+                $j('jx-items').innerHTML = head('jx-items') + alert + certs
                   + (O.items.length ? O.items.map(it => '<div class="jx-it"><input type="checkbox" data-jx-done="' + it.id + '" aria-label="Mark done"' + (it.can_complete ? '' : ' disabled title="Only the person it is assigned to, or admin / C-suite"') + '>'
                       + '<div><b>' + esc(it.title) + '</b><span class="m">' + esc([it.kind === 'event' ? 'Event' : 'Task', it.assignee_name || 'Nobody yet'].join(' · ')) + '</span></div>' + tag(it) + '</div>').join('')
                     : '<div class="jx-empty">Nothing open on this job.' + (O.can_add ? ' Add a task or event and it lands on the team calendar too.' : '') + '</div>')
@@ -1557,102 +1492,9 @@
                 finally { $j('jx-save').disabled = false; }
               });
             }
-            // Operations (the drag-grid): open for field roles, closed for the C-suite; remembered
-            function setOps(open) {
-              const w = document.querySelector('.ph-wrap'); if (!w) return;
-              w.classList.toggle('ops-closed', !open); $j('jx-ops-toggle').textContent = open ? 'Hide' : 'Show';
-              if (open) setTimeout(() => window.dispatchEvent(new Event('resize')), 30);
-            }
-            let pref = null; try { pref = localStorage.getItem('ssc.jx.ops'); } catch (e) {}
-            function initOps(role) { setOps(pref != null ? pref === '1' : !(role === 'admin' || role === 'c_suite')); }
-            if (window.__SSC_USER) initOps(window.__SSC_USER.role); else document.addEventListener('ssc:user-loaded', ev => initOps((ev.detail || {}).role), { once: true });
-            $j('jx-ops-toggle').addEventListener('click', () => {
-              const open = document.querySelector('.ph-wrap').classList.contains('ops-closed');
-              try { localStorage.setItem('ssc.jx.ops', open ? '1' : '0'); } catch (e) {}
-              pref = open ? '1' : '0'; setOps(open);
-            });
           })();
           </script>
 
-          <!-- layout controls -->
-          <div class="ph-gridbar">
-            <button class="ph-reset" id="ph-reset-layout" type="button" title="Revert to the default layout">↺ Reset layout</button>
-            <span class="ph-gridbar-hint" id="ph-layout-hint">Drag a widget by its ⠿ handle; drag an edge/corner to resize — your layout saves automatically.</span>
-          </div>
-
-          <!-- WIDGET GRID — GridStack: each widget is a draggable+resizable grid item.
-               The .ph-widget inside is the same self-contained Batch D unit (#208);
-               gs-id is the stable widget key the saved layout maps to. -->
-          <div class="grid-stack" id="ph-grid">
-            <div class="grid-stack-item" gs-id="active-drops" gs-x="0" gs-y="0" gs-w="8" gs-h="3">
-              <div class="grid-stack-item-content">
-                <section class="ph-widget" data-widget="active-drops">
-                  <div class="ph-widget-head"><h3>Active drops</h3><span class="ph-grip" title="Drag to move">⠿</span></div>
-                  <div class="ph-widget-body" id="ph-active-body"><div class="ph-loading">Loading…</div></div>
-                </section>
-              </div>
-            </div>
-
-            <div class="grid-stack-item" gs-id="drops-status" gs-x="8" gs-y="0" gs-w="4" gs-h="4">
-              <div class="grid-stack-item-content">
-                <section class="ph-widget" data-widget="drops-status">
-                  <div class="ph-widget-head"><h3>Drops by status</h3><span class="ph-grip" title="Drag to move">⠿</span></div>
-                  <div class="ph-widget-body">
-                    <div class="ph-donut-wrap"><canvas id="ph-donut"></canvas><div class="ph-donut-center"><div class="n" id="ph-donut-total">—</div><div class="l">drops</div></div></div>
-                    <div class="ph-legend" id="ph-donut-legend"></div>
-                  </div>
-                </section>
-              </div>
-            </div>
-
-            <div class="grid-stack-item" gs-id="progress-elevation" gs-x="0" gs-y="3" gs-w="8" gs-h="4">
-              <div class="grid-stack-item-content">
-                <section class="ph-widget" data-widget="progress-elevation">
-                  <div class="ph-widget-head"><h3>Progress by elevation</h3><span class="ph-grip" title="Drag to move">⠿</span></div>
-                  <div class="ph-widget-body"><div class="ph-bar-wrap"><canvas id="ph-bar"></canvas></div><div id="ph-bar-note" class="ph-empty-sub" style="text-align:center;margin-top:8px;"></div></div>
-                </section>
-              </div>
-            </div>
-
-            <div class="grid-stack-item" gs-id="weather" gs-x="8" gs-y="4" gs-w="4" gs-h="5">
-              <div class="grid-stack-item-content">
-                <section class="ph-widget" data-widget="weather">
-                  <div class="ph-widget-head"><h3>Weather</h3><span class="ph-grip" title="Drag to move">⠿</span></div>
-                  <div class="ph-widget-body">
-                    <div class="wx-now">
-                      <div class="wx-now-ico" id="wx-icon"></div>
-                      <div class="wx-now-meta">
-                        <div class="wx-now-temp" id="wx-temp">—°</div>
-                        <div class="wx-now-cond" id="wx-cond">Loading…</div>
-                        <div class="wx-now-sub" id="wx-sub">Feels —° · Wind — · H —°/L —°</div>
-                        <div class="wx-now-rain"><svg class="wx-drop"><use href="#w-drop"/></svg><span id="wx-rain-today">—% chance of rain today</span></div>
-                      </div>
-                    </div>
-                    <div class="wx-fc-label">Next 5 days</div>
-                    <div class="wx-days" id="wx-days"></div>
-                  </div>
-                </section>
-              </div>
-            </div>
-
-            <!-- SECTION:workforce_kpi:start --><div class="grid-stack-item" gs-id="roster" gs-x="0" gs-y="7" gs-w="8" gs-h="3">
-              <div class="grid-stack-item-content">
-                <section class="ph-widget" data-widget="roster">
-                  <div class="ph-widget-head"><h3>Today on site · roster (W-#### only)</h3><span class="ph-grip" title="Drag to move">⠿</span></div>
-                  <div class="ph-widget-body" id="ph-roster-body"><div class="ph-loading">Loading…</div></div>
-                </section>
-              </div>
-            </div><!-- SECTION:workforce_kpi:end -->
-
-            <div class="grid-stack-item" gs-id="certs" gs-x="8" gs-y="9" gs-w="4" gs-h="2">
-              <div class="grid-stack-item-content">
-                <section class="ph-widget" data-widget="certs">
-                  <div class="ph-widget-head"><h3>Cert alerts</h3><span class="ph-grip" title="Drag to move">⠿</span></div>
-                  <div class="ph-widget-body" id="ph-certs-body"><div class="ph-loading">Loading…</div></div>
-                </section>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -7975,230 +7817,40 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
 </script>
 
 <script>
-/* ===== Project Health widgets (#208) — self-contained, DRAG-READY module.
-   Each render* fn owns exactly one .ph-widget and loads live data; never blanks
-   or crashes (clean empty states). Analytical charts use locally-vendored
-   Chart.js; progress rings are hand-rolled SVG (matches the Drop Plan #205 look).
-   Independent of the legacy refresh()/loadWeather() IIFEs (which still populate
-   the kept wx-* weather hooks and the RFI on-site header). A future drag-grid
-   wraps each [data-widget] node 1:1 — this module needs no change for that. */
+/* ===== Project Health loader (#208 / #291 / #358) — loads the job dashboard summary from
+   the bootstrap payload and hands it to JX_render. The old Operations drag-grid (drops,
+   charts, roster, cert widgets + saved layouts) is gone: drops live in the sidebar tabs,
+   the roster in Field today, cert alerts in Open items, weather in Field today (loadWeather). */
 (function(){
-  const $=(id)=>document.getElementById(id);
   const PROJECT=(location.pathname.match(/\/projects\/([^\/]+)/)||[])[1]||(window.SSC_PROJECT_CODE||'');
-  const C={red:'#B11E2E',ok:'#2F7C57',ink:'#14161C',mute:'#76777E',track:'#EDEAE3',ns:'#D9D4CA',warn:'#B68838'};
   function todayLocal(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-  function fmtMDY(iso){if(!iso)return '';const p=String(iso).slice(0,10).split('-');return p.length===3?`${p[1]}/${p[2]}/${p[0]}`:iso;}
-  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-  function ringSVG(pct,size,stroke){const r=(size-stroke)/2,cx=size/2,Ci=2*Math.PI*r,p=Math.max(0,Math.min(100,Math.round(pct||0))),arc=p/100*Ci;
-    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="ph-ring"><circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${C.track}" stroke-width="${stroke}"/><circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${C.ok}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${arc.toFixed(2)} ${(Ci-arc).toFixed(2)}" transform="rotate(-90 ${cx} ${cx})"/><text x="${cx}" y="${cx}" dy="0.35em" text-anchor="middle" style="font-size:${Math.round(size*0.3)}px;font-weight:600;fill:${C.ink}">${p}%</text></svg>`;}
-  function statusOf(d){const lc=(d.lifecycle||'');if(lc==='not_started')return 'not_started';const pct=(d.progress&&d.progress.pct)||0;if(pct>=100||/complete|closed|done/.test(lc))return 'complete';return 'active';}
   const jget=(u)=>fetch(u,{credentials:'include'}).then(r=>r.ok?r.json():null).catch(()=>null);
-  let donut=null, bar=null;
 
-  // #291 — render Project Health from one bootstrap-shaped map; wrapper
-  // shapes reproduce exactly what the pre-#291 Promise.all handed each
-  // renderer (render logic byte-identical).
   function renderAll(bd){
-    const wrap=k=>(bd[k]!==undefined?{data:bd[k]}:null);
-    const D=bd.drops||[], R=bd.rollup||{};
-    // #292 flag-#5 — per-widget content diff (the pie + elevation bars were
-    // the observed churners): unchanged data = zero DOM/chart work.
     const rw=(k,slice,fn)=>{ if(window.SSC_PERF){ SSC_PERF.renderIfChanged('ph.'+k,slice,fn); } else { fn(); } };
-    rw('kpis',[R,D,bd.on_site,bd.workers],()=>{ try{ renderKpis(R,D,wrap('on_site'),wrap('workers')); }catch(e){ console.warn('[PH] kpis',e); } });
-    rw('summary',[bd.summary],()=>{ try{ if(window.JX_render) JX_render(bd.summary); }catch(e){ console.warn('[PH] summary',e); } });   // #358
-    rw('active',[D],()=>{ try{ renderActive(D); }catch(e){ console.warn('[PH] active',e); } });
-    rw('donut',[D],()=>{ try{ renderDonut(D); }catch(e){ console.warn('[PH] donut',e); } });
-    rw('bar',[D],()=>{ try{ renderBar(D); }catch(e){ console.warn('[PH] bar',e); } });
-    rw('roster',[bd.on_site],()=>{ try{ renderRoster(wrap('on_site')); }catch(e){ console.warn('[PH] roster',e); } });
-    rw('certs',[bd.workers],()=>{ try{ renderCerts(wrap('workers')); }catch(e){ console.warn('[PH] certs',e); } });
+    rw('summary',[bd.summary],()=>{ try{ if(window.JX_render) JX_render(bd.summary); }catch(e){ console.warn('[PH] summary',e); } });
   }
 
   async function load(){
-    const t=todayLocal();
-    // #291 — ONE bootstrap round trip replaces the 4-call fan-out; per-part
-    // fallback keeps behavior identical when a key is absent (older server,
-    // part gated for this role — the individual endpoint refuses identically).
+    // #291 — ONE bootstrap round trip; the summary endpoint is the fallback when the part is absent
     let bd={};
-    try{ const B=await jget(`/api/projects/${encodeURIComponent(PROJECT)}/bootstrap?date=${t}`); bd=(B&&B.data)||{}; }catch(e){ bd={}; }
-    const FALLBACK={rollup:`/api/dropplan/projects/${encodeURIComponent(PROJECT)}/rollup`,
-      drops:`/api/dropplan/projects/${encodeURIComponent(PROJECT)}/drops`,
-      on_site:`/api/projects/${encodeURIComponent(PROJECT)}/on-site?date=${t}`,
-      workers:`/api/projects/${encodeURIComponent(PROJECT)}/workers`,
-      summary:`/api/projects/${encodeURIComponent(PROJECT)}/summary`};   // #358
-    await Promise.all(Object.keys(FALLBACK).filter(k=>bd[k]===undefined).map(k=>
-      jget(FALLBACK[k]).then(r=>{ if(r&&r.data!==undefined)bd[k]=r.data; }).catch(()=>{})));
+    try{ const B=await jget(`/api/projects/${encodeURIComponent(PROJECT)}/bootstrap?date=${todayLocal()}`); bd=(B&&B.data)||{}; }catch(e){ bd={}; }
+    if(bd.summary===undefined){ const r=await jget(`/api/projects/${encodeURIComponent(PROJECT)}/summary`); if(r&&r.data!==undefined)bd.summary=r.data; }
     renderAll(bd);
     if(window.SSC_BOOT) SSC_BOOT.write('project.'+PROJECT, bd);   // #291 instant paint
   }
 
-  function renderKpis(R,D,onSite,workers){
-    const site=(onSite&&onSite.data)||{headcount:0,total_hours:0};
-    const W=(workers&&workers.data)||[]; const roster=W.length;
-    if($('ph-kpi-workers'))$('ph-kpi-workers').textContent=roster>0?`${site.headcount}/${roster}`:String(site.headcount||0);
-    if($('ph-kpi-workers-sub'))$('ph-kpi-workers-sub').textContent=`${Number(site.total_hours||0).toFixed(1)} hrs · ${fmtMDY(todayLocal())}`;
-    let exp=0,exd=0;W.forEach(w=>{exp+=(w.certs_expiring_30d||0);exd+=(w.certs_expired||0);});
-    if($('ph-kpi-certs'))$('ph-kpi-certs').textContent=String(exp+exd);
-    if($('ph-kpi-certs-sub'))$('ph-kpi-certs-sub').textContent=exd?`${exp} soon · ${exd} expired`:'incl. expired';
-    const active=D.filter(d=>statusOf(d)==='active').length;
-    if($('ph-kpi-active'))$('ph-kpi-active').textContent=String(active);
-    if($('ph-kpi-active-total'))$('ph-kpi-active-total').textContent=String(D.length||(R.drop_count||0));
-    const pct=(R.overall_progress_pct!=null?R.overall_progress_pct:0);
-    if($('ph-kpi-progress'))$('ph-kpi-progress').textContent=pct+'%';
-    if($('ph-kpi-progress-ring'))$('ph-kpi-progress-ring').innerHTML=ringSVG(pct,46,6);
-  }
-
-  function renderActive(D){
-    const body=$('ph-active-body'); if(!body)return;
-    const active=D.filter(d=>statusOf(d)==='active');
-    if(!active.length){body.innerHTML='<div class="ph-empty"><div class="ph-empty-title">No active drops yet</div><div class="ph-empty-sub">Activate drops in the <a href="/dropplan" style="color:var(--brand-red, #B11E2E);font-weight:700;text-decoration:none;">Drop Plan</a> to see live progress here.</div></div>';return;}
-    const shown=active.slice(0,10);
-    body.innerHTML='<div class="ph-active-grid">'+shown.map(d=>{
-      const pct=(d.progress&&d.progress.pct)||0;
-      const stage=d.current_stage?`Step ${d.current_stage.step_no} · ${esc(d.current_stage.name)}`:'all steps done';
-      return `<div class="ph-drop">${ringSVG(pct,52,7)}<div style="min-width:0;"><div class="ph-drop-label">Drop ${esc(d.sequence_no)}</div><div class="ph-drop-stage">${stage}</div><div class="ph-drop-elev">${esc(d.elevation||'')}</div></div></div>`;
-    }).join('')+'</div>'+(active.length>10?`<div class="ph-more">+ ${active.length-10} more active (showing 10)</div>`:'');
-  }
-
-  function renderDonut(D){
-    const counts={active:0,complete:0,not_started:0};
-    D.forEach(d=>{counts[statusOf(d)]++;});
-    const total=D.length;
-    if($('ph-donut-total'))$('ph-donut-total').textContent=String(total);
-    const legend=$('ph-donut-legend');
-    if(legend)legend.innerHTML=[['Active',counts.active,C.ok],['Complete',counts.complete,C.ink],['Not started',counts.not_started,C.ns]]
-      .map(([l,n,c])=>`<div class="ph-leg"><span class="dot" style="background:${c}"></span>${l}<b>${n}</b></div>`).join('');
-    const cv=$('ph-donut'); if(!cv)return;
-    if(typeof Chart==='undefined'){const w=cv.closest('.ph-donut-wrap'); if(w)w.innerHTML='<div class="ph-empty">chart unavailable</div>'; return;}
-    if(total===0){if(donut){donut.destroy();donut=null;} return;}
-    if(donut)donut.destroy();
-    donut=new Chart(cv,{type:'doughnut',data:{labels:['Active','Complete','Not started'],datasets:[{data:[counts.active,counts.complete,counts.not_started],backgroundColor:[C.ok,C.ink,C.ns],borderWidth:2,borderColor:'#fff'}]},options:{cutout:'68%',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:true}}}});
-  }
-
-  function renderBar(D){
-    const elevs=['North','West','South','East'];
-    const avg=elevs.map(e=>{const ds=D.filter(d=>d.elevation===e);if(!ds.length)return 0;return Math.round(ds.reduce((a,d)=>a+((d.progress&&d.progress.pct)||0),0)/ds.length);});
-    const note=$('ph-bar-note'); if(note)note.textContent=avg.some(v=>v>0)?'':'No progress logged yet — activate drops to track progress by elevation.';
-    const cv=$('ph-bar'); if(!cv)return;
-    if(typeof Chart==='undefined'){const w=cv.closest('.ph-bar-wrap'); if(w)w.innerHTML='<div class="ph-empty">chart unavailable</div>'; return;}
-    if(bar)bar.destroy();
-    bar=new Chart(cv,{type:'bar',data:{labels:elevs,datasets:[{label:'Avg progress',data:avg,backgroundColor:C.red,borderRadius:4,maxBarThickness:48}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+'%'}}}}});
-  }
-
-  function renderRoster(onSite){
-    const body=$('ph-roster-body'); if(!body)return;
-    const site=(onSite&&onSite.data)||{workers:[]};
-    const ws=site.workers||[];
-    if(!ws.length){body.innerHTML='<div class="ph-empty"><div class="ph-empty-title">No sign-ins yet today</div><div class="ph-empty-sub">'+fmtMDY(todayLocal())+'</div></div>';return;}
-    const fore=site.foreman?`<div style="font-size:12px;color:var(--muted, #8c92a0);margin-bottom:8px;">Foreman on site: <span class="ph-wid">${esc(site.foreman.worker_id||'—')}</span></div>`:'';
-    body.innerHTML=fore+'<table class="ph-roster"><thead><tr><th>Worker</th><th>Trade</th><th>In</th><th>Out</th><th>Hrs</th></tr></thead><tbody>'+
-      ws.map(w=>`<tr><td class="ph-wid">${esc(w.worker_id||'—')}</td><td>${esc(w.trade||'—')}</td><td>${esc(w.time_in||'—')}</td><td>${w.time_out?esc(w.time_out):'<span class="ph-stillin">still in</span>'}</td><td>${w.hours!=null?Number(w.hours).toFixed(2):'—'}</td></tr>`).join('')+
-      '</tbody></table>';
-  }
-
-  function renderCerts(workers){
-    const body=$('ph-certs-body'); if(!body)return;
-    const W=(workers&&workers.data)||[];
-    let exp=0,exd=0;W.forEach(w=>{exp+=(w.certs_expiring_30d||0);exd+=(w.certs_expired||0);});
-    body.innerHTML=`<div class="ph-cert-row"><div class="ph-cert-n" style="color:${C.warn}">${exp}</div><div class="ph-cert-l">Expiring &le;30 days</div></div>`+
-      `<div class="ph-cert-row"><div class="ph-cert-n" style="color:${C.red}">${exd}</div><div class="ph-cert-l">Expired</div></div>`+
-      `<div class="ph-cert-foot">${W.length} workers on roster</div>`;
-  }
-
-  // ---- GridStack: real drag + resize + per-user saved layouts (#209) ----
-  // GENERIC: PAGE_KEY parameterizes everything, so the company console reuses
-  // this same module + the dashboard_layouts table by swapping PAGE_KEY + ids.
-  // Persisted layout = [{id,x,y,w,h}] — widget ids + positions only (no PII).
-  const PAGE_KEY='project_health';
-  const DEFAULT_LAYOUT=[
-    {id:'active-drops',x:0,y:0,w:8,h:3},
-    {id:'drops-status',x:8,y:0,w:4,h:4},
-    {id:'progress-elevation',x:0,y:3,w:8,h:4},
-    {id:'weather',x:8,y:4,w:4,h:5},
-    {id:'roster',x:0,y:7,w:8,h:3},
-    {id:'certs',x:8,y:9,w:4,h:2},
-  ];
-  let grid=null, saveTimer=null, suppressSave=false;
-  function hint(t){ const h=$('ph-layout-hint'); if(h)h.textContent=t; }
-  function resizeCharts(){ try{ if(donut)donut.resize(); if(bar)bar.resize(); }catch(e){} }
-  function serializeLayout(){ return grid.save(false).map(n=>({id:n.id,x:n.x,y:n.y,w:n.w,h:n.h})); }
-  // #292 — layout cache (rides SSC_BOOT: localStorage, TTL, logout purge, uid guard)
-  function readCachedLayout(){
-    try{ const env=window.SSC_BOOT&&SSC_BOOT.read('layout.'+PAGE_KEY); return env&&env.bd; }catch(e){ return null; }
-  }
-  function writeCachedLayout(l){ try{ if(window.SSC_BOOT)SSC_BOOT.write('layout.'+PAGE_KEY,l); }catch(e){} }
-
-  async function saveLayout(){
-    try{
-      const snap=serializeLayout();
-      writeCachedLayout(snap);   // #292 — write-through on every persist
-      await fetch('/api/dashboard/layout',{method:'PUT',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({page_key:PAGE_KEY,layout:snap})});
-      hint('Layout saved · '+fmtMDY(todayLocal()));
-    }catch(e){ hint('Save failed — will retry on next move'); }
-  }
-  function scheduleSave(){ if(suppressSave)return; clearTimeout(saveTimer); saveTimer=setTimeout(saveLayout,500); }
-  function applyLayout(layout){ suppressSave=true; grid.load(layout); setTimeout(()=>{suppressSave=false; resizeCharts();},60); }
-  async function loadSavedLayout(paintedJson){
-    // #292 — DEMOTED to background reconciliation: apply only on a genuine
-    // difference from what the first frame already painted, never animated.
-    const j=await fetch('/api/dashboard/layout?page_key='+PAGE_KEY,{credentials:'include'}).then(r=>r.ok?r.json():null).catch(()=>null);
-    const layout=j&&j.data&&j.data.layout;
-    if(Array.isArray(layout)&&layout.length){
-      if(paintedJson!==null&&JSON.stringify(layout)===paintedJson){ hint('Your saved layout restored'); return true; }
-      try{ grid.setAnimation(false); }catch(e){}
-      applyLayout(layout);
-      writeCachedLayout(layout);
-      setTimeout(()=>{ try{ grid.setAnimation(true); }catch(e){} },80);
-      hint('Your saved layout restored'); return true;
-    }
-    if(paintedJson!==null){
-      try{ grid.setAnimation(false); }catch(e){}
-      applyLayout(DEFAULT_LAYOUT);
-      setTimeout(()=>{ try{ grid.setAnimation(true); }catch(e){} },80);
-    }
-    hint('Default layout'); return false;
-  }
-  async function resetLayout(){
-    try{ await fetch('/api/dashboard/layout?page_key='+PAGE_KEY,{method:'DELETE',credentials:'include'}); }catch(e){}
-    applyLayout(DEFAULT_LAYOUT); hint('Reset to default layout');
-  }
-  function initGrid(){
-    if(typeof GridStack==='undefined'){ hint('Drag library unavailable — layout is fixed'); return; }
-    // #292 — animate:false at init so the synchronous cache-apply lands in the
-    // FIRST painted frame (no tween from markup positions); re-enabled after.
-    grid=GridStack.init({column:12,cellHeight:88,margin:8,handle:'.ph-grip',draggable:{handle:'.ph-grip'},resizable:{handles:'e,se,s,sw,w'},float:false,animate:false});
-    grid.on('change',()=>{ scheduleSave(); resizeCharts(); });
-    const rb=$('ph-reset-layout'); if(rb)rb.addEventListener('click',resetLayout);
-    // #292 — FIRST FRAME: cached layout applied synchronously, same task as
-    // init. MUST precede the (now background) server fetch.
-    const cached=readCachedLayout();
-    let painted=null;
-    if(Array.isArray(cached)&&cached.length){
-      applyLayout(cached);
-      painted=JSON.stringify(cached);
-      hint('Your saved layout');
-      try{ performance.mark('ssc-layout-cache-applied'); }catch(e){}
-    }
-    try{ grid.setAnimation(true); }catch(e){}
-    loadSavedLayout(painted);
-  }
-
   function boot(){
-    initGrid();
-    // #291 — INSTANT PAINT from the last bootstrap payload (per-user session
-    // cache; purged on logout / user change), then refresh in place. The
-    // "Updating…" chip appears only if the refresh outlives 1s.
+    // #291 — INSTANT PAINT from the last bootstrap payload (per-user session cache; purged on
+    // logout / user change), then refresh in place. "Updating…" shows only past 1s.
     const cached = window.SSC_BOOT && SSC_BOOT.read('project.'+PROJECT);
     if(cached){ try{ renderAll(cached.bd); }catch(e){ console.warn('[PH] cache paint',e); } }
-    else if(window.SSC_PERF){
-      // #292 — cold first visit: skeleton frames, never blank widgets
-      ['ph-active-body','ph-roster-body','ph-certs-body'].forEach(id=>SSC_PERF.skeleton($(id),3));
-    }
     if(window.SSC_PERF) SSC_PERF.prefetchWire();   // #292 — staff intent prefetch
-    let tick=$('ph-updating');
+    let tick=document.getElementById('ph-updating');
     if(!tick){
       tick=document.createElement('div'); tick.id='ph-updating'; tick.textContent='Updating…';
       tick.style.cssText='display:none;position:fixed;right:14px;bottom:14px;z-index:60;'
-        +'font:600 11px Inter,sans-serif;color:#76777E;background:#FFFFFFE6;'
+        +'font:500 11px Inter,sans-serif;color:#76777E;background:#FFFFFFE6;'
         +'border:1px solid #E8E4DD;border-radius:99px;padding:5px 12px;'
         +'box-shadow:0 2px 10px rgba(0,0,0,.06);';
       document.body.appendChild(tick);
