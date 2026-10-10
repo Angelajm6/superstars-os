@@ -53,7 +53,7 @@ h1, h2, h3, h4, h5, h6,
    ============================================================================= */
 :root {
   --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --t-title: 26px;   --t-title-w: 500;   /* page / tab titles (H1) */
+  --t-title: 22px;   --t-title-w: 500;   /* page / tab titles (H1), spaced capitals since 2026-10-10 */
   --t-card: 16px;    --t-card-w: 500;    /* section and card titles (H2 / H3) */
   --t-sub: 14.5px;                       /* the line under a title */
   --t-label: 11px;   --t-label-w: 500;   /* spaced capitals: field labels, tile labels */
@@ -82,9 +82,11 @@ html body .section h2, html body .card-title, html body .jx-ops-bar h2 {
 html body .ssc-top h1,
 html body .tab-head h1, html body .tab-head h2, html body .dcr-head h1, html body .exp-head h1, html body .ec-head h2,
 html body .mt-head h2, html body .pc-head h1, html body .la-top h2, html body .pd-h1, html body .dp-h1,
-html body .pay-h1, html body .fp-h1, html body .hello h1, html body .head-row h2 {
-  font-size: var(--t-title); font-weight: var(--t-title-w); letter-spacing: -.025em; line-height: 1.2; color: var(--t-ink); text-wrap: balance;
+html body .pay-h1, html body .fp-h1, html body .head-row h2 {
+  font-size: var(--t-title); font-weight: var(--t-title-w); letter-spacing: .04em; text-transform: uppercase; line-height: 1.25; color: var(--t-ink); text-wrap: balance;
 }
+/* the PM home greeting carries a person's name: it stays in normal case */
+html body .hello h1 { font-size: 26px; font-weight: var(--t-title-w); letter-spacing: -.025em; line-height: 1.2; color: var(--t-ink); text-wrap: balance; }
 html body .jx-hero h1 { font-weight: var(--t-title-w); letter-spacing: -.025em; }   /* the job header keeps its own size, on the job color */
 
 /* small spaced capitals: field and tile labels */
@@ -146,3 +148,14 @@ html body :is(
   .est-box, .est-info, .vp-stat, .project-foot button, .jx-ic, .cal.has-wx .cal-dow,
   .btn-primary, .btn-ghost, .ssc-field
 ) { border-radius: var(--r-inner); }
+
+/* =============================================================================
+   SIDEBAR IN SPACED CAPITALS (accepted 2026-10-10, option B). Sidebar items 12px medium
+   capitals with .06em spacing; group names (Overview, On Site, Finances) a step smaller and
+   wider so they still read as labels above the items. Page titles: see the title rule above
+   (22px spaced capitals). Card titles stay in normal case so the page title leads.
+   ============================================================================= */
+html body :is(.nav-link, .ssc-side .ssc-nav a, .ssc-side .ssc-nav .nav-tab, .ssc-side .ssc-side-foot a) {
+  font-size: 12px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase;
+}
+html body .nav-group-label { font-size: 10.5px; font-weight: 500; letter-spacing: .12em; }

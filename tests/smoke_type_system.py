@@ -39,8 +39,13 @@ def main() -> int:
         if mono:
             bad.append(f"{f}: monospace on screen ({len(mono)})")
     t = (ROOT / "static" / "fonts" / "typography.css").read_text(encoding="utf-8")
-    for need in ("--font: 'Inter'", "--t-title: 26px", "--t-title-w: 500", "--t-card: 16px", "--t-label: 11px",
-                 "html body .tab-head h2", "html body .ssc-top h1", "html body .bl-company { font-size: 11.5px; font-weight: 400; letter-spacing: .1em; text-transform: uppercase;"):
+    for need in ("--font: 'Inter'", "--t-title: 22px", "--t-title-w: 500", "--t-card: 16px", "--t-label: 11px",
+                 "html body .tab-head h2", "html body .ssc-top h1", "html body .bl-company { font-size: 11.5px; font-weight: 400; letter-spacing: .1em; text-transform: uppercase;",
+                 # sidebar + page titles in spaced capitals (accepted 2026-10-10, option B); the greeting keeps normal case
+                 "font-size: var(--t-title); font-weight: var(--t-title-w); letter-spacing: .04em; text-transform: uppercase;",
+                 "html body :is(.nav-link, .ssc-side .ssc-nav a, .ssc-side .ssc-nav .nav-tab, .ssc-side .ssc-side-foot a) {\n  font-size: 12px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase;",
+                 "html body .nav-group-label { font-size: 10.5px; font-weight: 500; letter-spacing: .12em; }",
+                 "html body .hello h1 { font-size: 26px;"):
         if need not in t:
             bad.append(f"typography.css misses: {need}")
     tags = set()
