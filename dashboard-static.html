@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1012">
+<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1013">
 <script src="/files/static/js/datepicker.js?v=1007"></script>
 <script src="/files/static/js/timepicker.js"></script>
 <style>
@@ -157,6 +157,57 @@
     /* #217 Weather — lives in the job dashboard "Field today" card: current conditions on a
        soft job-color wash + 5 day tiles. Icons carry their own colors via the w-* symbols. */
     .jx-wx { display:grid; gap:10px; margin-top:12px; padding-top:14px; border-top:1px solid var(--line, #eceef3); }
+    .jx-wx[role="button"] { cursor:pointer; margin-inline:-8px; padding:14px 8px 8px; border-radius:var(--r-inner, 10px); border-top-color:transparent; box-shadow:0 -1px 0 var(--line, #eceef3); transition:background .2s, box-shadow .2s; }
+    .jx-wx[role="button"]:hover { background:color-mix(in srgb, var(--job, #24418C) 4%, #fff); box-shadow:0 0 0 1px color-mix(in srgb, var(--job, #24418C) 40%, var(--line, #eceef3)); }
+    .jx-wx[role="button"]:focus-visible { outline:2px solid var(--job, #24418C); outline-offset:2px; }
+    .wx-more { font-size:12.5px; font-weight:600; text-align:right; color:color-mix(in srgb, var(--job, #24418C) 80%, #14161C); }
+    /* the weather window */
+    .wxw { background:#fff; border-radius:var(--r-card, 14px); width:100%; max-width:760px; max-height:92vh; overflow:auto; box-shadow:0 24px 64px rgba(20,22,28,.25); }
+    .wxw-h { display:flex; align-items:center; gap:10px; padding:18px 20px 6px; }
+    .wxw-h h3 { margin:0; font-size:18px; font-weight:500; letter-spacing:-.015em; }
+    .wxw-sub { color:var(--muted, #8c92a0); font-size:12.5px; }
+    .wxw-x { margin-left:auto; width:34px; height:34px; border:0; background:none; border-radius:var(--r-inner, 10px); color:var(--ink-2, #4A4F59); font-size:17px; cursor:pointer; }
+    .wxw-x:hover { background:var(--fill, #F4F5F8); }
+    .wxw-strip { display:flex; align-items:center; gap:6px; padding:8px 16px 12px; }
+    .wxw-nav { flex:none; width:34px; height:34px; border:1px solid var(--line, #eceef3); background:#fff; border-radius:var(--r-inner, 10px); color:var(--ink-2, #4A4F59); font-size:17px; cursor:pointer; transition:border-color .2s, color .2s; }
+    .wxw-nav:hover:not(:disabled) { border-color:var(--job, #24418C); color:var(--job, #24418C); }
+    .wxw-nav:disabled { opacity:.35; cursor:default; }
+    .wxw-days { flex:1; min-width:0; display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:6px; }
+    .wxw-day { display:grid; justify-items:center; gap:1px; padding:8px 2px; border:1px solid var(--line, #eceef3); border-radius:var(--r-inner, 10px); background:#fff; font:inherit; font-size:13px; font-weight:600; color:var(--ink, #222633); cursor:pointer; transition:border-color .2s, background .2s; }
+    .wxw-day b { font-size:11px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; color:var(--muted, #8c92a0); }
+    .wxw-day small { color:var(--muted, #8c92a0); font-weight:500; font-size:12px; }
+    .wxw-day svg { width:24px; height:24px; margin:3px 0; }
+    .wxw-day:hover { border-color:color-mix(in srgb, var(--job, #24418C) 50%, var(--line, #eceef3)); }
+    .wxw-day[aria-selected="true"] { border-color:var(--job, #24418C); background:color-mix(in srgb, var(--job, #24418C) 9%, #fff); }
+    .wxw-day[aria-selected="true"] b { color:color-mix(in srgb, var(--job, #24418C) 85%, #14161C); }
+    .wxw-body { padding:4px 20px 20px; display:grid; grid-template-columns:minmax(0,1fr); gap:14px; }
+    .wxw-body > * { min-width:0; }
+    .wxw-hero { display:flex; gap:14px; align-items:center; padding:14px 16px; border-radius:var(--r-inner, 10px); background:linear-gradient(120deg, color-mix(in srgb, var(--job, #24418C) 12%, #fff), #fff); }
+    .wxw-hero svg { width:48px; height:48px; flex:none; }
+    .wxw-hero .t { font-size:34px; font-weight:500; letter-spacing:-.025em; line-height:1; font-variant-numeric:tabular-nums; }
+    .wxw-hero .t small { font-size:18px; color:var(--muted, #8c92a0); font-weight:500; }
+    .wxw-hero .c { font-size:14.5px; color:var(--ink-2, #4A4F59); margin-top:4px; }
+    .wxw-heads { display:flex; gap:8px; align-items:center; border-radius:var(--r-inner, 10px); padding:9px 12px; font-size:13px; font-weight:600; color:var(--status-warn, #9A5B00); background:linear-gradient(90deg, var(--status-warn-soft, #FBF1DE), transparent); }
+    .wxw-facts { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px; }
+    .wxw-fact { border:1px solid var(--line, #eceef3); border-radius:var(--r-inner, 10px); padding:10px 12px; display:grid; gap:3px; }
+    .wxw-fact .k { font-size:11px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; color:var(--muted, #8c92a0); }
+    .wxw-fact .v { font-size:16px; font-weight:600; font-variant-numeric:tabular-nums; color:var(--ink, #222633); }
+    .wxw-fact .v.rain, .wxw-hr .rp { color:var(--ui, #24418C); }
+    .wxw-fact .s { font-size:12px; color:var(--muted, #8c92a0); }
+    .wxw-lab { font-size:11px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; color:var(--muted, #8c92a0); margin-bottom:8px; }
+    .wxw-hours-wrap { overflow-x:auto; }
+    .wxw-hours { display:grid; grid-template-columns:repeat(6, minmax(78px,1fr)); gap:6px; min-width:500px; }
+    .wxw-hr { display:grid; justify-items:center; gap:2px; padding:9px 4px; border:1px solid var(--line, #eceef3); border-radius:var(--r-inner, 10px); font-size:13px; }
+    .wxw-hr.work { background:color-mix(in srgb, var(--job, #24418C) 6%, #fff); }
+    .wxw-hr b { font-size:12px; font-weight:500; color:var(--muted, #8c92a0); }
+    .wxw-hr svg { width:22px; height:22px; margin:2px 0; }
+    .wxw-hr .tt { font-weight:600; font-variant-numeric:tabular-nums; }
+    .wxw-hr .rp, .wxw-hr .wd { font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:3px; }
+    .wxw-hr .wd { color:var(--muted, #8c92a0); font-weight:500; }
+    .wxw-hr .wx-drop, .wxw-fact .wx-drop { width:11px; height:11px; }
+    .wxw-foot { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--muted, #8c92a0); }
+    .wxw-foot i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; background:color-mix(in srgb, var(--job, #24418C) 14%, #fff); border:1px solid var(--line, #eceef3); }
+    @media (max-width:640px) { .wxw-facts { grid-template-columns:repeat(2, minmax(0,1fr)); } .wxw-strip { padding:8px 12px 12px; } .wxw-days { grid-template-columns:repeat(7, 54px); overflow-x:auto; scrollbar-width:none; padding:2px; } .wxw-days::-webkit-scrollbar { display:none; } .wxw-h { padding:16px 16px 4px; } .wxw-body { padding:4px 16px 16px; } }
     .wx-now { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:14px; background:linear-gradient(120deg, color-mix(in srgb, var(--job, #24418C) 10%, #fff), #fff); }
     .wx-now-ico { width:40px; height:40px; flex-shrink:0; }
     .wx-now-ico svg { width:40px; height:40px; display:block; }
@@ -528,7 +579,7 @@
     .kpi-card {
       background: white;
       border: 1px solid var(--line, #eceef3);
-      border-radius: 4px;
+      border-radius: var(--r-card, 14px);
       padding: 0;
       overflow: hidden;
     }
@@ -617,7 +668,7 @@
     .site-card {
       background: white;
       border: 1px solid var(--line, #eceef3);
-      border-radius: 4px;
+      border-radius: var(--r-card, 14px);
       padding: 24px;
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -684,7 +735,7 @@
     .card {
       background: white;
       border: 1px solid var(--line, #eceef3);
-      border-radius: 4px;
+      border-radius: var(--r-card, 14px);
       padding: 20px;
     }
     .card-title { font-size: 14px; font-weight: 600; color: var(--ink, #222633); margin-bottom: 8px; }
@@ -700,7 +751,7 @@
     .category-item {
       background: white;
       border: 1px solid var(--line, #eceef3);
-      border-radius: 4px;
+      border-radius: var(--r-card, 14px);
       padding: 16px;
       text-align: center;
     }
@@ -730,7 +781,7 @@
     .hero-btn {
       padding: 12px 20px;
       border: none;
-      border-radius: 4px;
+      border-radius: var(--r-inner, 10px);
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
@@ -751,7 +802,7 @@
     .placeholder-card {
       background: white;
       border: 1px solid var(--line, #eceef3);
-      border-radius: 4px;
+      border-radius: var(--r-card, 14px);
       padding: 48px 24px;
       text-align: center;
       color: var(--muted, #8c92a0);
@@ -1250,7 +1301,7 @@
                  drops safety events; Open items = the job's own tasks and events -->
             <div class="jx-card" id="jx-items"><h2>Open items <button type="button" class="jx-add" id="jx-add" hidden>+ Add task or event</button></h2><div class="jx-empty">Loading…</div></div>
             <div class="jx-card" id="jx-field"><h2>Field today <a data-goto="daily-report">Daily report →</a></h2><div class="jx-empty">Loading…</div>
-              <div class="jx-wx" id="jx-wx">
+              <div class="jx-wx" id="jx-wx" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="wxw-bg" title="See the week">
                 <div class="wx-now">
                   <div class="wx-now-ico" id="wx-icon"></div>
                   <div class="wx-now-meta">
@@ -1261,11 +1312,27 @@
                   </div>
                 </div>
                 <div class="wx-days" id="wx-days"></div>
+                <div class="wx-more">See the week →</div>
               </div>
             </div>
             <!-- SECTION:financial:start --><div class="jx-card" id="jx-money"><h2>Finances <a data-goto="payments">Payments →</a></h2><div class="jx-empty">Loading…</div></div><!-- SECTION:financial:end -->
             <div class="jx-card" id="jx-contacts"><h2>Key contacts <a data-goto="contacts">All contacts →</a></h2><div class="jx-empty">Loading…</div></div>
             <div class="jx-card" id="jx-photos"><h2>Latest photos <a data-goto="field-photos">Field photos →</a></h2><div class="jx-empty">Loading…</div></div>
+          </div>
+          <!-- the weather window (accepted 2026-10-09): 7 days from /api/weather/week, opened from Field today -->
+          <div class="jx-modal-bg" id="wxw-bg">
+            <div class="wxw" role="dialog" aria-modal="true" aria-labelledby="wxw-t">
+              <div class="wxw-h">
+                <div><h3 id="wxw-t">Weather</h3><div class="wxw-sub" id="wxw-sub"></div></div>
+                <button type="button" class="wxw-x" id="wxw-x" aria-label="Close">✕</button>
+              </div>
+              <div class="wxw-strip">
+                <button type="button" class="wxw-nav" id="wxw-prev" aria-label="Previous day">‹</button>
+                <div class="wxw-days" id="wxw-days" role="tablist" aria-label="Days"></div>
+                <button type="button" class="wxw-nav" id="wxw-next" aria-label="Next day">›</button>
+              </div>
+              <div class="wxw-body" id="wxw-body"><div class="jx-empty">Loading the week…</div></div>
+            </div>
           </div>
           <div class="jx-modal-bg" id="jx-modal" role="dialog" aria-modal="true" aria-labelledby="jx-mtitle">
             <form class="jx-modal" id="jx-form" novalidate>
@@ -1458,7 +1525,7 @@
               if (window.SSCDatePicker) SSCDatePicker.setISO($j('jx-date'), '');
               const h1 = document.querySelector('[data-project-title]'), t = h1 ? h1.textContent.trim() : '';
               $j('jx-job').textContent = t && t.indexOf(jxCode()) !== -1 ? t : (t ? t + ' · ' : '') + jxCode();
-              $j('jx-modal').classList.add('open'); $j('jx-title').focus();
+              if (window.SSC_lift) window.SSC_lift($j('jx-modal')); $j('jx-modal').classList.add('open'); $j('jx-title').focus();
               if (!JXM.people) {
                 try {
                   const r = await fetch('/api/team/people', { credentials: 'same-origin' }); const j = await r.json();
@@ -1788,7 +1855,7 @@
               <h3 style="font-size:12px;font-weight:500;color:var(--brand-red, #B11E2E);text-transform:uppercase;letter-spacing:0.1em;margin:0;">Specifications</h3>
               <!-- COMPANYLINK:start --><a href="/#specs" style="font-size:12px;color:var(--muted, #8c92a0);text-decoration:none;">Manage in Specs Library →</a><!-- COMPANYLINK:end -->
             </div>
-            <table style="width:100%;border-collapse:collapse;font-size:12px;background:white;border:1px solid var(--line, #eceef3);border-radius:4px;">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;background:white;border:1px solid var(--line, #eceef3);border-radius:var(--r-card, 14px);">
               <thead>
                 <tr style="background:var(--cream, #faf7f1);">
                   <th style="text-align:left;padding:8px 10px;">Manufacturer</th>
@@ -2270,7 +2337,7 @@
             </div>
             <button id="dcr-new-btn" class="dcr-primary" type="button"><svg class="dcr-ic"><use href="#i-plus"/></svg>Issue New DCR</button>
           </div>
-          <div id="dcr-issued-banner" style="display:none;background:var(--cream, #faf7f1);border-left:3px solid var(--status-complete-deep, #0c7a5f);padding:10px 14px;border-radius:4px;margin-bottom:12px;font-size:12px;"></div>
+          <div id="dcr-issued-banner" style="display:none;background:var(--cream, #faf7f1);border-left:3px solid var(--status-complete-deep, #0c7a5f);padding:10px 14px;border-radius:var(--r-inner, 10px);margin-bottom:12px;font-size:12px;"></div>
           <!-- #344 — company roles: gaps / out-of-order / future-dated numbers the
                date-windowed list can't show. Filled by loadNumbering(). -->
           <div id="dcr-numbering-banner" class="dcrg-banner" style="display:none;"></div>
@@ -2348,44 +2415,44 @@
                text and reveals it. When set, the section-level Issue
                button auto-passes override_active=true so the existing
                sequence is preserved on re-issue. -->
-          <div id="dcr-reissue-banner" style="display:none;background:var(--status-warn-soft, #FFF4E5);border-left:3px solid var(--status-warn, #9A5B00);padding:10px 14px;border-radius:4px;margin-bottom:14px;font-size:12px;color:var(--ink, #222633);line-height:1.5;">
+          <div id="dcr-reissue-banner" style="display:none;background:var(--status-warn-soft, #FFF4E5);border-left:3px solid var(--status-warn, #9A5B00);padding:10px 14px;border-radius:var(--r-inner, 10px);margin-bottom:14px;font-size:12px;color:var(--ink, #222633);line-height:1.5;">
             <strong>Re-issuing</strong> <span id="dcr-reissue-id">—</span> — any changes you make below will replace the issued report. The report number + date are preserved.
           </div>
 
           <!-- Controls bar: date picker + refresh + No-Work + status -->
-          <div style="display:flex;gap:16px;align-items:center;background:white;border:1px solid var(--line, #eceef3);border-radius:4px;padding:14px 16px;margin-bottom:14px;flex-wrap:wrap;">
+          <div style="display:flex;gap:16px;align-items:center;background:white;border:1px solid var(--line, #eceef3);border-radius:var(--r-card, 14px);padding:14px 16px;margin-bottom:14px;flex-wrap:wrap;">
             <label for="dcr-date" style="font-size:11px;color:var(--muted, #8c92a0);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Date</label>
             <input type="date" id="dcr-date" class="dcr-in">
-            <button id="dcr-refresh" type="button" style="padding:6px 14px;border:none;border-radius:4px;background:var(--ink, #222633);color:white;font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;">Refresh from data</button>
+            <button id="dcr-refresh" type="button" style="padding:6px 14px;border:none;border-radius:var(--r-inner, 10px);background:var(--ink, #222633);color:white;font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;">Refresh from data</button>
             <!-- No-Work Day toggle. Reason dropdown lives next to the button —
                  visible whether or not the flag is set so the operator can
                  pick before clicking Mark. Note: free-text. -->
             <span style="display:inline-flex;gap:6px;align-items:center;margin-left:8px;padding-left:12px;border-left:1px solid var(--line, #eceef3);">
-              <select id="dcr-nowork-reason" style="padding:6px 8px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:12px;font-family:inherit;background:white;">
+              <select id="dcr-nowork-reason" style="padding:6px 8px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);font-size:12px;font-family:inherit;background:white;">
                 <option value="Rain">Rain</option>
                 <option value="Snow">Snow</option>
                 <option value="Holiday">Holiday</option>
                 <option value="Other">Other</option>
               </select>
-              <input type="text" id="dcr-nowork-note" placeholder="note (optional)" style="width:140px;padding:6px 8px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:12px;font-family:inherit;">
-              <button id="dcr-nowork-mark" type="button" style="padding:6px 12px;border:1px solid var(--status-warn, #9A5B00);border-radius:4px;background:var(--status-warn-soft, #FFF4E5);color:var(--status-warn, #9A5B00);font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;">Mark No-Work</button>
+              <input type="text" id="dcr-nowork-note" placeholder="note (optional)" style="width:140px;padding:6px 8px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);font-size:12px;font-family:inherit;">
+              <button id="dcr-nowork-mark" type="button" style="padding:6px 12px;border:1px solid var(--status-warn, #9A5B00);border-radius:var(--r-inner, 10px);background:var(--status-warn-soft, #FFF4E5);color:var(--status-warn, #9A5B00);font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;">Mark No-Work</button>
             </span>
             <div id="dcr-status" style="margin-left:auto;font-size:12px;color:var(--muted, #8c92a0);">Loading…</div>
           </div>
           <!-- No-Work banner. Shown when no_work=1; hidden otherwise. Renders
                above section 1 so the operator sees the designation before
                scrolling into the (empty) sections. -->
-          <div id="dcr-nowork-banner" style="display:none;background:var(--status-warn-soft, #FFF4E5);border:1px solid var(--status-warn-edge, #E8C9A0);border-left:5px solid var(--brand-red, #B11E2E);padding:12px 16px;border-radius:4px;margin-bottom:14px;font-size:14px;color:var(--status-behind-deep, #A8382B);font-weight:700;letter-spacing:0.04em;display:none;align-items:center;gap:12px;">
+          <div id="dcr-nowork-banner" style="display:none;background:var(--status-warn-soft, #FFF4E5);border:1px solid var(--status-warn-edge, #E8C9A0);border-left:5px solid var(--brand-red, #B11E2E);padding:12px 16px;border-radius:var(--r-inner, 10px);margin-bottom:14px;font-size:14px;color:var(--status-behind-deep, #A8382B);font-weight:700;letter-spacing:0.04em;display:none;align-items:center;gap:12px;">
             <span style="font-size:18px;">⛔</span>
             <span><span id="dcr-nowork-label">NO WORK — RAIN</span><span id="dcr-nowork-noteshow" style="font-weight:400;color:var(--ink-2, #4A4F59);margin-left:8px;"></span></span>
-            <button id="dcr-nowork-clear" type="button" style="margin-left:auto;background:white;border:1px solid var(--brand-red, #B11E2E);color:var(--brand-red, #B11E2E);padding:4px 10px;border-radius:3px;font-size:12px;font-weight:700;letter-spacing:0.04em;cursor:pointer;">CLEAR NO-WORK</button>
+            <button id="dcr-nowork-clear" type="button" style="margin-left:auto;background:white;border:1px solid var(--brand-red, #B11E2E);color:var(--brand-red, #B11E2E);padding:4px 10px;border-radius:var(--r-inner, 10px);font-size:12px;font-weight:700;letter-spacing:0.04em;cursor:pointer;">CLEAR NO-WORK</button>
           </div>
           <!-- Stale-DCR banner — set when sign_in_log mutated after the
                DCR was issued. The on-disk rendered HTML/PDF no longer
                matches live data; re-issue regenerates it and clears the
                flag. Visible alongside the no-work banner (they can both
                apply to the same DCR). -->
-          <div id="dcr-stale-banner" style="display:none;background:var(--status-warn-soft, #FFF4E5);border:1px solid var(--status-warn-edge, #E8C9A0);border-left:5px solid var(--status-warn, #9A5B00);padding:10px 16px;border-radius:4px;margin-bottom:14px;font-size:13px;color:var(--status-warn, #9A5B00);align-items:center;gap:10px;">
+          <div id="dcr-stale-banner" style="display:none;background:var(--status-warn-soft, #FFF4E5);border:1px solid var(--status-warn-edge, #E8C9A0);border-left:5px solid var(--status-warn, #9A5B00);padding:10px 16px;border-radius:var(--r-inner, 10px);margin-bottom:14px;font-size:13px;color:var(--status-warn, #9A5B00);align-items:center;gap:10px;">
             <span style="font-size:16px;">⚠</span>
             <span><strong>This DCR is STALE.</strong> Sign-in data has changed since it was last issued. <strong>Re-issue</strong> to refresh the rendered report.</span>
           </div>
@@ -2399,7 +2466,7 @@
           <!-- 2. WEATHER -->
           <div class="dcr-block">
             <h3 class="dcr-sec">2. Weather</h3>
-            <div id="dcr-weather" style="background:white;border:1px solid var(--line, #eceef3);border-radius:4px;padding:20px;"></div>
+            <div id="dcr-weather" style="background:white;border:1px solid var(--line, #eceef3);border-radius:var(--r-card, 14px);padding:20px;"></div>
           </div>
 
           <!-- 3. LABOR (auto from sign_in_log + manual backdated entry) -->
@@ -2418,15 +2485,15 @@
                  live (or any day they forgot to use it). Writes to sign_in_log
                  with the DCR's currently-selected date so the labor section
                  picks it up automatically on next refresh. -->
-            <div style="margin-top:14px;padding:12px 14px;background:var(--cream, #faf7f1);border:1px dashed var(--status-oat, #cabfad);border-radius:4px;">
+            <div style="margin-top:14px;padding:12px 14px;background:var(--cream, #faf7f1);border:1px dashed var(--status-oat, #cabfad);border-radius:var(--r-inner, 10px);">
               <div style="font-size:11px;font-weight:600;color:var(--muted, #8c92a0);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">+ Add worker manually (for backdated DCRs or missed sign-ins)</div>
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <select id="dcr-labor-add-worker" style="flex:2;min-width:200px;padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:13px;font-family:inherit;">
+                <select id="dcr-labor-add-worker" style="flex:2;min-width:200px;padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);font-size:13px;font-family:inherit;">
                   <option value="">— Select worker —</option>
                 </select>
                 <input type="time" id="dcr-labor-add-in" value="07:00" class="dcr-in">
                 <input type="time" id="dcr-labor-add-out" value="15:30" class="dcr-in">
-                <button type="button" id="dcr-labor-add-btn" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:6px 14px;border:none;border-radius:4px;background:var(--ink, #222633);color:white;cursor:pointer;">Add</button>
+                <button type="button" id="dcr-labor-add-btn" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:6px 14px;border:none;border-radius:var(--r-inner, 10px);background:var(--ink, #222633);color:white;cursor:pointer;">Add</button>
                 <span id="dcr-labor-add-status" style="font-size:12px;color:var(--muted, #8c92a0);"></span>
               </div>
             </div>
@@ -2485,11 +2552,11 @@
                  location/caption (so a batch of "South elevation L7" photos
                  still only requires typing the location once); per-tile inputs
                  inside the draft override the defaults. -->
-            <div style="background:white;border:1px solid var(--line, #eceef3);border-radius:4px;padding:14px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+            <div style="background:white;border:1px solid var(--line, #eceef3);border-radius:var(--r-card, 14px);padding:14px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
               <input type="file" id="dcr-photo-input" accept="image/*" multiple style="display:none;">
               <button type="button" id="dcr-photo-trigger" class="btn-ghost btn-sm">+ Upload photo(s)</button>
-              <input type="text" id="dcr-photo-location" placeholder="Default location (optional — e.g., South elevation L7)" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:13px;font-family:inherit;">
-              <input type="text" id="dcr-photo-description" placeholder="Default caption (optional)" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:13px;font-family:inherit;">
+              <input type="text" id="dcr-photo-location" placeholder="Default location (optional — e.g., South elevation L7)" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);font-size:13px;font-family:inherit;">
+              <input type="text" id="dcr-photo-description" placeholder="Default caption (optional)" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);font-size:13px;font-family:inherit;">
             </div>
             <div id="dcr-photo-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:12px;"></div>
           </div>
@@ -2503,7 +2570,7 @@
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
               Issue DCR
             </button>
-            <button id="dcr-cancel" type="button" style="font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:12px 24px;border:1px solid var(--brand-red, #B11E2E);border-radius:4px;background:white;color:var(--brand-red, #B11E2E);cursor:pointer;">Cancel</button>
+            <button id="dcr-cancel" type="button" style="font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:12px 24px;border:1px solid var(--brand-red, #B11E2E);border-radius:var(--r-inner, 10px);background:white;color:var(--brand-red, #B11E2E);cursor:pointer;">Cancel</button>
           </div>
         </div>
 
@@ -2616,12 +2683,12 @@
                     '<td>' + r.n + '</td>' +
                     '<td>' + (esc(r.name) || '—') + ' <span style="color:var(--muted, #8c92a0);font-size:12px;">' + (esc(r.worker_id) || '') + '</span></td>' +
                     '<td>' + (esc(r.trade) || '—') + '</td>' +
-                    '<td><input type="time" data-led-in value="' + esc(r.time_in || '') + '" style="padding:4px 6px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:12px;font-family:inherit;"></td>' +
-                    '<td><input type="time" data-led-out value="' + esc(r.time_out || '') + '" style="padding:4px 6px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:12px;font-family:inherit;"></td>' +
+                    '<td><input type="time" data-led-in value="' + esc(r.time_in || '') + '" style="padding:4px 6px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);font-size:12px;font-family:inherit;"></td>' +
+                    '<td><input type="time" data-led-out value="' + esc(r.time_out || '') + '" style="padding:4px 6px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);font-size:12px;font-family:inherit;"></td>' +
                     '<td colspan="2" style="white-space:nowrap;">' +
-                      '<input type="text" data-led-reason maxlength="200" placeholder="Reason (optional)" style="width:150px;padding:4px 8px;border:1px solid var(--line, #eceef3);border-radius:4px;font-size:12px;font-family:inherit;margin-right:6px;">' +
-                      '<button type="button" data-led-save="' + sid + '" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 10px;border:none;border-radius:3px;background:var(--ink, #222633);color:white;cursor:pointer;margin-right:4px;">Save</button>' +
-                      '<button type="button" data-led-cancel style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 10px;border:1px solid var(--line, #eceef3);border-radius:3px;background:white;color:var(--muted, #8c92a0);cursor:pointer;">Cancel</button>' +
+                      '<input type="text" data-led-reason maxlength="200" placeholder="Reason (optional)" style="width:150px;padding:4px 8px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);font-size:12px;font-family:inherit;margin-right:6px;">' +
+                      '<button type="button" data-led-save="' + sid + '" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 10px;border:none;border-radius:var(--r-inner, 10px);background:var(--ink, #222633);color:white;cursor:pointer;margin-right:4px;">Save</button>' +
+                      '<button type="button" data-led-cancel style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 10px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);background:white;color:var(--muted, #8c92a0);cursor:pointer;">Cancel</button>' +
                     '</td>' +
                   '</tr>';
                 }
@@ -2930,7 +2997,7 @@
 
           function buildFieldHTML(f) {
             const width = WIDTHS[f.width || 'md'];
-            const baseStyle = 'flex:1 1 ' + width + ';min-width:' + width + ';padding:6px 10px;border:1px solid #E8E4DD;border-radius:4px;font-size:13px;font-family:inherit;';
+            const baseStyle = 'flex:1 1 ' + width + ';min-width:' + width + ';padding:6px 10px;border:1px solid #E8E4DD;border-radius:var(--r-inner, 10px);font-size:13px;font-family:inherit;';
             if (f.type === 'select') {
               let opts = '<option value="">' + esc(f.placeholder || '—') + '</option>';
               if (f.options === 'toolbox_library') {
@@ -2954,13 +3021,13 @@
             const row = document.createElement('div');
             row.className = 'dcr-row';
             row.dataset.saved = '0';
-            row.style.cssText = 'background:white;border:1px solid #E8E4DD;border-radius:4px;padding:10px 12px;margin-bottom:6px;';
+            row.style.cssText = 'background:white;border:1px solid #E8E4DD;border-radius:var(--r-card, 14px);padding:10px 12px;margin-bottom:6px;';
             row.innerHTML =
               '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
                 fieldsHTML +
                 '<div style="margin-left:auto;display:flex;gap:6px;">' +
-                  '<button type="button" data-row-save style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:6px 14px;border:none;border-radius:4px;background:var(--status-complete-deep, #0c7a5f);color:white;cursor:pointer;">Save</button>' +
-                  '<button type="button" data-row-remove title="Remove" style="font-size:14px;font-weight:bold;padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:4px;background:white;color:var(--muted, #8c92a0);cursor:pointer;line-height:1;">×</button>' +
+                  '<button type="button" data-row-save style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:6px 14px;border:none;border-radius:var(--r-inner, 10px);background:var(--status-complete-deep, #0c7a5f);color:white;cursor:pointer;">Save</button>' +
+                  '<button type="button" data-row-remove title="Remove" style="font-size:14px;font-weight:bold;padding:6px 10px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);background:white;color:var(--muted, #8c92a0);cursor:pointer;line-height:1;">×</button>' +
                 '</div>' +
               '</div>' +
               '<div data-row-err style="color:var(--brand-red, #B11E2E);font-size:12px;margin-top:6px;display:none;"></div>';
@@ -3114,12 +3181,12 @@
               '</div>' +
               '<div style="padding:8px;font-size:12px;display:flex;flex-direction:column;gap:6px;">' +
                 '<div data-tile-name style="font-weight:600;color:var(--ink, #222633);word-break:break-all;">' + esc(file.name) + '</div>' +
-                '<input data-tile-loc type="text" placeholder="Location (e.g., South elevation L7)" style="padding:5px 8px;border:1px solid var(--line, #eceef3);border-radius:3px;font-size:12px;font-family:inherit;">' +
-                '<input data-tile-desc type="text" placeholder="Caption (optional)" style="padding:5px 8px;border:1px solid var(--line, #eceef3);border-radius:3px;font-size:12px;font-family:inherit;">' +
+                '<input data-tile-loc type="text" placeholder="Location (e.g., South elevation L7)" style="padding:5px 8px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);font-size:12px;font-family:inherit;">' +
+                '<input data-tile-desc type="text" placeholder="Caption (optional)" style="padding:5px 8px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);font-size:12px;font-family:inherit;">' +
                 '<div data-tile-status style="color:var(--status-warn, #9A5B00);font-style:italic;">Draft — not saved yet</div>' +
                 '<div data-tile-actions style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">' +
-                  '<label data-tile-replace style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 10px;border:1px solid var(--line, #eceef3);border-radius:3px;background:white;color:var(--muted, #8c92a0);cursor:pointer;">Replace<input data-tile-replace-input type="file" accept="image/*" style="display:none;"></label>' +
-                  '<button data-tile-cancel type="button" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 10px;border:1px solid var(--line, #eceef3);border-radius:3px;background:white;color:var(--brand-red, #B11E2E);cursor:pointer;">Cancel</button>' +
+                  '<label data-tile-replace style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 10px;border:1px solid var(--line, #eceef3);border-radius:var(--r-card, 14px);background:white;color:var(--muted, #8c92a0);cursor:pointer;">Replace<input data-tile-replace-input type="file" accept="image/*" style="display:none;"></label>' +
+                  '<button data-tile-cancel type="button" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 10px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);background:white;color:var(--brand-red, #B11E2E);cursor:pointer;">Cancel</button>' +
                   '<button data-tile-save type="button" class="btn-primary btn-sm">Save</button>' +
                 '</div>' +
               '</div>';
@@ -3250,7 +3317,7 @@
               subtitle.style.cssText = 'font-size:13px;color:#4A4A4A;margin-bottom:14px;';
               subtitle.textContent = 'These workers have been on site recently but are NOT on today\'s draft roster:';
               const list = document.createElement('ul');
-              list.style.cssText = 'list-style:none;margin:0 0 16px 0;padding:0;border:1px solid #E5E2D9;border-radius:4px;background:#FAF7F1;';
+              list.style.cssText = 'list-style:none;margin:0 0 16px 0;padding:0;border:1px solid #E5E2D9;border-radius:var(--r-inner, 10px);background:#FAF7F1;';
               missing.forEach((m, i) => {
                 const li = document.createElement('li');
                 li.style.cssText = 'padding:8px 12px;font-size:13px;display:flex;justify-content:space-between;align-items:center;'
@@ -3274,7 +3341,7 @@
                 const b = document.createElement('button');
                 b.type = 'button';
                 b.textContent = label;
-                b.style.cssText = 'padding:8px 14px;border-radius:4px;border:1px solid '+color+';background:'+bg+';color:'+color+';font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:0.4px;';
+                b.style.cssText = 'padding:8px 14px;border-radius:var(--r-inner, 10px);border:1px solid '+color+';background:'+bg+';color:'+color+';font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:0.4px;';
                 b.addEventListener('click', () => {
                   document.body.removeChild(overlay);
                   resolve(action);
@@ -3979,7 +4046,7 @@
                   (safeDesc ? '<div style="color:var(--muted, #8c92a0);">' + safeDesc + '</div>' : '') +
                   '<div style="color:var(--status-complete-deep, #0c7a5f);font-weight:600;">✓ Saved</div>' +
                   '<div style="display:flex;gap:6px;justify-content:flex-end;">' +
-                    '<button data-server-photo-remove="' + esc(p.id) + '" type="button" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 10px;border:1px solid var(--line, #eceef3);border-radius:3px;background:white;color:var(--brand-red, #B11E2E);cursor:pointer;">Remove</button>' +
+                    '<button data-server-photo-remove="' + esc(p.id) + '" type="button" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:5px 10px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);background:white;color:var(--brand-red, #B11E2E);cursor:pointer;">Remove</button>' +
                   '</div>' +
                 '</div>';
               grid.appendChild(tile);
@@ -4903,13 +4970,13 @@
           <!-- Live "on site today" header (#116) — same shared
                /api/projects/<code>/on-site source the Submit-RFI form
                and the Workers-Today widget consume. -->
-          <div id="rfi-onsite-card" style="background:white;border:1px solid var(--line, #eceef3);border-left:3px solid var(--brand-red, #B11E2E);border-radius:3px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--ink, #222633);line-height:1.5;">
+          <div id="rfi-onsite-card" style="background:white;border:1px solid var(--line, #eceef3);border-left:3px solid var(--brand-red, #B11E2E);border-radius:var(--r-card, 14px);padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--ink, #222633);line-height:1.5;">
             <div style="font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted, #8c92a0);font-weight:600;margin-bottom:4px;">On Site Today</div>
             <div id="rfi-onsite-header">Loading…</div>
           </div>
           <!-- Filter bar — status (multi-select chips) + due-date range.
                Filters pass through to /api/projects/<code>/rfis directly. -->
-          <div style="background:white;border:1px solid var(--line, #eceef3);border-radius:4px;padding:14px 16px;margin-bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+          <div style="background:white;border:1px solid var(--line, #eceef3);border-radius:var(--r-card, 14px);padding:14px 16px;margin-bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
             <span style="font-size:11px;color:var(--muted, #8c92a0);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Status</span>
             <div id="rfi-reg-status-chips" style="display:flex;gap:6px;flex-wrap:wrap;">
               <!-- chip buttons injected by JS — one per RFI_STATUS_SUBSET entry -->
@@ -4923,7 +4990,7 @@
               <input type="checkbox" id="rfi-reg-sched-only" style="cursor:pointer;">
               Schedule impact only
             </label>
-            <button id="rfi-reg-reset" type="button" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:6px 12px;border:1px solid var(--line, #eceef3);border-radius:4px;background:white;color:var(--muted, #8c92a0);cursor:pointer;margin-left:auto;">Reset</button>
+            <button id="rfi-reg-reset" type="button" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:6px 12px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);background:white;color:var(--muted, #8c92a0);cursor:pointer;margin-left:auto;">Reset</button>
           </div>
           <div class="table-wrapper">
             <table>
@@ -5732,7 +5799,7 @@
               </div>
             </div>
             <div id="proj-signage-templates" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;">
-              <div style="padding:14px;text-align:center;color:var(--muted, #8c92a0);font-style:italic;background:white;border:1px solid var(--line, #eceef3);border-radius:4px;">Loading…</div>
+              <div style="padding:14px;text-align:center;color:var(--muted, #8c92a0);font-style:italic;background:white;border:1px solid var(--line, #eceef3);border-radius:var(--r-card, 14px);">Loading…</div>
             </div>
           </div>
           <!-- BLANK FORMS — moved here from Project Documents (#231).
@@ -5747,7 +5814,7 @@
               <div class="t-sub">Reusable safety / compliance form templates — print fresh each shift.</div>
             </div>
             <div id="proj-blank-forms" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));gap:10px;">
-              <div style="padding:14px;text-align:center;color:var(--muted, #8c92a0);font-style:italic;background:white;border:1px solid var(--line, #eceef3);border-radius:4px;">Loading…</div>
+              <div style="padding:14px;text-align:center;color:var(--muted, #8c92a0);font-style:italic;background:white;border:1px solid var(--line, #eceef3);border-radius:var(--r-card, 14px);">Loading…</div>
             </div>
           </div>
         </div>
@@ -6601,7 +6668,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
       const j = await resp.json();
       const rows = (j && j.data) || [];
       if (!rows.length) {
-        grid.innerHTML = '<div style="padding:14px;text-align:center;color:var(--muted, #8c92a0);font-style:italic;background:white;border:1px solid var(--line, #eceef3);border-radius:4px;grid-column:1/-1;">No blank forms yet.</div>';
+        grid.innerHTML = '<div style="padding:14px;text-align:center;color:var(--muted, #8c92a0);font-style:italic;background:white;border:1px solid var(--line, #eceef3);border-radius:var(--r-card, 14px);grid-column:1/-1;">No blank forms yet.</div>';
         return;
       }
       // #232: card markup identical to PROJ_loadSignageTemplates' _render
@@ -6611,7 +6678,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
         const c = _color(r.category);
         const ext = (r.filename || '').split('.').pop().toUpperCase();
         return `<a href="${_esc(r.file_url)}" target="_blank" rel="noopener"
-                    style="display:flex;flex-direction:column;padding:14px 16px 14px;background:white;border:1px solid var(--line, #eceef3);border-left:4px solid ${c};border-radius:4px;text-decoration:none;color:inherit;transition:all 0.15s;min-height:170px;"
+                    style="display:flex;flex-direction:column;padding:14px 16px 14px;background:white;border:1px solid var(--line, #eceef3);border-left:4px solid ${c};border-radius:var(--r-inner, 10px);text-decoration:none;color:inherit;transition:all 0.15s;min-height:170px;"
                     onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)';"
                     onmouseout="this.style.boxShadow='';">
           <div style="font-size:11px;font-weight:600;color:${c};text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">${_esc(r.category || 'Form')} · ${_esc(ext)}</div>
@@ -6621,7 +6688,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
       }).join('');
     } catch (e) {
       console.warn('[blank-forms] load failed:', e);
-      grid.innerHTML = '<div style="padding:14px;text-align:center;color:var(--brand-red, #B11E2E);background:white;border:1px solid var(--line, #eceef3);border-radius:4px;grid-column:1/-1;">Network error — retry</div>';
+      grid.innerHTML = '<div style="padding:14px;text-align:center;color:var(--brand-red, #B11E2E);background:white;border:1px solid var(--line, #eceef3);border-radius:var(--r-card, 14px);grid-column:1/-1;">Network error — retry</div>';
     }
   }
   window.PROJ_loadBlankForms = load;
@@ -6652,7 +6719,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
       ? rows.filter(r => (r.category || '') === activeCategory)
       : rows;
     if (!filtered.length) {
-      grid.innerHTML = '<div style="padding:14px;text-align:center;color:var(--muted, #8c92a0);font-style:italic;background:white;border:1px solid var(--line, #eceef3);border-radius:4px;grid-column:1/-1;">No signage templates in this category.</div>';
+      grid.innerHTML = '<div style="padding:14px;text-align:center;color:var(--muted, #8c92a0);font-style:italic;background:white;border:1px solid var(--line, #eceef3);border-radius:var(--r-card, 14px);grid-column:1/-1;">No signage templates in this category.</div>';
       return;
     }
     grid.innerHTML = filtered.map(r => {
@@ -6671,7 +6738,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
       // carried ref codes like S-9775 / DOB-G2547 / WARN0034) — those
       // codes stay in the DB and inside the PDFs but never on the card.
       return `<a href="${_esc(r.file_url)}" target="_blank" rel="noopener"
-                  style="display:flex;flex-direction:column;padding:14px 16px 14px;background:white;border:1px solid var(--line, #eceef3);border-left:4px solid ${c};border-radius:4px;text-decoration:none;color:inherit;transition:all 0.15s;min-height:170px;"
+                  style="display:flex;flex-direction:column;padding:14px 16px 14px;background:white;border:1px solid var(--line, #eceef3);border-left:4px solid ${c};border-radius:var(--r-inner, 10px);text-decoration:none;color:inherit;transition:all 0.15s;min-height:170px;"
                   onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)';"
                   onmouseout="this.style.boxShadow='';">
         <div style="font-size:11px;font-weight:600;color:${c};text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">${_esc(r.category || 'Sign')} · ${_esc(ext)} ${orient}</div>
@@ -6712,7 +6779,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
       _render(cachedRows);
     } catch (e) {
       console.warn('[signage] load failed:', e);
-      grid.innerHTML = '<div style="padding:14px;text-align:center;color:var(--brand-red, #B11E2E);background:white;border:1px solid var(--line, #eceef3);border-radius:4px;grid-column:1/-1;">Network error — retry</div>';
+      grid.innerHTML = '<div style="padding:14px;text-align:center;color:var(--brand-red, #B11E2E);background:white;border:1px solid var(--line, #eceef3);border-radius:var(--r-card, 14px);grid-column:1/-1;">Network error — retry</div>';
     }
   }
 
@@ -6791,7 +6858,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
       _render(cachedRows);
     } catch (e) {
       console.warn('[toolbox-library] load failed:', e);
-      grid.innerHTML = '<div style="padding:14px;text-align:center;color:var(--brand-red, #B11E2E);background:white;border:1px solid var(--line, #eceef3);border-radius:4px;grid-column:1/-1;">Network error — retry</div>';
+      grid.innerHTML = '<div style="padding:14px;text-align:center;color:var(--brand-red, #B11E2E);background:white;border:1px solid var(--line, #eceef3);border-radius:var(--r-card, 14px);grid-column:1/-1;">Network error — retry</div>';
     }
   }
 
@@ -6841,7 +6908,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
           <td style="padding:8px 10px;border-bottom:1px solid var(--line, #eceef3);font-weight:600;">${_esc(r.product_name)}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--line, #eceef3);">${tds}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--line, #eceef3);text-align:right;">
-            <button type="button" data-detach="${r.spec_product_id}" style="font-size:12px;font-weight:700;padding:3px 8px;border:1px solid var(--brand-red, #B11E2E);border-radius:3px;background:white;color:var(--brand-red, #B11E2E);cursor:pointer;letter-spacing:0.04em;">DETACH</button>
+            <button type="button" data-detach="${r.spec_product_id}" style="font-size:12px;font-weight:700;padding:3px 8px;border:1px solid var(--brand-red, #B11E2E);border-radius:var(--r-inner, 10px);background:white;color:var(--brand-red, #B11E2E);cursor:pointer;letter-spacing:0.04em;">DETACH</button>
           </td>
         </tr>`;
       }).join('');
@@ -7147,6 +7214,91 @@ document.querySelectorAll('.nav-link').forEach(link => {
   // Refresh every 30 min — the server caches each fetch ~30 min, so this stays
   // light on Open-Meteo while keeping the widget current through the workday.
   setInterval(loadWeather, 30 * 60 * 1000);
+
+  // ---- the weather window (accepted 2026-10-09): click the weather in Field today to see
+  // 7 days; arrows, a day tile, or the ← → keys move between days; Esc closes.
+  const _wkBg = $w('wxw-bg');
+  // A pop-up window must sit on <body>: the open tab (.view) keeps an identity transform from its
+  // entry animation, which turns position:fixed into "fixed to the tab" and pushes windows down.
+  // Lifting carries the job color along so the window keeps it.
+  window.SSC_lift = window.SSC_lift || function (el) {
+    if (!el || el.parentElement === document.body) return;
+    const w = document.querySelector('.ph-wrap'); const job = w && getComputedStyle(w).getPropertyValue('--job');
+    if (job) el.style.setProperty('--job', job.trim());
+    document.body.appendChild(el);
+  };
+  let _wk = null, _wkSel = 0, _wkReq = null, _wkOpener = null;
+  const _hr = h => h === 0 ? '12 AM' : h < 12 ? h + ' AM' : h === 12 ? '12 PM' : (h - 12) + ' PM';
+  const _drop = '<svg class="wx-drop"><use href="#w-drop"/></svg>';
+  const _esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  function _md(iso) { const p = String(iso || '').split('-'); return p.length === 3 ? p[1] + '/' + p[2] : ''; }
+  function wkShow(k, focus) {
+    if (!_wk || !_wk.days.length) return;
+    _wkSel = Math.max(0, Math.min(_wk.days.length - 1, k));
+    const d = _wk.days[_wkSel];
+    document.querySelectorAll('#wxw-days .wxw-day').forEach((b, j) => { b.setAttribute('aria-selected', j === _wkSel ? 'true' : 'false'); b.tabIndex = j === _wkSel ? 0 : -1; });
+    const sb = $w('wxw-day-' + _wkSel); if (sb && sb.scrollIntoView) sb.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (focus && sb) sb.focus({ preventScroll: true });
+    $w('wxw-prev').disabled = _wkSel === 0; $w('wxw-next').disabled = _wkSel === _wk.days.length - 1;
+    const heads = (d.heads_up || []).length ? '<div class="wxw-heads" role="note">⚠ ' + d.heads_up.map(_esc).join(' · ') + '</div>' : '';
+    $w('wxw-body').innerHTML =
+      '<div class="wxw-hero">' + _wxSvg(d.code) + '<div><div class="t">' + fmtTemp(d.temp_max) + ' <small>/ ' + fmtTemp(d.temp_min) + '</small></div>'
+        + '<div class="c">' + (d.is_today ? 'Today' : _esc(d.weekday) + ' ' + _md(d.date)) + ' · ' + _esc(d.label) + '</div></div></div>'
+      + heads
+      + '<div class="wxw-facts">'
+        + '<div class="wxw-fact"><span class="k">Rain</span><span class="v rain">' + fmtPct(d.precip_prob) + '</span><span class="s">' + (d.precip_in != null ? Number(d.precip_in).toFixed(2) + ' in expected' : '—') + '</span></div>'
+        + '<div class="wxw-fact"><span class="k">Wind</span><span class="v">' + (d.wind_mph != null ? Math.round(d.wind_mph) + ' mph' : '—') + (d.wind_dir ? ' ' + _esc(d.wind_dir) : '') + '</span><span class="s">' + (d.gust_mph != null ? 'gusts up to ' + Math.round(d.gust_mph) + ' mph' : '—') + '</span></div>'
+        + '<div class="wxw-fact"><span class="k">Humidity</span><span class="v">' + (d.humidity != null ? d.humidity + '%' : '—') + '</span><span class="s">average</span></div>'
+        + '<div class="wxw-fact"><span class="k">Daylight</span><span class="v">' + _esc(d.sunrise || '—') + '</span><span class="s">sunset ' + _esc(d.sunset || '—') + '</span></div>'
+      + '</div>'
+      + (d.hours && d.hours.length ? '<div><div class="wxw-lab">Through the day</div><div class="wxw-hours-wrap"><div class="wxw-hours">'
+        + d.hours.map(h => '<div class="wxw-hr' + (h.work ? ' work' : '') + '"><b>' + _hr(h.hour) + '</b>' + _wxSvg(h.code) + '<span class="tt">' + fmtTemp(h.temp) + '</span>'
+          + '<span class="rp">' + _drop + fmtPct(h.precip_prob) + '</span><span class="wd">' + (h.wind_mph != null ? Math.round(h.wind_mph) + ' mph' : '—') + '</span></div>').join('')
+        + '</div></div></div>' : '')
+      + '<div class="wxw-foot"><span><i></i>Work day ' + _esc(_wk.work_day || '7:00 – 3:30') + '</span><span>' + (_wk.stale ? 'Showing the last forecast we have' : 'Forecast from Open-Meteo') + '</span></div>';
+  }
+  function wkPaint() {
+    $w('wxw-days').innerHTML = _wk.days.map((d, k) => '<button type="button" class="wxw-day" role="tab" id="wxw-day-' + k + '" aria-selected="false" aria-controls="wxw-body">'
+      + '<b>' + (d.is_today ? 'Today' : _esc(d.weekday)) + '</b>' + _wxSvg(d.code) + fmtTemp(d.temp_max) + '<small>' + fmtTemp(d.temp_min) + '</small></button>').join('');
+    wkShow(_wkSel, true);
+  }
+  async function wkOpen() {
+    if (!_wkBg) return;
+    _wkOpener = document.activeElement;
+    window.SSC_lift(_wkBg); _wkBg.classList.add('open');
+    const a = $w('jx-address'); $w('wxw-sub').textContent = a ? a.textContent.replace(/^\s*·\s*/, '') : '';
+    _wkSel = 0;
+    if (_wk) { wkPaint(); return; }
+    $w('wxw-days').innerHTML = ''; $w('wxw-body').innerHTML = '<div class="jx-empty">Loading the week…</div>'; $w('wxw-x').focus();
+    try {
+      _wkReq = _wkReq || fetch('/api/weather/week', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : Promise.reject(r.status));
+      const j = await _wkReq; _wk = j && j.data;
+      if (!_wk || !_wk.days || !_wk.days.length) throw new Error('empty');
+      setTimeout(() => { _wk = null; _wkReq = null; }, 30 * 60 * 1000);   // fresh again after the server cache window
+      if (_wkBg.classList.contains('open')) wkPaint();
+    } catch (e) {
+      _wk = null; _wkReq = null;
+      $w('wxw-body').innerHTML = '<div class="jx-empty">Weather is unavailable right now. Try again in a few minutes.</div>';
+    }
+  }
+  function wkClose() { if (!_wkBg) return; _wkBg.classList.remove('open'); const o = _wkOpener && _wkOpener !== document.body && document.contains(_wkOpener) ? _wkOpener : $w('jx-wx'); if (o && o.focus) o.focus(); }
+  document.addEventListener('click', e => { if (e.target.closest('#jx-wx')) wkOpen(); });
+  document.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.id === 'jx-wx') { e.preventDefault(); wkOpen(); }
+  });
+  if (_wkBg) {
+    _wkBg.addEventListener('click', e => {
+      if (e.target === _wkBg || e.target.closest('#wxw-x')) return wkClose();
+      const b = e.target.closest('.wxw-day'); if (b) return wkShow(+b.id.slice(8));
+      if (e.target.closest('#wxw-prev')) return wkShow(_wkSel - 1, true);
+      if (e.target.closest('#wxw-next')) return wkShow(_wkSel + 1, true);
+    });
+    _wkBg.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.preventDefault(); wkClose(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); wkShow(_wkSel - 1, true); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); wkShow(_wkSel + 1, true); }
+    });
+  }
 })();
 
 
@@ -7393,7 +7545,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
   }
 
   function flagBadge(label) {
-    return '<span style="background:var(--fill, #F4F5F8);color:var(--ink, #222633);font-size:11px;padding:2px 6px;border-radius:3px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-left:4px;">' + esc(label) + '</span>';
+    return '<span style="background:var(--fill, #F4F5F8);color:var(--ink, #222633);font-size:11px;padding:2px 6px;border-radius:var(--r-tag, 6px);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-left:4px;">' + esc(label) + '</span>';
   }
 
   function renderChips() {
@@ -7432,7 +7584,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     const subjectCell = '<strong>' + esc(r.subject_title || '(no subject)') + '</strong>' + flags.join('');
     // The render endpoint (Phase 2E) opens the formal RFI doc in a new tab.
     const docLink = '<a href="/api/rfis/' + encodeURIComponent(r.rfi_number) + '/render" target="_blank" style="font-size:12px;color:var(--brand-red, #B11E2E);font-weight:600;text-decoration:none;">View →</a>';
-    const delBtn = '<button type="button" data-rfi-del="' + esc(r.rfi_number) + '" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:4px 10px;border:1px solid var(--line, #eceef3);border-radius:3px;background:white;color:var(--brand-red, #B11E2E);cursor:pointer;margin-left:8px;">Delete</button>';
+    const delBtn = '<button type="button" data-rfi-del="' + esc(r.rfi_number) + '" style="font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:4px 10px;border:1px solid var(--line, #eceef3);border-radius:var(--r-inner, 10px);background:white;color:var(--brand-red, #B11E2E);cursor:pointer;margin-left:8px;">Delete</button>';
     return '<tr>' +
       '<td style="font-family:Inter,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:12.5px;font-weight:600;">' + esc(r.rfi_number) + '</td>' +
       '<td style="max-width:320px;">' + subjectCell + '</td>' +

@@ -101,3 +101,48 @@ html body .ph-wrap .jx-kpi-v, html body .cp-kpi-v, html body .ph-kpi-v, html bod
 /* the job sidebar's link to the company dashboard: capitals, regular weight */
 html body .bl-company { font-size: 11.5px; font-weight: 400; letter-spacing: .1em; text-transform: uppercase; color: var(--t-ink-2); padding: 11px 18px; }
 html body .bl-company:hover { color: var(--t-ink); }
+
+/* =============================================================================
+   ONE CARD STYLE for every screen (accepted 2026-10-09). Four corner sizes, set once:
+     --r-card  14px  every card, panel, table card and pop-up window
+     --r-inner 10px  anything inside a card: tiles, day tiles, alerts, rows, buttons, inputs
+     --r-tag    6px  small tags (Overdue, Due, status)
+     --r-pill  round chips
+   Cards are white with a thin border and the same soft shadow. Page CSS keeps its own
+   corner values; the `html body :is(...)` rules below outrank them (same reasoning as the
+   type rules above). tests/smoke_card_style.py fails the build on a new card corner.
+   ============================================================================= */
+:root {
+  --r-card: 14px; --r-inner: 10px; --r-tag: 6px; --r-pill: 999px;
+  --card-line: #E6E8EE;
+  --card-shadow: 0 1px 2px rgba(20,22,28,.04), 0 4px 14px -6px rgba(20,22,28,.08);
+  --card-shadow-up: 0 2px 4px rgba(20,22,28,.05), 0 12px 28px -10px rgba(20,22,28,.16);
+}
+/* cards and panels: 14px, soft shadow */
+html body :is(
+  .jx-card, .ph-wrap .jx-card, .jx-kpi, .ph-wrap .jx-kpi, .ph-wrap .jx-hero,
+  .pc-card, .ac-card, .ps-card, .dcr-card, .dcrg-panel, .exp-card, .dp-card, .dp-hero, .dp-exp, .pd-hero,
+  .mt-card, .mt-panel, .mt-table, .pay-card, .pay-kpi, .pk-card, .ec-table-wrap, .fp-bar,
+  .cp-card, .cp-kpi, .cal-grid, .shc-card, .shc-widget, .shc-kpi, .ph-widget, .ph-kpi,
+  .crm-card, .est-card, .ira-job-card, .pp-panel, .cl-card, .lrt-card, .prp-card, .v-head, .pm-card, .project-btn
+) { border-radius: var(--r-card); }
+html body :is(
+  .jx-card, .ph-wrap .jx-card, .jx-kpi, .ph-wrap .jx-kpi, .pc-card, .ac-card, .ps-card,
+  .cp-card, .cp-kpi, .shc-card, .shc-widget, .shc-kpi, .mt-card, .pay-card, .pay-kpi, .crm-card, .est-card
+) { box-shadow: var(--card-shadow); }
+html body :is(.ph-wrap .jx-card, .ph-wrap .jx-kpi) { border: 1px solid var(--card-line); }
+html body :is(.ph-wrap .jx-card:hover, .ph-wrap .jx-kpi:hover, .cp-card:hover, .prp-card:hover) { box-shadow: var(--card-shadow-up); }
+/* pop-up windows: 14px */
+html body :is(
+  .jx-modal, .wxw, .pc-modal, .pk-modal, .pd-modal, .la-modal, .mt-modal, .pay-modal, .fp-modal,
+  .cp-modal, .crm-modal, .est-modal, .np-modal, .signout-dialog, .modal
+) { border-radius: var(--r-card); }
+/* inside a card: 10px */
+html body :is(
+  .wx-now, .wx-day, .shc-wx-now, .shc-wx-day, .jx-alert, .ph-wrap .jx-alert, .ph-wrap .jx-it, .ph-wrap .jx-photos a,
+  .dcr-tile, .exp-tile, .fp-tile, .shc-tile, .np-tile, .np-drop, .dropzone, .shc-photo, .fp-photo, .fp-empty, .fp-lb-meta,
+  .tbx-talk, .exp-receipt-pane, .exp-drop, .exp-litbl, .pd-clist, .pd-bulkbar, .dp-pcol, .dp-qty, .dp-collapsed,
+  .dp-actbanner, .aia-g702, .mt-empty, .cc-week-row, .vprow, .lrt-weeknav, .lrt-strip, .crm-box, .crm-detail-info,
+  .est-box, .est-info, .vp-stat, .project-foot button, .jx-ic, .cal.has-wx .cal-dow,
+  .btn-primary, .btn-ghost, .ssc-field
+) { border-radius: var(--r-inner); }

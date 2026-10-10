@@ -9436,6 +9436,22 @@ def api_weather():
         return jsonify({"error": str(e)}), 400
 
 
+@app.route('/api/weather/week', methods=['GET'])
+def api_weather_week():
+    """The 7-day weather window behind Field today (weather_week.py). Same default site
+    coords as /api/weather; 503 when the forecast is unreachable and nothing is cached."""
+    import weather_week
+    try:
+        lat = float(request.args.get("lat", 40.8083))
+        lng = float(request.args.get("lng", -73.9162))
+    except ValueError:
+        return jsonify({"error": "lat and lng must be numbers"}), 400
+    try:
+        return response_wrapper(weather_week.fetch_week(lat, lng, _WMO_LABELS))
+    except Exception:
+        return jsonify({"error": "Weather is unavailable right now. Try again in a few minutes."}), 503
+
+
 # ============= NYC COMPLIANCE WATCH =============
 
 @app.route('/api/compliance/summary', methods=['GET'])

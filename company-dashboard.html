@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1012">
+<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1013">
 <script src="/files/static/js/datepicker.js?v=1007"></script>
 <script src="/files/static/js/timepicker.js"></script>
 <!-- #210 company console redesign — REUSES the #209 drag framework:
@@ -585,14 +585,14 @@
           <div class="h2-sub">Last completed Mon–Sun week defaults below (weekend days included). Source = sign_in_log (same as DCR labor — they can never disagree).</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <button id="hrs-prev" type="button" style="background:white;border:1px solid var(--ui);color:var(--ui);padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">‹ Prev</button>
+          <button id="hrs-prev" type="button" style="background:white;border:1px solid var(--ui);color:var(--ui);padding:6px 12px;border-radius:var(--r-inner, 10px);font-size:12px;font-weight:600;cursor:pointer;">‹ Prev</button>
           <div id="hrs-range" style="font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:14px;font-weight:700;min-width:220px;text-align:center;">—</div>
-          <button id="hrs-next" type="button" style="background:white;border:1px solid var(--ui);color:var(--ui);padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">Next ›</button>
-          <button id="hrs-csv" type="button" style="background:#14161C;color:white;border:none;padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;margin-left:14px;display:inline-flex;align-items:center;gap:6px;">
+          <button id="hrs-next" type="button" style="background:white;border:1px solid var(--ui);color:var(--ui);padding:6px 12px;border-radius:var(--r-inner, 10px);font-size:12px;font-weight:600;cursor:pointer;">Next ›</button>
+          <button id="hrs-csv" type="button" style="background:#14161C;color:white;border:none;padding:6px 14px;border-radius:var(--r-inner, 10px);font-size:12px;font-weight:600;cursor:pointer;margin-left:14px;display:inline-flex;align-items:center;gap:6px;">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             CSV
           </button>
-          <button id="hrs-pdf" type="button" style="background:var(--ui);color:white;border:none;padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+          <button id="hrs-pdf" type="button" style="background:var(--ui);color:white;border:none;padding:6px 14px;border-radius:var(--r-inner, 10px);font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             PDF
           </button>
@@ -1036,14 +1036,14 @@
           <div class="h2-sub" data-i18n="p-specs-sub">Manufacturer specs catalog. Each row links to the official TDS; the "Attach to Project" action puts the spec under that project's Project Documents (Specifications subsection).</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <select id="specs-mfr" style="padding:6px 10px;border:1px solid #E8E4DD;border-radius:4px;font-size:13px;font-family:inherit;background:white;">
+          <select id="specs-mfr" style="padding:6px 10px;border:1px solid #E8E4DD;border-radius:var(--r-inner, 10px);font-size:13px;font-family:inherit;background:white;">
             <option value="Sika" selected>Sika</option>
             <option value="">All manufacturers</option>
           </select>
-          <select id="specs-category" style="padding:6px 10px;border:1px solid #E8E4DD;border-radius:4px;font-size:13px;font-family:inherit;background:white;min-width:220px;">
+          <select id="specs-category" style="padding:6px 10px;border:1px solid #E8E4DD;border-radius:var(--r-inner, 10px);font-size:13px;font-family:inherit;background:white;min-width:220px;">
             <option value="">All categories</option>
           </select>
-          <input type="text" id="specs-search" placeholder="Search name / code…" style="padding:6px 10px;border:1px solid #E8E4DD;border-radius:4px;font-size:13px;font-family:inherit;min-width:200px;">
+          <input type="text" id="specs-search" placeholder="Search name / code…" style="padding:6px 10px;border:1px solid #E8E4DD;border-radius:var(--r-inner, 10px);font-size:13px;font-family:inherit;min-width:200px;">
           <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#76777E;text-transform:uppercase;letter-spacing:0.04em;font-weight:600;cursor:pointer;">
             <input type="checkbox" id="specs-core-only"> 890-core only
           </label>
