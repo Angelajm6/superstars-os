@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1012">
+<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1013">
 <title>Sign in · Superstars Contracting</title>
 <style>
   :root {
@@ -39,7 +39,7 @@
     max-width: 420px;
     background: rgba(255,255,255,0.96);
     border: 1px solid var(--hairline);
-    border-radius: 20px;
+    border-radius: var(--r-card, 14px);
     box-shadow: 0 24px 64px rgba(20,22,28,0.12), 0 2px 8px rgba(20,22,28,0.04);
     padding: 36px 36px 30px;
   }
@@ -182,7 +182,7 @@
   .brand-mark,.mark{object-fit:contain;}  /* #265 swap-safe logo */
   @media (max-width: 480px) {
     .wrap { padding: 16px; align-items: flex-start; padding-top: 56px; }
-    .card { padding: 30px 24px 26px; border-radius: 16px; }
+    .card { padding: 30px 24px 26px; border-radius: var(--r-card, 14px); }
   }
 </style>
 </head>

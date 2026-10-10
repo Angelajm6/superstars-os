@@ -103,6 +103,7 @@ GATE = [
     "smoke_job_page_redesign.py",     # job page per the Oct 7 notes: 3 top numbers, open items, 4 contact groups, 3 sidebar groups, crew list, 3D first
     "smoke_projects_batch_c.py",      # job numbers, a color per job, access method, worker access, the Create / Edit project window
     "smoke_type_system.py",           # one type system: Inter everywhere, medium titles, no extra-bold, no on-screen monospace
+    "smoke_card_style.py",           # one card style (14 / 10 / 6 / round corners) + the 7-day weather window
     "smoke_gcal_sync.py",             # each person's tasks & events in their own Google Calendar (Google faked)
     "smoke_team_home_2b.py",          # PM / super home: own to-do, team calendar, projects
     "smoke_team_items.py",            # team tasks & events: dashboard to-do list on the calendar
