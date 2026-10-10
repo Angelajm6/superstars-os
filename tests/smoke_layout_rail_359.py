@@ -9,8 +9,8 @@ Boots the real app on an ISOLATED database. Proves:
   * every internal page applies a remembered rail in <head>, before shell.js, so a
     collapsed rail never flashes open; the client portal has no rail
   * all eight shells share ONE widgets.css key and ONE shell.js key
-  * the served project dashboard opts in (admin and pm), its views are capped at
-    1440 px, and the dead .topbar rules are gone
+  * the served project dashboard opts in (admin and pm), its views fill the window
+    width (no 1440 px cap since 2026-10-10), and the dead .topbar rules are gone
 Run:  venv/bin/python tests/smoke_layout_rail_359.py
 """
 from __future__ import annotations
@@ -140,7 +140,9 @@ def main() -> int:
         assert '<aside class="sidebar" data-rail>' in page, role
         assert PRE in page, role
     dash = (ROOT / "dashboard-static.html").read_text(encoding="utf-8")
-    assert re.search(r"\.view \{ display: none; padding: [^}]*max-width: 1440px; margin-inline: auto; \}", dash)
+    # full window width since 2026-10-10 (the 1440px cap was removed on request); overview cards stay at 3 columns max
+    assert re.search(r"\.view \{ display: none; padding: [^}]*\}", dash) and "max-width: 1440px" not in dash
+    assert "minmax(max(340px, calc((100% - 32px) / 3)), 1fr)" in dash
     assert '.view[data-view="drawings"] { padding: 0; max-width: none; }' in dash, "the markup canvas stays full-bleed"
     assert ".topbar {" not in dash and ".topbar-meta" not in dash, "dead top-bar rules removed"
     passed += 1; print("  dashboard ok")
