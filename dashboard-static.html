@@ -359,13 +359,7 @@
     }
     /* #328 — project identity block: the job you are in, on every view */
     .proj-line { padding: 10px 10px 14px; margin: 0 0 8px; border-bottom: 1px solid var(--line, #eceef3); }
-    .proj-code { display: inline-block; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--brand-red, #B11E2E);
-      background: rgba(177,30,46,.08); border: 1px solid rgba(177,30,46,.22); border-radius: 6px; padding: 2px 8px; margin-bottom: 6px; }
-    .proj-name { font-size: 14px; font-weight: 700; line-height: 1.3; color: var(--ink, #222633); }
-    .proj-addr { font-size: 12px; color: var(--ink-2, #4A4F59); margin-top: 3px; line-height: 1.35; }
-    .proj-addr:empty { display: none; }
-    .proj-client { font-size: 12px; color: var(--muted, #8c92a0); margin-top: 3px; }
+    .proj-name { font-size: 14px; font-weight: 600; line-height: 1.3; color: var(--ink, #222633); text-wrap: balance; }
 
     /* Navigation */
     .nav { }
@@ -960,10 +954,10 @@
          access.render_project_identity (same fills as the hero); the hero only
          shows on Project Health, this block stays put while you move between views. -->
     <div class="proj-line" id="proj-line">
-      <div class="proj-code" data-project-code>&nbsp;</div>
+      <!-- the project name only (accepted 2026-10-10); the code, client and address live in the
+           job header. The hidden code feeds the browser-tab title (nameTheTab below). -->
       <div class="proj-name" data-project-name>&nbsp;</div>
-      <div class="proj-addr" data-project-address></div>
-      <div class="proj-client" data-project-client>&nbsp;</div>
+      <span data-project-code hidden>&nbsp;</span>
     </div>
     <!-- #263 — role-aware back-link. The server (access.render_role_nav) keeps exactly
          ONE of the two blocks below per role: company roles keep the company link (to /),
@@ -1223,27 +1217,33 @@
             .ph-wrap { --job: #24418C; --jx-ease: cubic-bezier(.2,.8,.2,1);
               --jx-shadow: 0 1px 2px rgba(16,24,40,.05), 0 8px 24px -6px rgba(16,24,40,.10);
               --jx-shadow-up: 0 2px 4px rgba(16,24,40,.06), 0 18px 40px -10px rgba(16,24,40,.22); }
-            .ph-wrap .jx-hero { position: relative; display: block; margin: 0 0 0; padding: 20px 26px 66px; border-radius: 22px; color: #fff; overflow: hidden; isolation: isolate;
-              background: linear-gradient(125deg, color-mix(in srgb, var(--job) 70%, #05070b) 0%, var(--job) 52%, color-mix(in srgb, var(--job) 72%, #fff) 130%); transition: background .6s var(--jx-ease); }
-            .jx-hero::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(600px 260px at 85% -10%, rgba(255,255,255,.22), transparent 60%), radial-gradient(500px 240px at 10% 120%, rgba(0,0,0,.25), transparent 60%); }
-            .jx-hero::after { content: ""; position: absolute; inset: 0; z-index: -1; opacity: .10; background-image: linear-gradient(rgba(255,255,255,.9) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.9) 1px, transparent 1px); background-size: 44px 44px; -webkit-mask-image: linear-gradient(90deg, transparent, #000 55%); mask-image: linear-gradient(90deg, transparent, #000 55%); }
+            /* job header (accepted 2026-10-10, option B): a white card like the other cards; the job
+               color lives only in the 6px band along the top (::before) and a soft glow (::after) */
+            .ph-wrap { --jx-band-h: 6px;
+              --jx-band: linear-gradient(90deg, color-mix(in srgb, var(--job) 70%, #05070b), var(--job) 45%, color-mix(in srgb, var(--job) 40%, #fff));
+              --jx-wash: radial-gradient(700px 220px at 85% 0%, color-mix(in srgb, var(--job) 12%, transparent), transparent 70%),
+                         linear-gradient(180deg, color-mix(in srgb, var(--job) 6%, #fff), #fff 60%); }
+            .ph-wrap .jx-hero { position: relative; display: block; margin: 0; padding: calc(var(--jx-band-h) + 18px) 24px 20px; border-radius: var(--r-card, 14px);
+              background: #fff; color: var(--ink, #222633); border: 1px solid var(--card-line, #E6E8EE); box-shadow: var(--card-shadow); overflow: hidden; isolation: isolate; }
+            .jx-hero::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: var(--jx-band-h); background: var(--jx-band); transition: background .6s var(--jx-ease); }
+            .jx-hero::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: var(--jx-wash); }
             .jx-htop { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-            .jx-glass { display: inline-flex; align-items: center; gap: 7px; border: 1px solid rgba(255,255,255,.28); background: rgba(255,255,255,.12); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); color: #fff; border-radius: 10px; padding: 7px 12px; font: inherit; font-weight: 600; font-size: 13px; cursor: pointer; text-decoration: none; transition: background .2s, transform .2s var(--jx-ease), box-shadow .2s; }
-            .jx-glass:hover { background: rgba(255,255,255,.22); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,.18); color: #fff; }
+            .jx-glass { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line, #eceef3); background: #fff; color: var(--ink-2, #4A4F59); border-radius: var(--r-inner, 10px); padding: 7px 12px; font: inherit; font-weight: 600; font-size: 13px; cursor: pointer; text-decoration: none; transition: border-color .2s, color .2s, transform .2s; }
+            .jx-glass:hover { border-color: var(--job); color: color-mix(in srgb, var(--job) 85%, #14161C); transform: translateY(-1px); }
             .jx-glass svg { width: 15px; height: 15px; }
-            .jx-glass.jx-edit, .jx-glass.jx-edit:hover { background: #fff; border-color: #fff; color: color-mix(in srgb, var(--job) 85%, #000); }
+            .jx-glass.jx-edit, .jx-glass.jx-edit:hover { background: var(--job); border-color: var(--job); color: #fff; }
+            .jx-glass.jx-edit:hover { background: color-mix(in srgb, var(--job) 88%, #000); }
             .jx-glass[hidden] { display: none; }
             .jx-hero .jx-title { margin-top: 16px; }
             .jx-htitle { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-            .jx-hno { font-weight: 700; font-size: 15px; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.3); border-radius: 9px; padding: 3px 9px; font-variant-numeric: tabular-nums; }
+            .jx-hno { font-weight: 600; font-size: 14px; background: color-mix(in srgb, var(--job) 10%, #fff); color: color-mix(in srgb, var(--job) 85%, #14161C); border: 1px solid color-mix(in srgb, var(--job) 25%, #fff); border-radius: var(--r-inner, 10px); padding: 3px 9px; font-variant-numeric: tabular-nums; }
             .jx-hno[hidden] { display: none; }
-            .jx-hero h1 { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; color: #fff; font-size: clamp(22px, 3vw, 32px); font-weight: 600; letter-spacing: -.01em; margin: 0; text-wrap: balance; }
-            .jx-hero .jx-sub { color: rgba(255,255,255,.85); margin-top: 6px; }
+            .jx-hero h1 { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; color: var(--ink, #222633); font-size: clamp(22px, 3vw, 32px); font-weight: 600; letter-spacing: -.01em; margin: 0; text-wrap: balance; }
+            .jx-hero .jx-sub { color: var(--ink-2, #4A4F59); margin-top: 6px; }
             .jx-hero .jx-chips { margin-top: 14px; }
-            .jx-hero .jx-chip { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22); color: #fff; font-weight: 600; font-size: 12px; padding: 4px 11px; }
-            .jx-hero .jx-chip.ok { background: #fff; border-color: #fff; color: color-mix(in srgb, var(--job) 85%, #000); }
-            .jx-hero .jx-chip.warn, .jx-hero .jx-chip.bad { background: #fff; border-color: #fff; color: var(--status-behind-deep, #A8382B); }
-            .ph-wrap .jx-kpis { position: relative; margin: -44px 14px 18px; gap: 14px; }
+            .jx-hero .jx-chip { font-weight: 600; font-size: 12px; padding: 4px 11px; }
+            .jx-hero .jx-chip.ui { background: color-mix(in srgb, var(--job) 10%, #fff); color: color-mix(in srgb, var(--job) 85%, #14161C); }
+            .ph-wrap .jx-kpis { position: relative; margin: 16px 0 18px; gap: 14px; }   /* below the header (it no longer overlaps a colored block) */
             .ph-wrap .jx-kpi { border: 0; border-radius: 18px; box-shadow: var(--jx-shadow); display: flex; gap: 14px; align-items: center; padding: 16px 18px; transition: transform .25s var(--jx-ease), box-shadow .25s var(--jx-ease); }
             .ph-wrap .jx-kpi:hover { transform: translateY(-3px); box-shadow: var(--jx-shadow-up); border: 0; }
             .jx-ic { width: 46px; height: 46px; border-radius: 14px; flex: none; display: grid; place-items: center; color: #fff; background: linear-gradient(140deg, color-mix(in srgb, var(--job) 70%, #fff), var(--job)); box-shadow: 0 8px 18px -6px color-mix(in srgb, var(--job) 60%, transparent); }
@@ -1278,7 +1278,7 @@
             .jx-rise { animation: jx-rise .6s var(--jx-ease) both; }
             @keyframes jx-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
             @media (prefers-reduced-motion: reduce) { .ph-wrap *, .ph-wrap .jx-hero { animation: none !important; transition: none !important; } }
-            @media (max-width: 640px) { .ph-wrap .jx-hero { padding: 16px 16px 60px; border-radius: 16px; } .ph-wrap .jx-kpis { margin: -40px 8px 16px; } }
+            @media (max-width: 640px) { .ph-wrap .jx-hero { padding: calc(var(--jx-band-h) + 14px) 16px 16px; } .ph-wrap .jx-kpis { margin: 14px 0 16px; } }
             @media (max-width: 640px) { .jx-modal .row2 { grid-template-columns: 1fr; } }
           </style>
           <!-- the job header, painted in the job's own calendar color (project_setup); Edit project
