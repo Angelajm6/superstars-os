@@ -29,12 +29,12 @@
 
 
   #user-menu { display: flex; align-items: center; gap: 10px; }
-  .cp-content { padding: 22px 28px 48px; max-width: 1360px; }
+  .cp-content { padding: 22px 28px 48px; }   /* full window width (accepted 2026-10-10; was capped at 1360px) */
   .cp-view[hidden] { display: none !important; }
   .cp-view:not([hidden]) { animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }   /* #311 — views rise in */
 
   /* ---- components ---- */
-  .cp-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .cp-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px; }   /* auto-fit: tiles stretch to fill a wide window */
   .cp-kpi { background: #fff; border: 1px solid var(--accent-edge); border-radius: 12px; padding: 14px 16px;
     box-shadow: inset 0 0 12px var(--accent-in), 0 1px 4px rgba(0,0,0,.04); }   /* #314 — the calm-blue tile vignette */
   .cp-view > :first-child.cp-card, .cp-view > :first-child > .cp-card:first-child, .cp-view > .cp-kpis + .cp-card, .cp-view > .cp-kpis + * > .cp-card:first-child { position: relative; background: radial-gradient(520px 170px at 14% 0%, var(--accent-in) 0%, rgba(255,255,255,0) 60%), #fff; }
