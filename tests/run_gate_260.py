@@ -90,7 +90,7 @@ GATE = [
     "smoke_billing_type_356.py", # #356 — billing type per job: backfill, set/gates, AIA guards, list chip, page reacts
     "smoke_project_contacts_357.py", # #357 — project contacts: add/validate/primary/remove, access + PII, DCR header people
     "smoke_job_dashboard_358.py",   # #358 — job dashboard summary: bootstrap part, money C-suite only, blocks, drill-through
-    "smoke_layout_rail_359.py",     # #359 — collapsible sidebar rail (desktop only, remembered, no flash) + 1440 px view cap
+    "smoke_layout_rail_359.py",     # #359 — collapsible sidebar rail (desktop only, remembered, no flash) + full-width views
     "smoke_edit_projects_clients.py",  # edit a job (name/address/client/dates/contract) + edit clients and contacts
     "smoke_project_modules.py",       # per-job tabs: NULL = every tab on; new jobs every tab on; admin/c_suite switch them
     "smoke_projects_flow.py",         # projects navigation: All projects back link, New project in place, Client portal under Clients, phone layout

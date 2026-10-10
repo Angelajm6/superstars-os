@@ -478,10 +478,9 @@
 
     /* Views Container */
     .views-container { flex: 1; overflow-y: auto; }
-    /* #359 — content stops growing at 1440 px and centres (wide monitors read as a page,
-       not a strip); side gutters shrink with the window; the Live line above already
-       spaces the top, so the view starts closer to it */
-    .view { display: none; padding: 20px clamp(16px, 2.6vw, 32px) 32px; max-width: 1440px; margin-inline: auto; }
+    /* #359 — every job tab fills the window width (the 1440px cap was removed 2026-10-10 on request);
+       side padding scales with the window */
+    .view { display: none; padding: 20px clamp(16px, 2.6vw, 32px) 32px; }   /* full window width (accepted 2026-10-10; was capped at 1440px) */
     .view.active { display: block; animation: ssc-rise var(--ssc-t-view, .22s) var(--ssc-ease, ease) both; }   /* #311 */
 
     /* #280 — the Drawing Markup view is full-bleed: the embedded v2 page brings its own
@@ -1157,7 +1156,7 @@
             .jx-kpi-v { font-size: 26px; font-weight: 600; color: var(--ink, #222633); margin: 4px 0 2px; line-height: 1.1; }
             .jx-kpi-v.bad { color: var(--status-behind-deep, #A8382B); } .jx-kpi-v.ok { color: var(--status-complete-deep, #0c7a5f); }
             .jx-kpi-s { font-size: 13px; color: var(--ink-2, #4A4F59); }
-            .jx-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin: 0 0 22px; }
+            .jx-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(max(340px, calc((100% - 32px) / 3)), 1fr)); gap: 16px; margin: 0 0 22px; }   /* at most 3 columns, however wide the window */
             .jx-card { background: #fff; border: 1px solid var(--line, #eceef3); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; }
             .jx-card h2 { margin: 0 0 12px; font-size:15px; display: flex; align-items: baseline; gap: 8px; }
             .jx-card h2 a { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--ui, #24418C); cursor: pointer; white-space: nowrap; }
