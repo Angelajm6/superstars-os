@@ -210,6 +210,10 @@ def main() -> int:
     hd = _summary(cs)["header"]
     assert re.fullmatch(r"#[0-9A-F]{6}", hd["color"]) and hd["can_edit"] is True and _summary(pm)["header"]["can_edit"] is False
     assert 'id="jx-hero"' in page and 'id="jx-edit"' in page and "window.SSC_editProject" in page and "--job" in page
+    # the header is a white card with the job color only in a top band (accepted 2026-10-10, option B)
+    hero_css = page[page.index(".ph-wrap { --jx-band-h: 6px;"):page.index(".jx-htop {")]
+    assert "background: #fff;" in hero_css and "height: var(--jx-band-h); background: var(--jx-band);" in hero_css
+    assert "linear-gradient(125deg" not in page and ".ph-wrap .jx-kpis { position: relative; margin: 16px 0 18px;" in page
     assert "prefers-reduced-motion: reduce" in page and "function jxIntro" in page
     # one way back to the overview from every tab (Oct 9): pinned above the views, hidden on Project Health
     i_bar, i_views = page.index('id="ov-back"'), page.index('<div class="views-container">')

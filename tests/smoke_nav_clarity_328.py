@@ -131,7 +131,10 @@ def main() -> int:
         assert 'id="proj-line"' in html, who
         assert f'data-project-code>{PROJ}<' in html, who
         assert f'data-project-name>{NAME}<' in html, who
-        assert f'data-project-address>{ADDR}<' in html, who
+        # the sidebar shows the project name only (accepted 2026-10-10); client and address live in the job header
+        i = html.index('id="proj-line"'); side = html[i:html.index('</span>', i) + len('</span>')]
+        assert f'data-project-name>{NAME}<' in side and "data-project-address" not in side and "data-project-client" not in side, who
+        assert f'<span data-project-code hidden>{PROJ}</span>' in side, who
         assert "proj-lrt-nav-link" not in html and ">Labor Rate Tracker" not in html, who
         assert "proj-lrt-entry-card" not in html, who
     cs_html = _page(cs, f"/projects/{PROJ}")
