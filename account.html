@@ -21,7 +21,8 @@
   body{background:var(--canvas);color:var(--ink);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;}
   .brand-mark{object-fit:contain;}
   [hidden]{display:none !important;}
-  .wrap{max-width:1000px;margin:0 auto;padding:22px 26px 48px;display:grid;gap:16px;}
+  .wrap{margin:0 auto;padding:22px 26px 48px;display:grid;gap:16px;}
+  .ssc-main > .wrap{max-width:none;}   /* full window width (accepted 2026-10-10); outranks the shell's 1160px cap */
   .ac-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 22px;display:grid;grid-template-columns:220px minmax(0,1fr);gap:22px;}
   .ac-card h2{font-size:15px;font-weight:600;margin-bottom:4px;}
   .ac-card .sub{font-size:12.5px;color:var(--muted);line-height:1.45;}
