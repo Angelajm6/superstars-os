@@ -229,6 +229,16 @@ def main() -> int:
     os.environ.update(CONFIG)
     assert pm.get("/api/google-calendar/status").get_json()["data"]["available"] is True
     assert gcal_sync.redirect_uri() == "https://app.example.test/google-calendar/callback"
+    # a client of its own for Calendar/Gmail (GOOGLE_APPS_*) wins only as a complete pair;
+    # Google sign-in keeps its GOOGLE_OAUTH_* client either way
+    os.environ["GOOGLE_APPS_CLIENT_ID"] = "apps-client.apps.googleusercontent.com"
+    assert gcal_sync._client_id() == CONFIG["GOOGLE_OAUTH_CLIENT_ID"], "an id without its secret is ignored"
+    os.environ["GOOGLE_APPS_CLIENT_SECRET"] = "apps-secret"
+    assert (gcal_sync._client_id(), gcal_sync._client_secret()) == ("apps-client.apps.googleusercontent.com", "apps-secret")
+    import auth_google
+    assert auth_google._client_id() == CONFIG["GOOGLE_OAUTH_CLIENT_ID"], "sign-in is untouched"
+    assert "apps-client.apps.googleusercontent.com" in pm.get("/google-calendar/connect").headers.get("Location", "")
+    os.environ.pop("GOOGLE_APPS_CLIENT_ID"); os.environ.pop("GOOGLE_APPS_CLIENT_SECRET")
     passed += 1; print("  switch ok")
 
     # ---- items, before connecting

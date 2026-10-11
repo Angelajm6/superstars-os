@@ -19,7 +19,8 @@ or change any other calendar or event of the person's.
 
 Rules
   * Switched off (status.available = false, connect 404) until BOTH the Google OAuth client
-    (GOOGLE_OAUTH_CLIENT_ID / _SECRET, and a redirect URI) AND the field-encryption key
+    (GOOGLE_APPS_CLIENT_ID / _SECRET, else the sign-in client GOOGLE_OAUTH_CLIENT_ID / _SECRET;
+    and a redirect URI) AND the field-encryption key
     (secret_box) are configured. Nothing else changes when it is off.
   * The Google account must be the person's own company account: verified ID token, the
     same email as their app login, the company domain (hd claim).
@@ -67,12 +68,25 @@ SYNC_INLINE = False       # tests flip this so a sync runs before the request re
 
 
 # ------------------------------------------------------------------ config
+def _client_pair() -> tuple[str, str]:
+    """The Google OAuth client Calendar and Gmail use. GOOGLE_APPS_CLIENT_ID/_SECRET (a client of
+    its own, e.g. in a separate Cloud project) when BOTH are set; otherwise the sign-in client
+    (GOOGLE_OAUTH_CLIENT_ID/_SECRET). Taken as a pair so an id is never sent with the other
+    client's secret, and so setting up Calendar/Gmail never touches Google sign-in."""
+    aid = (os.environ.get("GOOGLE_APPS_CLIENT_ID") or "").strip()
+    asec = (os.environ.get("GOOGLE_APPS_CLIENT_SECRET") or "").strip()
+    if aid and asec:
+        return aid, asec
+    return ((os.environ.get("GOOGLE_OAUTH_CLIENT_ID") or "").strip(),
+            (os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET") or "").strip())
+
+
 def _client_id() -> str:
-    return (os.environ.get("GOOGLE_OAUTH_CLIENT_ID") or "").strip()
+    return _client_pair()[0]
 
 
 def _client_secret() -> str:
-    return (os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET") or "").strip()
+    return _client_pair()[1]
 
 
 def _allowed_domain() -> str:
