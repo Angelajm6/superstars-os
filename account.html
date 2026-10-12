@@ -46,6 +46,15 @@
   .ok-msg{font-size:12.5px;font-weight:700;color:#0c7a5f;}
   .err-msg{font-size:12.5px;font-weight:700;color:#a23b30;}
   .note{background:#F4F5F8;border-radius:10px;padding:12px 14px;font-size:13px;color:var(--ink-2,#4A4F59);line-height:1.5;}
+  .note.warn{background:#FFF4E5;color:#7A4A00;}
+  /* change of sign-in email (email_change.py): the form opens under the email box */
+  .row.top{align-items:start;}
+  .row.top > label{padding-top:9px;}
+  .em-panel{margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:10px;max-width:520px;background:#FBFCFE;}
+  .em-panel b{font-size:13.5px;}
+  .em-panel label{display:grid;gap:5px;font-size:12.5px;font-weight:600;color:var(--ink-2,#4A4F59);}
+  .em-note{margin-top:10px;max-width:520px;}
+  .em-note .lnk{background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--accent-ink,#2A47B8);cursor:pointer;text-decoration:underline;}
   .list{border:1px solid var(--line);border-radius:10px;overflow:hidden;}
   .item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 14px;border-top:1px solid var(--line);flex-wrap:wrap;}
   .item:first-child{border-top:0;}
@@ -88,7 +97,11 @@
     <form class="rows" id="pf" novalidate>
       <div class="row"><label for="pf-full">Full name</label><input class="ssc-field" id="pf-full" maxlength="120" autocomplete="name" required></div>
       <div class="row"><label for="pf-disp">Display name</label><div><input class="ssc-field" id="pf-disp" maxlength="60" autocomplete="nickname"><div class="hint">Shown in the top bar and on tasks. Leave empty to use your full name.</div></div></div>
-      <div class="row"><label for="pf-email">Email</label><div><input class="ssc-field" id="pf-email" readonly><div class="hint">This is how you sign in. An admin changes it in Team &amp; access.</div></div></div>
+      <div class="row top"><label for="pf-email">Email</label><div>
+        <div class="actions"><input class="ssc-field" id="pf-email" readonly><button class="btn-sm" type="button" id="em-open">Change email</button></div>
+        <div id="em-box"></div>
+        <div class="hint" id="em-hint">This is how you sign in. To connect Google Calendar or Gmail it must be your @superstarscontracting.com email.</div>
+      </div></div>
       <div class="row"><span class="k">Role</span><div><span class="rolechip" id="pf-role">—</span> <span class="hint" style="display:inline">Set by an admin.</span></div></div>
       <div class="row"><span class="k">Member since</span><span id="pf-since">—</span></div>
       <div class="row"><span></span><div class="actions"><button class="btn-primary" type="submit" id="pf-save">Save profile</button><span id="pf-msg"></span></div></div>
@@ -178,6 +191,56 @@
       drawProfile(); drawWho(); say(msg, 'Saved', true);
     }, function () { $('pf-save').disabled = false; say(msg, 'No connection. Try again.'); });
   });
+
+  // ---------------------------------------------------------------- change of sign-in email
+  // Nothing changes until the link in the NEW mailbox is clicked (email_change.py).
+  var EM_PENDING = null;
+  function drawEmail(mode, prefill) {
+    var box = $('em-box'), hint = $('em-hint');
+    $('em-open').hidden = mode === 'form';
+    if (mode === 'form') {
+      hint.hidden = true;
+      box.innerHTML = '<div class="em-panel" role="group" aria-labelledby="em-t"><b id="em-t">Change your sign-in email</b>' +
+        '<label for="em-new">New email<input class="ssc-field" id="em-new" type="email" autocomplete="email" maxlength="254" value="' + esc(prefill || '') + '"></label>' +
+        (ME.password_sign_in ? '<label for="em-pw">Current password<input class="ssc-field" id="em-pw" type="password" autocomplete="current-password"></label>' : '') +
+        '<div class="hint" style="margin-top:0">We send a link to the new address. Your email only changes when you click it, within 24 hours. Your password, tasks and history stay the same.</div>' +
+        '<div class="actions"><button class="btn-primary" type="button" id="em-send">Send confirmation link</button><button class="btn-sm" type="button" id="em-cancel-form">Cancel</button><span id="em-msg" role="alert"></span></div></div>';
+      $('em-new').focus();
+      $('em-send').addEventListener('click', sendEmailChange);
+      $('em-cancel-form').addEventListener('click', function () { drawEmail(EM_PENDING ? 'pending' : 'none'); });
+      box.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); sendEmailChange(); } });
+      return;
+    }
+    if (mode === 'pending' && EM_PENDING) {
+      hint.hidden = true;
+      box.innerHTML = '<div class="note warn em-note" role="status">We sent a link to <b>' + esc(EM_PENDING.new_email) + '</b>' +
+        (EM_PENDING.by_admin ? ' (an admin asked for this change)' : '') + '. Your sign-in email changes when you click it. It expires ' + esc(when(EM_PENDING.expires_at)) + '.<br>' +
+        '<button class="lnk" type="button" id="em-again">Send again</button> · <button class="lnk" type="button" id="em-drop">Cancel the change</button></div>';
+      $('em-again').addEventListener('click', function () { drawEmail('form', EM_PENDING.new_email); });
+      $('em-drop').addEventListener('click', function () {
+        req('DELETE', '/api/account/email-change').then(function () { EM_PENDING = null; drawEmail('none'); });
+      });
+      return;
+    }
+    hint.hidden = false; box.innerHTML = '';
+  }
+  function sendEmailChange() {
+    var msg = $('em-msg'), email = $('em-new').value.trim(), pw = $('em-pw') ? $('em-pw').value : '';
+    if (!email) { say(msg, 'Enter the new email.'); $('em-new').focus(); return; }
+    if ($('em-pw') && !pw) { say(msg, 'Enter your current password.'); $('em-pw').focus(); return; }
+    $('em-send').disabled = true;
+    req('POST', '/api/account/email-change', { new_email: email, current_password: pw }).then(function (r) {
+      if (!r.ok) { $('em-send').disabled = false; say(msg, r.j.error || 'Could not send the link. Try again.'); return; }
+      EM_PENDING = r.j.data && r.j.data.pending; drawEmail('pending');
+    }, function () { $('em-send').disabled = false; say(msg, 'No connection. Try again.'); });
+  }
+  function loadEmailChange() {
+    req('GET', '/api/account/email-change').then(function (r) {
+      EM_PENDING = r.ok && r.j.data ? r.j.data.pending : null;
+      drawEmail(EM_PENDING ? 'pending' : 'none');
+    });
+  }
+  $('em-open').addEventListener('click', function () { drawEmail('form'); });
 
   // ---------------------------------------------------------------- password
   function drawPassword() {
@@ -328,7 +391,7 @@
     var company = ME.role === 'admin' || ME.role === 'c_suite';
     $('subtabs').hidden = !company;
     if (!company) document.querySelector('[data-nav-h1]').textContent = 'Your account';
-    drawWho(); drawProfile(); drawPassword(); drawTwoStep(); loadGoogle(); loadDevices();
+    drawWho(); drawProfile(); loadEmailChange(); drawPassword(); drawTwoStep(); loadGoogle(); loadDevices();
   });
 })();
 </script>

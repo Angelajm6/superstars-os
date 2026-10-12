@@ -141,6 +141,28 @@
   </div>
 </div>
 
+<!-- Change of sign-in email (email_change.py): the person confirms from the new address -->
+<div class="ov" id="ov-email">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="em-h">
+    <h3 id="em-h">Change sign-in email</h3>
+    <div class="msub" id="em-for">—</div>
+    <div id="em-step">
+      <label for="em-new">New email</label>
+      <input id="em-new" class="ssc-field" type="email" autocomplete="off" maxlength="254" placeholder="name@superstarscontracting.com">
+      <div class="msub" style="margin-top:8px">We send a confirmation link to the new address. The email only changes when they click it, within 24 hours, so a typo can't lock anyone out.</div>
+      <div class="m-err" id="em-err"></div>
+      <div class="modal-foot">
+        <button class="btn-ghost" type="button" data-close>Cancel</button>
+        <button class="btn-primary" type="button" id="em-go">Send confirmation link</button>
+      </div>
+    </div>
+    <div id="em-done" style="display:none">
+      <div class="msub" id="em-done-txt" role="status"></div>
+      <div class="modal-foot"><button class="btn-primary" type="button" data-close>Done</button></div>
+    </div>
+  </div>
+</div>
+
 <!-- Role-change modal -->
 <div class="ov" id="ov-role">
   <div class="modal" role="dialog" aria-modal="true">
@@ -197,6 +219,7 @@
       acts+='<button class="btn-sm" type="button" data-reset="'+u.id+'">Reset password</button>';
     } else {
       acts+='<button class="btn-sm" type="button" data-role="'+u.id+'">Change role</button>';
+      acts+='<button class="btn-sm" type="button" data-email="'+u.id+'">Change email</button>';
       acts+='<button class="btn-sm" type="button" data-reset="'+u.id+'">Reset password</button>';
       if(u.status==='disabled') acts+='<button class="btn-sm" type="button" data-react="'+u.id+'">Reactivate</button>';
       else acts+='<button class="btn-sm danger" type="button" data-deact="'+u.id+'">Deactivate</button>';
@@ -242,6 +265,7 @@
     var de=e.target.closest('[data-deact]'); if(de){doDeact(de.getAttribute('data-deact'));return;}
     var re=e.target.closest('[data-react]'); if(re){doReact(re.getAttribute('data-react'));return;}
     var rp=e.target.closest('[data-reset]'); if(rp){doReset(rp.getAttribute('data-reset'));return;}
+    var em=e.target.closest('[data-email]'); if(em){openEmail(em.getAttribute('data-email'));return;}
   });
 
   // create
@@ -281,6 +305,29 @@
     if(!r.ok){err.textContent=(r.j&&r.j.error)||'Role change failed.';err.className='m-err show';return;}
     closeAll();load();
   });
+
+  // change of sign-in email
+  var EMAIL_TARGET=null;
+  function openEmail(id){
+    var u=USERS.filter(function(x){return String(x.id)===String(id);})[0];if(!u)return;
+    EMAIL_TARGET=u;
+    $('em-for').textContent=u.display_name+' · now '+u.email;
+    $('em-new').value='';$('em-err').className='m-err';
+    $('em-step').style.display='';$('em-done').style.display='none';$('em-go').disabled=false;
+    $('ov-email').className='ov show';$('em-new').focus();
+  }
+  $('em-go').addEventListener('click',async function(){
+    var err=$('em-err');err.className='m-err';
+    var v=$('em-new').value.trim();
+    if(!v){err.textContent='Enter the new email.';err.className='m-err show';return;}
+    $('em-go').disabled=true;
+    var r=await jpost('/api/admin/users/'+EMAIL_TARGET.id+'/email-change',{new_email:v});
+    $('em-go').disabled=false;
+    if(!r.ok){err.textContent=(r.j&&r.j.error)||'Could not send the link.';err.className='m-err show';return;}
+    $('em-done-txt').textContent='Link sent to '+v+'. '+EMAIL_TARGET.display_name+' clicks it to finish; until then they keep signing in with '+EMAIL_TARGET.email+'.';
+    $('em-step').style.display='none';$('em-done').style.display='';
+  });
+  $('em-new').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();$('em-go').click();}});
 
   async function doDeact(id){
     var u=USERS.filter(function(x){return String(x.id)===String(id);})[0];if(!u)return;

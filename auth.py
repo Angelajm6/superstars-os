@@ -95,6 +95,7 @@ _PUBLIC_EXACT = {
     "/login",
     "/forgot-password",
     "/reset-password",
+    "/confirm-email",     # change-of-email link: the page only; the token IS the credential (email_change.py)
     "/api/health",
     "/api/today",         # date-only, no PII, used by client shells on load
     "/worker-app",
