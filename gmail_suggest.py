@@ -29,8 +29,9 @@ Least privilege + privacy
   POST /api/gmail/suggestions/<id>/dismiss
   POST /api/gmail/suggestions/<id>/undo     a dismissed one back to new
 
-Redirect URI: GMAIL_REDIRECT_URI, else the SSO redirect's origin + /gmail/callback (register it
-on the OAuth client in Google Cloud). AI: ANTHROPIC_API_KEY; model GMAIL_SUGGEST_MODEL (default
+Client: the same as Google Calendar (gcal_sync._client_pair: GOOGLE_APPS_CLIENT_ID/_SECRET, else
+the sign-in client). Redirect URI: GMAIL_REDIRECT_URI, else the SSO redirect's origin +
+/gmail/callback (register it on that OAuth client in Google Cloud). AI: ANTHROPIC_API_KEY; model GMAIL_SUGGEST_MODEL (default
 Haiku 4.5); cap GMAIL_AI_DAILY_CAP emails per day, company-wide (default 200).
 """
 from __future__ import annotations
