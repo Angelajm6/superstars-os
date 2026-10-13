@@ -235,6 +235,8 @@ import ui_usage  # noqa: E402
 ui_usage.register(app)   # job page redesign step 1: which views get opened (counts only) + each job's tool footprint
 import account  # noqa: E402
 account.register(app)    # Settings > Account: each person's own name, password, devices
+import email_change  # noqa: E402
+email_change.register(app)   # change a sign-in email, confirmed from the new address
 import project_setup  # noqa: E402
 project_setup.register(app)   # Oct 7 notes batch C: job numbers, a color per job, access method, worker access
 
