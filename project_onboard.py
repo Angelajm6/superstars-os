@@ -75,6 +75,8 @@ def meta(conn) -> dict:
         "workers": active_workers(conn),   # #325 — the crew picker
         "geofence_default_m": GEOFENCE_DEFAULT,
         "billing_types": billing_type.options(),   # #356
+        "modules": project_modules.catalog(), "core_tabs": list(project_modules.CORE_TABS),   # lean jobs (A + B)
+        "type_tabs": project_modules.type_defaults(conn),
     }
 
 
@@ -260,8 +262,8 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     bt = None   # #356 — how the job is billed (the modal requires it; API callers may omit)
     if p.get("billing_type") not in (None, ""):
         bt = billing_type.validate(p.get("billing_type"))
-    # which optional dashboard tabs the job starts with: none named -> never customized -> every tab on
-    modules = project_modules.validate(p["modules"]) if p.get("modules") is not None else project_modules.NEW_JOB_DEFAULT
+    # lean jobs (accepted 2026-10-13, A + B): the tabs ticked in "Tabs for this job", else the job type's starting set
+    modules = project_modules.validate(p["modules"]) if p.get("modules") is not None else project_modules.starting_set(conn, est_type)
     pm_user_id = p.get("pm_user_id")
     if pm_user_id in (None, ""):
         pm_user_id = None
@@ -335,8 +337,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
         conn.execute(f"UPDATE projects SET {sets} WHERE project_code = ?", (*site.values(), code))
         conn.commit()
     try:
-        if modules is not None:                     # only a caller-chosen list is stored
-            project_modules.set_modules(conn, code, modules, actor=actor)
+        project_modules.set_modules(conn, code, modules, actor=actor)   # always a list now: a new job is lean
     except Exception as e:   # a job without the setting just shows every tab, as before
         log.warning("project modules not written: %s", e)
         try:

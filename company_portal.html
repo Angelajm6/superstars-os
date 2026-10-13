@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
 <script src="/files/static/js/company_nav.js?v=1009"></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
-<script src="/files/static/js/new_project_modal.js?v=1012" defer></script>
+<script src="/files/static/js/new_project_modal.js?v=1014" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
 <script src="/files/static/js/gcal_connect.js?v=1007" defer></script>
 <script src="/files/static/js/gmail_suggest.js?v=1008" defer></script>
@@ -717,6 +717,14 @@
           <p class="cp-muted" style="margin:0 0 10px;font-size:13px">Shaded columns are the optional tabs a job can switch off. <b>0</b> on a switched-on optional tab means the job has never used it. This is what the job types will be based on.</p>
           <div class="cp-table-wrap"><table class="cp-table" id="fp-table"></table></div>
         </div>
+        <!-- lean jobs (accepted 2026-10-13, A + B): the tabs each job type starts with (project_modules.TYPE_DEFAULTS) -->
+        <div class="cp-card" style="margin-top:14px">
+          <div class="cp-card-head"><h2>Tabs each job type starts with</h2><span class="hint">ticked in New project · changeable per job</span></div>
+          <p class="cp-muted" style="margin:0 0 10px;font-size:13px">A new job starts with the everyday tabs plus what is ticked for its type. Whoever creates the job can still untick or add tools, and admins / C-suite add or remove tabs later from the job's sidebar. Changing this never touches existing jobs.</p>
+          <p class="cp-muted" id="tt-core" style="margin:0 0 10px;font-size:13px"></p>
+          <div class="cp-table-wrap"><table class="cp-table" id="tt-table"></table></div>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:12px"><button type="button" class="btn-primary" id="tt-save" hidden>Save starting tabs</button><span id="tt-msg" class="cp-muted" role="status" style="font-size:13px"></span></div>
+        </div>
       </section>
     </div>
   </main>
@@ -1173,7 +1181,30 @@
             return `<td class="num${t.optional ? ' opt' : ''}${t.optional && !n ? ' zero' : ''}"${t.optional && !n ? ' title="Switched on, never used"' : ''}>${n}</td>`;
           }).join('') + '</tr>').join('') + '</tbody>';
     } catch (e) { $('fp-table').innerHTML = empty('Could not load the job tools', e.message); }
+    loadTypeTabs();
   }
+  // ---- the tabs each job type starts with (lean jobs, A + B)
+  const TT = { modules: [], types: {} };
+  const TT_TYPES = [['FR', 'Exterior Restoration'], ['IRA', 'Rope Access Inspection'], ['IR', 'Interior Repair'], ['PG', 'Parking Garage'], ['OTH', 'Other']];
+  async function loadTypeTabs() {
+    try {
+      const { data: d } = await api('/admin/job-type-tabs', null, true);
+      TT.modules = d.modules; TT.types = d.types;
+      $('tt-core').textContent = 'Always on: ' + d.core.join(', ') + '.';
+      $('tt-table').innerHTML = '<thead><tr><th>Tool</th>' + TT_TYPES.map(([c, l]) => `<th class="num" title="${esc(l)}">${esc(c)}<div class="cp-muted" style="font-size:11px;font-weight:500;text-transform:none;letter-spacing:0">${esc(l)}</div></th>`).join('') + '</tr></thead><tbody>' +
+        d.modules.map(m => `<tr><td><b style="font-weight:600">${esc(m.label)}</b><div class="cp-muted" style="font-size:12px">${esc(m.hint)}</div></td>` +
+          TT_TYPES.map(([c]) => `<td class="num"><input type="checkbox" data-tt-type="${c}" data-tt-mod="${esc(m.key)}" aria-label="${esc(m.label)} for ${esc(c)}"${(d.types[c] || []).includes(m.key) ? ' checked' : ''}></td>`).join('') + '</tr>').join('') + '</tbody>';
+      $('tt-save').hidden = false;
+    } catch (e) { $('tt-table').innerHTML = empty('Could not load the starting tabs', e.message); }
+  }
+  $('tt-save').addEventListener('click', async () => {
+    const types = {};
+    TT_TYPES.forEach(([c]) => { types[c] = Array.from(document.querySelectorAll(`#tt-table input[data-tt-type="${c}"]:checked`)).map(i => i.dataset.ttMod); });
+    $('tt-save').disabled = true; $('tt-msg').textContent = '';
+    try { await api('/admin/job-type-tabs', { method: 'PUT', body: JSON.stringify({ types }) }, true); $('tt-msg').textContent = 'Saved. New jobs start with these tabs.'; }
+    catch (e) { $('tt-msg').textContent = e.message; }
+    finally { $('tt-save').disabled = false; }
+  });
   document.querySelectorAll('[data-us-days]').forEach(b => b.addEventListener('click', () => {
     US.days = +b.dataset.usDays; document.querySelectorAll('[data-us-days]').forEach(x => x.classList.toggle('on', x === b)); loadUsage();
   }));

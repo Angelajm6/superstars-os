@@ -16,6 +16,7 @@ Run:  venv/bin/python tests/smoke_project_modules.py
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -141,12 +142,13 @@ def main() -> int:
         finally:
             conn.close()
 
-        # ---- a new job starts with every tab on (never customized), like every existing job
+        # ---- lean jobs (accepted 2026-10-13, A + B): a new job starts with its type's starting set
+        fr_set = [k for k in pmod.KEYS if k in pmod.TYPE_DEFAULTS["FR"]]
         r = cs.post("/api/admin/projects/onboard", json={**base, "address": "1 Pmod Way"})
         ok("onboard ok", r.status_code == 201)
         new = r.get_json()["data"]
         code = new["project_code"]
-        ok("new job reports every module on", new["modules"] == list(pmod.KEYS))
+        ok("new FR job gets the FR starting set", new["modules"] == fr_set)
         conn = _db()
         try:
             conn.execute("INSERT INTO pm_project_assignment (user_id, project_code, assigned_by, assigned_at) VALUES (?,?,?,?)",
@@ -156,18 +158,40 @@ def main() -> int:
             conn.close()
         p = cs.get(f"/api/projects/{code}/modules").get_json()["data"]
         ok("profile lists every module", [m["key"] for m in p["modules"]] == list(pmod.KEYS))
-        ok("every module is on for a new job", all(m["enabled"] for m in p["modules"]))
+        ok("only the starting set is on for a new FR job", {m["key"] for m in p["modules"] if m["enabled"]} == set(fr_set))
         conn = _db()
         try:
-            ok("a new job stores nothing (NULL = never customized)", conn.execute("SELECT enabled_modules FROM projects WHERE project_code = ?", (code,)).fetchone()["enabled_modules"] is None)
+            ok("a new job stores its list", conn.execute("SELECT enabled_modules FROM projects WHERE project_code = ?", (code,)).fetchone()["enabled_modules"] == json.dumps(fr_set))
         finally:
             conn.close()
 
         html = cs.get(f"/projects/{code}").get_data(as_text=True)
         optional_views = [v for m in pmod.MODULES for v in m["views"]]
-        ok("new job: every optional tab is visible", not any(_nav_hidden(html, v) for v in optional_views))
+        ok("new job: its tools are visible", not _nav_hidden(html, "drop-plans") and not _nav_hidden(html, "rfis"))
+        ok("new job: tools outside the set are hidden", _nav_hidden(html, "weekly-summary") and _nav_hidden(html, "templates"))
         ok("new job: no core tab is hidden", not any(_nav_hidden(html, v) for v in CORE_VIEWS))
-        ok("new job: no module listed as off", _body_off(html) in (None, set()))
+
+        # the tabs ticked in New project win over the starting set; an empty list = core tabs only
+        r = cs.post("/api/admin/projects/onboard", json={**base, "address": "21 Pmod Way", "modules": ["templates"]})
+        ok("ticked tabs are stored as given", r.status_code == 201 and r.get_json()["data"]["modules"] == ["templates"])
+        r = cs.post("/api/admin/projects/onboard", json={**base, "address": "22 Pmod Way", "modules": []})
+        ok("nothing ticked = core tabs only", r.status_code == 201 and r.get_json()["data"]["modules"] == [])
+        ok("an unknown tool is refused up front", cs.post("/api/admin/projects/onboard", json={**base, "address": "23 Pmod Way", "modules": ["payroll"]}).status_code == 400)
+
+        # the office edits each type's starting set (Settings > Usage & job tools)
+        ok("pm cannot read the starting sets", pm.get("/api/admin/job-type-tabs").status_code == 403)
+        tt = cs.get("/api/admin/job-type-tabs").get_json()["data"]
+        ok("starting sets listed with the catalog and the core tabs", tt["types"]["FR"] == fr_set and len(tt["modules"]) == len(pmod.KEYS) and "Daily Report" in tt["core"])
+        ok("bad starting set refused", cs.put("/api/admin/job-type-tabs", json={"types": {"IR": ["payroll"]}}).status_code == 400
+           and cs.put("/api/admin/job-type-tabs", json={"types": {"ZZ": []}}).status_code == 400)
+        r = cs.put("/api/admin/job-type-tabs", json={"types": {"OTH": ["rfis", "crew"]}})
+        ok("starting set saved (canonical order), other types untouched", r.status_code == 200 and r.get_json()["data"]["types"]["OTH"] == ["crew", "rfis"]
+           and r.get_json()["data"]["types"]["FR"] == fr_set)
+        r = cs.post("/api/admin/projects/onboard", json={**base, "est_type": "OTH", "job_type_other": "Basement excavation", "address": "24 Pmod Way"})
+        ok("a new job uses the office's saved set", r.status_code == 201 and r.get_json()["data"]["modules"] == ["crew", "rfis"])
+        ok("meta carries the catalog and the starting sets", (lambda m: m["type_tabs"]["OTH"] == ["crew", "rfis"] and len(m["modules"]) == len(pmod.KEYS))(
+            (lambda j: j.get("data", j))(cs.get("/api/admin/projects/onboard-meta").get_json())))
+        cs.put("/api/admin/job-type-tabs", json={"types": {"OTH": []}})
 
         # ---- turn modules on
         r = cs.put(f"/api/admin/projects/{code}/modules", json={"modules": ["rfis", "drops", "rfis"]})
@@ -261,6 +285,12 @@ def main() -> int:
         ok("Settings card present", 'id="ps-mod-list"' in dash and 'id="ps-mod-save"' in dash)
         ok("router refuses hidden tabs", "if (link.hidden) return;" in dash)
         ok("KPIs honor switched-off modules", "!OFF.includes('drops')" in dash)
+        ok("sidebar: + Add a tab search and the remove ×", 'id="nav-add"' in dash and 'id="tab-pop"' in dash and "className = 'nav-x'" in dash
+           and "'/api/admin/projects/' + encodeURIComponent(code()) + '/modules'" in dash and "Nothing was deleted." in dash)
+        portal = (ROOT / "company_portal.html").read_text(encoding="utf-8")
+        ok("Usage & job tools edits the starting tabs", 'id="tt-table"' in portal and "/admin/job-type-tabs" in portal)
+        js = (ROOT / "static" / "js" / "new_project_modal.js").read_text(encoding="utf-8")
+        ok("New project has Tabs for this job", 'id="np-tabs"' in js and "modules: tabsChosen()" in js and "drawTabs(tabsForType())" in js)
         ok("no schedule card (Oct 7 notes), no Operations panel (Oct 9)", 'id="jx-schedule"' not in dash and "jx-ops-bar" not in dash)
     finally:
         _cleanup()
