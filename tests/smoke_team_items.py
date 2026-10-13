@@ -282,9 +282,10 @@ def main() -> int:
 
     # ---- the dashboard + the date picker
     html = (ROOT / "company_portal.html").read_text(encoding="utf-8")
+    assert 'id="tk-location"' not in html and "Place name" not in html, "events have the address only (Oct 13)"
     for needle in ('id="tk-card"', 'id="tk-overlay"', 'id="tk-kind-task"', 'id="tk-kind-event"', 'id="tk-assignee"', 'id="tk-project"',
                    'id="tk-due"', 'id="tk-due-time"', 'id="tk-start"', 'id="tk-end"', 'id="tk-start-time"', 'id="tk-end-time"',
-                   'id="tk-location"', 'id="tk-delete"', 'id="tk-address"', 'id="tk-addr-list"', 'data-tk-dir',
+                   'id="tk-delete"', 'id="tk-address"', 'id="tk-addr-list"', 'data-tk-dir',
                    "'https://www.google.com/maps/dir/?api=1&destination='", "address: $('tk-address').value.trim() || null", 'data-tk-filter="mine"', 'id="cal-new-item"',
                    "dateGet($('tk-due'))", "dateGet($('tk-start'))", "dateSet($('tk-due'), it.due_date)", "wireItemChips($('cc-week-row'), d);",
                    "wireItemChips($('cal-grid'), d);", "'/team/items/' + it.id + '/done'",
