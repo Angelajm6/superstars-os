@@ -1004,7 +1004,6 @@
         <div><label for="tk-end">Ends (if more than one day)</label><input id="tk-end" type="date" class="ssc-field"></div>
         <div><label for="tk-start-time">Start time (optional)</label><input id="tk-start-time" type="time" class="ssc-field"></div>
         <div><label for="tk-end-time">End time (optional)</label><input id="tk-end-time" type="time" class="ssc-field"></div>
-        <div style="grid-column:1 / -1"><label for="tk-location">Place name (optional)</label><input id="tk-location" class="ssc-field" maxlength="200" placeholder="e.g. Client office, site trailer"></div>
       </div>
       <div class="cp-field full tk-addr-wrap"><label for="tk-address">Address (optional)</label>
         <input id="tk-address" class="ssc-field" maxlength="300" autocomplete="off" placeholder="Start typing a street address, e.g. 890 East 135th Street" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="tk-addr-list">
@@ -1261,7 +1260,7 @@
       $('tk-assignee').value = it.assignee_user_id || ''; $('tk-project').value = it.project_code || '';
       dateSet($('tk-due'), it.due_date); $('tk-due-time').value = it.due_time || '';
       dateSet($('tk-start'), it.start_date); dateSet($('tk-end'), it.end_date); $('tk-start-time').value = it.start_time || '';
-      $('tk-end-time').value = it.end_time || ''; $('tk-location').value = it.location || ''; $('tk-address').value = it.address || '';
+      $('tk-end-time').value = it.end_time || ''; $('tk-address').value = it.address || '';
     } else if (preset && preset.date) { dateSet($('tk-due'), preset.date); dateSet($('tk-start'), preset.date); }
     tkAddrGo(); tkAddrClose();
     $('tk-title-in').focus();
@@ -1313,7 +1312,7 @@
     if (kind === 'event' && !dateGet($('tk-start'))) { formErr('tk-err', 'Pick the day of the event.'); return; }
     const body = { kind, title, detail: $('tk-detail').value.trim() || null, assignee_user_id: $('tk-assignee').value ? Number($('tk-assignee').value) : null, project_code: $('tk-project').value || null, address: $('tk-address').value.trim() || null };
     if (kind === 'task') Object.assign(body, { due_date: dateGet($('tk-due')) || null, due_time: $('tk-due-time').value || null });
-    else Object.assign(body, { start_date: dateGet($('tk-start')), end_date: dateGet($('tk-end')) || null, start_time: $('tk-start-time').value || null, end_time: $('tk-end-time').value || null, location: $('tk-location').value.trim() || null });
+    else Object.assign(body, { start_date: dateGet($('tk-start')), end_date: dateGet($('tk-end')) || null, start_time: $('tk-start-time').value || null, end_time: $('tk-end-time').value || null });   // no place name: the address covers it (older events keep theirs)
     $('tk-save').disabled = true;
     try {
       if (id) await api('/team/items/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) }, true);
