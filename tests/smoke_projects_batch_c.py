@@ -193,7 +193,8 @@ def main() -> int:
     finally:
         conn.close()
     for bad in ({"color_index": 99}, {"access_methods": ["ladder"]}, {"worker_access": ["payroll"]},
-                {"est_type": "IR", "access_methods": ["rope_access"]}):
+                {"est_type": "IR", "access_methods": ["rope_access"]},
+                {"est_type": "OTH"}, {"est_type": "OTH", "job_type_other": "   "}, {"est_type": "OTH", "job_type_other": "x" * 81}):
         r = cs.post("/api/admin/projects/onboard", json={**base, **bad})
         assert r.status_code == 400, (bad, r.status_code)
     conn = _db()
@@ -217,6 +218,22 @@ def main() -> int:
     irow = _row(ir)
     assert irow["job_number"] == top + 5 and irow["access_methods"] is None and json.loads(irow["worker_access"]) == ["photos"]
     assert irow["color_index"] != 13, "the next job gets a color nobody active uses"
+    # "Other": anything outside the four types, described in words; the description stands in for the type name
+    om = cs.get("/api/admin/projects/onboard-meta").get_json()
+    om = om.get("data", om)
+    assert any(t["code"] == "OTH" and t["label"] == "Other" for t in om["types"]), om["types"]
+    assert meta["other_types"] == ["OTH"] and meta["other_max"] == 80
+    r = cs.post("/api/admin/projects/onboard", json={**base, "est_type": "OTH", "job_type_other": "  Basement   excavation ",
+                                                     "name": f"{TAG} Other job", "address": "3 Batch C Ave"})
+    assert r.status_code == 201, r.get_data(as_text=True)[:300]
+    oth = r.get_json()["data"]["project_code"]
+    orow = _row(oth)
+    assert oth.startswith("OTH-BX-") and orow["job_type_other"] == "Basement excavation" and orow["access_methods"] is None
+    if "project_type" in orow:
+        assert orow["project_type"] == "generic", orow["project_type"]
+    su = cs.get(f"/api/admin/projects/{oth}/setup").get_json()["data"]
+    assert su["job_type_other"] == "Basement excavation" and su["job_type_label"] == "Basement excavation" and su["other_applies"] is True
+    assert cs.get(f"/api/admin/projects/{fr}/setup").get_json()["data"]["job_type_label"] == "Exterior Restoration"
     passed += 1; print("  onboarding ok")
 
     # ---- the setup API
@@ -230,6 +247,11 @@ def main() -> int:
     mine = cs.get(f"/api/admin/projects/setup-meta?project={fr}").get_json()["data"]["used"].get("2", 0)
     all_ = cs.get("/api/admin/projects/setup-meta").get_json()["data"]["used"].get("2", 0)
     assert all_ == mine + 1, "the job's own color is not counted against it"
+    s = cs.put(f"/api/admin/projects/{oth}/setup", json={"job_type_other": "Underpinning"}).get_json()["data"]
+    assert s["job_type_label"] == "Underpinning"
+    assert cs.put(f"/api/admin/projects/{oth}/setup", json={"job_type_other": ""}).status_code == 400, "an Other job keeps a description"
+    s = cs.put(f"/api/admin/projects/{fr}/setup", json={"job_type_other": "ignored"}).get_json()["data"]
+    assert s["job_type_other"] is None and s["job_type_label"] == "Exterior Restoration", "only Other jobs carry a description"
     passed += 1; print("  setup api ok")
 
     # ---- list, calendar, header
@@ -276,9 +298,10 @@ def main() -> int:
 
     # ---- the pages
     js = (ROOT / "static" / "js" / "new_project_modal.js").read_text(encoding="utf-8")
+    assert 'id="np-other"' in js and "function otherApplies()" in js and "job_type_other: otherApplies()" in js
     assert "max-width:1060px" in js and "edit: edit" in js and "/setup" in js and "/drawing-sets" in js and "np-s-work" in js and "np-s-access" in js
     portal = cs.get("/company").get_data(as_text=True)
-    assert "{ key: 'job_number', label: '#'" in portal and "data-pj-edit" in portal and "new_project_modal.js?v=1010" in portal
+    assert "{ key: 'job_number', label: '#'" in portal and "data-pj-edit" in portal and "new_project_modal.js?v=1012" in portal
     assert "defaultSort: { key: 'job_number', dir: 'asc' }" in portal, "#1 at the top, the newest job at the bottom"
     pal = list(project_setup.PALETTE)
     jc = re.search(r"const JOB_COLORS = \[([^\]]+)\]", portal).group(1)

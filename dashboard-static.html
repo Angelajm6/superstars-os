@@ -1388,7 +1388,7 @@
               const code = decodeURIComponent((location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || '');
               const go = () => window.SSCNewProject.edit(code);
               if (window.SSCNewProject) return go();
-              const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1010'; sc.onload = go; document.head.appendChild(sc);
+              const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1012'; sc.onload = go; document.head.appendChild(sc);
             };
             document.addEventListener('click', e => { if (e.target.closest('#jx-edit')) window.SSC_editProject(); });
             const jxWx = $j('jx-wx');   // the weather block (filled by the weather loader), re-attached after each render
@@ -6141,7 +6141,7 @@
         $s('ps-proj-edit').addEventListener('click', function () {
           const go = () => window.SSCNewProject.edit(decodeURIComponent((location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || ''));
           if (window.SSCNewProject) return go();
-          const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1010'; sc.onload = go; document.head.appendChild(sc);
+          const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1012'; sc.onload = go; document.head.appendChild(sc);
         });
         document.addEventListener('ssc:project-updated', () => location.reload());
         $s('ps-det-cancel').addEventListener('click', closeDetailsForm);

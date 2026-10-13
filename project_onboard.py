@@ -224,7 +224,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     if borough not in estimates.BOROUGHS:
         raise ValueError("pick the borough or region")
     import project_setup   # checked before anything is created, so a bad value never leaves half a job
-    project_setup.validate({k: p.get(k) for k in ("color_index", "access_methods", "worker_access")}, est_type)
+    project_setup.validate({k: p.get(k) for k in ("color_index", "access_methods", "worker_access", "job_type_other")}, est_type)
     address = (p.get("address") or "").strip()
     if len(address) < 4:
         raise ValueError("the building address is required")
@@ -356,7 +356,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     crew_change = _apply_crew(conn, code, crew_ids, today=start) if crew_ids else {"added": [], "removed": []}
     import project_setup   # Oct 7 notes batch C: number, color, type, access method, worker access
     try:   # validated up front; never fail a created job over its setup
-        setup = project_setup.assign_new(conn, code, est_type, {k: p.get(k) for k in ("color_index", "access_methods", "worker_access")})
+        setup = project_setup.assign_new(conn, code, est_type, {k: p.get(k) for k in ("color_index", "access_methods", "worker_access", "job_type_other")})
     except Exception as e:
         log.warning("job setup not written for %s: %s", code, type(e).__name__)
         try:

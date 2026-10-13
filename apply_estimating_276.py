@@ -57,7 +57,7 @@ _ROLE_LIST_SQL = ", ".join(f"'{r}'" for r in ROLE_CATALOG_276)
 
 # type -> division derivation (obvious mappings only; operator can edit per lead)
 _DIVISION_OF_TYPE = {"IRA": "rope_access", "FR": "facade", "IR": "interior",
-                     "PG": "parking_garage"}
+                     "PG": "parking_garage", "OTH": "other"}
 
 _EST_COLS = (
     ("division", "TEXT"),
