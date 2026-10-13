@@ -860,6 +860,32 @@
   body[data-mod-off~="drops"] [data-module="drops"] { display: none !important; }
   body[data-mod-off~="rfis"][data-mod-off~="compliance"] [data-module-card="risk"] { display: none !important; }
   .ps-mod-card { margin-top: 16px; } .ps-mod-intro { margin: 4px 0 10px; } .ps-mod-actions { margin-top: 10px; }
+  /* lean jobs: + Add a tab (search) and × on the optional tabs — admin / C-suite only */
+  .nav-add { display: flex; align-items: center; gap: 8px; margin: 8px 6px 0; padding: 8px 10px; border: 1px dashed color-mix(in srgb, var(--ui, #24418C) 45%, var(--line, #eceef3)); border-radius: var(--r-inner, 10px); background: none; color: var(--ui, #24418C); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; width: calc(100% - 12px); }
+  .nav-add:hover { background: var(--ui-soft, #E8EDF8); }
+  .nav-add[hidden] { display: none; }
+  html.side-rail:not(.side-peek) .nav-add { font-size: 0; justify-content: center; }
+  html.side-rail:not(.side-peek) .nav-add::before { content: "+"; font-size: 16px; }
+  .nav-link .nav-x { margin-left: auto; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 6px; font-size: 15px; line-height: 1; letter-spacing: 0; color: var(--muted, #8c92a0); opacity: 0; transition: opacity .15s; }
+  .nav-link:hover .nav-x, .nav-link .nav-x:focus-visible { opacity: 1; }
+  .nav-link .nav-x:hover { color: var(--status-behind-deep, #A8382B); background: var(--status-behind-soft, #fceeec); }
+  @media (hover: none) { .nav-link .nav-x { opacity: .7; } }
+  .nav-link.nav-new { animation: navNew 1.4s ease; }
+  @keyframes navNew { 0% { background: color-mix(in srgb, var(--status-complete-deep, #0c7a5f) 18%, transparent); } 100% { background: transparent; } }
+  .tab-pop { position: fixed; z-index: 70; width: 340px; max-width: calc(100vw - 24px); background: #fff; border: 1px solid var(--line, #eceef3); border-radius: var(--r-card, 14px); box-shadow: 0 2px 4px rgba(20,22,28,.06), 0 16px 40px -12px rgba(20,22,28,.28); padding: 10px; display: grid; gap: 8px; }
+  .tab-pop[hidden] { display: none; }
+  .tab-pop input { font: inherit; font-size: 14px; padding: 9px 11px; border: 1px solid var(--line, #eceef3); border-radius: var(--r-inner, 10px); width: 100%; }
+  .tab-list { max-height: 340px; overflow: auto; display: grid; gap: 2px; }
+  .tab-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 9px; border-radius: var(--r-inner, 10px); border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; width: 100%; }
+  .tab-item:hover, .tab-item:focus-visible { background: var(--fill, #F4F5F8); outline: none; }
+  .tab-item b { display: block; font-size: 13.5px; font-weight: 600; }
+  .tab-item small { display: block; font-size: 12px; color: var(--muted, #8c92a0); line-height: 1.35; }
+  .tab-item .on { font-size: 12px; font-weight: 600; color: var(--status-complete-deep, #0c7a5f); background: var(--status-complete-soft, #e7f6f0); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+  .tab-item[aria-disabled="true"] { opacity: .55; cursor: default; }
+  .tab-none { color: var(--muted, #8c92a0); font-size: 13px; padding: 10px 8px; }
+  .tab-toast { position: fixed; left: 16px; bottom: 16px; z-index: 75; display: flex; gap: 12px; align-items: center; background: #1B1F27; color: #fff; border-radius: var(--r-inner, 10px); padding: 10px 14px; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.25); max-width: calc(100vw - 32px); }
+  .tab-toast[hidden] { display: none; }
+  .tab-toast button { background: none; border: 0; color: #9DB4FF; font: inherit; font-weight: 700; cursor: pointer; padding: 0; }
   .ps-mod-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 16px; }
   .ps-mod { display: flex; gap: 9px; align-items: flex-start; font-size: 13.5px; cursor: pointer; padding: 6px 0; }
   .ps-mod input { margin-top: 3px; } .ps-mod small { display: block; color: var(--muted, #8c92a0); font-size: 12px; }
@@ -1030,6 +1056,14 @@
       </div>
       <!-- SECTION:financial:end -->
     </nav>
+    <!-- lean jobs (accepted 2026-10-13, options A + B): admin / C-suite add a tab from a search list,
+         or remove one with its ×; nothing is deleted when a tab goes (project_modules.py) -->
+    <button type="button" class="nav-add" id="nav-add" hidden aria-haspopup="dialog" aria-controls="tab-pop">+ Add a tab</button>
+    <div class="tab-pop" id="tab-pop" role="dialog" aria-label="Add a tab" hidden>
+      <input id="tab-q" class="ssc-field" type="search" placeholder="Search tools, e.g. drop, RFI, permits" autocomplete="off" aria-label="Search tools">
+      <div class="tab-list" id="tab-list" role="listbox" aria-label="Tools you can add"></div>
+    </div>
+    <div class="tab-toast" id="tab-toast" role="status" hidden></div>
     <div class="sidebar-grow"></div>
     <!-- #341 — Settings pinned as its own entry above the account footer, not buried
          inside a scrollable nav group — the pattern most dashboards use (Settings lives
@@ -1388,7 +1422,7 @@
               const code = decodeURIComponent((location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || '');
               const go = () => window.SSCNewProject.edit(code);
               if (window.SSCNewProject) return go();
-              const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1012'; sc.onload = go; document.head.appendChild(sc);
+              const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1014'; sc.onload = go; document.head.appendChild(sc);
             };
             document.addEventListener('click', e => { if (e.target.closest('#jx-edit')) window.SSC_editProject(); });
             const jxWx = $j('jx-wx');   // the weather block (filled by the weather loader), re-attached after each render
@@ -1484,7 +1518,10 @@
               });
             }
             const _jxRender = window.JX_render;
-            window.JX_render = function (S) { _jxRender(S); const v = document.querySelector('.view[data-view="dashboard"]'); if (v) pruneGotos(v); const w = document.querySelector('.ph-wrap'); if (w) jxIntro(w); };
+            let jxLast = null;
+            window.JX_render = function (S) { jxLast = S; _jxRender(S); const v = document.querySelector('.view[data-view="dashboard"]'); if (v) pruneGotos(v); const w = document.querySelector('.ph-wrap'); if (w) jxIntro(w); };
+            // a tab added / removed from the sidebar: redraw with the same data (no intro animation) so tiles like Complete follow
+            document.addEventListener('ssc:modules-changed', () => { if (!jxLast) return; _jxRender(jxLast); const v = document.querySelector('.view[data-view="dashboard"]'); if (v) pruneGotos(v); });
             document.addEventListener('click', (e) => {
               const g = e.target.closest('.jx-kpi[data-goto], .jx-card [data-goto]'); if (!g) return;
               e.preventDefault();
@@ -6054,7 +6091,7 @@
           if (nav) nav.hidden = !!(bt && bt !== 'aia_sov');
         }
         // ---- per-job modules (project_modules.py): which optional tabs this job shows
-        let MODS = [];
+        let MODS = [], MOD_EDIT = false;
         function tidyNav() {
           document.querySelectorAll('.nav-subitems').forEach(g => { g.hidden = !g.querySelector('.nav-link:not([hidden])'); });
           document.querySelectorAll('.nav .nav-group').forEach(g => { g.hidden = !g.querySelector('.nav-link:not([hidden])'); });
@@ -6065,6 +6102,7 @@
           tidyNav();
         }
         function renderModules(canEdit) {
+          MOD_EDIT = canEdit;
           $s('ps-mod-list').innerHTML = MODS.map(m => '<label class="ps-mod"><input type="checkbox" data-mod="' + m.key + '"' + (m.enabled ? ' checked' : '') + (canEdit ? '' : ' disabled') + '><span>' + m.label + '<small>' + m.hint + '</small></span></label>').join('');
           $s('ps-mod-save').hidden = !canEdit;
         }
@@ -6076,6 +6114,8 @@
           } catch (e) { $s('ps-mod-list').innerHTML = '<span class="ps-hint">Could not load the tab list.</span>'; }
         }
         tidyNav();   // the server already hid switched-off links; collapse any group that is now empty
+        window.SSC_applyModules = applyModules;   // used by the sidebar's + Add a tab / × (lean jobs)
+        document.addEventListener('ssc:modules-changed', e => { if (e.detail && e.detail !== MODS) { MODS = e.detail; if ($s('ps-mod-list').querySelector('input')) renderModules(MOD_EDIT); } });
         async function loadSettings() {
           try {
             const r = await fetch('/api/projects/' + encodeURIComponent(code()) + '/profile', { credentials: 'same-origin' });
@@ -6141,7 +6181,7 @@
         $s('ps-proj-edit').addEventListener('click', function () {
           const go = () => window.SSCNewProject.edit(decodeURIComponent((location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || ''));
           if (window.SSCNewProject) return go();
-          const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1012'; sc.onload = go; document.head.appendChild(sc);
+          const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1014'; sc.onload = go; document.head.appendChild(sc);
         });
         document.addEventListener('ssc:project-updated', () => location.reload());
         $s('ps-det-cancel').addEventListener('click', closeDetailsForm);
@@ -6187,6 +6227,7 @@
               const r = await fetch('/api/admin/projects/' + encodeURIComponent(code()) + '/modules', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modules: keys }) });
               const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
               MODS = j.data.modules; applyModules(MODS); renderModules(true);
+              document.dispatchEvent(new CustomEvent('ssc:modules-changed', { detail: MODS }));   // the sidebar's + Add a tab follows
               msg.style.color = 'var(--status-complete-deep, #0c7a5f)'; msg.textContent = 'Saved.';
               setTimeout(() => { msg.textContent = ''; msg.style.color = ''; }, 2500);
             } catch (x) { msg.style.color = ''; msg.textContent = x.message; } finally { e.target.disabled = false; }
@@ -6208,6 +6249,120 @@
         // label the "billed as" notes once, from the server-rendered type
         const LABEL = { aia_sov: 'AIA / Schedule of values', lump_sum: 'Lump sum', time_materials: 'Time & materials', unit_price: 'Unit price' };
         applyType(document.body.dataset.billingType, LABEL[document.body.dataset.billingType] || '');
+      })();
+      </script>
+      <script>
+      // ---- lean jobs (A + B): + Add a tab (search) and × on the optional tabs, admin / C-suite only.
+      // Same switches as Settings > Tabs (project_modules.py); removing a tab never deletes data.
+      (function () {
+        const $t = id => document.getElementById(id);
+        const code = () => (location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || '';
+        const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+        let MODS = [], canEdit = false, toastT = null;
+        // the sidebar clips and stacks below the page: the list and the toast live on <body>
+        ['tab-pop', 'tab-toast'].forEach(id => { const el = $t(id); if (el && el.parentElement !== document.body) document.body.appendChild(el); });
+        const enabledKeys = () => MODS.filter(m => m.enabled).map(m => m.key);
+        async function put(keys) {
+          const r = await fetch('/api/admin/projects/' + encodeURIComponent(code()) + '/modules', { method: 'PUT', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modules: keys }) });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(j.error || 'Could not save the tabs. Try again.');
+          return j.data.modules;
+        }
+        function decorate() {
+          document.querySelectorAll('.nav .nav-link .nav-x').forEach(x => x.remove());
+          $t('nav-add').hidden = !canEdit;
+          if (!canEdit) return;
+          MODS.forEach(m => m.views.forEach(v => {
+            const l = document.querySelector('.nav .nav-link[data-view="' + v + '"]');
+            if (!l) return;
+            const x = document.createElement('span');
+            x.className = 'nav-x'; x.setAttribute('role', 'button'); x.tabIndex = 0; x.dataset.mod = m.key;
+            x.title = 'Remove ' + m.label + ' from this job'; x.setAttribute('aria-label', x.title); x.textContent = '×';
+            l.appendChild(x);
+          }));
+        }
+        function apply(mods) {
+          MODS = mods;
+          if (window.SSC_applyModules) window.SSC_applyModules(mods);
+          decorate();
+          document.dispatchEvent(new CustomEvent('ssc:modules-changed', { detail: mods }));
+        }
+        function toast(text, action, fn) {
+          const t = $t('tab-toast'); clearTimeout(toastT);
+          t.innerHTML = '<span>' + esc(text) + '</span>' + (action ? '<button type="button">' + esc(action) + '</button>' : '');
+          t.hidden = false;
+          if (action) t.querySelector('button').addEventListener('click', () => { t.hidden = true; fn(); }, { once: true });
+          toastT = setTimeout(() => { t.hidden = true; }, 7000);
+        }
+        async function add(key, go) {
+          try {
+            apply(await put(enabledKeys().concat(key)));
+            const m = MODS.find(x => x.key === key);
+            const l = m && document.querySelector('.nav .nav-link[data-view="' + m.views[0] + '"]');
+            if (l) { l.classList.add('nav-new'); setTimeout(() => l.classList.remove('nav-new'), 1500); if (go) l.click(); }
+          } catch (e) { toast(e.message); }
+        }
+        async function remove(key) {
+          const m = MODS.find(x => x.key === key); if (!m) return;
+          const wasOpen = m.views.some(v => document.querySelector('.nav-link.active[data-view="' + v + '"]'));
+          try {
+            apply(await put(enabledKeys().filter(k => k !== key)));
+            if (wasOpen) { const h = document.querySelector('.nav-link[data-view="dashboard"]'); if (h) h.click(); }
+            toast('Removed ' + m.label + '. Nothing was deleted.', 'Undo', () => add(key, false));
+          } catch (e) { toast(e.message); }
+        }
+        // the ×: caught before the tab's own click so it never opens the tab
+        document.addEventListener('click', e => {
+          const x = e.target.closest('.nav-x'); if (!x) return;
+          e.preventDefault(); e.stopPropagation(); remove(x.dataset.mod);
+        }, true);
+        document.addEventListener('keydown', e => {
+          const x = e.target.closest && e.target.closest('.nav-x');
+          if (x && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); remove(x.dataset.mod); }
+        }, true);
+        // + Add a tab: a search list of every optional tool
+        function renderList() {
+          const q = $t('tab-q').value.trim().toLowerCase();
+          const hit = MODS.filter(m => !q || (m.label + ' ' + m.hint).toLowerCase().includes(q));
+          $t('tab-list').innerHTML = hit.length ? hit.map(m => '<button type="button" class="tab-item" role="option" data-add="' + esc(m.key) + '"' +
+            (m.enabled ? ' aria-disabled="true" aria-selected="true"' : ' aria-selected="false"') + '><span><b>' + esc(m.label) + '</b><small>' + esc(m.hint) + '</small></span>' +
+            (m.enabled ? '<span class="on">On this job</span>' : '') + '</button>').join('')
+            : '<div class="tab-none">Nothing matches “' + esc($t('tab-q').value) + '”.</div>';
+        }
+        function openPop() {
+          const b = $t('nav-add').getBoundingClientRect(), pop = $t('tab-pop');
+          $t('tab-q').value = ''; renderList(); pop.hidden = false;   // filled first, so its height is real
+          const h = pop.offsetHeight, w = pop.offsetWidth;
+          pop.style.left = Math.max(12, Math.min(b.left, innerWidth - w - 12)) + 'px';
+          // below the button when it fits, else above it (the button sits low in a long sidebar)
+          pop.style.top = (b.bottom + 6 + h <= innerHeight - 12 ? b.bottom + 6 : Math.max(12, b.top - h - 6)) + 'px';
+          $t('tab-q').focus();
+        }
+        function closePop() { $t('tab-pop').hidden = true; }
+        $t('nav-add').addEventListener('click', e => { e.stopPropagation(); $t('tab-pop').hidden ? openPop() : closePop(); });
+        $t('tab-q').addEventListener('input', renderList);
+        $t('tab-pop').addEventListener('keydown', e => {
+          if (e.key === 'Escape') { closePop(); $t('nav-add').focus(); }
+          if (e.key === 'Enter' && e.target.id === 'tab-q') { const f = $t('tab-list').querySelector('.tab-item:not([aria-disabled])'); if (f) { e.preventDefault(); f.click(); } }
+        });
+        $t('tab-list').addEventListener('click', e => {
+          const it = e.target.closest('[data-add]'); if (!it || it.getAttribute('aria-disabled') === 'true') return;
+          closePop(); add(it.dataset.add, true);
+        });
+        document.addEventListener('click', e => { if (!$t('tab-pop').hidden && !e.target.closest('#tab-pop') && !e.target.closest('#nav-add')) closePop(); });
+        document.addEventListener('ssc:modules-changed', e => { if (e.detail && e.detail !== MODS) { MODS = e.detail; decorate(); } });
+        async function init(role) {
+          canEdit = role === 'admin' || role === 'c_suite';
+          if (!canEdit || !code()) return;
+          try {
+            const r = await fetch('/api/projects/' + encodeURIComponent(code()) + '/modules', { credentials: 'same-origin' });
+            const j = await r.json(); if (!r.ok) return;
+            MODS = j.data.modules; decorate();
+          } catch (e) { /* the sidebar works without it */ }
+        }
+        if (window.__SSC_USER) init(window.__SSC_USER.role);
+        else document.addEventListener('ssc:user-loaded', ev => init((ev.detail || {}).role), { once: true });
       })();
       </script>
 

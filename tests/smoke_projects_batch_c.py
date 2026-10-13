@@ -301,7 +301,7 @@ def main() -> int:
     assert 'id="np-other"' in js and "function otherApplies()" in js and "job_type_other: otherApplies()" in js
     assert "max-width:1060px" in js and "edit: edit" in js and "/setup" in js and "/drawing-sets" in js and "np-s-work" in js and "np-s-access" in js
     portal = cs.get("/company").get_data(as_text=True)
-    assert "{ key: 'job_number', label: '#'" in portal and "data-pj-edit" in portal and "new_project_modal.js?v=1012" in portal
+    assert "{ key: 'job_number', label: '#'" in portal and "data-pj-edit" in portal and "new_project_modal.js?v=1014" in portal
     assert "defaultSort: { key: 'job_number', dir: 'asc' }" in portal, "#1 at the top, the newest job at the bottom"
     pal = list(project_setup.PALETTE)
     jc = re.search(r"const JOB_COLORS = \[([^\]]+)\]", portal).group(1)
