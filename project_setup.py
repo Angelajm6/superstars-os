@@ -14,7 +14,7 @@ and every active job without a color gets one (its old hashed color when still f
 
   GET /api/admin/projects/setup-meta          palette, options, colors in use, the next number
   GET /api/admin/projects/<code>/setup        this job's number, color, access, worker access
-  PUT /api/admin/projects/<code>/setup        {color_index?, access_methods?, worker_access?}
+  PUT /api/admin/projects/<code>/setup        {color_index?, access_methods?, worker_access?, job_type_other? (Other jobs)}
 """
 from __future__ import annotations
 
@@ -45,8 +45,11 @@ WORKER_FEATURES = (("photos", "Photos", "Take and upload job photos"),
                    ("documents", "Job documents", "Permits, site safety plan, insurance: view only"))
 WORKER_KEYS = tuple(k for k, _, _ in WORKER_FEATURES)
 WORKER_DEFAULT = ("photos",)
-PROJECT_TYPE_FOR = {"FR": "facade", "PG": "garage", "IR": "interiors", "IRA": "ira"}
-COLUMNS = (("job_number", "INTEGER"), ("color_index", "INTEGER"), ("access_methods", "TEXT"), ("worker_access", "TEXT"))
+PROJECT_TYPE_FOR = {"FR": "facade", "PG": "garage", "IR": "interiors", "IRA": "ira", "OTH": "generic"}
+COLUMNS = (("job_number", "INTEGER"), ("color_index", "INTEGER"), ("access_methods", "TEXT"), ("worker_access", "TEXT"),
+           ("job_type_other", "TEXT"))   # what an "Other" job is (e.g. Basement excavation)
+OTHER_TYPES = ("OTH",)                     # job types described in words instead of picked from the list
+OTHER_MAX = 80
 
 
 def _has_column(conn, table, column) -> bool:
@@ -185,6 +188,13 @@ def validate(payload: dict, est_type: Optional[str]) -> dict:
         out["access_methods"] = json.dumps(methods)
     if "worker_access" in p and p.get("worker_access") is not None:
         out["worker_access"] = json.dumps(_clean_list(p.get("worker_access"), WORKER_KEYS, "worker app feature"))
+    if (est_type or "").upper() in OTHER_TYPES and "job_type_other" in p:
+        text = " ".join(str(p.get("job_type_other") or "").split())
+        if not text:
+            raise ValueError("describe the job type, for example Basement excavation")
+        if len(text) > OTHER_MAX:
+            raise ValueError(f"keep the job type under {OTHER_MAX} characters")
+        out["job_type_other"] = text
     return out
 
 
@@ -195,7 +205,7 @@ def est_type_of(code: str) -> str:
 def assign_new(conn, code: str, est_type: str, payload: Optional[dict] = None) -> dict:
     """A job just created through onboarding: its number, its color (the chosen one, else a free
     one), its type, access methods and worker access."""
-    if not _has_column(conn, "projects", "job_number"):
+    if not _has_column(conn, "projects", "job_number") or not _has_column(conn, "projects", "job_type_other"):
         ensure(conn)   # a database created after boot
     vals = validate(payload or {}, est_type)
     vals.setdefault("color_index", pick_color(conn, exclude_code=code))
@@ -225,14 +235,23 @@ def assign_new(conn, code: str, est_type: str, payload: Optional[dict] = None) -
 
 
 def setup(conn, code: str) -> Optional[dict]:
-    r = conn.execute("SELECT project_code, name, status, job_number, color_index, access_methods, worker_access "
-                     "FROM projects WHERE project_code = ?", (code,)).fetchone()
+    try:
+        r = conn.execute("SELECT project_code, name, status, job_number, color_index, access_methods, worker_access, job_type_other "
+                         "FROM projects WHERE project_code = ?", (code,)).fetchone()
+    except Exception:   # a database from before the job_type_other column
+        conn.rollback()
+        r = conn.execute("SELECT project_code, name, status, job_number, color_index, access_methods, worker_access "
+                         "FROM projects WHERE project_code = ?", (code,)).fetchone()
     if not r:
         return None
     r = dict(r)
     et = est_type_of(code)
+    import estimates
+    other = (r.get("job_type_other") or "").strip() if et in OTHER_TYPES else ""
     return {"project_code": code, "job_number": r.get("job_number"), "color_index": color_of(r), "color": color_hex(r),
-            "est_type": et, "access_applies": et in ACCESS_TYPES,
+            "est_type": et, "job_type_other": other or None,
+            "job_type_label": other or estimates.EST_TYPES.get(et, et), "other_applies": et in OTHER_TYPES,
+            "access_applies": et in ACCESS_TYPES,
             "access_methods": access_methods(r), "access_labels": access_labels(r), "worker_access": worker_access(r)}
 
 
@@ -253,6 +272,7 @@ def meta(conn, exclude_code: Optional[str] = None) -> dict:
     return {"palette": list(PALETTE), "used": {str(k): v for k, v in used.items()},
             "suggested_color": pick_color(conn, exclude_code=exclude_code), "next_job_number": next_job_number(conn),
             "access_methods": [{"key": k, "label": l} for k, l in ACCESS_METHODS], "access_types": list(ACCESS_TYPES),
+            "other_types": list(OTHER_TYPES), "other_max": OTHER_MAX,
             "worker_features": [{"key": k, "label": l, "hint": h} for k, l, h in WORKER_FEATURES],
             "worker_default": list(WORKER_DEFAULT)}
 

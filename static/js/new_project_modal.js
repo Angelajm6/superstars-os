@@ -26,6 +26,7 @@
 .np-rail a:hover{background:#F4F5F8;opacity:1;}
 .np-body{padding:4px 22px 18px;min-width:0;}
 .np-sec{padding:14px 0;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.np-modal [hidden]{display:none !important;}   /* the section display rules above must not un-hide a hidden part (Access method on non-Exterior jobs) */
 .np-sec:first-child{border-top:0;} .np-sec .full{grid-column:1 / -1;}
 .np-sec h3{grid-column:1 / -1;margin:0;font-size:14.5px;font-weight:600;} .np-sec h3 small{font-weight:500;color:var(--muted);font-size:12.5px;margin-left:6px;}
 .np-field label,.np-lab{display:block;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
@@ -75,6 +76,7 @@
       <div class="np-body">
         <section class="np-sec" id="np-s-job"><h3>Job</h3>
           <div class="np-field"><label for="np-type">Job type</label><select id="np-type" aria-describedby="np-ferr-type"></select><div class="np-ferr" id="np-ferr-type" role="alert"></div></div>
+          <div class="np-field" id="np-other-wrap" hidden><label for="np-other">What kind of job?</label><input id="np-other" maxlength="80" placeholder="e.g. Basement excavation" autocomplete="off" aria-describedby="np-ferr-other"><div class="np-ferr" id="np-ferr-other" role="alert"></div></div>
           <div class="np-field"><label for="np-borough">Borough / region</label><select id="np-borough" aria-describedby="np-ferr-borough"></select><div class="np-ferr" id="np-ferr-borough" role="alert"></div></div>
           <div class="np-field full"><label for="np-address">Building address</label><input id="np-address" placeholder="890 E 135th St, Bronx" autocomplete="off" aria-describedby="np-ferr-address"><div class="np-ferr" id="np-ferr-address" role="alert"></div></div>
           <div class="np-field"><label for="np-name">Project name</label><input id="np-name" placeholder="defaults to the address" autocomplete="off"></div>
@@ -159,6 +161,9 @@
     var taken = used[String(NP.color)] > 0;
     $('np-sw-hint').textContent = taken ? 'Another active job already uses this color.' : (NP.mode === 'new' ? 'Picked for you: a color no active job uses. A dot marks colors already taken.' : 'A dot marks colors other active jobs use.');
   }
+  // "Other" job type: described in words (e.g. Basement excavation); the description stands in for the type name
+  function otherApplies() { var t = NP.mode === 'edit' ? (NP.code || '').split('-')[0] : $('np-type').value; return ((NP.setup && NP.setup.other_types) || ['OTH']).indexOf((t || '').toUpperCase()) !== -1; }
+  function drawOther() { $('np-other-wrap').hidden = !otherApplies(); }
   function accessApplies() { var t = NP.mode === 'edit' ? (NP.code || '').split('-')[0] : $('np-type').value; return (NP.setup.access_types || ['FR']).indexOf((t || '').toUpperCase()) !== -1; }
   function drawAccess(selected) {
     var on = accessApplies(); $('np-s-access').hidden = !on; $('np-rail-access').hidden = !on;
@@ -213,13 +218,14 @@
   }
 
   // ---- per-field errors (all at once, next to the field)
-  var NP_FIELDS = ['client', 'neworg', 'type', 'borough', 'address', 'billing'];
+  var NP_FIELDS = ['client', 'neworg', 'type', 'other', 'borough', 'address', 'billing'];
   function clearFieldErrors() { NP_FIELDS.forEach(function (k) { var e = $('np-ferr-' + k); if (e) { e.textContent = ''; e.classList.remove('show'); var f = e.closest('.np-field'); if (f) f.classList.remove('invalid'); } }); }
   function fieldError(k, msg) { var e = $('np-ferr-' + k); e.textContent = msg; e.classList.add('show'); e.closest('.np-field').classList.add('invalid'); }
   function validate(payload) {
     var bad = [];
     if (!payload.client_org_id && !payload.new_org_name) { if ($('np-client').value === '__new') bad.push(['neworg', 'Type the new client name.']); else bad.push(['client', 'Choose a client or add a new one.']); }
     if (NP.mode === 'new' && !payload.est_type) bad.push(['type', 'Choose the job type.']);
+    if (otherApplies() && !payload.job_type_other) bad.push(['other', 'Describe the job, for example Basement excavation.']);
     if (NP.mode === 'new' && !payload.borough) bad.push(['borough', 'Choose the borough or region.']);
     if (payload.address.length < 4) bad.push(['address', 'Enter the building address.']);
     if (!payload.billing_type) bad.push(['billing', 'Choose how the job is billed.']);   // #356
@@ -235,7 +241,8 @@
     $('np-geo').addEventListener('click', function () { useMyLocation($('np-geo')); });
     $('np-client').addEventListener('change', function () { var isNew = $('np-client').value === '__new'; $('np-neworg-wrap').hidden = !isNew; if (isNew) setTimeout(function () { $('np-neworg').focus(); }, 30); });
     ['np-client', 'np-neworg', 'np-type', 'np-borough', 'np-address', 'np-billing'].forEach(function (id) { var el = $(id); var ev = el.tagName === 'SELECT' ? 'change' : 'input'; el.addEventListener(ev, function () { var f = el.closest('.np-field'); if (f) { f.classList.remove('invalid'); var m = f.querySelector('.np-ferr'); if (m) { m.classList.remove('show'); m.textContent = ''; } } }); });
-    $('np-type').addEventListener('change', function () { drawAccess(); codePreview(); });
+    $('np-type').addEventListener('change', function () { drawAccess(); drawOther(); codePreview(); if (otherApplies()) $('np-other').focus(); });
+    $('np-other').addEventListener('input', function () { var e = $('np-ferr-other'); e.textContent = ''; e.classList.remove('show'); $('np-other-wrap').classList.remove('invalid'); });
     $('np-borough').addEventListener('change', codePreview);
     $('np-sw').addEventListener('click', function (e) { var b = e.target.closest('[data-c]'); if (!b) return; NP.color = +b.dataset.c; drawColors(); });
     $('np-access').addEventListener('change', function (e) {
@@ -270,7 +277,8 @@
       contract_value: $('np-contract').value.trim() || null, start_date: npDateGet($('np-start')) || null, target_completion: npDateGet($('np-end')) || null,
       pm_user_id: $('np-pm').value || null, notes: $('np-notes').value.trim(), billing_type: $('np-billing').value || null,
       site_lat: $('np-lat').value.trim() || null, site_lng: $('np-lng').value.trim() || null, geofence_m: $('np-radius').value.trim() || null, crew: crewChecked($('np-crew')),
-      color_index: NP.color, access_methods: accessApplies() ? accessChosen() : null, worker_access: workChosen() };
+      color_index: NP.color, access_methods: accessApplies() ? accessChosen() : null, worker_access: workChosen(),
+      job_type_other: otherApplies() ? $('np-other').value.trim().replace(/\s+/g, ' ') : null };
   }
 
   async function submit(e) {
@@ -310,6 +318,7 @@
     steps.push(['crew and site', function () { return send('PUT', '/api/admin/projects/' + encodeURIComponent(code) + '/crew', { crew: p.crew, site_lat: p.site_lat, site_lng: p.site_lng, geofence_m: p.geofence_m }); }]);
     var setup = { color_index: p.color_index, worker_access: p.worker_access };
     if (p.access_methods !== null) setup.access_methods = p.access_methods;
+    if (p.job_type_other) setup.job_type_other = p.job_type_other;
     steps.push(['color and access', function () { return send('PUT', '/api/admin/projects/' + encodeURIComponent(code) + '/setup', setup); }]);
     for (var i = 0; i < steps.length; i++) {
       try { await steps[i][1](); } catch (ex) { throw new Error('Could not save the ' + steps[i][0] + ': ' + ex.message + (i ? ' (the parts before it were saved)' : '')); }
@@ -334,7 +343,8 @@
   }
   function resetForm() {
     clearFieldErrors(); $('np-err').className = 'np-err'; $('np-ok').textContent = '';
-    ['np-address', 'np-name', 'np-contract', 'np-notes', 'np-lat', 'np-lng', 'np-radius', 'np-neworg'].forEach(function (id) { $(id).value = ''; });
+    ['np-address', 'np-name', 'np-contract', 'np-notes', 'np-lat', 'np-lng', 'np-radius', 'np-neworg', 'np-other'].forEach(function (id) { $(id).value = ''; });
+    $('np-other-wrap').hidden = true;
     $('np-neworg-wrap').hidden = true; npDateSet($('np-start'), ''); npDateSet($('np-end'), '');
     NP.files = []; drawFiles(); $('np-dwg-note').textContent = ''; $('np-contract').readOnly = false; $('np-contract-note').textContent = '';
     $('np-type').disabled = false; $('np-borough').disabled = false; $('np-pm-wrap').hidden = false; $('np-pm-note').hidden = true;
@@ -392,6 +402,7 @@
       var site = crew.site || {};
       $('np-lat').value = site.site_lat != null ? site.site_lat : ''; $('np-lng').value = site.site_lng != null ? site.site_lng : ''; $('np-radius').value = site.geofence_m || '';
       NP.color = su.color_index; drawColors(); drawAccess(su.access_methods); drawWork(su.worker_access);
+      $('np-other').value = su.job_type_other || ''; drawOther();
       var n = sets ? (Array.isArray(sets) ? sets.length : (sets.sets || []).length) : 0;
       $('np-dwg-note').innerHTML = n ? esc(n + (n === 1 ? ' drawing set' : ' drawing sets') + ' on file.') + ' <a href="/drawing-author">Set up elevations →</a>' : 'No drawing set on file yet.';
       drawPhone(); setTimeout(function () { $('np-address').focus(); }, 30);

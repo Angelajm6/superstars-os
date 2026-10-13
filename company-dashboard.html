@@ -4890,7 +4890,7 @@ applyLanguage();
   var BOARD_ORDER = ['intake','scoping','submitted','approved','lost'];
   var GROUP_DOT = { intake:'var(--status-oat)', scoping:'#1b7f79', submitted:'#5a4fb8',
                     approved:'var(--status-complete)', lost:'#b9bac2' };
-  var DIV_LABEL = { facade:'Exterior', rope_access:'Rope Access', interior:'Interior', parking_garage:'Parking Garage' };   // #339 — 'exterior', never 'facade' (Arun)
+  var DIV_LABEL = { facade:'Exterior', rope_access:'Rope Access', interior:'Interior', parking_garage:'Parking Garage', other:'Other' };   // #339 — 'exterior', never 'facade' (Arun)
 
   function showView(name){
     document.querySelectorAll('.est-view').forEach(function(v){ v.style.display = (v.getAttribute('data-estview')===name)?'':'none'; });
@@ -5211,7 +5211,7 @@ applyLanguage();
         closeModal(); openEst(est.id);
         return false;   // we already closed + navigated
       }, 'Create');
-    var DIV_OF_TYPE = { IRA:'rope_access', FR:'facade', IR:'interior', PG:'parking_garage' };
+    var DIV_OF_TYPE = { IRA:'rope_access', FR:'facade', IR:'interior', PG:'parking_garage', OTH:'other' };
     function syncDiv(){
       var t = q('f-est-type').value;
       if (DIV_OF_TYPE[t]) q('f-est-div').value = DIV_OF_TYPE[t];

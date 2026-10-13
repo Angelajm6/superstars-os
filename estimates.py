@@ -53,13 +53,14 @@ EST_TYPES = {
     "FR":  "Exterior Restoration",   # #339 — "exterior", never "facade" (Arun, 2026-09-22): roofs and parapets are exterior too
     "IR":  "Interior Repair",
     "PG":  "Parking Garage",   # #276 — the fourth division's code series (blueprint §1)
+    "OTH": "Other",            # anything outside the four (basement excavation, …): described per job (project_setup.job_type_other)
 }
 import regions  # #331 — one list for the boroughs and the other places we work
 BOROUGHS = regions.CODES
 BOROUGH_LABELS = regions.LABELS
 # #276 — division derivation (obvious mappings; editable per lead)
 DIVISION_OF_TYPE = {"IRA": "rope_access", "FR": "facade", "IR": "interior",
-                    "PG": "parking_garage"}
+                    "PG": "parking_garage", "OTH": "other"}
 STATUSES = ("intake", "scoping", "submitted", "approved", "lost", "converted")
 
 # Server-validated pipeline: one step forward, one step back, lost from any live
@@ -117,7 +118,7 @@ def _has_276(conn) -> bool:
     return "division" in _columns(conn, "estimate")
 
 
-_DIVISIONS = ("facade", "rope_access", "interior", "parking_garage")
+_DIVISIONS = ("facade", "rope_access", "interior", "parking_garage", "other")
 _INQUIRY_KINDS = ("bid", "po", "undetermined")
 _RA_SUBTYPES = ("inspection", "work")
 

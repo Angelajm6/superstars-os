@@ -60,9 +60,9 @@ _STAGE_MOVES = {
     "sent_to_vp": {"proposal_draft"},
 }
 
-DIVISIONS = ("facade", "rope_access", "interior", "parking_garage")
+DIVISIONS = ("facade", "rope_access", "interior", "parking_garage", "other")
 DIVISION_LABEL = {"facade": "Facade", "rope_access": "Rope Access",
-                  "interior": "Interior", "parking_garage": "Parking Garage"}
+                  "interior": "Interior", "parking_garage": "Parking Garage", "other": "Other"}
 INQUIRY_KINDS = ("bid", "po", "undetermined")
 RA_SUBTYPES = ("inspection", "work")
 
