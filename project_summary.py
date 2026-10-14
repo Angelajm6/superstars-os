@@ -250,8 +250,8 @@ def _open_items(conn, code, today, uid, role):
 
 def _photos(conn, code):
     return [{"id": r["id"], "thumb_url": f"/api/field-photos/{r['id']}/thumb", "taken_at": str(r.get("taken_at") or r.get("uploaded_at") or "")[:10],
-             "caption": r.get("caption")} for r in _rows(conn.execute(
-        "SELECT id, taken_at, uploaded_at, caption FROM field_photos WHERE project_code = ? "
+             "caption": r.get("caption"), "video": str(r.get("mime") or "").startswith("video/")} for r in _rows(conn.execute(
+        "SELECT id, taken_at, uploaded_at, caption, mime FROM field_photos WHERE project_code = ? "
         "ORDER BY COALESCE(taken_at, uploaded_at) DESC, id DESC LIMIT 6", (code,)))]
 
 

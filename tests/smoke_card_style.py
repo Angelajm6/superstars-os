@@ -29,7 +29,8 @@ SCREENS = ["dashboard-static.html", "company_portal.html", "company-dashboard.ht
            "static/js/new_project_modal.js"]
 # corners that are not cards: phone illustration in the new-project modal, the projects
 # drawer (bottom sheet on phones), round avatars / pills
-EXEMPT = {".np-phone", ".panel", ".ph-wrap .jx-hero::after"}
+EXEMPT = {".np-phone", ".panel", ".ph-wrap .jx-hero::after",
+          ".shutter-btn.recording"}   # the worker app record button turns into a rounded-square stop shape
 
 
 def shared_selectors(css: str) -> set[str]:

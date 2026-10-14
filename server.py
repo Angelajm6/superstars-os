@@ -236,6 +236,15 @@ ui_usage.register(app)   # job page redesign step 1: which views get opened (cou
 import account  # noqa: E402
 account.register(app)    # Settings > Account: each person's own name, password, devices
 import email_change  # noqa: E402
+import field_videos  # noqa: E402
+try:   # worker videos (field_videos.py): field_photos.duration_s, added once at boot
+    _fv_conn = db_layer.connect()
+    try:
+        field_videos.ensure(_fv_conn)
+    finally:
+        _fv_conn.close()
+except Exception as _fv_err:   # never block boot (a fixture that migrates later)
+    logging.warning("field videos ensure skipped: %s", type(_fv_err).__name__)
 email_change.register(app)   # change a sign-in email, confirmed from the new address
 import project_setup  # noqa: E402
 project_setup.register(app)   # Oct 7 notes batch C: job numbers, a color per job, access method, worker access
@@ -4690,6 +4699,85 @@ def worker_photo_upload():
         return jsonify({"error": "upload failed — try again"}), 500
     finally:
         conn.close()
+
+@app.route('/api/worker/videos', methods=['POST'])
+def worker_video_upload():
+    """One short video from a signed-in worker (accepted 2026-10-14; field_videos.py). Multipart:
+    video, poster (a JPEG still the app grabbed when recording started), duration (seconds),
+    session_token, employee_id, location, scope. Same gates as a photo (open shift, the shift's
+    job, the job's "photos" switch, where + scope), plus the video limits: 60 s, size, 10 a day,
+    and enough free disk. Stored as-is next to the job's photos (no re-encoding); the poster
+    becomes the grid thumbnail. Logs carry the job and id only."""
+    import field_photos as fp
+    import field_videos as fv
+    token = request.form.get('session_token') or ''
+    employee_id = (request.form.get('employee_id') or '').strip()
+    location = (request.form.get('location') or '').strip()
+    scope = (request.form.get('scope') or '').strip()
+    video, poster = request.files.get('video'), request.files.get('poster')
+    if not employee_id:
+        return jsonify({"error": "employee_id required"}), 400
+    conn = db()
+    try:
+        session = _worker_session(conn, token, employee_id=employee_id)
+        if not session or session["started_sign_in_id"] is None or session["ended_at"] is not None \
+                or not session["project_code"]:
+            return jsonify({"error": "sign in to a job first", "session": False}), 401
+        if "photos" not in _worker_features(conn, session["project_code"]):
+            return jsonify({"error": "photos and videos are switched off for this job"}), 403
+        if location not in _WORKER_PHOTO_LOCATIONS or scope not in _WORKER_PHOTO_SCOPES:
+            return jsonify({"error": "pick where and the scope"}), 400
+        if not video or not poster:
+            return jsonify({"error": "no video in request"}), 400
+        try:
+            duration = fv.clean_duration(request.form.get('duration'))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        data = video.read(fv.MAX_BYTES + 1)
+        if len(data) > fv.MAX_BYTES:
+            return jsonify({"error": "video too large — keep it under a minute"}), 413
+        mime = fv.kind_of(data)
+        if not mime:
+            return jsonify({"error": "could not read that video — record it again"}), 400
+        project_code = session["project_code"]
+        today = date.today().isoformat()
+        sent_today = conn.execute(
+            "SELECT COUNT(*) FROM field_photos WHERE project_code = ? AND worker_id = ? AND substr(uploaded_at, 1, 10) = ? "
+            "AND mime LIKE 'video/%'", (project_code, employee_id, today)).fetchone()[0]
+        if sent_today >= fv.DAILY_CAP:
+            return jsonify({"error": f"{fv.DAILY_CAP} videos a day is the limit — take photos or see the office"}), 429
+        if not fv.has_room(len(data)):
+            logging.warning("worker video refused: storage nearly full project=%s", project_code)
+            return jsonify({"error": "storage is nearly full — tell the office (photos still work)"}), 507
+        try:
+            still = fp.process_image(poster.read(fp.MAX_FILE_BYTES + 1), "poster.jpg",
+                                     fallback_dt_iso=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        except fp.SkipImage:
+            return jsonify({"error": "could not read that video — record it again"}), 400
+        fv.ensure(conn)
+        file_path, thumb_path = _fp_write_video(project_code, data, fv.MIMES[mime], still["thumb_bytes"])
+        caption = f"{_WORKER_PHOTO_LOCATIONS[location]} · {_WORKER_PHOTO_SCOPES[scope]}"
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cur = conn.execute(
+            "INSERT INTO field_photos (project_code, drop_id, worker_id, stage, caption, taken_at, taken_at_estimated, "
+            "uploaded_at, uploaded_by_uid, file_path, thumb_path, file_name, file_size, mime, width, height, "
+            "orientation_applied, duration_s) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (project_code, None, employee_id, None, caption, now, 0, now, None, file_path, thumb_path,
+             "video" + fv.MIMES[mime], len(data), mime, still["width"], still["height"], 0, duration))
+        conn.commit()
+        logging.info("worker video stored project=%s id=%s seconds=%s", project_code, cur.lastrowid, duration)
+        return response_wrapper({"id": cur.lastrowid, "project_code": project_code, "caption": caption,
+                                 "videos_today": sent_today + 1}), 201
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        logging.error("POST /api/worker/videos: %s", type(e).__name__)
+        return jsonify({"error": "upload failed — try again"}), 500
+    finally:
+        conn.close()
+
 
 @app.route('/api/photos/upload', methods=['POST'])
 def upload_photo():
@@ -10429,8 +10517,18 @@ def _fieldphoto_public(r, label_map):
         "uploaded_at": r["uploaded_at"], "file_name": r["file_name"], "file_size": r["file_size"],
         "mime": r["mime"], "width": r["width"], "height": r["height"],
         "orientation_applied": bool(r["orientation_applied"]),
+        "kind": "video" if str(r["mime"] or "").startswith("video/") else "photo",   # worker videos (field_videos.py)
+        "duration_s": _row_get(r, "duration_s"),
         "thumb_url": f"/api/field-photos/{r['id']}/thumb", "file_url": f"/api/field-photos/{r['id']}/file",
     }
+
+
+def _row_get(r, key):
+    """A column that older databases may not have yet (e.g. field_photos.duration_s)."""
+    try:
+        return r[key]
+    except (KeyError, IndexError):
+        return None
 
 
 def _fp_write(project_code, res):
@@ -10446,6 +10544,20 @@ def _fp_write(project_code, res):
     fpath.write_bytes(res["display_bytes"])
     tpath.write_bytes(res["thumb_bytes"])
     # #287 — store PORTABLE relative paths; reads go through resolve_data_path
+    return ssc_paths.store_rel(fpath), ssc_paths.store_rel(tpath)
+
+
+def _fp_write_video(project_code, data, ext, thumb_bytes):
+    """A worker video and its JPEG still under data_room/field_photos/<project>/<uuid>/ (the same
+    place as photos). Returns (file_path, thumb_path) as portable relative paths."""
+    base = _FP_BASE.resolve()
+    pdir = _FP_BASE / project_code / uuid.uuid4().hex
+    if not pdir.resolve().is_relative_to(base):
+        raise ValueError("invalid project path")
+    pdir.mkdir(parents=True, exist_ok=True)
+    fpath, tpath = pdir / ("video" + ext), pdir / "thumb.jpg"
+    fpath.write_bytes(data)
+    tpath.write_bytes(thumb_bytes)
     return ssc_paths.store_rel(fpath), ssc_paths.store_rel(tpath)
 
 
@@ -10782,7 +10894,10 @@ def _fp_serve(photo_id, col):
             return jsonify({"error": "not found"}), 404
     except (OSError, ValueError):
         return jsonify({"error": "not found"}), 404
-    resp = send_file(str(p), mimetype=(r["mime"] or "image/jpeg"), conditional=True)
+    mime = r["mime"] or "image/jpeg"
+    if col == "thumb_path" and mime.startswith("video/"):
+        mime = "image/jpeg"   # a video's thumbnail is the JPEG still the worker app grabbed
+    resp = send_file(str(p), mimetype=mime, conditional=True)
     # #291 — a photo id's bytes never change (replacement = new id), so the
     # BROWSER may cache forever. `private` is load-bearing: these are
     # auth-gated field photos and Cloudflare's shared edge cache must never
@@ -10903,6 +11018,9 @@ def api_field_photo_share(photo_id):
         _code, err = _fp_actor_can_admin_photo(conn, photo_id)
         if err:
             return err
+        row = conn.execute("SELECT mime FROM field_photos WHERE id = ?", (photo_id,)).fetchone()
+        if on and row and str(row["mime"] or "").startswith("video/"):
+            return jsonify({"error": "videos can't be shared with clients yet"}), 409
         uid = (current_user() or {}).get("id")
         res = (visibility.share(conn, 'photo', photo_id, 'client', uid) if on
                else visibility.unshare(conn, 'photo', photo_id, 'client', uid))

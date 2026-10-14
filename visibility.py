@@ -126,7 +126,7 @@ def client_visible_photo_ids(conn, project_code) -> list:
         "SELECT fp.id FROM field_photos fp "
         "JOIN item_visibility v ON v.item_type='photo' AND v.item_id=fp.id AND v.audience=? "
         "LEFT JOIN item_redflag rf ON rf.item_type='photo' AND rf.item_id=fp.id "
-        "WHERE fp.project_code=? AND rf.id IS NULL "
+        "WHERE fp.project_code=? AND rf.id IS NULL AND COALESCE(fp.mime, '') NOT LIKE 'video/%' "
         "ORDER BY fp.taken_at DESC, fp.id DESC",
         (CLIENT, project_code)).fetchall()
     return [r[0] for r in rows]
@@ -141,7 +141,7 @@ def photo_visible_to_client(conn, photo_id, project_code) -> bool:
         "SELECT 1 FROM field_photos fp "
         "JOIN item_visibility v ON v.item_type='photo' AND v.item_id=fp.id AND v.audience=? "
         "LEFT JOIN item_redflag rf ON rf.item_type='photo' AND rf.item_id=fp.id "
-        "WHERE fp.id=? AND fp.project_code=? AND rf.id IS NULL",
+        "WHERE fp.id=? AND fp.project_code=? AND rf.id IS NULL AND COALESCE(fp.mime, '') NOT LIKE 'video/%'",
         (CLIENT, photo_id, project_code)).fetchone())
 
 

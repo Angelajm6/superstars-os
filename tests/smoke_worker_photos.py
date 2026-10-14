@@ -214,16 +214,88 @@ def main() -> int:
     assert len(_rows()) == 1, "no refused request stored a row"
     passed += 1; print("  refusals ok")
 
+    # ---- worker videos (field_videos.py, accepted 2026-10-14): 60 s at most, a JPEG still for the grid
+    import field_videos as fv
+    import visibility
+    mp4 = b"\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom" + b"\x00" * 4000
+    def _vpost(data=mp4, duration="12", poster=True, location="S2", scope="pointing"):
+        form = {"session_token": token, "employee_id": EID, "location": location, "scope": scope, "duration": duration,
+                "video": (io.BytesIO(data), "video.mp4")}
+        if poster:
+            form["poster"] = (io.BytesIO(_jpeg(320, 240)), "poster.jpg")
+        return c.post("/api/worker/videos", data=form, content_type="multipart/form-data")
+    assert _vpost(duration="75").status_code == 400, "longer than a minute"
+    assert _vpost(duration="0").status_code == 400
+    assert _vpost(data=b"not a video" * 50).status_code == 400, "the bytes must be a video, whatever the name says"
+    assert _vpost(poster=False).status_code == 400
+    assert _vpost(location="S9").status_code == 400
+    old_max, old_cap, old_room = fv.MAX_BYTES, fv.DAILY_CAP, fv.has_room
+    try:
+        fv.MAX_BYTES = 100
+        assert _vpost().status_code == 413
+        fv.MAX_BYTES = old_max
+        fv.has_room = lambda size: False
+        assert _vpost().status_code == 507, "a nearly full disk refuses videos (photos keep working)"
+    finally:
+        fv.MAX_BYTES, fv.has_room = old_max, old_room
+    assert len(_rows()) == 1, "no refused video stored a row"
+    r = _vpost()
+    assert r.status_code == 201, r.get_data(as_text=True)[:300]
+    vid = r.get_json()["data"]
+    assert vid["project_code"] == P and vid["caption"] == "Scaffold 2 · Pointing" and vid["videos_today"] == 1
+    conn = _db()
+    try:
+        vrow = dict(conn.execute("SELECT mime, duration_s, file_path, thumb_path, file_size, worker_id, drop_id FROM field_photos WHERE id = ?",
+                                 (vid["id"],)).fetchone())
+    finally:
+        conn.close()
+    assert vrow["mime"] == "video/mp4" and vrow["duration_s"] == 12 and vrow["file_size"] == len(mp4) and vrow["worker_id"] == EID
+    assert (data_root / vrow["file_path"]).read_bytes() == mp4, "stored as sent, no re-encoding"
+    assert (data_root / vrow["thumb_path"]).read_bytes()[:2] == b"\xff\xd8", "the still is a JPEG"
+    fv.DAILY_CAP = 1
+    try:
+        assert _vpost().status_code == 429, "videos a day"
+    finally:
+        fv.DAILY_CAP = old_cap
+    assert _post(c, token).status_code == 201, "the video cap leaves photos alone"
+    th = admin.get(f"/api/field-photos/{vid['id']}/thumb")
+    assert th.status_code == 200 and th.mimetype == "image/jpeg", "a video thumbnail is served as an image"
+    fl = admin.get(f"/api/field-photos/{vid['id']}/file")
+    assert fl.status_code == 200 and fl.mimetype == "video/mp4"
+    part = admin.get(f"/api/field-photos/{vid['id']}/file", headers={"Range": "bytes=0-99"})
+    assert part.status_code == 206 and len(part.data) == 100, "phones seek through videos with range requests"
+    listed = [x for x in _photos(admin.get(f"/api/projects/{P}/photos?drop_id=__unassigned__&group=all").get_json()) if x["id"] == vid["id"]]
+    assert listed and listed[0]["kind"] == "video" and listed[0]["duration_s"] == 12
+    assert "file_path" not in listed[0] and "thumb_path" not in listed[0]
+    # videos stay inside the office: sharing refused, and never visible to a client even if a share row exists
+    sh = admin.post(f"/api/field-photos/{vid['id']}/share", json={"audience": "client", "on": True})
+    assert sh.status_code == 409, sh.status_code
+    conn = _db()
+    try:
+        conn.execute("INSERT INTO item_visibility (item_type, item_id, audience, shared_by, shared_at) VALUES ('photo', ?, 'client', NULL, '2026-10-14 09:00:00')", (vid["id"],))
+        conn.commit()
+        assert vid["id"] not in visibility.client_visible_photo_ids(conn, P)
+        assert not visibility.photo_visible_to_client(conn, vid["id"], P)
+        conn.execute("DELETE FROM item_visibility WHERE item_type='photo' AND item_id = ?", (vid["id"],))
+        conn.commit()
+    finally:
+        conn.close()
+    st = fv.storage()
+    assert set(st) == {"total", "used", "free", "used_pct", "warn"} and 0 <= st["used_pct"] <= 100
+    passed += 1; print("  videos ok")
+    n_rows = len(_rows())
+
     # ---- after sign-out the token is dead
     r = c.post("/api/worker/session/end", json={"employee_id": EID, "session_token": token})
     assert r.status_code == 200, r.get_data(as_text=True)[:200]
     assert _post(c, token).status_code == 401
-    assert len(_rows()) == 1
+    assert _vpost().status_code == 401
+    assert len(_rows()) == n_rows
     passed += 1; print("  sign-out ok")
 
     # ---- the app itself
     app = (ROOT / "worker-app.html").read_text(encoding="utf-8")
-    fn = app[app.index("async function uploadPhoto()"):app.index("function flashPhotoSent()")]
+    fn = app[app.index("async function uploadPhoto()"):app.index("function uploadVideo()")]
     assert "fetch('/api/worker/photos'" in fn and "new FormData()" in fn
     assert "body.data && body.data.id" in fn, "counted only when the server stored it"
     assert fn.index("body.data && body.data.id") < fn.index("sessionData.photoCount++"), "count after the server confirms"
@@ -236,7 +308,19 @@ def main() -> int:
         assert f"data-loc=\"{loc}\"" in app and loc in server._WORKER_PHOTO_LOCATIONS
     for sc in re.findall(r"selectScope\('([a-z]+)'", app):
         assert sc in server._WORKER_PHOTO_SCOPES, sc
+    vfn = app[app.index("function uploadVideo()"):app.index("function flashPhotoSent(")]
+    assert "xhr.open('POST', '/api/worker/videos')" in vfn and "fd.append('poster'" in vfn and "fd.append('duration'" in vfn
+    assert "body && body.data && body.data.id) return done(true);" in vfn, "counted only when the server stored it"
+    assert vfn.index("if (!ok) {") < vfn.index("sessionData.photoCount++"), "a failed video is kept for a retry, not counted"
+    assert "const VIDEO_MAX_S = 60;" in app and "if (sec >= VIDEO_MAX_S) stopRecording();" in app, "recording stops by itself at 1:00"
+    assert 'id="mode-video"' in app and "function shutterPress()" in app and 'id="review-video"' in app
+    for key in ("mode_photo", "mode_video", "confirm_video", "record_again", "use_video", "video_sending", "video_sent", "video_failed",
+                "video_limit", "video_big", "video_full", "video_left", "video_unsupported"):
+        vals = re.findall(key + r': "([^"]*)"', app)
+        assert len(vals) == 2, (key, vals)
+        assert not any(re.search(r"\w'\w", v) for v in vals), (key, "no possessive apostrophes in i18n strings")
     sw = (ROOT / "worker-app-sw.js").read_text(encoding="utf-8")
+    assert "v9-2026-10-08a" not in sw, "cache version moved for the video update"
     assert "v7-2026-05-06e" not in sw, "cache version bumped so phones fetch the fixed page"
     assert "error: 'offline'" in sw, "the offline answer this app must not count as sent"
     passed += 1; print("  app ok")

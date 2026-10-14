@@ -1137,6 +1137,7 @@
       if (d.invoices.due_soon_count) att.push([`${d.invoices.due_soon_count} invoice(s) due within ${d.invoices.horizon_days} days · ${money2.format(d.invoices.due_soon_value)}`, '<a class="cp-link" href="#finance">open</a>']);
       if (d.receivables.awaiting_deposit) att.push([`${d.receivables.awaiting_deposit} job(s) awaiting deposit`, '<a class="cp-link" href="#finance">open</a>']);
       if (!d.pipeline.open_count) att.push(['No open estimates in the pipeline', '<a class="cp-link" href="/#estimates">estimates</a>']);
+      if (d.storage && d.storage.warn) att.push([`File storage ${d.storage.used_pct}% full (${d.storage.used_gb} of ${d.storage.total_gb} GB) · photos and videos`, '']);   // field_videos.py
       $('ov-attention').innerHTML = att.length ? att.map(([k, v]) => { const m = /href="([^"]+)">([^<]+)</.exec(v); return m ? `<li class="has-link"><a href="${m[1]}"><span>${esc(k)}</span><span class="cp-link">${m[2]}</span></a></li>` : `<li><span>${esc(k)}</span>${v}</li>`; }).join('') : `<li><span class="cp-muted">All clear. Nothing needs attention right now.</span></li>`;
     } catch (e) { toast(e.message, true); $('ov-kpis').innerHTML = empty('Could not load the overview', e.message); }
   }
