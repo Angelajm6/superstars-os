@@ -248,6 +248,8 @@ except Exception as _fv_err:   # never block boot (a fixture that migrates later
 email_change.register(app)   # change a sign-in email, confirmed from the new address
 import assistant  # noqa: E402
 assistant.register(app)   # Claude on estimates, bids and proposals: saved conversations, daily cap (off until the key is set)
+import claude_agent  # noqa: E402
+claude_agent.register(app)   # Claude across the platform: lookups run, every change waits for a person's approval
 import project_setup  # noqa: E402
 project_setup.register(app)   # Oct 7 notes batch C: job numbers, a color per job, access method, worker access
 

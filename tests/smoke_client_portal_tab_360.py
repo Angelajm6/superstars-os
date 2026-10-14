@@ -130,8 +130,8 @@ def main() -> int:
     assert "key: 'portal'" not in nav
     company = tabs_src[tabs_src.index("{ key: 'company'"):tabs_src.index("\n  ];")]
     assert "Team & access" not in company and "/admin/users" not in company, "Company keeps company records only"
-    assert "at: [['/account', null], ['/admin/users', null], ['/company', 'usage']]" in pinned_src
-    assert "sub: [['Account', '/account'], ['Team & access', '/admin/users'], ['Usage & job tools', '/company#usage']]" in pinned_src
+    assert "at: [['/account', null], ['/admin/users', null], ['/company', 'usage'], ['/company', 'claude']]" in pinned_src
+    assert "sub: [['Account', '/account'], ['Team & access', '/admin/users'], ['Usage & job tools', '/company#usage'], ['Claude approvals', '/company#claude']]" in pinned_src
     assert "if (bar.getAttribute('data-subtabs') === PINNED.key) tab = PINNED;" in nav
     passed += 1; print("  sidebar ok")
 
