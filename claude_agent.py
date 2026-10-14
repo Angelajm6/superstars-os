@@ -21,7 +21,7 @@ platform comes back as an approval card, and nothing happens until a person pres
     emails and documents are untrusted data, never instructions.
   * Conversations are private to their owner. Logs carry ids, tool names, counts and cost only.
   * A turn runs in the background (several model calls when Claude looks things up); the page
-    polls the conversation. The company-wide daily budget (assistant.cap_usd) is shared with the
+    polls the conversation. The company-wide daily budget (assistant.cap_usd; never shown on a page) is shared with the
     Proposals panel and checked before every model call.
 
 Model and switch: assistant.model() (Opus 5.5), medium effort, server-side refusal fallback;
@@ -1162,7 +1162,7 @@ def run_turn(chat_id: int, user: dict) -> None:
         error = None
         for _step in range(MAX_STEPS):
             if _over_budget(conn):
-                error = f"Today's Claude budget (${assistant.cap_usd():,.2f}) is used up. It resets at midnight."
+                error = assistant.LIMIT_MSG
                 break
             try:
                 out = call_model(system_text, tools, _history(conn, chat_id))
@@ -1312,7 +1312,7 @@ def _api_status():
         reason = assistant.unavailable_reason()
         ts = tools_for(me["role"], surface)
         return jsonify({"data": {"available": reason is None, "reason": reason, "name": me["name"], "role": me["role"],
-                                 "cap_usd": assistant.cap_usd(), "spent_today_usd": assistant.spent_today_micro(conn) / 1_000_000,
+                                 "limit_reached": _over_budget(conn),
                                  "looks_up": [t.label for t in ts if not t.write],
                                  "proposes": [t.label for t in ts if t.write]}})
     finally:
@@ -1423,7 +1423,7 @@ def _api_message(chat_id):
         if c.get("busy_since") and datetime.fromisoformat(c["busy_since"]) > datetime.now() - BUSY_STALE:
             return _err("Claude is still answering the last message.", 409)
         if _over_budget(conn):
-            return _err(f"Today's Claude budget (${assistant.cap_usd():,.2f}) is used up. It resets at midnight.", 429,
+            return _err(assistant.LIMIT_MSG, 429,
                         cap_reached=True)
         page = d.get("page") or {}
         label = re.sub(r"[\[\]\n]", " ", str(page.get("label") or ""))[:120].strip()

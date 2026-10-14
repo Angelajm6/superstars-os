@@ -206,7 +206,8 @@ def main() -> int:
 
         # ---- no key: unavailable, refused, nothing stored
         st = a.get("/api/assistant/status").get_json()["data"]
-        assert st["available"] is False and st["reason"] == "no_api_key" and st["model"] == "claude-opus-5-5" and st["cap_usd"] == 5.0
+        assert st["available"] is False and st["reason"] == "no_api_key" and st["model"] == "claude-opus-5-5" and assistant.cap_usd() == 5.0
+        assert "cap_usd" not in st and "spent_today_usd" not in st and st["limit_reached"] is False   # no dollar figure leaves the server
         r = a.post("/api/assistant/threads", json={"estimate_id": ids["bid"], "proposal_id": ids["prop"]})
         assert r.status_code == 201, r.get_json()
         tid = r.get_json()["data"]["id"]
@@ -241,7 +242,8 @@ def main() -> int:
         row = _q("SELECT * FROM assistant_message WHERE thread_id = ? AND role = 'assistant'", (tid,))[0]
         assert row["input_tokens"] == 1200 and row["output_tokens"] == 300
         assert row["cost_micro"] == assistant.cost_micro("claude-opus-5-5", {"input_tokens": 1200, "output_tokens": 300}) == 10800
-        assert abs(d["spent_today_usd"] - 0.0108) < 1e-9
+        assert "spent_today_usd" not in d and "cap_usd" not in d
+        assert assistant.spent_today_micro(_db()) >= 10800
         assert a.get("/api/assistant/counts").get_json()["data"][str(ids["bid"])] == 1
         lst = a.get(f"/api/assistant/threads?estimate_id={ids['bid']}&proposal_id={ids['prop']}").get_json()
         assert len(lst["data"]) == 1 and lst["data"][0]["messages"] == 2
@@ -321,6 +323,7 @@ def main() -> int:
         n_before = len(_q("SELECT id FROM assistant_message WHERE thread_id = ?", (tid,)))
         r = a.post(f"/api/assistant/threads/{tid}/messages", json={"text": "One more?"})
         assert r.status_code == 429 and r.get_json()["cap_reached"] is True, r.get_json()
+        assert "$" not in r.get_json()["error"] and "usage limit" in r.get_json()["error"]
         assert len(_q("SELECT id FROM assistant_message WHERE thread_id = ?", (tid,))) == n_before
         os.environ["SSC_ASSISTANT_DAILY_CAP_USD"] = "0"
         assert a.get("/api/assistant/status").get_json()["data"]["available"] is True   # the seam stays on in tests
@@ -342,6 +345,7 @@ def main() -> int:
         assert "/#estimates\"" not in cp and "href=\"/#estimates\"" not in cp
         assert "function loadEstimateDetail(" in cp and "function openNewEstimate(" in cp and 'id="est-new-overlay"' in cp
         assert cp.count("mountClaude($('claude-host')") == 2
+        assert "cl-spend" not in cp and "cl-meter" not in cp and "clSpend" not in cp
         assert "inquiry_kind: ESTNEW.kind === 'bid' ? 'bid' : 'undetermined'" in cp
         cd = (ROOT / "company-dashboard.html").read_text(encoding="utf-8")
         assert "open: function(id){ wireOnce(); openEst(id); }" in cd and "estimates\\/(\\d+)" in cd

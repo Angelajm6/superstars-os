@@ -160,6 +160,7 @@ def main() -> int:
         assert login("client").get("/api/claude/status").status_code == 403
         a, pm = login("admin"), login("pm")
         st = a.get("/api/claude/status?surface=office").get_json()["data"]
+        assert "spent_today_usd" not in st and "cap_usd" not in st
         assert st["available"] is False and "Weekly payroll" in st["looks_up"] and "New event" in st["proposes"]
         stf = a.get("/api/claude/status?surface=field").get_json()["data"]
         assert "Weekly payroll" not in stf["looks_up"] and "New event" in stf["proposes"]
@@ -303,7 +304,7 @@ def main() -> int:
         # ---- the daily budget stops new turns
         os.environ["SSC_ASSISTANT_DAILY_CAP_USD"] = "0.01"
         r = a.post(f"/api/claude/chats/{chat['id']}/messages", json={"text": "more", "page": {"surface": "office"}})
-        assert r.status_code == 429 and r.get_json()["cap_reached"] is True
+        assert r.status_code == 429 and r.get_json()["cap_reached"] is True and "$" not in r.get_json()["error"]
         os.environ.pop("SSC_ASSISTANT_DAILY_CAP_USD")
         assert assistant.spent_today_micro(_db()) >= ca.spent_today_micro(_db()) > 0
         passed += 1; print("  budget ok")
@@ -353,6 +354,7 @@ def main() -> int:
         assert "worker-app" not in "".join(p.name for p in ROOT.glob("*.html") if "claude_drawer.js" in p.read_text(encoding="utf-8", errors="ignore"))
         js = (ROOT / "static/js/claude_drawer.js").read_text(encoding="utf-8")
         assert "var FIELD = /^\\/projects\\//" in js and "Changes always wait for your approval" in js
+        assert "clx-spend" not in js and "spent_today_usd" not in js and "id=\"clx-grip\"" in js and "ssc.claude.width" in js
         assert "Knows you are on" not in js and "function loadHistory()" in js and "\u2606 Save" in js
         cp = (ROOT / "company_portal.html").read_text(encoding="utf-8")
         assert 'id="view-claude"' in cp and "claude: loadClaudeLog" in cp
