@@ -165,7 +165,7 @@ def main() -> int:
         assert "Weekly payroll" not in stf["looks_up"] and "New event" in stf["proposes"]
         sp = pm.get("/api/claude/status?surface=office").get_json()["data"]
         assert "Weekly payroll" not in sp["looks_up"] and "Estimates" not in sp["looks_up"] and "Hours log" not in sp["looks_up"]
-        assert sp["proposes"] == ["Mark done"], sp["proposes"]
+        assert sp["proposes"] == ["Mark done", "Daily report entry"], sp["proposes"]
         names = lambda role, s: [t.name for t in ca.tools_for(role, s)]  # noqa: E731
         assert "payroll_summary" in names("c_suite", "office") and "payroll_summary" not in names("c_suite", "field")
         assert not {"create_event", "create_task", "payroll_summary"} & set(names("super", "office"))

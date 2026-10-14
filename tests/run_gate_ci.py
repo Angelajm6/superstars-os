@@ -35,7 +35,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PY = sys.executable
 STATIC = ["smoke_http_security_297.py", "smoke_login_experience_298.py",
           "smoke_client_building_hub_299.py", "smoke_password_reset_300.py",
-          "smoke_request_logging.py", "smoke_secret_box.py", "smoke_runtime_seams.py", "smoke_csrf_guard.py", "smoke_company_dashboard_links.py", "smoke_login_next_query.py", "smoke_edit_projects_clients.py", "smoke_worker_photos.py", "smoke_shell_titles_pin.py", "smoke_team_items.py", "smoke_team_home_2b.py", "smoke_gcal_sync.py", "smoke_gmail_suggest.py", "smoke_usage_footprint.py", "smoke_account_settings.py", "smoke_job_page_redesign.py", "smoke_projects_batch_c.py", "smoke_type_system.py", "smoke_card_style.py", "smoke_email_change.py", "smoke_assistant_proposals.py", "smoke_claude_agent.py"]
+          "smoke_request_logging.py", "smoke_secret_box.py", "smoke_runtime_seams.py", "smoke_csrf_guard.py", "smoke_company_dashboard_links.py", "smoke_login_next_query.py", "smoke_edit_projects_clients.py", "smoke_worker_photos.py", "smoke_shell_titles_pin.py", "smoke_team_items.py", "smoke_team_home_2b.py", "smoke_gcal_sync.py", "smoke_gmail_suggest.py", "smoke_usage_footprint.py", "smoke_account_settings.py", "smoke_job_page_redesign.py", "smoke_projects_batch_c.py", "smoke_type_system.py", "smoke_card_style.py", "smoke_email_change.py", "smoke_assistant_proposals.py", "smoke_claude_agent.py", "smoke_claude_actions.py"]
 BEHAVIORAL = ["smoke_password_reset_flow_301.py", "smoke_company_portal_302.py",
               "smoke_buildings_304.py", "smoke_security_release_305.py", "smoke_migrations_306.py",
               "smoke_proposals_307.py", "smoke_client_proposals_308.py", "smoke_csuite_reset_309.py",
