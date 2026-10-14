@@ -14,7 +14,7 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1009"></script>
+<script src="/files/static/js/company_nav.js?v=1010"></script>
 <script src="/files/static/vendor/gridstack-all.js"></script>
 <script src="/files/static/js/dash_layout.js?v=292" defer></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -2139,8 +2139,10 @@ applyLanguage();
     var hash = (window.location.hash || '').replace(/^#/, '').trim();
     if (!hash) return;
     if (hash === 'cert-health') hash = 'cert-library';   // #329 — old bookmarks / admin-page links
+    var estOpen = /^estimates\/(\d+)$/.exec(hash);   // the Proposals tab links one estimate's full editor here
+    if (estOpen) { hash = 'estimates'; }
     var panel = document.querySelector('.panel[data-panel="' + hash + '"]');
-    if (panel) activatePanel(hash);
+    if (panel) { activatePanel(hash); if (estOpen && window.EST) window.EST.open(+estOpen[1]); }
     else if (!(window.SSC_NAV && SSC_NAV.redirectIfRetired())) window.location.replace('/company#overview');   // #339 — retired hashes forward to their new home; anything else, the company home
   }
   window.addEventListener('hashchange', maybeActivateFromHash);
@@ -5856,8 +5858,12 @@ applyLanguage();
   }
 
   window.EST = {
-    enter: function(){ wireOnce(); showView('board'); loadBoard(); }
+    enter: function(){ wireOnce(); showView('board'); loadBoard(); },
+    open: function(id){ wireOnce(); openEst(id); }
   };
+  // a link from the Proposals tab (/#estimates/<id>) can arrive before this block was parsed
+  var estLink = /^#estimates\/(\d+)$/.exec(window.location.hash || '');
+  if (estLink) setTimeout(function(){ window.EST.open(+estLink[1]); }, 0);
 })();
 </script>
 </div><!-- /.ssc-main -->
