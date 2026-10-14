@@ -75,7 +75,7 @@
 .clx-card-h b{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#A84E2C}\
 .clx-tag{font-size:12px;font-weight:600;border-radius:6px;padding:2px 8px;background:#FBEFE9;color:#A84E2C}\
 .clx-card dl{display:grid;grid-template-columns:96px 1fr;gap:6px 10px;margin:0;font-size:13px;align-items:center}\
-.clx-card dt{color:#868C98}.clx-card dd{margin:0;min-width:0}\
+.clx-card dt{color:#868C98}.clx-card dd{margin:0;min-width:0;white-space:pre-wrap;overflow-wrap:anywhere}\
 .clx-card dd input,.clx-card dd select,.clx-card dd textarea{width:100%;box-sizing:border-box;font:13px Inter,sans-serif;color:#1B1F27;background:#fff;border:1px solid #E6E8EE;border-radius:8px;padding:5px 8px}\
 .clx-card dd textarea{min-height:52px;resize:vertical}\
 .clx-card dd .hint{display:block;font-size:12px;color:#868C98;margin-top:2px}\
@@ -267,6 +267,8 @@
       return '<div class="clx-m a"><span class="who">Claude · ' + esc(when(m.created_at)) + '</span>' + looked +
         (m.text ? '<div class="clx-b">' + esc(m.text) + '</div>' : '') + (m.actions || []).map(card).join('') + '</div>';
     }).join('') + (v.busy ? '<div class="clx-wait">Claude is working…</div>' : '') + (v.error ? '<div class="clx-err">' + esc(v.error) + '</div>' : '');
+    // long text on a card (an email, a proposal scope) shows in full so it can be read before approving
+    box.querySelectorAll('.clx-card textarea').forEach(function (t) { t.style.height = Math.min(360, t.scrollHeight + 4) + 'px'; });
     box.scrollTop = box.scrollHeight;
   }
   function field(a, f) {

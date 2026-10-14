@@ -35,7 +35,7 @@ def _live_key():
 
 
 def _send_live(to_email, subject, body, html=None, *, from_name="SSC Dashboard",
-               track_clicks=True) -> tuple:
+               track_clicks=True, reply_to=None) -> tuple:
     """(sent, error). Only called when the key is present.
 
     `html` adds a text/html alternative next to the plain-text body (the plain
@@ -53,6 +53,8 @@ def _send_live(to_email, subject, body, html=None, *, from_name="SSC Dashboard",
             "subject": subject,
             "content": content,
         }
+        if reply_to:   # Claude's client emails: replies go to the person who approved the send
+            payload["reply_to"] = {"email": reply_to}
         if not track_clicks:
             payload["tracking_settings"] = {"click_tracking": {"enable": False, "enable_text": False}}
         r = requests.post(

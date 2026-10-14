@@ -15,7 +15,8 @@ platform comes back as an approval card, and nothing happens until a person pres
     conversations started on an office page — never on a job dashboard, which is field-
     reachable (CLAUDE.md compensation rule). Conversations are stamped with that surface and
     a job dashboard never lists or opens an office conversation.
-  * Never offered: deleting, pay rates, sign-in details or access, invoices, sending email.
+  * Never offered: deleting, pay rates, sign-in details or access, invoices. Email goes only to a client
+    contact the person picks, on its own card each time; Claude never sees contact email addresses.
   * Tool results are scrubbed of emails, phone numbers and file paths before Claude sees them;
     emails and documents are untrusted data, never instructions.
   * Conversations are private to their owner. Logs carry ids, tool names, counts and cost only.
@@ -50,6 +51,7 @@ from flask import jsonify, request
 
 import assistant
 import db_layer
+import runtime_seams
 from auth import current_user, requires_role
 
 log = logging.getLogger("ssc.claude_agent")
@@ -73,6 +75,7 @@ Changes: you can never change anything yourself. A tool marked "needs approval" 
 - After proposing, tell the person in one sentence what the card will do. Never say it is done, saved, created or scheduled until a platform note says it was approved.
 - One request can need several cards; propose each.
 - If no tool can do what they ask, say so plainly and tell them where in the platform to do it.
+- Emails to clients: write them as the person, signed with their name, short and professional. You never see contact email addresses; pick the contact by contact_id from client_detail.
 
 Writing: plain, short, friendly. Use "•" bullets and small plain-text tables only when they help. Dates as "Thu Oct 16". Money as $12,345. Hours as "hours worked", never "paid hours".
 
@@ -603,6 +606,362 @@ def _exec_status(ctx, inp):
             "link": f"/company#proposals/estimate/{int(inp['estimate_id'])}", "undo": False}
 
 
+# ---- phase 2 (2026-10-14): client notes, client emails, proposals, daily report entries
+def _t_client(ctx, inp):
+    import crm
+    org = crm.get_org(ctx.conn, int(inp.get("client_id") or 0))
+    if not org:
+        raise LookupError("no client with that id; use find to look it up")
+    contacts = [{"contact_id": c["id"], "name": c.get("full_name"), "title": c.get("title"),
+                 "can_be_emailed": bool(c.get("email"))} for c in crm.list_contacts(ctx.conn, org_id=org["id"])]
+    acts = [{"when": a.get("occurred_at"), "type": a.get("activity_type"), "summary": a.get("summary")}
+            for a in crm.list_activity(ctx.conn, entity_type="organization", entity_id=org["id"], limit=15)]
+    ests = _rows(ctx.conn, "SELECT id, code, status, inquiry_kind, building_address, bid_due_date FROM estimate "
+                           "WHERE client_org_id = ? ORDER BY updated_at DESC LIMIT 15", (org["id"],))
+    jobs = _rows(ctx.conn, "SELECT project_code, name, COALESCE(status,'active') AS status FROM projects "
+                           "WHERE client_org_id = ? ORDER BY project_code LIMIT 15", (org["id"],))
+    return {"client_id": org["id"], "name": org.get("name"), "relationship": org.get("relationship_type"),
+            "contacts": contacts, "recent_activity": acts, "estimates_and_bids": ests, "jobs": jobs,
+            "note": "Contacts are referred to by contact_id; their email addresses are never shown to you."}
+
+
+def _t_proposals(ctx, inp):
+    import proposals
+    rows = proposals.list_proposals(ctx.conn, status=(inp.get("status") or None),
+                                    estimate_id=inp.get("estimate_id") or None, q=(inp.get("query") or None))
+    keep = ("id", "number", "status", "display_status", "title", "price", "client_name", "estimate_id", "estimate_code",
+            "building_address", "sent_at", "viewed_at", "signed_at", "valid_until", "updated_at")
+    return {"proposals": [{k: r.get(k) for k in keep if k in r} for r in rows[:60]], "count": len(rows)}
+
+
+def _t_proposal(ctx, inp):
+    import proposals
+    r = proposals.get(ctx.conn, int(inp.get("proposal_id") or 0))
+    if not r:
+        raise LookupError("no proposal with that id")
+    keep = ("id", "number", "status", "version", "title", "scope_summary", "schedule_text", "exclusions_text",
+            "terms_text", "price", "deposit_pct", "deposit_amount", "valid_until", "estimate_id", "client_org_id",
+            "contact_id", "recipient_name", "sent_at", "viewed_at", "signed_at")
+    out = {k: r.get(k) for k in keep}
+    out["lines"] = [{k: ln.get(k) for k in ("description", "qty", "unit", "unit_price", "amount")}
+                    for ln in proposals.lines(ctx.conn, r["id"])]
+    out["editable"] = r["status"] == "draft"
+    return out
+
+
+def _t_daily(ctx, inp):
+    import pm_scoping
+    code = str(inp.get("project_code") or "").strip()
+    if not code or not pm_scoping.pm_can_access_project(ctx.role, ctx.uid, code, ctx.conn):
+        raise LookupError("no job with that code that you can open")
+    day = _d(inp.get("date"), "date") or date.today().isoformat()
+    def q(sql):
+        try:
+            return _rows(ctx.conn, sql, (code, day))
+        except Exception:
+            ctx.conn.rollback()
+            return []
+    return {"project_code": code, "date": day,
+            "signed_in_workers": len(q("SELECT DISTINCT employee_id FROM sign_in_log WHERE project_code = ? AND date = ?")),
+            "work": q("SELECT * FROM work_log WHERE project_code = ? AND date = ?"),
+            "issues_and_notes": q("SELECT id, category, description, action, owner, status, due_date, time_lost_hrs "
+                                  "FROM issues WHERE project_code = ? AND date = ?"),
+            "deliveries": q("SELECT * FROM deliveries WHERE project_code = ? AND date = ?"),
+            "inspections": q("SELECT * FROM inspections WHERE project_code = ? AND date = ?"),
+            "safety": q("SELECT event_type, severity, description, action FROM safety_events WHERE project_code = ? AND date = ?"),
+            "issued": bool(q("SELECT 1 FROM report_index WHERE project_code = ? AND report_date = ? AND report_type = 'DCR'"))}
+
+
+def _contact_for_email(ctx, contact_id):
+    import crm
+    c = crm.get_contact(ctx.conn, int(contact_id or 0))
+    if not c:
+        raise LookupError("no contact with that id; use client_detail to find one")
+    em = (c.get("email") or "").strip()
+    if "@" not in em or "." not in em.split("@")[-1]:
+        raise ValueError(f"{c.get('full_name') or 'that contact'} has no email address on file; add it on the client page")
+    return c, em
+
+
+def _check_email(ctx, inp):
+    _contact_for_email(ctx, inp.get("contact_id"))
+    if not str(inp.get("subject") or "").strip() or not str(inp.get("body") or "").strip():
+        raise ValueError("an email needs a subject and a message")
+    if len(str(inp.get("body"))) > 8000 or len(str(inp.get("subject"))) > 200:
+        raise ValueError("that email is too long")
+
+
+def _email_card(ctx, inp):
+    try:
+        c, em = _contact_for_email(ctx, inp.get("contact_id"))
+        to = f"{c.get('full_name') or ''} <{em}>"
+        org = _one(ctx.conn, "SELECT name FROM crm_organization WHERE id = ?", (c.get("org_id"),)) if c.get("org_id") else None
+        if org:
+            to += f" · {org['name']}"
+    except (LookupError, ValueError) as e:
+        to = str(e)
+    return {"title": "Email to a client", "fields": [
+        {"key": "contact_id", "label": "To", "type": "readonly", "value": str(inp.get("contact_id") or ""), "hint": to},
+        {"key": "subject", "label": "Subject", "type": "text", "value": inp.get("subject") or ""},
+        {"key": "body", "label": "Message", "type": "textarea", "value": inp.get("body") or ""},
+        {"key": "reply", "label": "Replies go to", "type": "readonly", "value": "you", "hint": "you (your sign-in email)"}]}
+
+
+def _deliver_email(to_email, subject, text, reply_to):
+    """(sent, error): the test mail folder, else SendGrid, else not configured."""
+    import html as _html
+    from pathlib import Path
+    body_html = "".join(f"<p style=\"margin:0 0 12px\">{_html.escape(p).replace(chr(10), '<br>')}</p>"
+                        for p in text.split("\n\n") if p.strip())
+    page = (f"<!DOCTYPE html><html><body style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1B1F27;"
+            f"line-height:1.5\">{body_html}<p style=\"color:#868C98;font-size:12px;margin-top:24px\">Superstars Contracting Inc.</p></body></html>")
+    fake_dir = (runtime_seams.seam("SSC_MAIL_FAKE_DIR") or runtime_seams.seam("SSC_RESET_MAIL_FAKE_DIR")).strip()
+    if fake_dir:
+        out = Path(fake_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        (out / f"claude-email-{stamp}.eml").write_text(f"To: {to_email}\nReply-To: {reply_to}\nSubject: {subject}\n\n{text}",
+                                                        encoding="utf-8")
+        return True, None
+    import os
+    if (os.environ.get("SENDGRID_API_KEY") or "").strip():
+        import notifications
+        sent, err = notifications._send_live(to_email, subject, text, page, from_name="Superstars Contracting",
+                                             reply_to=reply_to)
+        return bool(sent), err
+    return False, "email is not set up on this server (SendGrid key missing)"
+
+
+def _exec_email(ctx, inp):
+    import crm
+    c, em = _contact_for_email(ctx, inp["contact_id"])
+    me = _one(ctx.conn, "SELECT email FROM users WHERE id = ?", (ctx.uid,)) or {}
+    sent, err = _deliver_email(em, str(inp["subject"]).strip(), str(inp["body"]).strip(), me.get("email"))
+    if not sent:
+        raise ValueError(f"The email was not sent: {err}. Nothing went out.")
+    if c.get("org_id"):
+        crm.add_activity(ctx.conn, entity_type="organization", entity_id=c["org_id"], activity_type="email",
+                         author_user_id=ctx.uid, summary=f"Email to {c.get('full_name')}: {str(inp['subject']).strip()[:150]}",
+                         body=str(inp["body"]).strip())
+    return {"id": c["id"], "summary": f"Email sent to {c.get('full_name')}",
+            "link": f"/company#clients/{c['org_id']}" if c.get("org_id") else "/company#clients", "undo": False}
+
+
+def _check_note(ctx, inp):
+    import crm
+    if not crm.get_org(ctx.conn, int(inp.get("client_id") or 0)):
+        raise LookupError("no client with that id; use find to look it up")
+    if not str(inp.get("note") or "").strip():
+        raise ValueError("the note is empty")
+    if (inp.get("kind") or "note") not in ("note", "call", "meeting", "email"):
+        raise ValueError("kind is note, call, meeting or email")
+    _d(inp.get("when"), "date")
+
+
+def _note_card(ctx, inp):
+    org = _one(ctx.conn, "SELECT name FROM crm_organization WHERE id = ?", (int(inp.get("client_id") or 0),))
+    return {"title": "Client note", "fields": [
+        {"key": "client_id", "label": "Client", "type": "readonly", "value": str(inp.get("client_id") or ""),
+         "hint": org["name"] if org else None},
+        {"key": "kind", "label": "Kind", "type": "select", "value": inp.get("kind") or "note",
+         "options": [{"value": "note", "label": "Note"}, {"value": "call", "label": "Call"},
+                     {"value": "meeting", "label": "Meeting"}, {"value": "email", "label": "Email (logged, not sent)"}]},
+        {"key": "when", "label": "Date", "type": "date", "value": inp.get("when") or date.today().isoformat()},
+        {"key": "note", "label": "Note", "type": "textarea", "value": inp.get("note") or ""}]}
+
+
+def _exec_note(ctx, inp):
+    import crm
+    text = str(inp["note"]).strip()
+    aid = crm.add_activity(ctx.conn, entity_type="organization", entity_id=int(inp["client_id"]),
+                           activity_type=inp.get("kind") or "note", author_user_id=ctx.uid,
+                           summary=text.splitlines()[0][:150], body=text, occurred_at=_d(inp.get("when"), "date"))
+    return {"id": aid, "summary": "Note added to the client", "link": f"/company#clients/{int(inp['client_id'])}",
+            "undo": False}
+
+
+def _check_new_proposal(ctx, inp):
+    import estimates
+    e = estimates.get_estimate(ctx.conn, int(inp.get("estimate_id") or 0))
+    if not e:
+        raise LookupError("no estimate with that id")
+    if e["status"] == "lost":
+        raise ValueError("a lost estimate cannot be proposed; reopen it first")
+    o = _one(ctx.conn, "SELECT number, status FROM proposal WHERE estimate_id = ? AND status IN ('draft','sent','viewed')",
+             (e["id"],))
+    if o:
+        raise ValueError(f"proposal {o['number']} is already {o['status']}; change that one instead")
+
+
+def _new_proposal_card(ctx, inp):
+    import estimates
+    e = estimates.get_estimate(ctx.conn, int(inp.get("estimate_id") or 0)) or {}
+    return {"title": "New proposal draft", "fields": [
+        {"key": "estimate_id", "label": "From", "type": "readonly", "value": str(inp.get("estimate_id") or ""),
+         "hint": f"{e.get('code')} · {e.get('building_address') or ''}"},
+        {"key": "what", "label": "Fills in", "type": "readonly", "value": "x",
+         "hint": "client, contact, address and price from the estimate; standard exclusions and terms"}]}
+
+
+def _exec_new_proposal(ctx, inp):
+    import proposals
+    r = proposals.create_from_estimate(ctx.conn, int(inp["estimate_id"]), created_by=ctx.uid)
+    return {"id": r["id"], "summary": f"Draft {r['number']} created", "link": f"/company#proposals/{r['id']}", "undo": False}
+
+
+_PROP_FIELDS = (("title", "title", "Title", "text"), ("scope", "scope_summary", "Scope of work", "textarea"),
+                ("schedule", "schedule_text", "Schedule", "textarea"), ("exclusions", "exclusions_text", "Exclusions", "textarea"),
+                ("terms", "terms_text", "Terms", "textarea"), ("price", "price", "Price ($)", "text"),
+                ("deposit_pct", "deposit_pct", "Deposit %", "text"), ("valid_until", "valid_until", "Valid until", "date"))
+
+
+def _check_proposal_edit(ctx, inp):
+    import proposals
+    r = proposals.get(ctx.conn, int(inp.get("proposal_id") or 0))
+    if not r:
+        raise LookupError("no proposal with that id")
+    if r["status"] != "draft":
+        raise ValueError(f"{r['number']} was already {r['status']}; only a draft can be changed (make a new version on its page)")
+    if not any(k in inp for k, *_ in _PROP_FIELDS):
+        raise ValueError("nothing to change")
+    for k in ("price", "deposit_pct"):
+        if inp.get(k) not in (None, ""):
+            try:
+                v = float(str(inp[k]).replace("$", "").replace(",", ""))
+            except ValueError:
+                raise ValueError(f"{k} must be a number")
+            if v < 0 or (k == "deposit_pct" and v > 100):
+                raise ValueError(f"{k} is out of range")
+    _d(inp.get("valid_until"), "valid until")
+
+
+def _proposal_edit_card(ctx, inp):
+    import proposals
+    r = proposals.get(ctx.conn, int(inp.get("proposal_id") or 0)) or {}
+    f = [{"key": "proposal_id", "label": "Proposal", "type": "readonly", "value": str(inp.get("proposal_id") or ""),
+          "hint": f"{r.get('number')} · draft"}]
+    for k, _col, label, typ in _PROP_FIELDS:
+        if k in inp and inp[k] is not None:
+            f.append({"key": k, "label": label, "type": typ, "value": str(inp[k])})
+    return {"title": "Change the proposal draft", "fields": f}
+
+
+def _exec_proposal_edit(ctx, inp):
+    import proposals
+    fields = {}
+    for k, col, _label, _t in _PROP_FIELDS:
+        if k in inp and inp[k] is not None:
+            v = inp[k]
+            fields[col] = str(v).replace("$", "").replace(",", "") if k in ("price", "deposit_pct") else v
+    r = proposals.update(ctx.conn, int(inp["proposal_id"]), fields, actor=ctx.uid)
+    return {"id": r["id"], "summary": f"{r['number']} updated", "link": f"/company#proposals/{r['id']}", "undo": False}
+
+
+def _check_send_proposal(ctx, inp):
+    import proposals
+    r = proposals.get(ctx.conn, int(inp.get("proposal_id") or 0))
+    if not r:
+        raise LookupError("no proposal with that id")
+    if r["status"] not in ("draft", "sent", "viewed"):
+        raise ValueError(f"a {r['status']} proposal cannot be sent")
+    if r.get("price") in (None, "") or float(r["price"]) <= 0:
+        raise ValueError("set the proposal price before sending")
+    if inp.get("contact_id"):
+        _contact_for_email(ctx, inp["contact_id"])
+    elif "@" not in (r.get("recipient_email") or r.get("contact_email") or ""):
+        raise ValueError("the proposal has no recipient email; pick a contact with an email")
+
+
+def _send_proposal_card(ctx, inp):
+    import proposals
+    r = proposals.get(ctx.conn, int(inp.get("proposal_id") or 0)) or {}
+    try:
+        if inp.get("contact_id"):
+            c, em = _contact_for_email(ctx, inp["contact_id"])
+            to = f"{c.get('full_name') or ''} <{em}>"
+        else:
+            to = f"{r.get('recipient_name') or r.get('contact_name') or ''} <{r.get('recipient_email') or r.get('contact_email')}>"
+    except (LookupError, ValueError) as e:
+        to = str(e)
+    return {"title": "Send the proposal", "fields": [
+        {"key": "proposal_id", "label": "Proposal", "type": "readonly", "value": str(inp.get("proposal_id") or ""),
+         "hint": f"{r.get('number')} · ${float(r.get('price') or 0):,.2f} · valid until {r.get('valid_until')}"},
+        {"key": "contact_id", "label": "To", "type": "readonly", "value": str(inp.get("contact_id") or ""), "hint": to},
+        {"key": "message", "label": "Message", "type": "textarea", "value": inp.get("message") or ""},
+        {"key": "how", "label": "They get", "type": "readonly", "value": "x",
+         "hint": "an email with a secure link to review, download the PDF and accept online"}]}
+
+
+def _exec_send_proposal(ctx, inp):
+    import proposals
+    kw = {"message": inp.get("message") or None, "actor": ctx.uid}
+    if inp.get("contact_id"):
+        c, em = _contact_for_email(ctx, inp["contact_id"])
+        kw.update(to_email=em, to_name=c.get("full_name"))
+    try:
+        r = proposals.send(ctx.conn, int(inp["proposal_id"]), **kw)
+    except RuntimeError as e:
+        raise ValueError(f"{e}. Nothing went out.")
+    return {"id": r["id"], "summary": f"{r['number']} sent to {r.get('recipient_name') or 'the client'}",
+            "link": f"/company#proposals/{r['id']}", "undo": False}
+
+
+_ISSUE_STATUSES = ("open", "in-progress", "resolved")
+
+
+def _check_issue(ctx, inp):
+    import pm_scoping
+    code = str(inp.get("project_code") or "").strip()
+    if not code or not pm_scoping.pm_can_access_project(ctx.role, ctx.uid, code, ctx.conn):
+        raise LookupError("no job with that code that you can open")
+    if not str(inp.get("description") or "").strip():
+        raise ValueError("describe what happened")
+    if inp.get("status") and inp["status"] not in _ISSUE_STATUSES:
+        raise ValueError("status is open, in-progress or resolved")
+    _d(inp.get("date"), "date")
+    _d(inp.get("due_date"), "due date")
+    if inp.get("time_lost_hrs") not in (None, ""):
+        try:
+            if not 0 <= float(inp["time_lost_hrs"]) <= 24:
+                raise ValueError
+        except (TypeError, ValueError):
+            raise ValueError("hours lost is a number from 0 to 24")
+
+
+def _issue_card(ctx, inp):
+    return {"title": "Daily report entry", "fields": [
+        {"key": "project_code", "label": "Job", "type": "readonly", "value": inp.get("project_code") or "",
+         "hint": _job_label(ctx.conn, inp.get("project_code"))},
+        {"key": "date", "label": "Report day", "type": "date", "value": inp.get("date") or date.today().isoformat()},
+        {"key": "category", "label": "Category", "type": "text", "value": inp.get("category") or "Note"},
+        {"key": "description", "label": "What happened", "type": "textarea", "value": inp.get("description") or ""},
+        {"key": "action", "label": "Action", "type": "text", "value": inp.get("action") or ""},
+        {"key": "owner", "label": "Owner", "type": "text", "value": inp.get("owner") or ""},
+        {"key": "status", "label": "Status", "type": "select", "value": inp.get("status") or "open",
+         "options": [{"value": v, "label": v} for v in _ISSUE_STATUSES]},
+        {"key": "time_lost_hrs", "label": "Hours lost", "type": "text", "value": str(inp.get("time_lost_hrs") or "")},
+        {"key": "due_date", "label": "Due", "type": "date", "value": inp.get("due_date") or ""}]}
+
+
+def _exec_issue(ctx, inp):
+    code = str(inp["project_code"]).strip()
+    day = _d(inp.get("date"), "date") or date.today().isoformat()
+    ctx.conn.execute(
+        "INSERT INTO issues (date, project_code, category, description, time_lost_hrs, action, owner, status, due_date) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (day, code, (inp.get("category") or "Note")[:80], str(inp["description"]).strip(),
+         float(inp["time_lost_hrs"]) if inp.get("time_lost_hrs") not in (None, "") else None,
+         inp.get("action") or None, inp.get("owner") or None, inp.get("status") or "open", _d(inp.get("due_date"), "due date")))
+    ctx.conn.commit()
+    new_id = _one(ctx.conn, "SELECT MAX(id) AS m FROM issues WHERE project_code = ?", (code,))["m"]
+    return {"id": new_id, "summary": f"Added to the {day} daily report", "link": f"/projects/{code}", "undo": True}
+
+
+def _undo_issue(ctx, action, result):
+    ctx.conn.execute("DELETE FROM issues WHERE id = ?", (int(result["id"]),))
+    ctx.conn.commit()
+
+
 _S, _D, _T, _I, _B = ({"type": "string"}, {"type": "string", "description": "YYYY-MM-DD"},
                       {"type": "string", "description": "HH:MM, 24-hour"}, {"type": "integer"}, {"type": "boolean"})
 TOOLS = [
@@ -652,6 +1011,42 @@ TOOLS = [
          {"estimate_id": _I, "status": {"type": "string", "enum": ["intake", "scoping", "submitted", "approved", "lost"]},
           "on_date": _D, "final_amount": {"type": "number"}, "qb_estimate_ref": _S}, ["estimate_id", "status"],
          write=True, roles=OFFICE_ROLES, run=_check_status, card=_status_card, execute=_exec_status),
+]
+TOOLS += [
+    Tool("client_detail", "Client", "One client: contacts (by contact_id, never emails), recent activity, estimates and jobs.",
+         {"client_id": _I}, ["client_id"], roles=OFFICE_ROLES, run=_t_client),
+    Tool("proposals", "Proposals", "Proposals with status, price, client and estimate (filter by status, estimate or text).",
+         {"status": {"type": "string", "enum": ["draft", "sent", "viewed", "signed", "declined", "superseded"]},
+          "estimate_id": _I, "query": _S}, [], roles=OFFICE_ROLES, run=_t_proposals),
+    Tool("proposal_detail", "Proposal", "One proposal's full text: title, scope, schedule, exclusions, terms, price, lines.",
+         {"proposal_id": _I}, ["proposal_id"], roles=OFFICE_ROLES, run=_t_proposal),
+    Tool("daily_report", "Daily report", "What is logged on a job's daily report for a day: work, notes and issues, "
+         "deliveries, inspections, safety, workers signed in, and whether it was issued.",
+         {"project_code": _S, "date": _D}, ["project_code"], run=_t_daily),
+    Tool("add_client_note", "Client note", "Propose a note on a client's activity (a call, meeting or plain note).",
+         {"client_id": _I, "kind": {"type": "string", "enum": ["note", "call", "meeting", "email"]}, "when": _D, "note": _S},
+         ["client_id", "note"], write=True, roles=OFFICE_ROLES, run=_check_note, card=_note_card, execute=_exec_note),
+    Tool("email_client", "Email to a client", "Propose an email to one client contact (by contact_id). It is sent from "
+         "the company address with replies going to the person; sign it with their name. Plain text, short paragraphs.",
+         {"contact_id": _I, "subject": _S, "body": _S}, ["contact_id", "subject", "body"], write=True, roles=OFFICE_ROLES,
+         run=_check_email, card=_email_card, execute=_exec_email),
+    Tool("create_proposal", "New proposal draft", "Propose creating a proposal draft from an estimate.",
+         {"estimate_id": _I}, ["estimate_id"], write=True, roles=OFFICE_ROLES,
+         run=_check_new_proposal, card=_new_proposal_card, execute=_exec_new_proposal),
+    Tool("update_proposal", "Change the proposal draft", "Propose changes to a DRAFT proposal: only the fields to change. "
+         "Text fields are plain text.",
+         {"proposal_id": _I, "title": _S, "scope": _S, "schedule": _S, "exclusions": _S, "terms": _S,
+          "price": {"type": "number"}, "deposit_pct": {"type": "number"}, "valid_until": _D}, ["proposal_id"],
+         write=True, roles=OFFICE_ROLES, run=_check_proposal_edit, card=_proposal_edit_card, execute=_exec_proposal_edit),
+    Tool("send_proposal", "Send the proposal", "Propose emailing a proposal to the client with its secure accept link "
+         "(optionally to a different contact, with a short message).",
+         {"proposal_id": _I, "contact_id": _I, "message": _S}, ["proposal_id"], write=True, roles=OFFICE_ROLES,
+         run=_check_send_proposal, card=_send_proposal_card, execute=_exec_send_proposal),
+    Tool("add_daily_report_entry", "Daily report entry", "Propose a note or issue on a job's daily report for a day "
+         "(category such as Note, Delay, Weather, Access; what happened; action; owner; status).",
+         {"project_code": _S, "date": _D, "category": _S, "description": _S, "action": _S, "owner": _S,
+          "status": {"type": "string", "enum": list(_ISSUE_STATUSES)}, "time_lost_hrs": {"type": "number"}, "due_date": _D},
+         ["project_code", "description"], write=True, run=_check_issue, card=_issue_card, execute=_exec_issue, undo=_undo_issue),
 ]
 BY_NAME = {t.name: t for t in TOOLS}
 
