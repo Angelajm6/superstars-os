@@ -246,6 +246,8 @@ try:   # worker videos (field_videos.py): field_photos.duration_s, added once at
 except Exception as _fv_err:   # never block boot (a fixture that migrates later)
     logging.warning("field videos ensure skipped: %s", type(_fv_err).__name__)
 email_change.register(app)   # change a sign-in email, confirmed from the new address
+import assistant  # noqa: E402
+assistant.register(app)   # Claude on estimates, bids and proposals: saved conversations, daily cap (off until the key is set)
 import project_setup  # noqa: E402
 project_setup.register(app)   # Oct 7 notes batch C: job numbers, a color per job, access method, worker access
 

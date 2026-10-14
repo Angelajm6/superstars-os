@@ -105,6 +105,7 @@ GATE = [
     "smoke_type_system.py",           # one type system: Inter everywhere, medium titles, no extra-bold, no on-screen monospace
     "smoke_card_style.py",           # one card style (14 / 10 / 6 / round corners) + the 7-day weather window
     "smoke_email_change.py",         # change a sign-in email, confirmed from the new address (self + admin)
+    "smoke_assistant_proposals.py",  # Claude on estimates / bids / proposals + the Proposals type dropdown
     "smoke_gcal_sync.py",             # each person's tasks & events in their own Google Calendar (Google faked)
     "smoke_team_home_2b.py",          # PM / super home: own to-do, team calendar, projects
     "smoke_team_items.py",            # team tasks & events: dashboard to-do list on the calendar

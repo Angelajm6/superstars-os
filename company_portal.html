@@ -10,7 +10,7 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1009"></script>
+<script src="/files/static/js/company_nav.js?v=1010"></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1014" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
@@ -116,6 +116,40 @@
   .cp-legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 8px; }
   .cp-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
   .cp-list { list-style: none; margin: 0; padding: 0; }
+  /* Proposals tab: the Estimates / Bids / Proposals switch, and Claude next to each record (2026-10-14) */
+  .cp-select.pr-kind { font-weight: 700; color: var(--ui, #24418C); background: var(--ui-soft, #E8EDF8); border-color: var(--ui, #24418C); }
+  .cp-pill.claude { background: #FBEFE9; color: #A84E2C; }
+  .cl-card { display: flex; flex-direction: column; gap: 10px; }
+  .cl-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .cl-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
+  .cl-mark { width: 22px; height: 22px; border-radius: var(--r-tag, 6px); background: #C2603B; color: #fff; display: grid; place-items: center; font-size: 13px; }
+  .cl-reads { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+  .cl-reads span { background: var(--ui-soft, #E8EDF8); color: var(--ink); border-radius: var(--r-tag, 6px); padding: 3px 8px; }
+  .cl-reads button { all: unset; cursor: pointer; font-weight: 700; color: var(--ui, #24418C); padding: 3px 4px; }
+  .cl-docs[hidden], #cl-off[hidden] { display: none; }
+  .cl-docs { border: 1px solid var(--line); border-radius: var(--r-inner, 10px); padding: 8px 10px; display: grid; gap: 6px; font-size: 13px; }
+  .cl-docs label { display: flex; gap: 8px; align-items: center; }
+  .cl-docs .cp-muted { font-size: 12px; }
+  .cl-msgs { min-height: 160px; max-height: 520px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 2px; }
+  .cl-msg { display: grid; gap: 4px; max-width: 94%; }
+  .cl-msg .who { font-size: 12px; color: var(--muted); }
+  .cl-msg.u { align-self: flex-end; } .cl-msg.u .who { text-align: right; }
+  .cl-msg .bub { padding: 9px 12px; border-radius: var(--r-inner, 10px); line-height: 1.5; font-size: 13.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .cl-msg.u .bub { background: var(--ui-soft, #E8EDF8); }
+  .cl-msg.a .bub { background: #F4F5F8; display: grid; gap: 8px; }
+  .cl-draft { border: 1px solid #E7C3B3; background: #fff; border-radius: var(--r-inner, 10px); padding: 8px 10px; display: grid; gap: 6px; }
+  .cl-draft-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #A84E2C; text-transform: uppercase; letter-spacing: .04em; }
+  .cl-draft-h button { all: unset; cursor: pointer; text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 700; color: #fff; background: #C2603B; border-radius: var(--r-tag, 6px); padding: 4px 9px; }
+  .cl-draft-h button.done { background: #FBEFE9; color: #A84E2C; }
+  .cl-draft-h button:focus-visible, .cl-reads button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .cl-intro, .cl-wait { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .cl-form { display: flex; gap: 8px; align-items: flex-end; }
+  .cl-form textarea { flex: 1; min-height: 44px; max-height: 160px; resize: vertical; font: inherit; font-size: 13.5px; }
+  .cl-foot { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .cl-meter { height: 4px; border-radius: 999px; background: var(--line); overflow: hidden; margin-top: -6px; }
+  .cl-meter i { display: block; height: 100%; width: 0; background: #C2603B; }
+  .cl-off { font-size: 13px; background: #FFF4E5; color: #7A4A00; border-radius: var(--r-inner, 10px); padding: 8px 10px; line-height: 1.45; }
+  textarea.cl-flash, input.cl-flash { border-color: #C2603B !important; box-shadow: 0 0 0 3px #FBEFE9 !important; }
   .cp-list li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }   /* #314 — room for the edge indicator */
   .cp-list li:last-child { border-bottom: 0; }
   .cp-link { color: var(--accent-ink, #3a5fd0); font-weight: 600; text-decoration: none; cursor: pointer; background: none; border: 0; padding: 0; font: inherit; }
@@ -559,6 +593,7 @@
           <div class="cp-kpis" id="pr-kpis"></div>
           <div class="cp-card">
             <div class="cp-toolbar">
+              <select class="cp-select pr-kind" id="pr-kind" aria-label="Show"><option value="proposal">Proposals</option><option value="estimate">Estimates</option><option value="bid">Bids</option></select>
               <input class="cp-input search" id="pr-search" placeholder="Search number, title, client or address…" autocomplete="off">
               <select class="cp-select" id="pr-status"><option value="">All statuses</option><option value="draft">Draft</option><option value="sent">Sent</option><option value="viewed">Viewed</option><option value="signed">Signed</option><option value="declined">Declined</option><option value="superseded">Superseded</option></select>
               <span style="flex:1"></span>
@@ -759,6 +794,22 @@
       <div class="cp-form-err" id="pr-new-err" role="alert"></div>
     </div>
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-new-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-new-go">Create draft</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="est-new-overlay" role="dialog" aria-modal="true" aria-labelledby="est-new-title">
+  <form class="cp-modal" id="est-new-form" novalidate>
+    <div class="cp-modal-head"><h2 id="est-new-title">New estimate</h2><p class="cp-muted" id="est-new-sub" style="margin:6px 0 0;font-size:13px">It gets its number from the job type and borough. Pricing, documents and walkthroughs are added from its page.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="est-new-type">Job type</label><select id="est-new-type"></select></div>
+      <div class="cp-field"><label for="est-new-boro">Borough / region</label><select id="est-new-boro"></select></div>
+      <div class="cp-field full"><label for="est-new-org">Client</label><select id="est-new-org"><option value="">— choose a client —</option></select></div>
+      <div class="cp-field full" id="est-new-orgname-wrap" hidden><label for="est-new-orgname">New client name</label><input id="est-new-orgname" autocomplete="off" placeholder="Company or owner name"></div>
+      <div class="cp-field full"><label for="est-new-addr">Building address</label><input id="est-new-addr" autocomplete="off" placeholder="Street address"></div>
+      <div class="cp-field" id="est-new-due-wrap"><label for="est-new-due">Bid due</label><input id="est-new-due" type="date"></div>
+      <div class="cp-field full"><label for="est-new-notes">Notes</label><textarea id="est-new-notes" style="min-height:70px"></textarea></div>
+      <div class="cp-form-err" id="est-new-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="est-new-cancel">Cancel</button><button class="btn-primary" type="submit" id="est-new-go">Create</button></div>
   </form>
 </div>
 <div class="cp-overlay" id="pr-send-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-send-title">
@@ -1136,7 +1187,7 @@
       if (d.invoices.draft_count) att.push([`${d.invoices.draft_count} draft invoice(s) waiting to be issued · ${money2.format(d.invoices.draft_value)}`, '<a class="cp-link" href="#finance/draft">issue</a>']);
       if (d.invoices.due_soon_count) att.push([`${d.invoices.due_soon_count} invoice(s) due within ${d.invoices.horizon_days} days · ${money2.format(d.invoices.due_soon_value)}`, '<a class="cp-link" href="#finance">open</a>']);
       if (d.receivables.awaiting_deposit) att.push([`${d.receivables.awaiting_deposit} job(s) awaiting deposit`, '<a class="cp-link" href="#finance">open</a>']);
-      if (!d.pipeline.open_count) att.push(['No open estimates in the pipeline', '<a class="cp-link" href="/#estimates">estimates</a>']);
+      if (!d.pipeline.open_count) att.push(['No open estimates in the pipeline', '<a class="cp-link" href="#proposals/estimates">estimates</a>']);
       if (d.storage && d.storage.warn) att.push([`File storage ${d.storage.used_pct}% full (${d.storage.used_gb} of ${d.storage.total_gb} GB) · photos and videos`, '']);   // field_videos.py
       $('ov-attention').innerHTML = att.length ? att.map(([k, v]) => { const m = /href="([^"]+)">([^<]+)</.exec(v); return m ? `<li class="has-link"><a href="${m[1]}"><span>${esc(k)}</span><span class="cp-link">${m[2]}</span></a></li>` : `<li><span>${esc(k)}</span>${v}</li>`; }).join('') : `<li><span class="cp-muted">All clear. Nothing needs attention right now.</span></li>`;
     } catch (e) { toast(e.message, true); $('ov-kpis').innerHTML = empty('Could not load the overview', e.message); }
@@ -1858,12 +1909,12 @@
     try { const { data } = await api('/proposals', { method: 'POST', body: JSON.stringify({ estimate_id: estimateId }) }, true); toast(`Draft ${data.number} created`); location.hash = '#proposals/' + data.id; }
     catch (e) { toast(e.message, true); }
   }
-  async function loadProposals() {
-    $('proposals-list').hidden = false; $('proposal-detail').hidden = true;
+  async function loadProposalList() {
     skeleton($('pr-kpis'), 4);
     const q = new URLSearchParams(); const s = $('pr-search').value.trim(); if (s) q.set('q', s); if ($('pr-status').value) q.set('status', $('pr-status').value);
     try {
-      const { data: rows, meta } = await api('/proposals?' + q.toString(), null, true);
+      const [{ data: rows, meta }, cc] = await Promise.all([api('/proposals?' + q.toString(), null, true), claudeCounts()]);
+      if (PRK.kind !== 'proposal') return;
       const c = meta.counts || {};
       $('pr-kpis').innerHTML =
         kpi('Awaiting the client', num.format(meta.awaiting.n), money.format(meta.awaiting.v) + ' sent or viewed') +
@@ -1879,8 +1930,321 @@
         { key: 'status', label: 'Status', render: prPill, sortVal: r => r.display_status },
         { key: 'sent_at', label: 'Sent', render: r => fmtDate(r.sent_at) },
         { key: 'updated_at', label: 'Updated', render: r => fmtDate(r.updated_at) },
+        { key: 'claude', label: '', render: r => claudeChip(cc, r.estimate_id), sortVal: r => cc[r.estimate_id] || 0 },
       ], rows, { defaultSort: { key: 'updated_at', dir: 'desc' }, emptyTitle: 'No proposals yet', emptySub: 'Create one from an estimate — client, address and price come across.', onRow: r => { location.hash = '#proposals/' + r.id; } });
     } catch (e) { toast(e.message, true); }
+  }
+  // ---------- Estimates / Bids / Proposals: one list, a type dropdown (2026-10-14; the Pipeline sub-tab is gone) ----------
+  // A bid is an estimate whose inquiry kind is 'bid'; "Estimates" lists every other estimate.
+  const PRK = { kind: 'proposal', ui: null };
+  const PRK_ALIAS = { estimates: 'estimate', bids: 'bid', proposals: 'proposal' };
+  const PRK_NEW = { proposal: '+ New proposal', estimate: '+ New estimate', bid: '+ New bid' };
+  const PRK_STATUS = {
+    proposal: [['', 'All statuses'], ['draft', 'Draft'], ['sent', 'Sent'], ['viewed', 'Viewed'], ['signed', 'Signed'], ['declined', 'Declined'], ['superseded', 'Superseded']],
+    estimate: [['', 'Open'], ['intake', 'Intake'], ['scoping', 'Estimating'], ['submitted', 'Submitted'], ['approved', 'Approved'], ['lost', 'Lost'], ['converted', 'Became a project'], ['all', 'All, including closed']],
+  };
+  PRK_STATUS.bid = PRK_STATUS.estimate;
+  const EST_LABEL = { intake: 'intake', scoping: 'estimating', submitted: 'submitted', approved: 'approved', lost: 'lost', converted: 'project' };
+  const EST_PILL = { intake: '', scoping: 'active', submitted: 'warn', approved: 'ok', lost: 'bad', converted: 'ok' };
+  try { const k = localStorage.getItem('ssc.proposals.kind'); if (PRK_NEW[k]) PRK.kind = k; } catch (e) {}
+  function setKind(k) {
+    if (!PRK_NEW[k]) return;
+    PRK.kind = k;
+    try { localStorage.setItem('ssc.proposals.kind', k); } catch (e) {}
+  }
+  function syncKindUi() {
+    $('pr-kind').value = PRK.kind;
+    $('pr-new').textContent = PRK_NEW[PRK.kind];
+    $('pr-search').placeholder = PRK.kind === 'proposal' ? 'Search number, title, client or address…' : 'Search number, client or address…';
+    if (PRK.ui !== PRK.kind) {
+      $('pr-status').innerHTML = PRK_STATUS[PRK.kind].map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
+      PRK.ui = PRK.kind;
+    }
+  }
+  function estPill(e) { return `<span class="cp-pill ${EST_PILL[e.status] || ''}">${esc(EST_LABEL[e.status] || e.status)}</span>`; }
+  function daysUntil(iso) { if (!iso) return null; const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number); const t = new Date(); return Math.round((new Date(y, m - 1, d) - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / 864e5); }
+  function dueCell(e) {
+    const n = daysUntil(e.bid_due_date); if (n == null) return '—';
+    const open = !['approved', 'lost', 'converted'].includes(e.status) && e.status !== 'submitted';
+    const tag = !open ? '' : n < 0 ? ' <span class="cp-pill bad">overdue</span>' : n <= 3 ? ` <span class="cp-pill warn">${n === 0 ? 'today' : 'in ' + n + ' day' + (n === 1 ? '' : 's')}</span>` : '';
+    return fmtDate(e.bid_due_date) + tag;
+  }
+  async function claudeCounts() { try { return (await api('/assistant/counts', null, true)).data || {}; } catch (e) { return {}; } }
+  function claudeChip(cc, estId) { const n = cc[estId]; return n ? `<span class="cp-pill claude" title="${n} saved Claude conversation${n === 1 ? '' : 's'}">Claude · ${n}</span>` : ''; }
+  async function loadProposals() {
+    $('proposals-list').hidden = false; $('proposal-detail').hidden = true;
+    syncKindUi();
+    return PRK.kind === 'proposal' ? loadProposalList() : loadEstimateList(PRK.kind);
+  }
+  async function loadEstimateList(kind) {
+    skeleton($('pr-kpis'), 4);
+    try {
+      const [{ data }, cc] = await Promise.all([api('/estimates', null, true), claudeCounts()]);
+      if (PRK.kind !== kind) return;   // the dropdown moved on while this loaded
+      const mine = ((data && data.estimates) || []).filter(e => kind === 'bid' ? e.inquiry_kind === 'bid' : e.inquiry_kind !== 'bid');
+      const open = mine.filter(e => !['lost', 'converted'].includes(e.status));
+      const sum = list => list.reduce((a, e) => a + (Number(e.final_amount) || 0), 0);
+      const year = String(new Date().getFullYear());
+      const won = mine.filter(e => ['approved', 'converted'].includes(e.status) && String(e.decided_date || '').startsWith(year));
+      if (kind === 'bid') {
+        const dueSoon = open.filter(e => e.status !== 'submitted' && daysUntil(e.bid_due_date) != null && daysUntil(e.bid_due_date) <= 7);
+        const decided = mine.filter(e => ['approved', 'converted', 'lost'].includes(e.status) && String(e.decided_date || '').startsWith(year));
+        $('pr-kpis').innerHTML =
+          kpi('Due in 7 days', num.format(dueSoon.length), dueSoon.some(e => daysUntil(e.bid_due_date) < 0) ? 'some are overdue' : 'not submitted yet', dueSoon.length ? 'warn' : '') +
+          kpi('Submitted, waiting', num.format(open.filter(e => e.status === 'submitted').length), 'sent to the GC or owner') +
+          kpi('Won this year', num.format(won.length), money.format(sum(won)), 'good') +
+          kpi('Win rate this year', decided.length ? Math.round(won.length * 100 / decided.length) + '%' : '—', `${num.format(decided.length)} decided`);
+      } else {
+        $('pr-kpis').innerHTML =
+          kpi('Open estimates', num.format(open.length), open.some(e => e.final_amount) ? money.format(sum(open)) + ' priced so far' : 'none priced yet') +
+          kpi('Being estimated', num.format(open.filter(e => e.status === 'scoping').length), `${num.format(open.filter(e => e.status === 'intake').length)} still at intake`) +
+          kpi('Submitted, waiting', num.format(open.filter(e => e.status === 'submitted').length), money.format(sum(open.filter(e => e.status === 'submitted')))) +
+          kpi('Approved this year', num.format(won.length), money.format(sum(won)), 'good');
+      }
+      const st = $('pr-status').value, q = $('pr-search').value.trim().toLowerCase();
+      const rows = mine.filter(e => st === 'all' ? true : st ? e.status === st : !['lost', 'converted'].includes(e.status))
+        .filter(e => !q || [e.code, e.org_name, e.building_address, e.type_label].join(' ').toLowerCase().includes(q));
+      const word = kind === 'bid' ? 'bid' : 'estimate';
+      table($('pr-table'), [
+        { key: 'code', label: kind === 'bid' ? 'Bid' : 'Estimate', render: r => `<a class="cp-link cp-id" href="#proposals/estimate/${r.id}">${esc(r.code)}</a>` },
+        { key: 'org_name', label: 'Client', render: r => `<a class="cp-link" href="#clients/${r.client_org_id}">${esc(r.org_name || '')}</a>` },
+        { key: 'building_address', label: 'Address', render: r => esc(r.building_address || '—') },
+        { key: 'type_label', label: 'Job type' },
+        { key: 'status', label: 'Status', render: estPill },
+        kind === 'bid' ? { key: 'bid_due_date', label: 'Bid due', render: dueCell, sortVal: r => r.bid_due_date || '9999-12-31' } : { key: 'age_days', label: 'In this stage', num: true, render: r => r.age_days != null ? `${num.format(r.age_days)} d` : '—' },
+        { key: 'final_amount', label: 'Amount', num: true, render: r => r.final_amount != null ? money.format(r.final_amount) : '—' },
+        { key: 'updated_at', label: 'Updated', render: r => fmtDate(r.updated_at) },
+        { key: 'claude', label: '', render: r => claudeChip(cc, r.id), sortVal: r => cc[r.id] || 0 },
+      ], rows, { defaultSort: kind === 'bid' ? { key: 'bid_due_date', dir: 'asc' } : { key: 'updated_at', dir: 'desc' },
+        emptyTitle: st || q ? `No ${word}s match` : `No open ${word}s`, emptySub: `Use "${PRK_NEW[kind]}" to add one.`,
+        onRow: r => { location.hash = '#proposals/estimate/' + r.id; } });
+    } catch (e) { toast(e.message, true); }
+  }
+  // one estimate or bid: its facts, documents and proposals, with Claude on the right
+  async function loadEstimateDetail(id) {
+    $('proposals-list').hidden = true; const host = $('proposal-detail'); host.hidden = false; skeleton(host, 6);
+    try {
+      const [{ data: d }, { data: props }] = await Promise.all([api('/estimates/' + encodeURIComponent(id), null, true), api('/proposals?estimate_id=' + encodeURIComponent(id), null, true)]);
+      const e = d.estimate, isBid = e.inquiry_kind === 'bid', word = isBid ? 'bid' : 'estimate';
+      setKind(isBid ? 'bid' : 'estimate');
+      $('cp-title').textContent = e.code;
+      const live = props.filter(p => p.status !== 'superseded');
+      const draft = live.find(p => p.status === 'draft');
+      const fact = (k, v) => v == null || v === '' ? '' : `<li><span class="cp-muted">${esc(k)}</span><span style="text-align:right">${v}</span></li>`;
+      const docs = d.documents || [];
+      host.innerHTML = `
+        <div class="cp-toolbar"><a class="cp-link" href="#proposals/${isBid ? 'bids' : 'estimates'}">← All ${word}s</a>${estPill(e)}<span class="cp-muted" style="font-size:12px">${esc(e.type_label)}${isBid ? ' · bid' : ''}</span><span style="flex:1"></span>
+          <a class="btn-ghost btn-sm" href="/#estimates/${e.id}">Edit in Estimating</a>
+          ${draft ? `<a class="btn-primary btn-sm" href="#proposals/${draft.id}">Open draft proposal</a>` : (e.status === 'converted' ? '' : `<button class="btn-primary btn-sm" type="button" id="est-propose">Create proposal</button>`)}</div>
+        <div class="cp-kpis">
+          ${kpi('Amount', e.final_amount != null ? money.format(e.final_amount) : '—', e.qb_estimate_ref ? 'QuickBooks ' + e.qb_estimate_ref : 'not priced yet')}
+          ${isBid ? kpi('Bid due', fmtDate(e.bid_due_date), (() => { const n = daysUntil(e.bid_due_date); return n == null ? 'no date' : n < 0 ? Math.abs(n) + ' days ago' : n === 0 ? 'today' : 'in ' + n + ' days'; })(), daysUntil(e.bid_due_date) != null && daysUntil(e.bid_due_date) < 0 && !['submitted', 'approved', 'lost', 'converted'].includes(e.status) ? 'warn' : '')
+                  : kpi('Stage', esc(EST_LABEL[e.status] || e.status), e.est_stage ? e.est_stage.replace(/_/g, ' ') : '')}
+          ${kpi('In this stage', e.age_days != null ? num.format(e.age_days) + ' d' : '—', 'since ' + fmtDate(e.status_changed_at))}
+          ${kpi('Proposals', num.format(live.length), live.length ? live.map(p => p.status).join(', ') : 'none yet')}
+        </div>
+        <div class="cp-grid3">
+          <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Details</h2></div>
+              <ul class="cp-list">
+                ${fact('Client', `<a class="cp-link" href="#clients/${e.client_org_id}">${esc(e.org_name || '')}</a>`)}
+                ${fact('Contact', esc(e.contact_name || ''))}
+                ${fact('Address', esc(e.building_address || ''))}
+                ${fact('Job type', esc(e.type_label))}
+                ${fact('Walkthrough', e.walkthrough_date ? fmtDate(e.walkthrough_date) : '')}
+                ${fact('Submitted', e.submitted_date ? fmtDate(e.submitted_date) : '')}
+                ${fact('Decided', e.decided_date ? fmtDate(e.decided_date) : '')}
+                ${fact('Project', e.converted_project_code ? `<a class="cp-link" href="/projects/${encodeURIComponent(e.converted_project_code)}">${esc(e.converted_project_code)}</a>` : '')}
+                ${fact('Notes', esc(e.notes || ''))}
+              </ul>
+            </div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Documents</h2><span class="hint">Upload in Estimating</span></div>
+              ${docs.length ? `<ul class="cp-list">${docs.map(x => `<li><a class="cp-link" href="${esc(x.file_url)}" target="_blank" rel="noopener">${esc(x.title || x.file_name || 'Document')}</a><span class="cp-muted">${esc(String(x.category || '').replace('_', ' '))} · ${fmtDate(x.uploaded_at)}</span></li>`).join('')}</ul>` : empty('No documents yet')}
+            </div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Proposals</h2></div>
+              ${props.length ? `<ul class="cp-list">${props.map(p => `<li><a class="cp-link cp-id" href="#proposals/${p.id}">${esc(p.number)}</a><span>${prPill(p)} ${p.price != null ? money.format(p.price) : ''}</span></li>`).join('')}</ul>` : empty('No proposal yet', 'Create one when the price is ready; client, address and price come across.')}
+            </div>
+          </div>
+          <div><div id="claude-host"></div></div>
+        </div>`;
+      const pb = $('est-propose'); if (pb) pb.addEventListener('click', () => proposeFromEstimate(e.id));
+      mountClaude($('claude-host'), { estimateId: e.id, proposalId: null, editable: false, what: word });
+    } catch (ex) { toast(ex.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this estimate', ex.message)}</div>`; }
+  }
+  // "+ New estimate" / "+ New bid"
+  const ESTNEW = { kind: 'estimate', meta: null };
+  async function openNewEstimate(kind) {
+    ESTNEW.kind = kind;
+    $('est-new-title').textContent = kind === 'bid' ? 'New bid' : 'New estimate';
+    $('est-new-due-wrap').hidden = kind !== 'bid';
+    ['est-new-addr', 'est-new-notes', 'est-new-orgname'].forEach(i => { $(i).value = ''; }); $('est-new-due').value = '';
+    $('est-new-orgname-wrap').hidden = true; $('est-new-err').className = 'cp-form-err';
+    $('est-new-overlay').classList.add('open');
+    try {
+      if (!ESTNEW.meta) ESTNEW.meta = (await api('/estimates/meta', null, true)).data;
+      const m = ESTNEW.meta;
+      $('est-new-type').innerHTML = m.types.map(t => `<option value="${esc(t.code)}">${esc(t.label)}</option>`).join('');
+      $('est-new-boro').innerHTML = (m.regions || m.boroughs.map(b => ({ code: b, label: b }))).map(r => `<option value="${esc(r.code)}">${esc(r.label)}</option>`).join('');
+      const org = $('est-new-org'); org.innerHTML = '<option value="">— choose a client —</option>';
+      await clientOptions(org, '');
+      org.insertAdjacentHTML('beforeend', '<option value="__new__">+ New client…</option>');
+    } catch (e) { formErr('est-new-err', e.message); }
+  }
+  $('est-new-org').addEventListener('change', () => { $('est-new-orgname-wrap').hidden = $('est-new-org').value !== '__new__'; if (!$('est-new-orgname-wrap').hidden) $('est-new-orgname').focus(); });
+  $('est-new-cancel').addEventListener('click', () => closeOverlay('est-new-overlay'));
+  $('est-new-overlay').addEventListener('click', (e) => { if (e.target === $('est-new-overlay')) closeOverlay('est-new-overlay'); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOverlay('est-new-overlay'); });
+  $('est-new-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); $('est-new-err').className = 'cp-form-err';
+    let orgId = $('est-new-org').value;
+    if (!orgId) return formErr('est-new-err', 'Choose the client, or add a new one.');
+    if (orgId === '__new__' && !$('est-new-orgname').value.trim()) return formErr('est-new-err', 'Type the new client name.');
+    $('est-new-go').disabled = true;
+    try {
+      if (orgId === '__new__') {
+        const j = await api('/crm/organizations', { method: 'POST', body: JSON.stringify({ name: $('est-new-orgname').value.trim(), relationship_type: 'client' }) }, true);
+        orgId = (j.data || j).id; state.cache.clientOpts = null;
+      }
+      const body = { est_type: $('est-new-type').value, borough: $('est-new-boro').value, client_org_id: Number(orgId),
+        building_address: $('est-new-addr').value.trim() || null, notes: $('est-new-notes').value.trim() || null,
+        inquiry_kind: ESTNEW.kind === 'bid' ? 'bid' : 'undetermined', bid_due_date: ESTNEW.kind === 'bid' ? (dateGet($('est-new-due')) || null) : null };
+      const { data } = await api('/estimates', { method: 'POST', body: JSON.stringify(body) }, true);
+      closeOverlay('est-new-overlay'); toast(`${ESTNEW.kind === 'bid' ? 'Bid' : 'Estimate'} ${data.code} created`);
+      location.hash = '#proposals/estimate/' + data.id;
+    } catch (ex) { formErr('est-new-err', ex.message); }
+    finally { $('est-new-go').disabled = false; }
+  });
+
+  // ---------- Claude, next to each estimate, bid and proposal (assistant.py) ----------
+  // Conversations are saved on the estimate, so every version of its proposal shows them too.
+  const CL = { estimateId: null, proposalId: null, editable: false, what: 'estimate', threadId: null, msgs: [], docs: [], pendingDocs: [], status: null, busy: false };
+  const CL_FIELDS = { title: ['pr-title', 'Title'], scope: ['pr-scope', 'Scope'], schedule: ['pr-schedule', 'Schedule'], exclusions: ['pr-excl', 'Exclusions'], terms: ['pr-terms', 'Terms'] };
+  const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  async function mountClaude(host, opts) {
+    if (!host) return;
+    const mount = (CL.mount || 0) + 1;   // a newer page render wins over a slower older one
+    Object.assign(CL, opts, { mount, threadId: null, msgs: [], docs: [], pendingDocs: [], busy: false });
+    host.innerHTML = `<div class="cp-card cl-card" aria-label="Claude">
+      <div class="cl-head"><div class="cl-title"><span class="cl-mark" aria-hidden="true">✦</span>Claude</div><button class="btn-ghost btn-sm" type="button" id="cl-new">+ New conversation</button></div>
+      <select class="cp-select" id="cl-thread" aria-label="Saved conversations"></select>
+      <div class="cl-reads" id="cl-reads"></div>
+      <div class="cl-docs" id="cl-docs" hidden></div>
+      <div id="cl-off" hidden></div>
+      <div class="cl-msgs" id="cl-msgs" aria-live="polite"></div>
+      <form class="cl-form" id="cl-form"><textarea class="ssc-field" id="cl-in" rows="2" placeholder="Ask Claude about this ${esc(CL.what)}…" aria-label="Message to Claude"></textarea><button class="btn-primary btn-sm" id="cl-send" type="submit">Send</button></form>
+      <div class="cl-foot"><span>Saved on this ${CL.what === 'proposal' ? 'estimate and its proposals' : esc(CL.what)} · admin and C-suite</span><span id="cl-spend"></span></div>
+      <div class="cl-meter"><i id="cl-meter"></i></div>
+    </div>`;
+    $('cl-new').addEventListener('click', () => { CL.threadId = null; CL.msgs = []; CL.pendingDocs = []; clThreadOptions(CL.threads || [], true); clRender(); clReads(CL.baseReads || []); $('cl-in').focus(); });
+    $('cl-thread').addEventListener('change', () => { const v = $('cl-thread').value; if (v) clOpen(Number(v)); });
+    $('cl-form').addEventListener('submit', (e) => { e.preventDefault(); clSend(); });
+    $('cl-in').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); clSend(); } });
+    $('cl-msgs').addEventListener('click', clDraftClick);
+    $('cl-reads').addEventListener('click', (e) => { if (e.target.closest('#cl-docs-btn')) { $('cl-docs').hidden = !$('cl-docs').hidden; } });
+    $('cl-docs').addEventListener('change', clDocsChange);
+    try {
+      const [st, th] = await Promise.all([api('/assistant/status', null, true), api('/assistant/threads?estimate_id=' + CL.estimateId + (CL.proposalId ? '&proposal_id=' + CL.proposalId : ''), null, true)]);
+      if (CL.mount !== mount) return;
+      CL.status = st.data; CL.threads = th.data; CL.baseReads = th.reads || []; CL.docs = th.documents || [];
+      clSpend(CL.status.spent_today_usd, CL.status.cap_usd);
+      if (!CL.status.available) {
+        const off = $('cl-off'); off.hidden = false; off.className = 'cl-off';
+        off.textContent = CL.status.reason === 'no_api_key' ? 'Claude is not connected yet. An admin adds the Anthropic API key in Render; saved conversations stay readable here.' : 'Claude is switched off (the daily budget is set to $0).';
+        $('cl-in').disabled = true; $('cl-send').disabled = true;
+      }
+      clThreadOptions(CL.threads, !CL.threads.length);
+      if (CL.threads.length) await clOpen(CL.threads[0].id); else { clRender(); clReads(CL.baseReads); }
+    } catch (e) { $('cl-msgs').innerHTML = `<div class="cl-intro">${esc(e.message)}</div>`; }
+  }
+  function clThreadOptions(list, withNew) {
+    const sel = $('cl-thread');
+    sel.innerHTML = (withNew ? '<option value="">New conversation</option>' : '') + list.map(t => `<option value="${t.id}">${esc(t.title)} · ${fmtDate(t.updated_at)}${t.created_by ? ' · ' + esc(t.created_by) : ''}</option>`).join('');
+    sel.value = withNew ? '' : String(CL.threadId || (list[0] && list[0].id) || '');
+    sel.hidden = !list.length && !withNew;
+  }
+  function clReads(items) {
+    const docs = CL.docs.filter(d => d.attachable);
+    $('cl-reads').innerHTML = 'Claude reads: ' + items.map(i => `<span>${esc(i)}</span>`).join('') +
+      (docs.length ? '<button type="button" id="cl-docs-btn" aria-controls="cl-docs">+ Documents</button>' : '');
+    const chosen = new Set(CL.threadId ? ((CL.thread && CL.thread.doc_ids) || []) : CL.pendingDocs);
+    $('cl-docs').innerHTML = docs.length ? docs.map(d => `<label><input type="checkbox" value="${d.id}" ${chosen.has(d.id) ? 'checked' : ''}> ${esc(d.title)}</label>`).join('') +
+      '<div class="cp-muted">Up to 3 PDFs or photos. Large drawing sets cost more per message.</div>' : '';
+  }
+  async function clDocsChange() {
+    const ids = Array.from($('cl-docs').querySelectorAll('input:checked')).map(i => Number(i.value));
+    if (ids.length > 3) { toast('Claude reads up to 3 documents per conversation', true); clReads(CL.reads || CL.baseReads); return; }
+    if (!CL.threadId) { CL.pendingDocs = ids; return; }
+    try { const { data } = await api('/assistant/threads/' + CL.threadId, { method: 'PATCH', body: JSON.stringify({ doc_ids: ids, proposal_id: CL.proposalId }) }, true); clApply(data); $('cl-docs').hidden = false; }
+    catch (e) { toast(e.message, true); clReads(CL.reads || CL.baseReads); }
+  }
+  function clSpend(spent, cap) {
+    if (cap == null) return;
+    $('cl-spend').textContent = `Today ${usd.format(spent || 0)} of ${usd.format(cap)}`;
+    $('cl-meter').style.width = Math.min(100, cap ? (spent || 0) * 100 / cap : 100) + '%';
+  }
+  async function clOpen(id) {
+    try { const { data } = await api('/assistant/threads/' + id + (CL.proposalId ? '?proposal_id=' + CL.proposalId : ''), null, true); clApply(data); }
+    catch (e) { toast(e.message, true); }
+  }
+  function clApply(data) {
+    CL.threadId = data.thread.id; CL.thread = data.thread; CL.msgs = data.messages; CL.reads = data.reads; CL.docs = data.documents || CL.docs;
+    const others = (CL.threads || []).filter(t => t.id !== data.thread.id);
+    CL.threads = [data.thread].concat(others).sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+    clThreadOptions(CL.threads, false); $('cl-thread').value = String(CL.threadId);
+    clReads(data.reads); clRender();
+  }
+  function clRender(waiting) {
+    const box = $('cl-msgs');
+    if (!CL.msgs.length && !waiting) {
+      box.innerHTML = `<div class="cl-intro">Ask Claude to summarize the walkthrough, list questions for the client, or draft the scope, exclusions, schedule or terms. ${CL.what === 'proposal' && CL.editable ? 'Drafts come with an "Insert" button that fills the field; Save draft keeps it.' : ''}</div>`;
+      return;
+    }
+    box.innerHTML = CL.msgs.map((m, i) => {
+      const when = fmtWhen(m.created_at);
+      if (m.role === 'user') return `<div class="cl-msg u"><span class="who">${esc(m.author || 'You')} · ${when}</span><div class="bub">${esc(m.text)}</div></div>`;
+      const parts = (m.parts || [{ type: 'text', text: m.text }]).map((p, j) => {
+        if (p.type !== 'draft') return `<div>${esc(p.text.trim())}</div>`;
+        const f = CL_FIELDS[p.field], can = CL.editable && f && $(f[0]) && !$(f[0]).disabled;
+        return `<div class="cl-draft"><div class="cl-draft-h"><span>${esc(f ? f[1] : p.field)} draft</span><button type="button" data-m="${i}" data-p="${j}" data-act="${can ? 'insert' : 'copy'}">${can ? 'Insert into ' + esc(f[1]) : 'Copy'}</button></div><div>${esc(p.text)}</div></div>`;
+      }).join('');
+      return `<div class="cl-msg a"><span class="who">Claude · ${when}</span><div class="bub">${parts}</div></div>`;
+    }).join('') + (waiting ? '<div class="cl-wait">Claude is writing…</div>' : '');
+    box.scrollTop = box.scrollHeight;
+  }
+  async function clDraftClick(e) {
+    const b = e.target.closest('button[data-act]'); if (!b) return;
+    const p = (CL.msgs[+b.dataset.m].parts || [])[+b.dataset.p]; if (!p) return;
+    if (b.dataset.act === 'insert') {
+      const f = CL_FIELDS[p.field], el = $(f[0]); if (!el) return;
+      el.value = p.text; el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.classList.add('cl-flash'); setTimeout(() => el.classList.remove('cl-flash'), 1600);
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      b.textContent = 'Inserted ✓'; b.classList.add('done');
+      toast(`Inserted into ${f[1]}. Save draft to keep it.`);
+    } else {
+      try { await navigator.clipboard.writeText(p.text); b.textContent = 'Copied ✓'; b.classList.add('done'); }
+      catch (x) { toast('Copy did not work here; select the text instead', true); }
+    }
+  }
+  async function clSend() {
+    const box = $('cl-in'), text = box.value.trim();
+    if (!text || CL.busy || $('cl-send').disabled) return;
+    CL.busy = true; $('cl-send').disabled = true;
+    CL.msgs = CL.msgs.concat([{ role: 'user', text, author: 'You', created_at: new Date().toISOString() }]); clRender(true);
+    box.value = '';
+    try {
+      if (!CL.threadId) {
+        const { data: t } = await api('/assistant/threads', { method: 'POST', body: JSON.stringify({ estimate_id: CL.estimateId, proposal_id: CL.proposalId }) }, true);
+        CL.threadId = t.id; CL.thread = t; CL.threads = [t].concat(CL.threads || []);
+        if (CL.pendingDocs.length) await api('/assistant/threads/' + t.id, { method: 'PATCH', body: JSON.stringify({ doc_ids: CL.pendingDocs }) }, true);
+      }
+      const { data } = await api('/assistant/threads/' + CL.threadId + '/messages', { method: 'POST', body: JSON.stringify({ text, proposal_id: CL.proposalId }) }, true);
+      clApply(data); clSpend(data.spent_today_usd, data.cap_usd);
+    } catch (e) {
+      toast(e.message, true);
+      if (CL.threadId) await clOpen(CL.threadId); else { CL.msgs = CL.msgs.slice(0, -1); clRender(); }
+      if (!CL.msgs.length || CL.msgs[CL.msgs.length - 1].text !== text) box.value = text;
+    } finally { CL.busy = false; if (!(CL.status && CL.status.available === false)) $('cl-send').disabled = false; }
   }
   function prLineRow(l, editable) {
     const d = editable ? '' : 'disabled';
@@ -1911,7 +2275,7 @@
       const linkState = p.status === 'sent' || p.status === 'viewed' ? (p.display_status === 'expired' ? `expired ${fmtDate(p.link_expires_at)}` : `open until ${fmtDate(p.link_expires_at)}`) : (p.status === 'signed' ? 'accepted' : p.status);
       const canSend = ['draft', 'sent', 'viewed'].includes(p.status), canVersion = ['sent', 'viewed', 'declined'].includes(p.status);
       host.innerHTML = `
-        <div class="cp-toolbar"><a class="cp-link" href="#proposals">← All proposals</a>${prPill(p)}<span class="cp-muted" style="font-size:12px">v${p.version} · estimate <strong>${esc(p.estimate_code)}</strong> (${esc(p.estimate_status)})</span><span style="flex:1"></span>
+        <div class="cp-toolbar"><a class="cp-link" href="#proposals/proposals">← All proposals</a>${prPill(p)}<span class="cp-muted" style="font-size:12px">v${p.version} · estimate <strong>${esc(p.estimate_code)}</strong> (${esc(p.estimate_status)})</span><span style="flex:1"></span>
           <a class="btn-ghost btn-sm" href="/api/proposals/${p.id}/preview" target="_blank" rel="noopener">Preview</a>
           <a class="btn-ghost btn-sm" href="/api/proposals/${p.id}/pdf" target="_blank" rel="noopener">PDF</a>
           ${canSend ? `<button class="btn-primary btn-sm" type="button" id="pr-send-btn">${p.status === 'draft' ? 'Send…' : 'Resend…'}</button>` : ''}
@@ -1946,6 +2310,7 @@
             </div>
           </div>
           <div>
+            <div id="claude-host"></div>
             <div class="cp-card"><div class="cp-card-head"><h2>Who and where</h2></div>
               <ul class="cp-list">
                 ${fact('Client', `<a class="cp-link" href="#clients/${p.client_org_id}">${esc(p.client_name)}</a>`)}
@@ -1966,6 +2331,7 @@
             </div>
           </div>
         </div>`;
+      mountClaude($('claude-host'), { estimateId: p.estimate_id, proposalId: p.id, editable: ed, what: 'proposal' });
       // #315: the deposit invoice drafted by the signature
       if (p.status === 'signed') {
         try { const { data: inv } = await api('/invoices?proposal_id=' + p.id, null, true); const d = inv.find(i => i.kind === 'deposit' && i.status !== 'void');
@@ -2025,7 +2391,7 @@
     } catch (e) { sel.innerHTML = '<option value="">Could not load estimates</option>'; }
   }
   function closeOverlay(id) { $(id).classList.remove('open'); }
-  $('pr-new').addEventListener('click', openNewProposal);
+  $('pr-new').addEventListener('click', () => PRK.kind === 'proposal' ? openNewProposal() : openNewEstimate(PRK.kind));
   $('pr-new-cancel').addEventListener('click', () => closeOverlay('pr-new-overlay'));
   $('pr-new-form').addEventListener('submit', async (e) => {
     e.preventDefault(); const v = $('pr-new-est').value; const err = $('pr-new-err'); err.className = 'cp-form-err';
@@ -3022,7 +3388,7 @@
     $('cp-title').textContent = TITLES[v];
     if (v === 'finance') $('inv-status').value = ['overdue', 'draft', 'issued', 'paid', 'void'].includes(arg) ? arg : '';
     if (v === 'calendar' && arg && /^\d{4}-\d{2}-\d{2}$/.test(arg)) { CAL.anchor = calParse(arg); loadCalendar(); }
-    if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'proposals' && arg) loadProposalDetail(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
+    if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'proposals' && arg === 'estimate' && h.split('/')[2]) loadEstimateDetail(h.split('/')[2]); else if (v === 'proposals' && PRK_ALIAS[arg]) { setKind(PRK_ALIAS[arg]); location.replace('#proposals'); } else if (v === 'proposals' && arg) loadProposalDetail(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);
@@ -3044,6 +3410,7 @@
   $('pj-status').addEventListener('change', loadProjects);
   $('pr-search').addEventListener('input', () => debounce(loadProposals));
   $('pr-status').addEventListener('change', loadProposals);
+  $('pr-kind').addEventListener('change', () => { setKind($('pr-kind').value); loadProposals(); });
   $('cl-type').addEventListener('change', loadClients); $('cl-inactive').addEventListener('change', loadClients);
   $('fin-months').addEventListener('change', loadFinance);
   ['ex-project', 'ex-category', 'ex-month', 'ex-source', 'ex-status'].forEach(id => $(id).addEventListener('change', loadExpenses));
