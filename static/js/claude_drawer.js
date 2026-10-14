@@ -93,6 +93,28 @@
 .clx-f textarea{flex:1;font:13.5px Inter,sans-serif;color:#1B1F27;border:1px solid #E6E8EE;border-radius:10px;padding:8px 10px;resize:none;height:44px;max-height:160px}\
 .clx-foot{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#868C98;flex-wrap:wrap}\
 .clx-off{font-size:13px;background:#FFF4E5;color:#7A4A00;border-radius:10px;padding:8px 10px;line-height:1.45}\
+.clx-tools{display:flex;gap:6px;align-items:center}\
+.clx-btn[aria-pressed="true"]{background:#E8EDF8;border-color:#24418C;color:#24418C}\
+.clx-title{display:flex;align-items:center;gap:8px;min-width:0}\
+.clx-title[hidden],.clx-histp[hidden],.clx-msgs[hidden]{display:none}\
+.clx-tname{flex:1;min-width:0;font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.clx-title input{flex:1;min-width:0;font:13.5px Inter,sans-serif;border:1px solid #24418C;border-radius:8px;padding:5px 8px}\
+.clx-hstar{border:1px solid #E6E8EE;background:#fff;border-radius:8px;padding:4px 8px;font:600 12.5px Inter,sans-serif;color:#5B6170;cursor:pointer;white-space:nowrap}\
+.clx-hstar.on{color:#A84E2C;border-color:#E7C3B3;background:#FBEFE9}\
+.clx-link{border:0;background:none;font:600 12.5px Inter,sans-serif;color:#24418C;cursor:pointer;padding:4px 2px}\
+.clx-histp{flex:1;overflow-y:auto;padding:12px 14px;display:grid;align-content:start;gap:10px}\
+.clx-hbar{display:flex;gap:8px;flex-wrap:wrap}\
+.clx-hbar input{flex:1;min-width:160px;font:13px Inter,sans-serif;border:1px solid #E6E8EE;border-radius:10px;padding:7px 10px}\
+.clx-seg{display:flex;border:1px solid #E6E8EE;border-radius:10px;overflow:hidden}\
+.clx-seg button{border:0;background:#fff;font:600 12.5px Inter,sans-serif;color:#5B6170;padding:6px 10px;cursor:pointer}\
+.clx-seg button[aria-pressed="true"]{background:#E8EDF8;color:#24418C}\
+.clx-hlist{display:grid;gap:6px}\
+.clx-hi{display:flex;align-items:center;gap:8px;border:1px solid #E6E8EE;border-radius:10px;padding:8px 10px}\
+.clx-hi.cur{border-color:#24418C}\
+.clx-hopen{flex:1;min-width:0;border:0;background:none;text-align:left;cursor:pointer;display:grid;gap:2px;padding:0;font:13px Inter,sans-serif;color:#1B1F27}\
+.clx-hopen b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.clx-hopen span{font-size:12px;color:#868C98}\
+.clx-hrm{border:0;background:none;font:600 12px Inter,sans-serif;color:#A8382B;cursor:pointer;padding:4px}\
 @media (max-width:640px){#clx-panel{width:100%}#clx-fab{right:14px;bottom:14px}}\
 @media print{#clx-fab,#clx-panel{display:none!important}}\
 @media (prefers-reduced-motion:reduce){#clx-panel{transition:none}}';
@@ -107,17 +129,24 @@
     p.id = 'clx-panel'; p.hidden = true; p.setAttribute('aria-label', 'Claude');
     p.innerHTML =
       '<div class="clx-h"><div class="clx-t"><b><span class="clx-star" aria-hidden="true">✦</span>Claude</b>' +
-      '<span><button class="clx-btn" type="button" id="clx-new">+ New</button> <button class="clx-x" type="button" id="clx-close" aria-label="Close Claude">×</button></span></div>' +
-      '<div class="clx-ctx" id="clx-ctx"></div>' +
-      '<div class="clx-row"><select id="clx-chats" aria-label="Your conversations"></select></div></div>' +
+      '<span class="clx-tools"><button class="clx-btn" type="button" id="clx-hist" aria-pressed="false">History</button><button class="clx-btn" type="button" id="clx-new">+ New</button><button class="clx-x" type="button" id="clx-close" aria-label="Close Claude">×</button></span></div>' +
+      '<div class="clx-title" id="clx-title" hidden></div></div>' +
+      '<div class="clx-histp" id="clx-histp" hidden><div class="clx-hbar"><input id="clx-q" type="search" placeholder="Search your conversations" aria-label="Search your conversations"><span class="clx-seg"><button type="button" data-saved="0" aria-pressed="true">All</button><button type="button" data-saved="1" aria-pressed="false">★ Saved</button></span></div><div id="clx-hlist" class="clx-hlist"></div></div>' +
       '<div class="clx-msgs" id="clx-msgs" aria-live="polite"></div>' +
       '<div class="clx-f"><div id="clx-off" hidden></div><form id="clx-form"><textarea id="clx-in" rows="2" placeholder="Ask or tell Claude…" aria-label="Message to Claude"></textarea><button class="clx-btn go" id="clx-send" type="submit">Send</button></form>' +
       '<div class="clx-foot"><span>Changes always wait for your approval</span><span id="clx-spend"></span></div></div>';
     document.body.appendChild(p);
     fab.addEventListener('click', function () { setOpen(!S.open); });
     $('clx-close').addEventListener('click', function () { setOpen(false); });
-    $('clx-new').addEventListener('click', function () { S.chat = null; store('chat', null); renderChats(); render(); $('clx-in').focus(); });
-    $('clx-chats').addEventListener('change', function () { var v = $('clx-chats').value; if (v) openChat(+v); else { S.chat = null; render(); } });
+    $('clx-new').addEventListener('click', function () { clearTimeout(S.poll); S.chat = null; store('chat', null); showHistory(false); renderTitle(); render(); $('clx-in').focus(); });
+    $('clx-hist').addEventListener('click', function () { showHistory(!S.hist); });
+    $('clx-q').addEventListener('input', function () { clearTimeout(S.qt); S.qt = setTimeout(loadHistory, 250); });
+    document.querySelectorAll('#clx-histp [data-saved]').forEach(function (b) { b.addEventListener('click', function () {
+      S.saved = b.getAttribute('data-saved') === '1';
+      document.querySelectorAll('#clx-histp [data-saved]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      loadHistory(); }); });
+    $('clx-hlist').addEventListener('click', onHistoryClick);
+    $('clx-title').addEventListener('click', onTitleClick);
     $('clx-form').addEventListener('submit', function (e) { e.preventDefault(); send($('clx-in').value); });
     $('clx-in').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send($('clx-in').value); } });
     $('clx-msgs').addEventListener('click', onCardClick);
@@ -127,34 +156,81 @@
   function setOpen(open) {
     S.open = open; store('open', open ? '1' : null);
     var p = $('clx-panel'); $('clx-fab').setAttribute('aria-expanded', String(open));
-    if (open) { p.hidden = false; requestAnimationFrame(function () { p.classList.add('open'); }); ctx(); if (!S.loaded) loadChats(); setTimeout(function () { $('clx-in').focus(); }, 60); }
+    if (open) { p.hidden = false; requestAnimationFrame(function () { p.classList.add('open'); }); if (!S.loaded) loadChats(); setTimeout(function () { $('clx-in').focus(); }, 60); }
     else { p.classList.remove('open'); setTimeout(function () { if (!S.open) p.hidden = true; }, 240); }
   }
-  function ctx() { var pg = page(); $('clx-ctx').innerHTML = 'Knows you are on <span class="clx-chip">' + esc(pg.label) + '</span>'; }
   function spend(spent, cap) { if (cap != null) $('clx-spend').textContent = 'Today ' + usd.format(spent || 0) + ' of ' + usd.format(cap); }
 
   async function loadChats() {
     S.loaded = true;
-    try {
-      var r = await api('/chats?surface=' + SURFACE); S.chats = r.data || [];
-      var keep = +load('chat'); renderChats(keep);
-      if (keep && S.chats.some(function (c) { return c.id === keep; })) await openChat(keep); else render();
-    } catch (e) { $('clx-msgs').innerHTML = '<div class="clx-err">' + esc(e.message) + '</div>'; }
-  }
-  function renderChats(sel) {
-    var cur = sel || (S.chat && S.chat.chat.id) || '';
-    $('clx-chats').innerHTML = '<option value="">New conversation</option>' + S.chats.map(function (c) { return '<option value="' + c.id + '">' + esc(c.title) + ' · ' + esc(when(c.updated_at)) + '</option>'; }).join('');
-    $('clx-chats').value = String(cur || '');
+    var keep = +load('chat');
+    if (keep) await openChat(keep); else { renderTitle(); render(); }
   }
   async function openChat(id) {
-    try { var r = await api('/chats/' + id + '?surface=' + SURFACE); apply(r.data); }
-    catch (e) { S.chat = null; store('chat', null); render(); }
+    try { var r = await api('/chats/' + id + '?surface=' + SURFACE); if (r.data.chat.archived) throw new Error('removed'); apply(r.data); }
+    catch (e) { S.chat = null; store('chat', null); renderTitle(); render(); }
+  }
+
+  // ---- History: every conversation is saved; ★ keeps one on top; rename; remove from the list
+  function showHistory(on) {
+    S.hist = on; $('clx-hist').setAttribute('aria-pressed', String(on));
+    $('clx-histp').hidden = !on; $('clx-msgs').hidden = on;
+    if (on) { loadHistory(); setTimeout(function () { $('clx-q').focus(); }, 30); }
+  }
+  async function loadHistory() {
+    var q = $('clx-q').value.trim(), box = $('clx-hlist');
+    try {
+      var r = await api('/chats?surface=' + SURFACE + (S.saved ? '&saved=1' : '') + (q ? '&q=' + encodeURIComponent(q) : ''));
+      var rows = r.data || [];
+      box.innerHTML = rows.length ? rows.map(function (c) {
+        var cur = S.chat && S.chat.chat.id === c.id;
+        return '<div class="clx-hi' + (cur ? ' cur' : '') + '" data-id="' + c.id + '">' +
+          '<button type="button" class="clx-hstar' + (c.starred ? ' on' : '') + '" data-star="' + c.id + '" aria-pressed="' + c.starred + '" aria-label="' + (c.starred ? 'Unsave' : 'Save') + '">' + (c.starred ? '★' : '☆') + '</button>' +
+          '<button type="button" class="clx-hopen" data-open="' + c.id + '"><b>' + esc(c.title) + '</b><span>' + esc(when(c.updated_at)) + ' · ' + c.asked + ' message' + (c.asked === 1 ? '' : 's') + '</span></button>' +
+          '<button type="button" class="clx-hrm" data-remove="' + c.id + '" aria-label="Remove from the list">Remove</button></div>';
+      }).join('') : '<div class="clx-intro">' + (q || S.saved ? 'No conversations match.' : 'Your conversations show here once you ask Claude something.') + (SURFACE === 'field' ? ' Conversations started on office pages are listed there.' : '') + '</div>';
+    } catch (e) { box.innerHTML = '<div class="clx-err">' + esc(e.message) + '</div>'; }
+  }
+  async function patchChat(id, body) {
+    var r = await api('/chats/' + id, { method: 'PATCH', body: JSON.stringify(body) });
+    if (S.chat && S.chat.chat.id === id) { if (r.data.chat.archived) { S.chat = null; store('chat', null); render(); } else S.chat.chat = r.data.chat; renderTitle(); }
+    return r.data;
+  }
+  async function onHistoryClick(e) {
+    var o = e.target.closest('[data-open]'), st = e.target.closest('[data-star]'), rm = e.target.closest('[data-remove]');
+    try {
+      if (o) { await openChat(+o.getAttribute('data-open')); showHistory(false); return; }
+      if (st) { await patchChat(+st.getAttribute('data-star'), { starred: st.getAttribute('aria-pressed') !== 'true' }); loadHistory(); return; }
+      if (rm) {
+        if (rm.getAttribute('data-sure') !== '1') { rm.setAttribute('data-sure', '1'); rm.textContent = 'Remove?'; return; }
+        await patchChat(+rm.getAttribute('data-remove'), { archived: true }); loadHistory();
+      }
+    } catch (x) { $('clx-hlist').insertAdjacentHTML('afterbegin', '<div class="clx-err">' + esc(x.message) + '</div>'); }
+  }
+  function renderTitle() {
+    var t = $('clx-title'), c = S.chat && S.chat.chat;
+    t.hidden = !c;
+    if (!c) { t.innerHTML = ''; return; }
+    t.innerHTML = '<span class="clx-tname" id="clx-tname">' + esc(c.title) + '</span>' +
+      '<button type="button" class="clx-hstar' + (c.starred ? ' on' : '') + '" id="clx-tstar" aria-pressed="' + !!c.starred + '" title="' + (c.starred ? 'Saved: stays at the top of History' : 'Save: keep at the top of History') + '">' + (c.starred ? '★ Saved' : '☆ Save') + '</button>' +
+      '<button type="button" class="clx-link" id="clx-tren">Rename</button>';
+  }
+  async function onTitleClick(e) {
+    var c = S.chat && S.chat.chat; if (!c) return;
+    try {
+      if (e.target.closest('#clx-tstar')) { await patchChat(c.id, { starred: !c.starred }); return; }
+      if (e.target.closest('#clx-tren')) {
+        $('clx-title').innerHTML = '<input id="clx-tin" maxlength="80" aria-label="Conversation name" value="' + esc(c.title) + '"><button type="button" class="clx-btn ok" id="clx-tok">Save name</button>';
+        var inp = $('clx-tin'); inp.focus(); inp.select();
+        var done = async function (keep) { if (keep && inp.value.trim()) await patchChat(c.id, { title: inp.value }); else renderTitle(); };
+        inp.addEventListener('keydown', function (k) { if (k.key === 'Enter') { k.preventDefault(); done(true); } if (k.key === 'Escape') { k.stopPropagation(); done(false); } });
+        $('clx-tok').addEventListener('click', function () { done(true); });
+      }
+    } catch (x) { renderTitle(); }
   }
   function apply(view) {
     S.chat = view; store('chat', view.chat.id);
-    if (!S.chats.some(function (c) { return c.id === view.chat.id; })) S.chats.unshift({ id: view.chat.id, title: view.chat.title, updated_at: view.chat.updated_at });
-    S.chats.forEach(function (c) { if (c.id === view.chat.id) c.title = view.chat.title; });
-    renderChats(view.chat.id); render();
+    renderTitle(); render();
     clearTimeout(S.poll);
     if (view.busy) S.poll = setTimeout(function () { openChat(view.chat.id).then(refreshStatus); }, 1500);
   }

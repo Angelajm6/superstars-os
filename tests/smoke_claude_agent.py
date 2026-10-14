@@ -282,6 +282,24 @@ def main() -> int:
         assert s == {"name": "A", "people": [{"name": "B"}], "address": "212 E 47th St"}, s
         passed += 1; print("  scrub ok")
 
+        # ---- History: saved chats, search, rename, remove (owner only); an empty chat is not history
+        empty = a.post("/api/claude/chats", json={"surface": "office"}).get_json()["data"]["chat"]
+        lst = a.get("/api/claude/chats?surface=office").get_json()["data"]
+        assert [c["id"] for c in lst] == [chat["id"]] and lst[0]["asked"] == 2 and lst[0]["starred"] is False
+        assert pm.patch(f"/api/claude/chats/{chat['id']}", json={"starred": True}).status_code == 404
+        assert a.patch(f"/api/claude/chats/{chat['id']}", json={"title": "   "}).status_code == 400
+        r = a.patch(f"/api/claude/chats/{chat['id']}", json={"title": "Thursday walkthrough", "starred": True})
+        assert r.status_code == 200 and r.get_json()["data"]["chat"] == dict(r.get_json()["data"]["chat"], title="Thursday walkthrough", starred=True)
+        assert [c["id"] for c in a.get("/api/claude/chats?surface=office&saved=1").get_json()["data"]] == [chat["id"]]
+        assert [c["id"] for c in a.get("/api/claude/chats?surface=office&q=secret%20phrase").get_json()["data"]] == [chat["id"]]
+        assert a.get("/api/claude/chats?surface=office&q=nothing-like-this").get_json()["data"] == []
+        assert a.patch(f"/api/claude/chats/{empty['id']}", json={"archived": True}).get_json()["data"]["chat"]["archived"] is True
+        r = a.patch(f"/api/claude/chats/{chat['id']}", json={"archived": True})
+        assert r.get_json()["data"]["chat"]["archived"] is True and a.get("/api/claude/chats?surface=office").get_json()["data"] == []
+        assert _q("SELECT COUNT(*) AS n FROM claude_action WHERE chat_id = ?", (chat["id"],))[0]["n"] >= 3   # approvals kept
+        a.patch(f"/api/claude/chats/{chat['id']}", json={"archived": False})
+        passed += 1; print("  history ok")
+
         # ---- the daily budget stops new turns
         os.environ["SSC_ASSISTANT_DAILY_CAP_USD"] = "0.01"
         r = a.post(f"/api/claude/chats/{chat['id']}/messages", json={"text": "more", "page": {"surface": "office"}})
@@ -335,6 +353,7 @@ def main() -> int:
         assert "worker-app" not in "".join(p.name for p in ROOT.glob("*.html") if "claude_drawer.js" in p.read_text(encoding="utf-8", errors="ignore"))
         js = (ROOT / "static/js/claude_drawer.js").read_text(encoding="utf-8")
         assert "var FIELD = /^\\/projects\\//" in js and "Changes always wait for your approval" in js
+        assert "Knows you are on" not in js and "function loadHistory()" in js and "\u2606 Save" in js
         cp = (ROOT / "company_portal.html").read_text(encoding="utf-8")
         assert 'id="view-claude"' in cp and "claude: loadClaudeLog" in cp
         assert "['Claude approvals', '/company#claude']" in (ROOT / "static/js/company_nav.js").read_text(encoding="utf-8")
@@ -343,8 +362,8 @@ def main() -> int:
         os.environ.pop("SSC_ASSISTANT_FAKE", None)
         _cleanup()
         shutil.rmtree(_TMP, ignore_errors=True)
-    print(f"smoke_claude_agent: {passed}/12 groups passed")
-    return 0 if passed == 12 else 1
+    print(f"smoke_claude_agent: {passed}/13 groups passed")
+    return 0 if passed == 13 else 1
 
 
 if __name__ == "__main__":

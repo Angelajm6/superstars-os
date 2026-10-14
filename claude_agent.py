@@ -30,6 +30,7 @@ off without ANTHROPIC_API_KEY. Test seam SSC_ASSISTANT_FAKE (JSON script; inert 
   GET  /api/claude/chats?surface=            my conversations on this surface
   POST /api/claude/chats                     {surface}
   GET  /api/claude/chats/<id>                messages, cards, busy
+  PATCH /api/claude/chats/<id>               {title?, starred?, archived?}  (History: rename, save, remove)
   POST /api/claude/chats/<id>/messages       {text, page{path,label,project_code}} -> 202 (runs)
   POST /api/claude/actions/<id>/approve      {values} -> runs the change
   POST /api/claude/actions/<id>/decline
@@ -86,6 +87,9 @@ def ensure(conn) -> None:
         f"CREATE TABLE IF NOT EXISTS claude_chat ({pk}, user_id INTEGER NOT NULL, surface TEXT NOT NULL, title TEXT, "
         f"busy_since TEXT, last_error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_claude_chat_user ON claude_chat(user_id)")
+    for col, typ in (("starred", "INTEGER"), ("archived_at", "TEXT")):   # History: saved chats, removed from the list
+        if not _has_column(conn, "claude_chat", col):
+            conn.execute(f"ALTER TABLE claude_chat ADD COLUMN {col} {typ}")
     conn.execute(
         f"CREATE TABLE IF NOT EXISTS claude_chat_message ({pk}, chat_id INTEGER NOT NULL, role TEXT NOT NULL, "
         f"kind TEXT NOT NULL, content TEXT NOT NULL, replay INTEGER NOT NULL, created_at TEXT NOT NULL, model TEXT, "
@@ -100,6 +104,13 @@ def ensure(conn) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_claude_action_chat ON claude_action(chat_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_claude_action_user ON claude_action(user_id)")
     conn.commit()
+
+
+def _has_column(conn, table, column) -> bool:
+    if db_layer.is_postgres():
+        return bool(conn.execute("SELECT 1 FROM information_schema.columns WHERE table_schema='public' "
+                                 "AND table_name = ? AND column_name = ?", (table, column)).fetchone())
+    return any(r[1] == column for r in conn.execute(f"PRAGMA table_info({table})").fetchall())
 
 
 def _conn():
@@ -876,7 +887,8 @@ def _chat_view(conn, chat: dict) -> dict:
                 looked = []
     busy = bool(chat.get("busy_since") and datetime.fromisoformat(chat["busy_since"]) > datetime.now() - BUSY_STALE)
     return {"chat": {"id": chat["id"], "title": chat.get("title") or "New conversation", "surface": chat["surface"],
-                     "updated_at": chat["updated_at"]},
+                     "updated_at": chat["updated_at"], "starred": bool(chat.get("starred")),
+                     "archived": bool(chat.get("archived_at"))},
             "messages": out, "busy": busy, "error": None if busy else chat.get("last_error")}
 
 
@@ -917,9 +929,20 @@ def _api_chats():
     me, surface = _me(), _surface(request.args.get("surface"))
     conn = _conn()
     try:
-        rows = _rows(conn, "SELECT id, title, updated_at FROM claude_chat WHERE user_id = ? AND surface = ? "
-                           "ORDER BY updated_at DESC, id DESC LIMIT 30", (me["id"], surface))
-        return jsonify({"data": [dict(r, title=r["title"] or "New conversation") for r in rows]})
+        sql = ("SELECT c.id, c.title, c.created_at, c.updated_at, COALESCE(c.starred, 0) AS starred, "
+               "(SELECT COUNT(*) FROM claude_chat_message m WHERE m.chat_id = c.id AND m.role = 'user' AND m.kind = 'text') AS asked "
+               "FROM claude_chat c WHERE c.user_id = ? AND c.surface = ? AND c.archived_at IS NULL")
+        params = [me["id"], surface]
+        if request.args.get("saved") == "1":
+            sql += " AND COALESCE(c.starred, 0) = 1"
+        q = (request.args.get("q") or "").strip().lower()[:100]
+        if q:   # the title or anything the person asked in it
+            sql += (" AND (LOWER(COALESCE(c.title, '')) LIKE ? OR EXISTS (SELECT 1 FROM claude_chat_message m WHERE "
+                    "m.chat_id = c.id AND m.role = 'user' AND m.kind = 'text' AND LOWER(m.content) LIKE ?))")
+            params += [f"%{q}%", f"%{q}%"]
+        rows = _rows(conn, sql + " ORDER BY COALESCE(c.starred, 0) DESC, c.updated_at DESC, c.id DESC LIMIT 200", params)
+        rows = [r for r in rows if r["asked"] or r["starred"]]   # an empty "New" chat is not history
+        return jsonify({"data": [dict(r, title=r["title"] or "New conversation", starred=bool(r["starred"])) for r in rows]})
     finally:
         conn.close()
 
@@ -951,6 +974,34 @@ def _api_chat_get(chat_id):
         if c["surface"] == "office" and _surface(request.args.get("surface")) == "field":
             return _err("This conversation is only shown on office pages.", 403)
         return jsonify({"data": _chat_view(conn, c)})
+    finally:
+        conn.close()
+
+
+@requires_role(*TEAM_ROLES)
+def _api_chat_update(chat_id):
+    """Rename, save (star) or remove from the list. Removing keeps the record (and its approvals)."""
+    me = _me()
+    d = request.get_json(silent=True) or {}
+    conn = _conn()
+    try:
+        c = _own_chat(conn, chat_id, me)
+        if not c:
+            return _err("not found", 404)
+        sets, params = [], []
+        if "title" in d:
+            t = re.sub(r"\s+", " ", str(d.get("title") or "")).strip()[:80]
+            if not t:
+                return _err("Give the conversation a name")
+            sets.append("title = ?"); params.append(t)
+        if "starred" in d:
+            sets.append("starred = ?"); params.append(1 if d.get("starred") else 0)
+        if "archived" in d:
+            sets.append("archived_at = ?"); params.append(_now() if d.get("archived") else None)
+        if sets:
+            conn.execute(f"UPDATE claude_chat SET {', '.join(sets)} WHERE id = ?", params + [chat_id])
+            conn.commit()
+        return jsonify({"data": _chat_view(conn, _one(conn, "SELECT * FROM claude_chat WHERE id = ?", (chat_id,)))})
     finally:
         conn.close()
 
@@ -1130,6 +1181,7 @@ def register(app) -> None:
     app.add_url_rule("/api/claude/chats", "claude_chats", _api_chats, methods=["GET"])
     app.add_url_rule("/api/claude/chats", "claude_chat_create", _api_chat_create, methods=["POST"])
     app.add_url_rule("/api/claude/chats/<int:chat_id>", "claude_chat_get", _api_chat_get, methods=["GET"])
+    app.add_url_rule("/api/claude/chats/<int:chat_id>", "claude_chat_update", _api_chat_update, methods=["PATCH"])
     app.add_url_rule("/api/claude/chats/<int:chat_id>/messages", "claude_message", _api_message, methods=["POST"])
     app.add_url_rule("/api/claude/actions", "claude_actions", _api_actions, methods=["GET"])
     app.add_url_rule("/api/claude/actions/<int:action_id>/approve", "claude_approve", _api_approve, methods=["POST"])
