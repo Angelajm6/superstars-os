@@ -435,6 +435,19 @@
       display: none;
     }
 
+    /* worker videos: the Photo / Video switch, the recording timer, a red shutter in video mode */
+    .cam-seg { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; background: rgba(0,0,0,.5); border-radius: 999px; padding: 3px; z-index: 15; }
+    .cam-seg button { border: 0; background: none; color: #fff; font: inherit; font-size: 14px; font-weight: 700; letter-spacing: .04em; padding: 8px 16px; border-radius: 999px; cursor: pointer; }
+    .cam-seg button[aria-pressed="true"] { background: #fff; color: #111; }
+    .cam-seg button:disabled { opacity: .4; }
+    .rec-timer { position: absolute; top: 66px; left: 50%; transform: translateX(-50%); background: rgba(229,72,77,.92); color: #fff; font-weight: 700; font-size: 16px; border-radius: 10px; padding: 4px 12px; z-index: 15; font-variant-numeric: tabular-nums; }
+    .rec-timer[hidden] { display: none; }
+    .shutter-btn.vid { background: #E5484D; border-color: #fff; }
+    .shutter-btn.recording { border-radius: 22px; animation: recpulse 1.2s ease-in-out infinite; }
+    @keyframes recpulse { 50% { box-shadow: 0 0 0 10px rgba(229,72,77,.25); } }
+    #review-video { max-width: 100%; max-height: 100%; background: #000; display: block; }
+    #review-video[hidden], #review-image[hidden] { display: none; }
+
     .photo-controls {
       position: absolute;
       bottom: 0;
@@ -883,7 +896,7 @@
     <div class="working-content">
       <button class="photo-btn" id="photo-btn" onclick="startPhotoCapture()">
         <span style="font-size:48px;">📸</span>
-        <div class="photo-btn-text" id="photo-btn-text">Take Photo</div>
+        <div class="photo-btn-text" id="photo-btn-text">Photo or video</div>
       </button>
     </div>
     <div class="photo-banner" id="photo-banner">📷 Photos upload directly. Not saved to your phone.</div>
@@ -895,10 +908,16 @@
   <div class="screen photo-screen" id="screen-photo">
     <button class="photo-cancel" onclick="cancelPhoto()">✕</button>
     <div class="video-container">
-      <video id="video" autoplay playsinline></video>
+      <video id="video" autoplay playsinline muted></video>
       <canvas id="canvas"></canvas>
+      <!-- worker videos (field_videos.py): Photo / Video on the same camera, 60 s at most -->
+      <div class="cam-seg" role="group" aria-label="Photo or video">
+        <button type="button" id="mode-photo" aria-pressed="true" onclick="setCamMode('photo')">PHOTO</button>
+        <button type="button" id="mode-video" aria-pressed="false" onclick="setCamMode('video')">VIDEO</button>
+      </div>
+      <div class="rec-timer" id="rec-timer" role="timer" aria-live="off" hidden>0:00</div>
       <div class="photo-controls">
-        <button class="shutter-btn" onclick="capturePhoto()"></button>
+        <button class="shutter-btn" id="shutter-btn" onclick="shutterPress()" aria-label="Take photo"></button>
       </div>
     </div>
   </div>
@@ -906,6 +925,7 @@
   <div class="screen photo-review-screen" id="screen-photo-review">
     <div class="review-image-wrap">
       <img id="review-image" alt="Captured photo">
+      <video id="review-video" controls playsinline hidden></video>
     </div>
     <div class="review-actions">
       <button class="review-retake" onclick="retakePhoto()" id="retake-btn">↺ Retake</button>
@@ -965,7 +985,7 @@
 const i18n = {
   en: {
     sign_in: "Sign In",
-    take_photo: "Take Photo",
+    take_photo: "Photo or video",
     on_site: "On site",
     not_on_site: "Not on site",
     photos_today: "photos today",
@@ -979,7 +999,7 @@ const i18n = {
     choose_job: "Choose your job",
     away: "away",
     no_job: "No job assigned — see the office",
-    photos_upload: "📷 Photos upload directly. Not saved to your phone.",
+    photos_upload: "📷 Photos and videos upload directly. Not saved to your phone.",
     photos_not_saved: "Not saved to your phone",
     signout_confirm: "Sign out for the day?",
     goodbye: "Goodbye",
@@ -999,11 +1019,24 @@ const i18n = {
     photo_offline: "No connection. Move to better signal and tap Try again.",
     photo_session: "Your sign-in ended. Sign in again to send photos.",
     photo_limit: "Photo limit for today reached. See the office.",
-    photo_missing: "Take the photo again."
+    photo_missing: "Take the photo again.",
+    mode_photo: "PHOTO",
+    mode_video: "VIDEO",
+    confirm_video: "Confirm Video",
+    record_again: "↺ Record again",
+    use_video: "✓ Use Video",
+    video_sending: "Sending video…",
+    video_sent: "✓ Video sent",
+    video_failed: "The video did not send. Tap Try again.",
+    video_limit: "Video limit for today reached. Take photos or see the office.",
+    video_big: "The video is too big. Record a shorter one.",
+    video_full: "Storage is nearly full. Tell the office. Photos still work.",
+    video_left: "s left",
+    video_unsupported: "This phone cannot record video here. Take a photo instead."
   },
   es: {
     sign_in: "Iniciar Sesión",
-    take_photo: "Tomar Foto",
+    take_photo: "Foto o video",
     on_site: "En el sitio",
     not_on_site: "No estás en el sitio",
     photos_today: "fotos hoy",
@@ -1017,7 +1050,7 @@ const i18n = {
     choose_job: "Elige tu obra",
     away: "de distancia",
     no_job: "Sin obra asignada — habla con la oficina",
-    photos_upload: "📷 Las fotos se cargan directamente. No se guardan en tu teléfono.",
+    photos_upload: "📷 Las fotos y videos se cargan directamente. No se guardan en tu teléfono.",
     photos_not_saved: "No se guardan en tu teléfono",
     signout_confirm: "¿Salir por hoy?",
     goodbye: "Adiós",
@@ -1037,7 +1070,20 @@ const i18n = {
     photo_offline: "Sin conexión. Busca mejor señal y toca Intentar de nuevo.",
     photo_session: "Tu sesión terminó. Inicia sesión otra vez para enviar fotos.",
     photo_limit: "Llegaste al límite de fotos de hoy. Habla con la oficina.",
-    photo_missing: "Toma la foto otra vez."
+    photo_missing: "Toma la foto otra vez.",
+    mode_photo: "FOTO",
+    mode_video: "VIDEO",
+    confirm_video: "Confirmar Video",
+    record_again: "↺ Grabar de nuevo",
+    use_video: "✓ Usar video",
+    video_sending: "Enviando video…",
+    video_sent: "✓ Video enviado",
+    video_failed: "El video no se envió. Toca Intentar de nuevo.",
+    video_limit: "Llegaste al límite de videos de hoy. Toma fotos o habla con la oficina.",
+    video_big: "El video es muy grande. Graba uno más corto.",
+    video_full: "El almacenamiento está casi lleno. Avisa a la oficina. Las fotos siguen funcionando.",
+    video_left: "s restantes",
+    video_unsupported: "Este teléfono no puede grabar video aquí. Toma una foto."
   }
 };
 
@@ -1404,12 +1450,110 @@ function updateWorkingScreen() {
 }
 
 let stream;
+// ---- worker videos (field_videos.py): Photo / Video on the same camera, 60 s at most, about
+// 10 MB a minute; a JPEG still taken when recording starts is the office thumbnail.
+const VIDEO_MAX_S = 60;
+let camMode = 'photo', recorder = null, recChunks = [], recStart = 0, recTimer = null, recDiscard = false;
+let capturedVideo = null;   // { blob, poster, duration, mime, url }
+function videoSupported() { return typeof MediaRecorder !== 'undefined'; }
+function pickVideoMime() {
+  const opts = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+  for (const m of opts) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (e) {} }
+  return '';
+}
+function openCamera(withAudio) {
+  const v = { facingMode: 'environment' };
+  return navigator.mediaDevices.getUserMedia({ video: v, audio: !!withAudio })
+    .catch(e => withAudio ? navigator.mediaDevices.getUserMedia({ video: v }) : Promise.reject(e));   // no microphone: video without sound
+}
+function drawCamMode() {
+  document.getElementById('mode-photo').setAttribute('aria-pressed', camMode === 'photo' ? 'true' : 'false');
+  document.getElementById('mode-video').setAttribute('aria-pressed', camMode === 'video' ? 'true' : 'false');
+  document.getElementById('mode-photo').textContent = t('mode_photo');
+  document.getElementById('mode-video').textContent = t('mode_video');
+  const sh = document.getElementById('shutter-btn');
+  sh.classList.toggle('vid', camMode === 'video'); sh.classList.remove('recording');
+  sh.setAttribute('aria-label', camMode === 'video' ? t('mode_video') : t('mode_photo'));
+  document.getElementById('rec-timer').hidden = true;
+}
 function startPhotoCapture() {
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(s => {
+  openCamera(camMode === 'video').then(s => {
     stream = s;
     document.getElementById('video').srcObject = s;
+    drawCamMode();
     goToScreen('photo');
   }).catch(e => alert('Camera error: ' + e.message));
+}
+function setCamMode(m) {
+  if (recorder || m === camMode) return;
+  if (m === 'video' && !videoSupported()) { alert(t('video_unsupported')); return; }
+  camMode = m;
+  if (stream) stream.getTracks().forEach(tr => tr.stop());
+  startPhotoCapture();
+}
+function shutterPress() {
+  if (camMode === 'photo') { capturePhoto(); return; }
+  if (recorder) stopRecording(); else startRecording();
+}
+function grabPoster() {
+  return new Promise(res => {
+    const v = document.getElementById('video'), c = document.getElementById('canvas');
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext('2d').drawImage(v, 0, 0);
+    c.toBlob(b => res(b), 'image/jpeg', 0.85);
+  });
+}
+function fmtRec(s) { return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+async function startRecording() {
+  const mime = pickVideoMime();
+  const poster = await grabPoster();
+  recChunks = []; recDiscard = false;
+  try {
+    const o = { videoBitsPerSecond: 1200000, audioBitsPerSecond: 64000 };
+    if (mime) o.mimeType = mime;
+    recorder = new MediaRecorder(stream, o);
+  } catch (e) { recorder = null; alert(t('video_unsupported')); return; }
+  recorder.ondataavailable = e => { if (e.data && e.data.size) recChunks.push(e.data); };
+  recorder.onstop = () => {
+    clearInterval(recTimer);
+    const type = (recorder && recorder.mimeType) || mime || 'video/webm';
+    const dur = Math.min(VIDEO_MAX_S, Math.max(1, Math.round((Date.now() - recStart) / 1000)));
+    recorder = null;
+    if (stream) stream.getTracks().forEach(tr => tr.stop());
+    document.getElementById('mode-photo').disabled = false;
+    if (recDiscard) { recChunks = []; return; }
+    capturedVideo = { blob: new Blob(recChunks, { type: type.split(';')[0] }), poster: poster, duration: dur, mime: type.split(';')[0] };
+    capturedPhoto = null;
+    showVideoReview();
+  };
+  recorder.start(1000);
+  recStart = Date.now();
+  document.getElementById('shutter-btn').classList.add('recording');
+  document.getElementById('mode-photo').disabled = true;
+  const tm = document.getElementById('rec-timer'); tm.hidden = false; tm.textContent = '0:00';
+  recTimer = setInterval(() => {
+    const sec = Math.floor((Date.now() - recStart) / 1000);
+    tm.textContent = fmtRec(Math.min(sec, VIDEO_MAX_S)) + (sec >= VIDEO_MAX_S - 10 ? '  ·  ' + Math.max(0, VIDEO_MAX_S - sec) + t('video_left') : '');
+    if (sec >= VIDEO_MAX_S) stopRecording();   // stops by itself at 1:00
+  }, 250);
+}
+function stopRecording() { if (recorder && recorder.state !== 'inactive') recorder.stop(); }
+function showVideoReview() {
+  const img = document.getElementById('review-image'), vid = document.getElementById('review-video');
+  if (capturedVideo.url) URL.revokeObjectURL(capturedVideo.url);
+  capturedVideo.url = URL.createObjectURL(capturedVideo.blob);
+  img.hidden = true; vid.hidden = false; vid.src = capturedVideo.url;
+  document.getElementById('retake-btn').textContent = t('record_again');
+  document.getElementById('keep-btn').textContent = t('use_video');
+  goToScreen('photo-review');
+}
+function forgetVideo() {
+  if (capturedVideo && capturedVideo.url) URL.revokeObjectURL(capturedVideo.url);
+  capturedVideo = null;
+  const vid = document.getElementById('review-video'); vid.pause(); vid.removeAttribute('src'); vid.hidden = true;
+  document.getElementById('review-image').hidden = false;
+  document.getElementById('retake-btn').textContent = t('retake');
+  document.getElementById('keep-btn').textContent = t('use_photo');
 }
 
 function capturePhoto() {
@@ -1420,6 +1564,7 @@ function capturePhoto() {
   canvas.height = video.videoHeight;
   ctx.drawImage(video, 0, 0);
   capturedPhoto = canvas.toDataURL('image/jpeg', 0.9);
+  forgetVideo();
   if (stream) stream.getTracks().forEach(t => t.stop());
   // Show review screen first — let worker keep or retake
   document.getElementById('review-image').src = capturedPhoto;
@@ -1427,8 +1572,9 @@ function capturePhoto() {
 }
 
 function retakePhoto() {
-  // Go back to live camera
+  // Go back to live camera (same mode: a video retake records again)
   capturedPhoto = null;
+  forgetVideo();
   startPhotoCapture();
 }
 
@@ -1436,12 +1582,14 @@ function keepPhoto() {
   // Worker accepted — proceed to location/scope form
   // Pre-highlight last picks so repeat photos at same spot are one-tap.
   applyLastSelections();
+  document.getElementById('form-title').textContent = capturedVideo ? t('confirm_video') : t('confirm_photo');
   document.getElementById('submit-photo-text').textContent = t('send');
   setPhotoStatus('', '');
   goToScreen('photo-form');
 }
 
 function cancelPhoto() {
+  if (recorder) { recDiscard = true; stopRecording(); }
   if (stream) stream.getTracks().forEach(t => t.stop());
   goToScreen('working');
 }
@@ -1510,6 +1658,7 @@ async function uploadPhoto() {
   if (photoUploading) return;
   if (!selectedLocation) { alert(lang === 'es' ? 'Selecciona dónde estás' : 'Select where you are'); return; }
   if (!selectedScope) { alert(lang === 'es' ? 'Selecciona el alcance' : 'Select a scope'); return; }
+  if (capturedVideo) return uploadVideo();
   if (!capturedPhoto) { setPhotoStatus(t('photo_missing'), 'err'); return; }
   const btn = document.getElementById('submit-photo-text');
   const fd = new FormData();
@@ -1553,10 +1702,49 @@ async function uploadPhoto() {
   flashPhotoSent();
 }
 
-function flashPhotoSent() {
+// A video goes up with a progress count (XHR: fetch has no upload progress). Same rules as a photo:
+// sent only when the server stored it; on any failure the video and the picks stay for one-tap retry.
+function uploadVideo() {
+  const btn = document.getElementById('submit-photo-text');
+  const v = capturedVideo, ext = v.mime.indexOf('mp4') !== -1 ? '.mp4' : (v.mime.indexOf('quicktime') !== -1 ? '.mov' : '.webm');
+  const fd = new FormData();
+  fd.append('video', v.blob, 'video' + ext);
+  fd.append('poster', v.poster, 'poster.jpg');
+  fd.append('duration', String(v.duration));
+  fd.append('session_token', sessionData.sessionToken || '');
+  fd.append('employee_id', sessionData.employeeId || '');
+  fd.append('location', selectedLocation);
+  fd.append('scope', selectedScope);
+  photoUploading = true; btn.disabled = true; btn.textContent = t('video_sending'); setPhotoStatus('', '');
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/worker/videos');
+  xhr.upload.onprogress = e => { if (e.lengthComputable) btn.textContent = t('video_sending') + ' ' + Math.round(e.loaded * 100 / e.total) + '%'; };
+  const done = (ok, msg) => {
+    photoUploading = false; btn.disabled = false;
+    if (!ok) { btn.textContent = t('photo_retry'); setPhotoStatus(msg, 'err'); return; }
+    btn.textContent = t('send');
+    sessionData.photoCount++;
+    forgetVideo();
+    goToScreen('working'); updateWorkingScreen(); flashPhotoSent(true);
+  };
+  xhr.onload = () => {
+    let body = null; try { body = JSON.parse(xhr.responseText); } catch (e) {}
+    if (xhr.status >= 200 && xhr.status < 300 && body && body.data && body.data.id) return done(true);
+    if (body && body.error === 'offline') return done(false, t('photo_offline'));
+    if (xhr.status === 401) return done(false, t('photo_session'));
+    if (xhr.status === 429) return done(false, t('video_limit'));
+    if (xhr.status === 413) return done(false, t('video_big'));
+    if (xhr.status === 507) return done(false, t('video_full'));
+    done(false, t('video_failed'));
+  };
+  xhr.onerror = () => done(false, t('photo_offline'));
+  xhr.send(fd);
+}
+
+function flashPhotoSent(isVideo) {
   const banner = document.getElementById('photo-banner');
   if (!banner) return;
-  banner.textContent = t('photo_sent');
+  banner.textContent = isVideo ? t('video_sent') : t('photo_sent');
   banner.classList.add('sent');
   setTimeout(function () { banner.classList.remove('sent'); banner.textContent = t('photos_upload'); }, 2500);
 }

@@ -315,8 +315,12 @@ def overview(conn, today: Optional[date] = None) -> dict:
     exp = compliance(conn, today=today, horizon_days=30)
     expiring = {"expired": exp["summary"]["expired"], "next_30": exp["summary"]["due_30"]}
 
+    import field_videos   # disk use where job files live (photos, videos, documents)
+    store = field_videos.storage()
     return {
         "as_of": t,
+        "storage": {"used_pct": store["used_pct"], "warn": store["warn"],
+                    "used_gb": round(store["used"] / 1e9, 1), "total_gb": round(store["total"] / 1e9, 1)},
         "projects": {"active": int(active_projects)},
         "clients": {"active": int(clients), "buildings": int(buildings)},
         "pipeline": {"open_count": int(pipe.get("n") or 0), "open_value": round(_num(pipe.get("v")), 2),
