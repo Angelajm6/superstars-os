@@ -95,6 +95,9 @@ def model() -> str:
     return (os.environ.get("SSC_ASSISTANT_MODEL") or DEFAULT_MODEL).strip()
 
 
+LIMIT_MSG = "Claude has reached today's usage limit. It resets at midnight."   # no dollar figure on any page (2026-10-14)
+
+
 def cap_usd() -> float:
     try:
         return max(0.0, float(os.environ.get("SSC_ASSISTANT_DAILY_CAP_USD") or DEFAULT_CAP_USD))
@@ -428,7 +431,7 @@ def _api_status():
     try:
         reason = unavailable_reason()
         return jsonify({"data": {"available": reason is None, "reason": reason, "model": model(),
-                                 "cap_usd": cap_usd(), "spent_today_usd": spent_today_micro(conn) / 1_000_000}})
+                                 "limit_reached": spent_today_micro(conn) >= int(round(cap_usd() * 1_000_000))}})
     finally:
         conn.close()
 
@@ -569,7 +572,7 @@ def _api_message(thread_id):
             return _err("not found", 404)
         cap = int(round(cap_usd() * 1_000_000))
         if spent_today_micro(conn) >= cap:
-            return _err(f"Today's Claude budget (${cap_usd():,.2f}) is used up. It resets at midnight.", 429,
+            return _err(LIMIT_MSG, 429,
                         cap_reached=True)
         est = _estimate_ctx(conn, t["estimate_id"])
         if not est:
@@ -611,8 +614,6 @@ def _api_message(thread_id):
                  thread_id, u["input_tokens"], u["output_tokens"], u["cache_read_tokens"], c)
         t = _one(conn, "SELECT * FROM assistant_thread WHERE id = ?", (thread_id,))
         payload = _thread_payload(conn, t, prop["id"] if prop else None)
-        payload["spent_today_usd"] = spent_today_micro(conn) / 1_000_000
-        payload["cap_usd"] = cap_usd()
         return jsonify({"data": payload})
     finally:
         conn.close()

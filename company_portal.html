@@ -11,7 +11,7 @@
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
 <script src="/files/static/js/company_nav.js?v=1011"></script>
-<script src="/files/static/js/claude_drawer.js?v=6" defer></script>
+<script src="/files/static/js/claude_drawer.js?v=8" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1014" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
@@ -147,8 +147,6 @@
   .cl-form { display: flex; gap: 8px; align-items: flex-end; }
   .cl-form textarea { flex: 1; min-height: 44px; max-height: 160px; resize: vertical; font: inherit; font-size: 13.5px; }
   .cl-foot { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
-  .cl-meter { height: 4px; border-radius: 999px; background: var(--line); overflow: hidden; margin-top: -6px; }
-  .cl-meter i { display: block; height: 100%; width: 0; background: #C2603B; }
   .cl-off { font-size: 13px; background: #FFF4E5; color: #7A4A00; border-radius: var(--r-inner, 10px); padding: 8px 10px; line-height: 1.45; }
   textarea.cl-flash, input.cl-flash { border-color: #C2603B !important; box-shadow: 0 0 0 3px #FBEFE9 !important; }
   .cp-list li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }   /* #314 — room for the edge indicator */
@@ -2163,7 +2161,6 @@
   // Conversations are saved on the estimate, so every version of its proposal shows them too.
   const CL = { estimateId: null, proposalId: null, editable: false, what: 'estimate', threadId: null, msgs: [], docs: [], pendingDocs: [], status: null, busy: false };
   const CL_FIELDS = { title: ['pr-title', 'Title'], scope: ['pr-scope', 'Scope'], schedule: ['pr-schedule', 'Schedule'], exclusions: ['pr-excl', 'Exclusions'], terms: ['pr-terms', 'Terms'] };
-  const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
   async function mountClaude(host, opts) {
     if (!host) return;
     const mount = (CL.mount || 0) + 1;   // a newer page render wins over a slower older one
@@ -2176,8 +2173,7 @@
       <div id="cl-off" hidden></div>
       <div class="cl-msgs" id="cl-msgs" aria-live="polite"></div>
       <form class="cl-form" id="cl-form"><textarea class="ssc-field" id="cl-in" rows="2" placeholder="Ask Claude about this ${esc(CL.what)}…" aria-label="Message to Claude"></textarea><button class="btn-primary btn-sm" id="cl-send" type="submit">Send</button></form>
-      <div class="cl-foot"><span>Saved on this ${CL.what === 'proposal' ? 'estimate and its proposals' : esc(CL.what)} · admin and C-suite</span><span id="cl-spend"></span></div>
-      <div class="cl-meter"><i id="cl-meter"></i></div>
+      <div class="cl-foot"><span>Saved on this ${CL.what === 'proposal' ? 'estimate and its proposals' : esc(CL.what)} · admin and C-suite</span></div>
     </div>`;
     $('cl-new').addEventListener('click', () => { CL.threadId = null; CL.msgs = []; CL.pendingDocs = []; clThreadOptions(CL.threads || [], true); clRender(); clReads(CL.baseReads || []); $('cl-in').focus(); });
     $('cl-thread').addEventListener('change', () => { const v = $('cl-thread').value; if (v) clOpen(Number(v)); });
@@ -2190,7 +2186,6 @@
       const [st, th] = await Promise.all([api('/assistant/status', null, true), api('/assistant/threads?estimate_id=' + CL.estimateId + (CL.proposalId ? '&proposal_id=' + CL.proposalId : ''), null, true)]);
       if (CL.mount !== mount) return;
       CL.status = st.data; CL.threads = th.data; CL.baseReads = th.reads || []; CL.docs = th.documents || [];
-      clSpend(CL.status.spent_today_usd, CL.status.cap_usd);
       if (!CL.status.available) {
         const off = $('cl-off'); off.hidden = false; off.className = 'cl-off';
         off.textContent = CL.status.reason === 'no_api_key' ? 'Claude is not connected yet. An admin adds the Anthropic API key in Render; saved conversations stay readable here.' : 'Claude is switched off (the daily budget is set to $0).';
@@ -2220,11 +2215,6 @@
     if (!CL.threadId) { CL.pendingDocs = ids; return; }
     try { const { data } = await api('/assistant/threads/' + CL.threadId, { method: 'PATCH', body: JSON.stringify({ doc_ids: ids, proposal_id: CL.proposalId }) }, true); clApply(data); $('cl-docs').hidden = false; }
     catch (e) { toast(e.message, true); clReads(CL.reads || CL.baseReads); }
-  }
-  function clSpend(spent, cap) {
-    if (cap == null) return;
-    $('cl-spend').textContent = `Today ${usd.format(spent || 0)} of ${usd.format(cap)}`;
-    $('cl-meter').style.width = Math.min(100, cap ? (spent || 0) * 100 / cap : 100) + '%';
   }
   async function clOpen(id) {
     try { const { data } = await api('/assistant/threads/' + id + (CL.proposalId ? '?proposal_id=' + CL.proposalId : ''), null, true); clApply(data); }
@@ -2283,7 +2273,7 @@
         if (CL.pendingDocs.length) await api('/assistant/threads/' + t.id, { method: 'PATCH', body: JSON.stringify({ doc_ids: CL.pendingDocs }) }, true);
       }
       const { data } = await api('/assistant/threads/' + CL.threadId + '/messages', { method: 'POST', body: JSON.stringify({ text, proposal_id: CL.proposalId }) }, true);
-      clApply(data); clSpend(data.spent_today_usd, data.cap_usd);
+      clApply(data);
     } catch (e) {
       toast(e.message, true);
       if (CL.threadId) await clOpen(CL.threadId); else { CL.msgs = CL.msgs.slice(0, -1); clRender(); }
