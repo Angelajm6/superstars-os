@@ -12,7 +12,7 @@ Boots the real app on an ISOLATED database. Proves:
   * devices: listed by a short key (never the session id), this device marked; one other device
     or all others can be signed out, never this one; nobody can touch another person's sessions
   * the console's old Settings panel (Interface card, two-step block) is gone and /#settings
-    forwards to /account; Settings sub-tabs are Account / Team & access / Usage & job tools;
+    forwards to /account; Settings sub-tabs are Account / Team & access / Usage & job tools / Claude approvals;
     the header name links to /account; logs carry ids only
 Run:  venv/bin/python tests/smoke_account_settings.py
 """
@@ -188,7 +188,7 @@ def main() -> int:
 
     # ---- the pages around it
     nav = (ROOT / "static" / "js" / "company_nav.js").read_text(encoding="utf-8")
-    assert "sub: [['Account', '/account'], ['Team & access', '/admin/users'], ['Usage & job tools', '/company#usage']]" in nav
+    assert "sub: [['Account', '/account'], ['Team & access', '/admin/users'], ['Usage & job tools', '/company#usage'], ['Claude approvals', '/company#claude']]" in nav
     assert "'settings': '/account'" in nav and "Preferences & security', '/#settings'" not in nav
     assert "{ key: 'home', label: 'Home', href: '/projects', roles: ['pm', 'super']" in nav
     console = (ROOT / "company-dashboard.html").read_text(encoding="utf-8")

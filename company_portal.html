@@ -10,7 +10,8 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1010"></script>
+<script src="/files/static/js/company_nav.js?v=1011"></script>
+<script src="/files/static/js/claude_drawer.js?v=3" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1014" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
@@ -739,6 +740,19 @@
       </section>
 
       <!-- job page redesign step 1: which views get opened (counts only) + which tools each job uses -->
+      <section class="cp-view" id="view-claude" hidden>
+        <div class="ssc-subtabs" data-subtabs="settings"></div>
+        <div class="cp-kpis" id="ca-kpis"></div>
+        <div class="cp-card">
+          <div class="cp-card-head"><h2>Every change Claude proposed</h2><span class="hint">who asked, who decided, what happened</span></div>
+          <div class="cp-toolbar">
+            <select class="cp-select" id="ca-status" aria-label="Decision"><option value="">All decisions</option><option value="pending">Waiting for approval</option><option value="approved">Approved</option><option value="declined">Declined</option><option value="expired">Expired</option><option value="undone">Undone</option><option value="failed">Failed</option></select>
+            <input class="cp-input search" id="ca-search" placeholder="Search person or change…" autocomplete="off">
+          </div>
+          <div class="cp-table-wrap"><table class="cp-table" id="ca-table"></table></div>
+        </div>
+      </section>
+
       <section class="cp-view" id="view-usage" hidden>
         <div class="ssc-subtabs" data-subtabs="settings"></div>
         <div class="cp-card">
@@ -1119,7 +1133,7 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function fmtDate(iso) { if (!iso) return '—'; const [y,m,d] = String(iso).slice(0,10).split('-'); return (m && d) ? `${m}/${d}/${y}` : esc(iso); }
   function fmtMonth(ym) { const [y,m] = ym.split('-'); return new Date(+y, +m-1, 1).toLocaleString('en-US', { month: 'short', year: '2-digit' }); }
-  function todayLocal() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+  function todayLocal(offsetDays) { const d = new Date(); if (offsetDays) d.setDate(d.getDate() + offsetDays); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
   function toast(msg, isErr) { const t = $('cp-toast'); t.textContent = msg; t.className = 'cp-toast show' + (isErr ? ' err' : ''); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3200); }
   function skeleton(el, n) { el.innerHTML = Array.from({length: n || 4}, () => '<div class="cp-skel"></div>').join(''); }
   function empty(title, sub) { return `<div class="cp-empty"><strong>${esc(title)}</strong>${esc(sub || '')}</div>`; }
@@ -1901,6 +1915,36 @@
     selectEl.innerHTML = first + state.cache.clientOpts.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
     selectEl.value = cur || '';
   }
+  // ---------- Claude approvals (claude_agent.py): every change Claude proposed and who decided ----------
+  const CA_PILL = { pending: 'warn', approved: 'ok', declined: 'bad', expired: '', undone: '', failed: 'bad' };
+  const CA_WORD = { pending: 'waiting', approved: 'approved', declined: 'declined', expired: 'expired', undone: 'undone', failed: 'failed' };
+  let caRows = [];
+  async function loadClaudeLog() {
+    skeleton($('ca-kpis'), 4);
+    try { caRows = (await api('/claude/actions?scope=all', null, true)).data || []; } catch (e) { toast(e.message, true); caRows = []; }
+    const since = todayLocal(-30);   // LOCAL date (CLAUDE.md dates rule)
+    const recent = caRows.filter(a => String(a.created_at) >= since);
+    const n = s => recent.filter(a => a.status === s).length;
+    $('ca-kpis').innerHTML = kpi('Proposed, 30 days', num.format(recent.length), 'changes Claude suggested') +
+      kpi('Approved', num.format(n('approved')), recent.length ? Math.round(n('approved') * 100 / recent.length) + '% of proposals' : '', 'good') +
+      kpi('Declined', num.format(n('declined')), `${num.format(n('expired'))} expired unanswered`) +
+      kpi('Waiting now', num.format(caRows.filter(a => a.status === 'pending').length), 'cards nobody has decided yet', caRows.some(a => a.status === 'pending') ? 'warn' : '');
+    renderClaudeLog();
+  }
+  function renderClaudeLog() {
+    const st = $('ca-status').value, q = $('ca-search').value.trim().toLowerCase();
+    const rows = caRows.filter(a => (!st || a.status === st) && (!q || [a.asked_by, a.decided_by, a.label, a.what].join(' ').toLowerCase().includes(q)));
+    table($('ca-table'), [
+      { key: 'created_at', label: 'When', render: r => fmtWhen(r.created_at) },
+      { key: 'asked_by', label: 'Asked by', render: r => esc(r.asked_by || '—') },
+      { key: 'label', label: 'Change', render: r => `<strong>${esc(r.label)}</strong><div class="cp-muted" style="font-size:12px;margin-top:2px">${esc(r.what || '')}</div>` },
+      { key: 'status', label: 'Decision', render: r => `<span class="cp-pill ${CA_PILL[r.status] || ''}">${esc(CA_WORD[r.status] || r.status)}</span>${r.decided_by ? ' <span class="cp-muted" style="font-size:12px">' + esc(r.decided_by) + '</span>' : ''}` },
+      { key: 'decided_at', label: 'Decided', render: r => r.decided_at ? fmtWhen(r.decided_at) : '—' },
+      { key: 'result', label: 'Result', render: r => r.result ? (r.result.link ? `<a class="cp-link" href="${esc(r.result.link)}">${esc(r.result.summary || 'Open')}</a>` : esc(r.result.summary || '')) : (r.error ? 'failed, nothing saved' : '—') },
+    ], rows, { defaultSort: { key: 'created_at', dir: 'desc' }, emptyTitle: 'Nothing yet', emptySub: 'Changes Claude proposes show here once someone asks for one.' });
+  }
+  $('ca-status').addEventListener('change', renderClaudeLog);
+  $('ca-search').addEventListener('input', renderClaudeLog);
   // ---------- PROPOSALS (#307) ----------
   const PR_PILL = { draft: '', sent: 'active', viewed: 'active', signed: 'ok', declined: 'bad', superseded: '', expired: 'warn' };
   function prPill(p) { const st = p.display_status || p.status; return `<span class="cp-pill ${PR_PILL[st] || ''}">${esc(st)}</span>`; }
@@ -3371,8 +3415,8 @@
 
   // ---------- router ----------
   // the sidebar section only; the sub-tab row names the page (no title said twice)
-  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients', calendar: 'Projects', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance', workforce: 'Workforce', company: 'Company', usage: 'Settings' };
-  const LOADERS = { overview: loadOverview, clients: loadClients, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance, usage: loadUsage };
+  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients', calendar: 'Projects', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance', workforce: 'Workforce', company: 'Company', usage: 'Settings', claude: 'Settings' };
+  const LOADERS = { overview: loadOverview, clients: loadClients, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance, usage: loadUsage, claude: loadClaudeLog };
   const ALIASES = { buildings: 'projects', compliance: 'company' };   // #339 — old bookmarks and links keep working
   function route() {
     const h = (location.hash || '#overview').slice(1);
@@ -3392,6 +3436,7 @@
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);
+  document.addEventListener('ssc:claude-changed', () => route());   // a change approved in the Claude window shows here at once
 
   // filters
   let t;

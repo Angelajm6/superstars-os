@@ -172,9 +172,16 @@ def cost_micro(model_id: str, usage: dict) -> int:
 
 
 def spent_today_micro(conn) -> int:
-    r = _one(conn, "SELECT COALESCE(SUM(cost_micro), 0) AS v FROM assistant_message WHERE created_at >= ?",
-             (date.today().isoformat(),))
-    return int(r["v"] or 0) if r else 0
+    """Company-wide spend today: the record panels here plus Claude across the platform (claude_agent)."""
+    total = 0
+    for table in ("assistant_message", "claude_chat_message"):
+        try:
+            r = _one(conn, f"SELECT COALESCE(SUM(cost_micro), 0) AS v FROM {table} WHERE created_at >= ?",
+                     (date.today().isoformat(),))
+            total += int(r["v"] or 0) if r else 0
+        except Exception:   # the other table is created at boot; a bare fixture may not have it yet
+            conn.rollback()
+    return total
 
 
 # ------------------------------------------------------------------ drafts
