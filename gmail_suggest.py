@@ -63,7 +63,7 @@ SCOPES = "openid email https://www.googleapis.com/auth/gmail.readonly"
 GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me"
 QUERY = "in:inbox category:primary -from:me newer_than:2d"
 MAX_PER_CHECK = 20
-POLL_SECONDS = 600
+POLL_SECONDS = 120   # every 2 minutes, no "Check now" needed (admin / C-suite mailboxes are synced live by inbox.py)
 STATE_COOKIE = "gmail_state"
 MODEL = os.environ.get("GMAIL_SUGGEST_MODEL", "claude-haiku-4-5-20251001")
 NOREPLY = re.compile(r"(no-?reply|do-?not-?reply|mailer-daemon|postmaster|notifications?@|bounce)", re.I)
@@ -382,7 +382,8 @@ def _poll_forever() -> None:
             if not unavailable_reason():
                 conn = db_layer.connect()
                 try:
-                    for r in _rows(conn.execute("SELECT user_id FROM gmail_link WHERE status = 'active'")):
+                    for r in _rows(conn.execute("SELECT g.user_id FROM gmail_link g JOIN users u ON u.id = g.user_id "
+                                                "WHERE g.status = 'active' AND u.role NOT IN ('admin', 'c_suite')")):
                         check_user(conn, r["user_id"])
                 finally:
                     conn.close()
@@ -478,7 +479,9 @@ def _connect():
         return ("Not Found", 404)
     u = current_user() or {}
     nonce = secrets.token_urlsafe(24)
-    params = {"client_id": gcal_sync._client_id(), "redirect_uri": redirect_uri(), "response_type": "code", "scope": SCOPES,
+    import inbox   # admin / C-suite also allow sending replies from the Inbox (every send needs their approval)
+    scope = SCOPES + (" " + inbox.SEND_SCOPE if u.get("role") in inbox.OFFICE_ROLES else "")
+    params = {"client_id": gcal_sync._client_id(), "redirect_uri": redirect_uri(), "response_type": "code", "scope": scope,
               "state": nonce + "." + urllib.parse.quote(_safe_next(request.args.get("next")), safe=""),
               "access_type": "offline", "prompt": "consent", "include_granted_scopes": "false",
               "hd": gcal_sync._allowed_domain(), "login_hint": u.get("email") or ""}
@@ -523,10 +526,23 @@ def _callback():
         else:
             conn.execute("INSERT INTO gmail_link (user_id, google_email, refresh_token_enc, status, connected_at) VALUES (?, ?, ?, 'active', ?)",
                          (u["id"], email, enc, _now()))
+        try:   # which permissions Google granted (the Inbox needs gmail.send to reply)
+            conn.execute("UPDATE gmail_link SET scopes = ? WHERE user_id = ?", ((body.get("scope") or "")[:1000], u["id"]))
+        except Exception:
+            conn.rollback()
         conn.commit()
         if body.get("access_token"):
             _TOKENS[u["id"]] = (body["access_token"], time.time() + int(body.get("expires_in") or 3000))
-        result = check_user(conn, u["id"])
+        import inbox
+        if u.get("role") in inbox.OFFICE_ROLES:   # the Inbox takes it from here: first sync + live notices
+            result = inbox.sync_user(conn, u["id"])
+            try:
+                inbox.watch(conn, u["id"])
+            except Exception as e:
+                log.info("gmail connect user=%s: watch skipped (%s)", u.get("id"), type(e).__name__)
+            inbox._LOOP["wake"].set()
+        else:
+            result = check_user(conn, u["id"])
     finally:
         conn.close()
     start_poller()
@@ -541,6 +557,7 @@ def status_for(conn, uid) -> dict:
     return {"available": not reason, "reason": reason, "connected": bool(link), "status": link["status"] if link else None,
             "google_email": link["google_email"] if link else None, "last_check_at": link["last_check_at"] if link else None,
             "problem": link["last_error"] if link else None, "new_count": new,
+            "inbox": (current_user() or {}).get("role") in ("admin", "c_suite"),
             "ai": bool(os.environ.get("ANTHROPIC_API_KEY")) and ai_cap() > 0}
 
 

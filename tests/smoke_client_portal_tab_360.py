@@ -123,7 +123,7 @@ def main() -> int:
     nav = (ROOT / "static" / "js" / "company_nav.js").read_text(encoding="utf-8")
     tabs_src, _, pinned_src = nav.partition("var PINNED")
     labels = re.findall(r"\{ key: '[a-z]+', label: '([^']+)'", tabs_src)
-    assert labels == ["Home", "Dashboard", "Projects", "Clients", "Proposals", "Finance", "Workforce", "Company"], labels
+    assert labels == ["Home", "Dashboard", "Inbox", "Projects", "Clients", "Proposals", "Finance", "Workforce", "Company"], labels
     # Client portal is a sub-tab of Clients (not a top-level tab), reachable at /company#portal
     assert "sub: [['All clients', '/company#clients'], ['Client portal', '/company#portal']]" in nav
     assert "at: [['/company', 'clients'], ['/company', 'portal']]" in nav

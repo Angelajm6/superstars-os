@@ -96,6 +96,7 @@ _PUBLIC_EXACT = {
     "/forgot-password",
     "/reset-password",
     "/confirm-email",     # change-of-email link: the page only; the token IS the credential (email_change.py)
+    "/gmail/push",        # Google Pub/Sub push for the Inbox: the GMAIL_PUSH_TOKEN query value IS the credential (inbox.py)
     "/api/health",
     "/api/today",         # date-only, no PII, used by client shells on load
     "/worker-app",

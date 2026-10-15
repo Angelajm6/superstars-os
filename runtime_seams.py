@@ -9,6 +9,8 @@ The app has deterministic test seams that replace real behaviour with planted da
   SSC_MAIL_FAKE_DIR          write outbound mail to a folder instead of sending
   SSC_RESET_MAIL_FAKE_DIR    same, for password-reset mail (puts reset links on disk)
   SSC_ASSISTANT_FAKE         replace the Claude reply on estimates/proposals with planted text
+  SSC_INBOX_TRIAGE_FAKE      replace the Inbox email sorting call with planted JSON
+  SSC_INBOX_ATTACHMENT_FAKE  replace Gmail attachment downloads with planted bytes
 
 Previously each was honored whenever its env var was set, guarded only by a comment saying
 "never set in production". Per CLAUDE.md secrets/security rules that is not enough: one
@@ -37,6 +39,8 @@ SEAM_VARS = (
     "SSC_MAIL_FAKE_DIR",
     "SSC_RESET_MAIL_FAKE_DIR",
     "SSC_ASSISTANT_FAKE",
+    "SSC_INBOX_TRIAGE_FAKE",
+    "SSC_INBOX_ATTACHMENT_FAKE",
 )
 
 
