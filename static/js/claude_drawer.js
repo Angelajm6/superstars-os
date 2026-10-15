@@ -399,7 +399,8 @@
     });
     return values;
   }
-  function mountCards(host, chatId, onChange) {
+  function mountCards(host, chatId, onChange, opts) {
+    opts = opts || {};
     var timer = null;
     async function load() {
       clearTimeout(timer);
@@ -408,7 +409,8 @@
       catch (e) { host.innerHTML = '<div class="clx-err">' + esc(e.message) + '</div>'; return; }
       var msgs = v.messages.filter(function (m) { return m.role === 'assistant'; });
       host.innerHTML = msgs.map(function (m) {
-        return (m.text ? '<div class="clx-b clx-inline">' + esc(m.text) + '</div>' : '') + (m.actions || []).map(card).join('');
+        var acts = (m.actions || []).filter(function (a) { return !(opts.skip || []).includes(a.tool); });
+        return (m.text && !opts.cardsOnly ? '<div class="clx-b clx-inline">' + esc(m.text) + '</div>' : '') + acts.map(card).join('');
       }).join('') + (v.busy ? '<div class="clx-wait">Claude is reading this email…</div>' : '') + (v.error ? '<div class="clx-err">' + esc(v.error) + '</div>' : '');
       host.querySelectorAll('.clx-card textarea').forEach(function (t) { t.style.height = Math.min(420, t.scrollHeight + 4) + 'px'; });
       if (v.busy) timer = setTimeout(load, 2000);
