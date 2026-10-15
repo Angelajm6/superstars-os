@@ -31,6 +31,7 @@
 .np-sec h3{grid-column:1 / -1;margin:0;font-size:14.5px;font-weight:600;} .np-sec h3 small{font-weight:500;color:var(--muted);font-size:12.5px;margin-left:6px;}
 .np-field label,.np-lab{display:block;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
 .np-field input,.np-field select{width:100%;font:inherit;font-size:13px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);outline:none;box-sizing:border-box;}
+.np-money{position:relative;}.np-money span{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px;pointer-events:none;}.np-field .np-money input{padding-left:22px;}
 .np-field input[readonly],.np-field select:disabled{background:#F4F5F8;color:var(--muted);}
 .np-field input:focus,.np-field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
 .np-err{color:#A8382B;background:var(--status-behind-soft,#fceeec);border-radius:8px;padding:8px 10px;font-size:13px;display:none;margin:0 22px 10px;} .np-err.show{display:block;}
@@ -99,7 +100,7 @@
           <div class="np-field"><label for="np-client">Client</label><select id="np-client" aria-describedby="np-ferr-client"></select><div class="np-ferr" id="np-ferr-client" role="alert"></div></div>
           <div class="np-field" id="np-neworg-wrap" hidden><label for="np-neworg">New client name</label><input id="np-neworg" placeholder="Organization name" autocomplete="off" aria-describedby="np-ferr-neworg"><div class="np-ferr" id="np-ferr-neworg" role="alert"></div></div>
           <div class="np-field"><label for="np-billing">How is it billed?</label><select id="np-billing" aria-describedby="np-ferr-billing"></select><div class="np-hint">AIA / Schedule of values gets the SOV and pay applications.</div><div class="np-ferr" id="np-ferr-billing" role="alert"></div></div>
-          <div class="np-field"><label for="np-contract">Contract value (USD)</label><input id="np-contract" inputmode="decimal" placeholder="optional" autocomplete="off"><div class="np-hint" id="np-contract-note"></div></div>
+          <div class="np-field"><label for="np-contract">Contract value (USD)</label><div class="np-money"><span aria-hidden="true">$</span><input id="np-contract" inputmode="decimal" placeholder="optional" autocomplete="off"></div><div class="np-hint" id="np-contract-note"></div></div>
         </section>
         <section class="np-sec" id="np-s-dates"><h3>Dates &amp; people</h3>
           <div class="np-field"><label for="np-start">Start date</label><input id="np-start" type="date" class="ssc-date"></div>
