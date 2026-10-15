@@ -22,6 +22,7 @@
     home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
     dashboard: '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
     inbox: '<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5.5 5h13L21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6z"/>',
+    claude: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>',
     projects: '<path d="M3 21V7l7-4v18M10 21h11V11l-4-2v12"/><path d="M6 9h1M6 13h1M6 17h1M14 13h1M14 17h1"/>',
     clients: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
     proposals: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
@@ -40,6 +41,8 @@
       at: [['/company', 'overview'], ['/company', '']] },
     // Inbox (2026-10-14): each admin / C-suite mailbox, live, with Claude's suggestions (inbox.py)
     { key: 'inbox', label: 'Inbox', href: '/company#inbox', roles: COMPANY, at: [['/company', 'inbox']] },
+    // Claude (2026-10-15): the full page of the "Ask Claude" window, for everyone Claude is offered to
+    { key: 'claude', label: 'Claude', href: '/claude', roles: ['admin', 'c_suite', 'pm', 'super'], at: [['/claude', null]] },
     { key: 'projects', label: 'Projects', href: '/company#projects', roles: COMPANY,
       at: [['/company', 'projects'], ['/company', 'calendar'], ['/company', 'buildings'], ['/admin/projects', null]],
       sub: [['All projects', '/company#projects'], ['Calendar', '/company#calendar'], ['Assignments & onboarding', '/admin/projects']] },

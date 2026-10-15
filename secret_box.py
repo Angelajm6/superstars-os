@@ -84,6 +84,25 @@ def decrypt_text(token: str) -> str:
         raise SecretBoxError("decryption failed") from None
 
 
+_BPREFIX = b"v1b:"
+
+
+def encrypt_bytes(data: bytes) -> bytes:
+    """Whole files (Claude attachments) — same keys as encrypt_text, binary-safe."""
+    if not isinstance(data, (bytes, bytearray)):
+        raise TypeError("encrypt_bytes expects bytes")
+    return _BPREFIX + _box().encrypt(bytes(data))
+
+
+def decrypt_bytes(blob: bytes) -> bytes:
+    if not isinstance(blob, (bytes, bytearray)) or not bytes(blob).startswith(_BPREFIX):
+        raise SecretBoxError("unrecognized ciphertext format")
+    try:
+        return _box().decrypt(bytes(blob)[len(_BPREFIX):])
+    except InvalidToken:
+        raise SecretBoxError("decryption failed") from None
+
+
 def rewrap(token: str) -> str:
     """Re-encrypt under the current (first) key — use after rotating keys."""
     if not isinstance(token, str) or not token.startswith(_PREFIX):
