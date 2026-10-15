@@ -15,7 +15,7 @@
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1014" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
-<script src="/files/static/js/gcal_connect.js?v=1007" defer></script>
+<script src="/files/static/js/gcal_connect.js?v=1008" defer></script>
 <script src="/files/static/js/gmail_suggest.js?v=1009" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
@@ -1346,7 +1346,7 @@
     const loc = (it.kind === 'event' && it.location ? `<span>@ ${esc(it.location)}</span>` : '') +
       (it.address ? `<span class="tk-addr-txt">📍 ${esc(it.address)}</span><a class="tk-dir" href="${esc(it.directions_url)}" target="_blank" rel="noopener" data-tk-dir>Directions ↗</a>` : '');
     return `<div class="tk-row${done ? ' done' : ''}" data-tk-open="${it.id}" role="button" tabindex="0">${box}<div class="tk-main"><div class="tk-title">${esc(it.title)}</div>` +
-      `<div class="tk-meta"><span>${esc(itemWhen(it))}</span>${it.overdue ? '<span class="cp-pill bad">overdue</span>' : ''}${where}${loc}${who}</div></div></div>`;
+      `<div class="tk-meta"><span>${esc(itemWhen(it))}</span>${it.overdue ? '<span class="cp-pill bad">overdue</span>' : ''}${it.source === 'gcal' ? '<span class="cp-pill" title="Added in Google Calendar; changes there update it here">from Google</span>' : ''}${where}${loc}${who}</div></div></div>`;
   }
   async function loadTasks() {
     const host = $('tk-list'); if (!host) return;
@@ -1501,7 +1501,7 @@
     const itemRows = its.map(it => {
       const t = it.kind === 'event' ? (it.start_date === iso && it.start_time ? fmtTime(it.start_time) + (it.end_time ? '–' + fmtTime(it.end_time) : '') : 'All day') : (it.due_time ? 'Due ' + fmtTime(it.due_time) : 'Due today');
       return `<div class="dy-row it" data-day-item="${it.id}" role="button" tabindex="0"><span class="${it.kind === 'event' ? 'tk-ev' : 'tk-check' + (it.status === 'done' ? ' on' : '')}" aria-hidden="true" style="pointer-events:none">${it.kind === 'event' ? '●' : (it.status === 'done' ? '✓' : '')}</span><div class="dy-main"><div class="dy-t"${it.status === 'done' ? ' style="text-decoration:line-through;color:var(--muted)"' : ''}>${esc(it.title)}</div><div class="dy-m"><span>${esc(t)}</span>` +
-        `${it.overdue ? '<span class="cp-pill bad">overdue</span>' : ''}${it.project_name ? `<span>${esc(it.project_name)}</span>` : ''}<span class="tk-who${it.mine ? ' me' : ''}">${it.assignee_name ? (it.mine ? 'You' : esc(it.assignee_name)) : 'Unassigned'}</span>` +
+        `${it.overdue ? '<span class="cp-pill bad">overdue</span>' : ''}${it.source === 'gcal' ? '<span class="cp-pill">from Google</span>' : ''}${it.project_name ? `<span>${esc(it.project_name)}</span>` : ''}<span class="tk-who${it.mine ? ' me' : ''}">${it.assignee_name ? (it.mine ? 'You' : esc(it.assignee_name)) : 'Unassigned'}</span>` +
         `${it.address ? `<span class="tk-addr-txt">📍 ${esc(it.address)}</span>` : ''}</div></div>${it.address ? `<a class="tk-dir" href="${esc(it.directions_url)}" target="_blank" rel="noopener" data-tk-dir>Directions ↗</a>` : ''}</div>`;
     }).join('');
     const msRows = ms.map(mm => `<div class="dy-row"><div class="dy-main"><div class="dy-t">${mm.kind === 'invoice' ? esc(mm.number) + ' due' : esc(mm.label) + (mm.late ? ' expired' : ' expires')}</div><div class="dy-m">` +
@@ -1987,7 +1987,8 @@
       : `<span class="ib-chip"><i></i>Gmail <span>${st.live ? 'live' : 'checks every minute'}${st.last_sync_at ? ' · synced ' + ibAgo(st.last_sync_at) : ''}</span></span>` +
         (st.can_send ? '' : `<a class="btn-ghost btn-sm" href="/gmail/connect?next=${next}" title="Lets you send Claude's reply drafts from your Gmail, always after your approval">Reconnect to allow replies</a>`);
     $('ib-conn').innerHTML = gmail +
-      `<span class="ib-chip"><i class="${st.calendar && st.calendar.connected ? '' : 'off'}"></i>Google Calendar <span>${st.calendar && st.calendar.connected ? 'connected' : 'not connected'}</span></span>` +
+      `<span class="ib-chip"><i class="${st.calendar && st.calendar.connected && st.calendar.reads ? '' : (st.calendar && st.calendar.connected ? 'warn' : 'off')}"></i>Google Calendar <span>${st.calendar && st.calendar.connected ? (st.calendar.reads ? 'two-way' : 'reconnect to bring events in') : 'not connected'}</span></span>` +
+      (st.calendar && st.calendar.connected && !st.calendar.reads ? `<a class="btn-ghost btn-sm" href="/google-calendar/connect?next=${next}">Reconnect Calendar</a>` : '') +
       `<span class="ib-chip"><i class="off"></i>QuickBooks <span>coming next</span></span>` +
       (st.problem ? `<span class="cp-muted" style="font-size:12px">${esc(st.problem)}</span>` : '');
     await ibList();

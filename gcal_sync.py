@@ -55,7 +55,8 @@ from auth import current_user, requires_role
 log = logging.getLogger("ssc.gcal")
 
 TEAM_ROLES = ("admin", "c_suite", "pm", "super")
-SCOPES = "openid email https://www.googleapis.com/auth/calendar.app.created"
+SCOPES = ("openid email https://www.googleapis.com/auth/calendar.app.created "
+          "https://www.googleapis.com/auth/calendar.events.readonly")   # read: work events come in (calendar_import.py)
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 REVOKE_URL = "https://oauth2.googleapis.com/revoke"
@@ -272,7 +273,14 @@ def _wanted(conn, uid) -> dict:
     import team_items
     cutoff = (date.today() - timedelta(days=KEEP_DAYS)).isoformat()
     out = {}
+    try:   # events that CAME from this person's Google Calendar never go back to it (calendar_import.py)
+        imported = {r[0] for r in conn.execute("SELECT id FROM crm_task WHERE source = 'gcal' AND assignee_user_id = ?", (uid,)).fetchall()}
+    except Exception:
+        conn.rollback()
+        imported = set()
     for it in team_items.list_items(conn, status="all", mine_uid=uid, me=uid):
+        if it["id"] in imported:
+            continue
         if not it.get("calendar_from") or (it.get("calendar_to") or it["calendar_from"]) < cutoff:
             continue
         b = event_body({**it, "start_date": it.get("start_date") or it.get("calendar_from")})
@@ -484,6 +492,11 @@ def _callback():
         else:
             conn.execute("INSERT INTO google_calendar_link (user_id, google_email, refresh_token_enc, status, connected_at) "
                          "VALUES (?, ?, ?, 'active', ?)", (u["id"], email, enc, _now()))
+        try:   # which permissions Google granted (reading the main calendar needs calendar.events.readonly)
+            conn.execute("UPDATE google_calendar_link SET scopes = ?, import_at = NULL WHERE user_id = ?",
+                         ((body.get("scope") or "")[:1000], u["id"]))
+        except Exception:
+            conn.rollback()
         conn.commit()
         if body.get("access_token"):
             _TOKENS[u["id"]] = (body["access_token"], time.time() + int(body.get("expires_in") or 3000))
@@ -492,14 +505,30 @@ def _callback():
         result = sync_user(conn, u["id"])
     finally:
         conn.close()
+    threading.Thread(target=_first_import, args=(u["id"],), daemon=True).start()
     log.info("gcal connected user=%s", u.get("id"))
     return _back(next_url, "connected" if not result.get("error") else "connected_retry")
+
+
+def _first_import(uid) -> None:
+    """Right after connecting: bring in this person's work events (calendar_import)."""
+    try:
+        import calendar_import
+        conn = db_layer.connect()
+        try:
+            calendar_import.import_user(conn, uid)
+        finally:
+            conn.close()
+    except Exception as e:
+        log.info("gcal first import user=%s skipped: %s", uid, type(e).__name__)
 
 
 def status_for(conn, uid) -> dict:
     reason = unavailable_reason()
     link = _link(conn, uid) if not reason else None
     return {"available": not reason, "reason": reason, "connected": bool(link),
+            "reads_calendar": bool(link) and "calendar.events.readonly" in (link.get("scopes") or ""),
+            "import_at": link.get("import_at") if link else None,
             "status": link["status"] if link else None, "google_email": link["google_email"] if link else None,
             "last_sync_at": link["last_sync_at"] if link else None, "synced_count": link["synced_count"] if link else 0,
             "problem": link["last_error"] if link else None}

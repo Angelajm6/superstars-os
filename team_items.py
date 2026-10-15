@@ -281,6 +281,7 @@ def _shape(r: dict, today: str, me: Optional[int], can_edit: bool) -> dict:
         "created_at": r.get("created_at"), "completed_at": r.get("completed_at"),
         "mine": bool(me and r.get("assignee_user_id") == me),
         "can_edit": can_edit, "can_complete": bool(can_edit or (me and r.get("assignee_user_id") == me)),
+        "source": r.get("source"),   # 'gcal' = came from the person's Google Calendar (calendar_import.py)
     }
 
 
