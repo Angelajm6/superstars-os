@@ -55,7 +55,7 @@ os.environ.update({"SSC_DATA_ROOT": str(Path(_TMP) / "dataroot"), "SSC_MAIL_FAKE
                    "GOOGLE_OAUTH_REDIRECT_URI": "https://app.example.test/auth/google/callback",
                    "SSC_FIELD_ENCRYPTION_KEY": secret_box.generate_key(), "GMAIL_PUSH_TOKEN": "push-token-for-tests",
                    "SSC_INBOX_ATTACHMENT_FAKE": "%PDF-1.4 smoke"})
-for _k in ("ANTHROPIC_API_KEY", "SSC_ASSISTANT_FAKE", "SSC_INBOX_TRIAGE_FAKE", "SSC_ASSISTANT_DAILY_CAP_USD", "GMAIL_PUBSUB_TOPIC"):
+for _k in ("ANTHROPIC_API_KEY", "SSC_ASSISTANT_FAKE", "SSC_INBOX_TRIAGE_FAKE", "SSC_MAIL_FAKE_SENDAS", "SSC_ASSISTANT_DAILY_CAP_USD", "GMAIL_PUBSUB_TOPIC"):
     os.environ.pop(_k, None)
 
 from flask import Flask  # noqa: E402
@@ -127,7 +127,7 @@ def _cleanup():
         mids = [r["id"] for r in conn.execute(f"SELECT id FROM mail_message WHERE user_id IN ({ph(uids)})", uids).fetchall()]
         purge(conn, "mail_link", "message_id", mids)
         purge(conn, "mail_message", "id", mids)
-        for t in ("mail_sync", "gmail_link", "gmail_seen", "gmail_suggestion"):
+        for t in ("mail_sync", "mail_sendas", "gmail_link", "gmail_seen", "gmail_suggestion"):
             purge(conn, t, "user_id", uids)
         chats = [r["id"] for r in conn.execute(f"SELECT id FROM claude_chat WHERE user_id IN ({ph(uids)})", uids).fetchall()]
         purge(conn, "claude_action", "chat_id", chats)
@@ -412,7 +412,25 @@ def main() -> int:
             conn.close()
         assert not list(MAIL.glob("gmail-reply-*.eml"))[1:]                             # still only the earlier approved reply
         before = len(list(MAIL.glob("gmail-reply-*.eml")))
+        # the person's Gmail name + signature go on everything sent from the software, as Gmail adds them
+        os.environ["SSC_MAIL_FAKE_SENDAS"] = json.dumps({"displayName": "Ibx Admin Formal",
+                                                         "signature": '<div><b style="color:#c00">Ibx Admin</b><br>Ops Manager<br>1 Ibx Way</div>'})
+        conn = _db()
+        try:
+            conn.execute("DELETE FROM mail_sendas WHERE user_id = ?", (me,))
+            conn.commit()
+        finally:
+            conn.close()
         t = a.get(f"/api/inbox/threads/{i9}").get_json()["data"]
+        assert t["sender"]["from"] == f"Ibx Admin Formal <{TAG}.admin@superstarscontracting.com>"
+        assert "Ops Manager" in t["sender"]["signature_doc"] and "Content-Security-Policy" in t["sender"]["signature_doc"]
+        assert a.get("/api/inbox/status").get_json()["data"]["sender"]["from"].startswith("Ibx Admin Formal <")
+        conn = _db()
+        try:
+            ask = inbox.suggest_prompt(conn, inbox.message(conn, i9, me), "Ibx Admin")
+            assert "signature with name, title, company and address is added under it automatically" in ask and "signed as" not in ask
+        finally:
+            conn.close()
         assert t["draft"] and t["draft"]["reply_all"] is True and "We start Monday." in t["draft"]["body"]
         assert t["card_chats"] and all("reply_email" != x for x in t["card_chats"])
         r = a.post(f"/api/inbox/messages/{i9}/reply", json={"body": "Hi Lee,\n\nWe start Monday at 7.\n\nIbx Admin", "reply_all": True,
@@ -422,6 +440,15 @@ def main() -> int:
         assert len(list(MAIL.glob("gmail-reply-*.eml"))) == before + 1
         assert "To: Lee Ibx <lee@tishman-ibx.example>" in eml and f"Cc: Dana Ibx <{CONTACT}>" in eml and "In-Reply-To: <m9@mail.example>" in eml
         assert "We start Monday at 7." in eml and "Subject: Re: Ibx scaffold drawings" in eml
+        import email as _email
+        from email import policy as _policy
+        sent = _email.message_from_string(eml, policy=_policy.default)
+        assert sent["From"] == f"Ibx Admin Formal <{TAG}.admin@superstarscontracting.com>"                 # name, not the bare address
+        hp, tp = sent.get_body(("html",)).get_content(), sent.get_body(("plain",)).get_content()
+        assert "We start Monday at 7." in hp and 'class="gmail_signature"' in hp and "Ops Manager" in hp      # the signature, as html
+        assert 'class="gmail_quote"' in hp and "wrote:" in hp and "Can you confirm the start date?" in hp     # the earlier email quoted
+        assert hp.index("We start Monday") < hp.index("Ops Manager") < hp.index("gmail_quote")
+        assert "Ops Manager" in tp and "> Can you confirm the start date?" in tp
         assert _q("SELECT status FROM claude_action WHERE id = ?", (t["draft"]["action_id"],))[0]["status"] == "approved"
         assert {x["status"] for x in _q("SELECT status FROM mail_message WHERE id IN (?, ?)", (i8, i9))} == {"done"}
         assert a.get(f"/api/inbox/threads/{i9}").get_json()["data"]["draft"] is None
@@ -435,6 +462,19 @@ def main() -> int:
         assert r.status_code == 200, r.get_json()
         new = sorted(MAIL.glob("gmail-new-*.eml"))[-1].read_text(encoding="utf-8")
         assert "To: Pat <pat@tishman-ibx.example>" in new and "Cc: lee@tishman-ibx.example" in new and "See you Thursday." in new
+        nm = _email.message_from_string(new, policy=_policy.default)
+        assert nm["From"].startswith("Ibx Admin Formal <") and "Ops Manager" in nm.get_body(("html",)).get_content()
+        assert "gmail_quote" not in nm.get_body(("html",)).get_content()
+        # no Gmail signature read (test folder, nothing planted): the name falls back to the person's name in the software
+        os.environ.pop("SSC_MAIL_FAKE_SENDAS")
+        conn = _db()
+        try:
+            conn.execute("DELETE FROM mail_sendas WHERE user_id = ?", (me,))
+            conn.commit()
+            idn = inbox.identity(conn, me)
+            assert idn["name"] == "Ibx Admin" and idn["signature"] == ""
+        finally:
+            conn.close()
         # Refresh: checks Gmail right now
         real = inbox._gmail
         inbox._gmail = lambda conn, link, method, path, **kw: ((200, {"historyId": "130"}) if path.startswith(("/history", "/profile"))
@@ -490,7 +530,7 @@ def main() -> int:
         assert "f.srcdoc = doc" in ib and "allow-scripts" not in ib and "skip: ['reply_email']" in ib and "r.summary" not in ib and "m.summary" not in ib
         passed += 1; print("  logs + pages ok")
     finally:
-        for k in ("SSC_ASSISTANT_FAKE", "SSC_INBOX_TRIAGE_FAKE"):
+        for k in ("SSC_ASSISTANT_FAKE", "SSC_INBOX_TRIAGE_FAKE", "SSC_MAIL_FAKE_SENDAS"):
             os.environ.pop(k, None)
         _cleanup()
         shutil.rmtree(_TMP, ignore_errors=True)

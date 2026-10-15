@@ -173,7 +173,7 @@
   .ib-mwhen { font-size: 12px; color: #5E5E5E; white-space: nowrap; }
   .ib-mbody { display: none; padding: 0 22px 12px 74px; }
   .ib-msg.open .ib-mbody { display: block; }
-  .ib-frame { width: 100%; border: 0; display: block; min-height: 60px; background: #fff; }
+  .ib-frame { width: 100%; border: 0; display: block; background: #fff; }
   .ib-atts { display: none; flex-wrap: wrap; gap: 10px; padding: 4px 22px 16px 74px; }
   .ib-msg.open .ib-atts { display: flex; }
   .ib-att { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "ic n" "ic s"; column-gap: 8px; width: 210px; border: 1px solid #DADCE0; border-radius: 8px; padding: 8px 10px; text-decoration: none; color: #1F1F1F; background: #fff; }
@@ -192,6 +192,8 @@
   .ib-drafted { font-size: 12.5px; color: #A84E2C; font-weight: 600; display: flex; align-items: center; }
   .ib-comp-to { font-size: 13px; color: #444746; overflow-wrap: anywhere; } .ib-comp-to span { color: #5E5E5E; margin-right: 6px; }
   .ib-comp textarea { width: 100%; border: 0; outline: none; resize: vertical; font: 14px/1.5 Arial, Helvetica, sans-serif; color: #1F1F1F; min-height: 140px; padding: 4px 0; }
+  .ib-sig { border-top: 1px dashed #E3E5E8; padding-top: 6px; }
+  .ib-trim { display: inline-block; width: fit-content; font-size: 10px; letter-spacing: 1px; color: #5F6368; background: #E8EAED; border-radius: 6px; padding: 0 6px; line-height: 14px; cursor: default; }
   .ib-comp-x { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .ib-cmp .cp-field textarea { min-height: 240px; font: 14px/1.5 Arial, Helvetica, sans-serif; }
   @media (max-width: 900px) { .ib-wrap { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; } .ib-pane { height: auto; overflow: visible; } .ib-list { border-right: 0; border-bottom: 1px solid var(--line); } #ib-rows { max-height: 360px; }
@@ -871,12 +873,12 @@
 <!-- Inbox: write a new email from your own Gmail (2026-10-15) -->
 <div class="cp-overlay" id="ib-compose" role="dialog" aria-modal="true" aria-labelledby="ib-cmp-title">
   <form class="cp-modal ib-cmp" id="ib-cmp-form" novalidate style="max-width:680px">
-    <div class="cp-modal-head"><h2 id="ib-cmp-title">New message</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Sent from your Gmail when you press Send.</p></div>
+    <div class="cp-modal-head"><h2 id="ib-cmp-title">New message</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="ib-cmp-from">Sent from your Gmail when you press Send.</p></div>
     <div class="cp-modal-body">
       <div class="cp-field full"><label for="ib-cmp-to">To</label><input id="ib-cmp-to" autocomplete="off" placeholder="name@company.com, another@company.com"></div>
       <div class="cp-field full"><label for="ib-cmp-cc">Cc</label><input id="ib-cmp-cc" autocomplete="off"></div>
       <div class="cp-field full"><label for="ib-cmp-subject">Subject</label><input id="ib-cmp-subject" autocomplete="off"></div>
-      <div class="cp-field full"><label for="ib-cmp-body">Message</label><textarea id="ib-cmp-body"></textarea></div>
+      <div class="cp-field full"><label for="ib-cmp-body">Message</label><textarea id="ib-cmp-body"></textarea><div class="ib-sig" id="ib-cmp-sig"></div></div>
       <div class="cp-form-err full" id="ib-cmp-err" role="alert"></div>
     </div>
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="ib-cmp-cancel">Cancel</button><button class="btn-primary" type="submit" id="ib-cmp-send">Send</button></div>
@@ -2073,7 +2075,7 @@
     f.setAttribute('sandbox', 'allow-same-origin allow-popups allow-popups-to-escape-sandbox');   // no scripts ever run
     f.setAttribute('referrerpolicy', 'no-referrer');
     f.srcdoc = doc;
-    const fit = () => { try { const d = f.contentDocument; f.style.height = Math.max(60, d.documentElement.scrollHeight, d.body.scrollHeight) + 'px'; } catch (e) {} };
+    const fit = () => { try { const d = f.contentDocument; f.style.height = '1px'; f.style.height = Math.max(24, d.documentElement.scrollHeight, d.body.scrollHeight) + 'px'; } catch (e) {} };   // shrink first: a frame never reports less than its own height
     f.addEventListener('load', () => { fit(); setTimeout(fit, 400); setTimeout(fit, 1500); });
     return f;
   }
@@ -2162,13 +2164,17 @@
     bar.classList.remove('btns');
     bar.innerHTML = `<div class="ib-comp${draft ? ' drafted' : ''}">
         ${draft ? '<div class="ib-drafted"><span class="ib-claude-mk" aria-hidden="true">✦</span>Claude drafted this reply. Read it, change anything, then Send. Nothing goes out until you do.</div>' : ''}
+        ${v.sender && v.sender.from ? `<div class="ib-comp-to"><span>From</span>${esc(v.sender.from)}</div>` : ''}
         <div class="ib-comp-to"><span>To</span>${esc(rc.to)}${rc.cc ? `<span style="margin-left:10px">Cc</span>${esc(rc.cc)}` : ''}</div>
         <textarea id="ib-body" aria-label="Reply">${esc(draft ? draft.body : '')}</textarea>
+        <div class="ib-sig" id="ib-sig"></div>
+        <div class="ib-trim" title="The earlier email is quoted under your reply, as in Gmail">•••</div>
         <div class="ib-comp-x"><button type="button" class="btn-primary btn-sm" id="ib-send">Send</button>
           ${draft ? '<button type="button" class="btn-ghost btn-sm" id="ib-discard">Discard draft</button>' : '<button type="button" class="btn-ghost btn-sm" id="ib-cancel">Cancel</button>'}
           ${!v.can_send ? '<span class="cp-muted" style="font-size:12px">Reconnect Gmail at the top of this page to allow sending.</span>' : ''}
           <span class="cp-form-err" id="ib-err" role="alert"></span></div></div>`;
     const ta = $('ib-body'); ta.style.height = Math.min(420, Math.max(140, ta.scrollHeight + 6)) + 'px';
+    ibSig($('ib-sig'), v.sender);
     if (!draft) ta.focus();
     $('ib-send').addEventListener('click', async () => {
       const b = $('ib-send'); b.disabled = true; b.textContent = 'Sending…';
@@ -2182,8 +2188,16 @@
       try { await api('/claude/actions/' + draft.action_id + '/decline', { method: 'POST', body: '{}' }, true); toast('Draft discarded'); await ibList(); ibOpen(IB.open, false); } catch (e) { toast(e.message, true); }
     });
   }
+  function ibSig(host, sender) {   // the Gmail signature, exactly as it goes out under the text
+    host.innerHTML = '';
+    if (sender && sender.signature_doc) host.appendChild(ibFrame(sender.signature_doc));
+    else host.innerHTML = '<span class="cp-muted" style="font-size:12px">No Gmail signature found. Add one in Gmail settings and it goes out here too.</span>';
+  }
   function ibCompose() {
     $('ib-cmp-err').className = 'cp-form-err';
+    const snd = IB.status && IB.status.sender;
+    $('ib-cmp-from').textContent = snd && snd.from ? 'From ' + snd.from : 'Sent from your Gmail when you press Send.';
+    ibSig($('ib-cmp-sig'), snd);
     ['ib-cmp-to', 'ib-cmp-cc', 'ib-cmp-subject', 'ib-cmp-body'].forEach(i => { $(i).value = ''; });
     $('ib-compose').classList.add('open'); setTimeout(() => $('ib-cmp-to').focus(), 30);
   }

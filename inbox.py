@@ -55,7 +55,7 @@ import time
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 from html import unescape as _html_unescape
-from email.utils import getaddresses, parseaddr, parsedate_to_datetime
+from email.utils import formataddr, getaddresses, parseaddr, parsedate_to_datetime
 from typing import Optional
 
 from flask import jsonify, request
@@ -129,6 +129,8 @@ def ensure(conn) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_mail_link_entity ON mail_link(entity_type, entity_id)")
     conn.execute("CREATE TABLE IF NOT EXISTS mail_sync (user_id INTEGER PRIMARY KEY, history_id TEXT, watch_expires TEXT, "
                  "last_sync_at TEXT, last_error TEXT)")
+    conn.execute("CREATE TABLE IF NOT EXISTS mail_sendas (user_id INTEGER PRIMARY KEY, name_enc TEXT, signature_enc TEXT, "
+                 "fetched_at TEXT)")   # the person's Gmail "send as" name + signature, as Gmail adds them
     for col in ("body_html_enc", "body_full_enc"):   # the email as written (Gmail-like view, 2026-10-15)
         if not _has_column(conn, "mail_message", col):
             conn.execute(f"ALTER TABLE mail_message ADD COLUMN {col} TEXT")
@@ -547,6 +549,10 @@ def _labels(conn, m: dict) -> str:
 
 
 def suggest_prompt(conn, m: dict, user_name: str) -> str:
+    sig = identity(conn, m["user_id"], fetch=False)["signature"] if m.get("user_id") else ""
+    sign = (f"ending with a short sign-off and {user_name.split()[0] if user_name else 'their first name'} only (their Gmail "
+            "signature with name, title, company and address is added under it automatically)") if sig else \
+        f"signed as {user_name}"
     atts = ", ".join(f"{a['name']} ({a['mime'] or 'file'}, {round(a['size'] / 1024)} KB)" for a in m["attachments"]) or "none"
     return (
         "[Inbox] An email just came in (or was sent) in this person's mailbox. Look up what you need, then propose what the "
@@ -555,8 +561,7 @@ def suggest_prompt(conn, m: dict, user_name: str) -> str:
         "with mail_id set so its attachments are saved to the new bid; plus create_event for a pre-bid walkthrough\n"
         "- a proposal or price sent from Gmail outside the software: log_proposal_sent for the matching draft\n"
         "- attachments for an existing bid or estimate: save_email_attachments\n"
-        "- a question or request that needs an answer: reply_email with a complete, ready-to-send reply signed as "
-        f"{user_name}\n"
+        f"- a question or request that needs an answer: reply_email with a complete, ready-to-send reply, {sign}\n"
         "- a meeting, walkthrough or inspection: create_event; a promise or deadline: create_task; useful history: add_client_note\n"
         "Write a reply as a normal email in plain text (greeting, the answer, sign-off), never a summary. "
         "Propose nothing when nothing is needed. Never propose replying to automatic notices or to email the person sent "
@@ -648,6 +653,114 @@ def link_record(conn, mid: int, etype: str, eid, uid: int) -> None:
 
 
 # ------------------------------------------------------------------ sending and attachments (used by the cards)
+SENDAS_TTL = 6 * 3600
+
+
+def identity(conn, uid: int, fetch: bool = True) -> dict:
+    """The name and signature Gmail puts on this person's email (Gmail settings > Signature), cached 6 h.
+    Name falls back to how Gmail wrote it on their own sent email, then to their name in the software."""
+    link = _link(conn, uid) or {}
+    email = (link.get("google_email") or "").lower()
+    row = _one(conn, "SELECT * FROM mail_sendas WHERE user_id = ?", (uid,))
+    fresh = bool(row and row.get("fetched_at")) and \
+        (datetime.now() - datetime.fromisoformat(row["fetched_at"])).total_seconds() < SENDAS_TTL
+    if fetch and link and not fresh:
+        got = None
+        planted = runtime_seams.seam("SSC_MAIL_FAKE_SENDAS")
+        if planted:
+            got = json.loads(planted)
+        elif not runtime_seams.seam("SSC_MAIL_FAKE_DIR"):   # the test mail folder never asks Google
+            try:
+                code, body = _gmail(conn, link, "GET", "/settings/sendAs")
+                if code == 200:
+                    items = body.get("sendAs") or []
+                    got = next((x for x in items if (x.get("sendAsEmail") or "").lower() == email), None) \
+                        or next((x for x in items if x.get("isDefault")), None) or {}
+            except Exception as e:
+                log.info("inbox send-as for user %s not read (%s)", uid, type(e).__name__)
+        if got is not None:
+            name, sig = (got.get("displayName") or "").strip()[:120], (got.get("signature") or "").strip()[:MAX_HTML]
+            conn.execute("DELETE FROM mail_sendas WHERE user_id = ?", (uid,))
+            conn.execute("INSERT INTO mail_sendas (user_id, name_enc, signature_enc, fetched_at) VALUES (?, ?, ?, ?)",
+                         (uid, _enc(name) if name else None, _enc(sig) if sig else None, _now()))
+            conn.commit()
+            row = _one(conn, "SELECT * FROM mail_sendas WHERE user_id = ?", (uid,))
+    name = _dec((row or {}).get("name_enc")) or ""
+    if not name and email:   # as Gmail wrote it on the person's own sent email
+        for r in _rows(conn, "SELECT from_enc FROM mail_message WHERE user_id = ? AND direction = 'out' "
+                             "ORDER BY received_at DESC LIMIT 20", (uid,)):
+            n, a = parseaddr(_dec(r["from_enc"]) or "")
+            if n and a.lower() == email:
+                name = n
+                break
+    if not name:
+        u = _one(conn, "SELECT full_name FROM users WHERE id = ?", (uid,)) or {}
+        name = (u.get("full_name") or "").strip()
+    return {"email": email, "name": name, "signature": _dec((row or {}).get("signature_enc")) or ""}
+
+
+def _text_html(text: str) -> str:
+    import html as _h
+    t = _h.escape((text or "").strip())
+    t = re.sub(r"(https?://[^\s<]+)", r'<a href="\1">\1</a>', t)
+    return t.replace("\n", "<br>")
+
+
+def _sig_text(sig_html: str) -> str:
+    import html as _h
+    t = re.sub(r"(?i)<br\s*/?>|</(div|p|tr|li|h[1-6])>", "\n", sig_html or "")
+    t = _h.unescape(re.sub(r"<[^>]+>", "", t))
+    return "\n".join(x.strip() for x in t.splitlines() if x.strip())
+
+
+def _quote(m: dict) -> tuple:
+    """Gmail's "On <date> <name> wrote:" with the earlier message under a grey line (html, text)."""
+    import html as _h
+    who = _person(m["from"])
+    try:
+        d = datetime.fromisoformat(m["received_at"])
+        when = f"{d:%a}, {d:%b} {d.day}, {d.year} at {d.strftime('%I:%M %p').lstrip('0')}"
+    except Exception:
+        when = m.get("received_at") or ""
+    name, addr = who["name"], who["email"]
+    attr = (f"On {when} {_h.escape(name)} &lt;<a href=\"mailto:{_h.escape(addr)}\">{_h.escape(addr)}</a>&gt; wrote:"
+            if name and name.lower() != addr else
+            f"On {when} &lt;<a href=\"mailto:{_h.escape(addr)}\">{_h.escape(addr)}</a>&gt; wrote:")
+    orig = m.get("html") or ""
+    if orig:
+        b = re.search(r"(?is)<body[^>]*>(.*)</body>", orig)
+        orig = b.group(1) if b else re.sub(r"(?is)<head\b.*?</head>|</?html[^>]*>", "", orig)
+        orig = _JS_URL.sub(r'\1=""', _ON_ATTR.sub("", _SCRIPTY.sub("", orig)))
+    else:
+        orig = '<div dir="ltr">' + _text_html(m.get("full") or m.get("body") or "") + "</div>"
+    html = ('<div class="gmail_quote"><div dir="ltr" class="gmail_attr">' + attr + '<br></div>'
+            '<blockquote class="gmail_quote" style="margin:0px 0px 0px 0.8ex;border-left:1px solid rgb(204,204,204);'
+            'padding-left:1ex">' + orig + '</blockquote></div>')
+    text = (f"On {when} {name} <{addr}> wrote:\n" if name and name.lower() != addr else f"On {when} <{addr}> wrote:\n") + \
+        "\n".join("> " + x for x in (m.get("full") or m.get("body") or "").splitlines())
+    return html, text
+
+
+def _gmail_body(em: EmailMessage, body_text: str, me: dict, quote: Optional[tuple] = None) -> None:
+    """Plain text + the html Gmail itself sends: the text, the person's signature, the quoted email."""
+    sig = me.get("signature") or ""
+    html = '<div dir="ltr">' + _text_html(body_text) + '</div>'
+    text = (body_text or "").strip() + "\n"
+    if sig:
+        html += ('<div><br clear="all"></div><div><br></div><div dir="ltr" class="gmail_signature" '
+                 'data-smartmail="gmail_signature">' + sig + '</div>')
+        text += "\n" + _sig_text(sig) + "\n"
+    if quote:
+        html += "<br>" + quote[0]
+        text += "\n" + quote[1] + "\n"
+    em.set_content(text)
+    em.add_alternative(html, subtype="html")
+
+
+def _from(me: dict) -> str:
+    return formataddr((me["name"], me["email"])) if me.get("name") else me["email"]
+
+
 def reply_recipients(m: dict, me: str, reply_all: bool = False) -> tuple:
     """(to, cc) for a reply: the sender (or, on your own sent email, its recipients); reply-all adds the rest."""
     me = (me or "").lower()
@@ -698,14 +811,14 @@ def compose(conn, uid: int, to: str, cc: str, subject: str, body_text: str) -> d
         raise ValueError("check the email address: " + bad[0])
     if not (body_text or "").strip():
         raise ValueError("the message is empty")
-    link = _one(conn, "SELECT * FROM gmail_link WHERE user_id = ?", (uid,)) or {}
+    me = identity(conn, uid)
     em = EmailMessage()
     em["To"], em["Subject"] = to, (subject or "").strip()
     if cc and _addrs(cc):
         em["Cc"] = cc
-    if link.get("google_email"):
-        em["From"] = link["google_email"]
-    em.set_content(body_text.strip() + "\n")
+    if me["email"]:
+        em["From"] = _from(me)
+    _gmail_body(em, body_text, me)
     r = _deliver(conn, uid, em, None, "new")
     log.info("inbox new email sent by user %s", uid)
     return r
@@ -723,15 +836,16 @@ def send_reply(conn, uid: int, mid: int, body_text: str, subject: Optional[str] 
     if not _addrs(to):
         raise ValueError("this email has no address to reply to")
     subj = (subject or "").strip() or ("Re: " + re.sub(r"^\s*(re|fw|fwd)\s*:\s*", "", m["subject"], flags=re.I)).strip()
+    ident = identity(conn, uid)
     em = EmailMessage()
     em["To"], em["Subject"] = to, subj
     if cc:
         em["Cc"] = cc
     if me:
-        em["From"] = me
+        em["From"] = _from(ident)
     if m["rfc_id"]:
         em["In-Reply-To"], em["References"] = m["rfc_id"], m["rfc_id"]
-    em.set_content(body_text.strip() + "\n")
+    _gmail_body(em, body_text, ident, _quote(m))
     _deliver(conn, uid, em, m["thread_id"], "reply")
     log.info("inbox reply sent for message %s", mid)
     return {"sent": True, "to": to, "cc": cc}
@@ -1017,10 +1131,23 @@ def _api_status():
             "google_email": (link or {}).get("google_email"), "can_send": can_send(link),
             "live": push_configured(), "every_seconds": sync_seconds(), "last_sync_at": st.get("last_sync_at"),
             "problem": st.get("last_error") or (link or {}).get("last_error"), "needs_action": n,
+            "sender": _sender_view(conn, me["id"]) if link else None,
             "calendar": {"connected": bool(cal.get("connected")), "status": cal.get("status"), "reads": bool(cal.get("reads_calendar"))},
             "quickbooks": {"connected": False}}})
     finally:
         conn.close()
+
+
+def _sender_view(conn, uid: int) -> dict:
+    """From line + signature preview for the reply box (the signature exactly as Gmail adds it)."""
+    try:
+        me = identity(conn, uid)
+    except Exception as e:
+        conn.rollback()
+        log.info("inbox sender view for user %s skipped (%s)", uid, type(e).__name__)
+        return {"from": "", "signature_doc": None}
+    return {"from": _from(me) if me["email"] else "",
+            "signature_doc": render_doc(conn, uid, {"html": me["signature"], "inline_images": []}) if me["signature"] else None}
 
 
 @requires_role(*OFFICE_ROLES)
@@ -1182,7 +1309,7 @@ def _api_thread(mid):
                   "draft": pending_reply(conn, me["id"], ids),
                   "card_chats": [x["chat_id"] for x in v["messages"] if x["chat_id"]],
                   "gmail_url": gmail_suggest._gmail_url(link.get("google_email") or "", last["thread_id"] or last["gmail_id"]),
-                  "me": link.get("google_email") or "", "can_send": can_send(link),
+                  "me": link.get("google_email") or "", "can_send": can_send(link), "sender": _sender_view(conn, me["id"]),
                   "reply_to": dict(zip(("to", "cc"), reply_recipients(last, link.get("google_email") or "", False))),
                   "reply_all_to": dict(zip(("to", "cc"), reply_recipients(last, link.get("google_email") or "", True)))})
         return jsonify({"data": v})
