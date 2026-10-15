@@ -11,7 +11,7 @@
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
 <script src="/files/static/js/company_nav.js?v=1012"></script>
-<script src="/files/static/js/claude_drawer.js?v=9" defer></script>
+<script src="/files/static/js/claude_drawer.js?v=10" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1014" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
@@ -120,44 +120,80 @@
   /* Proposals tab: the Estimates / Bids / Proposals switch, and Claude next to each record (2026-10-14) */
   .cp-select.pr-kind { font-weight: 700; color: var(--ui, #24418C); background: var(--ui-soft, #E8EDF8); border-color: var(--ui, #24418C); }
   .cp-pill.claude { background: #FBEFE9; color: #A84E2C; }
-  /* Inbox (2026-10-14, inbox.py): email live in the software, Claude's cards per email */
+  /* Inbox (2026-10-15, inbox.py): the mailbox as in Gmail; Claude drafts only where a reply is needed */
   .ib-conn { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 14px; }
   .ib-chip { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; font-weight: 600; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: #fff; }
   .ib-chip i { width: 8px; height: 8px; border-radius: 50%; background: #0c7a5f; display: inline-block; }
   .ib-chip i.off { background: #B4B9C4; } .ib-chip i.warn { background: #D9822B; }
   .ib-chip span { font-weight: 500; color: var(--muted); }
-  .ib-wrap { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); padding: 0; min-height: 620px; overflow: hidden; }
+  .ib-wrap { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); grid-template-rows: 100%; padding: 0; height: max(520px, calc(100vh - 176px)); overflow: hidden; }
   .ib-list { border-right: 1px solid var(--line); min-width: 0; display: flex; flex-direction: column; }
-  .ib-lhead { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-  .ib-lhead h2 { margin: 0; font-size: 15px; font-weight: 700; }
-  .ib-filters { display: flex; gap: 4px; }
-  .ib-filters button { border: 0; background: none; font: 600 12.5px Inter, sans-serif; color: var(--muted); padding: 4px 9px; border-radius: 999px; cursor: pointer; }
+  .ib-lhead { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .ib-filters { display: flex; gap: 2px; margin-left: auto; }
+  .ib-filters button { border: 0; background: none; font: 600 12.5px Inter, sans-serif; color: var(--muted); padding: 5px 9px; border-radius: 999px; cursor: pointer; }
   .ib-filters button[aria-pressed="true"] { background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); }
-  #ib-rows { overflow-y: auto; max-height: 720px; }
-  .ib-row { display: grid; gap: 4px; padding: 11px 14px; border-bottom: 1px solid var(--line); cursor: pointer; }
-  .ib-row:hover { background: #F7F8FA; } .ib-row.on { background: var(--ui-soft, #E8EDF8); }
-  .ib-row .t { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
-  .ib-row .t b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ib-row .t span { color: var(--muted); font-size: 12px; white-space: nowrap; }
-  .ib-row .s { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ib-row .x { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ib-row.new .s { font-weight: 700; }
-  .ib-tags { display: flex; gap: 4px; flex-wrap: wrap; }
-  .ib-pane { padding: 16px 20px; display: grid; gap: 12px; align-content: start; min-width: 0; }
-  .ib-pane h2 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
-  .ib-meta { font-size: 12.5px; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .ib-body { background: #F4F5F8; border-radius: 10px; padding: 12px 14px; line-height: 1.55; font-size: 13.5px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 420px; overflow-y: auto; }
-  .ib-atts { display: flex; gap: 6px; flex-wrap: wrap; }
-  .ib-atts span { font-size: 12.5px; border: 1px solid var(--line); border-radius: 8px; padding: 4px 9px; background: #fff; }
-  .ib-claude-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 14px; }
-  .ib-claude-h span.mk { display: inline-flex; align-items: center; gap: 8px; }
-  .ib-claude-h i { width: 22px; height: 22px; border-radius: 6px; background: #C2603B; color: #fff; display: inline-grid; place-items: center; font-style: normal; font-size: 13px; }
-  .ib-mails { display: grid; gap: 6px; }
-  .ib-mail { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 3px; }
-  .ib-mail summary { cursor: pointer; display: flex; justify-content: space-between; gap: 8px; font-size: 13px; list-style: none; }
-  .ib-mail summary b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ib-mail .ib-body { margin-top: 6px; }
-  @media (max-width: 900px) { .ib-wrap { grid-template-columns: 1fr; } .ib-list { border-right: 0; border-bottom: 1px solid var(--line); } #ib-rows { max-height: 360px; } }
+  #ib-rows { overflow-y: auto; flex: 1; min-height: 0; }
+  .ib-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "from when" "line line" "snip snip"; gap: 1px 8px; padding: 9px 14px; border-bottom: 1px solid #EEF0F3; cursor: pointer; font-size: 13px; color: #5F6368; background: #F6F8FC; }
+  .ib-row.unread { background: #fff; color: #202124; }
+  .ib-row:hover { box-shadow: inset 1px 0 0 #dadce0, inset -1px 0 0 #dadce0, 0 1px 2px rgba(60,64,67,.2); position: relative; }
+  .ib-row.on { background: #E8EDF8; }
+  .ib-from { grid-area: from; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib-row.unread .ib-from, .ib-row.unread .ib-sub, .ib-row.unread .ib-when { font-weight: 700; }
+  .ib-n { color: #5F6368; font-weight: 400; font-size: 12px; }
+  .ib-line { grid-area: line; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib-sub { color: #202124; }
+  .ib-snip { grid-area: snip; color: #5F6368; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; }
+  .ib-when { grid-area: when; font-size: 12px; white-space: nowrap; }
+  .ib-clip { margin-right: 6px; font-size: 12px; }
+  .ib-lbl { display: inline-block; font-size: 11.5px; font-weight: 500; padding: 0 6px; border-radius: 4px; background: #E8EAED; color: #3C4043; margin-right: 5px; line-height: 18px; vertical-align: 1px; }
+  .ib-lbl.cl { background: #FBEFE9; color: #A84E2C; font-weight: 600; }
+  .ib-pane { min-width: 0; overflow-y: auto; height: 100%; background: #fff; }
+  .ib-empty { padding: 24px 16px; }
+  .ib-head { padding: 18px 22px 10px; display: grid; gap: 8px; }
+  .ib-head h2 { margin: 0; font: 400 22px/1.3 Arial, Helvetica, sans-serif; color: #1F1F1F; overflow-wrap: anywhere; }
+  .ib-head-x { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 12.5px; }
+  .ib-linkbtn { background: none; border: 0; cursor: pointer; font: inherit; padding: 0; }
+  #ib-sugg:not(:empty) { margin: 0 22px 12px; border: 1px solid #F0D9CE; background: #FFFBF9; border-radius: 10px; padding: 8px 12px; }
+  .ib-sugg-h { font-size: 13px; font-weight: 600; color: #A84E2C; display: flex; gap: 2px; align-items: center; cursor: pointer; list-style: none; }
+  .ib-sugg-h::-webkit-details-marker { display: none; }
+  .ib-sugg-show { margin-left: auto; font-weight: 600; color: var(--ui, #24418C); font-size: 12.5px; }
+  #ib-sugg-d[open] #ib-sugg-cards { margin-top: 8px; }
+  .ib-claude-mk { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: #C2603B; color: #fff; font-size: 11px; font-style: normal; margin-right: 6px; flex: none; }
+  .ib-thread { border-top: 1px solid #EEF0F3; }
+  .ib-msg { border-bottom: 1px solid #EEF0F3; }
+  .ib-mhead { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; padding: 12px 22px; cursor: pointer; align-items: start; }
+  .ib-msg.open .ib-mhead { cursor: default; padding-bottom: 6px; }
+  .ib-av { width: 40px; height: 40px; border-radius: 50%; color: #fff; display: grid; place-items: center; font: 500 17px Arial, sans-serif; }
+  .ib-mwho { min-width: 0; font-size: 14px; color: #1F1F1F; }
+  .ib-mwho b { font-weight: 700; }
+  .ib-addr { color: #5E5E5E; font-size: 12px; }
+  .ib-to { font-size: 12px; color: #5E5E5E; display: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib-snip1 { font-size: 13px; color: #5E5E5E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib-msg.open .ib-to { display: block; } .ib-msg.open .ib-snip1 { display: none; }
+  .ib-mwhen { font-size: 12px; color: #5E5E5E; white-space: nowrap; }
+  .ib-mbody { display: none; padding: 0 22px 12px 74px; }
+  .ib-msg.open .ib-mbody { display: block; }
+  .ib-frame { width: 100%; border: 0; display: block; min-height: 60px; background: #fff; }
+  .ib-atts { display: none; flex-wrap: wrap; gap: 10px; padding: 4px 22px 16px 74px; }
+  .ib-msg.open .ib-atts { display: flex; }
+  .ib-att { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "ic n" "ic s"; column-gap: 8px; width: 210px; border: 1px solid #DADCE0; border-radius: 8px; padding: 8px 10px; text-decoration: none; color: #1F1F1F; background: #fff; }
+  .ib-att:hover { background: #F6F8FC; }
+  .ib-att-ic { grid-area: ic; align-self: center; font: 700 10px Arial, sans-serif; color: #fff; background: #D93025; border-radius: 4px; padding: 4px 5px; }
+  .ib-att-n { grid-area: n; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib-att-s { grid-area: s; font-size: 11.5px; color: #5E5E5E; }
+  .ib-replybar { padding: 16px 22px 24px 74px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .ib-rbtn { border: 1px solid #747775; background: #fff; color: #444746; border-radius: 999px; padding: 7px 18px; font: 500 13.5px Arial, sans-serif; cursor: pointer; display: inline-flex; align-items: center; }
+  .ib-rbtn:hover { background: #F2F2F2; } .ib-rbtn:disabled { opacity: .6; cursor: default; }
+  .ib-rbtn.cl { border-color: #E5C3B3; color: #A84E2C; }
+  .ib-comp { width: 100%; border-radius: 10px; box-shadow: 0 1px 3px rgba(60,64,67,.3), 0 4px 8px 3px rgba(60,64,67,.15); padding: 12px 14px; display: grid; gap: 8px; background: #fff; }
+  .ib-comp.drafted { box-shadow: 0 0 0 2px #E5C3B3, 0 4px 8px 3px rgba(60,64,67,.12); }
+  .ib-drafted { font-size: 12.5px; color: #A84E2C; font-weight: 600; display: flex; align-items: center; }
+  .ib-comp-to { font-size: 13px; color: #444746; overflow-wrap: anywhere; } .ib-comp-to span { color: #5E5E5E; margin-right: 6px; }
+  .ib-comp textarea { width: 100%; border: 0; outline: none; resize: vertical; font: 14px/1.5 Arial, Helvetica, sans-serif; color: #1F1F1F; min-height: 140px; padding: 4px 0; }
+  .ib-comp-x { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ib-cmp .cp-field textarea { min-height: 240px; font: 14px/1.5 Arial, Helvetica, sans-serif; }
+  @media (max-width: 900px) { .ib-wrap { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; } .ib-pane { height: auto; overflow: visible; } .ib-list { border-right: 0; border-bottom: 1px solid var(--line); } #ib-rows { max-height: 360px; }
+    .ib-mbody, .ib-atts, .ib-replybar { padding-left: 16px; padding-right: 16px; } .ib-mhead, .ib-head { padding-left: 16px; padding-right: 16px; } }
   .cl-card { display: flex; flex-direction: column; gap: 10px; }
   .cl-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .cl-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
@@ -780,8 +816,10 @@
         <div class="cp-card ib-conn" id="ib-conn"></div>
         <div class="cp-card ib-wrap">
           <div class="ib-list">
-            <div class="ib-lhead"><h2>Inbox</h2>
-              <div class="ib-filters" role="group" aria-label="Show"><button type="button" data-ibf="act" aria-pressed="true">Needs action</button><button type="button" data-ibf="all" aria-pressed="false">All</button><button type="button" data-ibf="filed" aria-pressed="false">Filed</button></div>
+            <div class="ib-lhead">
+              <button type="button" class="btn-primary btn-sm" id="ib-new">✎ Compose</button>
+              <button type="button" class="btn-ghost btn-sm" id="ib-refresh" title="Check Gmail for new email right now">↻ Refresh</button>
+              <div class="ib-filters" role="group" aria-label="Show"><button type="button" data-ibf="all" aria-pressed="true">All</button><button type="button" data-ibf="act" aria-pressed="false">Needs reply</button><button type="button" data-ibf="filed" aria-pressed="false">Filed</button></div>
             </div>
             <div id="ib-rows"></div>
           </div>
@@ -828,6 +866,20 @@
   </main>
 </div>
 
+<!-- Inbox: write a new email from your own Gmail (2026-10-15) -->
+<div class="cp-overlay" id="ib-compose" role="dialog" aria-modal="true" aria-labelledby="ib-cmp-title">
+  <form class="cp-modal ib-cmp" id="ib-cmp-form" novalidate style="max-width:680px">
+    <div class="cp-modal-head"><h2 id="ib-cmp-title">New message</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Sent from your Gmail when you press Send.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><label for="ib-cmp-to">To</label><input id="ib-cmp-to" autocomplete="off" placeholder="name@company.com, another@company.com"></div>
+      <div class="cp-field full"><label for="ib-cmp-cc">Cc</label><input id="ib-cmp-cc" autocomplete="off"></div>
+      <div class="cp-field full"><label for="ib-cmp-subject">Subject</label><input id="ib-cmp-subject" autocomplete="off"></div>
+      <div class="cp-field full"><label for="ib-cmp-body">Message</label><textarea id="ib-cmp-body"></textarea></div>
+      <div class="cp-form-err full" id="ib-cmp-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="ib-cmp-cancel">Cancel</button><button class="btn-primary" type="submit" id="ib-cmp-send">Send</button></div>
+  </form>
+</div>
 <!-- proposal modals (#307) -->
 <!-- #360 — Client portal: manage one client login (project, sections, preset, preview, password) -->
 <div class="cp-overlay" id="pa-overlay" role="dialog" aria-modal="true" aria-labelledby="pa-title">
@@ -1966,73 +2018,180 @@
     selectEl.innerHTML = first + state.cache.clientOpts.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
     selectEl.value = cur || '';
   }
-  // ---------- INBOX (inbox.py): each admin / C-suite mailbox, live; Claude's cards per email ----------
-  const IB = { filter: 'act', rows: [], open: null, cards: null, timer: null };
-  const IB_TAG = { 'New bid': 'warn', 'Proposal reply': 'active', 'Client question': 'warn', 'Payment': 'ok', 'Permit / notice': '', 'Scheduling': 'active', 'Documents': '' };
+  // ---------- INBOX (inbox.py): each admin / C-suite mailbox, live, shown like Gmail ----------
+  // Conversations as written (html in a locked-down frame), attachments, Reply / Reply all /
+  // Compose from the person's own Gmail. Claude drafts a reply only where one is needed: it waits
+  // in the reply box and goes out only when the person presses Send. Other suggestions are cards.
+  const IB = { filter: 'all', rows: [], open: null, cards: [], timer: null, thread: null, composer: null };
+  const IB_COLORS = ['#24418C', '#0c7a5f', '#B11E2E', '#7A4FB3', '#C2603B', '#2C7A9B', '#8A6D1F'];
+  function ibColor(s) { let h = 0; for (const c of String(s || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0; return IB_COLORS[h % IB_COLORS.length]; }
   function ibAgo(iso) {
     if (!iso) return '';
-    const d = new Date(iso), now = new Date(), mins = Math.round((now - d) / 60000);
-    if (mins >= 0 && mins < 1) return 'just now'; if (mins >= 0 && mins < 60) return mins + ' min ago';
+    const d = new Date(iso), now = new Date();
     if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString('en-US', d.getFullYear() === now.getFullYear() ? { month: 'short', day: 'numeric' } : { month: 'numeric', day: 'numeric', year: '2-digit' });
   }
+  function ibFull(iso) { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+  function ibKB(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
   async function loadInbox(arg) {
     clearTimeout(IB.timer);
     let st;
     try { st = (await api('/inbox/status', null, true)).data; } catch (e) { $('ib-conn').innerHTML = esc(e.message); return; }
+    IB.status = st;
     const next = encodeURIComponent('/company#inbox');
     const gmail = !st.available ? `<span class="ib-chip"><i class="off"></i>Gmail <span>not switched on yet (Google setup)</span></span>`
       : !st.connected ? `<span class="ib-chip"><i class="off"></i>Gmail <span>not connected</span></span><a class="btn-primary btn-sm" href="/gmail/connect?next=${next}">Connect your Gmail</a>`
       : st.status !== 'active' ? `<span class="ib-chip"><i class="warn"></i>Gmail <span>sign-in expired</span></span><a class="btn-primary btn-sm" href="/gmail/connect?next=${next}">Reconnect Gmail</a>`
-      : `<span class="ib-chip"><i></i>Gmail <span>${st.live ? 'live' : 'checks every minute'}${st.last_sync_at ? ' · synced ' + ibAgo(st.last_sync_at) : ''}</span></span>` +
-        (st.can_send ? '' : `<a class="btn-ghost btn-sm" href="/gmail/connect?next=${next}" title="Lets you send Claude's reply drafts from your Gmail, always after your approval">Reconnect to allow replies</a>`);
+      : `<span class="ib-chip"><i></i>Gmail <span>${esc(st.google_email || '')}${st.last_sync_at ? ' · checked ' + ibAgo(st.last_sync_at) : ''}</span></span>` +
+        (st.can_send ? '' : `<a class="btn-ghost btn-sm" href="/gmail/connect?next=${next}" title="Lets you send replies from your Gmail">Reconnect to allow sending</a>`);
     $('ib-conn').innerHTML = gmail +
       `<span class="ib-chip"><i class="${st.calendar && st.calendar.connected && st.calendar.reads ? '' : (st.calendar && st.calendar.connected ? 'warn' : 'off')}"></i>Google Calendar <span>${st.calendar && st.calendar.connected ? (st.calendar.reads ? 'two-way' : 'reconnect to bring events in') : 'not connected'}</span></span>` +
       (st.calendar && st.calendar.connected && !st.calendar.reads ? `<a class="btn-ghost btn-sm" href="/google-calendar/connect?next=${next}">Reconnect Calendar</a>` : '') +
       `<span class="ib-chip"><i class="off"></i>QuickBooks <span>coming next</span></span>` +
       (st.problem ? `<span class="cp-muted" style="font-size:12px">${esc(st.problem)}</span>` : '');
     await ibList();
-    const want = arg && /^\d+$/.test(arg) ? +arg : (IB.open || (IB.rows[0] && IB.rows[0].id));
-    if (want) ibOpen(want, false); else $('ib-pane').innerHTML = empty(st.connected ? 'Nothing here yet' : 'Connect your Gmail', st.connected ? 'New email shows up by itself; nothing to check.' : 'Your email then arrives here by itself, matched to clients, bids and proposals.');
+    const want = arg && /^\d+$/.test(arg) ? +arg : IB.open;
+    if (want) ibOpen(want, false);
+    else $('ib-pane').innerHTML = `<div class="ib-empty">${empty(st.connected ? 'Pick an email' : 'Connect your Gmail', st.connected ? 'New email shows up by itself. Use Refresh to check right now.' : 'Your email then arrives here, as in Gmail.')}</div>`;
     IB.timer = setTimeout(function tick() { if (state.view !== 'inbox') return; ibList(); IB.timer = setTimeout(tick, 30000); }, 30000);
   }
   async function ibList() {
     try { IB.rows = (await api('/inbox/messages?filter=' + IB.filter, null, true)).data; } catch (e) { $('ib-rows').innerHTML = empty('Could not load the inbox', e.message); return; }
     document.querySelectorAll('[data-ibf]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.ibf === IB.filter)));
-    $('ib-rows').innerHTML = IB.rows.length ? IB.rows.map(r => `<div class="ib-row${r.id === IB.open ? ' on' : ''}${r.status === 'new' ? ' new' : ''}" data-ib="${r.id}" tabindex="0">
-      <div class="t"><b>${r.direction === 'out' ? 'You → ' : ''}${esc(r.who || '')}</b><span>${ibAgo(r.received_at)}</span></div>
-      <div class="s">${esc(r.subject)}</div><div class="x">${esc(r.summary || '')}</div>
-      <div class="ib-tags">${r.pending_cards ? `<span class="cp-pill claude">Claude · ${r.pending_cards}</span>` : ''}${r.tags.map(t => `<span class="cp-pill ${IB_TAG[t] || ''}">${esc(t)}</span>`).join('')}${r.filed ? '<span class="cp-pill ok">filed</span>' : ''}</div></div>`).join('')
-      : empty(IB.filter === 'act' ? 'Nothing needs action' : 'No email yet', IB.filter === 'act' ? 'Email that needs an answer or a change shows here.' : '');
+    $('ib-rows').innerHTML = IB.rows.length ? IB.rows.map(r => `<div class="ib-row${r.id === IB.open ? ' on' : ''}${r.unread ? ' unread' : ''}" data-ib="${r.id}" tabindex="0">
+      <div class="ib-from">${r.direction === 'out' ? 'To: ' : ''}${esc(r.who || '')}${r.count > 1 ? ` <span class="ib-n">${r.count}</span>` : ''}</div>
+      <div class="ib-line">${r.pending_cards ? '<span class="ib-lbl cl" title="Claude has a reply or a suggestion ready">✦ Claude</span>' : ''}<span class="ib-sub">${esc(r.subject)}</span></div>
+      <div class="ib-snip">${r.tags.slice(0, 1).map(t => `<span class="ib-lbl">${esc(t)}</span>`).join('')}${esc(r.snippet || '')}</div>
+      <div class="ib-when">${r.has_attachments ? '<span class="ib-clip" aria-label="has attachments">📎</span>' : ''}${ibAgo(r.received_at)}</div></div>`).join('')
+      : `<div class="ib-empty">${empty(IB.filter === 'act' ? 'Nothing needs a reply' : 'No email yet', IB.filter === 'act' ? 'Emails that need an answer or a change show here.' : '')}</div>`;
   }
+  function ibFrame(doc) {
+    const f = document.createElement('iframe');
+    f.className = 'ib-frame'; f.title = 'Email';
+    f.setAttribute('sandbox', 'allow-same-origin allow-popups allow-popups-to-escape-sandbox');   // no scripts ever run
+    f.setAttribute('referrerpolicy', 'no-referrer');
+    f.srcdoc = doc;
+    const fit = () => { try { const d = f.contentDocument; f.style.height = Math.max(60, d.documentElement.scrollHeight, d.body.scrollHeight) + 'px'; } catch (e) {} };
+    f.addEventListener('load', () => { fit(); setTimeout(fit, 400); setTimeout(fit, 1500); });
+    return f;
+  }
+  function ibWho(p, me) { return p.email && p.email === (me || '').toLowerCase() ? 'me' : (p.name || p.email); }
   async function ibOpen(id, push) {
-    IB.open = id; if (IB.cards) IB.cards.stop();
+    IB.open = id; IB.cards.forEach(c => c.stop()); IB.cards = [];
     if (push !== false && location.hash !== '#inbox/' + id) history.replaceState(null, '', '#inbox/' + id);
     document.querySelectorAll('.ib-row').forEach(r => r.classList.toggle('on', +r.dataset.ib === id));
     const pane = $('ib-pane'); pane.innerHTML = '<div class="cp-skel"></div><div class="cp-skel"></div>';
-    let m;
-    try { m = (await api('/inbox/messages/' + id, null, true)).data; } catch (e) { pane.innerHTML = empty('Could not open this email', e.message); return; }
-    pane.innerHTML = `<div><h2>${esc(m.subject)}</h2><div class="ib-meta"><span>${m.direction === 'out' ? 'You → ' + esc(m.to) : esc(m.from)}</span><span>· ${fmtWhen(m.received_at)}</span>${m.tags.map(t => `<span class="cp-pill ${IB_TAG[t] || ''}">${esc(t)}</span>`).join('')}
-        <a class="cp-link" href="${esc(m.gmail_url)}" target="_blank" rel="noopener">Open in Gmail</a>
-        <button type="button" class="cp-link" id="ib-done" style="background:none;border:0;cursor:pointer;font:inherit">${m.needs_action ? 'Mark done' : 'Back to needs action'}</button></div></div>
-      <div class="ib-body">${esc(m.body || m.summary || '')}</div>
-      ${m.attachments.length ? `<div class="ib-atts">${m.attachments.map(a => `<span>${esc(a.name)} · ${Math.max(1, Math.round(a.size / 1024))} KB</span>`).join('')}</div>` : ''}
-      <div class="ib-claude-h"><span class="mk"><i aria-hidden="true">✦</i>Claude</span><button type="button" class="btn-ghost btn-sm" id="ib-ask">${m.chat_id ? 'Ask again' : 'Ask Claude about this email'}</button></div>
-      ${m.summary ? `<div class="cp-muted" style="font-size:13px">${esc(m.summary)}</div>` : ''}
-      <div id="ib-cards">${m.chat_id ? '' : (m.ai_state === 'pending' ? '<div class="cp-muted">Claude is reading this email…</div>' : '<div class="cp-muted" style="font-size:13px">Nothing for Claude to do here. Ask if you want a reply or a change.</div>')}</div>`;
-    $('ib-done').addEventListener('click', async () => { try { await api('/inbox/messages/' + id + '/done', { method: 'POST', body: JSON.stringify({ done: m.needs_action }) }, true); await ibList(); ibOpen(id, false); } catch (e) { toast(e.message, true); } });
-    $('ib-ask').addEventListener('click', async () => {
-      try { await api('/inbox/messages/' + id + '/suggest', { method: 'POST' }, true); $('ib-cards').innerHTML = '<div class="cp-muted">Claude is reading this email…</div>'; ibWait(id); } catch (e) { toast(e.message, true); }
+    let v;
+    try { v = (await api('/inbox/threads/' + id, null, true)).data; } catch (e) { pane.innerHTML = empty('Could not open this email', e.message); return; }
+    IB.thread = v;
+    const n = v.messages.length;
+    pane.innerHTML = `<div class="ib-head"><h2>${esc(v.subject || '(no subject)')}</h2>
+        <div class="ib-head-x">${v.tags.map(t => `<span class="ib-lbl">${esc(t)}</span>`).join('')}
+          <a class="cp-link" href="${esc(v.gmail_url)}" target="_blank" rel="noopener">Open in Gmail</a>
+          <button type="button" class="cp-link ib-linkbtn" id="ib-done">${v.needs_action ? 'Mark done' : 'Mark as needing action'}</button></div></div>
+      <div id="ib-sugg"></div>
+      <div class="ib-thread" id="ib-thread"></div>
+      <div class="ib-replybar" id="ib-replybar"></div>`;
+    const th = $('ib-thread');
+    v.messages.forEach((m, i) => {
+      const last = i === n - 1;
+      const el = document.createElement('div');
+      el.className = 'ib-msg' + (last ? ' open' : '');
+      const to = m.to.map(p => ibWho(p, v.me)).join(', ') + (m.cc.length ? ', cc: ' + m.cc.map(p => ibWho(p, v.me)).join(', ') : '');
+      el.innerHTML = `<div class="ib-mhead" tabindex="0"><span class="ib-av" style="background:${ibColor(m.from.email || m.from.name)}">${esc((m.from.name || m.from.email || '?').trim().charAt(0).toUpperCase())}</span>
+          <div class="ib-mwho"><div><b>${esc(m.from.name || m.from.email)}</b>${m.from.email && m.from.name !== m.from.email ? ` <span class="ib-addr">&lt;${esc(m.from.email)}&gt;</span>` : ''}</div>
+          <div class="ib-to">to ${esc(to || 'me')}</div><div class="ib-snip1">${esc(m.snippet || '')}</div></div>
+          <div class="ib-mwhen" title="${esc(ibFull(m.when))}">${ibAgo(m.when)}${m.attachments.length ? ' 📎' : ''}</div></div>
+        <div class="ib-mbody"></div>
+        ${m.attachments.length ? `<div class="ib-atts">${m.attachments.map(a => `<a class="ib-att" href="/api/inbox/messages/${m.id}/attachments/${a.n}" target="_blank" rel="noopener"><span class="ib-att-ic">${/pdf/i.test(a.mime) ? 'PDF' : /image/i.test(a.mime) ? 'IMG' : 'FILE'}</span><span class="ib-att-n">${esc(a.name)}</span><span class="ib-att-s">${ibKB(a.size)}</span></a>`).join('')}</div>` : ''}`;
+      th.appendChild(el);
+      const show = () => { if (!el.querySelector('iframe')) el.querySelector('.ib-mbody').appendChild(ibFrame(m.doc)); };
+      if (last) show();
+      el.querySelector('.ib-mhead').addEventListener('click', () => { if (last) return; el.classList.toggle('open'); if (el.classList.contains('open')) show(); });
     });
-    if (m.chat_id && window.SSC_CLAUDE && SSC_CLAUDE.mountCards) IB.cards = SSC_CLAUDE.mountCards($('ib-cards'), m.chat_id, ibList);
-    else if (m.ai_state === 'pending') ibWait(id);
+    // Claude's other suggestions (new bid, event, task...): one folded line above the conversation
+    const sugg = $('ib-sugg');
+    if (v.card_chats.length && window.SSC_CLAUDE && SSC_CLAUDE.mountCards) {
+      sugg.innerHTML = '<details id="ib-sugg-d"><summary class="ib-sugg-h"><span class="ib-claude-mk" aria-hidden="true">✦</span><span id="ib-sugg-t"></span><span class="ib-sugg-show">Show</span></summary><div id="ib-sugg-cards"></div></details>';
+      v.card_chats.forEach(cid => { const box = document.createElement('div'); $('ib-sugg-cards').appendChild(box);
+        IB.cards.push(SSC_CLAUDE.mountCards(box, cid, ibList, { skip: ['reply_email'], cardsOnly: true })); });
+      const sum = () => {
+        const open = [...sugg.querySelectorAll('.clx-card.pending .clx-tag')].map(t => t.textContent), all = sugg.querySelectorAll('.clx-card').length;
+        sugg.hidden = !all;
+        if (all) $('ib-sugg-t').textContent = open.length ? 'Claude also suggests: ' + [...new Set(open)].join(', ') : 'What Claude suggested for this email (' + all + ')';
+      };
+      sugg.hidden = true;
+      new MutationObserver(sum).observe($('ib-sugg-cards'), { childList: true, subtree: true });
+      $('ib-sugg-d').addEventListener('toggle', e => { sugg.querySelector('.ib-sugg-show').textContent = e.target.open ? 'Hide' : 'Show'; });
+    }
+    $('ib-done').addEventListener('click', async () => { try { await api('/inbox/messages/' + v.last_id + '/done', { method: 'POST', body: JSON.stringify({ done: v.needs_action }) }, true); await ibList(); ibOpen(id, false); } catch (e) { toast(e.message, true); } });
+    ibReplyBar(v);
+    pane.scrollTop = 0;
   }
-  function ibWait(id) {
-    setTimeout(async () => {
+  function ibReplyBar(v) {
+    const bar = $('ib-replybar');
+    if (v.draft) { ibComposer(v, v.draft.reply_all, v.draft); return; }
+    const busy = v.ai_state === 'pending' || v.ai_state === 'asked';
+    bar.innerHTML = `<button type="button" class="ib-rbtn" data-rep="one">↩ Reply</button>${(v.reply_all_to.cc || '') ? '<button type="button" class="ib-rbtn" data-rep="all">↩↩ Reply all</button>' : ''}
+      <button type="button" class="ib-rbtn cl" id="ib-ask"${busy ? ' disabled' : ''}><span class="ib-claude-mk" aria-hidden="true">✦</span>${busy ? 'Claude is writing a reply…' : 'Draft with Claude'}</button>`;
+    bar.querySelectorAll('[data-rep]').forEach(b => b.addEventListener('click', () => ibComposer(v, b.dataset.rep === 'all', null)));
+    $('ib-ask').addEventListener('click', async () => {
+      const b = $('ib-ask'); b.disabled = true; b.lastChild.textContent = 'Claude is writing a reply…';
+      try { await api('/inbox/messages/' + v.last_id + '/suggest', { method: 'POST', body: JSON.stringify({ reply: true }) }, true); ibWait(v.id); }
+      catch (e) { toast(e.message, true); b.disabled = false; b.lastChild.textContent = 'Draft with Claude'; }
+    });
+    if (busy) ibWait(v.id);
+  }
+  function ibWait(id) {   // Claude is reading / writing: reopen once the draft or cards are ready
+    clearTimeout(IB.wait);
+    IB.wait = setTimeout(async () => {
       if (IB.open !== id || state.view !== 'inbox') return;
-      try { const m = (await api('/inbox/messages/' + id, null, true)).data; if (m.chat_id && m.ai_state !== 'pending') { ibOpen(id, false); ibList(); } else ibWait(id); } catch (e) {}
+      try { const t = (await api('/inbox/threads/' + id, null, true)).data; if (t.ai_state !== 'pending' && t.ai_state !== 'asked') { ibOpen(id, false); ibList(); } else ibWait(id); } catch (e) {}
     }, 2500);
   }
+  function ibComposer(v, all, draft) {
+    const bar = $('ib-replybar'), rc = all ? v.reply_all_to : v.reply_to;
+    bar.innerHTML = `<div class="ib-comp${draft ? ' drafted' : ''}">
+        ${draft ? '<div class="ib-drafted"><span class="ib-claude-mk" aria-hidden="true">✦</span>Claude drafted this reply. Read it, change anything, then Send. Nothing goes out until you do.</div>' : ''}
+        <div class="ib-comp-to"><span>To</span>${esc(rc.to)}${rc.cc ? `<span style="margin-left:10px">Cc</span>${esc(rc.cc)}` : ''}</div>
+        <textarea id="ib-body" aria-label="Reply">${esc(draft ? draft.body : '')}</textarea>
+        <div class="ib-comp-x"><button type="button" class="btn-primary btn-sm" id="ib-send">Send</button>
+          ${draft ? '<button type="button" class="btn-ghost btn-sm" id="ib-discard">Discard draft</button>' : '<button type="button" class="btn-ghost btn-sm" id="ib-cancel">Cancel</button>'}
+          ${!v.can_send ? '<span class="cp-muted" style="font-size:12px">Reconnect Gmail at the top of this page to allow sending.</span>' : ''}
+          <span class="cp-form-err" id="ib-err" role="alert"></span></div></div>`;
+    const ta = $('ib-body'); ta.style.height = Math.min(420, Math.max(140, ta.scrollHeight + 6)) + 'px';
+    if (!draft) ta.focus();
+    $('ib-send').addEventListener('click', async () => {
+      const b = $('ib-send'); b.disabled = true; b.textContent = 'Sending…';
+      try {
+        await api('/inbox/messages/' + v.last_id + '/reply', { method: 'POST', body: JSON.stringify({ body: ta.value, reply_all: all, draft_action_id: draft ? draft.action_id : null }) }, true);
+        toast('Sent from your Gmail'); await ibList(); ibOpen(IB.open, false);
+      } catch (e) { const er = $('ib-err'); er.textContent = e.message; er.className = 'cp-form-err show'; b.disabled = false; b.textContent = 'Send'; }
+    });
+    const c = $('ib-cancel'); if (c) c.addEventListener('click', () => ibReplyBar(Object.assign({}, v, { draft: null })));
+    const d = $('ib-discard'); if (d) d.addEventListener('click', async () => {
+      try { await api('/claude/actions/' + draft.action_id + '/decline', { method: 'POST', body: '{}' }, true); toast('Draft discarded'); await ibList(); ibOpen(IB.open, false); } catch (e) { toast(e.message, true); }
+    });
+  }
+  function ibCompose() {
+    $('ib-cmp-err').className = 'cp-form-err';
+    ['ib-cmp-to', 'ib-cmp-cc', 'ib-cmp-subject', 'ib-cmp-body'].forEach(i => { $(i).value = ''; });
+    $('ib-compose').classList.add('open'); setTimeout(() => $('ib-cmp-to').focus(), 30);
+  }
+  $('ib-cmp-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const b = $('ib-cmp-send'); b.disabled = true;
+    try {
+      await api('/inbox/compose', { method: 'POST', body: JSON.stringify({ to: $('ib-cmp-to').value, cc: $('ib-cmp-cc').value, subject: $('ib-cmp-subject').value, body: $('ib-cmp-body').value }) }, true);
+      $('ib-compose').classList.remove('open'); toast('Sent from your Gmail'); setTimeout(ibList, 2500);
+    } catch (ex) { formErr('ib-cmp-err', ex.message); } finally { b.disabled = false; }
+  });
+  $('ib-cmp-cancel').addEventListener('click', () => $('ib-compose').classList.remove('open'));
+  $('ib-new').addEventListener('click', ibCompose);
+  $('ib-refresh').addEventListener('click', async () => {
+    const b = $('ib-refresh'); b.disabled = true; b.textContent = '↻ Checking…';
+    try { const r = (await api('/inbox/refresh', { method: 'POST' }, true)).data; await ibList(); toast(r.new ? r.new + ' new email' + (r.new > 1 ? 's' : '') : 'No new email'); }
+    catch (e) { toast(e.message, true); } finally { b.disabled = false; b.textContent = '↻ Refresh'; }
+  });
   $('ib-rows').addEventListener('click', e => { const r = e.target.closest('[data-ib]'); if (r) ibOpen(+r.dataset.ib); });
   $('ib-rows').addEventListener('keydown', e => { if (e.key === 'Enter') { const r = e.target.closest('[data-ib]'); if (r) ibOpen(+r.dataset.ib); } });
   document.querySelectorAll('[data-ibf]').forEach(b => b.addEventListener('click', () => { IB.filter = b.dataset.ibf; ibList(); }));

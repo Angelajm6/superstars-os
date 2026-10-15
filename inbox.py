@@ -35,6 +35,11 @@ arrives and is matched; suggestions wait for the next day.
   POST /api/inbox/messages/<id>/done     {done} mark handled / back to needs action
   POST /api/inbox/messages/<id>/suggest  ask Claude again for this email
   GET  /api/inbox/linked?type=&id=       emails filed on a record (record pages)
+  GET  /api/inbox/threads/<id>           the conversation as Gmail shows it (html in a locked-down frame), Claude's draft
+  GET  /api/inbox/messages/<id>/attachments/<n>   open / download an attachment (from Gmail)
+  POST /api/inbox/messages/<id>/reply    {body, subject?, reply_all?, draft_action_id?} the person pressed Send
+  POST /api/inbox/compose                {to, cc?, subject, body} a new email from their Gmail
+  POST /api/inbox/refresh                check Gmail now
   POST /gmail/push?token=                Google Pub/Sub push (public; token-checked)
 """
 from __future__ import annotations
@@ -123,6 +128,9 @@ def ensure(conn) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_mail_link_entity ON mail_link(entity_type, entity_id)")
     conn.execute("CREATE TABLE IF NOT EXISTS mail_sync (user_id INTEGER PRIMARY KEY, history_id TEXT, watch_expires TEXT, "
                  "last_sync_at TEXT, last_error TEXT)")
+    for col in ("body_html_enc", "body_full_enc"):   # the email as written (Gmail-like view, 2026-10-15)
+        if not _has_column(conn, "mail_message", col):
+            conn.execute(f"ALTER TABLE mail_message ADD COLUMN {col} TEXT")
     import gmail_suggest
     gmail_suggest.ensure(conn)   # the shared Gmail connection table comes first
     if not _has_column(conn, "gmail_link", "scopes"):
@@ -174,17 +182,43 @@ def can_send(link: Optional[dict]) -> bool:
 
 # ------------------------------------------------------------------ parsing a Gmail message
 def _attachments(payload) -> list:
+    """Files and inline images (cid) of a Gmail payload: name, mime, size, Gmail attachment id."""
     out = []
 
     def walk(p):
         body = p.get("body") or {}
-        if p.get("filename") and body.get("attachmentId"):
-            out.append({"name": p["filename"][:200], "mime": (p.get("mimeType") or "")[:100],
-                        "size": int(body.get("size") or 0), "att_id": body["attachmentId"]})
+        hs = {(h.get("name") or "").lower(): h.get("value") or "" for h in p.get("headers") or []}
+        cid = (hs.get("content-id") or hs.get("x-attachment-id") or "").strip().strip("<>").strip()
+        if body.get("attachmentId") and (p.get("filename") or cid):
+            inline = bool(cid) and "attachment" not in (hs.get("content-disposition") or "").lower()
+            out.append({"name": (p.get("filename") or "image")[:200], "mime": (p.get("mimeType") or "")[:100],
+                        "size": int(body.get("size") or 0), "att_id": body["attachmentId"], "cid": cid or None,
+                        "inline": inline})
         for c in p.get("parts") or []:
             walk(c)
     walk(payload or {})
     return out
+
+
+MAX_HTML = 600000
+
+
+def _part_of(payload, mime: str) -> str:
+    """The first part of this type, decoded (text/html = the email exactly as written)."""
+    import gmail_suggest
+    found = []
+
+    def walk(p):
+        if found:
+            return
+        data = (p.get("body") or {}).get("data")
+        if data and (p.get("mimeType") or "").lower() == mime:
+            found.append(gmail_suggest._b64(data))
+            return
+        for c in p.get("parts") or []:
+            walk(c)
+    walk(payload or {})
+    return (found[0] if found else "")[:MAX_HTML]
 
 
 def _addr(v: str) -> str:
@@ -281,9 +315,19 @@ def ingest(conn, uid: int, msg: dict, own_email: str = "") -> Optional[int]:
          m["client_org_id"], m["contact_id"], m["estimate_id"], m["proposal_id"], m["project_code"], _now()))
     conn.commit()
     mid = _one(conn, "SELECT id FROM mail_message WHERE user_id = ? AND gmail_id = ?", (uid, msg["id"]))["id"]
+    store_view(conn, mid, msg.get("payload"))
     log.info("inbox stored message %s for user %s (%s, matched=%s)", mid, uid, direction,
              sum(1 for v in m.values() if v))
     return mid
+
+
+def store_view(conn, mid: int, payload) -> None:
+    """Keep the email as written (html) and its full plain text, encrypted, for the Gmail-like view."""
+    html, plain = _part_of(payload, "text/html"), _part_of(payload, "text/plain")
+    conn.execute("UPDATE mail_message SET body_html_enc = ?, body_full_enc = ?, attachments_enc = ? WHERE id = ?",
+                 (_enc(html) if html else None, _enc(plain) if plain else None,
+                  _enc(json.dumps(_attachments(payload))) if _attachments(payload) else None, mid))
+    conn.commit()
 
 
 def message(conn, mid: int, uid: Optional[int] = None) -> Optional[dict]:
@@ -296,8 +340,10 @@ def message(conn, mid: int, uid: Optional[int] = None) -> Optional[dict]:
                              "project_code")}
     out.update({"from": _dec(r["from_enc"]), "to": _dec(r["to_enc"]), "cc": _dec(r["cc_enc"]), "subject": _dec(r["subject_enc"]),
                 "body": _dec(r["body_enc"]), "snippet": _dec(r["snippet_enc"]), "summary": _dec(r["summary_enc"]),
-                "rfc_id": _dec(r["rfc_id_enc"]),
-                "attachments": json.loads(_dec(r["attachments_enc"]) or "[]") if r["attachments_enc"] else []})
+                "rfc_id": _dec(r["rfc_id_enc"]), "html": _dec(r.get("body_html_enc")), "full": _dec(r.get("body_full_enc")),
+                "all_files": json.loads(_dec(r["attachments_enc"]) or "[]") if r["attachments_enc"] else []})
+    out["attachments"] = [a for a in out["all_files"] if not a.get("inline")]   # files people attached
+    out["inline_images"] = [a for a in out["all_files"] if a.get("inline")]      # logos / pictures inside the text
     return out
 
 
@@ -511,6 +557,7 @@ def suggest_prompt(conn, m: dict, user_name: str) -> str:
         "- a question or request that needs an answer: reply_email with a complete, ready-to-send reply signed as "
         f"{user_name}\n"
         "- a meeting, walkthrough or inspection: create_event; a promise or deadline: create_task; useful history: add_client_note\n"
+        "Write a reply as a normal email in plain text (greeting, the answer, sign-off), never a summary. "
         "Propose nothing when nothing is needed. Never propose replying to automatic notices or to email the person sent "
         "themselves. Finish with one or two plain sentences: what the email is and what you propose.\n\n"
         f"mail_id: {m['id']}\nDirection: {'SENT by this person' if m['direction'] == 'out' else 'received'}\n"
@@ -519,11 +566,11 @@ def suggest_prompt(conn, m: dict, user_name: str) -> str:
         f"Attachments: {atts}\n<email>\n{m['body'][:8000]}\n</email>")
 
 
-def process(conn, mid: int, force: bool = False) -> str:
+def process(conn, mid: int, force: bool = False, want_reply: bool = False) -> str:
     """Sort one stored email; for business email that needs something, ask Claude for cards."""
     import claude_agent
     m = message(conn, mid)
-    if not m or (m["ai_state"] not in ("pending", "paused") and not force):
+    if not m or (m["ai_state"] not in ("pending", "paused") and not force):   # 'asked' = a person pressed the button
         return m["ai_state"] if m else "gone"
     u = _one(conn, "SELECT id, role, full_name, display_name, email FROM users WHERE id = ?", (m["user_id"],))
     if not u or u["role"] not in OFFICE_ROLES:
@@ -549,13 +596,19 @@ def process(conn, mid: int, force: bool = False) -> str:
         t = _rules_triage(m)
     kind = t.get("kind") if t.get("kind") in KINDS else "other"
     business, needs = bool(t.get("business")), bool(t.get("needs_action"))
+    go_on = want_reply or (business and (needs or m["direction"] == "out" or bool(m["attachments"])) and kind != "internal")
     conn.execute("UPDATE mail_message SET kind = ?, summary_enc = ?, needs_action = ?, ai_state = ? WHERE id = ?",
-                 (kind, _enc(str(t.get("summary") or "")[:200]), 1 if needs else 0, "triaged", mid))
+                 (kind, _enc(str(t.get("summary") or "")[:200]), 1 if needs else 0,
+                  ("asked" if force else "pending") if go_on else "triaged", mid))
     conn.commit()
-    if not (business and (needs or m["direction"] == "out" or m["attachments"])) or kind == "internal":
+    if not go_on:
         return "triaged"
     name = u.get("display_name") or u.get("full_name") or (u.get("email") or "").split("@")[0]
-    claude_agent._add_msg(conn, chat_id, "user", "text", [{"type": "text", "text": suggest_prompt(conn, m, name)}])
+    ask = suggest_prompt(conn, m, name)
+    if want_reply:   # the person pressed "Draft with Claude": they want a reply in the box
+        ask += ("\n\nThe person asked you to draft the reply to this email: propose reply_email with mail_id "
+                f"{m['id']} (reply_all when others on the email should see the answer), plus any other card that fits.")
+    claude_agent._add_msg(conn, chat_id, "user", "text", [{"type": "text", "text": ask}])
     conn.execute("UPDATE claude_chat SET busy_since = ?, updated_at = ? WHERE id = ?", (_now(), _now(), chat_id))
     conn.commit()
     claude_agent.run_turn(chat_id, {"id": u["id"], "role": u["role"], "name": name})
@@ -594,41 +647,93 @@ def link_record(conn, mid: int, etype: str, eid, uid: int) -> None:
 
 
 # ------------------------------------------------------------------ sending and attachments (used by the cards)
-def send_reply(conn, uid: int, mid: int, body_text: str, subject: Optional[str] = None) -> dict:
-    m = message(conn, mid, uid)
-    if not m:
-        raise LookupError("that email is not in your inbox")
-    link = _one(conn, "SELECT * FROM gmail_link WHERE user_id = ?", (uid,))
-    me = (link or {}).get("google_email") or ""
+def reply_recipients(m: dict, me: str, reply_all: bool = False) -> tuple:
+    """(to, cc) for a reply: the sender (or, on your own sent email, its recipients); reply-all adds the rest."""
+    me = (me or "").lower()
     to = m["from"] if m["direction"] == "in" else m["to"]
-    if not _addrs(to):
-        raise ValueError("this email has no address to reply to")
-    subj = (subject or "").strip() or ("Re: " + re.sub(r"^\s*(re|fw|fwd)\s*:\s*", "", m["subject"], flags=re.I)).strip()
-    em = EmailMessage()
-    em["To"], em["Subject"] = to, subj
-    if me:
-        em["From"] = me
-    if m["rfc_id"]:
-        em["In-Reply-To"], em["References"] = m["rfc_id"], m["rfc_id"]
-    em.set_content(body_text.strip() + "\n")
+    cc = ""
+    if reply_all:
+        primary = set(_addrs(to)) | {me}
+        seen, keep = set(), []
+        for n, a in getaddresses([v for v in (m["to"], m["cc"]) if v]):
+            if a and a.lower() not in primary and a.lower() not in seen:
+                seen.add(a.lower())
+                keep.append(f"{n} <{a}>" if n else a)
+        cc = ", ".join(keep)
+    return to, cc
+
+
+def _deliver(conn, uid: int, em: EmailMessage, thread_id: Optional[str], label: str) -> dict:
+    """Send from the person's own Gmail (or the test mail folder)."""
     fake = (runtime_seams.seam("SSC_MAIL_FAKE_DIR") or "").strip()
     if fake:
         from pathlib import Path
         d = Path(fake)
         d.mkdir(parents=True, exist_ok=True)
-        (d / f"gmail-reply-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.eml").write_bytes(bytes(em))
-        log.info("inbox reply for message %s written to the test mail folder", mid)
-        return {"sent": True, "to": to}
+        (d / f"gmail-{label}-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.eml").write_bytes(bytes(em))
+        log.info("inbox %s written to the test mail folder", label)
+        return {"sent": True}
+    link = _one(conn, "SELECT * FROM gmail_link WHERE user_id = ?", (uid,))
     if not link or link.get("status") != "active":
         raise ValueError("Gmail is not connected; connect it on the Inbox page")
     if not can_send(link):
-        raise ValueError("Gmail is connected for reading only. Reconnect it on the Inbox page to allow sending replies")
-    raw = base64.urlsafe_b64encode(bytes(em)).decode("ascii")
-    code, body = _gmail(conn, link, "POST", "/messages/send", json_body={"raw": raw, "threadId": m["thread_id"]})
+        raise ValueError("Gmail is connected for reading only. Reconnect it on the Inbox page to allow sending")
+    body = {"raw": base64.urlsafe_b64encode(bytes(em)).decode("ascii")}
+    if thread_id:
+        body["threadId"] = thread_id
+    code, _out = _gmail(conn, link, "POST", "/messages/send", json_body=body)
     if code != 200:
         raise ValueError(f"Gmail did not send it ({code}). Nothing went out")
+    _LOOP["wake"].set()   # the sent copy comes back into the thread on the next sync, right away
+    return {"sent": True}
+
+
+def compose(conn, uid: int, to: str, cc: str, subject: str, body_text: str) -> dict:
+    """A new email from the person's own Gmail (they wrote it and pressed Send)."""
+    if not _addrs(to):
+        raise ValueError("add at least one recipient")
+    bad = [a for a in _addrs(to, cc) if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", a)]
+    if bad:
+        raise ValueError("check the email address: " + bad[0])
+    if not (body_text or "").strip():
+        raise ValueError("the message is empty")
+    link = _one(conn, "SELECT * FROM gmail_link WHERE user_id = ?", (uid,)) or {}
+    em = EmailMessage()
+    em["To"], em["Subject"] = to, (subject or "").strip()
+    if cc and _addrs(cc):
+        em["Cc"] = cc
+    if link.get("google_email"):
+        em["From"] = link["google_email"]
+    em.set_content(body_text.strip() + "\n")
+    r = _deliver(conn, uid, em, None, "new")
+    log.info("inbox new email sent by user %s", uid)
+    return r
+
+
+def send_reply(conn, uid: int, mid: int, body_text: str, subject: Optional[str] = None, reply_all: bool = False) -> dict:
+    m = message(conn, mid, uid)
+    if not m:
+        raise LookupError("that email is not in your inbox")
+    if not (body_text or "").strip():
+        raise ValueError("the reply is empty")
+    link = _one(conn, "SELECT * FROM gmail_link WHERE user_id = ?", (uid,))
+    me = (link or {}).get("google_email") or ""
+    to, cc = reply_recipients(m, me, reply_all)
+    if not _addrs(to):
+        raise ValueError("this email has no address to reply to")
+    subj = (subject or "").strip() or ("Re: " + re.sub(r"^\s*(re|fw|fwd)\s*:\s*", "", m["subject"], flags=re.I)).strip()
+    em = EmailMessage()
+    em["To"], em["Subject"] = to, subj
+    if cc:
+        em["Cc"] = cc
+    if me:
+        em["From"] = me
+    if m["rfc_id"]:
+        em["In-Reply-To"], em["References"] = m["rfc_id"], m["rfc_id"]
+    em.set_content(body_text.strip() + "\n")
+    _deliver(conn, uid, em, m["thread_id"], "reply")
     log.info("inbox reply sent for message %s", mid)
-    return {"sent": True, "to": to}
+    return {"sent": True, "to": to, "cc": cc}
 
 
 ATTACHABLE_EXT = (".pdf", ".jpg", ".jpeg", ".png", ".heic", ".heif", ".xlsx")
@@ -663,6 +768,125 @@ def save_attachments(conn, uid: int, mid: int, est_id: int, names: Optional[list
         saved += 1
     log.info("inbox saved %s attachments from message %s to estimate %s", saved, mid, est_id)
     return saved
+
+
+# ------------------------------------------------------------------ the Gmail-like view
+_ATT_CACHE: dict = {}
+
+
+def attachment_bytes(conn, uid: int, m: dict, att: dict) -> bytes:
+    """One attachment's bytes, from Gmail (a small in-memory cache for inline images)."""
+    key = (uid, m["gmail_id"], att["att_id"])
+    if key in _ATT_CACHE:
+        return _ATT_CACHE[key]
+    fake = runtime_seams.seam("SSC_INBOX_ATTACHMENT_FAKE")
+    if fake:
+        data = fake.encode("utf-8")
+    else:
+        link = _link(conn, uid)
+        if not link:
+            raise ValueError("Gmail is not connected; connect it on the Inbox page")
+        code, body = _gmail(conn, link, "GET", f"/messages/{m['gmail_id']}/attachments/{att['att_id']}")
+        if code != 200 or not body.get("data"):
+            raise ValueError(f"could not download {att['name']} from Gmail")
+        data = base64.urlsafe_b64decode(body["data"] + "=" * (-len(body["data"]) % 4))
+    if len(data) < 1_500_000:
+        if len(_ATT_CACHE) > 200:
+            _ATT_CACHE.clear()
+        _ATT_CACHE[key] = data
+    return data
+
+
+_SCRIPTY = re.compile(r"(?is)<(script|iframe|object|embed|form|base|meta[^>]+http-equiv)[^>]*>.*?(</\1>|$)|<(script|iframe|object|embed|base)\b[^>]*/?>")
+_ON_ATTR = re.compile(r"""(?i)\s on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)""".replace(" ", ""))
+_JS_URL = re.compile(r"""(?i)(href|src)\s*=\s*(["']?)\s*javascript:[^"'>\s]*\2""")
+
+
+def render_doc(conn, uid: int, m: dict) -> str:
+    """The email as written, as a stand-alone document for a locked-down frame (no scripts run;
+    links open in a new tab; pictures inside the email shown as Gmail shows them)."""
+    import html as _html
+    body = m.get("html") or ""
+    if body:
+        body = _SCRIPTY.sub("", body)
+        body = _ON_ATTR.sub("", body)
+        body = _JS_URL.sub(r'\1=""', body)
+        for a in m.get("inline_images") or []:
+            if a.get("cid") and ("cid:" + a["cid"]) in body:
+                try:
+                    data = attachment_bytes(conn, uid, m, a)
+                    uri = f"data:{a['mime'] or 'image/png'};base64," + base64.b64encode(data).decode("ascii")
+                except Exception:
+                    uri = ""
+                body = body.replace("cid:" + a["cid"], uri)
+    else:
+        text = m.get("full") or m.get("body") or m.get("snippet") or ""
+        body = ('<div style="white-space:pre-wrap">' + re.sub(r"(https?://[^\s<]+)", r'<a href="\1">\1</a>', _html.escape(text))
+                + "</div>")
+    head = ('<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
+            'img-src https: data:; style-src \'unsafe-inline\' https:; font-src https: data:">'
+            '<base target="_blank"><style>html,body{margin:0;padding:0;background:#fff;color:#222}'
+            'body{font:14px/1.5 Arial,Helvetica,sans-serif;overflow-wrap:anywhere}img{max-width:100%;height:auto}'
+            'blockquote{margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex}table{max-width:100%}</style>')
+    return "<!DOCTYPE html><html><head>" + head + "</head><body>" + body + "</body></html>"
+
+
+def _person(v: str) -> dict:
+    n, a = parseaddr(v or "")
+    return {"name": (n or a or v or "").strip()[:120], "email": (a or "").lower()}
+
+
+def thread_view(conn, uid: int, mid: int) -> Optional[dict]:
+    """The whole conversation this email belongs to, oldest first (Gmail order)."""
+    m = message(conn, mid, uid)
+    if not m:
+        return None
+    ids = [r["id"] for r in _rows(conn, "SELECT id FROM mail_message WHERE user_id = ? AND thread_id = ? ORDER BY received_at, id",
+                                     (uid, m["thread_id"]))] if m["thread_id"] else [mid]
+    out = []
+    for i in ids:
+        x = message(conn, i, uid)
+        if not (x["html"] or x["full"]):
+            _backfill(conn, uid, x)
+            x = message(conn, i, uid)
+        out.append({"id": x["id"], "direction": x["direction"], "from": _person(x["from"]),
+                    "to": [_person(v) for v in [a for a in (x["to"] or "").split(",") if a.strip()]],
+                    "cc": [_person(v) for v in [a for a in (x["cc"] or "").split(",") if a.strip()]],
+                    "when": x["received_at"], "snippet": x["snippet"], "doc": render_doc(conn, uid, x),
+                    "attachments": [{"n": n, "name": a["name"], "size": a["size"], "mime": a["mime"]}
+                                    for n, a in enumerate(x["all_files"]) if not a.get("inline")],
+                    "chat_id": x["chat_id"]})
+        if x["status"] == "new":
+            conn.execute("UPDATE mail_message SET status = 'seen' WHERE id = ?", (x["id"],))
+    conn.commit()
+    return {"messages": out, "subject": m["subject"]}
+
+
+def _backfill(conn, uid: int, m: dict) -> None:
+    """Email stored before the Gmail-like view: fetch it once more to keep it as written."""
+    link = _link(conn, uid)
+    if not link or runtime_seams.seam("SSC_INBOX_ATTACHMENT_FAKE"):
+        return
+    try:
+        code, msg = _gmail(conn, link, "GET", f"/messages/{m['gmail_id']}?format=full")
+        if code == 200:
+            store_view(conn, m["id"], msg.get("payload"))
+    except Exception as e:
+        log.info("inbox backfill %s skipped (%s)", m["id"], type(e).__name__)
+
+
+def pending_reply(conn, uid: int, thread_ids: list) -> Optional[dict]:
+    """Claude's reply draft waiting in this conversation (shown in the reply box)."""
+    ph = ",".join("?" * len(thread_ids)) or "NULL"
+    rows = _rows(conn, f"SELECT a.id, a.input FROM claude_action a JOIN claude_chat c ON c.id = a.chat_id WHERE a.user_id = ? "
+                       f"AND a.tool = 'reply_email' AND a.status = 'pending' AND c.mail_id IN ({ph}) ORDER BY a.id DESC",
+                 [uid] + list(thread_ids))
+    for r in rows:
+        inp = json.loads(r["input"] or "{}")
+        if str(inp.get("mail_id") or "").isdigit():
+            return {"action_id": r["id"], "mail_id": int(inp["mail_id"]), "body": inp.get("body") or "",
+                    "subject": inp.get("subject") or "", "reply_all": bool(inp.get("reply_all"))}
+    return None
 
 
 # ------------------------------------------------------------------ the background loop
@@ -724,6 +948,14 @@ def start() -> None:
     if _LOOP["started"] or os.environ.get("SSC_GMAIL_POLL", "1") != "1":
         return
     _LOOP["started"] = True
+    conn = _conn()
+    try:   # a restart mid-answer: let the person ask again
+        conn.execute("UPDATE mail_message SET ai_state = 'triaged' WHERE ai_state = 'asked'")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
     threading.Thread(target=_loop, name="inbox-sync", daemon=True).start()
 
 
@@ -759,7 +991,7 @@ def _public_row(conn, r: dict) -> dict:
     return {"id": m["id"], "direction": m["direction"], "who": name, "subject": m["subject"] or "(no subject)",
             "summary": m["summary"] or m["snippet"], "received_at": m["received_at"], "status": m["status"],
             "needs_action": bool(m["needs_action"]) and m["status"] != "done", "pending_cards": pending, "tags": tags,
-            "filed": filed, "ai_state": m["ai_state"], "has_attachments": bool(m["attachments"])}
+            "filed": filed, "ai_state": m["ai_state"], "has_attachments": bool(m["attachments"]), "snippet": m["snippet"]}
 
 
 @requires_role(*OFFICE_ROLES)
@@ -792,17 +1024,36 @@ def _api_status():
 
 @requires_role(*OFFICE_ROLES)
 def _api_messages():
+    """One row per conversation (the latest email), like Gmail."""
     me = _me()
-    f = request.args.get("filter") or "act"
+    f = request.args.get("filter") or "all"
     conn = _conn()
     try:
-        sql = "SELECT id FROM mail_message WHERE user_id = ?"
-        if f == "act":
-            sql += " AND needs_action = 1 AND status <> 'done'"
-        elif f == "filed":
-            sql += " AND id IN (SELECT message_id FROM mail_link)"
-        rows = _rows(conn, sql + " ORDER BY received_at DESC, id DESC LIMIT 150", (me["id"],))
-        return jsonify({"data": [_public_row(conn, r) for r in rows]})
+        rows = _rows(conn, "SELECT id, COALESCE(thread_id, gmail_id) AS t, needs_action, status, received_at FROM mail_message "
+                           "WHERE user_id = ? ORDER BY received_at DESC, id DESC LIMIT 600", (me["id"],))
+        filed = {r["message_id"] for r in _rows(conn, "SELECT l.message_id FROM mail_link l JOIN mail_message m ON m.id = l.message_id "
+                                                      "WHERE m.user_id = ?", (me["id"],))}
+        threads, order = {}, []
+        for r in rows:
+            if r["t"] not in threads:
+                threads[r["t"]] = []
+                order.append(r["t"])
+            threads[r["t"]].append(r)
+        out = []
+        for t in order:
+            msgs = threads[t]
+            act = any(x["needs_action"] and x["status"] != "done" for x in msgs)
+            if (f == "act" and not act) or (f == "filed" and not any(x["id"] in filed for x in msgs)):
+                continue
+            row = _public_row(conn, msgs[0])
+            row.update(count=len(msgs), unread=any(x["status"] == "new" for x in msgs), needs_action=act,
+                       filed=any(x["id"] in filed for x in msgs))
+            if len(msgs) > 1:
+                row["pending_cards"] = sum(_public_row(conn, x)["pending_cards"] for x in msgs[1:]) + row["pending_cards"]
+            out.append(row)
+            if len(out) >= 150:
+                break
+        return jsonify({"data": out})
     finally:
         conn.close()
 
@@ -848,6 +1099,7 @@ def _api_done(mid):
 @requires_role(*OFFICE_ROLES)
 def _api_suggest(mid):
     me = _me()
+    want_reply = bool((request.get_json(silent=True) or {}).get("reply"))
     conn = _conn()
     try:
         m = message(conn, mid, me["id"])
@@ -859,19 +1111,22 @@ def _api_suggest(mid):
             c = _one(conn, "SELECT busy_since FROM claude_chat WHERE id = ?", (m["chat_id"],))
             if c and c["busy_since"]:
                 return _err("Claude is already reading this email.", 409)
-        conn.execute("UPDATE mail_message SET ai_state = 'pending' WHERE id = ?", (mid,))
+        conn.execute("UPDATE mail_message SET ai_state = 'asked' WHERE id = ?", (mid,))
         conn.commit()
     finally:
         conn.close()
-    threading.Thread(target=_process_alone, args=(mid,), daemon=True).start()
-    return jsonify({"data": {"id": mid, "ai_state": "pending"}}), 202
+    threading.Thread(target=_process_alone, args=(mid, want_reply), daemon=True).start()
+    return jsonify({"data": {"id": mid, "ai_state": "asked"}}), 202
 
 
-def _process_alone(mid):
+def _process_alone(mid, want_reply=False):
     conn = _conn()
     try:
-        process(conn, mid, force=True)
+        process(conn, mid, force=True, want_reply=want_reply)
     except Exception as e:
+        conn.rollback()
+        conn.execute("UPDATE mail_message SET ai_state = 'triaged' WHERE id = ?", (mid,))
+        conn.commit()
         log.warning("inbox process %s failed: %s", mid, type(e).__name__)
     finally:
         conn.close()
@@ -904,6 +1159,132 @@ def _api_linked():
         return jsonify({"data": out})
     finally:
         conn.close()
+
+
+@requires_role(*OFFICE_ROLES)
+def _api_thread(mid):
+    """The conversation as Gmail shows it, plus Claude's reply draft and other cards."""
+    import gmail_suggest
+    me = _me()
+    conn = _conn()
+    try:
+        v = thread_view(conn, me["id"], mid)
+        if not v:
+            return _err("not found", 404)
+        ids = [x["id"] for x in v["messages"]]
+        last = message(conn, ids[-1], me["id"])
+        link = _one(conn, "SELECT google_email, scopes FROM gmail_link WHERE user_id = ?", (me["id"],)) or {}
+        row = _public_row(conn, {"id": mid})
+        v.update({"id": mid, "last_id": ids[-1], "tags": row["tags"], "ai_state": last["ai_state"], "needs_action": any(
+                      x["needs_action"] and x["status"] != "done" for x in _rows(conn, f"SELECT needs_action, status FROM mail_message "
+                                                                                    f"WHERE id IN ({','.join('?' * len(ids))})", ids)),
+                  "draft": pending_reply(conn, me["id"], ids),
+                  "card_chats": [x["chat_id"] for x in v["messages"] if x["chat_id"]],
+                  "gmail_url": gmail_suggest._gmail_url(link.get("google_email") or "", last["thread_id"] or last["gmail_id"]),
+                  "me": link.get("google_email") or "", "can_send": can_send(link),
+                  "reply_to": dict(zip(("to", "cc"), reply_recipients(last, link.get("google_email") or "", False))),
+                  "reply_all_to": dict(zip(("to", "cc"), reply_recipients(last, link.get("google_email") or "", True)))})
+        return jsonify({"data": v})
+    finally:
+        conn.close()
+
+
+@requires_role(*OFFICE_ROLES)
+def _api_attachment(mid, n):
+    from flask import Response
+    me = _me()
+    conn = _conn()
+    try:
+        m = message(conn, mid, me["id"])
+        if not m or n < 0 or n >= len(m["all_files"]):
+            return _err("not found", 404)
+        a = m["all_files"][n]
+        try:
+            data = attachment_bytes(conn, me["id"], m, a)
+        except ValueError as e:
+            return _err(str(e), 502)
+        name = re.sub(r'[\r\n"\\]', "", a["name"] or "attachment")[:150]
+        inline = (a.get("mime") or "").startswith(("image/", "application/pdf")) and request.args.get("download") != "1"
+        resp = Response(data, mimetype=a.get("mime") or "application/octet-stream")
+        resp.headers["Content-Disposition"] = ("inline" if inline else "attachment") + f'; filename="{name}"'
+        resp.headers["Cache-Control"] = "private, no-store"
+        resp.headers["X-Content-Type-Options"] = "nosniff"
+        resp.headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
+        return resp
+    finally:
+        conn.close()
+
+
+def _decline_draft(conn, uid, ids):
+    d = pending_reply(conn, uid, ids)
+    if d:
+        conn.execute("UPDATE claude_action SET status = 'declined', decided_by = ?, decided_at = ? WHERE id = ?",
+                     (uid, _now(), d["action_id"]))
+        conn.commit()
+
+
+@requires_role(*OFFICE_ROLES)
+def _api_reply(mid):
+    """The person wrote (or edited) a reply and pressed Send: that IS the approval."""
+    me = _me()
+    d = request.get_json(silent=True) or {}
+    conn = _conn()
+    try:
+        m = message(conn, mid, me["id"])
+        if not m:
+            return _err("not found", 404)
+        try:
+            r = send_reply(conn, me["id"], mid, str(d.get("body") or ""), d.get("subject"), bool(d.get("reply_all")))
+        except (ValueError, LookupError) as e:
+            return _err(str(e), 400)
+        ids = [x["id"] for x in _rows(conn, "SELECT id FROM mail_message WHERE user_id = ? AND thread_id = ?",
+                                       (me["id"], m["thread_id"]))] if m["thread_id"] else [mid]
+        if d.get("draft_action_id"):   # Claude's draft, edited and sent by the person: record it as approved
+            conn.execute("UPDATE claude_action SET status = 'approved', decided_by = ?, decided_at = ?, result = ? "
+                         "WHERE id = ? AND user_id = ? AND status = 'pending'",
+                         (me["id"], _now(), json.dumps({"id": mid, "summary": "Reply sent from your Gmail", "link": "/company#inbox",
+                                                        "undo": False}), int(d["draft_action_id"]), me["id"]))
+            conn.commit()
+        _decline_draft(conn, me["id"], ids)   # any other draft for this conversation is now out of date
+        conn.execute(f"UPDATE mail_message SET status = 'done' WHERE id IN ({','.join('?' * len(ids))})", ids)
+        conn.commit()
+        file_message(conn, mid, me["id"])
+        return jsonify({"data": r})
+    finally:
+        conn.close()
+
+
+@requires_role(*OFFICE_ROLES)
+def _api_compose():
+    me = _me()
+    d = request.get_json(silent=True) or {}
+    conn = _conn()
+    try:
+        try:
+            r = compose(conn, me["id"], str(d.get("to") or ""), str(d.get("cc") or ""), str(d.get("subject") or ""),
+                        str(d.get("body") or ""))
+        except ValueError as e:
+            return _err(str(e), 400)
+        return jsonify({"data": r})
+    finally:
+        conn.close()
+
+
+@requires_role(*OFFICE_ROLES)
+def _api_refresh():
+    """Check Gmail now (the Refresh button) instead of waiting for the next minute."""
+    me = _me()
+    conn = _conn()
+    try:
+        r = sync_user(conn, me["id"])
+    finally:
+        conn.close()
+    _LOOP["wake"].set()   # Claude reads anything new right away
+    if r.get("error"):
+        return _err("Gmail did not answer. It retries by itself.", 502)
+    if r.get("needs_reconnect"):
+        return _err("Your Google sign-in expired. Reconnect Gmail.", 409)
+    return jsonify({"data": {"new": r.get("new", 0)}})
 
 
 def _api_push():
@@ -940,6 +1321,11 @@ def register(app) -> None:
     app.add_url_rule("/api/inbox/messages/<int:mid>/done", "inbox_done", _api_done, methods=["POST"])
     app.add_url_rule("/api/inbox/messages/<int:mid>/suggest", "inbox_suggest", _api_suggest, methods=["POST"])
     app.add_url_rule("/api/inbox/linked", "inbox_linked", _api_linked, methods=["GET"])
+    app.add_url_rule("/api/inbox/threads/<int:mid>", "inbox_thread", _api_thread, methods=["GET"])
+    app.add_url_rule("/api/inbox/messages/<int:mid>/attachments/<int:n>", "inbox_attachment", _api_attachment, methods=["GET"])
+    app.add_url_rule("/api/inbox/messages/<int:mid>/reply", "inbox_reply", _api_reply, methods=["POST"])
+    app.add_url_rule("/api/inbox/compose", "inbox_compose", _api_compose, methods=["POST"])
+    app.add_url_rule("/api/inbox/refresh", "inbox_refresh", _api_refresh, methods=["POST"])
     app.add_url_rule("/gmail/push", "gmail_push", _api_push, methods=["POST"])
     import gmail_suggest
     if not gmail_suggest.unavailable_reason():

@@ -18,6 +18,9 @@ Proves, through a Flask test client against an ISOLATED database (no Google, no 
     sender; a proposal emailed from Gmail is logged as sent; a read-only connection is told to
     reconnect before anything is sent
   * the record pages list filed emails; another person never sees someone else's mail
+  * the Gmail-like view: the email as written (html, scripts stripped, inline pictures), one row per
+    conversation, attachments, Reply / Reply all, Claude's reply draft sent only by the person's Send,
+    Compose, and Refresh
   * logs carry ids / counts only; the pages carry the Inbox and no "Check now"
 
 Database: honors SSC_DB_URL like every gate suite; otherwise a throwaway SQLite snapshot.
@@ -344,6 +347,104 @@ def main() -> int:
         assert ("proposal", str(ids["prop"])) in {(x["entity_type"], x["entity_id"]) for x in _q("SELECT entity_type, entity_id FROM mail_link WHERE message_id = ?", (r5["id"],))}
         passed += 1; print("  proposal sent from Gmail logged ok")
 
+        # ---- the Gmail-like view: the email as written, threads, Reply all, Claude's draft in the box, Compose, Refresh
+        html = ('<div style="color:#333">Hi team,<br>Scaffold <b>drawings</b> attached.<script>alert(1)</script>'
+                '<a href="javascript:alert(2)" onclick="steal()">x</a><img src="cid:logo123"><iframe src="https://x.example"></iframe></div>')
+        m8 = {"id": "m8", "threadId": "thr-site", "labelIds": ["INBOX"], "internalDate": "1792000100000", "snippet": "Hi team, Scaffold drawings",
+              "payload": {"mimeType": "multipart/mixed", "headers": [
+                  {"name": "From", "value": f"Dana Ibx <{CONTACT}>"}, {"name": "To", "value": f"{TAG}.admin@superstarscontracting.com"},
+                  {"name": "Cc", "value": "Lee Ibx <lee@tishman-ibx.example>"}, {"name": "Subject", "value": "Ibx scaffold drawings"},
+                  {"name": "Message-ID", "value": "<m8@mail.example>"}],
+                  "parts": [{"mimeType": "multipart/alternative", "parts": [
+                      {"mimeType": "text/plain", "body": {"data": _b64("Hi team, Scaffold drawings attached.")}},
+                      {"mimeType": "text/html", "body": {"data": _b64(html)}}]},
+                      {"mimeType": "image/png", "filename": "", "headers": [{"name": "Content-ID", "value": "<logo123>"},
+                                                                            {"name": "Content-Disposition", "value": "inline"}],
+                       "body": {"attachmentId": "att-logo", "size": 900}},
+                      {"mimeType": "application/pdf", "filename": "scaffold.pdf", "body": {"attachmentId": "att-scf", "size": 4096}}]}}
+        m9 = gmsg("m9", frm="Lee Ibx <lee@tishman-ibx.example>", to=f"{TAG}.admin@superstarscontracting.com, Dana Ibx <{CONTACT}>",
+                  subject="Re: Ibx scaffold drawings", text="Can you confirm the start date?", when="1792000200000")
+        m9["threadId"] = "thr-site"
+        conn = _db()
+        try:
+            i8 = inbox.ingest(conn, me, m8, f"{TAG}.admin@superstarscontracting.com")
+            i9 = inbox.ingest(conn, me, m9, f"{TAG}.admin@superstarscontracting.com")
+            full8 = inbox.message(conn, i8, me)
+            assert [a["name"] for a in full8["attachments"]] == ["scaffold.pdf"] and len(full8["inline_images"]) == 1
+            conn.execute("UPDATE mail_message SET ai_state = 'triaged' WHERE id IN (?, ?)", (i8, i9))
+            conn.commit()
+        finally:
+            conn.close()
+        assert "drawings" not in json.dumps(_q("SELECT * FROM mail_message WHERE id = ?", (i8,)))       # html encrypted at rest
+        rows_all = a.get("/api/inbox/messages?filter=all").get_json()["data"]
+        site = [x for x in rows_all if x["id"] in (i8, i9)]
+        assert len(site) == 1 and site[0]["id"] == i9 and site[0]["count"] == 2 and site[0]["unread"] is True   # one row per conversation
+        assert "summary" not in site[0] or site[0]["snippet"]
+        assert pm.get(f"/api/inbox/threads/{i9}").status_code == 403 and cs.get(f"/api/inbox/threads/{i9}").status_code == 404
+        t = a.get(f"/api/inbox/threads/{i9}").get_json()["data"]
+        assert [x["id"] for x in t["messages"]] == [i8, i9] and t["last_id"] == i9 and t["draft"] is None
+        doc = t["messages"][0]["doc"]
+        assert "<b>drawings</b>" in doc and "Content-Security-Policy" in doc and '<base target="_blank">' in doc
+        assert "<script" not in doc and "alert(1)" not in doc and "onclick" not in doc and "javascript:" not in doc and "<iframe" not in doc
+        assert "cid:logo123" not in doc and "data:image/png;base64," in doc                              # picture inside the email
+        assert [x["name"] for x in t["messages"][0]["attachments"]] == ["scaffold.pdf"]
+        n = t["messages"][0]["attachments"][0]["n"]
+        r = a.get(f"/api/inbox/messages/{i8}/attachments/{n}")
+        assert r.status_code == 200 and r.data.startswith(b"%PDF") and r.headers["Content-Disposition"].startswith("inline")
+        assert "sandbox" in r.headers["Content-Security-Policy"]
+        assert a.get(f"/api/inbox/messages/{i8}/attachments/{n}?download=1").headers["Content-Disposition"].startswith("attachment")
+        assert cs.get(f"/api/inbox/messages/{i8}/attachments/{n}").status_code == 404
+        assert t["reply_to"]["to"].endswith("lee@tishman-ibx.example>") and t["reply_to"]["cc"] == ""
+        assert CONTACT in t["reply_all_to"]["cc"] and f"{TAG}.admin" not in t["reply_all_to"]["cc"]
+        assert _q("SELECT status FROM mail_message WHERE id = ?", (i9,))[0]["status"] == "seen"          # opening marks it read
+        # Draft with Claude: even email the sorter calls "nothing to do" gets a reply when the person asks
+        os.environ["SSC_INBOX_TRIAGE_FAKE"] = json.dumps({"business": False, "kind": "other", "summary": "x", "needs_action": False})
+        os.environ["SSC_ASSISTANT_FAKE"] = json.dumps([
+            {"tools": [{"name": "reply_email", "input": {"mail_id": i9, "reply_all": True, "body": "Hi Lee,\n\nWe start Monday.\n\nIbx Admin"}}]},
+            {"text": "A reply is ready."}])
+        ca._FAKE["step"] = 0
+        conn = _db()
+        try:
+            assert inbox.process(conn, i9, force=True) == "triaged"                     # not asked: nothing drafted
+            assert inbox.process(conn, i9, force=True, want_reply=True) == "suggested"
+        finally:
+            conn.close()
+        assert not list(MAIL.glob("gmail-reply-*.eml"))[1:]                             # still only the earlier approved reply
+        before = len(list(MAIL.glob("gmail-reply-*.eml")))
+        t = a.get(f"/api/inbox/threads/{i9}").get_json()["data"]
+        assert t["draft"] and t["draft"]["reply_all"] is True and "We start Monday." in t["draft"]["body"]
+        assert t["card_chats"] and all("reply_email" != x for x in t["card_chats"])
+        r = a.post(f"/api/inbox/messages/{i9}/reply", json={"body": "Hi Lee,\n\nWe start Monday at 7.\n\nIbx Admin", "reply_all": True,
+                                                             "draft_action_id": t["draft"]["action_id"]})
+        assert r.status_code == 200, r.get_json()
+        eml = sorted(MAIL.glob("gmail-reply-*.eml"))[-1].read_text(encoding="utf-8")
+        assert len(list(MAIL.glob("gmail-reply-*.eml"))) == before + 1
+        assert "To: Lee Ibx <lee@tishman-ibx.example>" in eml and f"Cc: Dana Ibx <{CONTACT}>" in eml and "In-Reply-To: <m9@mail.example>" in eml
+        assert "We start Monday at 7." in eml and "Subject: Re: Ibx scaffold drawings" in eml
+        assert _q("SELECT status FROM claude_action WHERE id = ?", (t["draft"]["action_id"],))[0]["status"] == "approved"
+        assert {x["status"] for x in _q("SELECT status FROM mail_message WHERE id IN (?, ?)", (i8, i9))} == {"done"}
+        assert a.get(f"/api/inbox/threads/{i9}").get_json()["data"]["draft"] is None
+        assert a.post(f"/api/inbox/messages/{i9}/reply", json={"body": "  "}).status_code == 400
+        # Compose
+        assert a.post("/api/inbox/compose", json={"to": "not-an-address", "subject": "x", "body": "y"}).status_code == 400
+        assert a.post("/api/inbox/compose", json={"to": "", "subject": "x", "body": "y"}).status_code == 400
+        assert pm.post("/api/inbox/compose", json={"to": "a@b.example", "body": "y"}).status_code == 403
+        r = a.post("/api/inbox/compose", json={"to": "Pat <pat@tishman-ibx.example>", "cc": "lee@tishman-ibx.example",
+                                               "subject": "Ibx site visit", "body": "See you Thursday."})
+        assert r.status_code == 200, r.get_json()
+        new = sorted(MAIL.glob("gmail-new-*.eml"))[-1].read_text(encoding="utf-8")
+        assert "To: Pat <pat@tishman-ibx.example>" in new and "Cc: lee@tishman-ibx.example" in new and "See you Thursday." in new
+        # Refresh: checks Gmail right now
+        real = inbox._gmail
+        inbox._gmail = lambda conn, link, method, path, **kw: ((200, {"historyId": "130"}) if path.startswith(("/history", "/profile"))
+                                                               else (200, {"messages": []}))
+        try:
+            assert a.post("/api/inbox/refresh").get_json()["data"] == {"new": 0}
+            assert pm.post("/api/inbox/refresh").status_code == 403
+        finally:
+            inbox._gmail = real
+        passed += 1; print("  Gmail-like view: as written, threads, reply all, Claude draft, compose, refresh ok")
+
         # ---- a read-only connection must reconnect before sending; done / filters; privacy
         os.environ.pop("SSC_MAIL_FAKE_DIR")
         conn = _db()
@@ -382,14 +483,17 @@ def main() -> int:
         gm = (ROOT / "static/js/gmail_suggest.js").read_text(encoding="utf-8")
         assert "data-check>" not in gm and "Check now" not in gm and "/company#inbox" in gm
         assert "mountCards: mountCards" in (ROOT / "static/js/claude_drawer.js").read_text(encoding="utf-8")
+        ib = cp[cp.index("// ---------- INBOX (inbox.py)"):cp.index("// a record's emails")]
+        assert 'id="ib-refresh"' in cp and 'id="ib-new"' in cp and 'id="ib-compose"' in cp and "Draft with Claude" in ib
+        assert "f.srcdoc = doc" in ib and "allow-scripts" not in ib and "skip: ['reply_email']" in ib and "r.summary" not in ib and "m.summary" not in ib
         passed += 1; print("  logs + pages ok")
     finally:
         for k in ("SSC_ASSISTANT_FAKE", "SSC_INBOX_TRIAGE_FAKE"):
             os.environ.pop(k, None)
         _cleanup()
         shutil.rmtree(_TMP, ignore_errors=True)
-    print(f"smoke_inbox: {passed}/8 groups passed")
-    return 0 if passed == 8 else 1
+    print(f"smoke_inbox: {passed}/9 groups passed")
+    return 0 if passed == 9 else 1
 
 
 if __name__ == "__main__":

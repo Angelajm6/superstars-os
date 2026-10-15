@@ -1049,7 +1049,7 @@ def _reply_card(ctx, inp):
 
 def _exec_reply(ctx, inp):
     import inbox
-    r = inbox.send_reply(ctx.conn, ctx.uid, int(inp["mail_id"]), str(inp["body"]), inp.get("subject"))
+    r = inbox.send_reply(ctx.conn, ctx.uid, int(inp["mail_id"]), str(inp["body"]), inp.get("subject"), bool(inp.get("reply_all")))
     inbox.file_message(ctx.conn, int(inp["mail_id"]), ctx.uid)
     return {"id": int(inp["mail_id"]), "summary": "Reply sent from your Gmail", "link": "/company#inbox", "undo": False}
 
@@ -1238,7 +1238,8 @@ TOOLS += [
          {"mail_id": _I}, ["mail_id"], roles=OFFICE_ROLES, office_only=True, run=_t_email),
     Tool("reply_email", "Reply email", "Propose a reply to an email in this person's inbox (mail_id), sent from their own "
          "Gmail in the same thread. Write the complete message, signed with their name.",
-         {"mail_id": _I, "subject": _S, "body": _S}, ["mail_id", "body"], write=True, roles=OFFICE_ROLES, office_only=True,
+         {"mail_id": _I, "subject": _S, "body": _S, "reply_all": {"type": "boolean", "description": "true to answer everyone on the email"}},
+         ["mail_id", "body"], write=True, roles=OFFICE_ROLES, office_only=True,
          run=_check_reply, card=_reply_card, execute=_exec_reply),
     Tool("save_email_attachments", "Save attachments", "Propose saving an email's PDF / image / spreadsheet attachments "
          "to an existing estimate or bid.",
