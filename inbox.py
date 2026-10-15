@@ -784,7 +784,7 @@ def _api_status():
             "google_email": (link or {}).get("google_email"), "can_send": can_send(link),
             "live": push_configured(), "every_seconds": sync_seconds(), "last_sync_at": st.get("last_sync_at"),
             "problem": st.get("last_error") or (link or {}).get("last_error"), "needs_action": n,
-            "calendar": {"connected": bool(cal.get("connected")), "status": cal.get("status")},
+            "calendar": {"connected": bool(cal.get("connected")), "status": cal.get("status"), "reads": bool(cal.get("reads_calendar"))},
             "quickbooks": {"connected": False}}})
     finally:
         conn.close()

@@ -11,6 +11,7 @@ The app has deterministic test seams that replace real behaviour with planted da
   SSC_ASSISTANT_FAKE         replace the Claude reply on estimates/proposals with planted text
   SSC_INBOX_TRIAGE_FAKE      replace the Inbox email sorting call with planted JSON
   SSC_INBOX_ATTACHMENT_FAKE  replace Gmail attachment downloads with planted bytes
+  SSC_CALENDAR_SORT_FAKE     replace the calendar work / personal sorting call with planted JSON
 
 Previously each was honored whenever its env var was set, guarded only by a comment saying
 "never set in production". Per CLAUDE.md secrets/security rules that is not enough: one
@@ -41,6 +42,7 @@ SEAM_VARS = (
     "SSC_ASSISTANT_FAKE",
     "SSC_INBOX_TRIAGE_FAKE",
     "SSC_INBOX_ATTACHMENT_FAKE",
+    "SSC_CALENDAR_SORT_FAKE",
 )
 
 
