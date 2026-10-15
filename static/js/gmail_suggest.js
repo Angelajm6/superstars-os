@@ -2,7 +2,7 @@
  * company dashboard. Renders into <section data-gmail-card hidden></section>.
  *
  * Not switched on: hidden for everyone except admin / C-suite, who see one line saying so.
- * Not connected: a Connect Gmail row. Connected: Check now / Disconnect, then each new
+ * Not connected: a Connect Gmail row. Connected: checked by itself every 2 minutes / Disconnect, then each new
  * suggestion — who sent it, the subject, the proposed task or event (title, date, time,
  * address, why) and Add to my to-do / Edit first / Dismiss / Open in Gmail. Adding creates a
  * task or event assigned to the person; the page is told so its to-do list refreshes.
@@ -14,7 +14,7 @@
   var role = null, ST = null, rows = [];
   var OUTCOME = {
     connected: ['Gmail connected. New mail in your Primary inbox is checked every 10 minutes.', false],
-    connected_retry: ['Gmail connected. The first check did not finish; it will retry shortly, or use Check now.', true],
+    connected_retry: ['Gmail connected. The first check did not finish; it retries by itself in a couple of minutes.', true],
     denied: ['Gmail was not connected (permission not given).', true],
     account: ['Use your own company Google account, the same email you sign in with here.', true],
     scope: ['Google did not grant read access to Gmail. Try again and allow it.', true],
@@ -83,10 +83,14 @@
       card.innerHTML = head + '<div class="gm-row">✉️ <span>Let the app spot to-dos in your Gmail (Primary inbox) and suggest them here. Read-only; only you see them.</span><a class="gm-btn primary" href="' + esc(connectHref()) + '">Connect Gmail</a></div>';
       return;
     }
+    if (ST.inbox && ST.status !== 'needs_reconnect') {   // admin / C-suite: their email lives in the Inbox (inbox.py)
+      card.innerHTML = head.replace(/<span class="gm-count">[^<]*<\/span>/, '') + '<div class="gm-row">✉️ <span>Your email arrives in the Inbox by itself, matched to clients, bids and proposals, with suggestions to approve.' + (ST.google_email ? ' <span class="gm-mute">(' + esc(ST.google_email) + ')</span>' : '') + '</span><a class="gm-btn primary" href="/company#inbox">Open Inbox</a></div>';
+      return;
+    }
     var row = ST.status === 'needs_reconnect'
       ? '<div class="gm-row warn">⚠ <span>Gmail stopped: the Google sign-in expired.</span><a class="gm-btn primary" href="' + esc(connectHref()) + '">Reconnect</a><button type="button" class="gm-btn ghost" data-off>Disconnect</button></div>'
-      : '<div class="gm-row">✉️ <span>Reading new Primary inbox mail' + (ST.google_email ? ' <span class="gm-mute">(' + esc(ST.google_email) + ')</span>' : '') + ' · checked ' + esc(ago(ST.last_check_at)) +
-        (ST.problem ? ' <span class="gm-bad">· ' + esc(ST.problem) + '</span>' : '') + '</span><button type="button" class="gm-btn" data-check>Check now</button><button type="button" class="gm-btn ghost" data-off>Disconnect</button></div>';
+      : '<div class="gm-row">✉️ <span>Reading new Primary inbox mail' + (ST.google_email ? ' <span class="gm-mute">(' + esc(ST.google_email) + ')</span>' : '') + ' · checked by itself every 2 minutes, last ' + esc(ago(ST.last_check_at)) +
+        (ST.problem ? ' <span class="gm-bad">· ' + esc(ST.problem) + '</span>' : '') + '</span><button type="button" class="gm-btn ghost" data-off>Disconnect</button></div>';
     var list = rows.length ? rows.map(sugRow).join('') : '<div class="gm-empty">Nothing to add right now. New to-dos from your email show up here.</div>';
     card.innerHTML = head + row + list;
   }
@@ -102,7 +106,7 @@
   function refreshTodo() { document.dispatchEvent(new CustomEvent('ssc:items-changed')); }
   card.addEventListener('click', async function (e) {
     var b = e.target.closest('button'); if (!b || b.type === 'submit') return;   // the edit form's own button submits the form
-    if (!['data-add', 'data-dismiss', 'data-undo', 'data-edit', 'data-cancel-edit', 'data-check', 'data-off'].some(function (a) { return b.hasAttribute(a); })) return;
+    if (!['data-add', 'data-dismiss', 'data-undo', 'data-edit', 'data-cancel-edit', 'data-off'].some(function (a) { return b.hasAttribute(a); })) return;
     var id = b.getAttribute('data-add') || b.getAttribute('data-dismiss') || b.getAttribute('data-undo') || b.getAttribute('data-edit') || b.getAttribute('data-cancel-edit');
     if (b.hasAttribute('data-edit')) { var f = card.querySelector('[data-form="' + id + '"]'); f.hidden = false; f.querySelector('input[name=title]').focus(); return; }
     if (b.hasAttribute('data-cancel-edit')) { card.querySelector('[data-form="' + id + '"]').hidden = true; return; }
@@ -111,7 +115,6 @@
       if (b.hasAttribute('data-add')) { await call('/api/gmail/suggestions/' + id + '/accept', 'POST', {}); flash('Added to your to-do.'); refreshTodo(); }
       else if (b.hasAttribute('data-dismiss')) await call('/api/gmail/suggestions/' + id + '/dismiss', 'POST');
       else if (b.hasAttribute('data-undo')) await call('/api/gmail/suggestions/' + id + '/undo', 'POST');
-      else if (b.hasAttribute('data-check')) { b.textContent = 'Checking…'; var r = await call('/api/gmail/check', 'POST'); if (r && r.error) flash('The check did not finish. It will retry shortly.', true); else if (r) flash(r.new ? r.new + ' new suggestion' + (r.new > 1 ? 's' : '') + '.' : 'No new to-dos in your email.'); }
       else if (b.hasAttribute('data-off')) {
         if (!confirm('Disconnect Gmail? Your pending email suggestions are cleared. Tasks you already added stay.')) { b.disabled = false; return; }
         await call('/api/gmail/disconnect', 'POST'); flash('Gmail disconnected.');

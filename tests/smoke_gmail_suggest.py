@@ -339,9 +339,10 @@ def main() -> int:
         src = (ROOT / page).read_text(encoding="utf-8")
         assert "data-gmail-card hidden" in src and 'src="/files/static/js/gmail_suggest.js?v=' in src and "ssc:items-changed" in src, page
     js = (ROOT / "static" / "js" / "gmail_suggest.js").read_text(encoding="utf-8")
-    for needle in ("/api/gmail/status", "/api/gmail/suggestions", "/accept", "/dismiss", "/undo", "/api/gmail/check", "/api/gmail/disconnect",
+    for needle in ("/api/gmail/status", "/api/gmail/suggestions", "/accept", "/dismiss", "/undo", "/api/gmail/disconnect",
                    "/gmail/connect?next=", "Add to my to-do", "Open in Gmail", "SSCDatePicker.getISO"):
         assert needle in js, needle
+    assert "Check now" not in js and "data-check" not in js and "/company#inbox" in js   # checks itself; admin / C-suite use the Inbox
     passed += 1; print("  pages ok")
 
     print(f"PASS smoke_gmail_suggest ({passed} groups)")

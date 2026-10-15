@@ -10,13 +10,13 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1011"></script>
-<script src="/files/static/js/claude_drawer.js?v=8" defer></script>
+<script src="/files/static/js/company_nav.js?v=1012"></script>
+<script src="/files/static/js/claude_drawer.js?v=9" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1014" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
 <script src="/files/static/js/gcal_connect.js?v=1007" defer></script>
-<script src="/files/static/js/gmail_suggest.js?v=1008" defer></script>
+<script src="/files/static/js/gmail_suggest.js?v=1009" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
 <style>
@@ -120,6 +120,44 @@
   /* Proposals tab: the Estimates / Bids / Proposals switch, and Claude next to each record (2026-10-14) */
   .cp-select.pr-kind { font-weight: 700; color: var(--ui, #24418C); background: var(--ui-soft, #E8EDF8); border-color: var(--ui, #24418C); }
   .cp-pill.claude { background: #FBEFE9; color: #A84E2C; }
+  /* Inbox (2026-10-14, inbox.py): email live in the software, Claude's cards per email */
+  .ib-conn { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 14px; }
+  .ib-chip { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; font-weight: 600; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: #fff; }
+  .ib-chip i { width: 8px; height: 8px; border-radius: 50%; background: #0c7a5f; display: inline-block; }
+  .ib-chip i.off { background: #B4B9C4; } .ib-chip i.warn { background: #D9822B; }
+  .ib-chip span { font-weight: 500; color: var(--muted); }
+  .ib-wrap { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); padding: 0; min-height: 620px; overflow: hidden; }
+  .ib-list { border-right: 1px solid var(--line); min-width: 0; display: flex; flex-direction: column; }
+  .ib-lhead { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .ib-lhead h2 { margin: 0; font-size: 15px; font-weight: 700; }
+  .ib-filters { display: flex; gap: 4px; }
+  .ib-filters button { border: 0; background: none; font: 600 12.5px Inter, sans-serif; color: var(--muted); padding: 4px 9px; border-radius: 999px; cursor: pointer; }
+  .ib-filters button[aria-pressed="true"] { background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); }
+  #ib-rows { overflow-y: auto; max-height: 720px; }
+  .ib-row { display: grid; gap: 4px; padding: 11px 14px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .ib-row:hover { background: #F7F8FA; } .ib-row.on { background: var(--ui-soft, #E8EDF8); }
+  .ib-row .t { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+  .ib-row .t b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib-row .t span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .ib-row .s { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib-row .x { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib-row.new .s { font-weight: 700; }
+  .ib-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+  .ib-pane { padding: 16px 20px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+  .ib-pane h2 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+  .ib-meta { font-size: 12.5px; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .ib-body { background: #F4F5F8; border-radius: 10px; padding: 12px 14px; line-height: 1.55; font-size: 13.5px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 420px; overflow-y: auto; }
+  .ib-atts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ib-atts span { font-size: 12.5px; border: 1px solid var(--line); border-radius: 8px; padding: 4px 9px; background: #fff; }
+  .ib-claude-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 14px; }
+  .ib-claude-h span.mk { display: inline-flex; align-items: center; gap: 8px; }
+  .ib-claude-h i { width: 22px; height: 22px; border-radius: 6px; background: #C2603B; color: #fff; display: inline-grid; place-items: center; font-style: normal; font-size: 13px; }
+  .ib-mails { display: grid; gap: 6px; }
+  .ib-mail { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 3px; }
+  .ib-mail summary { cursor: pointer; display: flex; justify-content: space-between; gap: 8px; font-size: 13px; list-style: none; }
+  .ib-mail summary b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib-mail .ib-body { margin-top: 6px; }
+  @media (max-width: 900px) { .ib-wrap { grid-template-columns: 1fr; } .ib-list { border-right: 0; border-bottom: 1px solid var(--line); } #ib-rows { max-height: 360px; } }
   .cl-card { display: flex; flex-direction: column; gap: 10px; }
   .cl-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .cl-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
@@ -738,6 +776,19 @@
       </section>
 
       <!-- job page redesign step 1: which views get opened (counts only) + which tools each job uses -->
+      <section class="cp-view" id="view-inbox" hidden>
+        <div class="cp-card ib-conn" id="ib-conn"></div>
+        <div class="cp-card ib-wrap">
+          <div class="ib-list">
+            <div class="ib-lhead"><h2>Inbox</h2>
+              <div class="ib-filters" role="group" aria-label="Show"><button type="button" data-ibf="act" aria-pressed="true">Needs action</button><button type="button" data-ibf="all" aria-pressed="false">All</button><button type="button" data-ibf="filed" aria-pressed="false">Filed</button></div>
+            </div>
+            <div id="ib-rows"></div>
+          </div>
+          <div class="ib-pane" id="ib-pane"></div>
+        </div>
+      </section>
+
       <section class="cp-view" id="view-claude" hidden>
         <div class="ssc-subtabs" data-subtabs="settings"></div>
         <div class="cp-kpis" id="ca-kpis"></div>
@@ -1551,11 +1602,13 @@
             <div class="cp-card"><div class="cp-card-head"><h2>Follow-ups</h2></div>
               ${d.open_tasks.length ? `<ul class="cp-list">${d.open_tasks.map(x => `<li><span>${esc(x.title)}</span><span class="cp-muted">${fmtDate(x.due_date)} <button type="button" class="cp-link" data-task-done="${x.id}" style="margin-left:8px;background:none;border:0;padding:0;cursor:pointer;font:inherit">done</button></span></li>`).join('')}</ul>` : empty('No open follow-ups')}
             </div>
+            <div id="cl-emails"></div>
             <div class="cp-card"><div class="cp-card-head"><h2>Recent activity</h2></div>
               ${d.activity.length ? `<ul class="cp-list">${d.activity.map(x => `<li><span><span class="cp-pill">${esc(x.activity_type)}</span> ${esc(x.summary || '')}</span><span class="cp-muted">${fmtDate(x.created_at)}</span></li>`).join('')}</ul>` : empty('No activity logged')}
             </div>
           </div>
         </div>`;
+      emailsCard($('cl-emails'), 'client', o.id);
       $('cl-edit').addEventListener('click', () => openClientEdit(o));
       $('cl-contact-add').addEventListener('click', () => openContactModal(o.id, null));
       host.querySelectorAll('[data-ct-edit]').forEach(b => b.addEventListener('click', () => openContactModal(o.id, d.contacts.find(c => String(c.id) === b.dataset.ctEdit))));
@@ -1913,6 +1966,83 @@
     selectEl.innerHTML = first + state.cache.clientOpts.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
     selectEl.value = cur || '';
   }
+  // ---------- INBOX (inbox.py): each admin / C-suite mailbox, live; Claude's cards per email ----------
+  const IB = { filter: 'act', rows: [], open: null, cards: null, timer: null };
+  const IB_TAG = { 'New bid': 'warn', 'Proposal reply': 'active', 'Client question': 'warn', 'Payment': 'ok', 'Permit / notice': '', 'Scheduling': 'active', 'Documents': '' };
+  function ibAgo(iso) {
+    if (!iso) return '';
+    const d = new Date(iso), now = new Date(), mins = Math.round((now - d) / 60000);
+    if (mins >= 0 && mins < 1) return 'just now'; if (mins >= 0 && mins < 60) return mins + ' min ago';
+    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+  async function loadInbox(arg) {
+    clearTimeout(IB.timer);
+    let st;
+    try { st = (await api('/inbox/status', null, true)).data; } catch (e) { $('ib-conn').innerHTML = esc(e.message); return; }
+    const next = encodeURIComponent('/company#inbox');
+    const gmail = !st.available ? `<span class="ib-chip"><i class="off"></i>Gmail <span>not switched on yet (Google setup)</span></span>`
+      : !st.connected ? `<span class="ib-chip"><i class="off"></i>Gmail <span>not connected</span></span><a class="btn-primary btn-sm" href="/gmail/connect?next=${next}">Connect your Gmail</a>`
+      : st.status !== 'active' ? `<span class="ib-chip"><i class="warn"></i>Gmail <span>sign-in expired</span></span><a class="btn-primary btn-sm" href="/gmail/connect?next=${next}">Reconnect Gmail</a>`
+      : `<span class="ib-chip"><i></i>Gmail <span>${st.live ? 'live' : 'checks every minute'}${st.last_sync_at ? ' · synced ' + ibAgo(st.last_sync_at) : ''}</span></span>` +
+        (st.can_send ? '' : `<a class="btn-ghost btn-sm" href="/gmail/connect?next=${next}" title="Lets you send Claude's reply drafts from your Gmail, always after your approval">Reconnect to allow replies</a>`);
+    $('ib-conn').innerHTML = gmail +
+      `<span class="ib-chip"><i class="${st.calendar && st.calendar.connected ? '' : 'off'}"></i>Google Calendar <span>${st.calendar && st.calendar.connected ? 'connected' : 'not connected'}</span></span>` +
+      `<span class="ib-chip"><i class="off"></i>QuickBooks <span>coming next</span></span>` +
+      (st.problem ? `<span class="cp-muted" style="font-size:12px">${esc(st.problem)}</span>` : '');
+    await ibList();
+    const want = arg && /^\d+$/.test(arg) ? +arg : (IB.open || (IB.rows[0] && IB.rows[0].id));
+    if (want) ibOpen(want, false); else $('ib-pane').innerHTML = empty(st.connected ? 'Nothing here yet' : 'Connect your Gmail', st.connected ? 'New email shows up by itself; nothing to check.' : 'Your email then arrives here by itself, matched to clients, bids and proposals.');
+    IB.timer = setTimeout(function tick() { if (state.view !== 'inbox') return; ibList(); IB.timer = setTimeout(tick, 30000); }, 30000);
+  }
+  async function ibList() {
+    try { IB.rows = (await api('/inbox/messages?filter=' + IB.filter, null, true)).data; } catch (e) { $('ib-rows').innerHTML = empty('Could not load the inbox', e.message); return; }
+    document.querySelectorAll('[data-ibf]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.ibf === IB.filter)));
+    $('ib-rows').innerHTML = IB.rows.length ? IB.rows.map(r => `<div class="ib-row${r.id === IB.open ? ' on' : ''}${r.status === 'new' ? ' new' : ''}" data-ib="${r.id}" tabindex="0">
+      <div class="t"><b>${r.direction === 'out' ? 'You → ' : ''}${esc(r.who || '')}</b><span>${ibAgo(r.received_at)}</span></div>
+      <div class="s">${esc(r.subject)}</div><div class="x">${esc(r.summary || '')}</div>
+      <div class="ib-tags">${r.pending_cards ? `<span class="cp-pill claude">Claude · ${r.pending_cards}</span>` : ''}${r.tags.map(t => `<span class="cp-pill ${IB_TAG[t] || ''}">${esc(t)}</span>`).join('')}${r.filed ? '<span class="cp-pill ok">filed</span>' : ''}</div></div>`).join('')
+      : empty(IB.filter === 'act' ? 'Nothing needs action' : 'No email yet', IB.filter === 'act' ? 'Email that needs an answer or a change shows here.' : '');
+  }
+  async function ibOpen(id, push) {
+    IB.open = id; if (IB.cards) IB.cards.stop();
+    if (push !== false && location.hash !== '#inbox/' + id) history.replaceState(null, '', '#inbox/' + id);
+    document.querySelectorAll('.ib-row').forEach(r => r.classList.toggle('on', +r.dataset.ib === id));
+    const pane = $('ib-pane'); pane.innerHTML = '<div class="cp-skel"></div><div class="cp-skel"></div>';
+    let m;
+    try { m = (await api('/inbox/messages/' + id, null, true)).data; } catch (e) { pane.innerHTML = empty('Could not open this email', e.message); return; }
+    pane.innerHTML = `<div><h2>${esc(m.subject)}</h2><div class="ib-meta"><span>${m.direction === 'out' ? 'You → ' + esc(m.to) : esc(m.from)}</span><span>· ${fmtWhen(m.received_at)}</span>${m.tags.map(t => `<span class="cp-pill ${IB_TAG[t] || ''}">${esc(t)}</span>`).join('')}
+        <a class="cp-link" href="${esc(m.gmail_url)}" target="_blank" rel="noopener">Open in Gmail</a>
+        <button type="button" class="cp-link" id="ib-done" style="background:none;border:0;cursor:pointer;font:inherit">${m.needs_action ? 'Mark done' : 'Back to needs action'}</button></div></div>
+      <div class="ib-body">${esc(m.body || m.summary || '')}</div>
+      ${m.attachments.length ? `<div class="ib-atts">${m.attachments.map(a => `<span>${esc(a.name)} · ${Math.max(1, Math.round(a.size / 1024))} KB</span>`).join('')}</div>` : ''}
+      <div class="ib-claude-h"><span class="mk"><i aria-hidden="true">✦</i>Claude</span><button type="button" class="btn-ghost btn-sm" id="ib-ask">${m.chat_id ? 'Ask again' : 'Ask Claude about this email'}</button></div>
+      ${m.summary ? `<div class="cp-muted" style="font-size:13px">${esc(m.summary)}</div>` : ''}
+      <div id="ib-cards">${m.chat_id ? '' : (m.ai_state === 'pending' ? '<div class="cp-muted">Claude is reading this email…</div>' : '<div class="cp-muted" style="font-size:13px">Nothing for Claude to do here. Ask if you want a reply or a change.</div>')}</div>`;
+    $('ib-done').addEventListener('click', async () => { try { await api('/inbox/messages/' + id + '/done', { method: 'POST', body: JSON.stringify({ done: m.needs_action }) }, true); await ibList(); ibOpen(id, false); } catch (e) { toast(e.message, true); } });
+    $('ib-ask').addEventListener('click', async () => {
+      try { await api('/inbox/messages/' + id + '/suggest', { method: 'POST' }, true); $('ib-cards').innerHTML = '<div class="cp-muted">Claude is reading this email…</div>'; ibWait(id); } catch (e) { toast(e.message, true); }
+    });
+    if (m.chat_id && window.SSC_CLAUDE && SSC_CLAUDE.mountCards) IB.cards = SSC_CLAUDE.mountCards($('ib-cards'), m.chat_id, ibList);
+    else if (m.ai_state === 'pending') ibWait(id);
+  }
+  function ibWait(id) {
+    setTimeout(async () => {
+      if (IB.open !== id || state.view !== 'inbox') return;
+      try { const m = (await api('/inbox/messages/' + id, null, true)).data; if (m.chat_id && m.ai_state !== 'pending') { ibOpen(id, false); ibList(); } else ibWait(id); } catch (e) {}
+    }, 2500);
+  }
+  $('ib-rows').addEventListener('click', e => { const r = e.target.closest('[data-ib]'); if (r) ibOpen(+r.dataset.ib); });
+  $('ib-rows').addEventListener('keydown', e => { if (e.key === 'Enter') { const r = e.target.closest('[data-ib]'); if (r) ibOpen(+r.dataset.ib); } });
+  document.querySelectorAll('[data-ibf]').forEach(b => b.addEventListener('click', () => { IB.filter = b.dataset.ibf; ibList(); }));
+  // a record's emails (client, estimate / bid, proposal): what someone filed from their Inbox
+  async function emailsCard(host, type, id) {
+    if (!host) return;
+    try {
+      const rows = (await api('/inbox/linked?type=' + type + '&id=' + encodeURIComponent(id), null, true)).data;
+      host.innerHTML = `<div class="cp-card"><div class="cp-card-head"><h2>Emails</h2><span class="hint">filed from the Inbox</span></div>${rows.length ? `<div class="ib-mails">${rows.map(r => `<details class="ib-mail"><summary><b>${r.direction === 'out' ? 'You → ' : ''}${esc(r.who)} · ${esc(r.subject)}</b><span class="cp-muted">${fmtDate(r.received_at)}</span></summary><div class="cp-muted" style="font-size:12.5px">${esc(r.summary || '')}</div><div class="ib-body">${esc(r.body || '')}</div></details>`).join('')}</div>` : empty('No emails filed yet', 'Approving a suggestion in the Inbox files its email here.')}</div>`;
+    } catch (e) { host.innerHTML = ''; }
+  }
   // ---------- Claude approvals (claude_agent.py): every change Claude proposed and who decided ----------
   const CA_PILL = { pending: 'warn', approved: 'ok', declined: 'bad', expired: '', undone: '', failed: 'bad' };
   const CA_WORD = { pending: 'waiting', approved: 'approved', declined: 'declined', expired: 'expired', undone: 'undone', failed: 'failed' };
@@ -2103,6 +2233,7 @@
             <div class="cp-card"><div class="cp-card-head"><h2>Documents</h2><span class="hint">Upload in Estimating</span></div>
               ${docs.length ? `<ul class="cp-list">${docs.map(x => `<li><a class="cp-link" href="${esc(x.file_url)}" target="_blank" rel="noopener">${esc(x.title || x.file_name || 'Document')}</a><span class="cp-muted">${esc(String(x.category || '').replace('_', ' '))} · ${fmtDate(x.uploaded_at)}</span></li>`).join('')}</ul>` : empty('No documents yet')}
             </div>
+            <div id="est-emails"></div>
             <div class="cp-card"><div class="cp-card-head"><h2>Proposals</h2></div>
               ${props.length ? `<ul class="cp-list">${props.map(p => `<li><a class="cp-link cp-id" href="#proposals/${p.id}">${esc(p.number)}</a><span>${prPill(p)} ${p.price != null ? money.format(p.price) : ''}</span></li>`).join('')}</ul>` : empty('No proposal yet', 'Create one when the price is ready; client, address and price come across.')}
             </div>
@@ -2110,6 +2241,7 @@
           <div><div id="claude-host"></div></div>
         </div>`;
       const pb = $('est-propose'); if (pb) pb.addEventListener('click', () => proposeFromEstimate(e.id));
+      emailsCard($('est-emails'), 'estimate', e.id);
       mountClaude($('claude-host'), { estimateId: e.id, proposalId: null, editable: false, what: word });
     } catch (ex) { toast(ex.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this estimate', ex.message)}</div>`; }
   }
@@ -2360,12 +2492,14 @@
                 <li id="pr-deposit-inv" hidden></li>
               </ul>
             </div>
+            <div id="pr-emails"></div>
             <div class="cp-card"><div class="cp-card-head"><h2>Timeline</h2></div>
               ${p.events.length ? `<ul class="cp-list pr-timeline">${p.events.slice().reverse().map(ev => `<li><span class="cp-pill ${PR_PILL[ev.event] || ''}">${esc(ev.event.replace('_', ' '))}</span> ${esc(ev.detail || '')}<div class="when">${fmtWhen(ev.at)}</div></li>`).join('')}</ul>` : empty('Nothing yet')}
             </div>
           </div>
         </div>`;
       mountClaude($('claude-host'), { estimateId: p.estimate_id, proposalId: p.id, editable: ed, what: 'proposal' });
+      emailsCard($('pr-emails'), 'proposal', p.id);
       // #315: the deposit invoice drafted by the signature
       if (p.status === 'signed') {
         try { const { data: inv } = await api('/invoices?proposal_id=' + p.id, null, true); const d = inv.find(i => i.kind === 'deposit' && i.status !== 'void');
@@ -3405,8 +3539,8 @@
 
   // ---------- router ----------
   // the sidebar section only; the sub-tab row names the page (no title said twice)
-  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients', calendar: 'Projects', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance', workforce: 'Workforce', company: 'Company', usage: 'Settings', claude: 'Settings' };
-  const LOADERS = { overview: loadOverview, clients: loadClients, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance, usage: loadUsage, claude: loadClaudeLog };
+  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients', calendar: 'Projects', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance', workforce: 'Workforce', company: 'Company', usage: 'Settings', claude: 'Settings', inbox: 'Inbox' };
+  const LOADERS = { overview: loadOverview, clients: loadClients, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance, usage: loadUsage, claude: loadClaudeLog, inbox: loadInbox };
   const ALIASES = { buildings: 'projects', compliance: 'company' };   // #339 — old bookmarks and links keep working
   function route() {
     const h = (location.hash || '#overview').slice(1);
@@ -3422,7 +3556,7 @@
     $('cp-title').textContent = TITLES[v];
     if (v === 'finance') $('inv-status').value = ['overdue', 'draft', 'issued', 'paid', 'void'].includes(arg) ? arg : '';
     if (v === 'calendar' && arg && /^\d{4}-\d{2}-\d{2}$/.test(arg)) { CAL.anchor = calParse(arg); loadCalendar(); }
-    if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'proposals' && arg === 'estimate' && h.split('/')[2]) loadEstimateDetail(h.split('/')[2]); else if (v === 'proposals' && PRK_ALIAS[arg]) { setKind(PRK_ALIAS[arg]); location.replace('#proposals'); } else if (v === 'proposals' && arg) loadProposalDetail(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
+    if (v === 'inbox') loadInbox(arg); else if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'proposals' && arg === 'estimate' && h.split('/')[2]) loadEstimateDetail(h.split('/')[2]); else if (v === 'proposals' && PRK_ALIAS[arg]) { setKind(PRK_ALIAS[arg]); location.replace('#proposals'); } else if (v === 'proposals' && arg) loadProposalDetail(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);

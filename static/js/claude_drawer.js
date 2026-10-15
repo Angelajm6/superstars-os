@@ -91,6 +91,7 @@
 .clx-f form{display:flex;gap:8px;align-items:flex-end}\
 .clx-f textarea{flex:1;font:13.5px Inter,sans-serif;color:#1B1F27;border:1px solid #E6E8EE;border-radius:10px;padding:8px 10px;resize:none;height:44px;max-height:160px}\
 .clx-foot{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#868C98;flex-wrap:wrap}\
+.clx-inline{background:#F4F5F8;border-radius:10px;padding:9px 12px;line-height:1.5;font-size:13.5px;white-space:pre-wrap;margin-bottom:10px}\
 .clx-off{font-size:13px;background:#FFF4E5;color:#7A4A00;border-radius:10px;padding:8px 10px;line-height:1.45}\
 .clx-tools{display:flex;gap:6px;align-items:center}\
 .clx-btn[aria-pressed="true"]{background:#E8EDF8;border-color:#24418C;color:#24418C}\
@@ -388,6 +389,46 @@
     build(); sizeFromStore();
     if (load('open') === '1') setOpen(true);
   }
-  window.SSC_CLAUDE = { open: function () { setOpen(true); } };
+  // ---- the same cards outside the drawer (the Inbox): one email's Claude pass, by its chat id
+  function cardValues(id) {
+    var values = {};
+    document.querySelectorAll('#clx-card' + id + ' [data-key]').forEach(function (el) {
+      var v = el.value, dp = window.SSCDatePicker;
+      if (dp && typeof dp.getISO === 'function' && /^\d{2}-\d{2}-\d{4}$/.test(v || '')) { var iso = dp.getISO(el); if (iso) v = iso; }
+      values[el.getAttribute('data-key')] = v;
+    });
+    return values;
+  }
+  function mountCards(host, chatId, onChange) {
+    var timer = null;
+    async function load() {
+      clearTimeout(timer);
+      var v;
+      try { v = (await api('/chats/' + chatId + '?surface=office')).data; }
+      catch (e) { host.innerHTML = '<div class="clx-err">' + esc(e.message) + '</div>'; return; }
+      var msgs = v.messages.filter(function (m) { return m.role === 'assistant'; });
+      host.innerHTML = msgs.map(function (m) {
+        return (m.text ? '<div class="clx-b clx-inline">' + esc(m.text) + '</div>' : '') + (m.actions || []).map(card).join('');
+      }).join('') + (v.busy ? '<div class="clx-wait">Claude is reading this email…</div>' : '') + (v.error ? '<div class="clx-err">' + esc(v.error) + '</div>' : '');
+      host.querySelectorAll('.clx-card textarea').forEach(function (t) { t.style.height = Math.min(420, t.scrollHeight + 4) + 'px'; });
+      if (v.busy) timer = setTimeout(load, 2000);
+    }
+    host.onclick = async function (e) {
+      var ap = e.target.closest('[data-approve]'), de = e.target.closest('[data-decline]'), un = e.target.closest('[data-undo]');
+      if (!ap && !de && !un) return;
+      e.preventDefault();
+      var b = ap || de || un, id = b.getAttribute(ap ? 'data-approve' : de ? 'data-decline' : 'data-undo');
+      b.disabled = true;
+      try {
+        await api('/actions/' + id + '/' + (ap ? 'approve' : de ? 'decline' : 'undo'), { method: 'POST', body: JSON.stringify({ values: ap ? cardValues(id) : {} }) });
+        await load();
+        if (ap) document.dispatchEvent(new CustomEvent('ssc:claude-changed', { detail: { action: +id } }));
+        if (onChange) onChange();
+      } catch (x) { var el = document.getElementById('clx-e' + id); if (el) el.textContent = x.message; b.disabled = false; }
+    };
+    load();
+    return { reload: load, stop: function () { clearTimeout(timer); } };
+  }
+  window.SSC_CLAUDE = { open: function () { setOpen(true); }, mountCards: mountCards };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
