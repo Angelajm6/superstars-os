@@ -13,7 +13,7 @@
 <script src="/files/static/js/company_nav.js?v=1012"></script>
 <script src="/files/static/js/claude_drawer.js?v=10" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
-<script src="/files/static/js/new_project_modal.js?v=1014" defer></script>
+<script src="/files/static/js/new_project_modal.js?v=1015" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
 <script src="/files/static/js/gcal_connect.js?v=1008" defer></script>
 <script src="/files/static/js/gmail_suggest.js?v=1009" defer></script>
@@ -183,6 +183,8 @@
   .ib-att-s { grid-area: s; font-size: 11.5px; color: #5E5E5E; }
   .ib-replybar { padding: 16px 22px 24px 74px; display: flex; gap: 10px; flex-wrap: wrap; }
   .ib-rbtn { border: 1px solid #747775; background: #fff; color: #444746; border-radius: 999px; padding: 7px 18px; font: 500 13.5px Arial, sans-serif; cursor: pointer; display: inline-flex; align-items: center; }
+  .ib-rbtn.sm { padding: 3px 12px; font-size: 12.5px; }
+  .ib-replybar.btns { position: sticky; bottom: 0; background: #fff; border-top: 1px solid #EEF0F3; padding-top: 12px; padding-bottom: 14px; z-index: 1; }
   .ib-rbtn:hover { background: #F2F2F2; } .ib-rbtn:disabled { opacity: .6; cursor: default; }
   .ib-rbtn.cl { border-color: #E5C3B3; color: #A84E2C; }
   .ib-comp { width: 100%; border-radius: 10px; box-shadow: 0 1px 3px rgba(60,64,67,.3), 0 4px 8px 3px rgba(60,64,67,.15); padding: 12px 14px; display: grid; gap: 8px; background: #fff; }
@@ -1292,7 +1294,7 @@
       const { data: d } = await api('/overview');
       // the dashboard stays clean: two numbers, the week, the to-do list, what needs attention
       $('ov-kpis').innerHTML =
-        kpi('Active projects', num.format(d.projects.active), `${num.format(d.clients.active)} active clients`, '', '#projects') +
+        kpi('Active projects', num.format(d.projects.active), '', '', '#projects') +
         kpi('Workforce', num.format(d.workforce.headcount), `${d.workforce.on_site_today} on site today · ${d.workforce.worked_hours_this_week} h worked this week`, '', '#workforce');
       const att = [];
       if (d.expiring.expired) att.push([`${d.expiring.expired} expired item(s)`, '<a class="cp-link" href="#company">review</a>']);
@@ -2087,6 +2089,7 @@
     const n = v.messages.length;
     pane.innerHTML = `<div class="ib-head"><h2>${esc(v.subject || '(no subject)')}</h2>
         <div class="ib-head-x">${v.tags.map(t => `<span class="ib-lbl">${esc(t)}</span>`).join('')}
+          <button type="button" class="ib-rbtn sm" data-top-rep="one">↩ Reply</button>${v.reply_all_to.cc ? '<button type="button" class="ib-rbtn sm" data-top-rep="all">↩↩ Reply all</button>' : ''}
           <a class="cp-link" href="${esc(v.gmail_url)}" target="_blank" rel="noopener">Open in Gmail</a>
           <button type="button" class="cp-link ib-linkbtn" id="ib-done">${v.needs_action ? 'Mark done' : 'Mark as needing action'}</button></div></div>
       <div id="ib-sugg"></div>
@@ -2125,12 +2128,17 @@
       $('ib-sugg-d').addEventListener('toggle', e => { sugg.querySelector('.ib-sugg-show').textContent = e.target.open ? 'Hide' : 'Show'; });
     }
     $('ib-done').addEventListener('click', async () => { try { await api('/inbox/messages/' + v.last_id + '/done', { method: 'POST', body: JSON.stringify({ done: v.needs_action }) }, true); await ibList(); ibOpen(id, false); } catch (e) { toast(e.message, true); } });
+    pane.querySelectorAll('[data-top-rep]').forEach(b => b.addEventListener('click', () => {
+      if (!$('ib-body')) ibComposer(v, b.dataset.topRep === 'all', null);
+      $('ib-replybar').scrollIntoView({ block: 'end', behavior: 'smooth' }); $('ib-body').focus({ preventScroll: true });
+    }));
     ibReplyBar(v);
     pane.scrollTop = 0;
   }
   function ibReplyBar(v) {
     const bar = $('ib-replybar');
     if (v.draft) { ibComposer(v, v.draft.reply_all, v.draft); return; }
+    bar.classList.add('btns');   // always in reach at the bottom of the reading pane
     const busy = v.ai_state === 'pending' || v.ai_state === 'asked';
     bar.innerHTML = `<button type="button" class="ib-rbtn" data-rep="one">↩ Reply</button>${(v.reply_all_to.cc || '') ? '<button type="button" class="ib-rbtn" data-rep="all">↩↩ Reply all</button>' : ''}
       <button type="button" class="ib-rbtn cl" id="ib-ask"${busy ? ' disabled' : ''}><span class="ib-claude-mk" aria-hidden="true">✦</span>${busy ? 'Claude is writing a reply…' : 'Draft with Claude'}</button>`;
@@ -2151,6 +2159,7 @@
   }
   function ibComposer(v, all, draft) {
     const bar = $('ib-replybar'), rc = all ? v.reply_all_to : v.reply_to;
+    bar.classList.remove('btns');
     bar.innerHTML = `<div class="ib-comp${draft ? ' drafted' : ''}">
         ${draft ? '<div class="ib-drafted"><span class="ib-claude-mk" aria-hidden="true">✦</span>Claude drafted this reply. Read it, change anything, then Send. Nothing goes out until you do.</div>' : ''}
         <div class="ib-comp-to"><span>To</span>${esc(rc.to)}${rc.cc ? `<span style="margin-left:10px">Cc</span>${esc(rc.cc)}` : ''}</div>

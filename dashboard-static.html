@@ -908,6 +908,7 @@
   .ps-det-form[hidden], .ps-det[hidden], #ps-det-edit[hidden], #ps-proj-edit[hidden] { display: none; }
   .ps-f label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted, #8c92a0); margin-bottom: 5px; }
   .ps-f input, .ps-f select { width: 100%; }
+  .ps-money { position: relative; } .ps-money span { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; pointer-events: none; } .ps-f .ps-money input { padding-left: 22px; }
   @media (max-width: 640px) { .ps-det-form { grid-template-columns: 1fr; } .ps-det { grid-template-columns: 1fr; gap: 2px; } .ps-det dd { margin-bottom: 8px; } }
 </style>
 </head>
@@ -1424,7 +1425,7 @@
               const code = decodeURIComponent((location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || '');
               const go = () => window.SSCNewProject.edit(code);
               if (window.SSCNewProject) return go();
-              const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1014'; sc.onload = go; document.head.appendChild(sc);
+              const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1015'; sc.onload = go; document.head.appendChild(sc);
             };
             document.addEventListener('click', e => { if (e.target.closest('#jx-edit')) window.SSC_editProject(); });
             const jxWx = $j('jx-wx');   // the weather block (filled by the weather loader), re-attached after each render
@@ -6064,7 +6065,7 @@
               <div class="ps-f" id="ps-f-newclient-wrap" hidden><label for="ps-f-newclient">New client name</label><input id="ps-f-newclient" class="ssc-field" maxlength="200" autocomplete="off"></div>
               <div class="ps-f"><label for="ps-f-start">Start date</label><input type="text" id="ps-f-start" class="ssc-date ssc-field" placeholder="MM-DD-YYYY"></div>
               <div class="ps-f"><label for="ps-f-target">Target completion</label><input type="text" id="ps-f-target" class="ssc-date ssc-field" placeholder="MM-DD-YYYY"></div>
-              <div class="ps-f full"><label for="ps-f-contract">Contract value (USD)</label><input id="ps-f-contract" class="ssc-field" inputmode="decimal" autocomplete="off"><div class="ps-hint" id="ps-f-contract-note"></div></div>
+              <div class="ps-f full"><label for="ps-f-contract">Contract value (USD)</label><div class="ps-money"><span aria-hidden="true">$</span><input id="ps-f-contract" class="ssc-field" inputmode="decimal" autocomplete="off"></div><div class="ps-hint" id="ps-f-contract-note"></div></div>
               <div class="ps-hint full">The project code stays the same — it is on every report and document.</div>
               <div class="ps-row full"><button type="submit" class="btn-primary" id="ps-det-save">Save details</button><button type="button" class="btn-ghost" id="ps-det-cancel">Cancel</button><span class="ps-hint" id="ps-det-msg" role="alert"></span></div>
             </form>
@@ -6188,7 +6189,7 @@
         $s('ps-proj-edit').addEventListener('click', function () {
           const go = () => window.SSCNewProject.edit(decodeURIComponent((location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || ''));
           if (window.SSCNewProject) return go();
-          const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1014'; sc.onload = go; document.head.appendChild(sc);
+          const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1015'; sc.onload = go; document.head.appendChild(sc);
         });
         document.addEventListener('ssc:project-updated', () => location.reload());
         $s('ps-det-cancel').addEventListener('click', closeDetailsForm);

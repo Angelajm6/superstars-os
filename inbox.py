@@ -54,6 +54,7 @@ import threading
 import time
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
+from html import unescape as _html_unescape
 from email.utils import getaddresses, parseaddr, parsedate_to_datetime
 from typing import Optional
 
@@ -339,7 +340,7 @@ def message(conn, mid: int, uid: Optional[int] = None) -> Optional[dict]:
                              "status", "ai_state", "chat_id", "client_org_id", "contact_id", "estimate_id", "proposal_id",
                              "project_code")}
     out.update({"from": _dec(r["from_enc"]), "to": _dec(r["to_enc"]), "cc": _dec(r["cc_enc"]), "subject": _dec(r["subject_enc"]),
-                "body": _dec(r["body_enc"]), "snippet": _dec(r["snippet_enc"]), "summary": _dec(r["summary_enc"]),
+                "body": _dec(r["body_enc"]), "snippet": _html_unescape(_dec(r["snippet_enc"]) or ""), "summary": _dec(r["summary_enc"]),
                 "rfc_id": _dec(r["rfc_id_enc"]), "html": _dec(r.get("body_html_enc")), "full": _dec(r.get("body_full_enc")),
                 "all_files": json.loads(_dec(r["attachments_enc"]) or "[]") if r["attachments_enc"] else []})
     out["attachments"] = [a for a in out["all_files"] if not a.get("inline")]   # files people attached

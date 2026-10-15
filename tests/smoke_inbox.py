@@ -350,7 +350,7 @@ def main() -> int:
         # ---- the Gmail-like view: the email as written, threads, Reply all, Claude's draft in the box, Compose, Refresh
         html = ('<div style="color:#333">Hi team,<br>Scaffold <b>drawings</b> attached.<script>alert(1)</script>'
                 '<a href="javascript:alert(2)" onclick="steal()">x</a><img src="cid:logo123"><iframe src="https://x.example"></iframe></div>')
-        m8 = {"id": "m8", "threadId": "thr-site", "labelIds": ["INBOX"], "internalDate": "1792000100000", "snippet": "Hi team, Scaffold drawings",
+        m8 = {"id": "m8", "threadId": "thr-site", "labelIds": ["INBOX"], "internalDate": "1792000100000", "snippet": "Hi team, Scaffold drawings &lt;PDF&gt;",
               "payload": {"mimeType": "multipart/mixed", "headers": [
                   {"name": "From", "value": f"Dana Ibx <{CONTACT}>"}, {"name": "To", "value": f"{TAG}.admin@superstarscontracting.com"},
                   {"name": "Cc", "value": "Lee Ibx <lee@tishman-ibx.example>"}, {"name": "Subject", "value": "Ibx scaffold drawings"},
@@ -383,6 +383,7 @@ def main() -> int:
         assert pm.get(f"/api/inbox/threads/{i9}").status_code == 403 and cs.get(f"/api/inbox/threads/{i9}").status_code == 404
         t = a.get(f"/api/inbox/threads/{i9}").get_json()["data"]
         assert [x["id"] for x in t["messages"]] == [i8, i9] and t["last_id"] == i9 and t["draft"] is None
+        assert t["messages"][0]["snippet"].endswith("<PDF>")                                      # Gmail's escaped snippet, shown as text
         doc = t["messages"][0]["doc"]
         assert "<b>drawings</b>" in doc and "Content-Security-Policy" in doc and '<base target="_blank">' in doc
         assert "<script" not in doc and "alert(1)" not in doc and "onclick" not in doc and "javascript:" not in doc and "<iframe" not in doc
@@ -485,6 +486,7 @@ def main() -> int:
         assert "mountCards: mountCards" in (ROOT / "static/js/claude_drawer.js").read_text(encoding="utf-8")
         ib = cp[cp.index("// ---------- INBOX (inbox.py)"):cp.index("// a record's emails")]
         assert 'id="ib-refresh"' in cp and 'id="ib-new"' in cp and 'id="ib-compose"' in cp and "Draft with Claude" in ib
+        assert "data-top-rep" in ib and "bar.classList.add('btns')" in ib and ".ib-replybar.btns { position: sticky; bottom: 0;" in cp   # Reply always in reach
         assert "f.srcdoc = doc" in ib and "allow-scripts" not in ib and "skip: ['reply_email']" in ib and "r.summary" not in ib and "m.summary" not in ib
         passed += 1; print("  logs + pages ok")
     finally:
