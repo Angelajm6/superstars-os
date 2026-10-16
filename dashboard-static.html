@@ -137,22 +137,22 @@
     .tbx-chip:hover { border-color:rgba(36,65,140,.4); }
     .tbx-chip.active { background:var(--ui, #24418C); border-color:var(--ui, #24418C); color:#fff; }
     .tbx-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px; }
-    .tbx-talk { --c:var(--muted, #8c92a0); --cbg:rgba(140,146,160,.12); background:#fff; border:1px solid var(--line, #eceef3); border-left:3px solid var(--c); border-radius:12px; padding:14px 15px; display:flex; flex-direction:column; box-shadow:0 1px 4px rgba(0,0,0,.04); }
+    .tbx-talk { --c:var(--muted, #8c92a0); --cbg:rgba(140,146,160,.12); background:#fff; border:1px solid var(--line, #eceef3); border-radius:12px; padding:14px 15px; display:flex; flex-direction:column; box-shadow:0 1px 4px rgba(0,0,0,.04); }
     .tbx-trow { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
     .tbx-tag { font-size:13px; font-weight:700; letter-spacing:.03em; padding:2px 9px; border-radius:999px; color:var(--c); background:var(--cbg); white-space:nowrap; }
     .tbx-min { color:var(--muted, #8c92a0); font-size:13px; white-space:nowrap; }
     .tbx-title { font-weight:600; font-size:14.5px; line-height:1.35; color:var(--ink, #222633); flex:1; margin-bottom:14px; }
     .tbx-btns { display:flex; gap:8px; }
     .tbx-en, .tbx-es { flex:1; justify-content:center; border-radius:8px; padding:7px 12px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:5px; text-decoration:none; line-height:1; }
-    .tbx-en { background:var(--c); border:1px solid var(--c); color:#fff; }
-    .tbx-es { background:#fff; border:1px solid var(--c); color:var(--c); }
+    .tbx-en { background:var(--accent, #4364dc); border:1px solid transparent; color:#fff; }   /* the main action is always the one blue, never a category colour */
+    .tbx-es { background:#fff; border:1px solid var(--line, #eceef3); color:var(--ink, #222633); }
     .tbx-ic { width:13px; height:13px; }
     /* category palette — spec colors + 10–12% tint for the tag pill */
-    .tbx-cat-site     { --c:var(--status-complete-deep, #0c7a5f); --cbg:rgba(12,122,95,.10); }
-    .tbx-cat-fall     { --c:var(--status-warn, #9A5B00); --cbg:rgba(154,91,0,.12); }
-    .tbx-cat-scaffold { --c:var(--brand-red, #B11E2E); --cbg:rgba(177,30,46,.09); }
-    .tbx-cat-demo     { --c:var(--muted, #8c92a0); --cbg:rgba(140,146,160,.12); }
-    .tbx-cat-general  { --c:var(--ui, #24418C); --cbg:rgba(36,65,140,.10); }
+    .tbx-cat-site     { --c:#4f6a8f; --cbg:rgba(79,106,143,.12); }      /* category = non-status hues: slate, violet, indigo, oat, teal */
+    .tbx-cat-fall     { --c:#6b4fbb; --cbg:rgba(107,79,187,.12); }
+    .tbx-cat-scaffold { --c:#3d4fa8; --cbg:rgba(61,79,168,.11); }
+    .tbx-cat-demo     { --c:#7a6f5a; --cbg:rgba(122,111,90,.14); }
+    .tbx-cat-general  { --c:#0f766e; --cbg:rgba(15,118,110,.11); }
 
     /* #217 Weather — lives in the job dashboard "Field today" card: current conditions on a
        soft job-color wash + 5 day tiles. Icons carry their own colors via the w-* symbols. */
@@ -10091,6 +10091,6 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
 })();
 </script>
 
-<link rel="stylesheet" href="/files/static/css/unify.css?v=6">
+<link rel="stylesheet" href="/files/static/css/unify.css?v=10">
 </body>
 </html>
