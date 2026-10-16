@@ -21,6 +21,19 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Materials & Deliveries field view, phone only (Bookore, 2026-10-16)
+
+* `static/js/mt_field.js` (loaded by `dashboard-static.html`, `?v=1`) re-presents the Materials screen at **≤860px only**;
+  desktop is unchanged. No network calls: the screen's own buttons, modals and save handlers do the work.
+* Top: "+ A truck arrived" (log modal, delivery), "We picked it up" (log modal, self-pickup), "Weekly count" (opens the count panel).
+  The prototype's "Took material out" was dropped: the ledger has no used/out transaction (consumption comes from the drop plan).
+* "Coming" (expected deliveries) moves up with a 44px Received button (the row's own one-step receive). "On site now" is a list read
+  from the catalog table: on hand, days left only when a usage map exists, same Order now / Order by / Stocked chip. Pinned cards and
+  the wide table are hidden on phones ("Office tools › Show the full table" brings the table back; add material / transfer / expected there).
+* Log modal = 3 steps (what came · how much with − / + · packing slip) then the modal's own Save. Guard: `tests/smoke_mt_field.py`.
+* Local testing gotcha: two dev servers on 127.0.0.1 (any ports) share one cookie jar, so a second server's login kills yours
+  ("auth required" on saves). Use `localhost:<port>` for one of them.
+
 ### Daily Report as a step-by-step checklist, phone only (Bookore, 2026-10-16)
 
 * `static/js/dcr_steps.js` (loaded by `dashboard-static.html`, `?v=2`) re-presents the existing Daily Report entry form
