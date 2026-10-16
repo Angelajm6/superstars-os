@@ -9,15 +9,20 @@
 (function () {
   'use strict';
 
-  // Five groups over the existing nav views. Every nav view must appear in exactly one group
-  // (or be "settings") — tests/smoke_job_v2_preview.py enforces it.
+  // Six groups over the existing nav views. Every nav view must appear in exactly one group
+  // (or be "settings") — tests/smoke_job_v2_preview.py enforces it. Nothing is deleted: views merged
+  // into a section stay reachable as a second pill, and Templates opens from "+ New".
   var TABS = [
     { key: 'overview', label: 'Overview', views: ['dashboard'] },
-    { key: 'work', label: 'Work', views: ['schedule', 'drop-report', 'drop-plans', 'daily-report', 'weekly-summary', 'drawings', 'materials', 'toolbox-talks', 'rfis'] },
-    { key: 'documents', label: 'Documents', views: ['documents', 'field-photos', 'templates', 'violations', 'compliance'] },
+    { key: 'today', label: 'Today', views: ['daily-report', 'field-photos', 'toolbox-talks'] },
+    { key: 'work', label: 'Work', views: ['schedule', 'drop-plans', 'drop-report', 'materials', 'weekly-summary'] },
+    { key: 'documents', label: 'Documents', views: ['documents', 'drawings', 'compliance', 'violations', 'rfis', 'templates'] },
     { key: 'money', label: 'Money', views: ['sov', 'payments', 'expenses', 'product-usage'] },
     { key: 'team', label: 'Team', views: ['contacts', 'employees'] }
   ];
+  var RENAME = { 'drop-plans': 'Drops', 'drop-report': 'Drop report', 'compliance': 'Permits & violations', 'expenses': 'Costs', 'product-usage': 'Costs by product' };
+  var NO_PILL = ['violations', 'templates'];   // violations is a placeholder for Permits & violations; templates opens from "+ New"
+  var NEW_ITEMS = [['Daily report', 'daily-report'], ['Photo', 'field-photos'], ['Delivery', 'materials'], ['RFI', 'rfis'], ['Expense', 'expenses'], ['Blank form or sign', 'templates']];
   var QUICK = ['daily-report', 'field-photos', 'payments', 'contacts'];   // quick links on the Overview
   var last = {};                                                            // last view used per tab
 
@@ -26,7 +31,7 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function link(view) { return $('.sidebar .nav-link[data-view="' + view + '"]'); }
   function visible(view) { var l = link(view); return !!l && !l.hidden; }
-  function label(view) { var l = link(view); return l ? l.textContent.replace(/\s+/g, ' ').trim() : view; }
+  function label(view) { if (RENAME[view] && visible(view)) return RENAME[view]; var l = link(view); return l ? l.textContent.replace(/\s+/g, ' ').trim() : view; }
   function text(sel) { var e = $(sel); return e ? e.textContent.replace(/ /g, ' ').trim() : ''; }
   function visibleViews(tab) { return tab.views.filter(visible); }
   function tabOf(view) { for (var i = 0; i < TABS.length; i++) if (TABS[i].views.indexOf(view) !== -1) return TABS[i]; return null; }
@@ -54,6 +59,7 @@
         '<div class="jv2-title"><div class="jv2-name">' + esc(name) + (code && name !== code ? ' · ' + esc(code) : '') + '</div>' +
           '<div class="jv2-sub">' + esc([client, addr].filter(Boolean).join(' · ')) + '</div></div>' +
         '<div class="jv2-chips" id="jv2-chips"></div>' +
+        '<div class="jv2-newwrap"><button type="button" class="jv2-new" id="jv2-new" aria-haspopup="true" aria-expanded="false">+ New</button><div class="jv2-menu jv2-newmenu" id="jv2-newmenu" role="menu" hidden></div></div>' +
         '<button type="button" class="jv2-iconbtn" id="jv2-settings" aria-label="Settings" title="Settings">' + ICON_GEAR + '</button>' +
         '<div class="jv2-acct"><button type="button" class="jv2-iconbtn" id="jv2-acct-btn" aria-haspopup="true" aria-expanded="false" aria-label="Account">' + ICON_USER + '</button>' +
           '<div class="jv2-menu" id="jv2-menu" role="menu" hidden><div class="jv2-menu-who" id="jv2-who">Account</div>' +
@@ -68,6 +74,17 @@
     if (chips) $('#jv2-chips').appendChild(chips);
 
     $('#jv2-settings').addEventListener('click', function () { go('settings'); });
+    var nb = $('#jv2-new'), nm = $('#jv2-newmenu');
+    function closeNew() { nm.hidden = true; nb.setAttribute('aria-expanded', 'false'); }
+    nb.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var items = NEW_ITEMS.filter(function (i) { return visible(i[1]); });
+      nm.innerHTML = items.map(function (i) { return '<button type="button" role="menuitem" data-go="' + esc(i[1]) + '">' + esc(i[0]) + '</button>'; }).join('');
+      nm.hidden = !items.length || !nm.hidden; nb.setAttribute('aria-expanded', nm.hidden ? 'false' : 'true');
+    });
+    nm.addEventListener('click', function (e) { var b = e.target.closest('[data-go]'); if (b) { closeNew(); go(b.getAttribute('data-go')); } });
+    document.addEventListener('click', closeNew);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeNew(); });
     var btn = $('#jv2-acct-btn'), menu = $('#jv2-menu');
     function closeMenu() { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
     btn.addEventListener('click', function (e) {
@@ -90,22 +107,49 @@
       if (!visibleViews(t).length) return;
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'jv2-tab'; b.setAttribute('role', 'tab'); b.setAttribute('data-tab', t.key); b.textContent = t.label;
-      b.addEventListener('click', function () {
-        var vs = visibleViews(t);
-        var v = last[t.key] && vs.indexOf(last[t.key]) !== -1 ? last[t.key] : vs[0];
-        if (v) go(v);
-      });
+      b.addEventListener('click', function () { openTab(t); });
       host.appendChild(b);
     });
+    renderBottom();
+  }
+
+  // phone: bottom tab bar (four tabs + More when there are more than five)
+  function renderBottom() {
+    var bar = $('#jv2-bottom');
+    if (!bar) { bar = document.createElement('nav'); bar.id = 'jv2-bottom'; bar.setAttribute('aria-label', 'Job sections'); document.body.appendChild(bar);
+      bar.addEventListener('click', function (e) {
+        var b = e.target.closest('button'); if (!b) return;
+        var more = $('#jv2-more'); if (more) more.hidden = true;
+        if (b.id === 'jv2-more-btn') { more.hidden = !more.hidden; return; }
+        var k = b.getAttribute('data-tab'); if (k) { var t = TABS.filter(function (x) { return x.key === k; })[0]; openTab(t); }
+        else if (b.getAttribute('data-go')) go(b.getAttribute('data-go'));
+      });
+      var m = document.createElement('div'); m.id = 'jv2-more'; m.hidden = true; document.body.appendChild(m);
+      m.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; m.hidden = true; var k = b.getAttribute('data-tab'); if (k) openTab(TABS.filter(function (x) { return x.key === k; })[0]); else go(b.getAttribute('data-go')); });
+    }
+    var ts = TABS.filter(function (t) { return visibleViews(t).length; });
+    var main = ts.length > 5 ? ts.slice(0, 4) : ts, rest = ts.length > 5 ? ts.slice(4) : [];
+    bar.innerHTML = main.map(function (t) { return '<button type="button" data-tab="' + t.key + '">' + esc(t.label) + '</button>'; }).join('') +
+      (rest.length ? '<button type="button" id="jv2-more-btn" aria-haspopup="true">More</button>' : '');
+    $('#jv2-more').innerHTML = rest.map(function (t) { return '<button type="button" data-tab="' + t.key + '">' + esc(t.label) + '</button>'; }).join('') +
+      (visible('settings') ? '<button type="button" data-go="settings">Settings</button>' : '');
+  }
+  function openTab(t) {
+    if (!t) return;
+    var vs = visibleViews(t);
+    var v = last[t.key] && vs.indexOf(last[t.key]) !== -1 ? last[t.key] : vs[0];
+    if (v) go(v);
   }
 
   function sync() {
     var view = activeView(), tab = tabOf(view);
     if (tab) last[tab.key] = view;
+    $$('#jv2-bottom [data-tab]').forEach(function (b) { b.classList.toggle('active', !!tab && b.getAttribute('data-tab') === tab.key); });
+    var mb = $('#jv2-more-btn'); if (mb) mb.classList.toggle('active', !!tab && !$('#jv2-bottom [data-tab="' + tab.key + '"]'));
     $$('#jv2-tabs .jv2-tab').forEach(function (b) { b.classList.toggle('active', !!tab && b.getAttribute('data-tab') === tab.key); b.setAttribute('aria-selected', !!tab && b.getAttribute('data-tab') === tab.key ? 'true' : 'false'); });
     var gear = $('#jv2-settings'); if (gear) gear.classList.toggle('active', view === 'settings');
     var pills = $('#jv2-pills'); if (!pills) return;
-    var vs = tab ? visibleViews(tab) : [];
+    var vs = tab ? visibleViews(tab).filter(function (v) { return NO_PILL.indexOf(v) === -1; }) : [];
     if (vs.length < 2) { pills.hidden = true; pills.innerHTML = ''; return; }
     pills.hidden = false;
     pills.innerHTML = '';
@@ -160,8 +204,18 @@
     window.JX_render.__jv2 = true;
   }
 
+  // ---------------------------------------------------------------- landing
+  var landed = false;
+  function landByRole() {
+    if (landed) return;
+    var u = window.__SSC_USER; if (!u || !u.role) return;
+    landed = true;
+    if (u.role === 'super' && activeView() === 'dashboard' && !location.hash) go('daily-report');
+  }
+
   // ---------------------------------------------------------------- boot
   function init() {
+    landByRole(); document.addEventListener('ssc:user-loaded', landByRole);
     build(); renderTabs(); mountOverview(); wrapOverview(); sync();
     var nav = $('.sidebar .nav');
     if (nav && window.MutationObserver) {

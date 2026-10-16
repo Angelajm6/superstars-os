@@ -21,6 +21,19 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Job page redesign step 2 — six tabs on the v2 overlay (Bookore, 2026-10-16)
+
+* Branch `worktree-six-tab-job-overlay`. Mockup accepted (`../docs/review-2026-10-16-six-tabs/`); from 2026-10-16 Angela
+  reviews only the prototype, then builds ship straight to production (no post-build screenshot review). Opt-in only (`?ui=2` / saved preference); v1 is byte-for-byte unchanged.
+* `static/v2/job.js`: six tabs (Overview · Today · Work · Documents · Money · Team); Today = Daily Report, Field Photos,
+  Toolbox Talks. Superintendents land on Today once (never over a `#hash` deep link). **+ New** menu (Daily report, Photo,
+  Delivery, RFI, Expense, Blank form or sign = Templates). Phone: bottom tab bar (four tabs + More past five; pm/super have
+  five, admin/c_suite six), top tab row hidden ≤860px; the Ask Claude button and "Switch back" pill sit above the bar.
+* Merges are pill-level only: Drops / Drop report, Permits & violations, Costs / Costs by product keep their own screens
+  (Violations and Templates lose their pill; Violations was an empty placeholder). Real content merges are step 6.
+* Money is still removed from the page for pm/super (they get five tabs). `tests/smoke_job_v2_preview.py` updated (six tabs etc.).
+* Next: step 4 pilot (turn `?ui=2` on for Angela, one PM, one super). Step 3 (job types from the footprint data) waits for usage numbers, about 2026-10-29.
+
 ### How changes ship now (Bookore, 2026-10-07)
 
 * **No preprod step.** Build on a branch, verify on a local isolated DB, send Angela screenshots

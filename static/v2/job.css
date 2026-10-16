@@ -122,3 +122,25 @@ body.jv2 input:not([type=checkbox]):not([type=radio]), body.jv2 select, body.jv2
   body.jv2 .jx-kpi-v { font-size: var(--jv-t20); }
   body.jv2 .view { padding-top: 16px; }
 }
+
+/* ---- + New menu ---- */
+.jv2-newwrap { position: relative; flex: none; }
+.jv2-new { height: 36px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--jv-accent); color: #fff; font-size: var(--jv-t14); font-weight: 600; cursor: pointer; }
+.jv2-newmenu { min-width: 200px; }
+
+/* ---- phone: bottom tab bar replaces the top tab row ---- */
+#jv2-bottom, #jv2-more { display: none; }
+@media (max-width: 860px) {
+  .jv2-tabs { display: none; }
+  .jv2-new { height: 44px; padding: 0 12px; }
+  .jv2-iconbtn { height: 44px; min-width: 44px; }
+  body.jv2 { padding-bottom: 72px; }
+  #jv2-bottom { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; background: var(--jv-card); border-top: 1px solid var(--jv-line); padding-bottom: env(safe-area-inset-bottom, 0); }
+  #jv2-bottom button { min-height: 56px; border: 0; background: none; font-size: var(--jv-t12); font-weight: 500; color: var(--jv-ink-2); cursor: pointer; }
+  #jv2-bottom button.active { color: var(--jv-accent); font-weight: 600; box-shadow: inset 0 2px 0 var(--jv-accent); }
+  #jv2-more { display: block; position: fixed; right: 8px; bottom: 126px; z-index: 9500; min-width: 180px; background: var(--jv-card); border: 1px solid var(--jv-line); border-radius: 12px; padding: 6px; box-shadow: 0 8px 24px rgba(34, 38, 51, .16); }
+  #jv2-more[hidden] { display: none; }
+  body.jv2 #clx-fab { bottom: 80px !important; right: 12px !important; }
+  body.jv2 #ssc-v2-switchback { bottom: 76px !important; left: 12px !important; transform: none !important; max-width: calc(100vw - 150px) !important; }
+  #jv2-more button { display: block; width: 100%; min-height: 44px; text-align: left; border: 0; background: none; padding: 0 12px; border-radius: 8px; font-size: var(--jv-t14); color: var(--jv-ink); cursor: pointer; }
+}
