@@ -14,7 +14,7 @@ Goal: the most intuitive, responsive, clean, modern OS for construction companie
 - One worktree + branch per task from `origin/main`.
 - UI: follow `DESIGN_SYSTEM.md`; mobile-first. Prototype first; Angela reviews only that.
 - On "accepted": build, verify yourself (gate + phone-width check), PR to `upstream` main, merge when green. No second review.
-- No `/compact`. Start: read `HANDOFF_NEXT.md` + `ROADMAP.md`. End: update `HANDOFF_NEXT.md`.
+- No `/compact`. Start: read `HANDOFF_NEXT.md` + `ROADMAP.md`.
 - End every reply with one proposed next action.
 
 ## Commands
