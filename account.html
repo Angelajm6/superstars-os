@@ -110,6 +110,17 @@
     </form>
   </section>
 
+  <section class="ac-card" aria-labelledby="lg-h">
+    <div><h2 id="lg-h">Language</h2><div class="sub">The language of the Workforce screens (onboarding, certifications, sign-ins, payroll) and the payroll PDF. Saved on this device.</div></div>
+    <div>
+      <div class="cal-seg" id="lg-seg" role="group" aria-label="Language" style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" data-lang="en">English</button>
+        <button type="button" data-lang="es">Español</button>
+      </div>
+      <div class="sub" id="lg-msg" style="margin-top:10px" aria-live="polite"></div>
+    </div>
+  </section>
+
   <section class="ac-card" aria-labelledby="pw-h">
     <div><h2 id="pw-h">Password</h2><div class="sub">Change the password you use on the sign-in page.</div></div>
     <div id="pw-body"><div class="loading">Loading…</div></div>
@@ -398,5 +409,21 @@
 })();
 </script>
 <link rel="stylesheet" href="/files/static/css/unify.css?v=6">
+<script>
+// Language preference (moved here from the Office Console header, batch 2C). Same key the console reads.
+(function () {
+  var seg = document.getElementById('lg-seg'), msg = document.getElementById('lg-msg');
+  if (!seg) return;
+  function cur() { try { return localStorage.getItem('dashboard_lang') === 'es' ? 'es' : 'en'; } catch (e) { return 'en'; } }
+  function paint() { var c = cur(); seg.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.lang === c); b.setAttribute('aria-pressed', b.dataset.lang === c); }); }
+  seg.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-lang]'); if (!b) return;
+    try { localStorage.setItem('dashboard_lang', b.dataset.lang); msg.textContent = b.dataset.lang === 'es' ? 'Listo. Las pantallas de Personal ahora estan en espanol.' : 'Saved. The Workforce screens are now in English.'; }
+    catch (err) { msg.textContent = "This browser would not save the choice."; }
+    paint();
+  });
+  paint();
+})();
+</script>
 </body>
 </html>

@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCREENS = ["dashboard-static.html", "company_portal.html", "company-dashboard.html", "projects.html", "account.html",
            "admin_users.html", "admin_projects.html", "admin_labor_rates.html", "estimating.html", "login.html",
            "set_password.html", "forgot_password.html", "reset_password.html", "client_portal.html", "portal_shell.html",
-           "welcome.html", "worker-app.html", "dropplan.html", "rfi_submission_form.html", "static/css/widgets.css",
+           "welcome.html", "worker-app.html", "rfi_submission_form.html", "static/css/widgets.css",
            "static/css/shell.css", "static/js/new_project_modal.js", "templates/v2/drawing-markup.html",
            "templates/v2/drawing-author.html", "static/v2/v2.css"]
 

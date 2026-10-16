@@ -57,6 +57,7 @@
   .console-pill { background: var(--ink); color: white; font-size:12px; padding: 6px 12px; border-radius: 99px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
 
   /* EN/ES language toggle — segmented pill */
+  .lang-toggle[hidden] { display: none; }
   .lang-toggle {
     display: inline-flex;
     background: white;
@@ -492,7 +493,7 @@
     </div>
   </div>
   <div class="topbar-right">
-    <div class="lang-toggle" role="group" aria-label="Language">
+    <div class="lang-toggle" role="group" aria-label="Language" hidden>   <!-- moved to Settings > Account (batch 2C) -->
       <button type="button" class="lang-opt" id="lang-en" onclick="setLanguage('en')">EN</button>
       <button type="button" class="lang-opt" id="lang-es" onclick="setLanguage('es')">ES</button>
     </div>
