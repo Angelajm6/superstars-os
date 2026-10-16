@@ -69,7 +69,7 @@ BUDGETS = {
         "note": "4-call Project Health fan-out -> bootstrap (#291)",
     },
     "drop_plan": {
-        "page": "/dropplan",
+        "page": "/projects/" + P,   # /dropplan retired (batch 2C): the tab lives in the project
         "apis": ["/api/dropplan/projects/" + P + "/drops", "/api/dropplan/projects/" + P + "/rollup",
                  "/api/dropplan/projects/" + P + "/sov-lines", "/api/auth/me"],
         "reqs": 7, "kb": 60,

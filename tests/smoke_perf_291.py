@@ -307,7 +307,7 @@ def main() -> int:
         # routine stamp bump fail the gate for no safety gain (caught 2026-08-05).
         stamps = {}
         for fn in ("company-dashboard.html", "dashboard-static.html",
-                   "projects.html", "dropplan.html", "portal_shell.html"):
+                   "projects.html", "portal_shell.html"):
             src_v = (SCRIPT_DIR / fn).read_text(encoding="utf-8", errors="replace")
             for m in re.finditer(r"(auth_menu|dash_layout)\.js\?v=([A-Za-z0-9._-]+)", src_v):
                 stamps.setdefault(m.group(1), set()).add(m.group(2))

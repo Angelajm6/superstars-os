@@ -106,6 +106,20 @@ def main() -> int:
                 for f in ("account.html", "projects.html", "ui_settings.html")}
         assert len(keys) == 1, (asset, keys)
 
+    # batch 2C: retired pages stay retired, old Drop Plan bookmarks land in the project
+    for gone in ("dropplan.html", "facade-dashboard.html", "facade-dashboard-presentation.html", "dashboard-public-demo.html"):
+        assert not (ROOT / gone).exists(), gone
+    r = c.get("/dropplan?project=FR-BX-001")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/projects/FR-BX-001"), (r.status_code, r.headers.get("Location"))
+    r = c.get("/dropplan")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/company#projects")
+    r = c.get("/dropplan?project=../../etc")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/company#projects"), "a bad code never becomes a path"
+    acct = (ROOT / "account.html").read_text(encoding="utf-8")
+    assert 'id="lg-seg"' in acct and "dashboard_lang" in acct, "language lives in Settings > Account"
+    cons = (ROOT / "company-dashboard.html").read_text(encoding="utf-8")
+    assert re.search(r'class="lang-toggle"[^>]*\bhidden\b', cons), "the console header no longer shows the EN/ES toggle"
+
     print("PASS smoke_friendly_errors")
     return 0
 

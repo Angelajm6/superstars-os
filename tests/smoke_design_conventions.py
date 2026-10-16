@@ -579,7 +579,7 @@ def main():
     # in neither fails the build — the forcing function that closes the
     # "guard never looked here" gap for good.
     REGISTERED = {"company-dashboard.html", "dashboard-static.html", "admin_labor_rates.html",
-                  "login.html", "worker-app.html", "dropplan.html", "rfi_submission_form.html",
+                  "login.html", "worker-app.html", "rfi_submission_form.html",
                   "admin_users.html", "set_password.html",   # #257 multi-user accounts & roles
                   "admin_projects.html",   # #263 PM project-scoping (assignment + close screen)
                   "estimating.html",       # #276 estimating workspace (estimator/admin/c_suite)
@@ -594,7 +594,7 @@ def main():
     # looked here" gap closed for the v2 tree too.
     REGISTERED_PATHS = {"templates/v2/drawing-markup.html",   # #280 drawing markup
                         "templates/v2/drawing-author.html"}   # #293 drawing author
-    EXEMPT = {"facade-dashboard.html", "facade-dashboard-presentation.html"}  # pre-rebuild legacy
+    EXEMPT = set()   # the pre-rebuild legacy pages were deleted (batch 2C)
     unregistered = []
     for page in sorted(root_dir.glob("*.html")):
         if page.name in REGISTERED or page.name in EXEMPT:
@@ -717,7 +717,7 @@ def main():
     # carries NO inline star + NO hollow, and reserves swap-safe space (object-fit:contain)
     LOGO_SURFACES = ["company-dashboard.html", "dashboard-static.html", "projects.html",
                      "client_portal.html", "login.html", "set_password.html", "admin_users.html",
-                     "admin_projects.html", "admin_labor_rates.html", "dropplan.html",
+                     "admin_projects.html", "admin_labor_rates.html",
                      "estimating.html",   # #276
                      "account.html"]      # Settings > Account
 
