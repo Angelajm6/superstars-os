@@ -138,6 +138,57 @@
       .sidebar-grow { display:none; }
       .content { padding:16px; }
     }
+
+    /* UI unify (portal) — the portal speaks the project dashboard's type scale (unify.css / typography.css):
+       nothing under 13px except caps micro-labels / column heads (12px) and the dense look-ahead grid (11px),
+       weights 400/500/600 only, page title 22px/500 caps, card title 16px/500, KPI label 13px caps, KPI value 28px.
+       Family is Inter everywhere already; this block only moves sizes and weights onto the shared scale.
+       `html body` prefixes match typography.css specificity so these win (this block is the last in the head). */
+    .brand-sub { font-size:12px; letter-spacing:.6px; }
+    .proj-name { font-size:14px; font-weight:600; }
+    .proj-client { font-size:13px; }
+    .nav-label { font-size:12px; font-weight:600; letter-spacing:.1em; }
+    .acct-name { font-size:13px; font-weight:600; }
+    .acct-role { font-size:13px; text-transform:none; letter-spacing:0; }
+    .signout { font-size:13px; font-weight:600; }
+    .top-title { font-size:16px; font-weight:600; letter-spacing:0; }
+    .top-sub { font-size:14px; }
+    .preview-banner { font-size:13px; font-weight:600; letter-spacing:0; }
+    html body .shc-phead .shc-eyebrow, html body .v-eyebrow { font-size:12px; font-weight:600; }
+    html body .shc-phead h1 { font-size:22px; font-weight:500; }
+    html body .v-head h1, html body .shc-dcr-head h1 { font-size:22px; font-weight:500; letter-spacing:.04em; text-transform:uppercase; }
+    html body .shc-phead .shc-psub { font-size:14px; font-weight:400; letter-spacing:0; text-transform:none; color:var(--mute); }
+    html body .shc-kpi-k { font-size:13px; font-weight:500; letter-spacing:.09em; }
+    html body .shc-kpi-sub { font-size:13px; }
+    html body .shc-widget-head h3 { font-size:16px; font-weight:500; letter-spacing:-.01em; text-transform:none; }
+    html body .shc-reset { font-size:13px; font-weight:600; }
+    html body .shc-gridbar-hint { font-size:13px; }
+    html body .shc-donut-center .l { font-size:12px; }
+    html body .shc-empty b { font-size:14px; font-weight:600; }
+    html body .shc-empty span { font-size:13px; }
+    html body .shc-sel, html body .shc-sel option { font-size:13px; }
+    html body .shc-tile .l { font-size:13px; }
+    html body .shc-tile .v { font-size:28px; font-weight:500; }
+    html body .shc-dcr-toolbar label, html body .shc-dcr-table th { font-size:12px; }
+    html body .shc-dcr-head .sub, html body .shc-dcr-head .sub span { font-size:14px; }
+    html body .prp-btn { font-size:13px; font-weight:600; }
+    html body .prp-pill { font-size:12px; font-weight:600; }
+    html body .prp-meta { font-size:13px; }
+    html body .prp-price s { font-size:13px; font-weight:400; }
+    html body .shc-la-sub, html body .shc-la-hint { font-size:13px; }
+    html body .shc-la-lbl { font-size:12px; }
+    html body .shc-la-win, html body .shc-la-win b, html body .shc-la-lg { font-size:12px; font-weight:500; }
+    html body .shc-la-k b { font-weight:600; }
+    html body .shc-la-k s { font-size:12px; }
+    html body .shc-la-ghead .lh { font-size:11px; font-weight:600; }
+    html body .shc-la-days .d { font-size:11px; font-weight:600; }
+    html body .shc-la-days .d s { font-size:11px; font-weight:600; }
+
+    /* Drawing Markup is full-bleed inside the shell: the framed page brings its own padding and scrolls inside the frame. */
+    .content.is-bleed { padding:0; max-width:none; }
+    .view[data-portal-view="drawing"].active { display:flex; flex-direction:column; }
+    .drawings-frame { display:block; width:100%; border:0; height:calc(100vh - 118px); min-height:560px; background:#fafbfd; }
+    @media (max-width:860px) { .drawings-frame { height:calc(100vh - 170px); min-height:460px; } }
   </style>
 </head>
 <body>
@@ -193,7 +244,7 @@
       <a class="nav-link" data-portal-nav="schedule"><svg class="nav-ic"><use href="#pi-cal"/></svg>Schedule</a>
 <!-- PORTAL_SECTION:schedule:end -->
 <!-- PORTAL_SECTION:drawing:start -->
-      <a class="nav-link" href="/drawing-markup"><svg class="nav-ic"><use href="#pi-pencil"/></svg>Drawing Markup</a>
+      <a class="nav-link" data-portal-nav="drawing"><svg class="nav-ic"><use href="#pi-pencil"/></svg>Drawing Markup</a>
 <!-- PORTAL_SECTION:drawing:end -->
 </nav>
     <div class="sidebar-grow"></div>
@@ -355,6 +406,14 @@
         </div>
       </section>
 <!-- PORTAL_SECTION:schedule:end -->
+<!-- PORTAL_SECTION:drawing:start -->
+      <!-- Drawing Markup opens IN the shell (like the project dashboard): the standalone page is framed, so the sidebar
+           never disappears. /drawing-markup stays a working direct URL (architect link, printing). Same-origin framing
+           is allowed for this one path only (http_security._SAME_ORIGIN_FRAMEABLE). -->
+      <section class="view" data-portal-view="drawing">
+        <iframe class="drawings-frame" src="/drawing-markup" loading="lazy" title="Drawing Markup"></iframe>
+      </section>
+<!-- PORTAL_SECTION:drawing:end -->
 
 </div>
   </div>
@@ -511,6 +570,7 @@
     document.querySelectorAll('[data-portal-nav]').forEach(function (n) {
       n.classList.toggle('active', n.getAttribute('data-portal-nav') === key);
     });
+    var _c = document.querySelector('.content'); if (_c) _c.classList.toggle('is-bleed', key === 'drawing');
     if (!loaded[key]) {
       loaded[key] = true;
       var L = LOADERS[key] || function () { };
