@@ -12,8 +12,8 @@ Goal: the most intuitive, responsive, clean, modern OS for construction companie
 ## Workflow
 - Plan Mode first; local prototype before cloud wiring.
 - One worktree + branch per task from `origin/main`.
-- UI: follow `DESIGN_SYSTEM.md`; mobile-first; screenshot at phone width before review.
-- Ship only after Angela says "accepted": PR to `upstream` main.
+- UI: follow `DESIGN_SYSTEM.md`; mobile-first. Prototype first; Angela reviews only that.
+- On "accepted": build, verify yourself (gate + phone-width check), PR to `upstream` main, merge when green. No second review.
 - No `/compact`. Start: read `HANDOFF_NEXT.md` + `ROADMAP.md`. End: update `HANDOFF_NEXT.md`.
 - End every reply with one proposed next action.
 

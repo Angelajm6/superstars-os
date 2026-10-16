@@ -201,8 +201,13 @@ def main() -> int:
         ok("every sidebar view is placed in a tab (or Settings)", set(nav_views) - {"settings"} <= set(tab_views))
         ok("every tab view exists in the sidebar", set(tab_views) <= set(nav_views))
         ok("no view is in two tabs", len(tab_views) == len(set(tab_views)))
-        ok("five tabs", len(re.findall(r"\{ key: '[a-z]+', label: '[A-Za-z]+', views:", tabs_src)) == 5)
-        ok("tab labels come from the nav links (nothing renamed)", "function label(view)" in job_js and "l.textContent" in job_js)
+        ok("six tabs", len(re.findall(r"\{ key: '[a-z]+', label: '[A-Za-z]+', views:", tabs_src)) == 6)
+        ok("Today tab holds the daily report, photos and toolbox talks", "key: 'today', label: 'Today', views: ['daily-report', 'field-photos', 'toolbox-talks']" in tabs_src)
+        ok("labels come from the nav links except the named merges", "function label(view)" in job_js and "l.textContent" in job_js and "var RENAME =" in job_js)
+        ok("merged views stay reachable (only violations and templates lose their pill)", "var NO_PILL = ['violations', 'templates']" in job_js)
+        ok("+ New menu offers daily report, photo, delivery, RFI, expense, blank form", all(f"'{v}'" in job_js[job_js.index("var NEW_ITEMS"):job_js.index("var QUICK")] for v in ("daily-report", "field-photos", "materials", "rfis", "expenses", "templates")))
+        ok("superintendents land on Today (once, never over a deep link)", "u.role === 'super'" in job_js and "!location.hash" in job_js)
+        ok("phone bottom bar exists (four tabs + More past five)", "jv2-bottom" in job_js and "#jv2-bottom" in job_css and "max-width: 860px" in job_css)
 
         # ---- one family, one scale
         ok("one font family declared", job_css.count("--jv-font:") == 1 and "'Inter'" in job_css and "Archivo" not in job_css)
