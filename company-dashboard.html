@@ -397,10 +397,6 @@
 </aside>
 <div class="ssc-main">
 
-<!-- #289 — staff second-factor readiness banner (admin/c_suite only). Populated by
-     /api/admin/2fa-status; hidden unless staff accounts still lack a 2nd factor. -->
-<div id="twofa-banner" role="status" style="display:none;background:#7A2E1B;color:#fff;
-     padding:10px 18px;font-size:13px;font-weight:600;text-align:center;"></div>
 <script>
 
   // #305 — escape untrusted strings before innerHTML interpolation (stored XSS).
@@ -409,25 +405,6 @@
       return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
     });
   }
-(function(){
-  function boot2fa(){
-    fetch('/api/admin/2fa-status',{credentials:'same-origin'})
-      .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(j){
-        if(!j || !j.data) return;
-        var b=document.getElementById('twofa-banner');
-        var miss=j.data.missing||[];
-        if(!miss.length){ b.style.display='none'; return; }
-        var who=miss.map(function(m){return m.email;}).join(', ');
-        b.textContent='⚠ Second factor still needed before public launch — '+
-          j.data.missing_count+' of '+j.data.total+' staff accounts: '+who+
-          '. Each person turns on two-step sign-in in Settings > Account, or links Google sign-in.';
-        b.style.display='block';
-      }).catch(function(){});
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot2fa);
-  else boot2fa();
-})();
 </script>
 
 <!-- #294 — photo edit-rate alert (admin/c_suite only). Edit-rate is feedback
