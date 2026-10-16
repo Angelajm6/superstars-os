@@ -8,11 +8,12 @@ CORE SECURITY PRINCIPLE: a user can NEVER set or change their OWN role; role is
 assigned by an admin only. Enforced below (a) by gating to admin, and (b) by
 refusing self-role-change.
 
-SINGLE-ADMIN INVARIANT (operator: "only one admin, which I have"):
-  * REFUSE to create a second admin (admin is not a creatable role).
-  * REFUSE to elevate anyone to admin.
-  * REFUSE to deactivate or downgrade the SOLE/last active admin, and refuse an
-    admin acting on their OWN account (can't self-downgrade or self-deactivate).
+NEVER-ZERO-ADMINS (replaced the single-admin rule — the owner is an admin too):
+  * Admin is never a CREATE role. An admin PROMOTES an existing, active C-suite
+    account that has set its own password (POST .../make-admin, confirm required),
+    audited in role_change_audit. The generic role route never targets admin.
+  * REFUSE to deactivate or downgrade the LAST active admin, and refuse an admin
+    acting on their OWN account (can't self-downgrade or self-deactivate).
 
 Role catalog is the 7-role set in the users CHECK. ONBOARDABLE this phase = the
 internal tier minus admin = c_suite + pm. super + the external three (client,
@@ -42,8 +43,8 @@ ADMIN_USERS_PAGE = SCRIPT_DIR / "admin_users.html"
 
 ROLE_CATALOG = ('admin', 'c_suite', 'pm', 'super', 'client', 'architect', 'vendor',
                 'estimator')   # #276 — the estimating seat (blueprint §5)
-# Onboardable via the UI this phase: the internal tier minus admin (single-admin
-# invariant) + the external `client` (#264 — read-only portal; email/password, forced
+# Onboardable via the UI this phase: the internal tier minus admin (admin is never
+# created, only promoted via Make admin) + the external `client` (#264 — read-only portal; email/password, forced
 # first-login reset) + `estimator` (#276 — lands on /estimating, works the queue).
 # super + architect/vendor stay defined-not-onboarded for now.
 # #280 — `architect` becomes onboardable: an outside architect/engineer gets a login,
@@ -55,8 +56,12 @@ ONBOARDABLE_ROLES = ('c_suite', 'pm', 'client', 'estimator', 'architect')
 # (no elevation to admin, ever).
 # #305 — 'vendor' has no containment gate anywhere yet; it is not assignable until it does.
 ASSIGNABLE_ROLES = tuple(r for r in ROLE_CATALOG if r not in ('admin', 'vendor'))
+# Make admin: only an active C-suite account that has set its own password can be
+# promoted — no temp password conveyed by hand ever becomes an admin login, and the
+# ladder stays explicit (make someone C-suite first, then admin).
+PROMOTABLE_TO_ADMIN = ('c_suite',)
 # #309 — a C-suite account may issue a one-time password for THESE roles only (a locked-out
-# client must not need the single admin login). Creating accounts, changing roles and
+# client must not need an admin login). Creating accounts, changing roles and
 # deactivating stay admin-only; the admin keeps resetting any non-admin account.
 CSUITE_RESET_ROLES = ('client',)
 
@@ -76,7 +81,7 @@ def _gen_temp_password(n: int = 16) -> str:
 def _active_admin_count(conn) -> int:
     return conn.execute(
         # #258 — count only REAL admins (is_system=0). Test fixtures (is_system=1)
-        # are exempt from the single-admin invariant.
+        # are exempt from the never-zero-admins count.
         "SELECT COUNT(1) FROM users WHERE role='admin' AND status='active' "
         "AND is_active=1 AND COALESCE(is_system,0)=0"
     ).fetchone()[0]
@@ -148,9 +153,9 @@ def _create_user():
         return jsonify({"error": "a valid email is required"}), 400
     if not display_name:
         return jsonify({"error": "display name is required"}), 400
-    # SINGLE-ADMIN INVARIANT + onboarding policy (server-side, not just the dropdown).
+    # Admin is never created directly + onboarding policy (server-side, not just the dropdown).
     if role == "admin":
-        return jsonify({"error": "cannot create an admin — the single-admin invariant forbids a second admin"}), 403
+        return jsonify({"error": "admin is not a create role — create the account as C-suite, then use Make admin"}), 403
     if role not in ONBOARDABLE_ROLES:
         return jsonify({"error": f"role '{role}' is not onboardable in this phase (allowed: {', '.join(ONBOARDABLE_ROLES)})"}), 400
     temp_pw = _gen_temp_password()
@@ -182,7 +187,7 @@ def _change_role(user_id: int):
     if actor and actor.get("id") == user_id:
         return jsonify({"error": "you cannot change your own role"}), 403
     if new_role == "admin":
-        return jsonify({"error": "cannot elevate to admin — the single-admin invariant forbids it"}), 403
+        return jsonify({"error": "use Make admin to give someone the admin role"}), 403
     if new_role not in ASSIGNABLE_ROLES:
         return jsonify({"error": f"invalid role (assignable: {', '.join(ASSIGNABLE_ROLES)})"}), 400
     conn = _db()
@@ -193,9 +198,10 @@ def _change_role(user_id: int):
         old_role = target["role"]
         if old_role == new_role:
             return jsonify({"data": _public_user(target), "unchanged": True})
-        # Protect the last admin: downgrading an admin can never leave zero admins.
-        if old_role == "admin" and _active_admin_count(conn) <= 1:
-            return jsonify({"error": "cannot downgrade the sole admin"}), 403
+        # Protect the last admin: downgrading an ACTIVE admin can never leave zero active
+        # admins (moving a disabled admin off the role takes nothing away).
+        if old_role == "admin" and target["status"] == "active" and _active_admin_count(conn) <= 1:
+            return jsonify({"error": "cannot remove the last admin"}), 403
         conn.execute("UPDATE users SET role = ? WHERE id = ?", (new_role, user_id))
         _role_change_audit(conn, user_id, old_role, new_role, (actor or {}).get("id"), reason)
         conn.commit()
@@ -205,6 +211,41 @@ def _change_role(user_id: int):
     logging.info(f"admin: role change user_id={user_id} {old_role}->{new_role} by={(actor or {}).get('id')}")
     # Takes effect on the target's NEXT request — role is re-read from users on every
     # request (the session stores only user_id; no cached role to trust).
+    return jsonify({"data": _public_user(row)})
+
+
+def _make_admin(user_id: int):
+    """Promote an existing C-suite account to admin. Admin-only (route gate), never
+    yourself, and the request must carry confirm=true (the page's confirmation step)."""
+    actor = current_user()
+    data = request.get_json(silent=True) or {}
+    reason = (data.get("reason") or "").strip()[:200] or None
+    if data.get("confirm") is not True:
+        return jsonify({"error": "confirmation required"}), 400
+    if actor and actor.get("id") == user_id:
+        return jsonify({"error": "you cannot change your own role"}), 403
+    conn = _db()
+    try:
+        target = _get_user(conn, user_id)
+        if not target:
+            return jsonify({"error": "user not found"}), 404
+        if target["role"] == "admin":
+            return jsonify({"data": _public_user(target), "unchanged": True})
+        if target["role"] not in PROMOTABLE_TO_ADMIN:
+            return jsonify({"error": "only a C-suite account can be made admin — change their role to C-suite first"}), 403
+        if target["status"] != "active" or not target["is_active"]:
+            return jsonify({"error": "this account is not active"}), 403
+        if target["must_reset_password"]:
+            return jsonify({"error": "they need to sign in and set their own password first"}), 403
+        conn.execute("UPDATE users SET role = 'admin' WHERE id = ?", (user_id,))
+        _role_change_audit(conn, user_id, target["role"], "admin", (actor or {}).get("id"),
+                           reason or "make admin")
+        conn.commit()
+        row = _get_user(conn, user_id)
+    finally:
+        conn.close()
+    logging.info(f"admin: make-admin user_id={user_id} by={(actor or {}).get('id')}")
+    # Takes effect on their next request — role is re-read from users every request.
     return jsonify({"data": _public_user(row)})
 
 
@@ -218,7 +259,7 @@ def _deactivate_user(user_id: int):
         if not target:
             return jsonify({"error": "user not found"}), 404
         if target["role"] == "admin" and _active_admin_count(conn) <= 1:
-            return jsonify({"error": "cannot deactivate the sole admin"}), 403
+            return jsonify({"error": "cannot deactivate the last admin"}), 403
         conn.execute(
             "UPDATE users SET status='disabled', is_active=0, deactivated_at=? WHERE id=?",
             (_now_iso(), user_id))
@@ -262,8 +303,8 @@ def _reset_password(user_id: int):
         target = _get_user(conn, user_id)
         if not target:
             return jsonify({"error": "user not found"}), 404
-        # #309 — the admin row is never reset from the page (single-admin invariant,
-        # managed out-of-band); a non-admin actor may reset CSUITE_RESET_ROLES only.
+        # #309 — admin rows are never reset from the page (an admin uses Forgot password
+        # from the sign-in screen); a non-admin actor may reset CSUITE_RESET_ROLES only.
         trole = conn.execute("SELECT role FROM users WHERE id=?", (user_id,)).fetchone()["role"]
         if trole == "admin":
             return jsonify({"error": "the admin account is managed out-of-band"}), 403
@@ -309,6 +350,8 @@ def register(app) -> None:
                      requires_role('admin')(_create_user), methods=["POST"])
     app.add_url_rule("/api/admin/users/<int:user_id>/role", "admin_users_role",
                      requires_role('admin')(_change_role), methods=["POST"])
+    app.add_url_rule("/api/admin/users/<int:user_id>/make-admin", "admin_users_make_admin",
+                     requires_role('admin')(_make_admin), methods=["POST"])
     app.add_url_rule("/api/admin/users/<int:user_id>/deactivate", "admin_users_deactivate",
                      requires_role('admin')(_deactivate_user), methods=["POST"])
     app.add_url_rule("/api/admin/users/<int:user_id>/reactivate", "admin_users_reactivate",

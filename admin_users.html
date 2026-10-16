@@ -44,7 +44,7 @@
   .pill.active{color:#0c7a5f;background:var(--status-complete-soft,#e7f6f0);}
   .pill.pending{color:#8a6516;background:#fbf2dd;}
   .pill.disabled{color:#a23b30;background:var(--status-behind-soft,#fceeec);}
-  .rolechip{display:inline-block;font-size:13px;font-weight:700;padding:3px 9px;border-radius:7px;background:var(--accent-soft);color:var(--accent-ink);}
+  .rolechip{display:inline-block;white-space:nowrap;font-size:13px;font-weight:700;padding:3px 9px;border-radius:7px;background:var(--accent-soft);color:var(--accent-ink);}
   .rolechip.admin{background:#efe9f7;color:#5b4595;}
   .muted{color:var(--muted);}
   .reset-flag{font-size:13px;color:#8a6516;font-weight:700;margin-left:6px;}
@@ -71,6 +71,10 @@
   .temp-box .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:6px;}
   .warn{font-size:13px;color:#8a6516;background:#fbf2dd;border:1px solid #efe2c0;border-radius:8px;padding:8px 11px;margin-top:12px;}
   .brand-mark,.mark{object-fit:contain;}  /* #265 swap-safe logo */
+  .mk-list{list-style:none;margin:2px 0 0;font-size:13px;line-height:1.5;}
+  .mk-list li{padding-left:14px;position:relative;}
+  .mk-list li::before{content:"";position:absolute;left:2px;top:.62em;width:5px;height:5px;border-radius:50%;background:var(--muted);}
+  .mk-note{font-size:13px;color:var(--muted);margin-top:12px;}
 </style>
 </head>
 <body>
@@ -103,7 +107,7 @@
     <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Last login</th><th style="text-align:right;">Actions</th></tr></thead>
     <tbody id="rows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
   </table>
-  <div hidden style="text-align:center;color:var(--muted);font-size:13px;letter-spacing:.04em;margin-top:24px;padding-top:14px;border-top:1px solid var(--line);">build #311 · 2026-09-18 · shared shell · · 2026-09-18 · C-suite can issue a one-time password for client accounts; creating accounts, roles and deactivation stay with the single admin</div>
+  <div hidden style="text-align:center;color:var(--muted);font-size:13px;letter-spacing:.04em;margin-top:24px;padding-top:14px;border-top:1px solid var(--line);">build #311 · 2026-09-18 · shared shell · · 2026-09-18 · C-suite can issue a one-time password for client accounts; creating accounts, roles and deactivation stay with the admins · Make admin: an admin can promote a C-suite account; the last admin can never be removed</div>
 </div>
 
 <!-- Create-user modal -->
@@ -191,6 +195,28 @@
   </div>
 </div>
 
+<!-- Make-admin confirmation: promotes an active C-suite account -->
+<div class="ov" id="ov-mkadmin">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mk-h">
+    <h3 id="mk-h">Make admin?</h3>
+    <div class="msub" id="mk-for">—</div>
+    <div class="msub" style="margin-bottom:6px">As an admin they can also:</div>
+    <ul class="mk-list">
+      <li>Create logins and change anyone's role</li>
+      <li>Deactivate accounts</li>
+      <li>Make other people admin</li>
+    </ul>
+    <div class="mk-note">You both stay admins. Nobody can remove their own admin role, and the last admin can never be removed.</div>
+    <div class="warn" id="mk-blocked" style="display:none"></div>
+    <label for="mk-reason">Reason (optional)</label>
+    <input id="mk-reason" class="ssc-field" type="text" autocomplete="off" maxlength="200" placeholder="e.g. owner, needs account management">
+    <div class="m-err" id="mk-err"></div>
+    <div class="modal-foot">
+      <button class="btn-ghost" type="button" data-close>Cancel</button>
+      <button class="btn-primary" type="button" id="mk-go">Make admin</button>
+    </div>
+  </div>
+</div>
 
 </div><!-- /.ssc-main -->
 </div><!-- /.ssc-shell -->
@@ -199,7 +225,7 @@
   var ME=null, USERS=[];
   function $(id){return document.getElementById(id);}
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
-  var ROLE_LABEL={admin:'Admin',c_suite:'C-Suite',pm:'PM',super:'Super',client:'Client',architect:'Architect',vendor:'Vendor'};
+  var ROLE_LABEL={admin:'Admin',c_suite:'C-Suite',pm:'PM',super:'Super',client:'Client',architect:'Architect',vendor:'Vendor',estimator:'Estimator'};
   function jget(u){return fetch(u,{credentials:'include'}).then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};});});}
   function jpost(u,body){return fetch(u,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}).then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};}).catch(function(){return {ok:r.ok,status:r.status,j:{}};});});}
   function showErr(t){var b=$('err-bar');b.textContent=t;b.className='err-bar show';}
@@ -214,12 +240,18 @@
     var resetFlag=u.must_reset_password?'<span class="reset-flag">must reset</span>':'';
     var roleChip='<span class="rolechip '+(isAdmin?'admin':'')+'">'+esc(ROLE_LABEL[u.role]||u.role)+'</span>';
     var acts='';
-    if(isAdmin){
-      // Admin rows are managed out-of-band (single-admin invariant). No UI actions.
-      acts='<span class="muted" style="font-size:13px;">'+(isMe?'you · admin':'admin')+'</span>';
+    if(isAdmin&&isMe){
+      acts='<span class="muted" style="font-size:13px;">you · admin</span>';
+    } else if(isAdmin){
+      // Another admin: they can be moved off admin or deactivated, as long as one admin
+      // remains (the server refuses the last one). Passwords: Forgot password on sign-in.
+      acts+='<button class="btn-sm" type="button" data-role="'+u.id+'">Change role</button>';
+      if(u.status==='disabled') acts+='<button class="btn-sm" type="button" data-react="'+u.id+'">Reactivate</button>';
+      else acts+='<button class="btn-sm danger" type="button" data-deact="'+u.id+'">Deactivate</button>';
     } else if(LIMITED){
       acts+='<button class="btn-sm" type="button" data-reset="'+u.id+'">Reset password</button>';
     } else {
+      if(u.role==='c_suite'&&u.status==='active') acts+='<button class="btn-sm" type="button" data-mkadmin="'+u.id+'">Make admin</button>';
       acts+='<button class="btn-sm" type="button" data-role="'+u.id+'">Change role</button>';
       acts+='<button class="btn-sm" type="button" data-email="'+u.id+'">Change email</button>';
       acts+='<button class="btn-sm" type="button" data-reset="'+u.id+'">Reset password</button>';
@@ -268,6 +300,7 @@
     var re=e.target.closest('[data-react]'); if(re){doReact(re.getAttribute('data-react'));return;}
     var rp=e.target.closest('[data-reset]'); if(rp){doReset(rp.getAttribute('data-reset'));return;}
     var em=e.target.closest('[data-email]'); if(em){openEmail(em.getAttribute('data-email'));return;}
+    var mk=e.target.closest('[data-mkadmin]'); if(mk){openMakeAdmin(mk.getAttribute('data-mkadmin'));return;}
   });
 
   // create
@@ -305,6 +338,29 @@
     var err=$('role-err');err.className='m-err';
     var r=await jpost('/api/admin/users/'+ROLE_TARGET+'/role',{new_role:$('r-role').value,reason:$('r-reason').value.trim()});
     if(!r.ok){err.textContent=(r.j&&r.j.error)||'Role change failed.';err.className='m-err show';return;}
+    closeAll();load();
+  });
+
+  // make admin
+  var MK_TARGET=null;
+  function openMakeAdmin(id){
+    var u=USERS.filter(function(x){return String(x.id)===String(id);})[0];if(!u)return;
+    MK_TARGET=u;
+    $('mk-h').textContent='Make '+u.display_name+' an admin?';
+    $('mk-for').textContent=u.email+' · currently C-Suite';
+    $('mk-reason').value='';$('mk-err').className='m-err';
+    var blocked=!!u.must_reset_password;
+    $('mk-blocked').textContent=blocked?(u.display_name+' hasn\u2019t set their own password yet. Once they sign in and set it, you can make them admin.'):'';
+    $('mk-blocked').style.display=blocked?'':'none';
+    $('mk-go').disabled=blocked;
+    $('ov-mkadmin').className='ov show';
+  }
+  $('mk-go').addEventListener('click',async function(){
+    var err=$('mk-err');err.className='m-err';
+    $('mk-go').disabled=true;
+    var r=await jpost('/api/admin/users/'+MK_TARGET.id+'/make-admin',{confirm:true,reason:$('mk-reason').value.trim()});
+    $('mk-go').disabled=false;
+    if(!r.ok){err.textContent=(r.j&&r.j.error)||'Could not make them admin.';err.className='m-err show';return;}
     closeAll();load();
   });
 

@@ -2,7 +2,7 @@
 """#258 — add users.is_system, flag existing test fixtures, purge stray @example.test.
 
 `is_system=1` marks accounts created by the test gate (seeders). The admin console
-hides them and the single-admin invariant counts only real (is_system=0) admins.
+hides them and the admin count includes only real (is_system=0) admins.
 
 Migration choice: adding a column with a DEFAULT is fully FK-safe and preserves
 every row + id (SQLite ALTER TABLE ADD COLUMN does not rewrite rows or touch FKs),
@@ -78,7 +78,7 @@ def main() -> int:
         conn.commit()
         print(f"[258] purged {len(stray_ids)} stray @example.test fixture row(s)")
 
-        # 4) verify the real admin is intact + the SOLE real admin
+        # 4) verify the real admin(s) are intact
         real_admins = conn.execute(
             "SELECT COUNT(1) FROM users WHERE role='admin' AND is_system=0").fetchone()[0]
         real_admin_is_company = conn.execute(
@@ -88,17 +88,18 @@ def main() -> int:
         sys_n = conn.execute("SELECT COUNT(1) FROM users WHERE is_system=1").fetchone()[0]
         print(f"[258] users total={total} | is_system=1 fixtures={sys_n} | "
               f"real (is_system=0) admins={real_admins} | real admin on company domain={real_admin_is_company}")
-        # A production migration must preserve exactly one real company admin.
+        # A production migration must preserve at least one real admin, every one of
+        # them on the company domain (the single-admin rule became never-zero-admins).
         # The isolated pre-production fixture builder intentionally starts with
         # no users at all and creates its review account only after the full
         # schema has landed.  That narrow, explicit build-only override keeps
         # the normal migration fail-closed everywhere else.
         empty_fixture = (os.environ.get(EMPTY_PREPROD_FIXTURE_ENV) == "1")
-        ok = (real_admins == 1 and real_admin_is_company == 1)
+        ok = (real_admins >= 1 and real_admin_is_company == real_admins)
         if empty_fixture and total == 0:
             ok = True
             print("[258] empty pre-production fixture invariant: OK")
-        print("[258] sole real admin invariant:", "OK" if ok else "FAIL")
+        print("[258] real admin invariant:", "OK" if ok else "FAIL")
         return 0 if ok else 1
     finally:
         conn.close()

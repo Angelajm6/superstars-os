@@ -8,9 +8,9 @@ proves the fix:
   (a) pm CANNOT reach the individual-rates endpoints (403); c_suite CAN.
   (b) a role change takes effect SERVER-SIDE on the user's NEXT request (no
       re-login, no cached session role).
-  (c) the SINGLE-ADMIN INVARIANT holds: no 2nd admin can be created, no one can
-      be elevated to admin, and an admin cannot downgrade/deactivate THEMSELVES
-      (so the sole admin can never be removed via self-action).
+  (c) admin is never CREATED or reached through the generic role route (Make admin
+      owns promotion — see smoke_make_admin.py), and an admin cannot downgrade/
+      deactivate THEMSELVES (so the last admin can never be removed via self-action).
   (d) deactivation blocks login AND kills the in-flight session immediately.
   (e) must_reset_password forces the set-password screen before ANY data loads
       (a crafted API call from a must-reset session is 403, not served).
@@ -174,18 +174,18 @@ def main() -> int:
         c.close()
         check("role_change_audit recorded both changes (>=2)", nrole >= 2, f"{nrole}")
 
-        # ---------- (c) single-admin invariant ----------
-        print("\n== (c) single-admin invariant ==")
+        # ---------- (c) admin guards ----------
+        print("\n== (c) admin guards ==")
         c_admin = admin.post(f"{BASE}/api/admin/users",
                              json={"display_name": "SMK 257 Admin2", "email": "smk257-admin2@example.invalid", "role": "admin"}, timeout=15)
-        check("create 2nd admin REFUSED (403)", c_admin.status_code == 403, f"got {c_admin.status_code}")
+        check("create an admin directly REFUSED (403)", c_admin.status_code == 403, f"got {c_admin.status_code}")
         el = admin.post(f"{BASE}/api/admin/users/{pm_id}/role", json={"new_role": "admin"}, timeout=15)
-        check("elevate to admin REFUSED (403)", el.status_code == 403, f"got {el.status_code}")
+        check("generic role route to admin REFUSED (403)", el.status_code == 403, f"got {el.status_code}")
         self_down = admin.post(f"{BASE}/api/admin/users/{admin_id}/role", json={"new_role": "pm"}, timeout=15)
         check("admin cannot downgrade THEMSELVES (403)", self_down.status_code == 403, f"got {self_down.status_code}")
         self_deact = admin.post(f"{BASE}/api/admin/users/{admin_id}/deactivate", json={}, timeout=15)
         check("admin cannot deactivate THEMSELVES (403)", self_deact.status_code == 403, f"got {self_deact.status_code}")
-        # the sole-admin row is untouched by all of the above
+        # the acting admin's row is untouched by all of the above
         c = _conn()
         still_admin = c.execute("SELECT role, status FROM users WHERE id=?", (admin_id,)).fetchone()
         c.close()
