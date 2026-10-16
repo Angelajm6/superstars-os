@@ -41,8 +41,6 @@
       at: [['/company', 'overview'], ['/company', '']] },
     // Inbox (2026-10-14): each admin / C-suite mailbox, live, with Claude's suggestions (inbox.py)
     { key: 'inbox', label: 'Inbox', href: '/company#inbox', roles: COMPANY, at: [['/company', 'inbox']] },
-    // Claude (2026-10-15): the full page of the "Ask Claude" window, for everyone Claude is offered to
-    { key: 'claude', label: 'Claude', href: '/claude', roles: ['admin', 'c_suite', 'pm', 'super'], at: [['/claude', null]] },
     { key: 'projects', label: 'Projects', href: '/company#projects', roles: COMPANY,
       at: [['/company', 'projects'], ['/company', 'calendar'], ['/company', 'buildings'], ['/admin/projects', null]],
       sub: [['All projects', '/company#projects'], ['Calendar', '/company#calendar'], ['Assignments & onboarding', '/admin/projects']] },
@@ -63,7 +61,9 @@
       sub: [['Workers', '/company#workforce'], ['Onboarding & directory', '/#workforce'], ['Certifications', '/#cert-library'], ['Sign-ins', '/#hours']] },
     { key: 'company', label: 'Company', href: '/company#company', roles: COMPANY,
       at: [['/company', 'company'], ['/company', 'compliance'], ['/', 'compliance'], ['/', 'specs']],
-      sub: [['Documents & vehicles', '/company#company'], ['Compliance documents', '/#compliance'], ['Specs', '/#specs']] }
+      sub: [['Documents & vehicles', '/company#company'], ['Compliance documents', '/#compliance'], ['Specs', '/#specs']] },
+    // Claude (2026-10-15): the full page of the "Ask Claude" window, for everyone Claude is offered to; last tab (2026-10-16)
+    { key: 'claude', label: 'Claude', href: '/claude', roles: ['admin', 'c_suite', 'pm', 'super'], at: [['/claude', null]] }
   ];
 
   // #341 — Settings pinned as its own entry at the sidebar's bottom edge (a sibling

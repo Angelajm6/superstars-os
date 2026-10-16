@@ -48,7 +48,7 @@ import server  # noqa: E402  (boots the whole app)
 TAG = "oh339"
 PW = "OneHomeSmoke2026"
 PROJ = "OH339-A"
-TABS = ["Home", "Dashboard", "Inbox", "Claude", "Projects", "Clients", "Proposals", "Finance", "Workforce", "Company"]   # Client portal is a sub-tab of Clients; Home = pm/super only (their way back from Account)
+TABS = ["Home", "Dashboard", "Inbox", "Projects", "Clients", "Proposals", "Finance", "Workforce", "Company", "Claude"]   # Client portal is a sub-tab of Clients; Home = pm/super only (their way back from Account)
 ADMIN_PAGES = {"/admin/projects": "projects", "/admin/users": "settings", "/account": "settings", "/estimating": "proposals", "/admin/labor-rates": "finance"}   # #360 — Team & access lives under Settings
 
 
