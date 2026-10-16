@@ -10,13 +10,14 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1014"></script>
+<script src="/files/static/js/company_nav.js?v=1016"></script>
 <script src="/files/static/js/claude_drawer.js?v=11" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1015" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
-<script src="/files/static/js/gcal_connect.js?v=1008" defer></script>
+<script src="/files/static/js/gcal_connect.js?v=1016" defer></script>
 <script src="/files/static/js/gmail_suggest.js?v=1009" defer></script>
+<script src="/files/static/js/inbox_schedule.js?v=1" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
 <style>
@@ -121,6 +122,7 @@
   .cp-select.pr-kind { font-weight: 700; color: var(--ui, #24418C); background: var(--ui-soft, #E8EDF8); border-color: var(--ui, #24418C); }
   .cp-pill.claude { background: #FBEFE9; color: #A84E2C; }
   /* Inbox (2026-10-15, inbox.py): the mailbox as in Gmail; Claude drafts only where a reply is needed */
+  #view-inbox [hidden]{display:none !important}   /* Mail / Mine / All switch (.ib-wrap and .ib-conn set their own display) */
   .ib-conn { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 14px; }
   .ib-chip { display: inline-flex; gap: 6px; align-items: center; font-size:13px; font-weight: 600; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: #fff; }
   .ib-chip i { width: 8px; height: 8px; border-radius: 50%; background: #0c7a5f; display: inline-block; }
@@ -443,7 +445,12 @@
           .tk-meta{font-size:13px;color:var(--ink-2,#4A4F59);margin-top:2px;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
           .tk-who{font-size:13px;font-weight:600;padding:1px 8px;border-radius:99px;background:#F0F1F4;color:#4A4F59;white-space:nowrap}
           .tk-who.me{background:#EEF2FF;color:#24418C}
-          .tk-kind-seg{display:flex;gap:6px}
+          .tk-kind-seg{display:flex;gap:6px;flex-wrap:wrap}
+          .tk-kind-seg label .cp-muted{display:none}   /* three types fit one row; the icons and names say enough */
+          .tk-people{display:flex;flex-wrap:wrap;gap:6px}
+          .cp-field .tk-people input{width:auto;height:auto;margin:0;padding:0;flex:none}
+          .cp-field .tk-people label{white-space:nowrap;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line,#E3E5EA);border-radius:10px;padding:5px 11px;font-size:13px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer;margin:0;color:var(--ink,#222633)}
+          .tk-people label:has(input:checked){border-color:#4364DC;background:#EEF2FF;color:#24418C}
           .tk-kind-seg label{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line,#E3E5EA);border-radius:8px;padding:9px 10px;cursor:pointer;font-weight:600;font-size:13px;text-transform:none;letter-spacing:0;color:var(--ink,#222633);margin:0;position:relative}
           .tk-lbl{display:block;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
           .tk-kind-seg input{position:absolute;opacity:0;pointer-events:none}
@@ -817,8 +824,15 @@
 
       <!-- job page redesign step 1: which views get opened (counts only) + which tools each job uses -->
       <section class="cp-view" id="view-inbox" hidden>
+        <!-- 2026-10-16: Mail (Gmail, as before) | Mine (own calendar, private + assigned work) | All (team, server-checked) -->
+        <div class="ssc-subtabs" role="tablist" aria-label="Inbox" id="ib-tabs">
+          <a class="ssc-subtab" role="tab" href="#inbox" data-ibtab="mail">Mail</a>
+          <a class="ssc-subtab" role="tab" href="#inbox/mine" data-ibtab="mine">Mine</a>
+          <a class="ssc-subtab" role="tab" href="#inbox/all" data-ibtab="all">All</a>
+        </div>
+        <div id="ib-sched" hidden></div>
         <div class="cp-card ib-conn" id="ib-conn"></div>
-        <div class="cp-card ib-wrap">
+        <div class="cp-card ib-wrap" id="ib-mail">
           <div class="ib-list">
             <div class="ib-lhead">
               <button type="button" class="btn-primary btn-sm" id="ib-new">✎ Compose</button>
@@ -1163,14 +1177,17 @@
 <!-- team task / event: one dialog for new and edit -->
 <div class="cp-overlay" id="tk-overlay" role="dialog" aria-modal="true" aria-labelledby="tk-title">
   <form class="cp-modal" id="tk-form" novalidate>
-    <div class="cp-modal-head"><h2 id="tk-title">New task or event</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">It shows on the team calendar for everyone. Leave the person or the deadline empty if there isn&#39;t one yet.</p></div>
+    <div class="cp-modal-head"><h2 id="tk-title">New task, event or meeting</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">It shows on the team calendar for everyone. Leave the person or the deadline empty if there isn&#39;t one yet.</p></div>
     <div class="cp-modal-body">
       <div class="cp-field full"><span class="tk-lbl" id="tk-kind-label">Type</span>
         <div class="tk-kind-seg" role="radiogroup" aria-labelledby="tk-kind-label">
           <label><input type="radio" name="tk-kind" id="tk-kind-task" value="task" checked>☐ Task <span class="cp-muted" style="font-weight:400">a to-do</span></label>
           <label><input type="radio" name="tk-kind" id="tk-kind-event" value="event">● Event <span class="cp-muted" style="font-weight:400">happens on a day</span></label>
+          <label><input type="radio" name="tk-kind" id="tk-kind-meeting" value="meeting">◆ Meeting <span class="cp-muted" style="font-weight:400">with people</span></label>
         </div></div>
       <div class="cp-field full"><label for="tk-title-in">What</label><input id="tk-title-in" class="ssc-field" required maxlength="200" placeholder="e.g. Call the property manager, Job walkthrough, Send invoice"></div>
+      <div class="cp-field full" id="tk-people-field" hidden><span class="tk-lbl" id="tk-people-label">Also in the meeting</span>
+        <div class="tk-people" id="tk-people" role="group" aria-labelledby="tk-people-label"></div></div>
       <div class="cp-field"><label for="tk-assignee">Assign to</label><select id="tk-assignee" class="ssc-field"><option value="">Nobody yet</option></select></div>
       <div class="cp-field"><label for="tk-project">Job (optional)</label><select id="tk-project" class="ssc-field"><option value="">No job</option></select></div>
       <div class="tk-fields tk-grid2 cp-field full" id="tk-task-fields">
@@ -1387,7 +1404,7 @@
   function fmtTime(t) { if (!t) return ''; const [h, m] = t.split(':').map(Number); return (h % 12 || 12) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? ' AM' : ' PM'); }
   function fmtDay(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); const x = new Date(y, m - 1, d); return DOW3[x.getDay()] + ', ' + MON3[m - 1] + ' ' + d; }
   function itemWhen(it) {
-    if (it.kind === 'event') {
+    if ((it.kind === 'event' || it.kind === 'meeting')) {
       const t = it.start_time ? ' · ' + fmtTime(it.start_time) + (it.end_time ? '–' + fmtTime(it.end_time) : '') : '';
       return fmtDay(it.start_date) + (it.end_date ? ' → ' + fmtDay(it.end_date) : '') + t;
     }
@@ -1395,11 +1412,11 @@
   }
   function tkRow(it) {
     const done = it.status === 'done';
-    const box = it.kind === 'event' ? '<span class="tk-ev" aria-hidden="true">●</span>'
+    const box = (it.kind === 'event' || it.kind === 'meeting') ? '<span class="tk-ev" aria-hidden="true">●</span>'
       : `<button type="button" class="tk-check" data-tk-done="${it.id}" ${it.can_complete ? '' : 'disabled'} aria-label="${done ? 'Mark not done' : 'Mark done'}: ${esc(it.title)}">${done ? '✓' : ''}</button>`;
     const who = it.assignee_name ? `<span class="tk-who${it.mine ? ' me' : ''}">${it.mine ? 'You' : esc(it.assignee_name)}</span>` : '<span class="tk-who">Unassigned</span>';
     const where = it.project_name ? `<span>${esc(it.project_name)}</span>` : (it.org_name ? `<span>${esc(it.org_name)}</span>` : '');
-    const loc = (it.kind === 'event' && it.location ? `<span>@ ${esc(it.location)}</span>` : '') +
+    const loc = ((it.kind === 'event' || it.kind === 'meeting') && it.location ? `<span>@ ${esc(it.location)}</span>` : '') +
       (it.address ? `<span class="tk-addr-txt">📍 ${esc(it.address)}</span><a class="tk-dir" href="${esc(it.directions_url)}" target="_blank" rel="noopener" data-tk-dir>Directions ↗</a>` : '');
     return `<div class="tk-row${done ? ' done' : ''}" data-tk-open="${it.id}" role="button" tabindex="0">${box}<div class="tk-main"><div class="tk-title">${esc(it.title)}</div>` +
       `<div class="tk-meta"><span>${esc(itemWhen(it))}</span>${it.overdue ? '<span class="cp-pill bad">overdue</span>' : ''}${it.source === 'gcal' ? '<span class="cp-pill" title="Added in Google Calendar; changes there update it here">from Google</span>' : ''}${where}${loc}${who}</div></div></div>`;
@@ -1412,7 +1429,7 @@
       const { data } = await api('/team/items?' + q, null, true);
       const t = todayISO();
       // an event that is over drops off the open list (it stays on the calendar)
-      TK.rows = TK.filter === 'done' ? data : data.filter(it => !(it.kind === 'event' && (it.calendar_to || it.calendar_from) < t));
+      TK.rows = TK.filter === 'done' ? data : data.filter(it => !((it.kind === 'event' || it.kind === 'meeting') && (it.calendar_to || it.calendar_from) < t));
       if (!TK.rows.length) { host.innerHTML = empty(TK.filter === 'done' ? 'Nothing done yet' : (TK.filter === 'mine' ? 'Nothing assigned to you' : 'No open tasks or events'), TK.filter === 'done' ? '' : 'Use "+ New" to add a call, a walkthrough, an invoice to send, a proposal to submit…'); return; }
       if (TK.filter === 'done') { host.innerHTML = TK.rows.slice(0, 30).map(tkRow).join(''); return; }
       const groups = [['Overdue', r => r.overdue], ['Today', r => !r.overdue && r.today], ['Coming up', r => !r.overdue && !r.today && r.calendar_from], ['No deadline', r => !r.calendar_from]];
@@ -1441,22 +1458,24 @@
     $('tk-assignee').innerHTML = '<option value="">Nobody yet</option>' + TK.people.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
     $('tk-project').innerHTML = '<option value="">No job</option>' + TK.projects.map(p => `<option value="${esc(p.project_code)}">${esc(p.name || p.project_code)} · ${esc(p.project_code)}</option>`).join('');
   }
-  function tkKind() { return $('tk-kind-event').checked ? 'event' : 'task'; }
-  function tkShowKind() { const ev = tkKind() === 'event'; $('tk-task-fields').hidden = ev; $('tk-event-fields').hidden = !ev; }
-  $('tk-kind-task').addEventListener('change', tkShowKind); $('tk-kind-event').addEventListener('change', tkShowKind);
+  function tkKind() { return $('tk-kind-meeting').checked ? 'meeting' : $('tk-kind-event').checked ? 'event' : 'task'; }
+  function tkShowKind() { const k = tkKind(), ev = k !== 'task'; $('tk-task-fields').hidden = ev; $('tk-event-fields').hidden = !ev; $('tk-people-field').hidden = k !== 'meeting'; }
+  function tkPeople(sel) { $('tk-people').innerHTML = (TK.people || []).map(p => `<label><input type="checkbox" value="${p.id}"${(sel || []).includes(p.id) ? ' checked' : ''}>${esc(p.name)}</label>`).join(''); }
+  ['tk-kind-task', 'tk-kind-event', 'tk-kind-meeting'].forEach(i => $(i).addEventListener('change', tkShowKind));
   async function openItem(it, preset) {
     if (it && !it.can_edit) { toast('Only admin and C-suite can edit this. ' + itemWhen(it)); return; }
     const ov = $('tk-overlay'), f = $('tk-form'); f.reset(); f.dataset.item = it ? it.id : '';
     ['tk-due', 'tk-start', 'tk-end'].forEach(i => dateSet($(i), ''));   // reset() leaves the picker value behind
     $('tk-err').className = 'cp-form-err';
     ov.classList.add('open');   // open at once; the two pick-lists fill in a moment later on first use
-    $('tk-title').textContent = it ? (it.kind === 'event' ? 'Edit event' : 'Edit task') : 'New task or event';
+    $('tk-title').textContent = it ? ({ event: 'Edit event', meeting: 'Edit meeting' }[it.kind] || 'Edit task') : 'New task, event or meeting';
     $('tk-save').textContent = it ? 'Save' : 'Add'; $('tk-delete').hidden = !it;
     $('tk-save').disabled = true;
     await tkLists();
     $('tk-save').disabled = false;
     const kind = it ? it.kind : ((preset && preset.kind) || 'task');
-    $('tk-kind-task').checked = kind === 'task'; $('tk-kind-event').checked = kind === 'event'; tkShowKind();
+    $('tk-kind-task').checked = kind === 'task'; $('tk-kind-event').checked = kind === 'event'; $('tk-kind-meeting').checked = kind === 'meeting'; tkShowKind();
+    tkPeople(it ? it.attendee_ids : []);
     if (it) {
       $('tk-title-in').value = it.title || ''; $('tk-detail').value = it.detail || '';
       $('tk-assignee').value = it.assignee_user_id || ''; $('tk-project').value = it.project_code || '';
@@ -1506,20 +1525,21 @@
   $('tk-new').addEventListener('click', () => openItem(null));
   document.addEventListener('ssc:items-changed', () => { loadTasks(); loadWeekStrip(); CAL.cache = {}; });   // e.g. a task added from an email
   $('cal-new-item').addEventListener('click', () => openItem(null, { date: todayISO() }));
-  function tkAfterSave(msg) { toast(msg); closeItem(); loadTasks(); loadWeekStrip(); CAL.cache = {}; if (location.hash.startsWith('#calendar')) loadCalendar(); }
+  function tkAfterSave(msg) { toast(msg); closeItem(); loadTasks(); loadWeekStrip(); CAL.cache = {}; if (location.hash.startsWith('#calendar')) loadCalendar(); if (IB.sched && /^#inbox\/(mine|all)/.test(location.hash)) IB.sched.reload(); }
   $('tk-form').addEventListener('submit', async (e) => {
     e.preventDefault(); $('tk-err').className = 'cp-form-err';
     const id = $('tk-form').dataset.item, kind = tkKind(), title = $('tk-title-in').value.trim();
     if (!title) { formErr('tk-err', 'Say what it is.'); return; }
-    if (kind === 'event' && !dateGet($('tk-start'))) { formErr('tk-err', 'Pick the day of the event.'); return; }
+    if (kind !== 'task' && !dateGet($('tk-start'))) { formErr('tk-err', 'Pick the day of the ' + kind + '.'); return; }
     const body = { kind, title, detail: $('tk-detail').value.trim() || null, assignee_user_id: $('tk-assignee').value ? Number($('tk-assignee').value) : null, project_code: $('tk-project').value || null, address: $('tk-address').value.trim() || null };
+    if (kind === 'meeting') body.attendee_user_ids = [...$('tk-people').querySelectorAll('input:checked')].map(x => Number(x.value));
     if (kind === 'task') Object.assign(body, { due_date: dateGet($('tk-due')) || null, due_time: $('tk-due-time').value || null });
     else Object.assign(body, { start_date: dateGet($('tk-start')), end_date: dateGet($('tk-end')) || null, start_time: $('tk-start-time').value || null, end_time: $('tk-end-time').value || null });   // no place name: the address covers it (older events keep theirs)
     $('tk-save').disabled = true;
     try {
       if (id) await api('/team/items/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) }, true);
       else await api('/team/items', { method: 'POST', body: JSON.stringify(body) }, true);
-      tkAfterSave(id ? 'Saved' : (kind === 'event' ? 'Event added' : 'Task added'));
+      tkAfterSave(id ? 'Saved' : ({ event: 'Event added', meeting: 'Meeting added' }[kind] || 'Task added'));
     } catch (ex) { formErr('tk-err', ex.message); }
     finally { $('tk-save').disabled = false; }
   });
@@ -1555,8 +1575,8 @@
         `</div></div><a class="dy-go" href="/projects/${encodeURIComponent(j.project_code)}">Open job →</a></div>`;
     }).join('');
     const itemRows = its.map(it => {
-      const t = it.kind === 'event' ? (it.start_date === iso && it.start_time ? fmtTime(it.start_time) + (it.end_time ? '–' + fmtTime(it.end_time) : '') : 'All day') : (it.due_time ? 'Due ' + fmtTime(it.due_time) : 'Due today');
-      return `<div class="dy-row it" data-day-item="${it.id}" role="button" tabindex="0"><span class="${it.kind === 'event' ? 'tk-ev' : 'tk-check' + (it.status === 'done' ? ' on' : '')}" aria-hidden="true" style="pointer-events:none">${it.kind === 'event' ? '●' : (it.status === 'done' ? '✓' : '')}</span><div class="dy-main"><div class="dy-t"${it.status === 'done' ? ' style="text-decoration:line-through;color:var(--muted)"' : ''}>${esc(it.title)}</div><div class="dy-m"><span>${esc(t)}</span>` +
+      const t = (it.kind === 'event' || it.kind === 'meeting') ? (it.start_date === iso && it.start_time ? fmtTime(it.start_time) + (it.end_time ? '–' + fmtTime(it.end_time) : '') : 'All day') : (it.due_time ? 'Due ' + fmtTime(it.due_time) : 'Due today');
+      return `<div class="dy-row it" data-day-item="${it.id}" role="button" tabindex="0"><span class="${(it.kind === 'event' || it.kind === 'meeting') ? 'tk-ev' : 'tk-check' + (it.status === 'done' ? ' on' : '')}" aria-hidden="true" style="pointer-events:none">${(it.kind === 'event' || it.kind === 'meeting') ? '●' : (it.status === 'done' ? '✓' : '')}</span><div class="dy-main"><div class="dy-t"${it.status === 'done' ? ' style="text-decoration:line-through;color:var(--muted)"' : ''}>${esc(it.title)}</div><div class="dy-m"><span>${esc(t)}</span>` +
         `${it.overdue ? '<span class="cp-pill bad">overdue</span>' : ''}${it.source === 'gcal' ? '<span class="cp-pill">from Google</span>' : ''}${it.project_name ? `<span>${esc(it.project_name)}</span>` : ''}<span class="tk-who${it.mine ? ' me' : ''}">${it.assignee_name ? (it.mine ? 'You' : esc(it.assignee_name)) : 'Unassigned'}</span>` +
         `${it.address ? `<span class="tk-addr-txt">📍 ${esc(it.address)}</span>` : ''}</div></div>${it.address ? `<a class="tk-dir" href="${esc(it.directions_url)}" target="_blank" rel="noopener" data-tk-dir>Directions ↗</a>` : ''}</div>`;
     }).join('');
@@ -1593,9 +1613,9 @@
   // calendar chips: a task on its deadline day, an event on each of its days
   function itemsOn(d, iso) { return (d.items || []).filter(it => it.calendar_from && it.calendar_from <= iso && iso <= (it.calendar_to || it.calendar_from)); }
   function itemChip(it, iso) {
-    const t = it.kind === 'event' ? (it.start_date === iso && it.start_time ? fmtTime(it.start_time) + ' ' : '') : (it.due_time ? fmtTime(it.due_time) + ' ' : '');
-    const icon = it.kind === 'event' ? '● ' : (it.status === 'done' ? '✓ ' : '☐ ');
-    const tip = (it.kind === 'event' ? 'Event' : 'Task') + ' · ' + it.title + ' · ' + itemWhen(it) + (it.assignee_name ? ' · ' + it.assignee_name : '') + (it.address ? ' · ' + it.address : '');
+    const t = (it.kind === 'event' || it.kind === 'meeting') ? (it.start_date === iso && it.start_time ? fmtTime(it.start_time) + ' ' : '') : (it.due_time ? fmtTime(it.due_time) + ' ' : '');
+    const icon = (it.kind === 'event' || it.kind === 'meeting') ? '● ' : (it.status === 'done' ? '✓ ' : '☐ ');
+    const tip = ({ event: 'Event', meeting: 'Meeting' }[it.kind] || 'Task') + ' · ' + it.title + ' · ' + itemWhen(it) + (it.assignee_name ? ' · ' + it.assignee_name : '') + (it.address ? ' · ' + it.address : '');
     return `<span class="it ${it.kind}${it.status === 'done' ? ' done' : ''}${it.overdue ? ' late' : ''}" data-item="${it.id}" title="${esc(tip)}">${icon}${esc(t)}${esc(it.title)}</span>`;
   }
   function wireItemChips(host, d) {
@@ -2039,6 +2059,20 @@
   function ibKB(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
   async function loadInbox(arg) {
     clearTimeout(IB.timer);
+    IB.sub = arg === 'mine' || arg === 'all' ? arg : 'mail';
+    document.querySelectorAll('[data-ibtab]').forEach(a => { const on = a.dataset.ibtab === IB.sub; a.classList.toggle('active', on); a.setAttribute('aria-selected', String(on)); });
+    $('ib-sched').hidden = IB.sub === 'mail'; $('ib-conn').hidden = IB.sub !== 'mail'; $('ib-mail').hidden = IB.sub !== 'mail';
+    if (IB.sub !== 'mail') {
+      if (!window.SSC_SCHEDULE) { $('ib-sched').innerHTML = empty('Loading', ''); setTimeout(() => loadInbox(arg), 300); return; }
+      if (!IB.sched) {   // one mount; switching Mine / All re-reads
+        const holder = $('ib-sched');
+        IB.sched = window.SSC_SCHEDULE.mount(holder, { scope: IB.sub, admin: true, next: '/company#inbox/' + IB.sub,
+          onOpenItem: it => openItem(it) });
+        IB.schedScope = IB.sub;
+      } else if (IB.schedScope !== IB.sub) { IB.schedScope = IB.sub; IB.sched.setScope(IB.sub); }
+      else IB.sched.reload();
+      return;
+    }
     let st;
     try { st = (await api('/inbox/status', null, true)).data; } catch (e) { $('ib-conn').innerHTML = esc(e.message); return; }
     IB.status = st;
@@ -2057,7 +2091,7 @@
     const want = arg && /^\d+$/.test(arg) ? +arg : IB.open;
     if (want) ibOpen(want, false);
     else $('ib-pane').innerHTML = `<div class="ib-empty">${empty(st.connected ? 'Pick an email' : 'Connect your Gmail', st.connected ? 'New email shows up by itself. Use Refresh to check right now.' : 'Your email then arrives here, as in Gmail.')}</div>`;
-    IB.timer = setTimeout(function tick() { if (state.view !== 'inbox') return; ibList(); IB.timer = setTimeout(tick, 30000); }, 30000);
+    IB.timer = setTimeout(function tick() { if (state.view !== 'inbox' || IB.sub !== 'mail') return; ibList(); IB.timer = setTimeout(tick, 30000); }, 30000);
   }
   async function ibList() {
     try { IB.rows = (await api('/inbox/messages?filter=' + IB.filter, null, true)).data; } catch (e) { $('ib-rows').innerHTML = empty('Could not load the inbox', e.message); return; }

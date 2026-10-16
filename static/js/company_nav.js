@@ -39,8 +39,10 @@
     { key: 'home', label: 'Home', href: '/projects', roles: ['pm', 'super'], at: [['/projects', null]] },
     { key: 'dashboard', label: 'Dashboard', href: '/company#overview', roles: COMPANY,
       at: [['/company', 'overview'], ['/company', '']] },
-    // Inbox (2026-10-14): each admin / C-suite mailbox, live, with Claude's suggestions (inbox.py)
-    { key: 'inbox', label: 'Inbox', href: '/company#inbox', roles: COMPANY, at: [['/company', 'inbox']] },
+    // Inbox (2026-10-14): each admin / C-suite mailbox, live, with Claude's suggestions (inbox.py).
+    // 2026-10-16: PMs and supers get it too, as /inbox: their own calendar + assigned work (inbox_schedule.py)
+    { key: 'inbox', label: 'Inbox', href: '/company#inbox', roles: COMPANY.concat(['pm', 'super']),
+      hrefFor: { pm: '/inbox', super: '/inbox' }, at: [['/company', 'inbox'], ['/inbox', null]] },
     { key: 'projects', label: 'Projects', href: '/company#projects', roles: COMPANY,
       at: [['/company', 'projects'], ['/company', 'calendar'], ['/company', 'buildings'], ['/admin/projects', null]],
       sub: [['All projects', '/company#projects'], ['Calendar', '/company#calendar'], ['Assignments & onboarding', '/admin/projects']] },

@@ -1483,7 +1483,7 @@
               // ---- open items: the job's tasks and events (team_items); a DOB violation is the one alert kept
               if (O) {
                 const tag = it => it.overdue ? '<span class="tag over">Overdue · ' + mdy(it.due_date) + '</span>'
-                  : it.kind === 'event' ? '<span class="tag ev">' + mdy(it.calendar_from) + (it.start_time ? ' · ' + esc(it.start_time) : '') + '</span>'
+                  : (it.kind === 'event' || it.kind === 'meeting') ? '<span class="tag ev">' + mdy(it.calendar_from) + (it.start_time ? ' · ' + esc(it.start_time) : '') + '</span>'
                   : it.due_date ? '<span class="tag">Due ' + mdy(it.due_date) + '</span>' : '<span class="tag">No deadline</span>';
                 const alert = R && R.violations_active ? '<div class="jx-alert" data-goto="violations">⚠ ' + n(R.violations_active) + (R.violations_active === 1 ? ' active DOB violation' : ' active DOB violations') + ' on this building <u>View</u></div>' : '';
                 // crew certifications (the old Cert alerts widget): one amber line, only when something needs attention
@@ -1491,7 +1491,7 @@
                 const certs = ce || cs ? '<div class="jx-alert warn" data-goto="employees">⚠ ' + [ce ? n(ce) + (ce === 1 ? ' crew certification expired' : ' crew certifications expired') : '', cs ? n(cs) + ' expiring within 30 days' : ''].filter(Boolean).join(' · ') + ' <u>Employees</u></div>' : '';
                 $j('jx-items').innerHTML = head('jx-items') + alert + certs
                   + (O.items.length ? O.items.map(it => '<div class="jx-it"><input type="checkbox" data-jx-done="' + it.id + '" aria-label="Mark done"' + (it.can_complete ? '' : ' disabled title="Only the person it is assigned to, or admin / C-suite"') + '>'
-                      + '<div><b>' + esc(it.title) + '</b><span class="m">' + esc([it.kind === 'event' ? 'Event' : 'Task', it.assignee_name || 'Nobody yet'].join(' · ')) + '</span></div>' + tag(it) + '</div>').join('')
+                      + '<div><b>' + esc(it.title) + '</b><span class="m">' + esc([({ event: 'Event', meeting: 'Meeting' }[it.kind] || 'Task'), it.assignee_name || 'Nobody yet'].join(' · ')) + '</span></div>' + tag(it) + '</div>').join('')
                     : '<div class="jx-empty">Nothing open on this job.' + (O.can_add ? ' Add a task or event and it lands on the team calendar too.' : '') + '</div>')
                   + (O.count > O.items.length ? '<div class="jx-empty">+ ' + n(O.count - O.items.length) + ' more on the team calendar</div>' : '');
                 const add = $j('jx-add'); if (add) add.hidden = !O.can_add;

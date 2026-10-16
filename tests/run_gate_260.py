@@ -110,7 +110,8 @@ GATE = [
     "smoke_claude_actions.py",       # Claude phase 2: client notes and emails, proposals, daily report entries
     "smoke_inbox.py",                # Inbox: email live in the software, matched, Claude cards, approval before any send
     "smoke_claude_files.py",         # Claude page + attached files: encrypted, private, saved to a bid only on Approve
-    "smoke_calendar_import.py",      # work events from each main Google Calendar onto the team calendar
+    "smoke_calendar_import.py",      # each main Google Calendar copied privately for its owner
+    "smoke_inbox_schedule.py",       # Inbox Mine / All permission boundaries
     "smoke_gcal_sync.py",             # each person's tasks & events in their own Google Calendar (Google faked)
     "smoke_team_home_2b.py",          # PM / super home: own to-do, team calendar, projects
     "smoke_team_items.py",            # team tasks & events: dashboard to-do list on the calendar
