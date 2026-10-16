@@ -21,6 +21,17 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Make admin: more than one admin (Bookore, 2026-10-16)
+
+* The single-admin rule is gone; the rule is now **never zero admins**. Arun (owner) needs admin alongside Amit.
+* `POST /api/admin/users/<id>/make-admin` (admin-only, body `{confirm: true, reason?}`) promotes an **active C-suite
+  account that has set its own password** (`must_reset_password=0`); anything else is 403. Audited in `role_change_audit`.
+  Admin is still never a create role, and the generic role route still refuses `new_role=admin`.
+* Admins can move another admin off admin or deactivate them; nobody acts on themselves; the last ACTIVE admin can't be
+  removed (a disabled admin can be moved off the role). Admin rows still have no Reset password (Forgot password instead).
+* UI: `admin_users.html` — "Make admin" button on active C-suite rows + confirmation dialog (`#ov-mkadmin`).
+* Guard: `tests/smoke_make_admin.py` (in `run_gate_ci.py`). `apply_is_system_258.py` now checks ≥1 real admin, all on the company domain.
+
 ### Daily Report as a step-by-step checklist, phone only (Bookore, 2026-10-16)
 
 * `static/js/dcr_steps.js` (loaded by `dashboard-static.html`, `?v=2`) re-presents the existing Daily Report entry form
