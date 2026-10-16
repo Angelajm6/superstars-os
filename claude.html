@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
+<script src="/files/static/js/company_nav.js?v=1013"></script>
+<script src="/files/static/js/claude_drawer.js?v=11" defer></script>
+<!-- #359 — apply a remembered collapsed rail before the first paint -->
+<script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
+<script src="/files/static/js/shell.js?v=1007" defer></script>
+<title>Claude · Superstars Contracting</title>
+<!-- The Claude page (prototype accepted 2026-10-15): the same Claude as the small "Ask Claude"
+     window, full size. Conversations | chat | files. claude_drawer.js runs here in page mode
+     (it finds #clx-page); history, approval cards and attached files are shared with the window.
+     Served by claude_agent.py (/claude) to everyone Claude is offered to. -->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--canvas);color:var(--ink);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;}
+  .brand-mark{object-fit:contain;}
+  [hidden]{display:none !important;}
+  .ssc-main{display:flex;flex-direction:column;min-height:100vh;}
+  #clx-page{flex:1;min-height:0;height:calc(100vh - 64px);min-height:520px;}
+  @media (max-width:820px){#clx-page{height:calc(100vh - 110px);}}
+</style>
+</head>
+<body>
+<div class="ssc-shell">
+<aside class="ssc-side" aria-label="Company navigation">
+  <div class="brand">
+    <img class="brand-mark" width="34" height="34" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
+    <div><div class="brand-name">Superstars Contracting</div><div class="brand-sub">Company</div></div>
+  </div>
+  <nav class="ssc-nav" id="ssc-nav" data-company-nav></nav>
+  <script>SSC_NAV.mount();</script>
+</aside>
+<div class="ssc-main">
+<header class="ssc-top">
+  <div class="ssc-top-title"><h1 data-nav-h1>Claude</h1></div>
+  <div class="ssc-top-right"><div class="ssc-user" id="who">—</div></div>
+</header>
+<main id="clx-page" aria-label="Claude"></main>
+</div><!-- /.ssc-main -->
+</div><!-- /.ssc-shell -->
+<script>
+(function () {
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  fetch('/api/auth/me', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+    var u = j && j.user; if (!u) return;
+    document.getElementById('who').innerHTML = '<a href="/account" title="Your account" style="color:inherit;text-decoration:none"><b>' +
+      esc(u.display_name || u.full_name || u.email) + '</b></a>';
+  }).catch(function () {});
+})();
+</script>
+</body>
+</html>

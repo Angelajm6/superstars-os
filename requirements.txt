@@ -84,7 +84,7 @@ tzdata>=2024.1
 # boot, so the app cannot start without it (the 2026-07-30 Render deploy
 # failure). The API KEY stays optional: absent -> clean 503 "AI disabled".
 # Hand-installed on the workstation long ago; declared as of #290.
-anthropic>=0.100
+anthropic>=1.4                # Claude: messages + Files API (client.files.upload with expiry, 2026-10-15)
 
 # Direct jinja2 imports exist (server.py signage routes,
 # generate_credentials_batch). Flask already ships Jinja2, so this never

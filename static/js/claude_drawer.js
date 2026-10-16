@@ -5,6 +5,11 @@
  * dashboard can be seen in the field, so pay talk never shows there). Lookups answer
  * straight away; every change comes back as an approval card and runs only on Approve.
  * Vanilla JS, no build step; styles injected once; ids prefixed `clx-`.
+ *
+ * 2026-10-15: the full Claude page (/claude, claude.html) runs this same code in page mode
+ * (an element #clx-page on the page): conversations | chat | files, same history as the
+ * window. Files (PDF, photos, Word, Excel, CSV; 20 MB, 5 per message) attach with 📎 or by
+ * dropping them on the chat; they upload first (claude_files.py), then go with the message.
  */
 (function () {
   'use strict';
@@ -12,7 +17,10 @@
   var FIELD = /^\/projects\//.test(location.pathname) || /dashboard-static/.test(location.pathname);
   var SURFACE = FIELD ? 'field' : 'office';
   var KEY = 'ssc.claude.' + SURFACE;
-  var S = { status: null, chat: null, chats: [], poll: null, open: false, sending: false };
+  var S = { status: null, chat: null, chats: [], poll: null, open: false, sending: false, files: [], fk: 0 };
+  var HOST = document.getElementById('clx-page'), PAGE = !!HOST;   // the full Claude page
+  var ACCEPT = '.pdf,.png,.jpg,.jpeg,.heic,.heif,.webp,.gif,.docx,.xlsx,.xlsm,.csv,.txt,.eml,.md';
+  var MAXF = 5, MAXB = 20 * 1024 * 1024, DEFAULT_TEXT = 'Here are the attached files.';
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function $(id) { return document.getElementById(id); }
@@ -121,34 +129,83 @@
 .clx-grip:focus-visible{outline:none}\
 #clx-panel.clx-drag{transition:none;user-select:none}\
 .clx-size{font-size:15px;line-height:1;padding:5px 9px}\
-@media (max-width:640px){#clx-panel{width:100%}.clx-grip,.clx-size{display:none}#clx-fab{right:14px;bottom:14px}}\
+.clx-pend{display:flex;gap:6px;flex-wrap:wrap}.clx-pend:empty{display:none}\
+.clx-att{display:inline-flex;align-items:center;gap:7px;max-width:250px;min-width:0;box-sizing:border-box;border:1px solid #E6E8EE;background:#fff;border-radius:10px;padding:5px 7px 5px 5px;text-decoration:none;color:#1B1F27;font:13px Inter,sans-serif}\
+a.clx-att:hover{border-color:#C2603B}\
+.clx-att .ty{flex:none;width:28px;height:30px;border-radius:5px;display:grid;place-items:center;font:800 9px Inter,sans-serif;color:#fff;letter-spacing:.03em}\
+.clx-att .ty.pdf{background:#D93025}.clx-att .ty.image{background:#1E8E5A}.clx-att .ty.excel{background:#1D6F42}.clx-att .ty.word{background:#2B579A}.clx-att .ty.text{background:#6B7280}\
+.clx-att .nm{min-width:0;display:grid;line-height:1.25}\
+.clx-att .nm b{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.clx-att .nm small{font-size:11px;color:#868C98;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.clx-att.err{border-color:#E7B4AE}.clx-att.err .nm small{color:#A8382B;white-space:normal}.clx-att.busy .nm small{color:#A84E2C}\
+.clx-att .rm{border:0;background:none;color:#868C98;font-size:17px;line-height:1;cursor:pointer;padding:0 2px}\
+.clx-atts{display:flex;gap:6px;flex-wrap:wrap}.clx-m.u .clx-atts{justify-content:flex-end}\
+.clx-clip{flex:none;border:1px solid #E6E8EE;background:#F6F7FA;border-radius:10px;width:40px;height:44px;display:grid;place-items:center;cursor:pointer;font-size:16px}\
+.clx-clip:hover{border-color:#C2603B}\
+.clx-drop{position:absolute;inset:8px;border:2px dashed #C2603B;border-radius:14px;background:rgba(251,239,233,.95);display:grid;place-items:center;align-content:center;text-align:center;font:600 14px Inter,sans-serif;color:#A84E2C;z-index:5;pointer-events:none}\
+.clx-drop small{display:block;font-weight:500;color:#5B6170;margin-top:4px}\
+.clx-drop[hidden]{display:none}\
+a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
+#clx-panel.clx-pagemode{position:relative;top:auto;right:auto;bottom:auto;width:auto;max-width:none;height:100%;z-index:auto;transform:none;transition:none;box-shadow:none;border:0;display:grid;grid-template-columns:280px minmax(0,1fr) 260px;background:#F3F4F7}\
+.clx-pagemode .clx-side{background:#fff;border-right:1px solid #E6E8EE;display:flex;flex-direction:column;min-height:0;padding:14px 12px;gap:10px}\
+.clx-pagemode .clx-histp{padding:0;flex:1;min-height:0}\
+.clx-pagemode .clx-mainc{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}\
+.clx-pagemode .clx-h{background:#fff;padding:12px 24px}\
+.clx-pagemode .clx-msgs{padding:22px max(24px,calc((100% - 800px) / 2))}\
+.clx-pagemode .clx-f{border-top:0;padding:8px max(24px,calc((100% - 800px) / 2)) 18px}\
+.clx-pagemode .clx-f form{background:#fff;border:1px solid #E6E8EE;border-radius:14px;padding:8px;box-shadow:0 1px 2px rgba(20,22,28,.06),0 8px 24px rgba(20,22,28,.06)}\
+.clx-pagemode .clx-f textarea{border:0;height:64px}\
+.clx-pagemode .clx-histbtn{display:none}\
+.clx-files{background:#fff;border-left:1px solid #E6E8EE;padding:14px;display:grid;gap:12px;align-content:start;overflow-y:auto;min-height:0}\
+.clx-files h3{margin:0;font:700 11px Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#868C98}\
+.clx-fnote{font-size:12px;color:#5B6170;background:#F6F7FA;border-radius:10px;padding:10px 12px;line-height:1.5}\
+.clx-flist{display:grid;gap:8px}.clx-flist .clx-att{max-width:none}\
+@media (max-width:1180px){#clx-panel.clx-pagemode{grid-template-columns:250px minmax(0,1fr)}.clx-pagemode .clx-files{display:none}}\
+@media (max-width:820px){#clx-panel.clx-pagemode{grid-template-columns:minmax(0,1fr)}.clx-pagemode .clx-side{display:none}\
+.clx-pagemode .clx-side.show{display:flex;position:absolute;inset:0;z-index:6}.clx-pagemode .clx-histbtn{display:inline-flex}\
+.clx-pagemode .clx-h{padding:10px 14px}.clx-pagemode .clx-msgs{padding:14px}.clx-pagemode .clx-f{padding:8px 14px 14px}}\
+@media (max-width:640px){#clx-panel:not(.clx-pagemode){width:100%}.clx-grip,.clx-size{display:none}#clx-fab{right:14px;bottom:14px}}\
 @media print{#clx-fab,#clx-panel{display:none!important}}\
 @media (prefers-reduced-motion:reduce){#clx-panel{transition:none}}';
 
-  function build() {
-    var st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
-    var fab = document.createElement('button');
-    fab.id = 'clx-fab'; fab.type = 'button'; fab.setAttribute('aria-controls', 'clx-panel'); fab.setAttribute('aria-expanded', 'false');
-    fab.innerHTML = '<span class="clx-star" aria-hidden="true">✦</span>Ask Claude';
-    document.body.appendChild(fab);
-    var p = document.createElement('aside');
-    p.id = 'clx-panel'; p.hidden = true; p.setAttribute('aria-label', 'Claude');
+  var FORM = '<div class="clx-f"><div id="clx-off" hidden></div><div class="clx-pend" id="clx-pend"></div>' +
+    '<form id="clx-form"><button type="button" class="clx-clip" id="clx-clip" aria-label="Attach files" title="Attach files: PDF, photos, Word, Excel, CSV (up to 20 MB each, 5 per message)">📎</button>' +
+    '<input id="clx-file" type="file" multiple hidden accept="' + ACCEPT + '">' +
+    '<textarea id="clx-in" rows="2" placeholder="Ask or tell Claude… or attach drawings, bid forms, photos" aria-label="Message to Claude"></textarea>' +
+    '<button class="clx-btn go" id="clx-send" type="submit">Send</button></form>' +
+    '<div class="clx-foot"><span>Changes always wait for your approval</span><span>📎 PDF, photos, Word, Excel · 20 MB each</span></div></div>';
+  var DROP = '<div class="clx-drop" id="clx-drop" hidden>Drop files to attach<small>PDF, photos, Word, Excel, CSV · up to 20 MB each</small></div>';
+  var HIST = '<div class="clx-histp" id="clx-histp"' + (PAGE ? '' : ' hidden') + '><div class="clx-hbar"><input id="clx-q" type="search" placeholder="Search your conversations" aria-label="Search your conversations"><span class="clx-seg"><button type="button" data-saved="0" aria-pressed="true">All</button><button type="button" data-saved="1" aria-pressed="false">★ Saved</button></span></div><div id="clx-hlist" class="clx-hlist"></div></div>';
+
+  function buildPage() {
+    var p = document.createElement('div');
+    p.id = 'clx-panel'; p.className = 'clx-pagemode';
     p.innerHTML =
-      '<div class="clx-h"><div class="clx-t"><b><span class="clx-star" aria-hidden="true">✦</span>Claude</b>' +
-      '<span class="clx-tools"><button class="clx-btn" type="button" id="clx-hist" aria-pressed="false">History</button><button class="clx-btn" type="button" id="clx-new">+ New</button><button class="clx-btn clx-size" type="button" id="clx-size" aria-label="Make the Claude window bigger" title="Bigger">⤢</button><button class="clx-x" type="button" id="clx-close" aria-label="Close Claude">×</button></span></div>' +
+      '<div class="clx-side" id="clx-side"><button class="clx-btn go" type="button" id="clx-new">+ New conversation</button>' + HIST + '</div>' +
+      '<div class="clx-mainc" id="clx-mainc"><div class="clx-h"><div class="clx-t"><b><span class="clx-star" aria-hidden="true">✦</span>Claude</b>' +
+      '<span class="clx-tools"><button class="clx-btn clx-histbtn" type="button" id="clx-hist" aria-pressed="false">Conversations</button>' +
+      '<button class="clx-btn" type="button" id="clx-small" title="Keep this conversation in the small Ask Claude window while you work on another page">Open in small window ↘</button></span></div>' +
       '<div class="clx-title" id="clx-title" hidden></div></div>' +
-      '<div class="clx-histp" id="clx-histp" hidden><div class="clx-hbar"><input id="clx-q" type="search" placeholder="Search your conversations" aria-label="Search your conversations"><span class="clx-seg"><button type="button" data-saved="0" aria-pressed="true">All</button><button type="button" data-saved="1" aria-pressed="false">★ Saved</button></span></div><div id="clx-hlist" class="clx-hlist"></div></div>' +
-      '<div class="clx-msgs" id="clx-msgs" aria-live="polite"></div>' +
-      '<div class="clx-f"><div id="clx-off" hidden></div><form id="clx-form"><textarea id="clx-in" rows="2" placeholder="Ask or tell Claude…" aria-label="Message to Claude"></textarea><button class="clx-btn go" id="clx-send" type="submit">Send</button></form>' +
-      '<div class="clx-foot"><span>Changes always wait for your approval</span></div></div>' +
-      '<div class="clx-grip" id="clx-grip" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize the Claude window (drag, or use the arrow keys)"></div>';
-    document.body.appendChild(p);
-    fab.addEventListener('click', function () { setOpen(!S.open); });
-    $('clx-close').addEventListener('click', function () { setOpen(false); });
-    $('clx-new').addEventListener('click', function () { clearTimeout(S.poll); S.chat = null; store('chat', null); showHistory(false); renderTitle(); render(); $('clx-in').focus(); });
+      '<div class="clx-msgs" id="clx-msgs" aria-live="polite"></div>' + FORM + DROP + '</div>' +
+      '<aside class="clx-files" aria-label="Files in this conversation"><h3>Files in this conversation</h3><div class="clx-flist" id="clx-flist"></div>' +
+      '<div class="clx-fnote"><b>Where files go.</b> Files stay with this conversation and only you can open them. Claude saves one to a bid only when you approve it.</div>' +
+      '<div class="clx-fnote"><b>Same conversations everywhere.</b> This page and the small Ask Claude window share your history.</div></aside>';
+    HOST.appendChild(p);
+    $('clx-small').addEventListener('click', toSmallWindow);
+    wireCommon($('clx-mainc'));
+  }
+  function toSmallWindow() {   // continue this conversation in the window on the page the person came from
+    if (S.chat) store('chat', S.chat.chat.id);
+    store('open', '1');
+    var back = '';
+    try { var r = new URL(document.referrer); if (r.origin === location.origin && r.pathname !== '/claude') back = r.pathname + r.search + r.hash; } catch (e) {}
+    location.href = back || ((S.status && (S.status.role === 'pm' || S.status.role === 'super')) ? '/projects' : '/company#overview');
+  }
+  function fullHref() { return '/claude' + (S.chat ? '#chat-' + S.chat.chat.id : ''); }
+
+  function wireCommon(dropZone) {
+    $('clx-new').addEventListener('click', function () { clearTimeout(S.poll); S.chat = null; store('chat', null); showHistory(false); renderTitle(); render(); if (PAGE) history.replaceState(null, '', '/claude'); $('clx-in').focus(); });
     $('clx-hist').addEventListener('click', function () { showHistory(!S.hist); });
-    $('clx-size').addEventListener('click', function () { setWidth(curWidth() < WIDE() - 20 ? WIDE() : NARROW, true); });
-    wireGrip();
     $('clx-q').addEventListener('input', function () { clearTimeout(S.qt); S.qt = setTimeout(loadHistory, 250); });
     document.querySelectorAll('#clx-histp [data-saved]').forEach(function (b) { b.addEventListener('click', function () {
       S.saved = b.getAttribute('data-saved') === '1';
@@ -159,6 +216,92 @@
     $('clx-form').addEventListener('submit', function (e) { e.preventDefault(); send($('clx-in').value); });
     $('clx-in').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send($('clx-in').value); } });
     $('clx-msgs').addEventListener('click', onCardClick);
+    $('clx-clip').addEventListener('click', function () { $('clx-file').click(); });
+    $('clx-file').addEventListener('change', function (e) { addFiles(e.target.files); e.target.value = ''; });
+    $('clx-pend').addEventListener('click', function (e) { var b = e.target.closest('[data-rmfile]'); if (b) removeFile(+b.getAttribute('data-rmfile')); });
+    $('clx-in').addEventListener('paste', function (e) {   // a screenshot pasted into the box is attached
+      var fs = Array.prototype.filter.call((e.clipboardData && e.clipboardData.files) || [], function (f) { return /^image\//.test(f.type); });
+      if (fs.length) { e.preventDefault(); addFiles(fs.map(function (f, i) { return f.name && f.name !== 'image.png' ? f : new File([f], 'Pasted picture ' + (i + 1) + '.png', { type: f.type }); })); }
+    });
+    var depth = 0, hasFiles = function (e) { return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0; };
+    dropZone.addEventListener('dragenter', function (e) { if (!hasFiles(e)) return; e.preventDefault(); depth++; $('clx-drop').hidden = false; });
+    dropZone.addEventListener('dragover', function (e) { if (hasFiles(e)) e.preventDefault(); });
+    dropZone.addEventListener('dragleave', function () { if (--depth <= 0) { depth = 0; $('clx-drop').hidden = true; } });
+    dropZone.addEventListener('drop', function (e) { if (!hasFiles(e)) return; e.preventDefault(); depth = 0; $('clx-drop').hidden = true; addFiles(e.dataTransfer.files); });
+  }
+
+  // ---- files: upload as soon as they are picked, sent with the next message
+  function fileKind(n) {
+    n = String(n || '').toLowerCase();
+    return /\.pdf$/.test(n) ? ['pdf', 'PDF'] : /\.(png|jpe?g|heic|heif|webp|gif)$/.test(n) ? ['image', 'IMG']
+      : /\.(xlsx|xlsm)$/.test(n) ? ['excel', 'XLS'] : /\.csv$/.test(n) ? ['excel', 'CSV'] : /\.docx$/.test(n) ? ['word', 'DOC'] : ['text', 'TXT'];
+  }
+  function sizeOf(b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; }
+  function chip(f, opts) {
+    opts = opts || {};
+    var k = fileKind(f.name), link = opts.link && f.url, tag = link ? 'a' : 'span';
+    var sub = f.err || (f.busy ? 'Attaching…' : (f.label || sizeOf(f.size)));
+    return '<' + tag + ' class="clx-att' + (f.err ? ' err' : '') + (f.busy ? ' busy' : '') + '"' +
+      (link ? ' href="' + esc(f.url) + '" target="_blank" rel="noopener"' : '') + ' title="' + esc(f.name + (f.err ? ': ' + f.err : '')) + '">' +
+      '<span class="ty ' + k[0] + '" aria-hidden="true">' + k[1] + '</span><span class="nm"><b>' + esc(f.name) + '</b><small>' + esc(sub) + '</small></span>' +
+      (opts.rm ? '<button type="button" class="rm" data-rmfile="' + f.key + '" aria-label="Remove ' + esc(f.name) + '">×</button>' : '') + '</' + tag + '>';
+  }
+  function busyFiles() { return S.files.some(function (f) { return f.busy; }); }
+  function drawPend() {
+    var b = $('clx-pend'); if (!b) return;
+    b.innerHTML = S.files.map(function (f) { return chip(f, { rm: true }); }).join('');
+    syncSend();
+  }
+  function syncSend() {
+    var v = S.chat, off = S.status && !S.status.available, s = $('clx-send');
+    if (s) s.disabled = !!off || !!(v && v.busy) || S.sending || busyFiles();
+  }
+  function addFiles(list) {
+    Array.prototype.forEach.call(list || [], function (file) {
+      var f = { key: ++S.fk, name: file.name || 'file', size: file.size || 0 };
+      S.files.push(f);
+      if (S.files.filter(function (x) { return !x.err; }).length > MAXF) { f.err = 'Up to 5 files per message'; return; }
+      if (f.size > MAXB) { f.err = 'Over 20 MB. Attach the pages you need.'; return; }
+      f.busy = true;
+      var fd = new FormData(); fd.append('file', file, f.name);
+      fetch('/api/claude/files', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error((j && j.error) || ('Could not attach (' + r.status + ')')); return j.data; }); })
+        .then(function (d) { f.busy = false; f.id = d.id; f.label = d.label; f.url = d.url; drawPend(); })
+        .catch(function (e) { f.busy = false; f.err = e.message; drawPend(); });
+    });
+    drawPend();
+  }
+  function removeFile(key) {
+    var f = S.files.filter(function (x) { return x.key === key; })[0];
+    S.files = S.files.filter(function (x) { return x.key !== key; });
+    if (f && f.id) api('/files/' + f.id, { method: 'DELETE' }).catch(function () {});
+    drawPend();
+  }
+
+  function build() {
+    var st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
+    if (PAGE) { buildPage(); return; }
+    var fab = document.createElement('button');
+    fab.id = 'clx-fab'; fab.type = 'button'; fab.setAttribute('aria-controls', 'clx-panel'); fab.setAttribute('aria-expanded', 'false');
+    fab.innerHTML = '<span class="clx-star" aria-hidden="true">✦</span>Ask Claude';
+    document.body.appendChild(fab);
+    var p = document.createElement('aside');
+    p.id = 'clx-panel'; p.hidden = true; p.setAttribute('aria-label', 'Claude');
+    p.innerHTML =
+      '<div class="clx-h"><div class="clx-t"><b><span class="clx-star" aria-hidden="true">✦</span>Claude</b>' +
+      '<span class="clx-tools"><button class="clx-btn" type="button" id="clx-hist" aria-pressed="false">History</button><button class="clx-btn" type="button" id="clx-new">+ New</button><a class="clx-btn" id="clx-full" href="/claude" title="Open this conversation on the full Claude page">↗ Full page</a><button class="clx-btn clx-size" type="button" id="clx-size" aria-label="Make the Claude window bigger" title="Bigger">⤢</button><button class="clx-x" type="button" id="clx-close" aria-label="Close Claude">×</button></span></div>' +
+      '<div class="clx-title" id="clx-title" hidden></div></div>' +
+      HIST +
+      '<div class="clx-msgs" id="clx-msgs" aria-live="polite"></div>' +
+      FORM + DROP +
+      '<div class="clx-grip" id="clx-grip" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize the Claude window (drag, or use the arrow keys)"></div>';
+    document.body.appendChild(p);
+    fab.addEventListener('click', function () { setOpen(!S.open); });
+    $('clx-close').addEventListener('click', function () { setOpen(false); });
+    $('clx-full').addEventListener('click', function () { this.href = fullHref(); });
+    $('clx-size').addEventListener('click', function () { setWidth(curWidth() < WIDE() - 20 ? WIDE() : NARROW, true); });
+    wireGrip();
+    wireCommon(p);
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.open) setOpen(false); });
   }
 
@@ -222,6 +365,7 @@
   // ---- History: every conversation is saved; ★ keeps one on top; rename; remove from the list
   function showHistory(on) {
     S.hist = on; $('clx-hist').setAttribute('aria-pressed', String(on));
+    if (PAGE) { $('clx-side').classList.toggle('show', on); loadHistory(); return; }
     $('clx-histp').hidden = !on; $('clx-msgs').hidden = on;
     if (on) { loadHistory(); setTimeout(function () { $('clx-q').focus(); }, 30); }
   }
@@ -237,6 +381,7 @@
           '<button type="button" class="clx-hopen" data-open="' + c.id + '"><b>' + esc(c.title) + '</b><span>' + esc(when(c.updated_at)) + ' · ' + c.asked + ' message' + (c.asked === 1 ? '' : 's') + '</span></button>' +
           '<button type="button" class="clx-hrm" data-remove="' + c.id + '" aria-label="Remove from the list">Remove</button></div>';
       }).join('') : '<div class="clx-intro">' + (q || S.saved ? 'No conversations match.' : 'Your conversations show here once you ask Claude something.') + (SURFACE === 'field' ? ' Conversations started on office pages are listed there.' : '') + '</div>';
+      if (PAGE) box.querySelectorAll('.clx-hrm').forEach(function (b) { b.textContent = '×'; b.title = 'Remove from the list'; });
     } catch (e) { box.innerHTML = '<div class="clx-err">' + esc(e.message) + '</div>'; }
   }
   async function patchChat(id, body) {
@@ -277,8 +422,10 @@
     } catch (x) { renderTitle(); }
   }
   function apply(view) {
+    var fresh = !S.chat || S.chat.chat.id !== view.chat.id || S.chat.chat.title !== view.chat.title;
     S.chat = view; store('chat', view.chat.id);
     renderTitle(); render();
+    if (PAGE) { if (location.hash !== '#chat-' + view.chat.id) history.replaceState(null, '', '#chat-' + view.chat.id); if (fresh || !view.busy) loadHistory(); }
     clearTimeout(S.poll);
     if (view.busy) S.poll = setTimeout(function () { openChat(view.chat.id).then(refreshStatus); }, 1500);
   }
@@ -299,7 +446,9 @@
     var off = S.status && !S.status.available;
     $('clx-off').hidden = !off; $('clx-off').className = off ? 'clx-off' : '';
     $('clx-off').textContent = off ? 'Claude is not connected yet. An admin adds the Anthropic API key in Render.' : '';
-    $('clx-send').disabled = !!off || !!(v && v.busy) || S.sending; $('clx-in').disabled = !!off;
+    syncSend(); $('clx-in').disabled = !!off;
+    if (PAGE) $('clx-flist').innerHTML = v && v.files && v.files.length ? v.files.map(function (f) { return chip(f, { link: true }); }).join('')
+      : '<div class="clx-intro">Files you attach in this conversation show here.</div>';
     if (!v || !v.messages.length) {
       var st = S.status || {};
       box.innerHTML = '<div class="clx-intro"><div>Hi' + (st.name ? ' ' + esc(String(st.name).split(' ')[0]) : '') + '. Ask me anything about the platform, or tell me what to do. I show you every change before it happens.</div>' +
@@ -310,7 +459,12 @@
       return;
     }
     box.innerHTML = v.messages.map(function (m) {
-      if (m.role === 'user') return '<div class="clx-m u"><span class="who">You · ' + esc(when(m.created_at)) + '</span><div class="clx-b">' + esc(m.text) + '</div></div>';
+      if (m.role === 'user') {
+        var fl = m.files || [], txt = fl.length && m.text === DEFAULT_TEXT ? '' : m.text;
+        return '<div class="clx-m u"><span class="who">You · ' + esc(when(m.created_at)) + '</span>' +
+          (fl.length ? '<div class="clx-atts">' + fl.map(function (f) { return chip(f, { link: true }); }).join('') + '</div>' : '') +
+          (txt ? '<div class="clx-b">' + esc(txt) + '</div>' : '') + '</div>';
+      }
       var looked = m.looked && m.looked.length ? '<div class="clx-looked">Looked at ' + m.looked.map(function (l) { return '<span>' + esc(l) + '</span>'; }).join('') + '</div>' : '';
       return '<div class="clx-m a"><span class="who">Claude · ' + esc(when(m.created_at)) + '</span>' + looked +
         (m.text ? '<div class="clx-b">' + esc(m.text) + '</div>' : '') + (m.actions || []).map(card).join('') + '</div>';
@@ -368,12 +522,15 @@
   }
   async function send(text) {
     text = (text || '').trim();
-    if (!text || S.sending || (S.chat && S.chat.busy)) return;
+    var ready = S.files.filter(function (f) { return f.id && !f.err; });
+    if ((!text && !ready.length) || S.sending || (S.chat && S.chat.busy) || busyFiles()) return;
     S.sending = true; $('clx-send').disabled = true;
     try {
       if (!S.chat) { var c = await api('/chats', { method: 'POST', body: JSON.stringify({ surface: SURFACE }) }); S.chat = c.data; }
       $('clx-in').value = '';
-      var r = await api('/chats/' + S.chat.chat.id + '/messages', { method: 'POST', body: JSON.stringify({ text: text, page: page() }) });
+      var r = await api('/chats/' + S.chat.chat.id + '/messages', { method: 'POST', body: JSON.stringify({ text: text, page: page(),
+        file_ids: ready.map(function (f) { return f.id; }) }) });
+      S.files = []; drawPend();
       S.sending = false; apply(r.data);
     } catch (e) {
       S.sending = false; $('clx-in').value = text;
@@ -385,8 +542,19 @@
 
   async function boot() {
     try { var r = await api('/status?surface=' + SURFACE); S.status = r.data; }
-    catch (e) { return; }   // not offered to this role (or signed out): no button
-    build(); sizeFromStore();
+    catch (e) {   // not offered to this role (or signed out): no button
+      if (PAGE) HOST.innerHTML = '<div class="clx-intro" style="padding:24px">Claude is not available for your role.</div>';
+      return;
+    }
+    build();
+    if (PAGE) {
+      S.loaded = true; store('open', null);
+      var m = /^#chat-(\d+)$/.exec(location.hash), keep = m ? +m[1] : +load('chat');
+      if (keep) await openChat(keep); else { renderTitle(); render(); }
+      loadHistory(); $('clx-in').focus();
+      return;
+    }
+    sizeFromStore();
     if (load('open') === '1') setOpen(true);
   }
   // ---- the same cards outside the drawer (the Inbox): one email's Claude pass, by its chat id
@@ -431,6 +599,6 @@
     load();
     return { reload: load, stop: function () { clearTimeout(timer); } };
   }
-  window.SSC_CLAUDE = { open: function () { setOpen(true); }, mountCards: mountCards };
+  window.SSC_CLAUDE = { open: function () { if (PAGE) $('clx-in').focus(); else setOpen(true); }, mountCards: mountCards };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
