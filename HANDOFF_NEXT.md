@@ -21,6 +21,15 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Client portal: type scale + Drawing Markup stays in the shell (Bookore, 2026-10-16)
+
+* `portal_shell.html`: one override block (before `</head>`) moves the portal onto the dashboard's type scale — nothing under
+  13px except caps labels (12px) and the dense look-ahead grid (11px), weights 400/500/600 (was 700 / 9–11px), page title 22px/500
+  caps, card title 16px/500, KPI label 13px caps, KPI value 28px/500. `html body` prefixes match typography.css specificity.
+  Family was already Inter everywhere; the mismatch was sizes and weights.
+* Drawing Markup is a portal view now: `data-portal-view="drawing"` holds an iframe of `/drawing-markup` (same pattern as the project
+  dashboard), so the sidebar + top bar stay. `.content.is-bleed` makes it full-width. `/drawing-markup` is still a working direct URL.
+
 ### Job page redesign step 2 — six tabs on the v2 overlay (Bookore, 2026-10-16)
 
 * Branch `worktree-six-tab-job-overlay`. Mockup accepted (`../docs/review-2026-10-16-six-tabs/`); from 2026-10-16 Angela
