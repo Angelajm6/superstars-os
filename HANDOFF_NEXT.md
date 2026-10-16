@@ -2827,3 +2827,8 @@ operator-driven — walkthrough in the #291 close report; rotation invalidates
 the terminal env + 1Password external-URL item until re-pasted. Standing
 opens: Wix re-point, DKIM start-auth, staff 2FA + phone provisioning before
 unsealing the worker door, Wed-crash diagnosis, first-invoice true-up.*
+
+## 2026-10-16 UI consistency pass (platform-wide)
+Shipped: Batch 1 (PR 78, project dashboard), Batch 2A (PR 80, company pages: one button/field/pill/table/header spec in `static/css/unify.css`), 2FA banner removed (PR 82). Batch 2B (this branch): `/settings/interface` and `/projects` (Home) now inside the shared shell; `friendly_errors.py` turns raw-JSON 403/404 into a page for browser navigations only (`/api/*`, `/files/*` and fetch() keep JSON); guard `tests/smoke_friendly_errors.py`.
+Rule: one spec, two scopes in `unify.css` (`.views-container` = project tabs, `.ssc-main` = company pages). New pages inside the shell get it automatically; do not add per-page button/field/tab styles.
+Open: Batch 2C (retire `/dropplan`, delete `facade-dashboard*.html` + `dashboard-public-demo.html`: unreferenced), where the EN/ES toggle lives, Toolbox Talks card colours (colour = status only), modals not yet on the spec.

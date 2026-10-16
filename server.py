@@ -12197,6 +12197,9 @@ def internal_error(error):
     logging.error(f"500: {str(error)}")
     return jsonify({"error": "Internal server error"}), 500
 
+import friendly_errors  # people get a page, programs keep the JSON (403 / 404 on browser navigations)
+friendly_errors.install(app)
+
 # #305 — a second registration of the same (rule, method) silently shadows the first
 # (the /api/rfis collision). Report duplicates at boot; strict mode refuses to start.
 def _duplicate_routes():

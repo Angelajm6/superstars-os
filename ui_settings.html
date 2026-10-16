@@ -15,12 +15,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Interface · Superstars Contracting</title>
-<link rel="stylesheet" href="/files/static/css/widgets.css">
+<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
+<script src="/files/static/js/company_nav.js?v=1014"></script>
+<script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
+<script src="/files/static/js/shell.js?v=1007" defer></script>
+<script src="/files/static/js/auth_menu.js?v=1009" defer></script>
 <style>
+  .brand-mark { object-fit: contain; }
   body { margin:0; background:var(--canvas,#fafbfd); color:var(--ink,#222633);
-         font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
-  .wrap { max-width:640px; margin:0 auto; padding:40px 20px 64px; }
-  h1 { font-size:19px; font-weight:700; margin:0 0 4px; letter-spacing:-.2px; }
+         font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  .wrap { max-width:760px; margin:0; padding:22px 26px 48px; }
+  h2.pg { font-size:17px; font-weight:700; margin:0 0 4px; }
   .sub { color:var(--muted,#8c92a0); font-size:13px; margin:0 0 26px; line-height:1.6; }
   .card { background:#fff; border:1px solid var(--line,#eceef3); border-radius:10px;
           padding:20px; margin-bottom:16px; }
@@ -48,8 +55,23 @@
 </style>
 </head>
 <body>
+<div class="ssc-shell">
+<aside class="ssc-side" aria-label="Company navigation">
+  <div class="brand">
+    <img class="brand-mark" src="/files/static/brand/mark.svg" width="34" height="34" alt="Superstars Contracting">
+    <div><div class="brand-name">Superstars Contracting</div><div class="brand-sub">Company</div></div>
+  </div>
+  <nav class="ssc-nav" id="ssc-nav" data-company-nav></nav>
+  <script>SSC_NAV.mount();</script>
+</aside>
+<div class="ssc-main">
+<header class="ssc-top">
+  <div class="ssc-top-title"><h1 data-nav-h1>Settings</h1></div>
+  <div class="ssc-top-right"><div id="user-menu" aria-live="polite"></div></div>
+</header>
 <div class="wrap">
-  <h1>Interface</h1>
+  <div class="ssc-subtabs" data-subtabs="settings" id="subtabs" hidden></div>
+  <h2 class="pg">Interface</h2>
   <p class="sub">Choose which version of the dashboard you see. This changes presentation only —
      the data, and who is allowed to see it, are identical either way.</p>
 
@@ -90,7 +112,9 @@
     </div>
   </div>
 
-  <a class="back" href="/">&larr; Back to the dashboard</a>
+  <a class="back" href="/company#overview">&larr; Back to the dashboard</a>
+</div>
+</div>
 </div>
 
 <script>
@@ -190,5 +214,6 @@
   });
 })();
 </script>
+<link rel="stylesheet" href="/files/static/css/unify.css?v=6">
 </body>
 </html>
