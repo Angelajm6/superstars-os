@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Superstars Contracting · Home</title>
 <link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=321">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
+<script src="/files/static/js/company_nav.js?v=1014"></script>
+<script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
+<script src="/files/static/js/shell.js?v=1007" defer></script>
 <!-- #263 landing, rebuilt as the team HOME (2b, prototype accepted 2026-10-07). PMs and supers
      land here: what is assigned to them first (with one-tap Google Maps directions), then the
      TEAM week / month (every dated job by name and dates, everyone's tasks and events), then
@@ -33,21 +37,16 @@
     --bad: #A8382B; --bad-soft: #FCEEEC;
     --ev: #0F766E; --ev-soft: #E7F6F1;
   }
+  .brand-mark { object-fit: contain; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { background: var(--canvas); color: var(--ink); font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
   body { min-height: 100vh; }
   button { font: inherit; color: inherit; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  .topbar { background: white; border-bottom: 1px solid var(--hairline); padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.04); position: sticky; top: 0; z-index: 20; }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .brand-mark { width: 38px; height: 38px; object-fit: contain; }
-  .brand-text { line-height: 1.1; }
-  .brand-name { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
-  .brand-sub { font-size: 10px; color: var(--mute); letter-spacing: 1px; text-transform: uppercase; font-weight: 600; margin-top: 2px; }
 
   .wrap { max-width: 1240px; margin: 0 auto; padding: 24px 28px 48px; }
-  .hello h1 { font-family: 'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif; font-size: 24px; font-weight: 700; }
+  .hello h2 { font-family: 'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif; font-size: 24px; font-weight: 700; }
   .hello .sub { color: var(--mute); font-size: 13px; margin-top: 4px; }
   .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 18px; margin-top: 18px; align-items: start; }
   .stack { display: grid; gap: 18px; min-width: 0; }
@@ -191,10 +190,8 @@
     .cols { grid-template-columns: 1fr; }
   }
   @media (max-width: 640px) {
-    .topbar { padding: 10px 14px; }
-    .brand-sub { display: none; }
     .wrap { padding: 16px 12px 40px; }
-    .hello h1 { font-size: 20px; }
+    .hello h2 { font-size: 20px; }
     .day { min-height: 92px; padding: 4px 2px 5px; }
     .cal.month .day { min-height: 60px; }
     .cal.month .chip { display: none; }
@@ -207,20 +204,24 @@
 </style>
 </head>
 <body>
-  <div class="topbar">
-    <div class="brand">
-      <!-- #265 — canonical filled-star lockup (single source: brand.py) -->
-      <img class="brand-mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
-      <div class="brand-text">
-        <div class="brand-name">Superstars Contracting</div>
-        <div class="brand-sub">Home</div>
-      </div>
-    </div>
-    <div id="user-menu"></div>
+<div class="ssc-shell">
+<aside class="ssc-side" aria-label="Navigation">
+  <div class="brand">
+    <!-- #265 — canonical filled-star lockup (single source: brand.py) -->
+    <img class="brand-mark" src="/files/static/brand/mark.svg" width="34" height="34" alt="Superstars Contracting">
+    <div><div class="brand-name">Superstars Contracting</div><div class="brand-sub">Home</div></div>
   </div>
+  <nav class="ssc-nav" id="ssc-nav" data-company-nav></nav>
+  <script>SSC_NAV.mount();</script>
+</aside>
+<div class="ssc-main">
+<header class="ssc-top">
+  <div class="ssc-top-title"><h1 data-nav-h1>Home</h1></div>
+  <div class="ssc-top-right"><div id="user-menu" aria-live="polite"></div></div>
+</header>
 
   <div class="wrap">
-    <div class="hello"><h1 id="hello">Welcome</h1><div class="sub" id="today-line"></div></div>
+    <div class="hello"><h2 id="hello">Welcome</h2><div class="sub" id="today-line"></div></div>
     <div class="cols">
       <div class="stack">
         <section class="card" id="todo-card" aria-labelledby="todo-h">
@@ -463,5 +464,8 @@
   loadTodo(); loadCal(); loadProjects();
 })();
 </script>
+</div>
+</div>
+<link rel="stylesheet" href="/files/static/css/unify.css?v=6">
 </body>
 </html>

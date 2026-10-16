@@ -53,7 +53,8 @@ COMPANY_PAGES = {"/company": "company_portal.html", "/": "company-dashboard.html
                  "/admin/projects": "admin_projects.html", "/admin/labor-rates": "admin_labor_rates.html",
                  "/estimating": "estimating.html"}
 SHELLS = ("admin_labor_rates.html", "admin_projects.html", "admin_users.html", "company-dashboard.html",
-          "company_portal.html", "dashboard-static.html", "estimating.html", "portal_shell.html")
+          "company_portal.html", "dashboard-static.html", "estimating.html", "portal_shell.html",
+          "projects.html", "ui_settings.html")
 
 
 def _db():
