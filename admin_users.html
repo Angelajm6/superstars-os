@@ -11,6 +11,7 @@
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
+<script src="/files/static/js/auth_menu.js?v=1009" defer></script>
 <title>User Management · Superstars Contracting</title>
 <style>
   /* Uses the GLOBAL :root tokens from widgets.css (--accent/--ink/--line/...), so the
@@ -22,33 +23,33 @@
   .top .mark{width:30px;height:30px;display:block;}
   .top .brand-home{display:inline-flex;text-decoration:none;}
   .top h1{font-size:16px;font-weight:600;letter-spacing:.3px;}
-  .top .nav-back{font-size:12px;font-weight:700;color:var(--accent-ink);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:5px 11px;}
+  .top .nav-back{font-size:13px;font-weight:700;color:var(--accent-ink);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:5px 11px;}
   .top .nav-back:hover{border-color:var(--accent-edge);background:var(--accent-soft);}
-  .top .who{margin-left:auto;font-size:12px;color:var(--muted);text-align:right;}
+  .top .who{margin-left:auto;font-size:13px;color:var(--muted);text-align:right;}
   .top .who b{color:var(--ink);font-weight:700;}
   .top .who a{color:var(--accent);text-decoration:none;font-weight:700;margin-left:10px;cursor:pointer;}
   .wrap{margin:0 auto;padding:26px;}
   .ssc-main > .wrap{max-width:none;}   /* full window width (accepted 2026-10-10); outranks the shell's 1160px cap */
   .head-row{display:flex;align-items:center;margin-bottom:18px;gap:14px;}
   .head-row h2{font-size:20px;font-weight:600;}
-  .head-row .sub{font-size:12.5px;color:var(--muted);}
+  .head-row .sub{font-size:13px;color:var(--muted);}
   .head-row .spacer{flex:1;}
   table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;}
   th,td{text-align:left;padding:12px 14px;font-size:13px;border-bottom:1px solid var(--line);vertical-align:middle;}
-  th{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;background:#fcfcfd;}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;background:#fcfcfd;}
   tr:last-child td{border-bottom:none;}
   td .nm{font-weight:700;}
-  td .em{color:var(--muted);font-size:12px;}
-  .pill{display:inline-block;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:999px;text-transform:uppercase;letter-spacing:.4px;}
+  td .em{color:var(--muted);font-size:13px;}
+  .pill{display:inline-block;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;text-transform:uppercase;letter-spacing:.4px;}
   .pill.active{color:#0c7a5f;background:var(--status-complete-soft,#e7f6f0);}
   .pill.pending{color:#8a6516;background:#fbf2dd;}
   .pill.disabled{color:#a23b30;background:var(--status-behind-soft,#fceeec);}
-  .rolechip{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:7px;background:var(--accent-soft);color:var(--accent-ink);}
+  .rolechip{display:inline-block;font-size:13px;font-weight:700;padding:3px 9px;border-radius:7px;background:var(--accent-soft);color:var(--accent-ink);}
   .rolechip.admin{background:#efe9f7;color:#5b4595;}
   .muted{color:var(--muted);}
-  .reset-flag{font-size:10.5px;color:#8a6516;font-weight:700;margin-left:6px;}
+  .reset-flag{font-size:13px;color:#8a6516;font-weight:700;margin-left:6px;}
   .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
-  .btn-sm{font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
+  .btn-sm{font-size:13px;font-weight:700;padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
   .btn-sm:hover{border-color:var(--accent-edge);}
   .btn-sm.danger:hover{border-color:var(--status-behind);color:#a23b30;background:var(--status-behind-soft);}
   .err-bar{background:#fceeec;color:#a23b30;border:1px solid #f3c9c4;border-radius:9px;padding:9px 13px;font-size:13px;margin-bottom:14px;display:none;}
@@ -59,16 +60,16 @@
   .ov.show{display:flex;}
   .modal{width:100%;max-width:440px;background:#fff;border-radius:16px;box-shadow:0 18px 50px rgba(20,22,28,.25);padding:24px;}
   .modal h3{font-size:17px;font-weight:600;margin-bottom:4px;}
-  .modal .msub{font-size:12.5px;color:var(--muted);margin-bottom:16px;}
-  .modal label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:14px 0 6px;}
+  .modal .msub{font-size:13px;color:var(--muted);margin-bottom:16px;}
+  .modal label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:14px 0 6px;}
   .modal .ssc-field{width:100%;}
   .modal-foot{display:flex;gap:10px;justify-content:flex-end;margin-top:22px;}
-  .m-err{color:#a23b30;font-size:12.5px;margin-top:12px;display:none;}
+  .m-err{color:#a23b30;font-size:13px;margin-top:12px;display:none;}
   .m-err.show{display:block;}
   .temp-box{background:var(--accent-soft);border:1px solid var(--accent-edge);border-radius:10px;padding:14px;margin-top:14px;text-align:center;}
   .temp-box .tp{font-family:'Inter',system-ui,sans-serif;font-variant-numeric:tabular-nums slashed-zero;font-size:20px;font-weight:600;letter-spacing:2px;color:var(--ink);user-select:all;}
-  .temp-box .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:6px;}
-  .warn{font-size:12px;color:#8a6516;background:#fbf2dd;border:1px solid #efe2c0;border-radius:8px;padding:8px 11px;margin-top:12px;}
+  .temp-box .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:6px;}
+  .warn{font-size:13px;color:#8a6516;background:#fbf2dd;border:1px solid #efe2c0;border-radius:8px;padding:8px 11px;margin-top:12px;}
   .brand-mark,.mark{object-fit:contain;}  /* #265 swap-safe logo */
 </style>
 </head>
@@ -87,7 +88,7 @@
 <div class="ssc-main">
 <header class="ssc-top">
   <div class="ssc-top-title"><h1 data-nav-h1>Users &amp; roles</h1></div>
-  <div class="ssc-top-right"><div class="ssc-user" id="who">—</div></div>
+  <div class="ssc-top-right"><span id="who" hidden></span><div id="user-menu" aria-live="polite"></div></div>
 </header>
 
 <div class="wrap">
@@ -102,7 +103,7 @@
     <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Last login</th><th style="text-align:right;">Actions</th></tr></thead>
     <tbody id="rows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
   </table>
-  <div hidden style="text-align:center;color:var(--muted);font-size:11px;letter-spacing:.04em;margin-top:24px;padding-top:14px;border-top:1px solid var(--line);">build #311 · 2026-09-18 · shared shell · · 2026-09-18 · C-suite can issue a one-time password for client accounts; creating accounts, roles and deactivation stay with the single admin</div>
+  <div hidden style="text-align:center;color:var(--muted);font-size:13px;letter-spacing:.04em;margin-top:24px;padding-top:14px;border-top:1px solid var(--line);">build #311 · 2026-09-18 · shared shell · · 2026-09-18 · C-suite can issue a one-time password for client accounts; creating accounts, roles and deactivation stay with the single admin</div>
 </div>
 
 <!-- Create-user modal -->
@@ -215,7 +216,7 @@
     var acts='';
     if(isAdmin){
       // Admin rows are managed out-of-band (single-admin invariant). No UI actions.
-      acts='<span class="muted" style="font-size:11.5px;">'+(isMe?'you · admin':'admin')+'</span>';
+      acts='<span class="muted" style="font-size:13px;">'+(isMe?'you · admin':'admin')+'</span>';
     } else if(LIMITED){
       acts+='<button class="btn-sm" type="button" data-reset="'+u.id+'">Reset password</button>';
     } else {
@@ -353,5 +354,6 @@
   load();
 })();
 </script>
+<link rel="stylesheet" href="/files/static/css/unify.css?v=6">
 </body>
 </html>

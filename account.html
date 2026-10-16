@@ -11,6 +11,7 @@
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
+<script src="/files/static/js/auth_menu.js?v=1009" defer></script>
 <title>Your account · Superstars Contracting</title>
 <!-- Settings > Account (prototype accepted 2026-10-08). Each signed-in staff member sees and
      edits their OWN account: name, password, two-step sign-in, Google connections and the
@@ -26,26 +27,26 @@
   .ssc-main > .wrap{max-width:none;}   /* full window width (accepted 2026-10-10); outranks the shell's 1160px cap */
   .ac-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 22px;display:grid;grid-template-columns:220px minmax(0,1fr);gap:22px;}
   .ac-card h2{font-size:15px;font-weight:600;margin-bottom:4px;}
-  .ac-card .sub{font-size:12.5px;color:var(--muted);line-height:1.45;}
+  .ac-card .sub{font-size:13px;color:var(--muted);line-height:1.45;}
   .rows{display:grid;gap:13px;min-width:0;}
   .row{display:grid;grid-template-columns:160px minmax(0,1fr);gap:12px;align-items:center;font-size:13px;}
-  .row > label,.row > .k{font-size:12.5px;font-weight:600;color:var(--ink-2,#4A4F59);}
+  .row > label,.row > .k{font-size:13px;font-weight:600;color:var(--ink-2,#4A4F59);}
   .ac-card input{width:100%;max-width:360px;}
   .ac-card input[readonly]{background:#F4F5F8;color:var(--muted);}
-  .hint{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4;}
+  .hint{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.4;}
   .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
-  .btn-sm{font:inherit;font-size:12.5px;font-weight:700;padding:7px 13px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;text-decoration:none;display:inline-block;}
+  .btn-sm{font:inherit;font-size:13px;font-weight:700;padding:7px 13px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;text-decoration:none;display:inline-block;}
   .btn-sm:hover{border-color:var(--accent-edge);}
   .btn-sm.danger{color:#a23b30;}
   .btn-sm.danger:hover{border-color:var(--status-behind);background:var(--status-behind-soft,#fceeec);}
   .btn-sm:disabled{opacity:.6;cursor:default;}
-  .chip{display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap;}
+  .chip{display:inline-flex;align-items:center;font-size:13px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap;}
   .chip.ok{color:#0c7a5f;background:var(--status-complete-soft,#e7f6f0);}
   .chip.warn{color:#8a6516;background:#fbf2dd;}
   .chip.off{color:var(--muted);background:#F1F2F5;}
-  .rolechip{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:7px;background:var(--accent-soft);color:var(--accent-ink);}
-  .ok-msg{font-size:12.5px;font-weight:700;color:#0c7a5f;}
-  .err-msg{font-size:12.5px;font-weight:700;color:#a23b30;}
+  .rolechip{display:inline-block;font-size:13px;font-weight:700;padding:3px 9px;border-radius:7px;background:var(--accent-soft);color:var(--accent-ink);}
+  .ok-msg{font-size:13px;font-weight:700;color:#0c7a5f;}
+  .err-msg{font-size:13px;font-weight:700;color:#a23b30;}
   .note{background:#F4F5F8;border-radius:10px;padding:12px 14px;font-size:13px;color:var(--ink-2,#4A4F59);line-height:1.5;}
   .note.warn{background:#FFF4E5;color:#7A4A00;}
   /* change of sign-in email (email_change.py): the form opens under the email box */
@@ -53,17 +54,17 @@
   .row.top > label{padding-top:9px;}
   .em-panel{margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:10px;max-width:520px;background:#FBFCFE;}
   .em-panel b{font-size:13.5px;}
-  .em-panel label{display:grid;gap:5px;font-size:12.5px;font-weight:600;color:var(--ink-2,#4A4F59);}
+  .em-panel label{display:grid;gap:5px;font-size:13px;font-weight:600;color:var(--ink-2,#4A4F59);}
   .em-note{margin-top:10px;max-width:520px;}
   .em-note .lnk{background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--accent-ink,#2A47B8);cursor:pointer;text-decoration:underline;}
   .list{border:1px solid var(--line);border-radius:10px;overflow:hidden;}
   .item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 14px;border-top:1px solid var(--line);flex-wrap:wrap;}
   .item:first-child{border-top:0;}
   .item b{font-weight:700;font-size:13px;}
-  .item .m{font-size:12px;color:var(--muted);margin-top:2px;}
+  .item .m{font-size:13px;color:var(--muted);margin-top:2px;}
   .tf-steps{display:grid;gap:10px;max-width:560px;font-size:13px;color:var(--ink-2,#4A4F59);}
   .tf-key{display:inline-block;padding:8px 12px;background:#F4F5F8;border-radius:8px;font-size:15px;letter-spacing:1px;user-select:all;word-break:break-all;}
-  .tf-uri{font-size:11px;color:var(--muted);word-break:break-all;}
+  .tf-uri{font-size:13px;color:var(--muted);word-break:break-all;}
   .tf-codes{background:#F4F5F8;border-radius:8px;padding:10px 12px;font-size:13px;white-space:pre-wrap;user-select:all;}
   .tf-code{max-width:140px !important;letter-spacing:3px;font-size:16px;}
   .loading{color:var(--muted);font-size:13px;}
@@ -87,7 +88,7 @@
 <div class="ssc-main">
 <header class="ssc-top">
   <div class="ssc-top-title"><h1 data-nav-h1>Your account</h1></div>
-  <div class="ssc-top-right"><div class="ssc-user" id="who">—</div></div>
+  <div class="ssc-top-right"><span id="who" hidden></span><div id="user-menu" aria-live="polite"></div></div>
 </header>
 
 <div class="wrap">
@@ -396,5 +397,6 @@
   });
 })();
 </script>
+<link rel="stylesheet" href="/files/static/css/unify.css?v=6">
 </body>
 </html>
