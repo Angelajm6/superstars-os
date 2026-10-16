@@ -1,0 +1,136 @@
+/* ===== Unified components for the project dashboard (UI unify, batch 1) =====
+   ONE size / shape / colour for every button, field, tab and page header inside a
+   project. Each module (documents, photos, DCR, expenses, payments, materials ...)
+   grew its own button + field classes; this file maps them all onto the shared
+   spec so a design change is made once. Selectors are prefixed `body .views-container`
+   so they win over the module <style> blocks without !important.
+   Spec (sized for gloved, non-technical users):
+     buttons  40px tall, 14px / 600, 10px corners   · small row buttons 34px / 13px
+     fields   40px tall, 14px, 10px corners, 1px --line border
+     tabs     one pill: 34px, 13px / 600, accent-soft when selected
+     headers  22px / 500 caps title + one 14px plain-words subtitle
+     text     nothing under 13px (12px only for caps column heads / micro-labels)
+   ============================================================================ */
+
+:root {
+  --ctl-h: 40px;
+  --ctl-h-sm: 34px;
+  --ctl-r: 10px;
+}
+
+/* ---- Primary buttons ---- */
+body .views-container .btn-primary,
+body .views-container .pd-upload,
+body .views-container .pk-btn,
+body .views-container .pd-btn-update,
+body .views-container .fp-primary,
+body .views-container .dcr-primary,
+body .views-container .exp-primary,
+body .views-container .pay-btn.primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: var(--ctl-h); padding: 0 18px; box-sizing: border-box;
+  background: var(--accent); color: #fff; border: 1px solid transparent; border-radius: var(--ctl-r);
+  font: inherit; font-size: 14px; font-weight: 600; line-height: 1.2; cursor: pointer; text-decoration: none;
+  box-shadow: 0 2px 8px rgba(67,100,220,.25);
+}
+body .views-container .btn-primary:hover,
+body .views-container .pd-upload:hover,
+body .views-container .pk-btn:hover,
+body .views-container .pd-btn-update:hover,
+body .views-container .fp-primary:hover,
+body .views-container .dcr-primary:hover,
+body .views-container .exp-primary:hover,
+body .views-container .pay-btn.primary:hover { background: var(--accent-ink); color: #fff; }
+
+/* ---- Secondary buttons ---- */
+body .views-container .btn-ghost,
+body .views-container .pd-btn-replace,
+body .views-container .fp-ghost,
+body .views-container .dcr-apply,
+body .views-container .exp-ghost,
+body .views-container .mt-btn-ghost,
+body .views-container .pay-btn:not(.primary),
+body .views-container .pc-btn,
+body .ov-back-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: var(--ctl-h); padding: 0 16px; box-sizing: border-box;
+  background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: var(--ctl-r);
+  font: inherit; font-size: 14px; font-weight: 600; line-height: 1.2; cursor: pointer; text-decoration: none;
+  box-shadow: none;
+}
+body .views-container .btn-ghost:hover,
+body .views-container .pd-btn-replace:hover,
+body .views-container .fp-ghost:hover,
+body .views-container .dcr-apply:hover,
+body .views-container .exp-ghost:hover,
+body .views-container .mt-btn-ghost:hover,
+body .views-container .pay-btn:not(.primary):hover,
+body .views-container .pc-btn:hover,
+body .ov-back-btn:hover { background: var(--accent-soft); border-color: var(--accent-edge); color: var(--accent-ink); }
+body .ov-back-btn { color: var(--ink); }   /* one blue family: accent, not the per-job teal */
+
+/* ---- Small row buttons (Upload / Edit / flag inside a table or list) ---- */
+body .views-container .pd-upmini,
+body .views-container .pd-flagbtn,
+body .views-container .btn-sm,
+body .views-container .pay-acts .pay-btn {
+  min-height: var(--ctl-h-sm); padding: 0 12px; border-radius: var(--ctl-r);
+  font-size: 13px; font-weight: 600;
+}
+body .views-container .exp-iconbtn { width: var(--ctl-h-sm); height: var(--ctl-h-sm); min-height: 0; padding: 0; border-radius: var(--ctl-r); }
+
+/* ---- Fields ---- */
+body .views-container input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+body .views-container select,
+body .views-container textarea {
+  box-sizing: border-box; min-height: var(--ctl-h); padding: 0 12px;
+  border: 1px solid var(--line); border-radius: var(--ctl-r); background: #fff; color: var(--ink);
+  font: inherit; font-size: 14px;
+}
+body .views-container textarea { padding: 10px 12px; min-height: 88px; }
+body .views-container input:focus,
+body .views-container select:focus,
+body .views-container textarea:focus { outline: 2px solid var(--accent-edge); outline-offset: 1px; border-color: var(--accent); }
+
+/* ---- Tabs / filters: ONE pill (tool-box chips, photo + drop-plan view switches, RFI status chips) ---- */
+body .views-container .tbx-chip,
+body .views-container .fp-seg button,
+body .views-container .fp-views button,
+body .views-container .fp-modetog button,
+body .views-container .dp-seg button,
+body .views-container .dp-on,
+body .views-container .dp-views button,
+body .views-container [data-rfi-chip],
+body .views-container #rfi-reg-reset {
+  display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box;
+  min-height: var(--ctl-h-sm); padding: 0 14px; border-radius: 999px;
+  background: #fff; color: var(--ink); border: 1px solid var(--line);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-transform: none; letter-spacing: 0;
+}
+body .views-container .tbx-chip:hover,
+body .views-container .fp-seg button:hover,
+body .views-container .fp-views button:hover { border-color: var(--accent-edge); background: var(--accent-soft); }
+body .views-container .tbx-chip.on, body .views-container .tbx-chip[aria-pressed="true"], body .views-container .tbx-chip.active,
+body .views-container .fp-seg button.on, body .views-container .fp-views button.on,
+body .views-container .fp-modetog button.on,
+body .views-container .dp-seg button.dp-on,
+body .views-container .dp-on {
+  background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent-edge);
+}
+
+/* ---- Page header: every tab opens with the same title + subtitle ---- */
+body .views-container .view > h1,
+body .views-container .view .page-title,
+body .views-container .view .pg-title {
+  font-size: 22px; font-weight: 500; letter-spacing: .02em; text-transform: uppercase; color: var(--ink); margin: 0;
+}
+body .views-container .view .page-sub,
+body .views-container .view .pg-sub { font-size: 14px; color: var(--muted); }
+
+/* ---- Table column heads: small, but never below 12px ---- */
+body .views-container th { font-size: 12px; }
+
+/* inline-styled RFI status chips need !important to join the pill */
+body .views-container [data-rfi-chip], body .views-container #rfi-reg-reset { min-height: 34px !important; padding: 0 14px !important; border-radius: 999px !important; font-size: 13px !important; letter-spacing: 0 !important; text-transform: none !important; }
+body .views-container .ps-det dt, body .views-container dt { font-size: 12px; }
+body .views-container button.mini { font-size: 13px; min-height: 34px; padding: 0 8px; }
