@@ -11,6 +11,7 @@
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
+<script src="/files/static/js/auth_menu.js?v=1009" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1015" defer></script>
 <title>Project Assignments · Superstars Contracting</title>
 <!-- #263 — admin/c_suite project-assignment + project-close screen. Two axes wired here:
@@ -30,35 +31,35 @@
   .top .mark{width:30px;height:30px;display:block;}
   .top .brand-home{display:inline-flex;text-decoration:none;}
   .top h1{font-size:16px;font-weight:600;letter-spacing:.3px;}
-  .top .nav-back{font-size:12px;font-weight:700;color:var(--accent-ink);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:5px 11px;}
+  .top .nav-back{font-size:13px;font-weight:700;color:var(--accent-ink);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:5px 11px;}
   .top .nav-back:hover{border-color:var(--accent-edge);background:var(--accent-soft);}
-  .top .who{margin-left:auto;font-size:12px;color:var(--muted);text-align:right;}
+  .top .who{margin-left:auto;font-size:13px;color:var(--muted);text-align:right;}
   .top .who b{color:var(--ink);font-weight:700;}
   .top .who a{color:var(--accent);text-decoration:none;font-weight:700;margin-left:10px;cursor:pointer;}
   .wrap{margin:0 auto;padding:26px;}
   .ssc-main > .wrap{max-width:none;}   /* full window width (accepted 2026-10-10); outranks the shell's 1160px cap */
   .head-row{margin:6px 0 14px;}
   .head-row h2{font-size:20px;font-weight:600;}
-  .head-row .sub{font-size:12.5px;color:var(--muted);margin-top:3px;}
+  .head-row .sub{font-size:13px;color:var(--muted);margin-top:3px;}
   section{margin-bottom:34px;}
   table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;}
   th,td{text-align:left;padding:12px 14px;font-size:13px;border-bottom:1px solid var(--line);vertical-align:middle;}
-  th{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;background:#fcfcfd;}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;background:#fcfcfd;}
   tr:last-child td{border-bottom:none;}
   td .nm{font-weight:700;}
-  td .code{color:var(--muted);font-size:12px;font-weight:600;}
-  .pill{display:inline-block;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:999px;text-transform:uppercase;letter-spacing:.4px;}
+  td .code{color:var(--muted);font-size:13px;font-weight:600;}
+  .pill{display:inline-block;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;text-transform:uppercase;letter-spacing:.4px;}
   .pill.active{color:#0c7a5f;background:var(--status-complete-soft,#e7f6f0);}
   .pill.closed{color:#5b6270;background:#eef0f4;}
   .acts{text-align:right;}
-  .btn-sm{font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
+  .btn-sm{font-size:13px;font-weight:700;padding:5px 11px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
   .btn-sm:hover{border-color:var(--accent-edge);}
   .btn-sm.danger:hover{border-color:var(--status-behind);color:#a23b30;background:var(--status-behind-soft);}
-  .btn-primary{font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;border:none;background:var(--accent);color:#fff;cursor:pointer;}
+  .btn-primary{font-size:13px;font-weight:700;padding:7px 14px;border-radius:8px;border:none;background:var(--accent);color:#fff;cursor:pointer;}
   .btn-primary:hover{background:var(--accent-ink);}
   .btn-primary:disabled{opacity:.55;cursor:not-allowed;}
   /* #324 — new project modal */
-  .btn-ghost{font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
+  .btn-ghost{font-size:13px;font-weight:700;padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
   .err-bar{background:#fceeec;color:#a23b30;border:1px solid #f3c9c4;border-radius:9px;padding:9px 13px;font-size:13px;margin-bottom:14px;display:none;}
   .err-bar.show{display:block;}
   .ok-bar{background:#e7f6f0;color:#0c7a5f;border:1px solid #b9e6d5;border-radius:9px;padding:9px 13px;font-size:13px;margin-bottom:14px;display:none;}
@@ -67,16 +68,16 @@
   .pm-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px;}
   .pm-card .pm-head{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
   .pm-card .pm-nm{font-weight:600;font-size:14px;}
-  .pm-card .pm-em{font-size:12px;color:var(--muted);}
+  .pm-card .pm-em{font-size:13px;color:var(--muted);}
   .pm-card .pm-save{margin-left:auto;}
   .proj-checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 18px;}
   .proj-checks label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);cursor:pointer;}
   .proj-checks label.is-closed{color:var(--muted);}
-  .proj-checks .clbl{font-size:10.5px;color:var(--muted);margin-left:4px;}
-  .btn-ghost-sm{font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
+  .proj-checks .clbl{font-size:13px;color:var(--muted);margin-left:4px;}
+  .btn-ghost-sm{font-size:13px;font-weight:700;padding:5px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
   .btn-ghost-sm:hover{border-color:var(--accent-edge);background:var(--accent-soft);color:var(--accent-ink);}
   .btn-ghost-sm:disabled{opacity:.5;cursor:not-allowed;}
-  .ph-build{text-align:center;color:#9aa3ae;font-size:11px;margin-top:30px;}
+  .ph-build{text-align:center;color:#9aa3ae;font-size:13px;margin-top:30px;}
   .brand-mark,.mark{object-fit:contain;}  /* #265 swap-safe logo */
 </style>
 </head>
@@ -95,7 +96,7 @@
 <div class="ssc-main">
 <header class="ssc-top">
   <div class="ssc-top-title"><h1 data-nav-h1>Projects &amp; assignments</h1></div>
-  <div class="ssc-top-right"><div class="ssc-user" id="who">—</div></div>
+  <div class="ssc-top-right"><span id="who" hidden></span><div id="user-menu" aria-live="polite"></div></div>
 </header>
 
 <div class="wrap">
@@ -329,5 +330,6 @@
 
   load();
 </script>
+<link rel="stylesheet" href="/files/static/css/unify.css?v=6">
 </body>
 </html>

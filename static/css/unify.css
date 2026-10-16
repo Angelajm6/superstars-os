@@ -134,3 +134,113 @@ body .views-container th { font-size: 12px; }
 body .views-container [data-rfi-chip], body .views-container #rfi-reg-reset { min-height: 34px !important; padding: 0 14px !important; border-radius: 999px !important; font-size: 13px !important; letter-spacing: 0 !important; text-transform: none !important; }
 body .views-container .ps-det dt, body .views-container dt { font-size: 12px; }
 body .views-container button.mini { font-size: 13px; min-height: 34px; padding: 0 8px; }
+
+
+/* ===== Company-level pages (batch 2A) =====
+   The same spec on every page inside the shared shell (.ssc-main): the Company portal,
+   the Office Console panels, Users, Assignments, Estimating, Pay Rates, Account, Claude.
+   Keep this block and the one above in step: one spec, two scopes. */
+
+/* ---- Primary ---- */
+body .ssc-main .btn-primary,
+body .ssc-main button.primary,
+body .ssc-main .cc-week-link.primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: var(--ctl-h); padding: 0 18px; box-sizing: border-box;
+  background: var(--accent); color: #fff; border: 1px solid transparent; border-radius: var(--ctl-r);
+  font: inherit; font-size: 14px; font-weight: 600; line-height: 1.2; cursor: pointer; text-decoration: none;
+  box-shadow: 0 2px 8px rgba(67,100,220,.25);
+}
+body .ssc-main .btn-primary:hover,
+body .ssc-main button.primary:hover { background: var(--accent-ink); color: #fff; }
+
+/* ---- Secondary ---- */
+body .ssc-main .btn-ghost,
+body .ssc-main .btn-back,
+body .ssc-main .pj-edit,
+body .ssc-main .btn-sm:not(.btn-primary),
+body .ssc-main .cc-week-link:not(.primary) {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: var(--ctl-h); padding: 0 16px; box-sizing: border-box;
+  background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: var(--ctl-r);
+  font: inherit; font-size: 14px; font-weight: 600; line-height: 1.2; cursor: pointer; text-decoration: none; box-shadow: none;
+}
+body .ssc-main .btn-ghost:hover,
+body .ssc-main .btn-sm:not(.btn-primary):hover,
+body .ssc-main .btn-back:hover,
+body .ssc-main .pj-edit:hover,
+body .ssc-main .cc-week-link:not(.primary):hover { background: var(--accent-soft); border-color: var(--accent-edge); color: var(--accent-ink); }
+
+/* ---- Small row buttons (inside tables and lists) ---- */
+body .ssc-main td .btn-sm, body .ssc-main td .btn-primary, body .ssc-main td .btn-ghost,
+body .ssc-main li .btn-sm, body .ssc-main .pj-edit {
+  min-height: var(--ctl-h-sm); padding: 0 12px; border-radius: var(--ctl-r); font-size: 13px; font-weight: 600;
+}
+body .ssc-main .iconbtn { width: var(--ctl-h-sm); height: var(--ctl-h-sm); min-height: 0; padding: 0; border-radius: var(--ctl-r); }
+
+/* ---- Fields ---- */
+body .ssc-main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+body .ssc-main select,
+body .ssc-main textarea,
+body .ssc-main .cp-input, body .ssc-main .cp-select, body .ssc-main .ssc-field {
+  box-sizing: border-box; min-height: var(--ctl-h); padding: 0 12px;
+  border: 1px solid var(--line); border-radius: var(--ctl-r); background: #fff; color: var(--ink);
+  font: inherit; font-size: 14px;
+}
+body .ssc-main textarea { padding: 10px 12px; min-height: 88px; }
+body .ssc-main input:focus, body .ssc-main select:focus, body .ssc-main textarea:focus {
+  outline: 2px solid var(--accent-edge); outline-offset: 1px; border-color: var(--accent);
+}
+
+/* ---- Sub-tabs: ONE pill everywhere ---- */
+body .ssc-subtabs { gap: 8px; }
+body .ssc-subtab {
+  display: inline-flex; align-items: center; box-sizing: border-box; min-height: var(--ctl-h-sm); padding: 0 14px;
+  border-radius: 999px; background: #fff; color: var(--ink); border: 1px solid var(--line);
+  font-size: 13px; font-weight: 600; text-decoration: none;
+}
+body .ssc-subtab:hover { background: var(--accent-soft); border-color: var(--accent-edge); color: var(--accent-ink); }
+body .ssc-subtab.active { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent-edge); }
+
+/* ---- Tables: one light head, 12px caps (replaces the dark Pay Rates bar and 11px heads) ---- */
+body .ssc-main th,
+body .ssc-main thead th {
+  background: var(--fill, #F4F5F8); color: var(--ink-2, #4A4F59); font-size: 12px; font-weight: 700;
+  letter-spacing: .05em; text-transform: uppercase; border-bottom: 1px solid var(--line);
+}
+
+/* ---- Text floor: status pills, captions and chips never below 12px ---- */
+body .ssc-main .cp-pill, body .ssc-main .cp-chip { font-size: 12px; }
+
+/* ---- Filter / view switches: the same pill as the sub-tabs ---- */
+body .ssc-main .cal-seg button, body .ssc-main .ib-filters button {
+  display: inline-flex; align-items: center; box-sizing: border-box; min-height: var(--ctl-h-sm); padding: 0 14px;
+  border-radius: 999px; background: #fff; color: var(--ink); border: 1px solid var(--line);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+body .ssc-main .cal-seg, body .ssc-main .ib-filters { gap: 6px; }
+body .ssc-main .cal-seg button:hover, body .ssc-main .ib-filters button:hover { background: var(--accent-soft); border-color: var(--accent-edge); }
+body .ssc-main .cal-seg button.on, body .ssc-main .ib-filters button.on,
+body .ssc-main .cal-seg button[aria-pressed="true"], body .ssc-main .ib-filters button[aria-pressed="true"] {
+  background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent-edge);
+}
+body .ssc-main .cal-nav button { min-height: var(--ctl-h-sm); min-width: var(--ctl-h-sm); border-radius: var(--ctl-r); font-size: 14px; }
+
+/* ---- Header: name · role · Sign out, same size and shape on every page ---- */
+body .auth-menu { font-size: 13px; gap: 10px; }
+body .auth-menu .au-name { font-size: 13px; font-weight: 600; }
+body .auth-menu .au-role { font-size: 12px; letter-spacing: .05em; padding: 4px 10px; }
+body .auth-menu .au-logout, body .auth-menu .au-users {
+  display: inline-flex; align-items: center; box-sizing: border-box; min-height: var(--ctl-h-sm); padding: 0 12px;
+  font-size: 13px; font-weight: 600; border-radius: var(--ctl-r); background: #fff; border: 1px solid var(--line); color: var(--ink);
+}
+body .auth-menu .au-logout:hover, body .auth-menu .au-users:hover { background: var(--accent-soft); border-color: var(--accent-edge); color: var(--accent-ink); }
+.console-pill[hidden] { display: none; }
+
+/* ---- Phones: the header must not clip. Date and the Users shortcut (also under Settings) drop out. ---- */
+body .ssc-main .btn-primary, body .ssc-main .btn-ghost, body .ssc-main .btn-sm { white-space: nowrap; }
+@media (max-width: 640px) {
+  body .ssc-top { flex-wrap: wrap; height: auto; row-gap: 8px; padding-top: 10px; padding-bottom: 10px; }
+  body .ssc-top .ssc-top-right { flex-wrap: wrap; gap: 8px; margin-left: 0; }
+  body .ssc-top #cp-date, body .ssc-top #today-date, body .auth-menu .au-users { display: none; }
+}
