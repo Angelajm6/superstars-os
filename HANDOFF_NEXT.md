@@ -21,6 +21,19 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Daily Report as a step-by-step checklist, phone only (Bookore, 2026-10-16)
+
+* `static/js/dcr_steps.js` (loaded by `dashboard-static.html`, `?v=2`) re-presents the existing Daily Report entry form
+  (`#dcr-entry-view`, 11 `.dcr-block` sections) at **≤860px only**; desktop keeps the full form. It does not re-implement
+  anything: the form's own row Save, Issue and Cancel handlers do all the work.
+* Checklist home → one step at a time → sticky "Save & continue" → Review (reveals the form's own number preview + Issue button).
+  Auto steps (Project info, Weather, Crew) start done; **required = Work done today + Safety** (visit + continue; content is not
+  validated, so a quiet day can continue empty); optional = Deliveries & equipment, Issues & delays, Inspections & visitors, Photos.
+  A No-Work day always unlocks Issue. "Save & continue" clicks each filled row's own Save first and drops empty unsaved rows.
+* No server-side draft exists: rows are saved individually by the page (as before); nothing unsaved survives a reload.
+* The Ask Claude button is hidden while a step is open on a phone; with the v2 job page the sticky bar sits above its bottom bar.
+* Guard: `tests/smoke_dcr_steps.py` (in `run_gate_ci.py`). Next: the same step pattern for Payments / Materials / Expenses.
+
 ### Client portal: type scale + Drawing Markup stays in the shell (Bookore, 2026-10-16)
 
 * `portal_shell.html`: one override block (before `</head>`) moves the portal onto the dashboard's type scale — nothing under
