@@ -184,6 +184,9 @@ def apply_event(conn, uid: int, ev: dict) -> str:
     me = next((a for a in ev.get("attendees") or [] if a.get("self")), None)
     if ev.get("status") == "cancelled" or (me and me.get("responseStatus") == "declined"):
         return "deleted" if _drop(conn, uid, gid) else "skipped"
+    if ((ev.get("extendedProperties") or {}).get("shared") or {}).get("ssc_item"):
+        _drop(conn, uid, gid)   # a Superstars meeting invitation: the meeting already shows in the app (meeting_invites)
+        return "skipped"
     if ev.get("eventType") in SKIP_TYPES:
         _drop(conn, uid, gid)   # e.g. an event turned into out-of-office
         return "skipped"
@@ -336,6 +339,8 @@ def _loop() -> None:
                     for r in _rows(conn, "SELECT user_id FROM google_calendar_link WHERE status = 'active' AND scopes LIKE ?",
                                    (f"%{READ_SCOPE}%",)):
                         import_user(conn, r["user_id"])
+                    import meeting_invites
+                    meeting_invites.refresh_all(conn)   # guests' answers to the meetings people organized
                 finally:
                     conn.close()
         except Exception as e:

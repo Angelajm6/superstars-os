@@ -86,7 +86,7 @@ def everyone(conn, uid, d_from: str, d_to: str, kind=None, assignee=None) -> dic
     import team_items
     items = team_items.list_items(conn, status="all", date_from=d_from, date_to=d_to, me=uid, can_edit=True,
                                   mine_uid=assignee, kind=kind if kind in team_items.KINDS else None)
-    items = [i for i in items if i["assignee_user_id"] or i["attendee_ids"]]   # assigned to someone
+    items = [i for i in items if i["assignee_user_id"] or i["attendee_ids"] or i.get("guest_emails")]   # assigned to someone
     return {"range": {"from": d_from, "to": d_to}, "items": items, "people": team_items.people(conn)}
 
 
