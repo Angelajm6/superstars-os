@@ -240,7 +240,17 @@ def main() -> int:
     emp = page[page.index('<section class="view" data-view="employees">'):]
     emp = emp[:emp.index("</section>")]
     assert "<th>Role on this job</th><th>Licenses</th>" in emp and "ec-hero" not in emp and "Employees &amp; Certifications" not in emp
-    assert ">Employees</a>" in nav
+    assert ">Crew</a>" in nav and ">Employees</a>" not in nav, "Employees is called Crew in the sidebar (batch 4)"
+    # batch 4: same top header as the company pages; rarely used tabs fold under "More"; plain names
+    assert 'class="ssc-top proj-top"' in page and 'id="user-menu"' in page and '<div class="content-corner">' not in page
+    more = re.findall(r'<div class="nav-more-items" hidden>(.*?)</div>', nav, re.S)
+    assert len(more) == 2, len(more)
+    folded = re.findall(r'data-view="([a-z-]+)"', "".join(more))
+    assert folded == ["rfis", "compliance", "violations", "templates", "drop-report", "weekly-summary", "toolbox-talks"] or \
+        sorted(folded) == sorted(["rfis", "compliance", "violations", "templates", "drop-report", "weekly-summary"]), folded
+    for plain in (">Summary</a>", ">Documents</a>", ">Photos</a>", ">Daily Reports</a>", ">Materials</a>", ">Questions</a>"):
+        assert plain in nav, plain
+    assert ">Job Settings</a>" in page
     passed += 1; print("  employees ok")
 
     # ---- drawings: 3D first, no Author button

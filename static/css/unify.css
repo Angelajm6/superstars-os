@@ -337,3 +337,53 @@ html body .overlay .panel button.primary, html body .overlay .panel .primary {
 }
 html body .overlay .panel label { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-2, #4A4F59); }
 html body .np-head h2 { font-size: 18px; }
+
+
+/* ===== Project pages: header, sidebar "More", 12px labels (batch 4) ===== */
+
+/* ---- Same top header as the company pages: job on the left, live pill + name + Sign out on the right ---- */
+.main > .ssc-top.proj-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px clamp(16px, 2.6vw, 28px);
+  background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 6;
+}
+.proj-top h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.2px; line-height: 1.2; }
+.proj-top .ssc-top-right { display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--muted); }
+.proj-top .cc-live { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+/* the job name is already the big title on the Summary tab, so the header title steps aside there */
+.main:has(.view.active[data-view="dashboard"]) .proj-top h1 { visibility: hidden; }
+/* the account block that used to live at the bottom of the sidebar now lives in the header */
+.sidebar-footer { display: none; }
+.ov-back { top: 59px; }
+@media (max-width: 860px) {
+  .main > .ssc-top.proj-top { position: static; flex-wrap: wrap; row-gap: 8px; padding: 10px 16px; }
+  .proj-top h1 { font-size: 17px; }
+  .proj-top .cc-live, body .auth-menu .au-users { display: none; }
+  .ov-back { top: var(--ov-top, 0px); }
+}
+
+/* ---- Sidebar "More": the rarely used tabs fold away ---- */
+.nav-more { margin: 2px 0; }
+.nav-more-toggle {
+  display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; min-height: 34px; padding: 0 12px;
+  background: transparent; border: 0; border-radius: 8px; color: var(--muted, #8A8F99); font: inherit; font-size: 12px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; cursor: pointer; text-align: left;
+}
+.nav-more-toggle:hover { background: var(--side-hover, rgba(20, 22, 28, .05)); color: var(--ink); }
+.nav-more-toggle .nav-chev { margin-left: auto; width: 14px; height: 14px; transition: transform .15s ease; }
+.nav-more.open .nav-more-toggle .nav-chev { transform: rotate(180deg); }
+.nav-more-items { display: flex; flex-direction: column; margin-left: 13px; padding-left: 9px; border-left: 2px solid var(--line); }
+.nav-more-items[hidden] { display: none; }
+
+/* ---- Labels: 12px is the smallest text anywhere (was 10.5 to 11px) ---- */
+:root { --t-label: 12px; }
+html body .nav-group-label { font-size: 12px; }
+html body .ph-kpi-k, html body .ph-kpi-sub, html body .shc-wx-label, html body .shc-eyebrow, html body .shc-kpi-k, html body .shc-kpi-sub,
+html body .cc-note, html body .cc-feed-time, html body .shc-drop-stage { font-size: 12px; }
+
+/* header cluster never wraps; the title gives way first */
+.proj-top .ssc-top-title { flex: 1 1 auto; min-width: 0; }
+.proj-top h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proj-top .ssc-top-right { flex: 0 0 auto; white-space: nowrap; }
+.proj-top .ssc-top-right > *, .proj-top .auth-menu > * { white-space: nowrap; flex-shrink: 0; }
+@media (max-width: 1180px) { .proj-top .cc-live { display: none; } }
+html body .proj-top h1 { font-size: 18px; font-weight: 700; text-transform: none; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

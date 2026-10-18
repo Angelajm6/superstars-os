@@ -1019,30 +1019,39 @@
       <div class="nav-group" data-group="overview">
         <div class="nav-group-label"><span class="nav-group-name">Overview</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
-          <a class="nav-link active" data-view="dashboard"><svg class="nav-ic"><use href="#i-gauge"/></svg>Project Health</a>
+          <a class="nav-link active" data-view="dashboard"><svg class="nav-ic"><use href="#i-gauge"/></svg>Summary</a>
           <a class="nav-link" data-view="contacts"><svg class="nav-ic"><use href="#i-msg"/></svg>Contacts</a>
           <a class="nav-link" data-view="schedule"><svg class="nav-ic"><use href="#i-cal"/></svg>Schedule</a>
-          <a class="nav-link" data-view="documents"><svg class="nav-ic"><use href="#i-file"/></svg>Project Documents</a>
-          <a class="nav-link" data-view="rfis"><svg class="nav-ic"><use href="#i-msg"/></svg>RFI Log</a>
-          <a class="nav-link" data-view="violations"><svg class="nav-ic"><use href="#i-alert"/></svg>Violations</a>
-          <a class="nav-link" data-view="compliance"><svg class="nav-ic"><use href="#i-alert"/></svg>Compliance & Permits</a>
-          <a class="nav-link" data-view="templates"><svg class="nav-ic"><use href="#i-file"/></svg>Templates</a>
+          <a class="nav-link" data-view="documents"><svg class="nav-ic"><use href="#i-file"/></svg>Documents</a>
+          <div class="nav-more" data-more="overview">
+            <button type="button" class="nav-more-toggle" aria-expanded="false">More<svg class="nav-chev"><use href="#i-chev"/></svg></button>
+            <div class="nav-more-items" hidden>
+              <a class="nav-link" data-view="rfis" title="Questions sent to the engineer or architect (RFIs, requests for information)"><svg class="nav-ic"><use href="#i-msg"/></svg>Questions</a>
+              <a class="nav-link" data-view="compliance"><svg class="nav-ic"><use href="#i-alert"/></svg>Permits &amp; Compliance</a>
+              <a class="nav-link" data-view="violations"><svg class="nav-ic"><use href="#i-alert"/></svg>City Violations</a>
+              <a class="nav-link" data-view="templates"><svg class="nav-ic"><use href="#i-file"/></svg>Printable Signs &amp; Forms</a>
+            </div>
+          </div>
         </div>
       </div>
       <div class="nav-group" data-group="onsite">
         <div class="nav-group-label"><span class="nav-group-name">On Site</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
-<!-- SECTION:internal_ops:start --><a class="nav-link" data-view="employees"><svg class="nav-ic"><use href="#i-users"/></svg>Employees</a><!-- SECTION:internal_ops:end -->
-          <a class="nav-link" data-view="drawings"><svg class="nav-ic"><use href="#i-pencil"/></svg>Drawing Markup</a>
-          <a class="nav-link" data-view="field-photos"><svg class="nav-ic"><use href="#i-camera"/></svg>Field Photos</a>
-          <a class="nav-link" data-view="drop-report" title="Drop Report — auto-pulled from the Drop Plan (one report per drop)"><svg class="nav-ic"><use href="#i-layers"/></svg>Drop Report</a>
-          <div class="nav-subitems" style="margin-left:13px;padding-left:9px;border-left:2px solid var(--line, #eceef3);display:flex;flex-direction:column;">
-            <a class="nav-link" data-view="drop-plans" title="Drop Plan — by elevation / by stage; expand a drop in place" style="font-size:13px;"><svg class="nav-ic"><use href="#i-layers"/></svg>Drop Plan</a>
+<!-- SECTION:internal_ops:start --><a class="nav-link" data-view="employees"><svg class="nav-ic"><use href="#i-users"/></svg>Crew</a><!-- SECTION:internal_ops:end -->
+          <a class="nav-link" data-view="drawings"><svg class="nav-ic"><use href="#i-pencil"/></svg>Drawings</a>
+          <a class="nav-link" data-view="field-photos"><svg class="nav-ic"><use href="#i-camera"/></svg>Photos</a>
+          <a class="nav-link" data-view="daily-report" title="Daily construction reports (DCRs)"><svg class="nav-ic"><use href="#i-file"/></svg>Daily Reports</a>
+          <a class="nav-link" data-view="drop-plans" title="Drop Plan: by elevation / by stage; expand a drop in place"><svg class="nav-ic"><use href="#i-layers"/></svg>Drop Plan</a>
+          <a class="nav-link" data-view="materials"><svg class="nav-ic"><use href="#i-box"/></svg>Materials</a>
+          <div class="nav-more" data-more="onsite">
+            <button type="button" class="nav-more-toggle" aria-expanded="false">More<svg class="nav-chev"><use href="#i-chev"/></svg></button>
+            <div class="nav-more-items" hidden>
+              <a class="nav-link" data-view="drop-report" title="Drop Reports: auto-pulled from the Drop Plan (one report per drop)"><svg class="nav-ic"><use href="#i-layers"/></svg>Drop Reports</a>
+              <a class="nav-link" data-view="weekly-summary"><svg class="nav-ic"><use href="#i-cal"/></svg>Weekly Summary</a>
+<!-- SECTION:internal_ops:start --><a class="nav-link" data-view="toolbox-talks"><svg class="nav-ic"><use href="#i-mega"/></svg>Toolbox Talks</a><!-- SECTION:internal_ops:end -->
+            </div>
           </div>
-          <a class="nav-link" data-view="daily-report"><svg class="nav-ic"><use href="#i-file"/></svg>Daily Report</a>
-          <a class="nav-link" data-view="weekly-summary"><svg class="nav-ic"><use href="#i-cal"/></svg>Weekly Summary</a>
-          <a class="nav-link" data-view="materials"><svg class="nav-ic"><use href="#i-box"/></svg>Materials & Deliveries</a>
-<!-- SECTION:internal_ops:start --><a class="nav-link" data-view="toolbox-talks"><svg class="nav-ic"><use href="#i-mega"/></svg>Toolbox Talks</a><!-- SECTION:internal_ops:end -->        </div>
+        </div>
       </div>
       <!-- #262/#218 — one gate covers the whole Finances group: the server STRIPS this block
            from the served HTML for pm/super (absent, not just hidden), and every endpoint
@@ -1051,10 +1060,10 @@
       <div class="nav-group" data-group="financial" data-section="financial">
         <div class="nav-group-label"><span class="nav-group-name">Finances</span><svg class="nav-chev"><use href="#i-chev"/></svg></div>
         <div class="nav-items">
-          <a class="nav-link" data-view="sov"><svg class="nav-ic"><use href="#i-dollar"/></svg>Schedule of Values</a>
-          <a class="nav-link" data-view="payments"><svg class="nav-ic"><use href="#i-dollar"/></svg>Payments</a>
+          <a class="nav-link" data-view="sov"><svg class="nav-ic"><use href="#i-dollar"/></svg>Billing Breakdown</a>
+          <a class="nav-link" data-view="payments"><svg class="nav-ic"><use href="#i-dollar"/></svg>Invoices &amp; Payments</a>
           <a class="nav-link" data-view="expenses"><svg class="nav-ic"><use href="#i-receipt"/></svg>Expenses</a>
-          <a class="nav-link" data-view="product-usage"><svg class="nav-ic"><use href="#i-layers"/></svg>Product Usage</a>
+          <a class="nav-link" data-view="product-usage"><svg class="nav-ic"><use href="#i-layers"/></svg>Products Used</a>
         </div>
       </div>
       <!-- SECTION:financial:end -->
@@ -1072,7 +1081,7 @@
          inside a scrollable nav group — the pattern most dashboards use (Settings lives
          with account controls, not with the day-to-day work views). -->
     <div class="sidebar-pinned">
-      <a class="nav-link" data-view="settings"><svg class="nav-ic"><use href="#i-gear"/></svg>Settings</a>
+      <a class="nav-link" data-view="settings"><svg class="nav-ic"><use href="#i-gear"/></svg>Job Settings</a>
     </div>
     <!-- #213 — account block pinned to the sidebar bottom (was the top-bar user menu).
          Sign out reuses the EXISTING logout action (POST /api/auth/logout -> /login). -->
@@ -1097,9 +1106,14 @@
          window.__SSC_USER + the ssc:user-loaded event still fire (the LRT reveal
          and the sidebar-footer account block consume them); its Sign out action
          is reused by the account block. -->
-    <span id="user-menu" style="display:none" aria-hidden="true"></span>
+    <header class="ssc-top proj-top">
+      <div class="ssc-top-title"><h1 data-project-title>&nbsp;</h1></div>
+      <div class="ssc-top-right">
+        <span class="cc-live"><span class="cc-dot"></span>Live · <span id="live-date">—</span></span>
+        <div id="user-menu" aria-live="polite"></div>
+      </div>
+    </header>
     <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
-    <div class="content-corner"><span class="cc-live"><span class="cc-dot"></span>Live · <span id="live-date">—</span></span></div>
     <script>
 
   // #305 — escape untrusted strings before innerHTML interpolation (stored XSS).
@@ -1151,7 +1165,7 @@
           const link = document.querySelector('.nav-link[data-view="' + key + '"]');
           const job = (document.querySelector('[data-project-title]') || {}).textContent || '';
           const tab = link ? (() => { const c = link.cloneNode(true); c.querySelectorAll('.nav-x').forEach(x => x.remove()); return c.textContent.trim(); })() : '';
-          document.getElementById('ov-where').innerHTML = (job.trim() ? job.trim().replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]) + ' · ' : '') + '<b>' + tab.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]) + '</b>';
+          document.getElementById('ov-where').innerHTML = '<b>' + tab.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]) + '</b>';
         };
         // on phones the sidebar becomes a pinned top bar: sit right under it
         const place = () => { const sb = document.querySelector('.sidebar'); const st = sb && getComputedStyle(sb);
@@ -1637,7 +1651,7 @@
         </style>
         <div class="ec-wrap">
           <div class="ec-head">
-            <div><h2>Employees</h2><div class="ec-sub" id="ec-sub">Everyone assigned to this job and their licenses.</div></div>
+            <div><h2>Crew</h2><div class="ec-sub" id="ec-sub">Everyone assigned to this job and their licenses.</div></div>
             <div class="ec-tools">
               <input class="ec-search" id="ec-search" type="search" placeholder="Search name, Worker ID or license" aria-label="Search the crew">
               <select class="ec-sel" id="ec-trade" aria-label="Trade"><option value="">All trades</option></select>
@@ -1834,7 +1848,7 @@
         </style>
         <div class="pd-wrap">
           <div class="pd-head">
-            <div><h1 class="pd-h1">Project Documents</h1><div class="pd-sub">The required-docs checklist · what's filed, what's missing</div></div>
+            <div><h1 class="pd-h1">Documents</h1><div class="pd-sub">The required-docs checklist · what's filed, what's missing</div></div>
             <button class="pd-upload" id="pd-upload-btn"><svg class="pd-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 20h16"/></svg>Upload</button>
           </div>
           <div class="pd-hero" id="pd-hero"><div class="pd-empty" style="margin:0">Loading documents…</div></div>
@@ -2072,7 +2086,7 @@
       <section class="view" data-view="drop-report">
         <div class="tab-head">
           <div>
-            <h1>Drop Report</h1>
+            <h1>Drop Reports</h1>
             <div class="tab-sub">One report per drop · auto-pulled from the Drop Plan (DCR cadence).</div>
           </div>
           <div class="tab-actions">
@@ -2169,8 +2183,8 @@
         <div class="section la-wrap" id="la-wrap">
           <div class="la-top">
             <div>
-              <h2 style="margin-bottom:0;">Two-Week Look-Ahead</h2>
-              <div class="la-sub" id="la-sub">Auto-drafted from the Drop Plan · drag to adjust</div>
+              <h2 style="margin-bottom:0;">Schedule</h2>
+              <div class="la-sub" id="la-sub">Two-week look-ahead · auto-drafted from the Drop Plan · drag to adjust</div>
             </div>
             <div class="la-controls">
               <label class="la-lbl">Start</label>
@@ -2372,10 +2386,10 @@
                live-date is the page-level .content-corner. Table header darkened. -->
           <div class="dcr-head">
             <div>
-              <h1>Daily Construction Reports</h1>
+              <h1>Daily Reports</h1>
               <div class="sub"><span data-project-line></span> · <span id="dcr-head-count">—</span> reports</div>
             </div>
-            <button id="dcr-new-btn" class="dcr-primary" type="button"><svg class="dcr-ic"><use href="#i-plus"/></svg>Issue New DCR</button>
+            <button id="dcr-new-btn" class="dcr-primary" type="button"><svg class="dcr-ic"><use href="#i-plus"/></svg>Issue New Daily Report</button>
           </div>
           <div id="dcr-issued-banner" style="display:none;background:var(--cream, #faf7f1);border-left:3px solid var(--status-complete-deep, #0c7a5f);padding:10px 14px;border-radius:var(--r-inner, 10px);margin-bottom:12px;font-size:13px;"></div>
           <!-- #344 — company roles: gaps / out-of-order / future-dated numbers the
@@ -3696,7 +3710,7 @@
                 || _fmt(r.report_date).toLowerCase().indexOf(q) !== -1;
             }) : DCR_ROWS;
             if (!filtered.length) {
-              tbody.innerHTML = '<tr><td colspan="5" class="dcr-empty">' + (total ? 'No reports match this search.' : 'No DCRs in this range. Click <strong>Issue New DCR</strong> to create one.') + '</td></tr>';
+              tbody.innerHTML = '<tr><td colspan="5" class="dcr-empty">' + (total ? 'No reports match this search.' : 'No daily reports in this range. Click <strong>Issue New Daily Report</strong> to create one.') + '</td></tr>';
             } else {
               tbody.innerHTML = filtered.map(renderArchiveRow).join('');
             }
@@ -4562,7 +4576,7 @@
         <div class="section">
           <div class="tab-head">
             <div>
-              <h2>Weekly Summary Report</h2>
+              <h2>Weekly Summary</h2>
               <div class="tab-sub">13-section roll-up of the week's daily reports. Live RFI counts. References the Two-Week Look-Ahead.</div>
             </div>
             <div class="tab-actions">
@@ -4706,7 +4720,7 @@
         </style>
         <div class="mt-wrap">
           <div class="mt-head">
-            <div><h2>Materials &amp; Deliveries</h2><div class="mt-sub" id="mt-sub">—</div></div>
+            <div><h2>Materials</h2><div class="mt-sub" id="mt-sub">—</div></div>
             <div class="mt-actions">
               <button class="mt-btn-ghost" id="mt-btn-count">Weekly count</button>
               <button class="mt-btn-ghost" id="mt-btn-transfer">Transfer</button>
@@ -4980,7 +4994,7 @@
       <section class="view" data-view="product-usage">
         <div class="section">
           <div class="exp-head">
-            <div><h1>Product Usage</h1><div class="sub"><span data-project-code></span> · what we actually bought &amp; used — by product class · feeds estimating</div></div>
+            <div><h1>Products Used</h1><div class="sub"><span data-project-code></span> · what we actually bought &amp; used — by product class · feeds estimating</div></div>
             <div class="exp-hbtns"><select class="exp-sel" id="exp-pu-project"><option value="__PROJECT_CODE__">This project</option><option value="" disabled>All projects (company-wide soon)</option></select></div>
           </div>
           <div class="exp-card">
@@ -4999,12 +5013,12 @@
         <div class="section">
           <div class="tab-head">
             <div>
-              <h2>RFI Log</h2>
+              <h2>Questions</h2>
               <div id="rfi-reg-summary" class="tab-sub">Loading…</div>
             </div>
             <a href="/rfi_submission_form.html" target="_blank" class="btn-primary" style="text-decoration:none;">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              New RFI
+              New question (RFI)
             </a>
           </div>
           <!-- Live "on site today" header (#116) — same shared
@@ -5058,7 +5072,7 @@
       <!-- VIOLATIONS — redirects to Compliance & Permits view -->
       <section class="view" data-view="violations">
         <div class="section">
-          <div class="tab-head"><div><h2>Violations</h2><div class="tab-sub">DOB and ECB violations for this building.</div></div></div>
+          <div class="tab-head"><div><h2>City Violations</h2><div class="tab-sub">Violations from the Department of Buildings (DOB) and the Environmental Control Board (ECB) for this building.</div></div></div>
           <div class="placeholder-card">
             DOB and ECB violations are tracked live in the
             <a href="#" onclick="document.querySelector('[data-view=compliance]').click(); return false;" style="color:var(--brand-red, #B11E2E);font-weight:600;">Compliance & Permits</a>
@@ -5105,7 +5119,7 @@
           @media (max-width:640px){ .pay-mbody, .pay-mbody.pay-mbody-5{grid-template-columns:1fr} }
         </style>
         <div class="pay-wrap">
-          <div class="pay-head"><div><h1 class="pay-h1">Payments</h1><div class="pay-sub" id="pay-sub">Invoices on this job · email them to the client from here</div></div>
+          <div class="pay-head"><div><h1 class="pay-h1">Invoices &amp; Payments</h1><div class="pay-sub" id="pay-sub">Invoices on this job · email them to the client from here</div></div>
             <div class="pay-toolbar"><button type="button" class="pay-btn primary" id="pay-new">+ New invoice</button></div></div>
           <div class="pay-kpis" id="pay-kpis"></div>
           <div class="pay-card"><div style="overflow:auto"><table class="pay-table" id="pay-table"><tbody><tr><td class="pay-empty">Loading…</td></tr></tbody></table></div>
@@ -5456,8 +5470,8 @@
         <div class="bt-note bt-off" data-bt-off>This job is billed <strong data-bt-label></strong>, so it has no schedule of values or AIA pay applications. <a data-goto-settings>Change the billing type</a></div>
         <div class="bt-note bt-unset warn">How this job is billed isn't set yet. <a data-goto-settings>Set it in Settings</a> — AIA / Schedule of values jobs get this editor and pay applications.</div>
         <div class="section pay-wrap aia-only">
-          <div class="tab-head"><div><h2>Schedule of Values</h2>
-          <div class="tab-sub">The approved billing breakdown for this job. Applications for Payment (AIA G702 / G703, under Payments) bill against these lines. Change orders sit as their own lines.</div></div></div>
+          <div class="tab-head"><div><h2>Billing Breakdown</h2>
+          <div class="tab-sub">The approved schedule of values (SOV) for this job. Applications for Payment (AIA G702 / G703, under Payments) bill against these lines. Change orders sit as their own lines.</div></div></div>
           <div class="pay-kpis" id="aia-sov-summary"></div>
           <div class="pay-toolbar"><button type="button" class="pay-btn" id="aia-sov-add">+ Line</button><button type="button" class="pay-btn" id="aia-sov-addco">+ Change order</button><button type="button" class="pay-btn" id="aia-sov-import" title="Copy the drop-plan line descriptions in, then fill in the dollars">Import drop-plan lines</button><span style="flex:1"></span><button type="button" class="pay-btn primary" id="aia-sov-save">Save</button></div>
           <div style="overflow:auto"><table class="pay-table aia-sov" id="aia-sov-table"><tbody><tr><td class="pay-empty">Loading…</td></tr></tbody></table></div>
@@ -5512,9 +5526,9 @@
         <div class="section">
           <div class="tab-head">
             <div>
-              <h2>NYC Compliance Watch</h2>
+              <h2>Permits &amp; Compliance</h2>
               <div class="tab-sub">
-                Live data from NYC OpenData & DOB BIS · BIN <span id="cw-bin">—</span> · Last refresh: <span id="cw-last-refresh">never</span>
+                Live data from NYC OpenData and the Department of Buildings (DOB BIS) · BIN <span id="cw-bin">—</span> · Last refresh: <span id="cw-last-refresh">never</span>
               </div>
             </div>
             <button id="cw-refresh-btn" class="btn-primary" type="button">
@@ -5754,7 +5768,7 @@
         </style>
         <div class="fp-wrap">
           <div class="fp-head">
-            <div><h1 class="fp-h1">Field Photos</h1><div class="fp-sub" id="fp-sub">Work-in-progress photos, tagged to the drop they came from — everyone logged in can browse them</div></div>
+            <div><h1 class="fp-h1">Photos</h1><div class="fp-sub" id="fp-sub">Work-in-progress photos, tagged to the drop they came from — everyone logged in can browse them</div></div>
             <button class="fp-primary" id="fp-upload-btn"><svg class="fp-ic"><use href="#i-upload"/></svg>Upload photos</button>
           </div>
           <div class="fp-modetog" id="fp-modetog">
@@ -5828,7 +5842,7 @@
 
       <section class="view" data-view="templates">
         <div class="section">
-          <div class="tab-head"><div><h2>Templates</h2><div class="tab-sub">Printable site signs and forms for this job.</div></div></div>
+          <div class="tab-head"><div><h2>Printable Signs &amp; Forms</h2><div class="tab-sub">Printable site signs and forms for this job.</div></div></div>
           <div style="margin: 10px 0 16px;">
             <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:10px;">
               <div>
@@ -6053,7 +6067,7 @@
 
       <section class="view" data-view="settings">
         <div class="section">
-          <div class="tab-head"><div><h2>Project Settings</h2><div class="tab-sub">The job's details, status, billing type and tabs.</div></div></div>
+          <div class="tab-head"><div><h2>Job Settings</h2><div class="tab-sub">The job's details, status, billing type and tabs.</div></div></div>
           <!-- project details: read for everyone, Edit for admin / C-suite (PUT /api/admin/projects/<code>/details) -->
           <div class="card ps-det-card" id="ps-details">
             <div class="ps-det-top"><div class="card-title">Project details</div><span style="display:flex;gap:8px"><button type="button" class="btn-primary btn-sm" id="ps-proj-edit" hidden title="Number, color, access method, crew, worker app, drawings">Edit project</button><button type="button" class="btn-ghost btn-sm" id="ps-det-edit" hidden>Edit details</button></span></div>
@@ -6401,6 +6415,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     // Update sidebar active state
     document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
     link.classList.add('active');
+    window.SSC_openMoreFor && window.SSC_openMoreFor(link);
 
     // Update breadcrumb
     const groupLabel = link.closest('.nav-group')?.querySelector('.nav-group-label')?.textContent || 'Overview';
@@ -10091,6 +10106,25 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
 })();
 </script>
 
-<link rel="stylesheet" href="/files/static/css/unify.css?v=10">
+<link rel="stylesheet" href="/files/static/css/unify.css?v=13">
+
+<script>
+// "More" lists in the project sidebar: the rarely used tabs fold away, the choice is remembered per list,
+// and a list opens by itself when you land on a tab inside it (a link, a card or a deep link).
+(function () {
+  function setOpen(box, open, remember) {
+    var items = box.querySelector('.nav-more-items'), btn = box.querySelector('.nav-more-toggle');
+    if (!items || !btn) return;
+    items.hidden = !open; btn.setAttribute('aria-expanded', open ? 'true' : 'false'); box.classList.toggle('open', open);
+    if (remember) { try { localStorage.setItem('ssc.navmore.' + box.dataset.more, open ? 'open' : 'closed'); } catch (e) {} }
+  }
+  document.querySelectorAll('.nav-more').forEach(function (box) {
+    var saved = null; try { saved = localStorage.getItem('ssc.navmore.' + box.dataset.more); } catch (e) {}
+    setOpen(box, saved === 'open', false);
+    box.querySelector('.nav-more-toggle').addEventListener('click', function () { setOpen(box, box.querySelector('.nav-more-items').hidden, true); });
+  });
+  window.SSC_openMoreFor = function (link) { var box = link && link.closest && link.closest('.nav-more'); if (box) setOpen(box, true, false); };
+})();
+</script>
 </body>
 </html>
