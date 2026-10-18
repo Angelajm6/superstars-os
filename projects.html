@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1014"></script>
+<script src="/files/static/js/company_nav.js?v=1016"></script>
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <!-- #263 landing, rebuilt as the team HOME (2b, prototype accepted 2026-10-07). PMs and supers
@@ -17,7 +17,7 @@
      create and edit on the company dashboard. Project scoping stays server-side (/api/projects,
      /api/team/*); a job they cannot open is drawn but not linked. -->
 <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
-<script src="/files/static/js/gcal_connect.js?v=1008" defer></script>
+<script src="/files/static/js/gcal_connect.js?v=1016" defer></script>
 <script src="/files/static/js/gmail_suggest.js?v=1009" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
@@ -272,7 +272,7 @@
   function fmtTime(t) { if (!t) return ''; var p = t.split(':').map(Number); return (p[0] % 12 || 12) + (p[1] ? ':' + String(p[1]).padStart(2, '0') : '') + (p[0] < 12 ? ' AM' : ' PM'); }
   function fmtDay(s) { if (!s) return ''; var d = parse(s); return DOWL[d.getDay()].slice(0, 3) + ', ' + MON3[d.getMonth()] + ' ' + d.getDate(); }
   function when(it) {
-    if (it.kind === 'event') return fmtDay(it.start_date) + (it.end_date ? ' → ' + fmtDay(it.end_date) : '') + (it.start_time ? ' · ' + fmtTime(it.start_time) + (it.end_time ? '–' + fmtTime(it.end_time) : '') : '');
+    if ((it.kind === 'event' || it.kind === 'meeting')) return fmtDay(it.start_date) + (it.end_date ? ' → ' + fmtDay(it.end_date) : '') + (it.start_time ? ' · ' + fmtTime(it.start_time) + (it.end_time ? '–' + fmtTime(it.end_time) : '') : '');
     return it.due_date ? 'Due ' + fmtDay(it.due_date) + (it.due_time ? ' · ' + fmtTime(it.due_time) : '') : 'No deadline';
   }
   function toast(msg) { var t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(function () { t.hidden = true; }, 2000); }
@@ -297,7 +297,7 @@
   // ---------- your to-do ----------
   function row(it) {
     var isDone = it.status === 'done';
-    var box = it.kind === 'event' ? '<span class="evdot" aria-hidden="true">●</span>'
+    var box = (it.kind === 'event' || it.kind === 'meeting') ? '<span class="evdot" aria-hidden="true">●</span>'
       : '<button type="button" class="chk" data-done="' + it.id + '" aria-label="' + (isDone ? 'Mark not done: ' : 'Mark done: ') + esc(it.title) + '">' + (isDone ? '✓' : '') + '</button>';
     var meta = '<span>' + esc(when(it)) + '</span>' + (it.overdue && !isDone ? '<span class="pill bad">overdue</span>' : '') +
       (it.project_name ? '<span>' + esc(it.project_name) + '</span>' : '') + (it.location ? '<span>@ ' + esc(it.location) + '</span>' : '');
@@ -310,7 +310,7 @@
       var j = await api('/api/team/items?status=open&mine=1');
       var t = iso(new Date());
       // an event that is over drops off the list (it stays on the calendar)
-      S.todo = (j.data || []).filter(function (it) { return !(it.kind === 'event' && (it.calendar_to || it.calendar_from) < t); });
+      S.todo = (j.data || []).filter(function (it) { return !((it.kind === 'event' || it.kind === 'meeting') && (it.calendar_to || it.calendar_from) < t); });
     } catch (e) { $('todo').innerHTML = '<div class="empty">Could not load your to-do.</div>'; return; }
     renderTodo();
   }
@@ -358,7 +358,7 @@
       var bars = js.map(function (j) { return '<span class="bar' + (j.can_open ? '' : ' not-mine') + '" style="background:' + COLORS[j.color % COLORS.length] + '" title="' + esc(j.name) + '"></span>'; }).join('');
       var chips = its.slice(0, maxChips).map(function (it) {
         return '<span class="chip ' + it.kind + (it.overdue ? ' late' : '') + (it.status === 'done' ? ' done' : '') + (it.mine ? ' mine' : '') + '" title="' + esc(it.title) + '">' +
-          (it.kind === 'event' ? '● ' : (it.status === 'done' ? '✓ ' : '☐ ')) + esc((it.kind === 'event' && it.start_date === k && it.start_time ? fmtTime(it.start_time) + ' ' : '') + it.title) + '</span>';
+          ((it.kind === 'event' || it.kind === 'meeting') ? '● ' : (it.status === 'done' ? '✓ ' : '☐ ')) + esc(((it.kind === 'event' || it.kind === 'meeting') && it.start_date === k && it.start_time ? fmtTime(it.start_time) + ' ' : '') + it.title) + '</span>';
       }).join('');
       var more = its.length > maxChips ? '<span class="more">+' + (its.length - maxChips) + ' more</span>' : (month && its.length ? '<span class="more cnt">' + its.length + ' item' + (its.length > 1 ? 's' : '') + '</span>' : '');
       var other = month && d.getMonth() !== S.anchor.getMonth();
@@ -401,7 +401,7 @@
     var dir = it.address ? '<a class="big primary" href="' + esc(it.directions_url) + '" target="_blank" rel="noopener">Get directions in Google Maps ↗</a>' : '';
     var doneBtn = it.kind === 'task' && it.can_complete ? '<button type="button" class="big ' + (it.status === 'done' ? 'done' : 'ghost') + '" data-done="' + it.id + '">' + (it.status === 'done' ? '✓ Done · tap to reopen' : 'Mark as done') + '</button>' : '';
     var job = it.project_code && it.project_name ? '<a class="big ghost" href="/projects/' + encodeURIComponent(it.project_code) + '">Open the job</a>' : '';
-    return '<button type="button" class="x" data-close aria-label="Close">×</button><div class="kind">' + (it.kind === 'event' ? 'Event' : 'Task') + (it.overdue ? ' · overdue' : '') + '</div>' +
+    return '<button type="button" class="x" data-close aria-label="Close">×</button><div class="kind">' + ({ event: 'Event', meeting: 'Meeting' }[it.kind] || 'Task') + (it.overdue ? ' · overdue' : '') + '</div>' +
       '<h3 id="panel-title">' + esc(it.title) + '</h3><div class="facts">' +
       facts.map(function (f) { return '<div class="fact"><b>' + f[0] + '</b><span>' + esc(f[1]) + '</span></div>'; }).join('') + '</div>' +
       dir + doneBtn + (it.can_edit ? '' : job) + (it.can_edit ? '<a class="big ghost" href="/company#overview">Edit on the company dashboard</a>' : '<div class="note">Only admin and C-suite can change it.</div>');

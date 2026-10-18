@@ -253,7 +253,9 @@ claude_agent.register(app)   # Claude across the platform: lookups run, every ch
 import inbox  # noqa: E402
 inbox.register(app)   # admin / C-suite email live in the software: matched, sorted, Claude's cards (approval for every change and send)
 import calendar_import  # noqa: E402
-calendar_import.register(app)   # work events from each person's main Google Calendar onto the team calendar
+calendar_import.register(app)   # each person's main Google Calendar, copied privately for them (only they see it)
+import inbox_schedule  # noqa: E402
+inbox_schedule.register(app)   # Inbox Mine (everyone) / All (admin + C-suite, server-checked): calendar + assigned work
 import project_setup  # noqa: E402
 project_setup.register(app)   # Oct 7 notes batch C: job numbers, a color per job, access method, worker access
 

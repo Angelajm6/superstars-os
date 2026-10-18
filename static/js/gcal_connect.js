@@ -12,7 +12,7 @@
   if (!host) return;
   var role = null;
   var OUTCOME = {
-    connected: ['Google Calendar connected. Your tasks go to the "Superstars" calendar, and work events from your calendar come in within a minute.', false],
+    connected: ['Google Calendar connected. Your tasks go to the "Superstars" calendar, and your own events show in your Inbox within a minute (only you see them).', false],
     connected_retry: ['Google Calendar connected. The first sync did not finish; it will retry on the next change, or use Sync now.', true],
     denied: ['Google Calendar was not connected (permission not given).', true],
     account: ['Use your own company Google account, the same email you sign in with here.', true],
@@ -57,7 +57,7 @@
     }
     host.hidden = false;
     if (!s.connected) {
-      host.innerHTML = '<span class="gcal-ic" aria-hidden="true">📅</span><span class="gcal-t">Two-way with Google Calendar: your tasks and events go to Google, and work events you add in Google come onto the team calendar.</span>' +
+      host.innerHTML = '<span class="gcal-ic" aria-hidden="true">📅</span><span class="gcal-t">Two-way with Google Calendar: your tasks, events and meetings go to Google, and your own Google events show in your Inbox, private to you.</span>' +
         '<a class="gcal-btn primary" href="' + esc(connectHref()) + '">Connect Google Calendar</a>';
       return;
     }
@@ -67,14 +67,14 @@
         '<a class="gcal-btn primary" href="' + esc(connectHref()) + '">Reconnect</a><button type="button" class="gcal-btn" data-gcal-off>Disconnect</button>';
       return;
     }
-    if (!s.reads_calendar) {   // connected before work events could come in: one reconnect adds the read permission
-      host.innerHTML = '<span class="gcal-ic" aria-hidden="true">📅</span><span class="gcal-t">Your tasks go to Google Calendar. Reconnect once so work events you add in Google come onto the team calendar too.</span>' +
+    if (!s.reads_calendar) {   // connected before your own events could come in: one reconnect adds the read permission
+      host.innerHTML = '<span class="gcal-ic" aria-hidden="true">📅</span><span class="gcal-t">Your tasks go to Google Calendar. Reconnect once so your own Google events show in your Inbox too (only you see them).</span>' +
         '<a class="gcal-btn primary" href="' + esc(connectHref()) + '">Reconnect</a><button type="button" class="gcal-btn" data-gcal-off>Disconnect</button>';
       return;
     }
     host.innerHTML = '<span class="gcal-ic" aria-hidden="true">📅</span><span class="gcal-t">Two-way with Google Calendar' +
       (s.google_email ? ' <span class="gcal-m">(' + esc(s.google_email) + ')</span>' : '') +
-      ' · <span class="gcal-m">' + (s.synced_count || 0) + ' item' + (s.synced_count === 1 ? '' : 's') + ' · last sync ' + esc(ago(s.last_sync_at)) + ' · work events read ' + esc(ago(s.import_at)) + '</span>' +
+      ' · <span class="gcal-m">' + (s.synced_count || 0) + ' item' + (s.synced_count === 1 ? '' : 's') + ' · last sync ' + esc(ago(s.last_sync_at)) + ' · your calendar read ' + esc(ago(s.import_at)) + '</span>' +
       (s.problem ? ' <span class="gcal-bad">· ' + esc(s.problem) + '</span>' : '') + '</span>' +
       '<button type="button" class="gcal-btn" data-gcal-sync>Sync now</button><button type="button" class="gcal-btn" data-gcal-off>Disconnect</button>';
   }

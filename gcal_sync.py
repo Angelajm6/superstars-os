@@ -56,7 +56,7 @@ log = logging.getLogger("ssc.gcal")
 
 TEAM_ROLES = ("admin", "c_suite", "pm", "super")
 SCOPES = ("openid email https://www.googleapis.com/auth/calendar.app.created "
-          "https://www.googleapis.com/auth/calendar.events.readonly")   # read: work events come in (calendar_import.py)
+          "https://www.googleapis.com/auth/calendar.events.readonly")   # read: their own calendar, private to them (calendar_import.py)
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 REVOKE_URL = "https://oauth2.googleapis.com/revoke"
@@ -220,7 +220,7 @@ def _plus(d: str, t: str, minutes: int) -> str:
 def event_body(it: dict) -> Optional[dict]:
     """The Google event for one team item (or None when it has no day)."""
     kind, done = it.get("kind") or "task", (it.get("status") == "done")
-    if kind == "event":
+    if kind in ("event", "meeting"):
         start = it.get("start_date") or it.get("due_date")
         if not start:
             return None
@@ -234,7 +234,7 @@ def event_body(it: dict) -> Optional[dict]:
             when = {"start": {"dateTime": f"{start}T{st}:00", "timeZone": TZ}, "end": {"dateTime": end, "timeZone": TZ}}
         else:
             when = {"start": {"date": start}, "end": {"date": _next_day(end_d)}}
-        summary = it.get("title") or "Event"
+        summary = it.get("title") or ("Meeting" if kind == "meeting" else "Event")
     else:
         due = it.get("due_date")
         if not due:
@@ -273,7 +273,7 @@ def _wanted(conn, uid) -> dict:
     import team_items
     cutoff = (date.today() - timedelta(days=KEEP_DAYS)).isoformat()
     out = {}
-    try:   # events that CAME from this person's Google Calendar never go back to it (calendar_import.py)
+    try:   # legacy: events the old import copied from Google never go back to it (moved to private at boot)
         imported = {r[0] for r in conn.execute("SELECT id FROM crm_task WHERE source = 'gcal' AND assignee_user_id = ?", (uid,)).fetchall()}
     except Exception:
         conn.rollback()
@@ -291,7 +291,10 @@ def _wanted(conn, uid) -> dict:
 
 def _still_mine_but_old(conn, uid, item_id) -> bool:
     r = conn.execute("SELECT assignee_user_id, status, due_date, start_date, end_date FROM crm_task WHERE id = ?", (item_id,)).fetchone()
-    if not r or r["assignee_user_id"] != uid or (r["status"] or "open") == "cancelled":
+    if not r or (r["status"] or "open") == "cancelled":
+        return False
+    if r["assignee_user_id"] != uid and not conn.execute(
+            "SELECT 1 FROM crm_task_attendee WHERE task_id = ? AND user_id = ?", (item_id, uid)).fetchone():
         return False
     last = r["end_date"] or r["start_date"] or r["due_date"]
     return bool(last) and last < (date.today() - timedelta(days=KEEP_DAYS)).isoformat()
@@ -511,7 +514,7 @@ def _callback():
 
 
 def _first_import(uid) -> None:
-    """Right after connecting: bring in this person's work events (calendar_import)."""
+    """Right after connecting: copy this person's own calendar in, privately (calendar_import)."""
     try:
         import calendar_import
         conn = db_layer.connect()
@@ -577,6 +580,12 @@ def _disconnect():
                 log.info("gcal disconnect user=%s: cleanup skipped (%s)", u["id"], type(e).__name__)
         conn.execute("DELETE FROM google_calendar_event WHERE user_id = ?", (u["id"],))
         conn.execute("DELETE FROM google_calendar_link WHERE user_id = ?", (u["id"],))
+        try:   # the private copy of their own calendar goes with the connection (calendar_import.py)
+            import calendar_import
+            calendar_import.forget_user(conn, u["id"])
+        except Exception as e:
+            conn.rollback()
+            log.info("gcal disconnect user=%s: private copy not removed (%s)", u["id"], type(e).__name__)
         conn.commit()
         _TOKENS.pop(u["id"], None)
         log.info("gcal disconnected user=%s", u["id"])

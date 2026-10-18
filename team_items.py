@@ -1,14 +1,16 @@
 """Team tasks & events — the to-do list on the dashboard, synced onto the team calendar.
 
 Any kind of to-do: call someone, a job walkthrough, send an invoice, submit a proposal.
-The creator picks TASK (something to get done, optionally by a deadline) or EVENT
-(something happening on a day, optionally at a time). Both can be assigned to a person,
-or to nobody yet, and both can be edited later.
+The creator picks TASK (something to get done, optionally by a deadline), EVENT
+(something happening on a day, optionally at a time) or MEETING (an event with people in it,
+2026-10-16). Each can be assigned to a person, or to nobody yet, and edited later. A meeting
+also lists the other people in it (crm_task_attendee); it is "theirs" too (their Inbox, their
+Superstars Google calendar).
 
 Storage: the existing crm_task table (the CRM follow-ups already live there, so a client
 follow-up is a team task too), extended additively (idempotent, catalog-checked, no CHECK
 constraints):
-  kind TEXT          'task' | 'event'          (NULL = an older follow-up = task)
+  kind TEXT          'task' | 'event' | 'meeting'   (NULL = an older follow-up = task)
   project_code TEXT  optional link to a job
   due_time TEXT      task deadline time, HH:MM (only with a due_date)
   start_date, start_time, end_date, end_time   an event's when (end optional)
@@ -16,7 +18,7 @@ constraints):
   address TEXT       a street address (task or event) — shown with a Google Maps directions
                      link, so a phone opens turn-by-turn directions in one tap
   updated_at, updated_by
-A task's calendar day is its due_date; an event spans start_date..end_date. An event also
+A task's calendar day is its due_date; an event or meeting spans start_date..end_date. An event also
 keeps due_date = start_date so the older follow-up lists sort it correctly.
 
 Who:
@@ -55,7 +57,9 @@ log = logging.getLogger("ssc.team_items")
 
 TEAM_ROLES = ("admin", "c_suite", "pm", "super")
 EDIT_ROLES = ("admin", "c_suite")
-KINDS = ("task", "event")
+KINDS = ("task", "event", "meeting")
+DATED = ("event", "meeting")   # kinds with a start day (and optional times) instead of a deadline
+MAX_ATTENDEES = 30
 STATUSES = ("open", "done", "cancelled")
 MAX_TITLE, MAX_DETAIL, MAX_LOCATION, MAX_ADDRESS = 200, 2000, 200, 300
 _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -87,6 +91,9 @@ def ensure(conn) -> None:
     for name, typ in COLUMNS:
         if name not in have:
             conn.execute(f"ALTER TABLE crm_task ADD COLUMN {name} {typ}")
+    conn.execute("CREATE TABLE IF NOT EXISTS crm_task_attendee (task_id INTEGER NOT NULL, user_id INTEGER NOT NULL)")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_task_attendee ON crm_task_attendee(task_id, user_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_crm_task_attendee_user ON crm_task_attendee(user_id)")
     conn.commit()
 
 
@@ -148,7 +155,7 @@ def _validate(conn, p: dict, cur: Optional[dict] = None) -> dict:
     get = lambda k: p[k] if k in p else cur.get(k)   # noqa: E731
     kind = str(get("kind") or "task").strip().lower()
     if kind not in KINDS:
-        raise ValueError("pick task or event")
+        raise ValueError("pick task, event or meeting")
     out = {"kind": kind,
            "title": _text(get("title"), "title", MAX_TITLE, required=True),
            "detail": _text(get("detail"), "details", MAX_DETAIL)}
@@ -192,7 +199,43 @@ def _validate(conn, p: dict, cur: Optional[dict] = None) -> dict:
             raise ValueError("the end time is before the start time")
         out.update(start_date=start, start_time=st, end_date=en_d, end_time=et, due_date=start, due_time=None,
                    location=_text(get("location"), "location", MAX_LOCATION))
+    out["attendees"] = _attendees(conn, p.get("attendee_user_ids") if "attendee_user_ids" in p else cur.get("attendee_ids"),
+                                  kind, out["assignee_user_id"], set(cur.get("attendee_ids") or ()))
     return out
+
+
+def _attendees(conn, raw, kind, assignee, already: set) -> list:
+    """The other people in a meeting: active team members, without the assignee, no repeats.
+    Only meetings have them; someone already listed may stay even if they left the team."""
+    if kind != "meeting" or not raw:
+        return []
+    if not isinstance(raw, (list, tuple)):
+        raise ValueError("pick the people in the meeting from the team")
+    out = []
+    for v in raw:
+        try:
+            uid = int(v)
+        except (TypeError, ValueError):
+            raise ValueError("pick the people in the meeting from the team")
+        if uid == assignee or uid in out:
+            continue
+        if uid not in already and not _assignable(conn, uid):
+            raise ValueError("someone in the meeting isn't an active team member")
+        out.append(uid)
+    if len(out) > MAX_ATTENDEES:
+        raise ValueError(f"a meeting can list up to {MAX_ATTENDEES} people")
+    return out
+
+
+def attendee_ids(conn, item_id) -> list:
+    return [r[0] for r in conn.execute("SELECT user_id FROM crm_task_attendee WHERE task_id = ? ORDER BY user_id",
+                                       (item_id,)).fetchall()]
+
+
+def _set_attendees(conn, item_id, uids) -> None:
+    conn.execute("DELETE FROM crm_task_attendee WHERE task_id = ?", (item_id,))
+    for uid in uids:
+        conn.execute("INSERT INTO crm_task_attendee (task_id, user_id) VALUES (?, ?)", (item_id, uid))
 
 
 def directions_url(address) -> Optional[str]:
@@ -259,10 +302,11 @@ def suggest(conn, q: str, fetch=None) -> list:
 
 
 # ------------------------------------------------------------------ reads
-def _shape(r: dict, today: str, me: Optional[int], can_edit: bool) -> dict:
+def _shape(r: dict, today: str, me: Optional[int], can_edit: bool, people_in=None) -> dict:
     kind = r.get("kind") or "task"
     status = r.get("status") or "open"
-    if kind == "event":
+    people_in = people_in or []
+    if kind in DATED:
         first, last = r.get("start_date") or r.get("due_date"), r.get("end_date") or r.get("start_date") or r.get("due_date")
     else:
         first = last = r.get("due_date")
@@ -272,22 +316,27 @@ def _shape(r: dict, today: str, me: Optional[int], can_edit: bool) -> dict:
         "created_by_name": r.get("creator_name"), "project_code": r.get("project_code"), "project_name": r.get("project_name"),
         "entity_type": r.get("entity_type"), "entity_id": r.get("entity_id"), "org_name": r.get("org_name"),
         "due_date": r.get("due_date") if kind == "task" else None, "due_time": r.get("due_time"),
-        "start_date": first if kind == "event" else None, "start_time": r.get("start_time"),
+        "start_date": first if kind in DATED else None, "start_time": r.get("start_time"),
         "end_date": r.get("end_date"), "end_time": r.get("end_time"), "location": r.get("location"),
         "address": r.get("address"), "directions_url": directions_url(r.get("address")),
         "calendar_from": first, "calendar_to": last,
         "overdue": bool(kind == "task" and status == "open" and first and first < today),
         "today": bool(first and first <= today <= (last or first)),
         "created_at": r.get("created_at"), "completed_at": r.get("completed_at"),
-        "mine": bool(me and r.get("assignee_user_id") == me),
+        "attendee_ids": [p[0] for p in people_in], "attendee_names": [p[1] for p in people_in],
+        "mine": bool(me and (r.get("assignee_user_id") == me or any(p[0] == me for p in people_in))),
         "can_edit": can_edit, "can_complete": bool(can_edit or (me and r.get("assignee_user_id") == me)),
         "source": r.get("source"),   # 'gcal' = came from the person's Google Calendar (calendar_import.py)
     }
 
 
 def list_items(conn, *, status="open", mine_uid=None, date_from=None, date_to=None, me=None, can_edit=False,
-               project_code=None) -> list:
+               project_code=None, kind=None) -> list:
+    """mine_uid = items that person is on: assigned to them, or a meeting they are in."""
     where, params = [], []
+    if kind in KINDS:
+        where.append("COALESCE(t.kind, 'task') = ?")
+        params.append(kind)
     if project_code:
         where.append("t.project_code = ?")
         params.append(project_code)
@@ -297,12 +346,12 @@ def list_items(conn, *, status="open", mine_uid=None, date_from=None, date_to=No
     else:
         where.append("COALESCE(t.status, 'open') <> 'cancelled'")
     if mine_uid:
-        where.append("t.assignee_user_id = ?")
-        params.append(mine_uid)
+        where.append("(t.assignee_user_id = ? OR EXISTS (SELECT 1 FROM crm_task_attendee a WHERE a.task_id = t.id AND a.user_id = ?))")
+        params += [mine_uid, mine_uid]
     if date_from and date_to:
         # on the calendar in [from, to]: a task by its deadline, an event by its span
         where.append("((COALESCE(t.kind, 'task') = 'task' AND t.due_date >= ? AND t.due_date <= ?) OR "
-                     "(t.kind = 'event' AND COALESCE(t.start_date, t.due_date) <= ? AND "
+                     "(t.kind IN ('event', 'meeting') AND COALESCE(t.start_date, t.due_date) <= ? AND "
                      "COALESCE(t.end_date, t.start_date, t.due_date) >= ?))")
         params += [date_from, date_to, date_to, date_from]
     rows = _rows(conn.execute(
@@ -316,12 +365,28 @@ def list_items(conn, *, status="open", mine_uid=None, date_from=None, date_to=No
         " ORDER BY (COALESCE(t.start_date, t.due_date) IS NULL), COALESCE(t.start_date, t.due_date), "
         "COALESCE(t.start_time, t.due_time, '99:99'), t.id DESC", params))
     today = date.today().isoformat()
-    return [_shape(r, today, me, can_edit) for r in rows]
+    people_in = _people_in(conn, [r["id"] for r in rows if r.get("kind") == "meeting"])
+    return [_shape(r, today, me, can_edit, people_in.get(r["id"])) for r in rows]
+
+
+def _people_in(conn, ids) -> dict:
+    """task id -> [(user id, name)] for these meetings."""
+    out = {}
+    for k in range(0, len(ids), 500):
+        chunk = ids[k:k + 500]
+        for r in conn.execute(
+                "SELECT a.task_id, a.user_id, COALESCE(NULLIF(u.display_name, ''), NULLIF(u.full_name, ''), u.email) AS name "
+                f"FROM crm_task_attendee a LEFT JOIN users u ON u.id = a.user_id WHERE a.task_id IN ({','.join('?' * len(chunk))}) "
+                "ORDER BY name", chunk).fetchall():
+            out.setdefault(r["task_id"], []).append((r["user_id"], r["name"]))
+    return out
 
 
 def get_item(conn, item_id) -> Optional[dict]:
     r = conn.execute("SELECT * FROM crm_task WHERE id = ?", (item_id,)).fetchone()
-    return dict(r) if r else None
+    if not r:
+        return None
+    return dict(r, attendee_ids=attendee_ids(conn, item_id) if r["kind"] == "meeting" else [])
 
 
 def team_calendar(conn, start: date, end: date, *, role=None, uid=None) -> dict:
@@ -367,8 +432,11 @@ def create(conn, p: dict, *, actor=None) -> int:
          v["end_date"], v["end_time"], v["location"], v["address"], now, actor))
     conn.commit()
     new_id = conn.execute("SELECT MAX(id) AS m FROM crm_task").fetchone()["m"]
+    if v["attendees"]:
+        _set_attendees(conn, new_id, v["attendees"])
+        conn.commit()
     log.info("team item created id=%s kind=%s by user=%s", new_id, v["kind"], actor)
-    _sync_google(v["assignee_user_id"])
+    _sync_google(v["assignee_user_id"], *v["attendees"])
     return new_id
 
 
@@ -383,9 +451,10 @@ def update(conn, item_id, p: dict, *, actor=None) -> None:
             "start_time", "end_date", "end_time", "location", "address"]
     conn.execute(f"UPDATE crm_task SET {', '.join(c + ' = ?' for c in cols)}, updated_at = ?, updated_by = ? WHERE id = ?",
                  (*[v[c] for c in cols], _now(), actor, item_id))
+    _set_attendees(conn, item_id, v["attendees"])
     conn.commit()
     log.info("team item updated id=%s by user=%s", item_id, actor)
-    _sync_google(cur.get("assignee_user_id"), v["assignee_user_id"])   # old and new assignee
+    _sync_google(cur.get("assignee_user_id"), v["assignee_user_id"], *cur["attendee_ids"], *v["attendees"])   # old and new people
 
 
 def set_done(conn, item_id, done: bool, *, actor=None, actor_role=None) -> dict:
@@ -398,7 +467,7 @@ def set_done(conn, item_id, done: bool, *, actor=None, actor_role=None) -> dict:
                  ("done" if done else "open", _now() if done else None, _now(), actor, item_id))
     conn.commit()
     log.info("team item %s id=%s by user=%s", "done" if done else "reopened", item_id, actor)
-    _sync_google(cur.get("assignee_user_id"))
+    _sync_google(cur.get("assignee_user_id"), *cur["attendee_ids"])
     return {"id": item_id, "status": "done" if done else "open"}
 
 
@@ -409,7 +478,7 @@ def cancel(conn, item_id, *, actor=None) -> None:
     conn.execute("UPDATE crm_task SET status = 'cancelled', updated_at = ?, updated_by = ? WHERE id = ?", (_now(), actor, item_id))
     conn.commit()
     log.info("team item deleted id=%s by user=%s", item_id, actor)
-    _sync_google(cur.get("assignee_user_id"))
+    _sync_google(cur.get("assignee_user_id"), *cur["attendee_ids"])
 
 
 # ------------------------------------------------------------------ routes
