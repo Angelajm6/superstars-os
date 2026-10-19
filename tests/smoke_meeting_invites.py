@@ -114,6 +114,11 @@ class FakeGoogle:
                         return 400, {}
                     body["conferenceData"] = {"entryPoints": [{"entryPointType": "video", "uri": "https://meet.google.com/zzz-yyyy-xxx"}]}
                     body["hangoutLink"] = "https://meet.google.com/zzz-yyyy-xxx"
+                elif k in ("start", "end") and isinstance(v, dict):   # Google merges these: a null clears a field
+                    merged = {**(body.get(k) or {}), **v}
+                    body[k] = {a: b for a, b in merged.items() if b is not None}
+                    if "date" in body[k] and "dateTime" in body[k]:
+                        return 400, {"error": {"message": "Invalid start time."}}
                 else:
                     body[k] = v
             evs[eid] = body
@@ -256,7 +261,15 @@ def main() -> int:
         assert fake.writes()[-1][2]["sendUpdates"] == "none"
         assert admin.put(f"/api/team/items/{mid}", json={"attendee_user_ids": [], "guest_emails": [], "send_invites": True}).status_code == 200
         assert [a["email"] for a in fake.writes()[-1][3]["attendees"]] == [email("pm")]
-        passed += 1; print("  edits ok (no-op skipped, PATCH sends updates, Don't send = none, guests removed)")
+        # all-day -> timed -> all-day: Google merges start/end on PATCH, so the old field must be cleared (2026-10-18 bug)
+        eid = next(iter(evs))
+        assert admin.put(f"/api/team/items/{mid}", json={"start_time": None, "end_time": None}).status_code == 200
+        assert fake.calendars[owner_cal][eid]["start"] == {"date": D(2)}, fake.calendars[owner_cal][eid]["start"]
+        assert admin.put(f"/api/team/items/{mid}", json={"start_time": "12:15", "end_time": "12:45"}).status_code == 200
+        st = fake.calendars[owner_cal][eid]["start"]
+        assert "date" not in st and st["dateTime"].startswith(D(2) + "T12:15"), st
+        assert fake.calendars[owner_cal][eid]["end"]["dateTime"].startswith(D(2) + "T12:45")
+        passed += 1; print("  edits ok (no-op skipped, PATCH sends updates, Don't send = none, guests removed, all-day <-> timed)")
 
         # ---- video off / on again, and a calendar that refuses video
         assert admin.put(f"/api/team/items/{mid}", json={"video": False}).status_code == 200

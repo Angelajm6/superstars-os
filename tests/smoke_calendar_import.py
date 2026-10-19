@@ -207,6 +207,8 @@ def main() -> int:
                 ci._get = real
             assert r1 == {"created": 1} and r2 == {"updated": 1} and r3 == {"reset": True}, (r1, r2, r3)
             assert "timeMax" in seen[0] and "updatedMin" not in seen[0] and "updatedMin" in seen[1] and "timeMax" not in seen[1]
+            back = (date.today() - date.fromisoformat(seen[0]["timeMin"][:10])).days
+            assert ci.LOOKBACK_DAYS - 1 <= back <= ci.LOOKBACK_DAYS + 1, seen[0]["timeMin"]   # past events come in too
             assert _q("SELECT import_at FROM google_calendar_link WHERE user_id = ?", (me,))[0]["import_at"] is None   # starts over
             passed += 1; print("  pulling ok (window, changes, 410)")
 
