@@ -239,7 +239,13 @@ def weather(conn, today: date, fetch=None) -> dict:
         out.append({"project_code": s["project_code"], "name": s["name"], "label": day.get("label"),
                     "temp_max": day.get("temp_max"), "temp_min": day.get("temp_min"), "gust_mph": day.get("gust_mph"),
                     "precip_prob": day.get("precip_prob"), "rain_from": rain_from, "heads_up": day.get("heads_up") or [],
-                    "hours": day.get("hours") or [], "stale": bool(wk.get("stale"))})
+                    "hours": day.get("hours") or [], "stale": bool(wk.get("stale")),
+                    "wind_mph": day.get("wind_mph"), "wind_dir": day.get("wind_dir"), "precip_in": day.get("precip_in"),
+                    "humidity": day.get("humidity"), "sunrise": day.get("sunrise"), "sunset": day.get("sunset"),
+                    # the next 7 days for the Weather window (a click on the Weather card)
+                    "week": [{k: d.get(k) for k in ("date", "weekday", "is_today", "label", "temp_max", "temp_min",
+                                                    "precip_prob", "gust_mph", "heads_up")}
+                             for d in (wk.get("days") or []) if (d.get("date") or "") >= t][:7]})
     if not out:
         return {"available": False, "sites": [], "pinned": pinned}
     now_h = datetime.now().hour

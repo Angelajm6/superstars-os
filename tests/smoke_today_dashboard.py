@@ -252,7 +252,7 @@ def main() -> int:
 
         # ---- weather (canned forecast)
         t = TODAY.isoformat()
-        canned = {"days": [{"date": t, "label": "Rain", "temp_max": 61, "temp_min": 50, "gust_mph": 27, "precip_prob": 80,
+        canned = {"days": [{"date": (TODAY - timedelta(days=1)).isoformat(), "label": "Old"}, {"date": t, "label": "Rain", "temp_max": 61, "temp_min": 50, "gust_mph": 27, "precip_prob": 80,
                             "heads_up": ["Gusts up to 27 mph, check rigging and loose material"],
                             "hours": [{"hour": 7, "temp": 52, "precip_prob": 10}, {"hour": 13, "temp": 58, "precip_prob": 70}]}]}
         conn = _db()
@@ -261,6 +261,8 @@ def main() -> int:
         finally:
             conn.close()
         assert w["available"] and "Rain from 1 PM" in w["headline"] and "gusts 27 mph" in w["headline"] and w["warn"]
+        wk = w["sites"][0]["week"]   # the Weather window's 7 days (today first, nothing before today)
+        assert len(wk) == 1 and wk[0]["date"] == t and wk[0]["temp_max"] == 61 and wk[0]["heads_up"]
         passed += 1; print("  weather ok")
 
         # ---- the template
@@ -340,7 +342,8 @@ def main() -> int:
         html = (ROOT / "company_portal.html").read_text(encoding="utf-8")
         for needle in ('id="td-needs"', 'id="td-day"', 'id="pd-drawer"', 'id="pd-frame" class="pd-frame" title="The proposal PDF" sandbox="allow-same-origin" referrerpolicy="no-referrer"',
                        "api('/today')", "api('/today/weather')", "'/proposal-drafts/' + PD.id + '/send'", "setInterval(", 'id="cc-week-range"',
-                       "calNowLabel()", "'Mon – Sun'", "window.SSC_CLAUDE.ask("):
+                       "calNowLabel()", "'Mon – Sun'", "window.SSC_CLAUDE.ask(",
+                       'id="wx-modal"', "if (e.target.closest('[data-td-wx]')) { e.preventDefault(); wxOpen(); }", "Next 7 days"):
             assert needle in html, needle
         assert '>Today</button>' not in html, "the calendar shows the week, not 'Today'"
         js = (ROOT / "static/js/claude_drawer.js").read_text(encoding="utf-8")
