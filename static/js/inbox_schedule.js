@@ -141,11 +141,11 @@
     function toolbar() {
       if (S.scope === 'mine') {
         var cs = S.data.calendar_status || {};
-        var sync = !cs.available ? '<span class="isx-sync off"><i></i>Google Calendar is not switched on yet</span>'
-          : !cs.connected ? '<span class="isx-sync off"><i></i>Google Calendar not connected</span>'
-          : cs.needs_reconnect ? '<span class="isx-sync bad"><i></i>Google Calendar: reconnect needed</span>'
-          : !cs.reads ? '<span class="isx-sync bad"><i></i>Google Calendar: reconnect to read your calendar</span>'
-          : '<span class="isx-sync"><i></i>Google Calendar synced' + (cs.synced_at ? ' ' + esc(ago(cs.synced_at)) : '') + '</span>';
+        var sync = !cs.available ? '<span class="isx-sync off"><i></i>Calendar sync isn\'t set up yet</span>'
+          : !cs.connected ? '<span class="isx-sync off"><i></i>Calendar not connected</span>'
+          : cs.needs_reconnect ? '<span class="isx-sync bad"><i></i>Calendar: reconnect needed</span>'
+          : !cs.reads ? '<span class="isx-sync bad"><i></i>Calendar: reconnect to show your own events</span>'
+          : '<span class="isx-sync"><i></i>Calendar synced' + (cs.synced_at ? ' ' + esc(ago(cs.synced_at)) : '') + '</span>';
         return '<div class="isx-bar">' + [['all', 'Everything'], ['assigned', 'Assigned to me'], ['calendar', 'My calendar']].map(function (x) {
           return '<button type="button" class="isx-chip" data-mt="' + x[0] + '" aria-pressed="' + (S.mineType === x[0]) + '">' + x[1] + '</button>';
         }).join('') + '<span class="grow"></span>' + sync + '</div>' +

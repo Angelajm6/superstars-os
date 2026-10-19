@@ -3,7 +3,7 @@
  * Renders into <div data-gcal></div>: "Connect Google Calendar" when not connected; when
  * connected, the account, the last sync and Sync now / Disconnect; a reconnect prompt when
  * Google's sign-in expired. Hidden for team members while the feature is switched off;
- * admin and C-suite see a one-line "not switched on yet" so they know it exists.
+ * admin and C-suite see a one-line "sync isn't set up yet" so they know it exists.
  * After Google sends the person back (?gcal=…) it shows the outcome once and cleans the URL.
  */
 (function () {
@@ -49,8 +49,9 @@
     host.className = 'gcal';
     if (!s.available) {
       if (role === 'admin' || role === 'c_suite') {
-        host.innerHTML = '<span class="gcal-ic" aria-hidden="true">📅</span><span class="gcal-t">Google Calendar sync is not switched on yet' +
-          (s.reason === 'encryption_key_missing' ? ' (the field encryption key is missing on the server).' : ' (the Google setup is not finished).') + '</span>';
+        host.innerHTML = '<span class="gcal-ic" aria-hidden="true">📅</span><span class="gcal-t" title="' +
+          (s.reason === 'encryption_key_missing' ? 'Technical detail: the field encryption key is missing on the server.' : 'Technical detail: the Google connection is not configured on the server yet.') +
+          '">Calendar sync isn\'t set up yet. It needs a one-time Google setup on the server.</span>';
         host.hidden = false;
       } else host.hidden = true;
       return;

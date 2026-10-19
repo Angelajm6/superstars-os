@@ -5123,7 +5123,7 @@
             <div class="pay-toolbar"><button type="button" class="pay-btn primary" id="pay-new">+ New invoice</button></div></div>
           <div class="pay-kpis" id="pay-kpis"></div>
           <div class="pay-card"><div style="overflow:auto"><table class="pay-table" id="pay-table"><tbody><tr><td class="pay-empty">Loading…</td></tr></tbody></table></div>
-            <div class="pay-muted" style="margin-top:10px">Deposit invoices draft themselves when a proposal is signed. AIA applications for payment (below) issue their own progress invoices. Amounts here are what the client owes, not labor cost.</div></div>
+            <div class="pay-muted" style="margin-top:10px">Deposit invoices draft themselves when a proposal is signed. The progress billing forms below (the standard AIA applications for payment) issue their own invoices. Amounts here are what the client owes, not labor cost.</div></div>
         </div>
         <!-- #317 — AIA progress billing: applications for payment (G702 / G703) -->
         <style>
@@ -5140,9 +5140,9 @@
           .aia-sov td:nth-child(2){min-width:260px}
         </style>
         <div class="pay-wrap">
-          <div class="bt-note bt-unset warn">How this job is billed isn't set yet. <a data-goto-settings>Set it in Settings</a> to show or hide AIA progress billing.</div>
+          <div class="bt-note bt-unset warn">How this job is billed isn't set yet. <a data-goto-settings>Set it in Settings</a> to show or hide progress billing.</div>
           <div class="pay-card aia-only" id="aia-card">
-            <div class="pay-head" style="margin-bottom:8px"><div><h2 style="margin:0;font-size:16px;font-weight:500">AIA progress billing</h2><div class="pay-sub" id="aia-sub">G702 Application for Payment + G703 Continuation Sheet, billed against the Schedule of Values</div></div>
+            <div class="pay-head" style="margin-bottom:8px"><div><h2 style="margin:0;font-size:16px;font-weight:500">Progress billing</h2><div class="pay-sub" id="aia-sub">The standard AIA forms (G702 Application for Payment and G703 Continuation Sheet), billed against the Billing Breakdown</div></div>
               <div class="pay-toolbar"><a class="pay-btn" data-view="sov" href="#" id="aia-goto-sov">Schedule of Values</a><button type="button" class="pay-btn primary" id="aia-new">+ New application</button></div></div>
             <div class="pay-kpis" id="aia-kpis"></div>
             <div style="overflow:auto"><table class="pay-table" id="aia-table"><tbody><tr><td class="pay-empty">Loading…</td></tr></tbody></table></div>
@@ -5467,11 +5467,11 @@
       <section class="view" data-view="sov">
         <!-- #317 — the BILLING schedule of values (what applications for payment bill
              against). Editor + contract sums; the drop-plan unit rates stay below. -->
-        <div class="bt-note bt-off" data-bt-off>This job is billed <strong data-bt-label></strong>, so it has no schedule of values or AIA pay applications. <a data-goto-settings>Change the billing type</a></div>
-        <div class="bt-note bt-unset warn">How this job is billed isn't set yet. <a data-goto-settings>Set it in Settings</a> — AIA / Schedule of values jobs get this editor and pay applications.</div>
+        <div class="bt-note bt-off" data-bt-off>This job is billed <strong data-bt-label></strong>, so it has no billing breakdown or progress billing forms. <a data-goto-settings>Change the billing type</a></div>
+        <div class="bt-note bt-unset warn">How this job is billed isn't set yet. <a data-goto-settings>Set it in Settings</a> — jobs billed by progress (AIA / schedule of values) get this editor and the pay applications.</div>
         <div class="section pay-wrap aia-only">
           <div class="tab-head"><div><h2>Billing Breakdown</h2>
-          <div class="tab-sub">The approved schedule of values (SOV) for this job. Applications for Payment (AIA G702 / G703, under Payments) bill against these lines. Change orders sit as their own lines.</div></div></div>
+          <div class="tab-sub">The approved list of work and what each part is worth (called the schedule of values, or SOV). Each progress billing form (the standard AIA G702 / G703 forms, under Invoices &amp; Payments) bills against these lines. Change orders sit as their own lines.</div></div></div>
           <div class="pay-kpis" id="aia-sov-summary"></div>
           <div class="pay-toolbar"><button type="button" class="pay-btn" id="aia-sov-add">+ Line</button><button type="button" class="pay-btn" id="aia-sov-addco">+ Change order</button><button type="button" class="pay-btn" id="aia-sov-import" title="Copy the drop-plan line descriptions in, then fill in the dollars">Import drop-plan lines</button><span style="flex:1"></span><button type="button" class="pay-btn primary" id="aia-sov-save">Save</button></div>
           <div style="overflow:auto"><table class="pay-table aia-sov" id="aia-sov-table"><tbody><tr><td class="pay-empty">Loading…</td></tr></tbody></table></div>
@@ -5500,7 +5500,7 @@
             .then(function (j) {
               if (!j) return;
               var rows = (j && j.data) || [];
-              if (!rows.length) { body.className = 'placeholder-card'; body.textContent = 'No Schedule of Values line items defined yet.'; return; }
+              if (!rows.length) { body.className = 'placeholder-card'; body.textContent = 'No billing breakdown lines yet.'; return; }
               var h = '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr>' +
                       '<th style="text-align:left;padding:8px;">Code</th>' +
                       '<th style="text-align:left;padding:8px;">Description</th>' +
@@ -5516,7 +5516,7 @@
               h += '</tbody></table>';
               body.className = ''; body.innerHTML = h;
             })
-            .catch(function () { body.className = 'placeholder-card'; body.textContent = 'Could not load Schedule of Values.'; });
+            .catch(function () { body.className = 'placeholder-card'; body.textContent = 'Could not load the billing breakdown.'; });
         };
       </script>
       <!-- SECTION:financial:end -->
@@ -6091,7 +6091,7 @@
               <div class="ps-row"><span class="ps-v" id="ps-billing">—</span>
                 <select id="ps-billing-select" hidden aria-label="Billing type"></select>
                 <button type="button" class="btn-primary" id="ps-billing-save" hidden>Save</button></div>
-              <div class="ps-hint">AIA / Schedule of values jobs get the Schedule of Values and AIA pay applications (under Money). Lump sum, T&amp;M and unit-price jobs bill with plain invoices.</div>
+              <div class="ps-hint">Jobs billed by progress (AIA / schedule of values) get the Billing Breakdown and the AIA pay applications (under Finances). Lump sum, T&amp;M and unit-price jobs bill with plain invoices.</div>
               <div class="ps-hint" id="ps-billing-err" style="color:var(--status-behind-deep, #A8382B)"></div></div>
           </div>
           <div class="card ps-mod-card" id="ps-modules-card">
@@ -10106,7 +10106,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
 })();
 </script>
 
-<link rel="stylesheet" href="/files/static/css/unify.css?v=14">
+<link rel="stylesheet" href="/files/static/css/unify.css?v=15">
 
 <script>
 // "More" lists in the project sidebar: the rarely used tabs fold away, the choice is remembered per list,

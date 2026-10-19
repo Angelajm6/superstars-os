@@ -130,6 +130,15 @@ def main() -> int:
     css = (ROOT / "static" / "css" / "unify.css").read_text(encoding="utf-8")
     assert "body .sidebar.nav-open .nav-add:not([hidden])" in css, "Add a tab shows only inside the open phone menu"
 
+    # batch 5 (steps 2-4): calm Google messages, one quiet Inbox line, plain billing words
+    for js in ("static/js/gcal_connect.js", "static/js/gmail_suggest.js", "static/js/inbox_schedule.js"):
+        src = (ROOT / js).read_text(encoding="utf-8")
+        assert "not switched on yet" not in src and "Google setup is not finished" not in src, js
+    cp = (ROOT / "company_portal.html").read_text(encoding="utf-8")
+    assert "ib-chip" not in cp and "coming next" not in cp and "ib-conn-t" in cp, "Inbox shows one connection line, no pills"
+    ds = (ROOT / "dashboard-static.html").read_text(encoding="utf-8")
+    assert ">AIA progress billing<" not in ds and "Progress billing</h2>" in ds
+
     print("PASS smoke_friendly_errors")
     return 0
 
