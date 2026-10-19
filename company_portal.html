@@ -15,9 +15,9 @@
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1015" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
-<script src="/files/static/js/gcal_connect.js?v=1016" defer></script>
-<script src="/files/static/js/gmail_suggest.js?v=1009" defer></script>
-<script src="/files/static/js/inbox_schedule.js?v=3" defer></script>
+<script src="/files/static/js/gcal_connect.js?v=1017" defer></script>
+<script src="/files/static/js/gmail_suggest.js?v=1010" defer></script>
+<script src="/files/static/js/inbox_schedule.js?v=4" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
 <style>
@@ -123,11 +123,10 @@
   .cp-pill.claude { background: #FBEFE9; color: #A84E2C; }
   /* Inbox (2026-10-15, inbox.py): the mailbox as in Gmail; Claude drafts only where a reply is needed */
   #view-inbox [hidden]{display:none !important}   /* Mail / Mine / All switch (.ib-wrap and .ib-conn set their own display) */
-  .ib-conn { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 14px; }
-  .ib-chip { display: inline-flex; gap: 6px; align-items: center; font-size:13px; font-weight: 600; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: #fff; }
-  .ib-chip i { width: 8px; height: 8px; border-radius: 50%; background: #0c7a5f; display: inline-block; }
-  .ib-chip i.off { background: #B4B9C4; } .ib-chip i.warn { background: #D9822B; }
-  .ib-chip span { font-weight: 500; color: var(--muted); }
+  .ib-conn { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 8px 14px; font-size: 13px; color: var(--muted); }
+  .ib-conn-t { display: inline-flex; gap: 8px; align-items: center; }
+  .ib-dot { width: 8px; height: 8px; border-radius: 50%; background: #0c7a5f; display: inline-block; flex: none; }
+  .ib-dot.off { background: #B4B9C4; } .ib-dot.warn { background: #D9822B; }
   .ib-wrap { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); grid-template-rows: 100%; padding: 0; height: max(520px, calc(100vh - 176px)); overflow: hidden; }
   .ib-list { border-right: 1px solid var(--line); min-width: 0; display: flex; flex-direction: column; }
   .ib-lhead { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
@@ -2158,16 +2157,19 @@
     try { st = (await api('/inbox/status', null, true)).data; } catch (e) { $('ib-conn').innerHTML = esc(e.message); return; }
     IB.status = st;
     const next = encodeURIComponent('/company#inbox');
-    const gmail = !st.available ? `<span class="ib-chip"><i class="off"></i>Gmail <span>not switched on yet (Google setup)</span></span>`
-      : !st.connected ? `<span class="ib-chip"><i class="off"></i>Gmail <span>not connected</span></span><a class="btn-primary btn-sm" href="/gmail/connect?next=${next}">Connect your Gmail</a>`
-      : st.status !== 'active' ? `<span class="ib-chip"><i class="warn"></i>Gmail <span>sign-in expired</span></span><a class="btn-primary btn-sm" href="/gmail/connect?next=${next}">Reconnect Gmail</a>`
-      : `<span class="ib-chip"><i></i>Gmail <span>${esc(st.google_email || '')}${st.last_sync_at ? ' · checked ' + ibAgo(st.last_sync_at) : ''}</span></span>` +
-        (st.can_send ? '' : `<a class="btn-ghost btn-sm" href="/gmail/connect?next=${next}" title="Lets you send replies from your Gmail">Reconnect to allow sending</a>`);
-    $('ib-conn').innerHTML = gmail +
-      `<span class="ib-chip"><i class="${st.calendar && st.calendar.connected && st.calendar.reads ? '' : (st.calendar && st.calendar.connected ? 'warn' : 'off')}"></i>Google Calendar <span>${st.calendar && st.calendar.connected ? (st.calendar.reads ? 'two-way' : 'reconnect to bring events in') : 'not connected'}</span></span>` +
-      (st.calendar && st.calendar.connected && !st.calendar.reads ? `<a class="btn-ghost btn-sm" href="/google-calendar/connect?next=${next}">Reconnect Calendar</a>` : '') +
-      `<span class="ib-chip"><i class="off"></i>QuickBooks <span>coming next</span></span>` +
-      (st.problem ? `<span class="cp-muted" style="font-size:13px">${esc(st.problem)}</span>` : '');
+    // one quiet line: what is connected, or the single thing to fix, with its button (no status pills)
+    const dot = c => `<i class="ib-dot ${c}"></i>`;
+    let line, acts = '';
+    if (!st.available) line = `<span title="${esc(st.reason ? 'Technical detail: ' + st.reason : '')}">${dot('off')}Email isn't connected yet. It needs a one-time Google setup on the server.</span>`;
+    else if (!st.connected) { line = `${dot('off')}Connect your Gmail to see your email here.`; acts = `<a class="btn-primary btn-sm" href="/gmail/connect?next=${next}">Connect your Gmail</a>`; }
+    else if (st.status !== 'active') { line = `${dot('warn')}Your Gmail sign-in expired.`; acts = `<a class="btn-primary btn-sm" href="/gmail/connect?next=${next}">Reconnect Gmail</a>`; }
+    else {
+      line = `${dot('')}Connected as ${esc(st.google_email || '')}${st.last_sync_at ? ' · checked ' + ibAgo(st.last_sync_at) : ''}`;
+      if (!st.can_send) acts += `<a class="btn-ghost btn-sm" href="/gmail/connect?next=${next}" title="Lets you send replies from your Gmail">Reconnect to allow sending</a>`;
+    }
+    if (st.calendar && st.calendar.connected && !st.calendar.reads) acts += `<a class="btn-ghost btn-sm" href="/google-calendar/connect?next=${next}" title="Brings your own Google events into your Inbox">Reconnect Calendar</a>`;
+    if (st.problem) line += ` <span class="cp-muted">${esc(st.problem)}</span>`;
+    $('ib-conn').innerHTML = `<span class="ib-conn-t">${line}</span>${acts}`;
     await ibList();
     const want = arg && /^\d+$/.test(arg) ? +arg : IB.open;
     if (want) ibOpen(want, false);
@@ -3941,6 +3943,6 @@
   route();
 })();
 </script>
-<link rel="stylesheet" href="/files/static/css/unify.css?v=14">
+<link rel="stylesheet" href="/files/static/css/unify.css?v=15">
 </body>
 </html>

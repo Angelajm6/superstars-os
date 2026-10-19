@@ -73,7 +73,7 @@
     if (!ST || !ST.available) {
       if (ST && (role === 'admin' || role === 'c_suite')) {
         card.hidden = false;
-        card.innerHTML = '<div class="gm-head"><h2>From your email</h2></div><div class="gm-row">✉️ <span>Gmail suggestions are not switched on yet' + (ST.reason === 'encryption_key_missing' ? ' (the field encryption key is missing on the server).' : ' (the Google setup is not finished).') + '</span></div>';
+        card.innerHTML = '<div class="gm-head"><h2>From your email</h2></div><div class="gm-row">✉️ <span title="' + (ST.reason === 'encryption_key_missing' ? 'Technical detail: the field encryption key is missing on the server.' : 'Technical detail: the Google connection is not configured on the server yet.') + '">Email suggestions aren\'t set up yet. They need a one-time Google setup on the server.</span></div>';
       } else card.hidden = true;
       return;
     }
