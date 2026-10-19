@@ -104,6 +104,8 @@ def ensure(conn) -> None:
     # the other calendars each person reads, with their own "changed since" mark
     conn.execute(f"CREATE TABLE IF NOT EXISTS user_calendar_source ({pk}, user_id INTEGER NOT NULL, calendar_id TEXT NOT NULL, "
                  f"import_at TEXT)")
+    if not _has_column(conn, "user_calendar_source", "summary"):   # the calendar's name in Google, shown to its owner
+        conn.execute("ALTER TABLE user_calendar_source ADD COLUMN summary TEXT")
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_cal_source ON user_calendar_source(user_id, calendar_id)")
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_cal_event ON user_calendar_event(user_id, google_event_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_user_cal_event_day ON user_calendar_event(user_id, start_date)")
@@ -236,9 +238,11 @@ def events_for(conn, uid: int, date_from: str, date_to: str) -> list:
     signed-in user's id — no route passes anyone else's."""
     if not uid:
         return []
-    rows = _rows(conn, "SELECT id, title, location, detail, start_date, start_time, end_date, end_time, source_tz, "
-                       "source_start_time, html_link FROM user_calendar_event WHERE user_id = ? AND start_date <= ? "
-                       "AND COALESCE(end_date, start_date) >= ? ORDER BY start_date, COALESCE(start_time, '00:00'), id",
+    rows = _rows(conn, "SELECT e.id, e.title, e.location, e.detail, e.start_date, e.start_time, e.end_date, e.end_time, e.source_tz, "
+                       "e.source_start_time, e.html_link, s.summary AS calendar_name FROM user_calendar_event e "
+                       "LEFT JOIN user_calendar_source s ON s.user_id = e.user_id AND s.calendar_id = e.calendar_id "
+                       "WHERE e.user_id = ? AND e.start_date <= ? AND COALESCE(e.end_date, e.start_date) >= ? "
+                       "ORDER BY e.start_date, COALESCE(e.start_time, '00:00'), e.id",
                  (uid, date_to, date_from))
     return [dict(r, kind="calendar", private=True) for r in rows]
 
@@ -301,9 +305,9 @@ def _get(conn, link, url, params) -> tuple:
     return code, body
 
 
-def _other_calendars(conn, link) -> list:
-    """Ids of the calendars the person ticked in Google, minus the main one and the app's own Superstars calendar."""
-    ids, page = [], None
+def _other_calendars(conn, link) -> dict:
+    """id -> name of the calendars the person ticked in Google, minus the main one and the app's own Superstars calendar."""
+    ids, page = {}, None
     while True:
         code, body = _get(conn, link, LIST_URL, dict({"maxResults": "250"}, **({"pageToken": page} if page else {})))
         if code != 200:
@@ -311,7 +315,7 @@ def _other_calendars(conn, link) -> list:
         for c in body.get("items") or []:
             cid = c.get("id")
             if cid and c.get("selected") and not c.get("primary") and not c.get("deleted") and cid != link.get("calendar_id"):
-                ids.append(cid)
+                ids[cid] = _clean(c.get("summaryOverride") or c.get("summary"), 100)
         page = body.get("nextPageToken")
         if not page:
             return ids
@@ -344,7 +348,7 @@ def _import_others(conn, link, started, counts) -> None:
     """The person's other ticked calendars. Without the list permission (connected before it existed) none are
     read, and copies from calendars no longer ticked are removed."""
     uid = link["user_id"]
-    want = _other_calendars(conn, link) if can_list(link) else []
+    want = _other_calendars(conn, link) if can_list(link) else {}
     marks = {r["calendar_id"]: r["import_at"] for r in _rows(conn, "SELECT calendar_id, import_at FROM user_calendar_source WHERE user_id = ?", (uid,))}
     for cid in set(marks) | {r["calendar_id"] for r in _rows(conn, "SELECT DISTINCT calendar_id FROM user_calendar_event "
                                                                     "WHERE user_id = ? AND calendar_id IS NOT NULL", (uid,))}:
@@ -362,9 +366,11 @@ def _import_others(conn, link, started, counts) -> None:
             raise RuntimeError(f"events failed ({code})")
         mark = started.replace(tzinfo=None).isoformat(timespec="seconds") if code == 200 else None
         if cid in marks:
-            conn.execute("UPDATE user_calendar_source SET import_at = ? WHERE user_id = ? AND calendar_id = ?", (mark, uid, cid))
+            conn.execute("UPDATE user_calendar_source SET import_at = ?, summary = ? WHERE user_id = ? AND calendar_id = ?",
+                         (mark, want[cid], uid, cid))
         else:
-            conn.execute("INSERT INTO user_calendar_source (user_id, calendar_id, import_at) VALUES (?, ?, ?)", (uid, cid, mark))
+            conn.execute("INSERT INTO user_calendar_source (user_id, calendar_id, import_at, summary) VALUES (?, ?, ?, ?)",
+                         (uid, cid, mark, want[cid]))
         conn.commit()
 
 

@@ -226,7 +226,7 @@ def main() -> int:
             conn.execute("UPDATE google_calendar_link SET calendar_id = 'ssc-cal@group', import_at = NULL WHERE user_id = ?", (me,))
             conn.commit()
             reads, lists = [], [0]
-            cal_list = [{"id": "me@x", "primary": True, "selected": True}, {"id": "family@group", "selected": True},
+            cal_list = [{"id": "me@x", "primary": True, "selected": True}, {"id": "family@group", "selected": True, "summary": "Family"},
                         {"id": "ssc-cal@group", "selected": True}, {"id": "hidden@group", "selected": False},
                         {"id": "crew_1#x@group", "selected": True}]
 
@@ -258,6 +258,8 @@ def main() -> int:
                 assert not [k for k in rows if "s1" in k]   # the app's own Superstars calendar is not copied
                 assert {c for c, _ in reads} == {"primary", "family%40group", "crew_1%23x%40group"}   # not ssc / hidden / primary twice
                 assert {g["title"] for g in ci.events_for(conn, me, DAY, DAY)} >= {"Calimp main event", "Calimp soccer"}
+                names = {g["title"]: g["calendar_name"] for g in ci.events_for(conn, me, DAY, DAY)}
+                assert names["Calimp soccer"] == "Family" and names["Calimp main event"] is None   # shown to its owner only
                 marks = {r["calendar_id"]: r["import_at"] for r in _q("SELECT * FROM user_calendar_source WHERE user_id = ?", (me,))}
                 assert marks.get("family@group") and "crew_1#x@group" not in marks, marks   # 404: tried again next round
                 reads.clear()
@@ -416,6 +418,8 @@ def main() -> int:
         js = (ROOT / "static/js/gcal_connect.js").read_text(encoding="utf-8")
         assert "s.reads_calendar" in js and "only you see them" in js and "team calendar" not in js
         isx = (ROOT / "static/js/inbox_schedule.js").read_text(encoding="utf-8")
+        cp = (ROOT / "company_portal.html").read_text(encoding="utf-8")   # own events on the dashboard calendars (2026-10-19)
+        assert "data-mine-toggle" in cp and "Only you" in cp and "@media print{ .it.mine" in cp and "openMine(" in cp
         assert "!cs.other_calendars" in isx and "Reconnect to see your other calendars" in isx and "data-hint-off" in isx
         src = (ROOT / "gcal_sync.py").read_text(encoding="utf-8")
         assert "calendar_import.forget_user(conn" in src

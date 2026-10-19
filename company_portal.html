@@ -371,6 +371,25 @@
           .cc-week-ms span.it.event, .cal-ms span.it.event{background:#E7F6F1;color:#0F5E57;border-left-color:#0F766E}
           .cc-week-ms span.it.late, .cal-ms span.it.late{background:#FCEEEC;color:#A8382B;border-left-color:#B11E2E}
           .cc-week-ms span.it.done, .cal-ms span.it.done{opacity:.6;text-decoration:line-through}
+          /* your own Google events: only you see them (calendar_import.events_for, signed-in user only) */
+          .cc-week-ms span.it.mine, .cal-ms span.it.mine{background:#F1EEFA;color:#5B4A9E;border-left:3px dashed #8B7BD8}
+          .it.mine svg, .mine-lock svg, .mine-tag svg{width:11px;height:11px;vertical-align:-1px;margin-right:3px}
+          .mine-tg{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap}
+          .mine-tg[hidden]{display:none}
+          .mine-tg input{appearance:none;width:30px;height:18px;border-radius:999px;background:#DCDFE7;position:relative;cursor:pointer;margin:0;transition:background .15s}
+          .mine-tg input::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s}
+          .mine-tg input:checked{background:#8B7BD8}.mine-tg input:checked::after{left:14px}
+          .mine-tg input:focus-visible{outline:2px solid var(--ui);outline-offset:2px}
+          .mine-lock{display:inline-flex;align-items:center}
+          .mine-ov{position:fixed;inset:0;background:rgba(20,22,28,.32);display:none;align-items:center;justify-content:center;z-index:80;padding:16px}
+          .mine-ov.open{display:flex}
+          .mine-pop{background:#fff;border-radius:14px;padding:18px;max-width:420px;width:100%;display:flex;flex-direction:column;gap:8px;box-shadow:0 18px 50px rgba(20,22,28,.25)}
+          .mine-pop h3{margin:0;font-size:17px;overflow-wrap:anywhere}
+          .mine-pop p{margin:0;color:var(--muted);font-size:13.5px;overflow-wrap:anywhere}
+          .mine-tag{align-self:flex-start;display:inline-flex;align-items:center;font-size:12px;font-weight:700;background:#F1EEFA;color:#5B4A9E;border-radius:6px;padding:2px 8px}
+          .mine-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+          .mine-acts a, .mine-acts button{font:inherit;font-size:13px;font-weight:700;border:1px solid var(--line);border-radius:8px;padding:7px 12px;background:#fff;color:var(--ink,#20242f);cursor:pointer;text-decoration:none}
+          .mine-acts a:hover, .mine-acts button:hover{background:var(--ui-soft,#E8EDF8)}
           .cc-week-ms span.more{background:transparent;border-left:0;color:var(--muted,#8c92a0);padding-left:2px}
           .cal-cell, .cc-week-cell, .cal-ms, .cc-week-ms{min-width:0}   /* a long chip truncates instead of widening its day */
           .cal-ms span, .cc-week-ms span{max-width:100%}
@@ -627,6 +646,7 @@
           <div class="cc-week-head">
             <div><h2 id="cc-week-title">This week</h2><div class="cp-muted">Jobs running each day, who is on site, tasks, events and what falls due. Click one to open it.</div></div>
             <div class="cc-week-nav">
+              <label class="mine-tg" hidden><input type="checkbox" data-mine-toggle checked> My Google events</label>
               <button type="button" class="cc-week-arrow" id="cc-week-prev" aria-label="Previous week">‹</button>
               <button type="button" class="cc-week-range cur" id="cc-week-range" title="Back to this week"></button>
               <button type="button" class="cc-week-arrow" id="cc-week-next" aria-label="Next week">›</button>
@@ -824,6 +844,7 @@
           .cal-grip::after{content:"";position:absolute;right:3px;top:7px;width:3px;height:10px;border-radius:2px;background:rgba(255,255,255,.55)}
           .cal-bar{cursor:grab} .cal-bar.dragging{cursor:grabbing;opacity:.85;box-shadow:0 10px 24px rgba(20,22,28,.28);z-index:5;transition:none}
           .cal-print-list{display:none}
+          @media print{ .it.mine, .mine-tg, .mine-lock{display:none !important} }   /* private: never on a printed foreman sheet */
           @media print{ .ssc-side,.ssc-top,.ssc-menu-btn,.cal-seg,.cal-nav,.cal-tip,.cal-note,#cp-toast{display:none !important} .ssc-main,.cp-view{padding:0 !important;margin:0 !important}
             body{background:#fff} .cal-grid{border-radius:0;break-inside:avoid} .cal-row{break-inside:avoid} .cal-bar{box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact} .cal-grip{display:none}
             .cal-print-list{display:block;margin-top:14px} .cal-print-list table{width:100%;border-collapse:collapse;font-size:11.5px} .cal-print-list th,.cal-print-list td{text-align:left;padding:5px 6px;border-bottom:1px solid #ddd;vertical-align:top}
@@ -834,6 +855,7 @@
           <div class="cal-head">
             <div><h2 class="cal-title" id="cal-range">—</h2><div class="cal-sub" id="cal-sub">Jobs, tasks and events by day · click one to open it</div></div>
             <button type="button" class="btn-primary btn-sm" id="cal-new-item">+ Task or event</button>
+            <label class="mine-tg" hidden><input type="checkbox" data-mine-toggle checked> My Google events</label>
             <div class="cal-seg" role="tablist"><button type="button" data-cal-view="3day">3 days</button><button type="button" data-cal-view="week">Week</button><button type="button" data-cal-view="month" class="on">Month</button></div>
             <div class="cal-nav"><button type="button" id="cal-prev" title="Previous">‹</button><button type="button" id="cal-today" class="cal-now">This week</button><button type="button" id="cal-next" title="Next">›</button><button type="button" id="cal-print" title="Print this view as a sheet for the foremen">Print</button></div>
           </div>
@@ -2101,6 +2123,9 @@
         `</div></div><a class="dy-go" href="/projects/${encodeURIComponent(j.project_code)}">Open job →</a></div>`;
     }).join('');
     const itemRows = its.map(it => {
+      if (it.kind === 'mine')
+        return `<div class="dy-row it" data-day-mine="${it.id}" role="button" tabindex="0"><span class="mine-lock" aria-hidden="true">${LOCK}</span><div class="dy-main"><div class="dy-t">${esc(it.title)}</div><div class="dy-m">` +
+          `<span>${it.start_date === iso && it.start_time ? fmtTime(it.start_time) + (it.end_time ? '–' + fmtTime(it.end_time) : '') : 'All day'}</span><span class="mine-tag">Only you</span>${it.location ? `<span>${esc(it.location)}</span>` : ''}</div></div></div>`;
       const t = (it.kind === 'event' || it.kind === 'meeting') ? (it.start_date === iso && it.start_time ? fmtTime(it.start_time) + (it.end_time ? '–' + fmtTime(it.end_time) : '') : 'All day') : (it.due_time ? 'Due ' + fmtTime(it.due_time) : 'Due today');
       return `<div class="dy-row it" data-day-item="${it.id}" role="button" tabindex="0"><span class="${(it.kind === 'event' || it.kind === 'meeting') ? 'tk-ev' : 'tk-check' + (it.status === 'done' ? ' on' : '')}" aria-hidden="true" style="pointer-events:none">${(it.kind === 'event' || it.kind === 'meeting') ? '●' : (it.status === 'done' ? '✓' : '')}</span><div class="dy-main"><div class="dy-t"${it.status === 'done' ? ' style="text-decoration:line-through;color:var(--muted)"' : ''}>${esc(it.title)}</div><div class="dy-m"><span>${esc(t)}</span>` +
         `${it.overdue ? '<span class="cp-pill bad">overdue</span>' : ''}${it.source === 'gcal' ? '<span class="cp-pill">from Google</span>' : ''}${it.project_name ? `<span>${esc(it.project_name)}</span>` : ''}<span class="tk-who${it.mine ? ' me' : ''}">${it.assignee_name ? (it.mine ? 'You' : esc(it.assignee_name)) : 'Unassigned'}</span>` +
@@ -2113,6 +2138,11 @@
       `<div class="dy-sec">Jobs · ${jobs.length}</div>` + (jobRows || '<div class="dy-empty">No job is scheduled on this day.</div>') +
       `<div class="dy-sec">Tasks &amp; events · ${its.length}</div>` + (itemRows || '<div class="dy-empty">Nothing planned. Use the button below to add a task or event on this day.</div>') +
       (ms.length ? `<div class="dy-sec">Due · ${ms.length}</div>` + msRows : '');
+    $('dy-body').querySelectorAll('[data-day-mine]').forEach(el => {
+      const open = () => { const e = (d.mine || []).find(z => String(z.id) === el.dataset.dayMine); closeDay(); openMine(e); };
+      el.addEventListener('click', open);
+      el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); } });
+    });
     $('dy-body').querySelectorAll('[data-day-item]').forEach(el => {
       const open = (ev) => { if (ev.target.closest('[data-tk-dir]')) return; const it = (d.items || []).find(z => String(z.id) === el.dataset.dayItem); closeDay(); openItem(it); };
       el.addEventListener('click', open);
@@ -2129,7 +2159,7 @@
   // a click on a day's empty space (not a job bar, chip, link or "+ more") opens that day
   function dayClicks(host, getData) {
     host.addEventListener('click', (e) => {
-      if (e.target.closest('a, button, [data-item], [data-job], [data-more], [data-ms], .cal-bar, .cc-week-bar, .cal-grip')) return;
+      if (e.target.closest('a, button, [data-item], [data-mine], [data-job], [data-more], [data-ms], .cal-bar, .cc-week-bar, .cal-grip')) return;
       const cell = e.target.closest('[data-day]'); if (cell) openDay(cell.dataset.day, getData());
     });
   }
@@ -2137,8 +2167,55 @@
   dayClicks($('cal-grid'), () => CAL.data);
 
   // calendar chips: a task on its deadline day, an event on each of its days
-  function itemsOn(d, iso) { return (d.items || []).filter(it => it.calendar_from && it.calendar_from <= iso && iso <= (it.calendar_to || it.calendar_from)); }
+  const MINE = { on: true };   // your own Google events on the calendars, only you see them; hidden per device
+  try { MINE.on = localStorage.getItem('cp_mine_cal') !== 'off'; } catch (e) {}
+  const LOCK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>';
+  function mineOn(d, iso) {
+    if (!MINE.on) return [];
+    return (d.mine || []).filter(e => e.start_date <= iso && iso <= (e.end_date || e.start_date))
+      .map(e => Object.assign({}, e, { kind: 'mine', calendar_from: e.start_date, calendar_to: e.end_date || e.start_date }));
+  }
+  function itemsOn(d, iso) { return (d.items || []).filter(it => it.calendar_from && it.calendar_from <= iso && iso <= (it.calendar_to || it.calendar_from)).concat(mineOn(d, iso)); }
+  function mineWhen(e) {
+    const [y, m, dd] = e.start_date.split('-').map(Number), x = new Date(y, m - 1, dd);
+    let s = DOWL[x.getDay()] + ', ' + MONL[m - 1] + ' ' + dd;
+    if (e.end_date && e.end_date !== e.start_date) { const [y2, m2, d2] = e.end_date.split('-').map(Number); s += ' – ' + MONL[m2 - 1] + ' ' + d2; }
+    return s + (e.start_time ? ' · ' + fmtTime(e.start_time) + (e.end_time ? '–' + fmtTime(e.end_time) : '') : ' · All day');
+  }
+  function mineRefresh() {
+    document.querySelectorAll('[data-mine-toggle]').forEach(el => { el.checked = MINE.on; });
+    loadWeekStrip();
+    if (CAL.data && $('cal-grid').innerHTML) renderCalendar(calDays(), CAL.data);
+  }
+  document.querySelectorAll('[data-mine-toggle]').forEach(el => el.addEventListener('change', () => {
+    MINE.on = el.checked; try { localStorage.setItem('cp_mine_cal', MINE.on ? 'on' : 'off'); } catch (e) {} mineRefresh();
+  }));
+  function mineShowToggles(d) { document.querySelectorAll('.mine-tg').forEach(el => { el.hidden = !(d && d.mine_connected); }); }
+  function mineFoot(d) {
+    if (!d || !d.mine_connected) return '';
+    return `<span class="mine-lock">${LOCK}${MINE.on ? (d.mine || []).length + ' of your Google events · only you see them' : 'Your Google events are hidden on this device'}</span>`;
+  }
+  function openMine(e) {
+    if (!e) return;
+    let ov = $('mine-ov');
+    if (!ov) {
+      ov = document.createElement('div'); ov.className = 'mine-ov'; ov.id = 'mine-ov';
+      ov.addEventListener('click', ev => { if (ev.target === ov || ev.target.closest('[data-mine-close]')) ov.classList.remove('open'); });
+      document.addEventListener('keydown', ev => { if (ev.key === 'Escape') ov.classList.remove('open'); });
+      document.body.appendChild(ov);
+    }
+    ov.innerHTML = `<div class="mine-pop" role="dialog" aria-modal="true" aria-label="${esc(e.title)}"><span class="mine-tag">${LOCK}Only you · from your ${esc(e.calendar_name || 'main')} calendar</span>` +
+      `<h3>${esc(e.title)}</h3><p>${esc(mineWhen(e))}${e.location ? ' · ' + esc(e.location) : ''}</p>` +
+      `<div class="mine-acts">${e.html_link ? `<a href="${esc(e.html_link)}" target="_blank" rel="noopener">Open in Google Calendar ↗</a>` : ''}<button type="button" data-mine-close>Close</button></div>` +
+      `<p>To change or delete it, do it in Google; the dashboard follows within a minute.</p></div>`;
+    ov.classList.add('open');
+    setTimeout(() => ov.querySelector('[data-mine-close]').focus(), 30);
+  }
   function itemChip(it, iso) {
+    if (it.kind === 'mine') {
+      const tm = it.start_date === iso && it.start_time ? fmtTime(it.start_time) + ' ' : '';
+      return `<span class="it mine" data-mine="${it.id}" title="${esc('Only you see this · ' + it.title + ' · ' + mineWhen(it))}">${LOCK}${esc(tm)}${esc(it.title)}</span>`;
+    }
     const t = (it.kind === 'event' || it.kind === 'meeting') ? (it.start_date === iso && it.start_time ? fmtTime(it.start_time) + ' ' : '') : (it.due_time ? fmtTime(it.due_time) + ' ' : '');
     const icon = (it.kind === 'event' || it.kind === 'meeting') ? '● ' : (it.status === 'done' ? '✓ ' : '☐ ');
     const tip = ({ event: 'Event', meeting: 'Meeting' }[it.kind] || 'Task') + ' · ' + it.title + ' · ' + itemWhen(it) + (it.assignee_name ? ' · ' + it.assignee_name : '') + (it.address ? ' · ' + it.address : '');
@@ -2146,6 +2223,7 @@
   }
   function wireItemChips(host, d) {
     host.querySelectorAll('[data-item]').forEach(el => el.addEventListener('click', ev => { ev.stopPropagation(); ev.preventDefault(); openItem((d.items || []).find(x => String(x.id) === el.dataset.item)); }));
+    host.querySelectorAll('[data-mine]').forEach(el => el.addEventListener('click', ev => { ev.stopPropagation(); ev.preventDefault(); openMine((d.mine || []).find(x => String(x.id) === el.dataset.mine)); }));
   }
 
   // ---------- CLIENTS ----------
@@ -2368,7 +2446,8 @@
     const n = segs.length ? new Set(segs.map(s => s.j.project_code)).size : 0;
     const foot = [n ? `${n} job(s) this week` : 'No dated jobs this week.'];
     if (d.undated && d.undated.length) foot.push(`${d.undated.length} active job(s) have no start date yet — <a href="/admin/projects">set them under Crew &amp; site</a>`);
-    $('cc-week-foot').innerHTML = foot.map(x => `<span>${x}</span>`).join('');
+    $('cc-week-foot').innerHTML = foot.map(x => `<span>${x}</span>`).join('') + mineFoot(d);
+    mineShowToggles(d);
   }
 
   // ---------- CALENDAR (#332) ----------
@@ -2466,7 +2545,8 @@
     });
     $('cal-grid').querySelectorAll('[data-more]').forEach(el => el.addEventListener('click', () => { CAL.anchor = calParse(el.dataset.more); CAL.view = 'week'; try { localStorage.setItem('cp_cal_view', 'week'); } catch (e) {} loadCalendar(); }));
     const legend = jobs.filter(j => onView.has(j.project_code)).map(j => `<span class="cal-chip" data-job="${esc(j.project_code)}"><i class="c${j.color}"></i>${esc(j.name)}<span class="cp-muted">· ${j.crew_count} crew${j.open_ended ? ' · no end date' : ''}</span></span>`).join('');
-    $('cal-foot').innerHTML = (legend || '<span>No jobs scheduled in this range.</span>') + `<span style="margin-left:auto">● daily report filed</span>`;
+    $('cal-foot').innerHTML = (legend || '<span>No jobs scheduled in this range.</span>') + mineFoot(d) + `<span style="margin-left:auto">● daily report filed</span>`;
+    mineShowToggles(d);
     $('cal-foot').querySelectorAll('[data-job]').forEach(el => el.addEventListener('click', () => { location.hash = '#projects/' + encodeURIComponent(el.dataset.job); }));
     $('cal-note').innerHTML = d.undated.length ? `<div class="cal-note">${d.undated.length} active job(s) have no start date yet, so they are not on the calendar: ${d.undated.map(u => `<b>${esc(u.project_code)}</b>`).join(', ')}. Set the dates under <a class="cp-link" href="/admin/projects">Crew &amp; site</a>.</div>` : '';
     $('cal-sub').textContent = `${onView.size} job(s) in view · click a job to open it · drag a bar to move it, drag its edge to change the end`;
