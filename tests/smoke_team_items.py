@@ -291,7 +291,7 @@ def main() -> int:
                    "wireItemChips($('cal-grid'), d);", "'/team/items/' + it.id + '/done'",
                    'id="dy-overlay"', 'id="dy-add"', "function openDay(iso, d)", "dayClicks($('cc-week-row'), () => DAY.week);",
                    "dayClicks($('cal-grid'), () => CAL.data);", 'data-day="${k}"', "openItem(null, { date: iso })",
-                   "if (e.target.closest('a, button, [data-item], [data-job], [data-more], [data-ms], .cal-bar, .cc-week-bar, .cal-grip')) return;",
+                   "if (e.target.closest('a, button, [data-item], [data-mine], [data-job], [data-more], [data-ms], .cal-bar, .cc-week-bar, .cal-grip')) return;",
                    "past ? (info.headcount || 0) + ' on site' : ''"):
         assert needle in html, needle
     ov = html[html.index("async function loadOverview()"):html.index("// ---------- TASKS & EVENTS")]
