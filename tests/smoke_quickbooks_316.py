@@ -5,10 +5,11 @@ QuickBooks is FAKED in memory here: no network, no real tokens.
 Boots the real app on an ISOLATED database. Proves:
   * switched off unless the Intuit app keys, a redirect URI AND the encryption key are set
     (status says why; connect 404s)
-  * connect: admin only (C-suite 403, PM 403); Intuit is asked for the accounting scope only,
+  * ADMINS ONLY: every QuickBooks route (status, clients, sync, push, send, connect, disconnect)
+    is 403 for C-suite and PM; invoices issued by C-suite still sync in the background
+  * connect: Intuit is asked for the accounting scope only,
     with a CSRF state cookie; a bad state, a refusal or a bad company id store nothing; a good
     connect stores the refresh token ENCRYPTED and reads the company name
-  * status / clients / sync: Finance roles (admin, C-suite) only; a PM 403
   * client matching: same name, same billing email, nothing -> "create"; saving links them,
     creates the new one in QuickBooks, and (when asked) sends the invoices issued before
   * issuing an invoice creates it in QuickBooks (DocNumber, customer, amount, due date, bill
@@ -21,7 +22,7 @@ Boots the real app on an ISOLATED database. Proves:
   * Intuit's rotating refresh token is saved (encrypted) each time; an expired sign-in marks
     the connection needs_reconnect and app writes still succeed
   * the daily read cap stops reads and says so
-  * disconnect: admin only; revokes; client matches are kept
+  * disconnect: revokes; client matches are kept
   * logs carry ids and counts only: no token, client name or email
   * the Finance page carries the card
 Run:  venv/bin/python tests/smoke_quickbooks_316.py
@@ -311,7 +312,7 @@ def main() -> int:
     st = _ok(admin.get("/api/quickbooks/status"))["data"]
     assert st["available"] is True and st["connected"] is False and st["environment"] == "sandbox"
     assert qbo.redirect_uri() == "https://app.example.test/quickbooks/callback"
-    assert _ok(cs.get("/api/quickbooks/status"))["data"]["can_connect"] is False
+    assert cs.get("/api/quickbooks/status").status_code == 403, "C-suite never sees QuickBooks"
     assert pm.get("/api/quickbooks/status").status_code == 403
     assert Q.calls == [], "nothing connected: QuickBooks is never called"
     passed += 1; print("  switch ok")
@@ -342,7 +343,7 @@ def main() -> int:
         assert row["realm_id"] == REALM and row["status"] == "active" and row["environment"] == "sandbox"
         assert row["refresh_token_enc"].startswith("v1:") and REFRESH1 not in row["refresh_token_enc"]
         assert secret_box.decrypt_text(row["refresh_token_enc"]) == REFRESH1
-        st = _ok(cs.get("/api/quickbooks/status"))["data"]
+        st = _ok(admin.get("/api/quickbooks/status"))["data"]
         assert st["connected"] and st["company_name"] == "Superstars Contracting Corp (sandbox)" and st["matched"] is False
         assert st["connected_by"] == "Qbo admin" and st["stats"]["not_sent"] == 2 and st["open_url"].startswith("https://app.sandbox.qbo.intuit.com/")
         assert Q.writes() == [], "connecting alone writes nothing to QuickBooks"
@@ -350,7 +351,7 @@ def main() -> int:
 
         # ---- match clients
         assert pm.get("/api/quickbooks/clients").status_code == 403
-        d = _ok(cs.get("/api/quickbooks/clients"))["data"]
+        d = _ok(admin.get("/api/quickbooks/clients"))["data"]
         by = {c["org_id"]: c for c in d["clients"]}
         assert set(by) >= {ids["a"], ids["b"], ids["c"]} and ids["d"] not in by, "clients we invoice"
         assert by[ids["a"]]["suggestion"] == {"id": "101", "name": SECRET_NAME, "how": "Same name"}
@@ -361,8 +362,8 @@ def main() -> int:
         assert qbo.suggest({"name": "Qbtest Hudson Park Management LLC"}, [], [{"id": "9", "name": "Qbtest Hudson Park Mgmt", "email": None}])["how"] == "Same name"
         assert qbo.suggest({"name": "Riverside Towers Condo Board"}, [], [{"id": "9", "name": "Riverside Towers Condominium", "email": None}])["how"] == "Similar name"
         assert qbo.suggest({"name": "Totally Different"}, [], [{"id": "9", "name": "Kingsbridge Realty", "email": None}]) is None
-        assert cs.post("/api/quickbooks/clients", json={"matches": [{"org_id": ids["a"], "qb_customer_id": "1 or 1=1"}]}).status_code == 400
-        res = _ok(cs.post("/api/quickbooks/clients", json={"send_open": True, "matches": [
+        assert admin.post("/api/quickbooks/clients", json={"matches": [{"org_id": ids["a"], "qb_customer_id": "1 or 1=1"}]}).status_code == 400
+        res = _ok(admin.post("/api/quickbooks/clients", json={"send_open": True, "matches": [
             {"org_id": ids["a"], "qb_customer_id": "101", "qb_name": SECRET_NAME},
             {"org_id": ids["b"], "qb_customer_id": "102", "qb_name": "HP Mgmt Co"},
             {"org_id": ids["c"], "qb_customer_id": None}]}))["data"]
@@ -376,8 +377,16 @@ def main() -> int:
         assert qa[0]["DueDate"] == _inv(inv_a)["due_at"] and qa[0]["TxnDate"] == _inv(inv_a)["issued_at"]
         ia = _inv(inv_a)
         assert ia["qb_invoice_id"] == qa[0]["Id"] and ia["qb_status"] == "created" and ia["qb_realm_id"] == REALM
-        assert _ok(cs.get("/api/quickbooks/status"))["data"]["stats"]["clients_linked"] == 3
-        passed += 1; print("  matching ok")
+        assert _ok(admin.get("/api/quickbooks/status"))["data"]["stats"]["clients_linked"] == 3
+        any_inv = inv_a
+        for method, path in (("get", "/api/quickbooks/status"), ("get", "/api/quickbooks/clients"), ("post", "/api/quickbooks/clients"),
+                             ("post", "/api/quickbooks/sync"), ("post", f"/api/quickbooks/invoices/{any_inv}/push"),
+                             ("post", f"/api/quickbooks/invoices/{any_inv}/send"), ("post", "/api/quickbooks/disconnect"),
+                             ("get", "/quickbooks/connect"), ("get", "/quickbooks/callback?state=x&code=y&realmId=1")):
+            for who in (cs, pm):
+                r = who.get(path) if method == "get" else who.post(path, json={})
+                assert r.status_code == 403, (path, r.status_code)
+        passed += 1; print("  matching ok (C-suite / PM refused everywhere)")
 
         # ---- issue here -> created there, with the bill email
         _ok(cs.post(f"/api/invoices/{inv_b}/issue", json={}))
@@ -406,7 +415,7 @@ def main() -> int:
         Q.cdc.append({"Id": "9001", "TxnDate": date.today().isoformat(), "PaymentRefNum": "ACH-77", "TotalAmt": 21740,
                       "Line": [{"Amount": 21740, "LinkedTxn": [{"TxnId": qc_id, "TxnType": "Invoice"}]}]})
         Q.cdc.append({"domain": "QBO", "status": "Deleted", "Id": "8000"})
-        res = _ok(cs.post("/api/quickbooks/sync", json={}))["data"]
+        res = _ok(admin.post("/api/quickbooks/sync", json={}))["data"]
         assert res["payments"] == 1, res
         ic = _inv(inv_c)
         assert ic["status"] == "paid" and ic["amount_paid"] == 21740 and ic["qb_status"] == "paid"
@@ -418,9 +427,9 @@ def main() -> int:
             conn.close()
         assert back["source"] == "quickbooks" and back["method"] == "quickbooks" and back["reference"] == "QuickBooks payment ACH-77"
         before = len(Q.payments)
-        assert _ok(cs.post("/api/quickbooks/sync", json={}))["data"]["payments"] == 0, "never twice"
+        assert _ok(admin.post("/api/quickbooks/sync", json={}))["data"]["payments"] == 0, "never twice"
         assert len(Q.payments) == before, "a payment that came from QuickBooks is not sent back"
-        assert _ok(cs.get("/api/quickbooks/status"))["data"]["stats"]["payments_back_month"] == 1
+        assert _ok(admin.get("/api/quickbooks/status"))["data"]["stats"]["payments_back_month"] == 1
         passed += 1; print("  payments back ok")
 
         # ---- void here -> void there
@@ -439,13 +448,13 @@ def main() -> int:
         _ok(cs.post(f"/api/invoices/{inv_d}/issue", json={}))   # the app write still succeeds
         idd = _inv(inv_d)
         assert idd["status"] == "issued" and idd["qb_status"] == "error" and "billing address" in idd["qb_error"]
-        st = _ok(cs.get("/api/quickbooks/status"))["data"]
+        st = _ok(admin.get("/api/quickbooks/status"))["data"]
         assert [n["number"] for n in st["needs_you"]] == [idd["number"]] and "billing address" in st["needs_you"][0]["error"]
-        assert cs.post(f"/api/quickbooks/invoices/{inv_d}/push", json={}).status_code == 502
+        assert admin.post(f"/api/quickbooks/invoices/{inv_d}/push", json={}).status_code == 502
         qbo._http = orig
-        _ok(cs.post(f"/api/quickbooks/invoices/{inv_d}/push", json={}))
+        _ok(admin.post(f"/api/quickbooks/invoices/{inv_d}/push", json={}))
         assert _inv(inv_d)["qb_status"] == "created" and not _inv(inv_d)["qb_error"] and len(Q.qb_inv(idd["number"])) == 1
-        assert _ok(cs.get("/api/quickbooks/status"))["data"]["needs_you"] == []
+        assert _ok(admin.get("/api/quickbooks/status"))["data"]["needs_you"] == []
         # a retry after a lost answer finds the invoice by its number instead of making a second one
         conn = _db()
         try:
@@ -453,21 +462,21 @@ def main() -> int:
             conn.commit()
         finally:
             conn.close()
-        _ok(cs.post("/api/quickbooks/sync", json={}))
+        _ok(admin.post("/api/quickbooks/sync", json={}))
         assert len(Q.qb_inv(idd["number"])) == 1 and _inv(inv_d)["qb_invoice_id"]
         assert pm.post(f"/api/quickbooks/invoices/{inv_d}/push", json={}).status_code == 403
         passed += 1; print("  refusal ok")
 
         # ---- Send from QuickBooks
-        r = _ok(cs.post(f"/api/quickbooks/invoices/{inv_d}/send", json={"to_email": "billing@mott.example"}), 201)["data"]
+        r = _ok(admin.post(f"/api/quickbooks/invoices/{inv_d}/send", json={"to_email": "billing@mott.example"}), 201)["data"]
         assert Q.sent[-1] == (_inv(inv_d)["qb_invoice_id"], "billing@mott.example") and r["qb_status"] == "emailed" and r["sent_to"] == "billing@mott.example"
-        assert cs.post(f"/api/quickbooks/invoices/{inv_c}/send", json={"to_email": "x@y.example"}).status_code == 409, "paid: nothing to send"
+        assert admin.post(f"/api/quickbooks/invoices/{inv_c}/send", json={"to_email": "x@y.example"}).status_code == 409, "paid: nothing to send"
         assert "pdf_path" not in r and "token_hash" not in r
         passed += 1; print("  send ok")
 
         # ---- the rotating refresh token, the read cap
         qbo._TOKENS.clear(); Q.rotate = True
-        _ok(cs.post("/api/quickbooks/sync", json={}))
+        _ok(admin.post("/api/quickbooks/sync", json={}))
         assert secret_box.decrypt_text(_conn_row()["refresh_token_enc"]) == REFRESH2, "the newest refresh token is kept"
         os.environ["QBO_DAILY_READ_CAP"] = "100"
         conn = _db()
@@ -477,9 +486,9 @@ def main() -> int:
         finally:
             conn.close()
         reads = len([c for c in Q.calls if c[0] == "GET"])
-        res = _ok(cs.post("/api/quickbooks/sync", json={}))["data"]
+        res = _ok(admin.post("/api/quickbooks/sync", json={}))["data"]
         assert res.get("capped") and "limit" in res["problem"] and len([c for c in Q.calls if c[0] == "GET"]) == reads
-        assert cs.get("/api/quickbooks/clients").status_code == 429
+        assert admin.get("/api/quickbooks/clients").status_code == 429
         os.environ.pop("QBO_DAILY_READ_CAP")
         passed += 1; print("  tokens + cap ok")
 
@@ -487,21 +496,21 @@ def main() -> int:
         qbo._TOKENS.clear(); Q.refresh_ok = False
         inv_e = new_inv(ids["a"], 700)   # the app write never fails
         assert _conn_row()["status"] == "needs_reconnect" and _inv(inv_e)["qb_status"] == "pending"
-        st = _ok(cs.get("/api/quickbooks/status"))["data"]
+        st = _ok(admin.get("/api/quickbooks/status"))["data"]
         assert st["connected"] is False and st["status"] == "needs_reconnect" and "reconnect" in st["problem"]
-        assert cs.post("/api/quickbooks/sync", json={}).status_code == 409
+        assert admin.post("/api/quickbooks/sync", json={}).status_code == 409
         Q.refresh_ok = True
         loc, _ = _connect(admin)
         assert loc.endswith("qb=connected#finance") and _conn_row()["status"] == "active" and _conn_row()["matched_at"], "matches kept"
-        _ok(cs.post("/api/quickbooks/sync", json={}))
+        _ok(admin.post("/api/quickbooks/sync", json={}))
         assert _inv(inv_e)["qb_invoice_id"], "reconnecting catches up"
         passed += 1; print("  reconnect ok")
 
         # ---- disconnect
-        assert cs.post("/api/quickbooks/disconnect", json={}).status_code == 403
+        assert cs.post("/api/quickbooks/disconnect", json={}).status_code == 403 and pm.post("/api/quickbooks/disconnect", json={}).status_code == 403
         _ok(admin.post("/api/quickbooks/disconnect", json={}))
         assert _conn_row() is None and Q.revoked and Q.revoked[-1] == REFRESH1
-        st = _ok(cs.get("/api/quickbooks/status"))["data"]
+        st = _ok(admin.get("/api/quickbooks/status"))["data"]
         assert st["connected"] is False and not st.get("status")
         conn = _db()
         try:

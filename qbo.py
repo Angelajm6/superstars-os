@@ -1,7 +1,9 @@
 """#316 — QuickBooks Online, phase 1: invoices go out, payments come back.
 
-ONE company-level connection. An admin connects the company's QuickBooks once (Intuit
-OAuth 2.0); everyone with Finance (admin / C-suite) then sees the result:
+ONE company-level connection, visible and usable by ADMINS ONLY (every route below is
+admin-gated; C-suite and everyone else get 403 and never see it). An admin connects the
+company's QuickBooks once (Intuit OAuth 2.0). Invoices issued by anyone still sync in the
+background so the books stay complete:
 
   * clients here are linked to QuickBooks customers (matched by name or billing email, or
     created there);
@@ -17,12 +19,12 @@ straight into QuickBooks are not copied in.
 
   GET  /quickbooks/connect                    admin -> Intuit consent
   GET  /quickbooks/callback                   Intuit sends the admin back here
-  GET  /api/quickbooks/status                 Finance: connected? stats, invoices that need you
-  GET  /api/quickbooks/clients                Finance: clients here + QuickBooks customers + suggestions
-  POST /api/quickbooks/clients                Finance: save the matches (+ send the open invoices)
-  POST /api/quickbooks/sync                   Finance: check now (payments back, retries)
-  POST /api/quickbooks/invoices/<id>/push     Finance: send one issued invoice to QuickBooks
-  POST /api/quickbooks/invoices/<id>/send     Finance: email it from QuickBooks
+  GET  /api/quickbooks/status                 admin: connected? stats, invoices that need you
+  GET  /api/quickbooks/clients                admin: clients here + QuickBooks customers + suggestions
+  POST /api/quickbooks/clients                admin: save the matches (+ send the open invoices)
+  POST /api/quickbooks/sync                   admin: check now (payments back, retries)
+  POST /api/quickbooks/invoices/<id>/push     admin: send one issued invoice to QuickBooks
+  POST /api/quickbooks/invoices/<id>/send     admin: email it from QuickBooks
   POST /api/quickbooks/disconnect             admin: revoke and forget the connection
 
 Rules
@@ -57,11 +59,11 @@ from flask import jsonify, redirect, request
 
 import db_layer
 import secret_box
-from auth import current_user, requires_role, requires_section
+from auth import current_user, requires_role
 
 log = logging.getLogger("ssc.qbo")
 
-SECTION = "company_portal"
+ROLES = ("admin",)   # QuickBooks is visible and usable by admins only (Angela, 2026-10-19)
 AUTH_URL = "https://appcenter.intuit.com/connect/oauth2"
 TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
 REVOKE_URL = "https://developer.api.intuit.com/v2/oauth2/tokens/revoke"
@@ -767,7 +769,7 @@ def start() -> None:
 def status(conn, user: Optional[dict] = None) -> dict:
     reason = unavailable_reason()
     out = {"available": not reason, "reason": reason, "environment": environment(), "connected": False,
-           "can_connect": bool(user and user.get("role") == "admin")}
+           "can_connect": bool(user and user.get("role") in ROLES)}
     link = connection(conn)
     if not link:
         return out
@@ -814,7 +816,7 @@ def _back(outcome: str):
     return resp
 
 
-@requires_role("admin")
+@requires_role(*ROLES)
 def _connect():
     if unavailable_reason():
         return ("Not Found", 404)
@@ -827,7 +829,7 @@ def _connect():
     return resp
 
 
-@requires_role("admin")
+@requires_role(*ROLES)
 def _callback():
     if unavailable_reason():
         return ("Not Found", 404)
@@ -1052,7 +1054,7 @@ def _api_send(invoice_id):
         conn.close()
 
 
-@requires_role("admin")
+@requires_role(*ROLES)
 def _disconnect():
     conn = db_layer.connect()
     try:
@@ -1086,7 +1088,7 @@ def register(app) -> None:
             pass
     finally:
         conn.close()
-    gate = requires_section(SECTION)
+    gate = requires_role(*ROLES)   # every QuickBooks route: admins only
     app.add_url_rule("/quickbooks/connect", "qbo_connect", _connect, methods=["GET"])
     app.add_url_rule("/quickbooks/callback", "qbo_callback", _callback, methods=["GET"])
     app.add_url_rule("/api/quickbooks/status", "qbo_status", gate(_api_status), methods=["GET"])
