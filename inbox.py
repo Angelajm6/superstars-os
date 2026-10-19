@@ -1197,9 +1197,17 @@ def _api_status():
             "problem": st.get("last_error") or (link or {}).get("last_error"), "needs_action": n,
             "sender": _sender_view(conn, me["id"]) if link else None,
             "calendar": {"connected": bool(cal.get("connected")), "status": cal.get("status"), "reads": bool(cal.get("reads_calendar"))},
-            "quickbooks": {"connected": False}}})
+            "quickbooks": {"connected": _qb_connected(conn)}}})
     finally:
         conn.close()
+
+
+def _qb_connected(conn) -> bool:
+    try:
+        import qbo
+        return qbo.is_connected(conn)
+    except Exception:
+        return False
 
 
 def _sender_view(conn, uid: int) -> dict:

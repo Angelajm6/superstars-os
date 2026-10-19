@@ -433,11 +433,14 @@ def issue(conn, invoice_id: int, *, issued_on=None, due_on=None, actor=None) -> 
     conn.commit()
     r = get(conn, invoice_id)
     _activity(conn, r["client_org_id"], f"Invoice {r['number']} issued — {_money(r['amount'])}, due {due}", actor=actor)
+    _quickbooks("issued", invoice_id)
     return r
 
 
 def record_payment(conn, invoice_id: int, *, amount, paid_on=None, method=None, reference=None, notes=None,
-                   actor=None) -> dict:
+                   actor=None, qb_payment_id=None) -> dict:
+    """qb_payment_id: the payment came FROM QuickBooks (#316) — stored with source 'quickbooks'
+    and not sent back; any other payment is mirrored to QuickBooks when it is connected."""
     r = get(conn, invoice_id)
     if not r:
         raise LookupError("invoice not found")
@@ -460,6 +463,9 @@ def record_payment(conn, invoice_id: int, *, amount, paid_on=None, method=None, 
                  "created_at) VALUES (?,?,?,?,?,?,?,?)",
                  (invoice_id, amt, paid, method, (reference or "").strip()[:200] or None,
                   (notes or "").strip()[:2000] or None, actor, now))
+    if qb_payment_id:
+        conn.execute("UPDATE invoice_payment SET qb_payment_id = ?, source = 'quickbooks' WHERE id = "
+                     "(SELECT MAX(id) FROM invoice_payment WHERE invoice_id = ?)", (str(qb_payment_id), invoice_id))
     total = _num(_one(conn.execute("SELECT COALESCE(SUM(amount),0) AS v FROM invoice_payment WHERE invoice_id = ?",
                                    (invoice_id,)))["v"])
     fully = total >= _num(r["amount"]) - 0.005
@@ -472,6 +478,8 @@ def record_payment(conn, invoice_id: int, *, amount, paid_on=None, method=None, 
               actor=actor)
     if fully and r["kind"] == "deposit":
         _mark_ira_deposit(conn, r, paid)
+    if not qb_payment_id:
+        _quickbooks("paid_here", invoice_id)
     return r
 
 
@@ -507,7 +515,17 @@ def void(conn, invoice_id: int, *, reason=None, actor=None) -> dict:
     conn.commit()
     r = get(conn, invoice_id)
     _activity(conn, r["client_org_id"], f"Invoice {r['number']} voided" + (f": {reason}" if reason else ""), actor=actor)
+    _quickbooks("voided", invoice_id)
     return r
+
+
+def _quickbooks(event: str, invoice_id: int) -> None:
+    """#316 — mirror the change in QuickBooks when it is connected. Never blocks the app write."""
+    try:
+        import qbo
+        qbo.after(event, invoice_id)
+    except Exception as e:
+        log.warning("#316 quickbooks %s for invoice %s skipped: %s", event, invoice_id, type(e).__name__)
 
 
 def delete_draft(conn, invoice_id: int) -> None:

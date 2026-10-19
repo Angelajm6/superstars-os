@@ -84,3 +84,11 @@ services:
         sync: false               # M4: https://<service>.onrender.com/auth/google/callback ; M5: https://app.superstarscontracting.com/auth/google/callback
       - key: APP_BASE_URL
         sync: false               # M4: https://<service>.onrender.com ; M5: https://app.superstarscontracting.com
+      # #316 QuickBooks Online (qbo.py) — off until both keys are set. Intuit app redirect URI:
+      # APP_BASE_URL + /quickbooks/callback. QBO_ENVIRONMENT = sandbox (default) | production.
+      - key: QBO_CLIENT_ID
+        sync: false
+      - key: QBO_CLIENT_SECRET
+        sync: false
+      - key: QBO_ENVIRONMENT
+        sync: false
