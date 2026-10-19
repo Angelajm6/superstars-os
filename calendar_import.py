@@ -1,4 +1,4 @@
-"""Google Calendar -> the software: each person's MAIN calendar, private to that person
+"""Google Calendar -> the software: each person's calendars, private to that person
 (revamped 2026-10-16, replacing the 2026-10-15 "work events onto the team calendar" import).
 
 The other direction already exists (gcal_sync: the app's tasks / events / meetings go to a separate
@@ -14,6 +14,12 @@ and keeps a private copy in `user_calendar_event`:
     declined deletes it
   * times are stored in New York time (SSC_TIMEZONE). When Google says the event was set in another
     zone, that zone and its local start time are kept too, so the Inbox can show both
+  * other calendars (2026-10-19): with calendar.calendarlist.readonly, the calendars the person has
+    ticked in Google's list (calendarList selected=true) are read the same way, each with its own
+    "changed since" mark. Their rows are keyed "<calendarId>:<eventId>" so ids never collide; an
+    event there that the person is invited to is skipped (it already comes from the main calendar),
+    and the app's own "Superstars" calendar is never read back. Unticking a calendar removes its
+    copies. Connections from before this scope keep the main calendar only until they reconnect
   * an expired / revoked Google sign-in marks the connection 'needs_reconnect' (the Inbox shows a
     Reconnect banner); reconnecting reads the whole window again. Disconnecting deletes the copies
 
@@ -43,7 +49,10 @@ import db_layer
 log = logging.getLogger("ssc.calendar_import")
 
 READ_SCOPE = "https://www.googleapis.com/auth/calendar.events.readonly"
-EVENTS_URL = "https://www.googleapis.com/calendar/v3/calendars/primary/events"
+LIST_SCOPE = "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
+API = "https://www.googleapis.com/calendar/v3"
+EVENTS_URL = API + "/calendars/primary/events"
+LIST_URL = API + "/users/me/calendarList"
 IMPORT_DAYS = 120
 LOOKBACK_DAYS = 60   # past events show too (2026-10-18: reading from yesterday on left the month's earlier days empty)
 SKIP_TYPES = {"birthday", "outOfOffice", "focusTime", "workingLocation"}
@@ -84,6 +93,12 @@ def ensure(conn) -> None:
         f"CREATE TABLE IF NOT EXISTS user_calendar_event ({pk}, user_id INTEGER NOT NULL, google_event_id TEXT NOT NULL, "
         f"title TEXT, location TEXT, detail TEXT, start_date TEXT NOT NULL, start_time TEXT, end_date TEXT, end_time TEXT, "
         f"source_tz TEXT, source_start_time TEXT, html_link TEXT, google_updated TEXT, updated_at TEXT NOT NULL)")
+    if not _has_column(conn, "user_calendar_event", "calendar_id"):   # NULL = the main calendar
+        conn.execute("ALTER TABLE user_calendar_event ADD COLUMN calendar_id TEXT")
+    # the other calendars each person reads, with their own "changed since" mark
+    conn.execute(f"CREATE TABLE IF NOT EXISTS user_calendar_source ({pk}, user_id INTEGER NOT NULL, calendar_id TEXT NOT NULL, "
+                 f"import_at TEXT)")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_cal_source ON user_calendar_source(user_id, calendar_id)")
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_cal_event ON user_calendar_event(user_id, google_event_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_user_cal_event_day ON user_calendar_event(user_id, start_date)")
     # the old import's bookkeeping (still read once by move_team_copies)
@@ -108,6 +123,10 @@ def _rows(conn, sql, params=()) -> list:
 
 def can_read(link: Optional[dict]) -> bool:
     return bool(link) and READ_SCOPE in (link.get("scopes") or "")
+
+
+def can_list(link: Optional[dict]) -> bool:
+    return bool(link) and LIST_SCOPE in (link.get("scopes") or "")
 
 
 # ------------------------------------------------------------------ an event's when, in New York time
@@ -153,19 +172,19 @@ def _clean(text, limit) -> Optional[str]:
     return s[:limit] or None
 
 
-def _store(conn, uid: int, ev: dict, w: dict) -> str:
+def _store(conn, uid: int, gid: str, ev: dict, w: dict, cal: Optional[str]) -> str:
     row = {"title": _clean(ev.get("summary"), MAX_TITLE) or "(No title)", "location": _clean(ev.get("location"), MAX_PLACE),
            "detail": _clean(ev.get("description"), MAX_DETAIL), "html_link": (ev.get("htmlLink") or "")[:500] or None,
-           "google_updated": ev.get("updated"), **w}
+           "google_updated": ev.get("updated"), "calendar_id": cal, **w}
     cols = list(row)
-    have = _one(conn, "SELECT id FROM user_calendar_event WHERE user_id = ? AND google_event_id = ?", (uid, ev["id"]))
+    have = _one(conn, "SELECT id FROM user_calendar_event WHERE user_id = ? AND google_event_id = ?", (uid, gid))
     if have:
         conn.execute(f"UPDATE user_calendar_event SET {', '.join(c + ' = ?' for c in cols)}, updated_at = ? WHERE id = ?",
                      (*[row[c] for c in cols], _now(), have["id"]))
         result = "updated"
     else:
         conn.execute(f"INSERT INTO user_calendar_event (user_id, google_event_id, {', '.join(cols)}, updated_at) "
-                     f"VALUES (?, ?, {', '.join('?' * len(cols))}, ?)", (uid, ev["id"], *[row[c] for c in cols], _now()))
+                     f"VALUES (?, ?, {', '.join('?' * len(cols))}, ?)", (uid, gid, *[row[c] for c in cols], _now()))
         result = "created"
     conn.commit()
     return result
@@ -177,14 +196,19 @@ def _drop(conn, uid: int, gid: str) -> bool:
     return bool(n)
 
 
-def apply_event(conn, uid: int, ev: dict) -> str:
-    """One Google event -> created / updated / unchanged / deleted / skipped, in THIS user's private copy."""
-    gid = ev.get("id")
-    if not gid:
+def apply_event(conn, uid: int, ev: dict, cal: Optional[str] = None, my_email: str = "") -> str:
+    """One Google event -> created / updated / unchanged / deleted / skipped, in THIS user's private copy.
+    `cal` is None for the main calendar, else the other calendar's id (the row is keyed "<cal>:<event id>")."""
+    if not ev.get("id"):
         return "skipped"
+    gid = f"{cal}:{ev['id']}" if cal else ev["id"]
     me = next((a for a in ev.get("attendees") or [] if a.get("self")), None)
     if ev.get("status") == "cancelled" or (me and me.get("responseStatus") == "declined"):
         return "deleted" if _drop(conn, uid, gid) else "skipped"
+    mail = (my_email or "").strip().lower()
+    if cal and mail and any((a.get("email") or "").strip().lower() == mail for a in ev.get("attendees") or []):
+        _drop(conn, uid, gid)   # the person is invited: it already comes in from their main calendar
+        return "skipped"
     if ((ev.get("extendedProperties") or {}).get("shared") or {}).get("ssc_item"):
         _drop(conn, uid, gid)   # a Superstars meeting invitation: the meeting already shows in the app (meeting_invites)
         return "skipped"
@@ -198,7 +222,7 @@ def apply_event(conn, uid: int, ev: dict) -> str:
     seen = _one(conn, "SELECT google_updated FROM user_calendar_event WHERE user_id = ? AND google_event_id = ?", (uid, gid))
     if seen and ev.get("updated") and seen.get("google_updated") == ev.get("updated"):
         return "unchanged"
-    return _store(conn, uid, ev, w)
+    return _store(conn, uid, gid, ev, w, cal)
 
 
 def events_for(conn, uid: int, date_from: str, date_to: str) -> list:
@@ -216,6 +240,7 @@ def events_for(conn, uid: int, date_from: str, date_to: str) -> list:
 def forget_user(conn, uid: int) -> None:
     """Disconnecting Google Calendar removes the private copies."""
     conn.execute("DELETE FROM user_calendar_event WHERE user_id = ?", (uid,))
+    conn.execute("DELETE FROM user_calendar_source WHERE user_id = ?", (uid,))
     try:
         conn.execute("DELETE FROM gcal_import WHERE user_id = ?", (uid,))
     except Exception:
@@ -257,10 +282,10 @@ def move_team_copies(conn) -> int:
 
 
 # ------------------------------------------------------------------ pulling from Google
-def _get(conn, link, params) -> tuple:
-    """GET one page of events. A 401 (access token revoked early) refreshes the token once."""
+def _get(conn, link, url, params) -> tuple:
+    """GET one page from Google. A 401 (access token revoked early) refreshes the token once."""
     import gcal_sync
-    url = EVENTS_URL + "?" + urllib.parse.urlencode(params)
+    url = url + "?" + urllib.parse.urlencode(params)
     code, body = gcal_sync._http("GET", url, token=gcal_sync._access_token(conn, link))
     if code == 401:
         gcal_sync._TOKENS.pop(link["user_id"], None)
@@ -270,37 +295,88 @@ def _get(conn, link, params) -> tuple:
     return code, body
 
 
+def _other_calendars(conn, link) -> list:
+    """Ids of the calendars the person ticked in Google, minus the main one and the app's own Superstars calendar."""
+    ids, page = [], None
+    while True:
+        code, body = _get(conn, link, LIST_URL, dict({"maxResults": "250"}, **({"pageToken": page} if page else {})))
+        if code != 200:
+            raise RuntimeError(f"calendar list failed ({code})")
+        for c in body.get("items") or []:
+            cid = c.get("id")
+            if cid and c.get("selected") and not c.get("primary") and not c.get("deleted") and cid != link.get("calendar_id"):
+                ids.append(cid)
+        page = body.get("nextPageToken")
+        if not page:
+            return ids
+
+
+def _pull(conn, link, url, since: Optional[str], started, counts, cal=None) -> int:
+    """Read one calendar's events (the window, or what changed since `since`) into the private copy.
+    Returns Google's status: 200, or the code that stopped it (410 = start this calendar over)."""
+    base = {"singleEvents": "true", "showDeleted": "true", "maxResults": "250",
+            "timeMin": (started - timedelta(days=LOOKBACK_DAYS)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()}
+    if since:
+        base["updatedMin"] = (datetime.fromisoformat(since).replace(tzinfo=tz()) - timedelta(minutes=5)).isoformat()
+    else:
+        base["timeMax"] = (started + timedelta(days=IMPORT_DAYS)).isoformat()
+    page = None
+    while True:
+        code, body = _get(conn, link, url, dict(base, **({"pageToken": page} if page else {})))
+        if code != 200:
+            return code
+        for ev in body.get("items") or []:
+            r = apply_event(conn, link["user_id"], ev, cal, link.get("google_email") or "")
+            counts[r] = counts.get(r, 0) + 1
+        page = body.get("nextPageToken")
+        if not page:
+            return 200
+
+
+def _import_others(conn, link, started, counts) -> None:
+    """The person's other ticked calendars. Without the list permission (connected before it existed) none are
+    read, and copies from calendars no longer ticked are removed."""
+    uid = link["user_id"]
+    want = _other_calendars(conn, link) if can_list(link) else []
+    marks = {r["calendar_id"]: r["import_at"] for r in _rows(conn, "SELECT calendar_id, import_at FROM user_calendar_source WHERE user_id = ?", (uid,))}
+    for cid in set(marks) | {r["calendar_id"] for r in _rows(conn, "SELECT DISTINCT calendar_id FROM user_calendar_event "
+                                                                    "WHERE user_id = ? AND calendar_id IS NOT NULL", (uid,))}:
+        if cid not in want:
+            n = conn.execute("DELETE FROM user_calendar_event WHERE user_id = ? AND calendar_id = ?", (uid, cid)).rowcount
+            conn.execute("DELETE FROM user_calendar_source WHERE user_id = ? AND calendar_id = ?", (uid, cid))
+            counts["deleted"] = counts.get("deleted", 0) + max(n or 0, 0)
+    conn.commit()
+    for cid in want:
+        since = marks.get(cid) if link.get("import_at") else None   # a full re-read of the main calendar re-reads these too
+        code = _pull(conn, link, f"{API}/calendars/{urllib.parse.quote(cid, safe='')}/events", since, started, counts, cal=cid)
+        if code in (403, 404):   # unshared or gone since the list was read: try again next round
+            continue
+        if code not in (200, 410):
+            raise RuntimeError(f"events failed ({code})")
+        mark = started.replace(tzinfo=None).isoformat(timespec="seconds") if code == 200 else None
+        if cid in marks:
+            conn.execute("UPDATE user_calendar_source SET import_at = ? WHERE user_id = ? AND calendar_id = ?", (mark, uid, cid))
+        else:
+            conn.execute("INSERT INTO user_calendar_source (user_id, calendar_id, import_at) VALUES (?, ?, ?)", (uid, cid, mark))
+        conn.commit()
+
+
 def import_user(conn, uid) -> dict:
     import gcal_sync
     link = gcal_sync._link(conn, uid)
     if not link or link.get("status") != "active" or not can_read(link):
         return {"skipped": True}
     started = datetime.now(tz=tz())
-    base = {"singleEvents": "true", "showDeleted": "true", "maxResults": "250",
-            "timeMin": (started - timedelta(days=LOOKBACK_DAYS)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()}
-    if link.get("import_at"):
-        since = datetime.fromisoformat(link["import_at"]).replace(tzinfo=tz()) - timedelta(minutes=5)
-        base["updatedMin"] = since.isoformat()
-    else:
-        base["timeMax"] = (started + timedelta(days=IMPORT_DAYS)).isoformat()
     counts = {}
     try:
-        page = None
-        while True:
-            params = dict(base, **({"pageToken": page} if page else {}))
-            code, body = _get(conn, link, params)
-            if code == 410:   # Google forgot what changed: read the window again
-                conn.execute("UPDATE google_calendar_link SET import_at = NULL WHERE user_id = ?", (uid,))
-                conn.commit()
-                return {"reset": True}
-            if code != 200:
-                raise RuntimeError(f"events failed ({code})")
-            for ev in body.get("items") or []:
-                r = apply_event(conn, uid, ev)
-                counts[r] = counts.get(r, 0) + 1
-            page = body.get("nextPageToken")
-            if not page:
-                break
+        code = _pull(conn, link, EVENTS_URL, link.get("import_at"), started, counts)
+        if code == 410:   # Google forgot what changed: read the window again (every calendar)
+            conn.execute("UPDATE google_calendar_link SET import_at = NULL WHERE user_id = ?", (uid,))
+            conn.commit()
+            return {"reset": True}
+        if code != 200:
+            raise RuntimeError(f"events failed ({code})")
+        _import_others(conn, link, started, counts)
         conn.execute("UPDATE google_calendar_link SET import_at = ?, import_error = NULL WHERE user_id = ?",
                      (started.replace(tzinfo=None).isoformat(timespec="seconds"), uid))
         conn.commit()

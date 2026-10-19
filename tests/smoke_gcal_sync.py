@@ -261,9 +261,11 @@ def main() -> int:
     assert r.status_code == 403 or (r.status_code == 302 and "accounts.google.com" not in r.headers["Location"]), r.status_code
     loc, q = _connect(pm, f"{TAG}.pm@{DOMAIN}", state_ok=False)
     assert loc.endswith("/projects?gcal=state") and _link(ids["pm"]) is None
-    # 2026-10-15: plus read access to the main calendar, so work events come in (calendar_import.py)
+    # 2026-10-15: plus read access to the main calendar, so work events come in (calendar_import.py);
+    # 2026-10-19: plus the calendar list, so the other calendars they tick in Google come in too
     assert q["scope"] == ("openid email https://www.googleapis.com/auth/calendar.app.created "
-                          "https://www.googleapis.com/auth/calendar.events.readonly"), q["scope"]
+                          "https://www.googleapis.com/auth/calendar.events.readonly "
+                          "https://www.googleapis.com/auth/calendar.calendarlist.readonly"), q["scope"]
     assert q["access_type"] == "offline" and q["login_hint"] == f"{TAG}.pm@{DOMAIN}" and q["redirect_uri"] == gcal_sync.redirect_uri()
     loc, _ = _connect(pm, f"someone.else@{DOMAIN}")
     assert loc.endswith("gcal=account") and _link(ids["pm"]) is None, "another person's Google account"

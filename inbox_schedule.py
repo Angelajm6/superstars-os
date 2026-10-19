@@ -55,6 +55,7 @@ def _calendar_status(conn, uid) -> dict:
     import gcal_sync
     st = gcal_sync.status_for(conn, uid)
     return {"available": st["available"], "connected": st["connected"], "reads": st["reads_calendar"],
+            "other_calendars": st["lists_calendars"],
             "needs_reconnect": st["status"] == "needs_reconnect", "synced_at": st.get("import_at"),
             "problem": st.get("problem")}
 

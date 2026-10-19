@@ -56,7 +56,8 @@ log = logging.getLogger("ssc.gcal")
 
 TEAM_ROLES = ("admin", "c_suite", "pm", "super")
 SCOPES = ("openid email https://www.googleapis.com/auth/calendar.app.created "
-          "https://www.googleapis.com/auth/calendar.events.readonly")   # read: their own calendar, private to them (calendar_import.py)
+          "https://www.googleapis.com/auth/calendar.events.readonly "   # read: their own calendar, private to them (calendar_import.py)
+          "https://www.googleapis.com/auth/calendar.calendarlist.readonly")   # which other calendars they show in Google (2026-10-19)
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 REVOKE_URL = "https://oauth2.googleapis.com/revoke"
@@ -533,6 +534,7 @@ def status_for(conn, uid) -> dict:
     link = _link(conn, uid) if not reason else None
     return {"available": not reason, "reason": reason, "connected": bool(link),
             "reads_calendar": bool(link) and "calendar.events.readonly" in (link.get("scopes") or ""),
+            "lists_calendars": bool(link) and "calendar.calendarlist.readonly" in (link.get("scopes") or ""),
             "import_at": link.get("import_at") if link else None,
             "status": link["status"] if link else None, "google_email": link["google_email"] if link else None,
             "last_sync_at": link["last_sync_at"] if link else None, "synced_count": link["synced_count"] if link else 0,
