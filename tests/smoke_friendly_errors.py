@@ -120,6 +120,16 @@ def main() -> int:
     cons = (ROOT / "company-dashboard.html").read_text(encoding="utf-8")
     assert re.search(r'class="lang-toggle"[^>]*\bhidden\b', cons), "the console header no longer shows the EN/ES toggle"
 
+    # batch 5 (step 1): the tab list names match the sidebar, sign-in says Company, Add a tab leaves the phone bar
+    import project_modules as _pm
+    labels = {m["label"] for m in _pm.MODULES}
+    assert {"Crew", "Drawings", "Questions (RFIs)", "Printable Signs & Forms"} <= labels, labels
+    assert not ({"Crew & certifications", "Drawing markup", "Templates"} & labels), "old tab names are gone"
+    for fname in ("login.html", "forgot_password.html", "reset_password.html", "set_password.html", "confirm_email.html"):
+        assert "office console" not in (ROOT / fname).read_text(encoding="utf-8").lower(), fname
+    css = (ROOT / "static" / "css" / "unify.css").read_text(encoding="utf-8")
+    assert "body .sidebar.nav-open .nav-add:not([hidden])" in css, "Add a tab shows only inside the open phone menu"
+
     print("PASS smoke_friendly_errors")
     return 0
 

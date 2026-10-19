@@ -76,7 +76,7 @@ EMAIL_SUBJECT = "Reset your Superstars Contracting password"
 EMAIL_FROM_NAME = "Superstars Contracting"
 EMAIL_PREHEADER = "Your one-time link to choose a new password. It expires in 30 minutes."
 EMAIL_TEXT = (
-    "SUPERSTARS CONTRACTING — Office Console\n"
+    "SUPERSTARS CONTRACTING — Company\n"
     "\n"
     "Reset your password\n"
     "\n"
@@ -91,7 +91,7 @@ EMAIL_TEXT = (
     "change unless you open the link and choose a new one.\n"
     "\n"
     "— Superstars Contracting Inc.\n"
-    "This is an automated message from the office console; replies aren't monitored.\n"
+    "This is an automated message from the Superstars Contracting app; replies aren't monitored.\n"
 )
 
 # Brand tokens mirrored from login.html. Table layout + inline styles because
@@ -118,7 +118,7 @@ _HTML = """\
         <tr>
           <td style="padding:28px 36px 0 36px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
             <div style="font-size:15px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:#14161C;">Superstars Contracting</div>
-            <div style="font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:#76777E;margin-top:3px;">Office Console</div>
+            <div style="font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:#76777E;margin-top:3px;">Company</div>
           </td>
         </tr>
         <tr>
@@ -163,7 +163,7 @@ _HTML = """\
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
         <tr>
           <td style="padding:18px 12px 0 12px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;line-height:1.6;color:#9A9BA1;text-align:center;">
-            Superstars Contracting Inc. &middot; Office Console<br>
+            Superstars Contracting Inc. &middot; Company<br>
             This is an automated message; replies aren&rsquo;t monitored.
           </td>
         </tr>
