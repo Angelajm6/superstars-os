@@ -36,6 +36,7 @@ off without ANTHROPIC_API_KEY. Test seam SSC_ASSISTANT_FAKE (JSON script; inert 
   POST /api/claude/actions/<id>/approve      {values} -> runs the change
   POST /api/claude/actions/<id>/decline
   POST /api/claude/actions/<id>/undo         creates only (cancels the new task / event)
+  POST /api/claude/actions/<id>/reopen       undo a decline while the card's 48 hours last
   GET  /api/claude/actions?scope=mine|all    the Approvals log (all: admin / c_suite)
 """
 from __future__ import annotations
@@ -63,7 +64,7 @@ SURFACES = ("office", "field")
 MAX_STEPS = 8                 # model calls per turn
 MAX_TEXT = 4000
 MAX_RESULT_CHARS = 24000
-CARD_TTL = timedelta(hours=48)
+CARD_TTL = timedelta(hours=48)   # a card nobody answers in this window is deleted (purge_expired)
 BUSY_STALE = timedelta(minutes=10)
 RUN_INLINE = False            # tests run turns synchronously
 
@@ -1522,12 +1523,26 @@ def _tool_result(ctx, chat_id, message_id, block) -> dict:
             "content": f"Shown to the person as approval card A-{aid}. NOT done yet: it happens only if they approve it."}
 
 
+def purge_expired(conn) -> int:
+    """Delete cards nobody answered within CARD_TTL: they leave no trace (Angela 2026-10-19).
+    Approved / declined / undone / failed cards stay in the approvals log."""
+    cutoff = (datetime.now() - CARD_TTL).isoformat(timespec="seconds")
+    cur = conn.execute("DELETE FROM claude_action WHERE status = 'pending' AND created_at < ?", (cutoff,))
+    n = max(getattr(cur, "rowcount", 0) or 0, 0)
+    conn.commit()
+    if n:
+        log.info("claude purged %s unanswered card(s)", n)
+    return n or 0
+
+
 # ------------------------------------------------------------------ shapes
-def _action_public(conn, a: dict) -> dict:
+def _action_public(conn, a: dict, me_id=None) -> dict:
     tool = BY_NAME.get(a["tool"])
     inp = json.loads(a["input"] or "{}")
     status = a["status"]
-    if status == "pending" and datetime.fromisoformat(a["created_at"]) < datetime.now() - CARD_TTL:
+    until = datetime.fromisoformat(a["created_at"]) + CARD_TTL
+    live = until > datetime.now()
+    if status == "pending" and not live:
         status = "expired"
     card = None
     if tool and tool.card:
@@ -1539,16 +1554,20 @@ def _action_public(conn, a: dict) -> dict:
     return {"id": a["id"], "tool": a["tool"], "label": tool.label if tool else a["tool"], "status": status,
             "card": card, "result": res, "error": a.get("error"), "created_at": a["created_at"],
             "decided_at": a.get("decided_at"), "decided_by": a.get("decided_by_name"),
+            "expires_at": until.isoformat(timespec="seconds") if status in ("pending", "declined") and live else None,
+            "mine": me_id is not None and a["user_id"] == me_id,
+            "can_reopen": bool(status == "declined" and live and me_id is not None and a["user_id"] == me_id),
             "can_undo": bool(status == "approved" and tool and tool.undo and res and res.get("undo"))}
 
 
 def _chat_view(conn, chat: dict) -> dict:
+    purge_expired(conn)
     msgs = _rows(conn, "SELECT id, role, kind, content, created_at FROM claude_chat_message WHERE chat_id = ? ORDER BY id",
                  (chat["id"],))
     acts = {}
     for a in _rows(conn, "SELECT a.*, u.full_name AS decided_by_name FROM claude_action a LEFT JOIN users u "
                          "ON u.id = a.decided_by WHERE a.chat_id = ? ORDER BY a.id", (chat["id"],)):
-        acts.setdefault(a["message_id"], []).append(_action_public(conn, a))
+        acts.setdefault(a["message_id"], []).append(_action_public(conn, a, chat["user_id"]))
     out, looked = [], []
     files = {f["id"]: f for f in claude_files.for_chat(conn, chat["id"])}
     for m in msgs:
@@ -1778,6 +1797,17 @@ def _decide(action_id, verb):
             _add_msg(conn, a["chat_id"], "user", "note", [{"type": "text", "text":
                      f"[Platform note] {me['name']} undid card A-{action_id} ({a['tool']}); it was cancelled."}])
             log.info("claude action %s undone by user %s", action_id, me["id"])
+        elif verb == "reopen":
+            if a["status"] != "declined":
+                return _err("Only a declined card can be brought back.", 409)
+            if datetime.fromisoformat(a["created_at"]) < datetime.now() - CARD_TTL:
+                return _err("This card's 48 hours are up. Ask Claude again so it uses today's information.", 409)
+            conn.execute("UPDATE claude_action SET status = 'pending', decided_by = NULL, decided_at = NULL WHERE id = ?",
+                         (action_id,))
+            _add_msg(conn, a["chat_id"], "user", "note", [{"type": "text", "text":
+                     f"[Platform note] {me['name']} undid the decline of card A-{action_id} ({a['tool']}); "
+                     f"it is waiting for approval again. Nothing was changed yet."}])
+            log.info("claude action %s reopened by user %s", action_id, me["id"])
         else:
             if a["status"] != "pending":
                 return _err("This card was already decided.", 409)
@@ -1828,7 +1858,7 @@ def _decide(action_id, verb):
         conn.commit()
         a = _one(conn, "SELECT a.*, u.full_name AS decided_by_name FROM claude_action a LEFT JOIN users u "
                        "ON u.id = a.decided_by WHERE a.id = ?", (action_id,))
-        return jsonify({"data": _action_public(conn, a)})
+        return jsonify({"data": _action_public(conn, a, me["id"])})
     finally:
         conn.close()
 
@@ -1849,6 +1879,11 @@ def _api_undo(action_id):
 
 
 @requires_role(*TEAM_ROLES)
+def _api_reopen(action_id):
+    return _decide(action_id, "reopen")
+
+
+@requires_role(*TEAM_ROLES)
 def _api_actions():
     me = _me()
     scope = request.args.get("scope") or "mine"
@@ -1856,6 +1891,7 @@ def _api_actions():
         return _err("forbidden", 403)
     conn = _conn()
     try:
+        purge_expired(conn)
         sql = ("SELECT a.*, u.full_name AS decided_by_name, r.full_name AS asked_by_name FROM claude_action a "
                "LEFT JOIN users u ON u.id = a.decided_by LEFT JOIN users r ON r.id = a.user_id")
         params = []
@@ -1865,7 +1901,7 @@ def _api_actions():
         rows = _rows(conn, sql + " ORDER BY a.id DESC LIMIT 300", params)
         out = []
         for a in rows:
-            p = _action_public(conn, a)
+            p = _action_public(conn, a, me["id"])
             p["asked_by"] = a.get("asked_by_name")
             def shown(f):
                 if f["type"] == "select":
@@ -1907,4 +1943,5 @@ def register(app) -> None:
     app.add_url_rule("/api/claude/actions/<int:action_id>/approve", "claude_approve", _api_approve, methods=["POST"])
     app.add_url_rule("/api/claude/actions/<int:action_id>/decline", "claude_decline", _api_decline, methods=["POST"])
     app.add_url_rule("/api/claude/actions/<int:action_id>/undo", "claude_undo", _api_undo, methods=["POST"])
+    app.add_url_rule("/api/claude/actions/<int:action_id>/reopen", "claude_reopen", _api_reopen, methods=["POST"])
     claude_files.register(app)

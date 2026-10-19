@@ -33,6 +33,7 @@
     return j;
   }
   function fmtDay(v) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ''); if (!m) return v; return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }); }
+  function fmtStamp(v) { var d = new Date(v || ''); return isNaN(d) ? '' : d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
   function fmtTime(v) { var m = /^(\d{2}):(\d{2})$/.exec(v || ''); if (!m) return v; var h = +m[1]; return (h % 12 || 12) + ':' + m[2] + (h < 12 ? ' AM' : ' PM'); }
   function when(iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
 
@@ -491,10 +492,12 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     var c = a.card || { title: a.label, fields: [] };
     var state = { pending: 'Needs your approval', approved: 'Approved', declined: 'Declined', expired: 'Expired', undone: 'Undone', failed: 'Failed' }[a.status] || a.status;
     var foot = a.status === 'pending'
-      ? '<div class="clx-acts"><button type="button" class="clx-btn ok" data-approve="' + a.id + '">Approve</button><button type="button" class="clx-btn" data-decline="' + a.id + '">Decline</button><span class="clx-err" id="clx-e' + a.id + '"></span></div>'
+      ? '<div class="clx-acts"><button type="button" class="clx-btn ok" data-approve="' + a.id + '">Approve</button><button type="button" class="clx-btn" data-decline="' + a.id + '">Decline</button><span class="clx-err" id="clx-e' + a.id + '"></span></div>' +
+        (a.expires_at ? '<div class="clx-res no">Deleted if nobody answers by ' + esc(fmtStamp(a.expires_at)) + '</div>' : '')
       : a.status === 'approved' ? '<div class="clx-res">✓ ' + esc((a.result && a.result.summary) || 'Done') + (a.decided_by ? ' · approved by ' + esc(a.decided_by) : '') +
           (a.result && a.result.link ? ' · <a href="' + esc(a.result.link) + '">Open</a>' : '') + (a.can_undo ? ' · <a href="#" data-undo="' + a.id + '">Undo</a>' : '') + '</div>'
-      : a.status === 'declined' ? '<div class="clx-res no">Declined · nothing was changed</div>'
+      : a.status === 'declined' ? '<div class="clx-res no">Declined · nothing was changed' + (a.can_reopen ? ' · <a href="#" data-reopen="' + a.id + '">Undo decline</a> until ' + esc(fmtStamp(a.expires_at)) : '') +
+          '<span class="clx-err" id="clx-e' + a.id + '"></span></div>'
       : a.status === 'expired' ? '<div class="clx-res no">Expired · ask Claude again</div>'
       : a.status === 'undone' ? '<div class="clx-res no">Undone</div>'
       : '<div class="clx-res bad">That change failed; nothing was saved.</div>';
@@ -503,10 +506,11 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
   }
   async function onCardClick(e) {
     var say = e.target.closest('[data-say]'); if (say) { send(say.getAttribute('data-say')); return; }
-    var ap = e.target.closest('[data-approve]'), de = e.target.closest('[data-decline]'), un = e.target.closest('[data-undo]');
+    var ap = e.target.closest('[data-approve]'), de = e.target.closest('[data-decline]'), un = e.target.closest('[data-undo]') || e.target.closest('[data-reopen]');
     if (!ap && !de && !un) return;
     e.preventDefault();
-    var id = (ap || de || un).getAttribute(ap ? 'data-approve' : de ? 'data-decline' : 'data-undo');
+    var verb = ap ? 'approve' : de ? 'decline' : un.hasAttribute('data-reopen') ? 'reopen' : 'undo';
+    var id = (ap || de || un).getAttribute('data-' + verb);
     var values = {};
     if (ap) document.querySelectorAll('#clx-card' + id + ' [data-key]').forEach(function (el) {
       var v = el.value, dp = window.SSCDatePicker;   // pages that restyle date boxes show MM-DD-YYYY; send ISO
@@ -515,7 +519,7 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     });
     (ap || de || un).disabled = true;
     try {
-      await api('/actions/' + id + '/' + (ap ? 'approve' : de ? 'decline' : 'undo'), { method: 'POST', body: JSON.stringify({ values: values }) });
+      await api('/actions/' + id + '/' + verb, { method: 'POST', body: JSON.stringify({ values: values }) });
       await openChat(S.chat.chat.id);
       if (ap) document.dispatchEvent(new CustomEvent('ssc:claude-changed', { detail: { action: +id } }));
     } catch (x) { var el = $('clx-e' + id); if (el) el.textContent = x.message; else { $('clx-msgs').insertAdjacentHTML('beforeend', '<div class="clx-err">' + esc(x.message) + '</div>'); } (ap || de || un).disabled = false; }
@@ -584,13 +588,14 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
       if (v.busy) timer = setTimeout(load, 2000);
     }
     host.onclick = async function (e) {
-      var ap = e.target.closest('[data-approve]'), de = e.target.closest('[data-decline]'), un = e.target.closest('[data-undo]');
+      var ap = e.target.closest('[data-approve]'), de = e.target.closest('[data-decline]'), un = e.target.closest('[data-undo]') || e.target.closest('[data-reopen]');
       if (!ap && !de && !un) return;
       e.preventDefault();
-      var b = ap || de || un, id = b.getAttribute(ap ? 'data-approve' : de ? 'data-decline' : 'data-undo');
+      var verb = ap ? 'approve' : de ? 'decline' : un.hasAttribute('data-reopen') ? 'reopen' : 'undo';
+      var b = ap || de || un, id = b.getAttribute('data-' + verb);
       b.disabled = true;
       try {
-        await api('/actions/' + id + '/' + (ap ? 'approve' : de ? 'decline' : 'undo'), { method: 'POST', body: JSON.stringify({ values: ap ? cardValues(id) : {} }) });
+        await api('/actions/' + id + '/' + verb, { method: 'POST', body: JSON.stringify({ values: ap ? cardValues(id) : {} }) });
         await load();
         if (ap) document.dispatchEvent(new CustomEvent('ssc:claude-changed', { detail: { action: +id } }));
         if (onChange) onChange();
