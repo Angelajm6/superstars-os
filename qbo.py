@@ -1,6 +1,6 @@
 """#316 — QuickBooks Online, phase 1: invoices go out, payments come back.
 
-ONE company-level connection. An admin connects the company's QuickBooks once (Intuit
+ONE company-level connection. An admin or C-suite member connects the company's QuickBooks once (Intuit
 OAuth 2.0); everyone with Finance (admin / C-suite) then sees the result:
 
   * clients here are linked to QuickBooks customers (matched by name or billing email, or
@@ -15,7 +15,7 @@ OAuth 2.0); everyone with Finance (admin / C-suite) then sees the result:
 Not in phase 1: bills / receipts / vehicle costs to QuickBooks (phase 2); invoices typed
 straight into QuickBooks are not copied in.
 
-  GET  /quickbooks/connect                    admin -> Intuit consent
+  GET  /quickbooks/connect                    admin / C-suite -> Intuit consent
   GET  /quickbooks/callback                   Intuit sends the admin back here
   GET  /api/quickbooks/status                 Finance: connected? stats, invoices that need you
   GET  /api/quickbooks/clients                Finance: clients here + QuickBooks customers + suggestions
@@ -23,7 +23,7 @@ straight into QuickBooks are not copied in.
   POST /api/quickbooks/sync                   Finance: check now (payments back, retries)
   POST /api/quickbooks/invoices/<id>/push     Finance: send one issued invoice to QuickBooks
   POST /api/quickbooks/invoices/<id>/send     Finance: email it from QuickBooks
-  POST /api/quickbooks/disconnect             admin: revoke and forget the connection
+  POST /api/quickbooks/disconnect             admin / C-suite: revoke and forget the connection
 
 Rules
   * Switched off (status.available = false, connect 404) until QBO_CLIENT_ID / _SECRET, a
@@ -62,6 +62,7 @@ from auth import current_user, requires_role, requires_section
 log = logging.getLogger("ssc.qbo")
 
 SECTION = "company_portal"
+CONNECT_ROLES = ("admin", "c_suite")   # the Finance roles; whoever holds the QuickBooks admin login clicks Connect
 AUTH_URL = "https://appcenter.intuit.com/connect/oauth2"
 TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
 REVOKE_URL = "https://developer.api.intuit.com/v2/oauth2/tokens/revoke"
@@ -692,7 +693,7 @@ def check(conn) -> dict:
 def _needs_reconnect(conn, link: dict) -> None:
     _TOKENS.pop(link["realm_id"], None)
     conn.execute("UPDATE qbo_connection SET status = 'needs_reconnect', last_error = ? WHERE id = ?",
-                 ("The QuickBooks sign-in expired; an admin needs to reconnect", link["id"]))
+                 ("The QuickBooks sign-in expired; someone in Finance needs to reconnect", link["id"]))
     conn.commit()
     log.info("qbo needs reconnect")
 
@@ -767,7 +768,7 @@ def start() -> None:
 def status(conn, user: Optional[dict] = None) -> dict:
     reason = unavailable_reason()
     out = {"available": not reason, "reason": reason, "environment": environment(), "connected": False,
-           "can_connect": bool(user and user.get("role") == "admin")}
+           "can_connect": bool(user and user.get("role") in CONNECT_ROLES)}
     link = connection(conn)
     if not link:
         return out
@@ -814,7 +815,7 @@ def _back(outcome: str):
     return resp
 
 
-@requires_role("admin")
+@requires_role(*CONNECT_ROLES)
 def _connect():
     if unavailable_reason():
         return ("Not Found", 404)
@@ -827,7 +828,7 @@ def _connect():
     return resp
 
 
-@requires_role("admin")
+@requires_role(*CONNECT_ROLES)
 def _callback():
     if unavailable_reason():
         return ("Not Found", 404)
@@ -885,7 +886,7 @@ def _need_link(conn):
     if not link:
         return None, _err("connect QuickBooks first", 409)
     if link["status"] != "active":
-        return None, _err("QuickBooks needs to be reconnected by an admin", 409)
+        return None, _err("QuickBooks needs to be reconnected (Company > Finance)", 409)
     return link, None
 
 
@@ -900,7 +901,7 @@ def _api_clients():
                 customers = list_customers(conn, link)
         except NeedsReconnect:
             _needs_reconnect(conn, link)
-            return _err("QuickBooks needs to be reconnected by an admin", 409)
+            return _err("QuickBooks needs to be reconnected (Company > Finance)", 409)
         except CapReached:
             return _err("today's QuickBooks limit is reached; try again tomorrow", 429)
         except QBError as e:
@@ -958,7 +959,7 @@ def _api_save_clients():
                         made += 1
         except NeedsReconnect:
             _needs_reconnect(conn, link)
-            return _err("QuickBooks needs to be reconnected by an admin", 409)
+            return _err("QuickBooks needs to be reconnected (Company > Finance)", 409)
         except CapReached:
             return _err("today's QuickBooks limit is reached; try again tomorrow", 429)
         except QBError as e:
@@ -1024,7 +1025,7 @@ def _api_push(invoice_id):
             return _err("issue the invoice first; it goes to QuickBooks when issued", 409)
         res = push_invoice(conn, invoice_id)
         if res.get("needs_reconnect"):
-            return _err("QuickBooks needs to be reconnected by an admin", 409)
+            return _err("QuickBooks needs to be reconnected (Company > Finance)", 409)
         if res.get("capped"):
             return _err("today's QuickBooks limit is reached; it will go tomorrow", 429)
         if res.get("error"):
@@ -1052,7 +1053,7 @@ def _api_send(invoice_id):
         conn.close()
 
 
-@requires_role("admin")
+@requires_role(*CONNECT_ROLES)
 def _disconnect():
     conn = db_layer.connect()
     try:

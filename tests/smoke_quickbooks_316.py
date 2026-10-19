@@ -5,7 +5,7 @@ QuickBooks is FAKED in memory here: no network, no real tokens.
 Boots the real app on an ISOLATED database. Proves:
   * switched off unless the Intuit app keys, a redirect URI AND the encryption key are set
     (status says why; connect 404s)
-  * connect: admin only (C-suite 403, PM 403); Intuit is asked for the accounting scope only,
+  * connect: admin and C-suite (the Finance roles; PM 403); Intuit is asked for the accounting scope only,
     with a CSRF state cookie; a bad state, a refusal or a bad company id store nothing; a good
     connect stores the refresh token ENCRYPTED and reads the company name
   * status / clients / sync: Finance roles (admin, C-suite) only; a PM 403
@@ -21,7 +21,7 @@ Boots the real app on an ISOLATED database. Proves:
   * Intuit's rotating refresh token is saved (encrypted) each time; an expired sign-in marks
     the connection needs_reconnect and app writes still succeed
   * the daily read cap stops reads and says so
-  * disconnect: admin only; revokes; client matches are kept
+  * disconnect: admin and C-suite (PM 403); revokes; client matches are kept
   * logs carry ids and counts only: no token, client name or email
   * the Finance page carries the card
 Run:  venv/bin/python tests/smoke_quickbooks_316.py
@@ -311,13 +311,15 @@ def main() -> int:
     st = _ok(admin.get("/api/quickbooks/status"))["data"]
     assert st["available"] is True and st["connected"] is False and st["environment"] == "sandbox"
     assert qbo.redirect_uri() == "https://app.example.test/quickbooks/callback"
-    assert _ok(cs.get("/api/quickbooks/status"))["data"]["can_connect"] is False
+    assert _ok(cs.get("/api/quickbooks/status"))["data"]["can_connect"] is True
     assert pm.get("/api/quickbooks/status").status_code == 403
     assert Q.calls == [], "nothing connected: QuickBooks is never called"
     passed += 1; print("  switch ok")
 
     # ---- connect: gates + refusals
-    assert cs.get("/quickbooks/connect").status_code == 403 and pm.get("/quickbooks/connect").status_code == 403
+    assert pm.get("/quickbooks/connect").status_code == 403
+    r = cs.get("/quickbooks/connect")
+    assert r.status_code == 302 and r.headers["Location"].startswith(qbo.AUTH_URL), "C-suite can connect"
     anon = server.app.test_client().get("/quickbooks/connect")
     assert anon.status_code in (302, 401) and "appcenter.intuit.com" not in anon.headers.get("Location", "")
     loc, q = _connect(admin, state_ok=False)
@@ -498,7 +500,7 @@ def main() -> int:
         passed += 1; print("  reconnect ok")
 
         # ---- disconnect
-        assert cs.post("/api/quickbooks/disconnect", json={}).status_code == 403
+        assert pm.post("/api/quickbooks/disconnect", json={}).status_code == 403
         _ok(admin.post("/api/quickbooks/disconnect", json={}))
         assert _conn_row() is None and Q.revoked and Q.revoked[-1] == REFRESH1
         st = _ok(cs.get("/api/quickbooks/status"))["data"]
