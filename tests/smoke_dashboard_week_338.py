@@ -93,8 +93,8 @@ def main() -> int:
     for needle in ('id="cc-week"', 'id="cc-week-dow"', 'id="cc-week-row"', 'id="cc-week-foot"', 'id="cc-week-open"',
                    "async function loadWeekStrip", "'/calendar?from=' + from + '&to=' + to", "href=\"/projects/", "'#calendar/' + from"):
         assert needle in html, needle
-    # the strip opens the Dashboard, above the KPI tiles
-    assert html.index('id="cc-week"') < html.index('id="ov-kpis"')
+    # the four cards come first (Today, 2026-10-19), then the week
+    assert html.index('id="ov-kpis"') < html.index('id="cc-week"')
     assert 'id="cc-week"' not in cs.get("/", follow_redirects=True).get_data(as_text=True), "the console dashboard retired (#339)"
     passed += 1; print("  strip served ok")
 

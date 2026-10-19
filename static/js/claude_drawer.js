@@ -599,6 +599,14 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     load();
     return { reload: load, stop: function () { clearTimeout(timer); } };
   }
-  window.SSC_CLAUDE = { open: function () { if (PAGE) $('clx-in').focus(); else setOpen(true); }, mountCards: mountCards };
+  // ask(text, now): a fresh chat with the question typed in; `now` sends it (a question only reads — any change
+  // Claude proposes is still a card someone approves). The Dashboard's "Ask Claude" and card buttons use it.
+  function ask(text, now) {
+    if (!PAGE) setOpen(true);
+    clearTimeout(S.poll); S.chat = null; store('chat', null); showHistory(false); renderTitle(); render();
+    $('clx-in').value = text || ''; $('clx-in').focus();
+    if (now && text) send(text);
+  }
+  window.SSC_CLAUDE = { open: function () { if (PAGE) $('clx-in').focus(); else setOpen(true); }, ask: ask, mountCards: mountCards };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
