@@ -11,6 +11,10 @@ Proves against an ISOLATED database (no Google, no model call):
   * events_for(uid) returns only that user's rows; another user's copy of the same Google id is separate
   * pulling: the first read asks for the coming window, later reads ask only for changes; a 'gone'
     answer (410) starts over; a connection without the read permission is skipped
+  * other calendars: the ticked ones (calendarList selected=true) are read too, keyed "<cal>:<id>"; the
+    main calendar, unticked ones and the app's own Superstars calendar are not; an event there the person is
+    invited to is skipped; each calendar keeps its own "changed since" mark; unticking removes its copies;
+    a connection without the list permission reads the main calendar only (and the Inbox hint offers a reconnect)
   * token expiry: a revoked sign-in marks the link needs_reconnect (and the loop stops reading it);
     a single 401 on the events call refreshes the token once and carries on
   * the one-time move: the old import's team copies (crm_task source 'gcal') become private rows of
@@ -84,7 +88,7 @@ def _cleanup():
     try:
         ci.ensure(conn)
         uids = [r["id"] for r in conn.execute("SELECT id FROM users WHERE email LIKE ?", (f"{TAG}.%",)).fetchall()]
-        for t in ("user_calendar_event", "gcal_import", "google_calendar_event", "google_calendar_link"):
+        for t in ("user_calendar_event", "user_calendar_source", "gcal_import", "google_calendar_event", "google_calendar_link"):
             purge(conn, t, "user_id", uids)
         conn.execute("DELETE FROM crm_task WHERE title LIKE 'Calimp%'")
         conn.commit()
@@ -192,7 +196,9 @@ def main() -> int:
             # ---- pulling through a fake Google
             seen = []
 
-            def fake_get(conn_, link, params):
+            def fake_get(conn_, link, url, params):
+                if url == ci.LIST_URL:
+                    return 200, {"items": []}
                 seen.append(dict(params))
                 if len(seen) == 3:
                     return 410, {}
@@ -212,6 +218,68 @@ def main() -> int:
             assert _q("SELECT import_at FROM google_calendar_link WHERE user_id = ?", (me,))[0]["import_at"] is None   # starts over
             passed += 1; print("  pulling ok (window, changes, 410)")
 
+            # ---- other calendars
+            conn.execute("UPDATE google_calendar_link SET calendar_id = 'ssc-cal@group', import_at = NULL WHERE user_id = ?", (me,))
+            conn.commit()
+            reads, lists = [], [0]
+            cal_list = [{"id": "me@x", "primary": True, "selected": True}, {"id": "family@group", "selected": True},
+                        {"id": "ssc-cal@group", "selected": True}, {"id": "hidden@group", "selected": False},
+                        {"id": "crew_1#x@group", "selected": True}]
+
+            def fake_get2(conn_, link, url, params):
+                if url == ci.LIST_URL:
+                    lists[0] += 1
+                    return 200, {"items": cal_list}
+                cal = "primary" if url == ci.EVENTS_URL else url.split("/calendars/")[1].split("/")[0]
+                reads.append((cal, dict(params)))
+                if cal == "primary":
+                    return 200, {"items": [ev("p1", "Calimp main event")]}
+                if cal == "family%40group":
+                    invited = ev("f2", "Calimp invited", updated="2026-10-15T10:00:00.000Z")
+                    invited["attendees"] = [{"email": f"{TAG}.ME@superstarscontracting.com", "responseStatus": "accepted"}]
+                    return 200, {"items": [ev("p1", "Calimp soccer"), invited]}
+                if cal == "crew_1%23x%40group":
+                    return 404, {}
+                raise AssertionError("read a calendar it should not: " + cal)
+            real = ci._get
+            ci._get = fake_get2
+            try:
+                r1 = ci.import_user(conn, me)
+                rows = {r["google_event_id"]: r for r in mine(me)}
+                assert rows["p1"]["title"] == "Calimp main event" and rows["p1"]["calendar_id"] is None, r1
+                assert rows["family@group:p1"]["title"] == "Calimp soccer" and rows["family@group:p1"]["calendar_id"] == "family@group"
+                assert "family@group:f2" not in rows   # invited: comes from the main calendar
+                assert {c for c, _ in reads} == {"primary", "family%40group", "crew_1%23x%40group"}   # not ssc / hidden / primary twice
+                assert {g["title"] for g in ci.events_for(conn, me, DAY, DAY)} >= {"Calimp main event", "Calimp soccer"}
+                marks = {r["calendar_id"]: r["import_at"] for r in _q("SELECT * FROM user_calendar_source WHERE user_id = ?", (me,))}
+                assert marks.get("family@group") and "crew_1#x@group" not in marks, marks   # 404: tried again next round
+                reads.clear()
+                ci.import_user(conn, me)
+                fam = [p for c, p in reads if c == "family%40group"]
+                assert fam and "updatedMin" in fam[0] and "timeMax" not in fam[0]   # its own "changed since" mark
+                # unticking a calendar removes its copies
+                cal_list[1]["selected"] = False
+                ci.import_user(conn, me)
+                assert not [r for r in mine(me) if r["calendar_id"]] and [r for r in mine(me) if r["google_event_id"] == "p1"]
+                assert not _q("SELECT id FROM user_calendar_source WHERE user_id = ? AND calendar_id = 'family@group'", (me,))
+                # no list permission (connected before it): main calendar only, the list is never asked for
+                cal_list[1]["selected"] = True
+                ci.import_user(conn, me)
+                assert [r for r in mine(me) if r["calendar_id"] == "family@group"]
+                conn.execute("UPDATE google_calendar_link SET scopes = ? WHERE user_id = ?", (gcal_sync.SCOPES.replace(ci.LIST_SCOPE, ""), me))
+                conn.commit()
+                lists[0] = 0
+                assert gcal_sync.status_for(conn, me)["lists_calendars"] is False
+                ci.import_user(conn, me)
+                assert lists[0] == 0 and not [r for r in mine(me) if r["calendar_id"]]
+            finally:
+                ci._get = real
+            conn.execute("DELETE FROM user_calendar_event WHERE user_id = ? AND google_event_id = 'p1'", (me,))
+            conn.execute("UPDATE google_calendar_link SET scopes = ? WHERE user_id = ?", (gcal_sync.SCOPES, me))
+            conn.commit()
+            assert ci.LIST_SCOPE in gcal_sync.SCOPES and gcal_sync.status_for(conn, me)["lists_calendars"] is True
+            passed += 1; print("  other calendars ok (ticked only, keyed, invited skipped, own marks, untick, no permission)")
+
             # ---- token expiry: one 401 retries; a revoked sign-in needs a reconnect
             calls = []
             real_http, real_tok = gcal_sync._http, gcal_sync._access_token
@@ -223,7 +291,7 @@ def main() -> int:
             gcal_sync._http = http_401_once
             try:
                 assert ci.import_user(conn, me) == {}
-                assert len(calls) == 2
+                assert len(calls) == 3   # 401 + retry on the main calendar, then the (empty) calendar list
                 link = gcal_sync._link(conn, me)
                 assert link["status"] == "active"
 
@@ -280,6 +348,8 @@ def main() -> int:
         # ---- copy + logs
         js = (ROOT / "static/js/gcal_connect.js").read_text(encoding="utf-8")
         assert "s.reads_calendar" in js and "only you see them" in js and "team calendar" not in js
+        isx = (ROOT / "static/js/inbox_schedule.js").read_text(encoding="utf-8")
+        assert "!cs.other_calendars" in isx and "Reconnect to see your other calendars" in isx and "data-hint-off" in isx
         src = (ROOT / "gcal_sync.py").read_text(encoding="utf-8")
         assert "calendar_import.forget_user(conn" in src
         logs = "\n".join(trap.lines)
@@ -288,8 +358,8 @@ def main() -> int:
     finally:
         _cleanup()
         shutil.rmtree(_TMP, ignore_errors=True)
-    print(f"smoke_calendar_import: {passed}/8 groups passed")
-    return 0 if passed == 8 else 1
+    print(f"smoke_calendar_import: {passed}/9 groups passed")
+    return 0 if passed == 9 else 1
 
 
 if __name__ == "__main__":
