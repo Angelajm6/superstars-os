@@ -14,7 +14,8 @@ Proves, through a Flask test client against an ISOLATED database (planted model 
   * an invalid proposal (bad date) goes back to the model as an error, no card
   * decline changes nothing; a decided card cannot be decided again; only its owner decides
   * approve runs with the approver's permissions; undo cancels the new event
-  * an expired card (48 h) cannot be approved
+  * an expired card (48 h) cannot be approved, and it is deleted (gone from the log)
+  * a decline can be undone by its owner within the 48 h, then decided again
   * a tool the role may not use is refused even if the model asks for it
   * payroll summary returns totals only (no per-person pay) and matches hours x rate
   * the daily budget (shared with the Proposals panel) stops new turns (429)
@@ -248,7 +249,30 @@ def main() -> int:
         _x("UPDATE claude_action SET created_at = ? WHERE id = ?", ((datetime.now() - timedelta(hours=49)).isoformat(timespec="seconds"), pend[1]["id"]))
         assert a.post(f"/api/claude/actions/{pend[1]['id']}/approve", json={}).status_code == 409
         assert not _q("SELECT id FROM crm_task WHERE title IN ('Clag smoke call the GC', 'Clag smoke old card', 'Clag smoke bad')")
-        passed += 1; print("  invalid / decline / expiry ok")
+        # an unanswered card past 48 h is deleted, not logged
+        log_ids = [x["id"] for x in a.get("/api/claude/actions?scope=all").get_json()["data"]]
+        assert pend[1]["id"] not in log_ids and pend[0]["id"] in log_ids
+        assert not _q("SELECT id FROM claude_action WHERE id = ?", (pend[1]["id"],))
+        passed += 1; print("  invalid / decline / expiry + purge ok")
+
+        # ---- undo a decline: owner only, inside the 48 h, then it can be approved
+        did = pend[0]["id"]
+        row = next(x for x in a.get("/api/claude/actions?scope=mine").get_json()["data"] if x["id"] == did)
+        assert row["can_reopen"] and row["expires_at"] and row["mine"]
+        assert pm.post(f"/api/claude/actions/{did}/reopen", json={}).status_code == 404
+        r = a.post(f"/api/claude/actions/{did}/reopen", json={})
+        d = r.get_json()["data"]
+        assert r.status_code == 200 and d["status"] == "pending" and not d["decided_by"] and not d["can_reopen"]
+        assert a.post(f"/api/claude/actions/{did}/reopen", json={}).status_code == 409
+        note = _q("SELECT content FROM claude_chat_message WHERE chat_id = ? AND kind = 'note'", (chat["id"],))
+        assert "undid the decline of card A-" in note[-1]["content"]
+        assert a.post(f"/api/claude/actions/{did}/decline", json={}).status_code == 200
+        _x("UPDATE claude_action SET created_at = ? WHERE id = ?", ((datetime.now() - timedelta(hours=49)).isoformat(timespec="seconds"), did))
+        assert a.post(f"/api/claude/actions/{did}/reopen", json={}).status_code == 409
+        row = next(x for x in a.get("/api/claude/actions?scope=mine").get_json()["data"] if x["id"] == did)
+        assert row["status"] == "declined" and not row["can_reopen"]   # declined cards stay in the log
+        assert not _q("SELECT id FROM crm_task WHERE title = 'Clag smoke call the GC'")
+        passed += 1; print("  undo decline ok")
 
         # ---- a tool the role may not use is refused even when the model asks
         pchat = pm.post("/api/claude/chats", json={"surface": "office"}).get_json()["data"]["chat"]
@@ -297,7 +321,7 @@ def main() -> int:
         assert a.patch(f"/api/claude/chats/{empty['id']}", json={"archived": True}).get_json()["data"]["chat"]["archived"] is True
         r = a.patch(f"/api/claude/chats/{chat['id']}", json={"archived": True})
         assert r.get_json()["data"]["chat"]["archived"] is True and a.get("/api/claude/chats?surface=office").get_json()["data"] == []
-        assert _q("SELECT COUNT(*) AS n FROM claude_action WHERE chat_id = ?", (chat["id"],))[0]["n"] >= 3   # approvals kept
+        assert _q("SELECT COUNT(*) AS n FROM claude_action WHERE chat_id = ?", (chat["id"],))[0]["n"] >= 2   # decided cards kept (the unanswered one was purged)
         a.patch(f"/api/claude/chats/{chat['id']}", json={"archived": False})
         passed += 1; print("  history ok")
 
@@ -364,8 +388,8 @@ def main() -> int:
         os.environ.pop("SSC_ASSISTANT_FAKE", None)
         _cleanup()
         shutil.rmtree(_TMP, ignore_errors=True)
-    print(f"smoke_claude_agent: {passed}/13 groups passed")
-    return 0 if passed == 13 else 1
+    print(f"smoke_claude_agent: {passed}/14 groups passed")
+    return 0 if passed == 14 else 1
 
 
 if __name__ == "__main__":

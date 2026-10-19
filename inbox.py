@@ -1040,6 +1040,8 @@ def run_round() -> None:
                     log.warning("inbox process %s failed: %s", r["id"], type(e).__name__)
             if time.time() - _LOOP["last_prune"] > 6 * 3600:
                 _LOOP["last_prune"] = time.time()
+                import claude_agent
+                claude_agent.purge_expired(conn)
                 cutoff = (datetime.now() - timedelta(days=KEEP_DAYS)).isoformat(timespec="seconds")
                 conn.execute("DELETE FROM mail_message WHERE received_at < ? AND id NOT IN (SELECT message_id FROM mail_link)",
                              (cutoff,))
@@ -1157,6 +1159,8 @@ def _api_messages():
     f = request.args.get("filter") or "all"
     conn = _conn()
     try:
+        import claude_agent
+        claude_agent.purge_expired(conn)   # unanswered cards older than 48 h leave the counts too
         rows = _rows(conn, "SELECT id, COALESCE(thread_id, gmail_id) AS t, needs_action, status, received_at FROM mail_message "
                            "WHERE user_id = ? ORDER BY received_at DESC, id DESC LIMIT 600", (me["id"],))
         filed = {r["message_id"] for r in _rows(conn, "SELECT l.message_id FROM mail_link l JOIN mail_message m ON m.id = l.message_id "
@@ -1296,6 +1300,8 @@ def _api_thread(mid):
     me = _me()
     conn = _conn()
     try:
+        import claude_agent
+        claude_agent.purge_expired(conn)
         v = thread_view(conn, me["id"], mid)
         if not v:
             return _err("not found", 404)

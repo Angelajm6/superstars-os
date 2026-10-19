@@ -11,7 +11,7 @@
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
 <script src="/files/static/js/company_nav.js?v=1016"></script>
-<script src="/files/static/js/claude_drawer.js?v=11" defer></script>
+<script src="/files/static/js/claude_drawer.js?v=12" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1015" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
@@ -887,7 +887,7 @@
         <div class="cp-card">
           <div class="cp-card-head"><h2>Every change Claude proposed</h2><span class="hint">who asked, who decided, what happened</span></div>
           <div class="cp-toolbar">
-            <select class="cp-select" id="ca-status" aria-label="Decision"><option value="">All decisions</option><option value="pending">Waiting for approval</option><option value="approved">Approved</option><option value="declined">Declined</option><option value="expired">Expired</option><option value="undone">Undone</option><option value="failed">Failed</option></select>
+            <select class="cp-select" id="ca-status" aria-label="Decision"><option value="">All decisions</option><option value="pending">Waiting for approval</option><option value="approved">Approved</option><option value="declined">Declined</option><option value="undone">Undone</option><option value="failed">Failed</option></select>
             <input class="cp-input search" id="ca-search" placeholder="Search person or change…" autocomplete="off">
           </div>
           <div class="cp-table-wrap"><table class="cp-table" id="ca-table"></table></div>
@@ -2424,6 +2424,7 @@
     } catch (e) { host.innerHTML = ''; }
   }
   // ---------- Claude approvals (claude_agent.py): every change Claude proposed and who decided ----------
+  // Unanswered cards are deleted after 48 h (claude_agent.purge_expired); a decline can be undone inside those 48 h.
   const CA_PILL = { pending: 'warn', approved: 'ok', declined: 'bad', expired: '', undone: '', failed: 'bad' };
   const CA_WORD = { pending: 'waiting', approved: 'approved', declined: 'declined', expired: 'expired', undone: 'undone', failed: 'failed' };
   let caRows = [];
@@ -2433,24 +2434,38 @@
     const since = todayLocal(-30);   // LOCAL date (CLAUDE.md dates rule)
     const recent = caRows.filter(a => String(a.created_at) >= since);
     const n = s => recent.filter(a => a.status === s).length;
+    const answered = n('approved') + n('declined');
     $('ca-kpis').innerHTML = kpi('Proposed, 30 days', num.format(recent.length), 'changes Claude suggested') +
-      kpi('Approved', num.format(n('approved')), recent.length ? Math.round(n('approved') * 100 / recent.length) + '% of proposals' : '', 'good') +
-      kpi('Declined', num.format(n('declined')), `${num.format(n('expired'))} expired unanswered`) +
-      kpi('Waiting now', num.format(caRows.filter(a => a.status === 'pending').length), 'cards nobody has decided yet', caRows.some(a => a.status === 'pending') ? 'warn' : '');
+      kpi('Approved', num.format(n('approved')), answered ? Math.round(n('approved') * 100 / answered) + '% of answered' : '', 'good') +
+      kpi('Declined', num.format(n('declined')), 'you can undo for 48 hours') +
+      kpi('Waiting now', num.format(caRows.filter(a => a.status === 'pending').length), 'deleted if not answered in 48 hours', caRows.some(a => a.status === 'pending') ? 'warn' : '');
     renderClaudeLog();
   }
   function renderClaudeLog() {
     const st = $('ca-status').value, q = $('ca-search').value.trim().toLowerCase();
-    const rows = caRows.filter(a => (!st || a.status === st) && (!q || [a.asked_by, a.decided_by, a.label, a.what].join(' ').toLowerCase().includes(q)));
+    const rows = caRows.filter(a => a.status !== 'expired' && (!st || a.status === st) && (!q || [a.asked_by, a.decided_by, a.label, a.what].join(' ').toLowerCase().includes(q)));
     table($('ca-table'), [
       { key: 'created_at', label: 'When', render: r => fmtWhen(r.created_at) },
       { key: 'asked_by', label: 'Asked by', render: r => esc(r.asked_by || '—') },
       { key: 'label', label: 'Change', render: r => `<strong>${esc(r.label)}</strong><div class="cp-muted" style="font-size:13px;margin-top:2px">${esc(r.what || '')}</div>` },
-      { key: 'status', label: 'Decision', render: r => `<span class="cp-pill ${CA_PILL[r.status] || ''}">${esc(CA_WORD[r.status] || r.status)}</span>${r.decided_by ? ' <span class="cp-muted" style="font-size:13px">' + esc(r.decided_by) + '</span>' : ''}` },
+      { key: 'status', label: 'Decision', render: r => `<span class="cp-pill ${CA_PILL[r.status] || ''}">${esc(CA_WORD[r.status] || r.status)}</span>${r.decided_by ? ' <span class="cp-muted" style="font-size:13px">' + esc(r.decided_by) + '</span>' : ''}` +
+          (r.can_reopen ? `<div style="font-size:13px;margin-top:4px"><a href="#" class="cp-link" data-ca="reopen" data-id="${r.id}">Undo decline</a> <span class="cp-muted">until ${fmtWhen(r.expires_at)}</span></div>` : '') +
+          (r.status === 'pending' && r.mine ? `<div style="font-size:13px;margin-top:4px"><a href="#" class="cp-link" data-ca="approve" data-id="${r.id}">Approve</a> · <a href="#" class="cp-link" data-ca="decline" data-id="${r.id}">Decline</a></div>` : '') },
       { key: 'decided_at', label: 'Decided', render: r => r.decided_at ? fmtWhen(r.decided_at) : '—' },
       { key: 'result', label: 'Result', render: r => r.result ? (r.result.link ? `<a class="cp-link" href="${esc(r.result.link)}">${esc(r.result.summary || 'Open')}</a>` : esc(r.result.summary || '')) : (r.error ? 'failed, nothing saved' : '—') },
     ], rows, { defaultSort: { key: 'created_at', dir: 'desc' }, emptyTitle: 'Nothing yet', emptySub: 'Changes Claude proposes show here once someone asks for one.' });
   }
+  $('ca-table').addEventListener('click', async e => {
+    const b = e.target.closest('[data-ca]'); if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    const verb = b.dataset.ca;
+    try {
+      await api('/claude/actions/' + b.dataset.id + '/' + verb, { method: 'POST', body: JSON.stringify({ values: {} }) }, true);
+      toast(verb === 'reopen' ? 'Decline undone. Approve or decline it again.' : verb === 'approve' ? 'Approved' : 'Declined');
+      if (verb === 'approve') document.dispatchEvent(new CustomEvent('ssc:claude-changed', { detail: { action: +b.dataset.id } }));
+      await loadClaudeLog();
+    } catch (x) { toast(x.message, true); }
+  });
   $('ca-status').addEventListener('change', renderClaudeLog);
   $('ca-search').addEventListener('input', renderClaudeLog);
   // ---------- PROPOSALS (#307) ----------
