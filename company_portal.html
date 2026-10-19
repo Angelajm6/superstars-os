@@ -493,6 +493,35 @@
           .td-site{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;text-decoration:none;color:inherit}
           .td-site:last-child{border-bottom:0} .td-site span{color:var(--muted);white-space:nowrap} .td-site span.bad{color:var(--status-behind-deep,#A8382B)}
           .td-site b{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          /* the Weather window (a click on the Weather card) */
+          .td-wx{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(760px,calc(100% - 32px));max-height:calc(100% - 48px);background:#fff;border:1px solid var(--line);border-radius:14px;z-index:9101;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(36,65,140,.18)}
+          .td-wx[hidden]{display:none}
+          .wx-tabs{display:flex;gap:6px;flex-wrap:wrap;padding:12px 20px 0}
+          .wx-tabs button{border:1px solid var(--line);background:#fff;border-radius:99px;padding:5px 12px;font:inherit;font-size:12px;font-weight:600;color:var(--ink-2);cursor:pointer}
+          .wx-tabs button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+          .wx-tabs button .w{color:var(--status-behind,#e9685a);margin-left:4px}
+          .wx-body{overflow:auto;padding:14px 20px 20px;display:flex;flex-direction:column;gap:14px}
+          .wx-now{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+          .wx-now .big{font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1}
+          .wx-now .lab{font-size:15px;font-weight:600}
+          .wx-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+          @media (max-width:560px){ .wx-facts{grid-template-columns:repeat(2,minmax(0,1fr))} }
+          .wx-facts div{background:var(--fill);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--muted)}
+          .wx-facts b{display:block;font-size:15px;color:var(--ink);margin-top:2px}
+          .wx-heads{display:flex;flex-direction:column;gap:6px}
+          .wx-heads div{background:var(--status-behind-soft,#fceeec);color:var(--status-behind-deep,#A8382B);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600}
+          .wx-h{font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+          .wx-hours,.wx-week{display:grid;gap:6px;overflow-x:auto}
+          .wx-hours{grid-template-columns:repeat(6,minmax(64px,1fr))}
+          .wx-week{grid-template-columns:repeat(7,minmax(78px,1fr))}
+          .wx-cell{border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center;font-size:12px;color:var(--muted)}
+          .wx-cell b{display:block;font-size:15px;color:var(--ink);margin:2px 0}
+          .wx-cell.work{background:var(--accent-in)}
+          .wx-cell.today{border-color:var(--ui-edge);background:var(--ui-soft,#E8EDF8)}
+          .wx-cell.warn{border-color:var(--status-behind,#e9685a)}
+          .wx-cell .rain{color:var(--ui);font-weight:600}
+          .wx-foot{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+          .wx-foot a{color:var(--ui);font-weight:600;text-decoration:none}
           /* proposal review panel */
           .td-scrim{position:fixed;inset:0;background:rgba(20,24,36,.32);z-index:9100}
           .td-drawer{position:fixed;top:0;right:0;bottom:0;width:min(680px,100%);background:#fff;border-left:1px solid var(--line);z-index:9101;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(36,65,140,.14)}
@@ -718,6 +747,14 @@
 
         <!-- review a proposal Claude drafted from an email, in the company template, before it goes out as a PDF -->
         <div class="td-scrim" id="pd-scrim" hidden></div>
+        <div class="td-wx" id="wx-modal" role="dialog" aria-modal="true" aria-labelledby="wx-title" hidden>
+          <div class="pd-head">
+            <div><div class="td-date">Weather at your jobs</div><h3 id="wx-title">Today and the next 7 days</h3></div>
+            <button type="button" class="btn-ghost btn-sm" id="wx-close" aria-label="Close">✕</button>
+          </div>
+          <div class="wx-tabs" id="wx-tabs" role="tablist" aria-label="Job"></div>
+          <div class="wx-body" id="wx-body"></div>
+        </div>
         <aside class="td-drawer" id="pd-drawer" aria-label="Review proposal" hidden>
           <div class="pd-head">
             <div><div class="td-date">Proposal drafted by Claude</div><h3 id="pd-title">Proposal</h3></div>
@@ -1612,7 +1649,7 @@
     $('ov-kpis').innerHTML =
       tile('Active jobs', num.format(c.jobs.active), esc(types || 'No active jobs'), '#projects') +
       tile('On site now', `${num.format(cr.on_site_now)}`, crewSub, '/#hours') +
-      tile('Weather', wxV, wxSub, '#calendar') +
+      tile('Weather', wxV, wxSub, '#calendar').replace('<a ', '<a data-td-wx ') +
       tile('Payments due', `${money2.format(pay.due_now_value).replace(/\.00$/, '')} <span class="of">${pay.overdue_count ? 'due or late' : 'today'}</span>`,
         esc(pay.soon_count ? `+ ${money2.format(pay.soon_value).replace(/\.00$/, '')} in the next 7 days (${pay.soon_count} bill${pay.soon_count === 1 ? '' : 's'})` : 'Nothing else due this week'), '#finance');
   }
@@ -1751,6 +1788,38 @@
       : '<div class="cp-muted" style="font-size:13px">Nobody has signed in yet today.</div>';
   }
 
+  // ---- the Weather window: today at each job (hour by hour) and the next 7 days
+  const WX = { i: 0 };
+  document.body.appendChild($('wx-modal'));
+  function wxShow(on) { $('wx-modal').hidden = !on; $('pd-scrim').hidden = !on; if (on) $('wx-close').focus(); }
+  function wxOpen() {
+    const wx = TD.wx;
+    if (!wx) { toast('Checking the forecast… try again in a moment'); return; }
+    if (!wx.available) { toast('The forecast is unavailable right now', true); return; }
+    WX.i = Math.min(WX.i, wx.sites.length - 1);
+    $('wx-tabs').innerHTML = wx.sites.length > 1 ? wx.sites.map((s, i) => `<button type="button" role="tab" class="${i === WX.i ? 'on' : ''}" data-wx-i="${i}">${esc(s.project_code || s.name)}${s.heads_up.length ? '<span class="w" title="Heads-up today">●</span>' : ''}</button>`).join('') : '';
+    wxDraw(); wxShow(true);
+  }
+  function wxDraw() {
+    const s = TD.wx.sites[WX.i], r = v => v == null ? '—' : Math.round(v);
+    const nowH = new Date().getHours();
+    const hours = s.hours.map(h => `<div class="wx-cell${h.work ? ' work' : ''}"><div>${esc(fmtTime(String(h.hour).padStart(2, '0') + ':00'))}</div><b>${r(h.temp)}°</b><div class="rain">${r(h.precip_prob)}% rain</div><div>${r(h.wind_mph)} mph</div></div>`).join('');
+    const week = (s.week || []).map(d => `<div class="wx-cell${d.is_today ? ' today' : ''}${(d.heads_up || []).length ? ' warn' : ''}" title="${esc((d.heads_up || []).join('. '))}"><div>${d.is_today ? 'Today' : esc(d.weekday)}</div><b>${r(d.temp_max)}° <span style="font-weight:500;color:var(--muted)">${r(d.temp_min)}°</span></b><div>${esc(d.label || '')}</div><div class="rain">${r(d.precip_prob)}% rain</div>${d.gust_mph != null ? `<div>gusts ${r(d.gust_mph)}</div>` : ''}</div>`).join('');
+    const now = s.hours.filter(h => h.hour <= Math.max(nowH, (s.hours[0] || {}).hour || 0)).pop() || s.hours[0] || {};
+    $('wx-title').textContent = s.project_code ? `${s.project_code} · ${s.name}` : s.name;
+    $('wx-body').innerHTML =
+      `<div class="wx-now"><div class="big">${r(now.temp != null ? now.temp : s.temp_max)}°</div><div><div class="lab">${esc(s.label || '')}</div><div class="cp-muted">High ${r(s.temp_max)}° · Low ${r(s.temp_min)}°${s.stale ? ' · last good forecast (the provider is not answering)' : ''}</div></div></div>` +
+      (s.heads_up.length ? `<div class="wx-heads">${s.heads_up.map(h => `<div>${esc(h)}</div>`).join('')}</div>` : '') +
+      `<div class="wx-facts"><div>Rain<b>${r(s.precip_prob)}%${s.rain_from != null ? ' from ' + esc(fmtTime(String(s.rain_from).padStart(2, '0') + ':00')) : ''}</b></div><div>Wind<b>${r(s.wind_mph)} mph ${esc(s.wind_dir || '')}</b></div><div>Gusts<b>${r(s.gust_mph)} mph</b></div><div>Sunrise · sunset<b>${esc(s.sunrise || '—')} · ${esc(s.sunset || '—')}</b></div></div>` +
+      (hours ? `<div class="wx-h">Today, hour by hour (work day shaded)</div><div class="wx-hours">${hours}</div>` : '') +
+      (week ? `<div class="wx-h">Next 7 days</div><div class="wx-week">${week}</div>` : '') +
+      `<div class="wx-foot"><span>Forecast from Open-Meteo for the job's map pin${TD.wx.pinned ? '' : ' (no job has a site pin yet, so this is New York City)'}.</span>${s.project_code ? `<a href="/projects/${encodeURIComponent(s.project_code)}">Open the job →</a>` : ''}</div>`;
+  }
+  $('ov-kpis').addEventListener('click', e => { if (e.target.closest('[data-td-wx]')) { e.preventDefault(); wxOpen(); } });
+  $('wx-tabs').addEventListener('click', e => { const b = e.target.closest('[data-wx-i]'); if (!b) return; WX.i = +b.dataset.wxI; document.querySelectorAll('[data-wx-i]').forEach(x => x.classList.toggle('on', x === b)); wxDraw(); });
+  $('wx-close').addEventListener('click', () => wxShow(false));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('wx-modal').hidden) wxShow(false); });
+
   // ---- review a proposal Claude drafted from an email (proposal_drafts.py), drawn in the company template
   const PD = { id: null, v: null, view: null, t: null };
   // the open .cp-view keeps an animation transform that breaks position:fixed — the panel lives on <body>
@@ -1855,7 +1924,7 @@
     finally { b.disabled = false; b.textContent = 'Approve & send PDF'; }
   });
   $('pd-close').addEventListener('click', () => pdShow(false));
-  $('pd-scrim').addEventListener('click', () => pdShow(false));
+  $('pd-scrim').addEventListener('click', () => { pdShow(false); wxShow(false); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('pd-drawer').hidden) pdShow(false); });
 
   // ---------- USAGE & JOB TOOLS (Settings; job page redesign step 1) ----------
