@@ -171,6 +171,10 @@ def sync_owner(conn, uid: int, link: dict, token: str, cal: str) -> dict:
         if row.get("google_event_id") and row.get("body_hash") == h and not want_meet and not drop_meet:
             continue
         payload = dict(body)
+        if row.get("google_event_id"):   # PATCH merges start/end: clear the other kind, or a timed edit of an all-day meeting is refused
+            for k in ("start", "end"):
+                if k in payload:
+                    payload[k] = {"date": None, **payload[k]} if "dateTime" in payload[k] else {"dateTime": None, "timeZone": None, **payload[k]}
         if want_meet:
             payload["conferenceData"] = {"createRequest": {"requestId": f"ssc-{item_id}-{int(time.time())}",
                                                            "conferenceSolutionKey": {"type": "hangoutsMeet"}}}

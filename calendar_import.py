@@ -6,8 +6,8 @@ The other direction already exists (gcal_sync: the app's tasks / events / meetin
 primary calendar (scope calendar.events.readonly, asked for when they connect Google Calendar)
 and keeps a private copy in `user_calendar_event`:
 
-  * every SYNC_SECONDS (default 60) it pulls the events that changed: the first time, yesterday
-    through the next IMPORT_DAYS; afterwards whatever Google reports as updated since the last pull
+  * every SYNC_SECONDS (default 60) it pulls the events that changed: the first time, the last
+    LOOKBACK_DAYS through the next IMPORT_DAYS; afterwards whatever Google reports as updated since the last pull
     (a 410 "gone" answer starts over)
   * every event is kept (work and personal alike); out-of-office, focus time, working location and
     birthdays are skipped. An edit in Google updates the copy; a cancelled event or one the person
@@ -45,6 +45,7 @@ log = logging.getLogger("ssc.calendar_import")
 READ_SCOPE = "https://www.googleapis.com/auth/calendar.events.readonly"
 EVENTS_URL = "https://www.googleapis.com/calendar/v3/calendars/primary/events"
 IMPORT_DAYS = 120
+LOOKBACK_DAYS = 60   # past events show too (2026-10-18: reading from yesterday on left the month's earlier days empty)
 SKIP_TYPES = {"birthday", "outOfOffice", "focusTime", "workingLocation"}
 MAX_TITLE, MAX_PLACE, MAX_DETAIL = 300, 300, 2000
 
@@ -276,7 +277,7 @@ def import_user(conn, uid) -> dict:
         return {"skipped": True}
     started = datetime.now(tz=tz())
     base = {"singleEvents": "true", "showDeleted": "true", "maxResults": "250",
-            "timeMin": (started - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()}
+            "timeMin": (started - timedelta(days=LOOKBACK_DAYS)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()}
     if link.get("import_at"):
         since = datetime.fromisoformat(link["import_at"]).replace(tzinfo=tz()) - timedelta(minutes=5)
         base["updatedMin"] = since.isoformat()
@@ -339,6 +340,8 @@ def _loop() -> None:
                     for r in _rows(conn, "SELECT user_id FROM google_calendar_link WHERE status = 'active' AND scopes LIKE ?",
                                    (f"%{READ_SCOPE}%",)):
                         import_user(conn, r["user_id"])
+                    for r in _rows(conn, "SELECT user_id FROM google_calendar_link WHERE status = 'active' AND last_error IS NOT NULL"):
+                        gcal_sync.sync_user(conn, r["user_id"])   # a failed push retries by itself, not only on the next app edit
                     import meeting_invites
                     meeting_invites.refresh_all(conn)   # guests' answers to the meetings people organized
                 finally:
