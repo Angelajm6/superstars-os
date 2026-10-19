@@ -4229,7 +4229,7 @@
           ${f('Notes', esc(r.notes || '').replace(/\n/g, '<br>'))}
         </ul>
         ${r.payments.length ? `<div class="cp-card-head" style="margin-top:14px"><h2>Payments</h2></div><div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Received</th><th>Method</th><th>Reference</th><th class="num">Amount</th></tr></thead><tbody>${r.payments.map(p => `<tr><td>${fmtDate(p.paid_on)}</td><td>${esc(p.method || '—')}</td><td>${esc(p.reference || '—')}</td><td class="num">${money2.format(p.amount)}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
-      if (r.qb_status === 'error' && r.qb_error) body.insertAdjacentHTML('beforeend', `<div class="cp-form-err show" style="margin-top:12px">QuickBooks refused this invoice: ${esc(r.qb_error)}</div>`);
+      if (QB.st && r.qb_status === 'error' && r.qb_error) body.insertAdjacentHTML('beforeend', `<div class="cp-form-err show" style="margin-top:12px">QuickBooks refused this invoice: ${esc(r.qb_error)}</div>`);
       else if (r.status === 'issued' && QB.st && QB.st.connected) body.insertAdjacentHTML('beforeend', '<div class="cp-note" style="margin-top:12px">Payments recorded in QuickBooks land here automatically. A payment you record here is sent to QuickBooks too, so both sides match.</div>');
       const btn = (id, cls, label) => `<button class="${cls}" type="button" id="${id}">${label}</button>`;
       const qbOn = QB.st && QB.st.connected;
@@ -4348,7 +4348,8 @@
     if (r.status === 'void') return '<span class="cp-muted">—</span>';
     return '<span class="qb-cell cp-muted">Not sent</span>';
   }
-  function qbLine(r) {
+  function qbLine(r) {   // QuickBooks is admin-only: no status from the server, nothing shown
+    if (!QB.st) return '';
     if (r.qb_invoice_id) return `#${esc(r.qb_doc_number || r.qb_invoice_id)} · ${esc(QB_LABEL[r.qb_status] || 'In QuickBooks')}`;
     if (!qbShown()) return '';
     if (r.qb_status === 'pending') return 'Sending…';
@@ -4361,7 +4362,7 @@
     $('inv-mail-msg-field').hidden = qb; $('inv-mail-note').hidden = qb;
   }
   ['inv-mail-via-qb', 'inv-mail-via-app'].forEach(id => $(id).addEventListener('change', qbViaChanged));
-  async function loadQB() {
+  async function loadQB() {   // admins only: anyone else gets 403 and sees nothing QuickBooks
     try { const { data } = await api('/quickbooks/status', null, true); QB.st = data; }
     catch (e) { QB.st = null; }
     renderQB();
