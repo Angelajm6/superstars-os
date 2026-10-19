@@ -146,6 +146,11 @@ def ensure(conn) -> None:
         f"  synced_at TEXT NOT NULL"
         f")")
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_gcal_event_user_item ON google_calendar_event(user_id, item_id)")
+    # 1 = the person deleted this copy in Google and may not delete the item itself: it is not put back (calendar_import.read_back)
+    if db_layer.is_postgres():
+        conn.execute("ALTER TABLE google_calendar_event ADD COLUMN IF NOT EXISTS dropped INTEGER")
+    elif not any(r[1] == "dropped" for r in conn.execute("PRAGMA table_info(google_calendar_event)").fetchall()):
+        conn.execute("ALTER TABLE google_calendar_event ADD COLUMN dropped INTEGER")
     conn.commit()
 
 
@@ -327,12 +332,12 @@ def sync_user(conn, uid) -> dict:
         cal = urllib.parse.quote(_ensure_calendar(conn, link, token), safe="")
         wanted = _wanted(conn, uid)
         have = {r["item_id"]: r for r in _rows(conn.execute(
-            "SELECT item_id, google_event_id, body_hash FROM google_calendar_event WHERE user_id = ?", (uid,)))}
+            "SELECT item_id, google_event_id, body_hash, dropped FROM google_calendar_event WHERE user_id = ?", (uid,)))}
         made = changed = removed = 0
         now = _now()
         for item_id, body in wanted.items():
             h, row = _hash(body), have.get(item_id)
-            if row and row["body_hash"] == h:
+            if row and (row["body_hash"] == h or row.get("dropped")):   # dropped: they deleted it in Google, it stays gone there
                 continue
             if row:
                 code, _ = _http("PUT", f"{API}/calendars/{cal}/events/{urllib.parse.quote(row['google_event_id'], safe='')}", token=token, json_body=body)
