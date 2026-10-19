@@ -15,6 +15,9 @@ Proves against an ISOLATED database (no Google, no model call):
     main calendar, unticked ones and the app's own Superstars calendar are not; an event there the person is
     invited to is skipped; each calendar keeps its own "changed since" mark; unticking removes its copies;
     a connection without the list permission reads the main calendar only (and the Inbox hint offers a reconnect)
+  * deletes read back: a copy deleted in an admin's Superstars calendar deletes the item in the app (status
+    'cancelled', like Delete); a PM's delete only drops their own Google copy, which sync_user does not put
+    back; a cancelled copy of an item the app itself is taking off that person's calendar changes nothing
   * token expiry: a revoked sign-in marks the link needs_reconnect (and the loop stops reading it);
     a single 401 on the events call refreshes the token once and carries on
   * the one-time move: the old import's team copies (crm_task source 'gcal') become private rows of
@@ -90,6 +93,7 @@ def _cleanup():
         uids = [r["id"] for r in conn.execute("SELECT id FROM users WHERE email LIKE ?", (f"{TAG}.%",)).fetchall()]
         for t in ("user_calendar_event", "user_calendar_source", "gcal_import", "google_calendar_event", "google_calendar_link"):
             purge(conn, t, "user_id", uids)
+        purge(conn, "meeting_invite", "owner_id", uids)
         conn.execute("DELETE FROM crm_task WHERE title LIKE 'Calimp%'")
         conn.commit()
         purge_users(conn, uids)
@@ -231,6 +235,8 @@ def main() -> int:
                     lists[0] += 1
                     return 200, {"items": cal_list}
                 cal = "primary" if url == ci.EVENTS_URL else url.split("/calendars/")[1].split("/")[0]
+                if cal == "ssc-cal%40group":   # read for deletes only (read_back), never copied as a calendar
+                    return 200, {"items": [ev("s1", "Calimp app copy")]}
                 reads.append((cal, dict(params)))
                 if cal == "primary":
                     return 200, {"items": [ev("p1", "Calimp main event")]}
@@ -249,6 +255,7 @@ def main() -> int:
                 assert rows["p1"]["title"] == "Calimp main event" and rows["p1"]["calendar_id"] is None, r1
                 assert rows["family@group:p1"]["title"] == "Calimp soccer" and rows["family@group:p1"]["calendar_id"] == "family@group"
                 assert "family@group:f2" not in rows   # invited: comes from the main calendar
+                assert not [k for k in rows if "s1" in k]   # the app's own Superstars calendar is not copied
                 assert {c for c, _ in reads} == {"primary", "family%40group", "crew_1%23x%40group"}   # not ssc / hidden / primary twice
                 assert {g["title"] for g in ci.events_for(conn, me, DAY, DAY)} >= {"Calimp main event", "Calimp soccer"}
                 marks = {r["calendar_id"]: r["import_at"] for r in _q("SELECT * FROM user_calendar_source WHERE user_id = ?", (me,))}
@@ -280,6 +287,66 @@ def main() -> int:
             assert ci.LIST_SCOPE in gcal_sync.SCOPES and gcal_sync.status_for(conn, me)["lists_calendars"] is True
             passed += 1; print("  other calendars ok (ticked only, keyed, invited skipped, own marks, untick, no permission)")
 
+            # ---- deletes in the Superstars calendar come back to the app
+            def item(title, who):
+                conn.execute("INSERT INTO crm_task (entity_type, title, assignee_user_id, status, priority, created_by, created_at, kind, "
+                             "start_date, due_date) VALUES ('none', ?, ?, 'open', 'normal', ?, ?, 'event', ?, ?)",
+                             (title, who, me, "2026-10-19T09:00:00", DAY, DAY))
+                conn.commit()
+                return _q("SELECT id FROM crm_task WHERE title = ?", (title,))[0]["id"]
+            a, b, d = item("Calimp A admin's", me), item("Calimp B pm's", other), item("Calimp D moved away", other)
+            m = item("Calimp M meeting", me)
+            conn.execute("UPDATE crm_task SET kind = 'meeting', invite_owner_id = ? WHERE id = ?", (me, m))
+            conn.execute("INSERT INTO meeting_invite (item_id, owner_id, google_event_id, calendar_id) VALUES (?, ?, 'gM', 'ssc-cal@group')", (m, me))
+            for uid, it, gid in ((me, a, "gA"), (other, b, "gB"), (me, d, "gD")):
+                conn.execute("INSERT INTO google_calendar_event (user_id, item_id, google_event_id, body_hash, synced_at) VALUES (?, ?, ?, 'h', ?)",
+                             (uid, it, gid, "2026-10-19T09:00:00"))
+            conn.execute("UPDATE google_calendar_link SET calendar_id = 'ssc-other@group' WHERE user_id = ?", (other,))
+            conn.commit()
+            gone = {"ssc-cal%40group": ["gA", "gD", "gX", "gM"], "ssc-other%40group": ["gB"]}
+            superstars_reads = []
+
+            def fake_get3(conn_, link, url, params):
+                if url == ci.LIST_URL or url == ci.EVENTS_URL:
+                    return 200, {"items": []}
+                cal = url.split("/calendars/")[1].split("/")[0]
+                superstars_reads.append((cal, dict(params)))
+                return 200, {"items": [dict(ev(g, "x"), status="cancelled") for g in gone.get(cal, [])]}
+            real, real_sched = ci._get, gcal_sync.schedule
+            ci._get, gcal_sync.schedule = fake_get3, (lambda *a: None)
+            try:
+                r_me = ci.import_user(conn, me)
+                r_other = ci.import_user(conn, other)
+                status = {r["id"]: r["status"] for r in _q("SELECT id, status FROM crm_task WHERE id IN (?, ?, ?)", (a, b, d))}
+                assert r_me.get("removed") == 2 and status[a] == "cancelled", (r_me, status)   # admin: deleted in the app too
+                assert _q("SELECT status FROM crm_task WHERE id = ?", (m,))[0]["status"] == "cancelled"   # the organizer deleted the invitation
+                assert status[d] == "open"   # not on their calendar any more (assigned elsewhere): nothing to do
+                assert r_other.get("dropped") == 1 and status[b] == "open", (r_other, status)   # PM: only their Google copy
+                assert _q("SELECT dropped FROM google_calendar_event WHERE user_id = ? AND item_id = ?", (other, b))[0]["dropped"] == 1
+                assert [p for c, p in superstars_reads if c == "ssc-other%40group" and "updatedMin" not in p]   # first read: the whole window
+                superstars_reads.clear()
+                assert not ci.import_user(conn, me).get("removed") and not ci.import_user(conn, other).get("dropped")   # once only
+                assert all("updatedMin" in p for _, p in superstars_reads)   # later rounds ask only for changes
+            finally:
+                ci._get, gcal_sync.schedule = real, real_sched
+            posted = []
+            real_http, real_tok = gcal_sync._http, gcal_sync._access_token
+            gcal_sync._access_token = lambda c, link: "tok"
+
+            def http(method, url, **kw):
+                if method == "POST":
+                    posted.append((kw.get("json_body") or {}).get("summary") or "")
+                    return 200, {"id": "new-%d" % len(posted)}
+                return 200, {"items": []}
+            gcal_sync._http = http
+            try:
+                gcal_sync.sync_user(conn, other)
+            finally:
+                gcal_sync._http, gcal_sync._access_token = real_http, real_tok
+            assert not [p for p in posted if "Calimp B" in p], posted   # the PM's deleted copy is not put back
+            assert [p for p in posted if "Calimp D" in p], posted        # other items still go to Google
+            passed += 1; print("  deletes read back ok (admin deletes the item, PM drops own copy, guard, once only)")
+
             # ---- token expiry: one 401 retries; a revoked sign-in needs a reconnect
             calls = []
             real_http, real_tok = gcal_sync._http, gcal_sync._access_token
@@ -291,7 +358,7 @@ def main() -> int:
             gcal_sync._http = http_401_once
             try:
                 assert ci.import_user(conn, me) == {}
-                assert len(calls) == 3   # 401 + retry on the main calendar, then the (empty) calendar list
+                assert len(calls) == 4   # 401 + retry on the main calendar, the (empty) calendar list, the Superstars calendar
                 link = gcal_sync._link(conn, me)
                 assert link["status"] == "active"
 
@@ -358,8 +425,8 @@ def main() -> int:
     finally:
         _cleanup()
         shutil.rmtree(_TMP, ignore_errors=True)
-    print(f"smoke_calendar_import: {passed}/9 groups passed")
-    return 0 if passed == 9 else 1
+    print(f"smoke_calendar_import: {passed}/10 groups passed")
+    return 0 if passed == 10 else 1
 
 
 if __name__ == "__main__":
