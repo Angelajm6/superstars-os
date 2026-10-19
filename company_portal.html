@@ -240,6 +240,29 @@
   .cp-tags span { display: inline-block; font-size:13px; padding: 2px 8px; border-radius: 999px; background: #F3F4F7; margin: 0 6px 6px 0; }
   .cp-note { font-size:13px; color: var(--muted); background: #F7F8FA; border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
 
+  /* ---- #316 QuickBooks card ---- */
+  .qb-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px 16px; align-items: center; }
+  .qb-logo { width: 40px; height: 40px; border-radius: 50%; background: #2ca01c; color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 15px; }
+  .qb-mark { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: #2ca01c; color: #fff; font-size: 9px; font-weight: 700; vertical-align: -3px; margin-right: 5px; }
+  .qb-card h2 { margin: 0; font-size: 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .qb-card p { margin: 4px 0 0; color: var(--muted); font-size: 13px; max-width: 75ch; }
+  .qb-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .qb-alert { grid-column: 1 / -1; background: #FFF4E5; color: #9A5B00; border-radius: 8px; padding: 9px 12px; font-size: 13px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .qb-alert .grow { flex: 1; min-width: 0; }
+  .qb-stats { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .qb-stats div { font-size: 13px; color: var(--muted); }
+  .qb-stats strong { display: block; color: var(--ink); font-size: 15px; font-variant-numeric: tabular-nums; }
+  .qb-cell { white-space: nowrap; font-size: 13px; }
+  .qb-via { display: grid; gap: 8px; }
+  .cp-field.qb-via label, .cp-modal-body .qb-check { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--ink); font-weight: 600; margin: 0; }
+  .cp-field.qb-via label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .qb-via small { display: block; color: var(--muted); font-size: 13px; font-weight: 400; margin-top: 2px; }
+  .cp-field.qb-via input, .cp-modal-body .qb-check input { width: auto; flex: none; margin: 3px 0 0; padding: 0; box-shadow: none; }
+  .cp-modal-body .qb-check { background: #F7F8FA; font-weight: 400; font-size: 13px; }
+  .qb-match select { width: 100%; min-width: 180px; }
+  .qb-match td { vertical-align: middle; }
+  @media (max-width: 640px) { .qb-card { grid-template-columns: auto minmax(0, 1fr); } .qb-actions { grid-column: 1 / -1; justify-content: flex-start; } }
+
   /* ---- modal ---- */
   .cp-overlay { position: fixed; inset: 0; background: rgba(20,22,28,.45); display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
   .cp-overlay.open { display: flex; }
@@ -907,6 +930,7 @@
 
       <section class="cp-view" id="view-finance" hidden>
         <div class="ssc-subtabs" data-subtabs="finance"></div>
+        <div class="cp-card qb-card" id="qb-card" aria-live="polite" hidden></div>
         <div class="cp-kpis" id="fin-kpis"></div>
         <!-- #319 — accounts payable + the 30-day cash view -->
         <div class="cp-card" id="pb-card">
@@ -1217,14 +1241,25 @@
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="inv-pay-cancel">Cancel</button><button class="btn-primary" type="submit" id="inv-pay-go">Record payment</button></div>
   </form>
 </div>
+<div class="cp-overlay" id="qb-match-overlay" role="dialog" aria-modal="true" aria-labelledby="qb-match-title">
+  <form class="cp-modal vf" id="qb-match-form" novalidate>
+    <div class="cp-modal-head"><h2 id="qb-match-title">Match your clients</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Each client here is linked to one QuickBooks customer so invoices land on the right account. We matched what we could by name and billing email; check the rest.</p></div>
+    <div class="cp-modal-body"><div class="full" id="qb-match-body"></div><div class="cp-form-err" id="qb-match-err" role="alert"></div></div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="qb-match-cancel">Later</button><button class="btn-primary" type="submit" id="qb-match-go">Save matches</button></div>
+  </form>
+</div>
 <div class="cp-overlay" id="inv-mail-overlay" role="dialog" aria-modal="true" aria-labelledby="inv-mail-title">
   <form class="cp-modal" id="inv-mail-form" novalidate>
     <div class="cp-modal-head"><h2 id="inv-mail-title">Email invoice to the client</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="inv-mail-sub"></p></div>
     <div class="cp-modal-body">
       <div class="cp-field"><label for="inv-mail-name">Recipient name</label><input id="inv-mail-name" autocomplete="off"></div>
       <div class="cp-field"><label for="inv-mail-email">Recipient email</label><input id="inv-mail-email" type="email" autocomplete="off"></div>
-      <div class="cp-field full"><label for="inv-mail-msg">Message (optional)</label><textarea id="inv-mail-msg" placeholder="A short note above the invoice details"></textarea></div>
-      <div class="cp-note full">The email carries a private link where the client views the invoice, downloads the PDF, and sees how to pay. Each send mints a fresh link; the previous one stops working.</div>
+      <div class="cp-field full qb-via" id="inv-mail-via" role="radiogroup" aria-label="How to send" hidden>
+        <label><input type="radio" name="inv-mail-via" id="inv-mail-via-qb" value="qb"><span>Send from QuickBooks<small>The client gets QuickBooks' email with a Pay now button (card or ACH, when QuickBooks Payments is on). The payment comes back here by itself.</small></span></label>
+        <label><input type="radio" name="inv-mail-via" id="inv-mail-via-app" value="app" checked><span>Send from the app<small>Our own email with the private invoice link and PDF.</small></span></label>
+      </div>
+      <div class="cp-field full" id="inv-mail-msg-field"><label for="inv-mail-msg">Message (optional)</label><textarea id="inv-mail-msg" placeholder="A short note above the invoice details"></textarea></div>
+      <div class="cp-note full" id="inv-mail-note">The email carries a private link where the client views the invoice, downloads the PDF, and sees how to pay. Each send mints a fresh link; the previous one stops working.</div>
       <div class="cp-form-err" id="inv-mail-err" role="alert"></div>
     </div>
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="inv-mail-cancel">Cancel</button><button class="btn-primary" type="submit" id="inv-mail-go">Send</button></div>
@@ -3448,6 +3483,7 @@
 
   // ---------- FINANCE ----------
   async function loadFinance() {
+    loadQB();   // #316
     skeleton($('fin-kpis'), 1); skeleton($('fin-chart'), 5); skeleton($('fin-pipeline'), 4); skeleton($('fin-cat'), 4); skeleton($('fin-proj'), 4); skeleton($('fin-recv'), 3); skeleton($('fin-labor'), 3);
     try {
       const { data: d } = await api('/finance?months=' + $('fin-months').value);
@@ -4167,7 +4203,7 @@
       { key: 'balance', label: 'Open', num: true, render: r => r.status === 'issued' ? `<strong>${money2.format(r.balance)}</strong>` : '—' },
       { key: 'due_at', label: 'Due', render: r => r.status === 'draft' ? '<span class="cp-muted">draft</span>' : fmtDate(r.due_at) },
       { key: 'status', label: 'Status', render: r => invPill(r) + (r.sent_at ? `<div class="cp-muted" style="font-size:13px">${r.viewed_at ? 'opened' : 'sent'} ${fmtDate(r.viewed_at || r.sent_at)}</div>` : '') },
-    ], data, { defaultSort: { key: 'due_at', dir: 'asc' }, emptyTitle: rows.length ? 'No invoices match' : 'No invoices yet', emptySub: rows.length ? '' : 'Sign a proposal with deposit terms, or create one here.', onRow: r => openInvoice(r.id) });
+    ].concat(qbShown() ? [{ key: 'qb_status', label: 'QuickBooks', render: r => qbCell(r) }] : []), data, { defaultSort: { key: 'due_at', dir: 'asc' }, emptyTitle: rows.length ? 'No invoices match' : 'No invoices yet', emptySub: rows.length ? '' : 'Sign a proposal with deposit terms, or create one here.', onRow: r => openInvoice(r.id) });
   }
   async function reloadInvoices() {
     try { const { data, meta } = await api('/invoices', null, true); state.cache.invoices = data; renderInvoices(meta.summary); }
@@ -4189,12 +4225,17 @@
           ${f('Retainage held', r.retainage ? money2.format(r.retainage) : '')}
           ${f('Due', r.due_at ? fmtDate(r.due_at) + (r.overdue ? ` <span class="cp-pill bad">${r.days_overdue} days late</span>` : (r.days_to_due != null ? ` <span class="cp-muted">in ${r.days_to_due} days</span>` : '')) : '')}
           ${f('Paid so far', money2.format(r.amount_paid) + (r.status === 'issued' ? ` <span class="cp-muted">· ${money2.format(r.balance)} open</span>` : ''))}
-          ${f('QuickBooks', r.qb_invoice_id ? esc(r.qb_invoice_id) + (r.qb_status ? ' · ' + esc(r.qb_status) : '') : '')}
+          ${f('QuickBooks', qbLine(r))}
           ${f('Notes', esc(r.notes || '').replace(/\n/g, '<br>'))}
         </ul>
         ${r.payments.length ? `<div class="cp-card-head" style="margin-top:14px"><h2>Payments</h2></div><div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Received</th><th>Method</th><th>Reference</th><th class="num">Amount</th></tr></thead><tbody>${r.payments.map(p => `<tr><td>${fmtDate(p.paid_on)}</td><td>${esc(p.method || '—')}</td><td>${esc(p.reference || '—')}</td><td class="num">${money2.format(p.amount)}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
+      if (r.qb_status === 'error' && r.qb_error) body.insertAdjacentHTML('beforeend', `<div class="cp-form-err show" style="margin-top:12px">QuickBooks refused this invoice: ${esc(r.qb_error)}</div>`);
+      else if (r.status === 'issued' && QB.st && QB.st.connected) body.insertAdjacentHTML('beforeend', '<div class="cp-note" style="margin-top:12px">Payments recorded in QuickBooks land here automatically. A payment you record here is sent to QuickBooks too, so both sides match.</div>');
       const btn = (id, cls, label) => `<button class="${cls}" type="button" id="${id}">${label}</button>`;
+      const qbOn = QB.st && QB.st.connected;
       foot.innerHTML = btn('inv-close', 'btn-ghost', 'Close') +
+        (r.qb_invoice_id && QB.st && QB.st.open_url && r.qb_realm_id ? `<a class="btn-ghost" href="${esc(QB.st.open_url + encodeURIComponent(r.qb_invoice_id))}" target="_blank" rel="noopener" style="text-decoration:none">Open in QuickBooks ↗</a>` : '') +
+        (qbOn && ['issued', 'paid'].includes(r.status) && !r.qb_invoice_id && r.qb_status !== 'pending' ? btn('inv-qb-push', 'btn-ghost', r.qb_status === 'error' ? 'Try QuickBooks again' : 'Send to QuickBooks') : '') +
         `<a class="btn-ghost" href="/api/invoices/${r.id}/preview" target="_blank" rel="noopener" style="text-decoration:none">Preview</a>` +
         (r.status !== 'draft' ? `<a class="btn-ghost" href="/api/invoices/${r.id}/pdf" target="_blank" rel="noopener" style="text-decoration:none">PDF</a>` : '') +
         '<span style="flex:1"></span>' +
@@ -4206,15 +4247,23 @@
         $('inv-mail-form').dataset.id = r.id; $('inv-mail-sub').textContent = `${r.number} · ${money2.format(r.balance)} open`;
         $('inv-mail-err').className = 'cp-form-err'; $('inv-mail-msg').value = '';
         $('inv-mail-name').value = r.sent_name || ''; $('inv-mail-email').value = r.sent_to || '';
+        const via = qbOn && r.status === 'issued';
+        $('inv-mail-via').hidden = !via; $('inv-mail-via-qb').checked = via && !!r.qb_invoice_id; $('inv-mail-via-app').checked = !$('inv-mail-via-qb').checked; qbViaChanged();
         if (!r.sent_to) { try { const { data } = await api('/invoices/' + r.id + '/recipient', null, true); $('inv-mail-email').value = data.email || ''; $('inv-mail-name').value = data.name || ''; } catch (e) {} }
         closeOverlay('inv-view-overlay'); $('inv-mail-overlay').classList.add('open'); setTimeout(() => $('inv-mail-email').focus(), 30);
       });
       $('inv-close').addEventListener('click', () => closeOverlay('inv-view-overlay'));
+      if ($('inv-qb-push')) $('inv-qb-push').addEventListener('click', async () => {
+        $('inv-qb-push').disabled = true;
+        try { await api('/quickbooks/invoices/' + r.id + '/push', { method: 'POST', body: '{}' }, true); toast(`${r.number} is in QuickBooks`); }
+        catch (e) { toast(e.message, true); }
+        await Promise.all([reloadInvoices(), loadQB()]); openInvoice(r.id);
+      });
       const after = async (msg) => { toast(msg); closeOverlay('inv-view-overlay'); await reloadInvoices(); if (state.view === 'overview') loadOverview(); };
       if (r.status === 'draft') {
         $('inv-issue').addEventListener('click', async () => {
-          if (!confirm(`Issue ${r.number} for ${money2.format(r.amount)}? It becomes a receivable${r.due_at ? ' due ' + fmtDate(r.due_at) : (r.kind === 'deposit' ? ' due in 7 days' : ' due in 30 days')}.`)) return;
-          try { await api('/invoices/' + r.id + '/issue', { method: 'POST', body: '{}' }, true); after(`${r.number} issued`); } catch (e) { toast(e.message, true); }
+          if (!confirm(`Issue ${r.number} for ${money2.format(r.amount)}? It becomes a receivable${r.due_at ? ' due ' + fmtDate(r.due_at) : (r.kind === 'deposit' ? ' due in 7 days' : ' due in 30 days')}.${qbOn ? ' The same invoice is created in QuickBooks.' : ''}`)) return;
+          try { await api('/invoices/' + r.id + '/issue', { method: 'POST', body: '{}' }, true); after(qbOn ? `${r.number} issued · going to QuickBooks` : `${r.number} issued`); if (qbOn) setTimeout(() => { reloadInvoices(); loadQB(); }, 4000); } catch (e) { toast(e.message, true); }
         });
         $('inv-del').addEventListener('click', async () => {
           if (!confirm(`Delete draft ${r.number}?`)) return;
@@ -4272,6 +4321,12 @@
     e.preventDefault(); const err = $('inv-mail-err'); err.className = 'cp-form-err'; const id = $('inv-mail-form').dataset.id;
     const email = $('inv-mail-email').value.trim(); if (!email.includes('@')) { err.textContent = 'Enter the recipient email.'; err.className = 'cp-form-err show'; return; }
     $('inv-mail-go').disabled = true;
+    if (!$('inv-mail-via').hidden && $('inv-mail-via-qb').checked) {
+      try { const { data } = await api('/quickbooks/invoices/' + id + '/send', { method: 'POST', body: JSON.stringify({ to_email: email }) }, true); closeOverlay('inv-mail-overlay'); toast(`${data.number} emailed from QuickBooks`); await reloadInvoices(); }
+      catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+      finally { $('inv-mail-go').disabled = false; }
+      return;
+    }
     try { const { data } = await api('/invoices/' + id + '/send', { method: 'POST', body: JSON.stringify({ to_email: email, to_name: $('inv-mail-name').value.trim(), message: $('inv-mail-msg').value }) }, true); closeOverlay('inv-mail-overlay'); toast(`${data.number} emailed to ${email}`); await reloadInvoices(); }
     catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
     finally { $('inv-mail-go').disabled = false; }
@@ -4279,6 +4334,123 @@
   ['inv-status', 'inv-kind'].forEach(id => $(id).addEventListener('change', () => renderInvoices()));
   $('inv-search').addEventListener('input', () => debounce(() => renderInvoices()));
   document.querySelectorAll('.cp-overlay').forEach(o => o.addEventListener('click', (e) => { if (e.target === o) o.classList.remove('open'); }));
+
+  // ---------- #316 QUICKBOOKS ONLINE: invoices out, payments back ----------
+  const QB = { st: null, clients: null };
+  const QB_LABEL = { created: 'In QuickBooks', emailed: 'Emailed', paid: 'Paid', voided: 'Voided' };
+  function qbShown() { return !!(QB.st && (QB.st.connected || QB.st.status)); }
+  function qbCell(r) {
+    if (r.qb_status === 'pending') return '<span class="qb-cell cp-muted">Sending…</span>';
+    if (r.qb_status === 'error') return '<span class="cp-pill bad">Needs you</span>';
+    if (r.qb_invoice_id) return `<span class="qb-cell"><span class="qb-mark" aria-hidden="true">qb</span>#${esc(r.qb_doc_number || r.qb_invoice_id)} · ${esc(QB_LABEL[r.qb_status] || 'In QuickBooks')}</span>`;
+    if (r.status === 'draft') return '<span class="qb-cell cp-muted">Goes when issued</span>';
+    if (r.status === 'paid') return '<span class="qb-cell cp-muted">Already in your books</span>';
+    if (r.status === 'void') return '<span class="cp-muted">—</span>';
+    return '<span class="qb-cell cp-muted">Not sent</span>';
+  }
+  function qbLine(r) {
+    if (r.qb_invoice_id) return `#${esc(r.qb_doc_number || r.qb_invoice_id)} · ${esc(QB_LABEL[r.qb_status] || 'In QuickBooks')}`;
+    if (!qbShown()) return '';
+    if (r.qb_status === 'pending') return 'Sending…';
+    if (r.qb_status === 'error') return '<span class="cp-pill bad">Needs you</span>';
+    if (r.status === 'draft') return QB.st.connected ? 'Created when you issue it' : '';
+    return r.status === 'paid' ? 'Already in your books' : (r.status === 'issued' ? 'Not sent' : '');
+  }
+  function qbViaChanged() {
+    const qb = !$('inv-mail-via').hidden && $('inv-mail-via-qb').checked;
+    $('inv-mail-msg-field').hidden = qb; $('inv-mail-note').hidden = qb;
+  }
+  ['inv-mail-via-qb', 'inv-mail-via-app'].forEach(id => $(id).addEventListener('change', qbViaChanged));
+  async function loadQB() {
+    try { const { data } = await api('/quickbooks/status', null, true); QB.st = data; }
+    catch (e) { QB.st = null; }
+    renderQB();
+    if (state.cache.invoices) renderInvoices();
+  }
+  function renderQB() {
+    const c = $('qb-card'), s = QB.st;
+    if (!s || (!s.status && !s.can_connect)) { c.hidden = true; return; }
+    c.hidden = false;
+    const btn = (id, cls, label) => `<button class="${cls} btn-sm" type="button" id="${id}">${label}</button>`;
+    const sandbox = s.environment === 'sandbox' ? ' <span class="cp-pill">test company</span>' : '';
+    if (!s.status) {
+      c.innerHTML = `<div class="qb-logo" aria-hidden="true">qb</div>
+        <div><h2>QuickBooks Online${sandbox}</h2><p>${s.available ? "Connect the company's QuickBooks so invoices issued here appear there automatically and payments come back on their own. You need to sign in as a QuickBooks admin for Superstars." : 'Not switched on yet: the QuickBooks keys are not set on the server.'}</p></div>
+        <div class="qb-actions">${s.available ? `<a class="btn-primary btn-sm" href="/quickbooks/connect" style="text-decoration:none">Connect QuickBooks</a>` : ''}</div>`;
+      return;
+    }
+    const st = s.stats || {};
+    const needs = s.needs_you || [];
+    const parts = [`<div class="qb-logo" aria-hidden="true">qb</div>`,
+      `<div><h2>QuickBooks Online ${s.connected ? '<span class="cp-pill ok">Connected</span>' : '<span class="cp-pill bad">Needs reconnecting</span>'}${sandbox}</h2>
+        <p>${esc(s.company_name || 'QuickBooks company')} · connected${s.connected_by ? ' by ' + esc(s.connected_by) : ''} on ${fmtDate((s.connected_at || '').slice(0, 10))}${s.last_check_at ? ' · last checked ' + fmtWhen(s.last_check_at) : ''}. Payments are checked every ${s.every_minutes} minutes.</p></div>`,
+      `<div class="qb-actions">${s.connected ? btn('qb-sync', 'btn-ghost', 'Check now') + btn('qb-clients', 'btn-ghost', 'Clients') : ''}${s.can_connect ? (s.connected ? btn('qb-off', 'btn-ghost', 'Disconnect') : `<a class="btn-primary btn-sm" href="/quickbooks/connect" style="text-decoration:none">Reconnect</a>`) : ''}</div>`];
+    if (s.connected && !s.matched) parts.push(`<div class="qb-alert"><strong>Match your clients</strong><span class="grow">so invoices land on the right QuickBooks customer.</span>${btn('qb-match-now', 'btn-primary', 'Match clients')}</div>`);
+    if (needs.length) parts.push(`<div class="qb-alert"><strong>${needs.length} invoice${needs.length > 1 ? 's need' : ' needs'} you.</strong><span class="grow">${esc(needs[0].number)}: ${esc(needs[0].error)}${needs.length > 1 ? ` (and ${needs.length - 1} more)` : ''}</span>${btn('qb-open-err', 'btn-ghost', 'Open ' + esc(needs[0].number))}</div>`);
+    if (s.problem) parts.push(`<div class="qb-alert"><span class="grow">${esc(s.problem)}</span></div>`);
+    if (s.connected && st.not_sent) parts.push(`<div class="qb-alert"><span class="grow">${st.not_sent} open invoice${st.not_sent > 1 ? 's were' : ' was'} issued before QuickBooks was connected and ${st.not_sent > 1 ? 'are' : 'is'} not in QuickBooks. Open one and choose Send to QuickBooks if it isn't there already.</span></div>`);
+    parts.push(`<div class="qb-stats">
+        <div><strong>${st.clients_linked} of ${st.clients_total}</strong>clients matched</div>
+        <div><strong>${st.invoices_in_qb} of ${st.invoices_total}</strong>open or paid invoices in QuickBooks${st.waiting ? ' · ' + st.waiting + ' sending' : ''}</div>
+        <div><strong>${st.payments_back_month}</strong>payments brought back this month</div>
+        <div><strong>${(st.reads_today || 0).toLocaleString()} / ${(st.read_cap || 0).toLocaleString()}</strong>QuickBooks reads today (app cap)</div></div>`);
+    c.innerHTML = parts.join('');
+    if ($('qb-sync')) $('qb-sync').addEventListener('click', async () => {
+      $('qb-sync').disabled = true; $('qb-sync').textContent = 'Checking…';
+      try { const { data } = await api('/quickbooks/sync', { method: 'POST', body: '{}' }, true); QB.st = data;
+        toast(data.payments ? `${data.payments} payment${data.payments > 1 ? 's' : ''} brought back from QuickBooks` : (data.sent ? `${data.sent} invoice(s) sent to QuickBooks` : 'QuickBooks checked · nothing new'));
+        renderQB(); await reloadInvoices(); }
+      catch (e) { toast(e.message, true); renderQB(); }
+    });
+    if ($('qb-clients')) $('qb-clients').addEventListener('click', () => openQBMatch());
+    if ($('qb-match-now')) $('qb-match-now').addEventListener('click', () => openQBMatch());
+    if ($('qb-open-err')) $('qb-open-err').addEventListener('click', () => openInvoice(needs[0].id));
+    if ($('qb-off')) $('qb-off').addEventListener('click', async () => {
+      if (!confirm('Disconnect QuickBooks? New invoices stop going to QuickBooks and payments stop coming back. Nothing already in QuickBooks is deleted, and the client matches are kept for when you reconnect.')) return;
+      try { await api('/quickbooks/disconnect', { method: 'POST', body: '{}' }, true); toast('QuickBooks disconnected'); await loadQB(); } catch (e) { toast(e.message, true); }
+    });
+  }
+  async function openQBMatch() {
+    const body = $('qb-match-body'); skeleton(body, 4); $('qb-match-err').className = 'cp-form-err';
+    $('qb-match-go').disabled = true; $('qb-match-overlay').classList.add('open');
+    try {
+      const { data } = await api('/quickbooks/clients', null, true); QB.clients = data;
+      $('qb-match-cancel').textContent = data.first_time ? 'Later' : 'Cancel';
+      if (!data.clients.length) {
+        body.innerHTML = empty('No clients to match yet', 'Clients are matched, or created in QuickBooks, automatically the first time you invoice them.');
+      } else {
+        const opts = (sel) => '<option value="">Create in QuickBooks</option>' + data.customers.map(c => `<option value="${esc(c.id)}" ${sel && sel.id === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+        body.innerHTML = `<div class="cp-table-wrap"><table class="cp-table qb-match"><thead><tr><th>Client here</th><th>How we matched</th><th>QuickBooks customer</th></tr></thead><tbody>` +
+          data.clients.map((c, i) => `<tr><td><strong>${esc(c.name)}</strong>${c.email ? `<div class="cp-muted" style="font-size:13px">${esc(c.email)}</div>` : ''}</td>
+            <td>${c.suggestion ? `<span class="cp-pill ${c.linked ? 'active' : 'ok'}">${esc(c.suggestion.how)}</span>` : '<span class="cp-pill active">New in QuickBooks</span>'}</td>
+            <td><select class="cp-select" data-i="${i}" aria-label="QuickBooks customer for ${esc(c.name)}">${opts(c.suggestion)}</select></td></tr>`).join('') + '</tbody></table></div>' +
+          '<div class="cp-note">"Create in QuickBooks" adds the client there with its email. Clients added later are matched or created automatically the first time you invoice them.</div>';
+      }
+      if (data.first_time && data.open_unsent) body.insertAdjacentHTML('beforeend', `<label class="qb-check"><input type="checkbox" id="qb-send-open" checked><span>Also send the <strong>${data.open_unsent}</strong> open invoice${data.open_unsent > 1 ? 's' : ''} already issued here to QuickBooks. Untick this if you already typed them into QuickBooks, so they are not there twice.</span></label>`);
+      $('qb-match-go').disabled = false;
+    } catch (e) { body.innerHTML = empty('Could not load QuickBooks customers', e.message); }
+  }
+  $('qb-match-cancel').addEventListener('click', () => closeOverlay('qb-match-overlay'));
+  $('qb-match-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('qb-match-err'); err.className = 'cp-form-err';
+    const d = QB.clients; if (!d) return;
+    const matches = d.clients.map((c, i) => { const sel = document.querySelector(`#qb-match-body select[data-i="${i}"]`); const id = sel ? sel.value : '';
+      return { org_id: c.org_id, qb_customer_id: id || null, qb_name: id ? sel.options[sel.selectedIndex].text : null }; });
+    $('qb-match-go').disabled = true; $('qb-match-go').textContent = 'Saving…';
+    try { const { data } = await api('/quickbooks/clients', { method: 'POST', body: JSON.stringify({ matches, send_open: !!($('qb-send-open') && $('qb-send-open').checked) }) }, true);
+      closeOverlay('qb-match-overlay'); QB.st = data; renderQB();
+      toast(`${data.linked + data.created} client${data.linked + data.created === 1 ? '' : 's'} matched${data.created ? ' · ' + data.created + ' created in QuickBooks' : ''}${data.queued ? ' · ' + data.queued + ' invoice(s) sent' : ''}`);
+      await reloadInvoices(); setTimeout(loadQB, 3000); }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('qb-match-go').disabled = false; $('qb-match-go').textContent = 'Save matches'; }
+  });
+  (function qbOutcome() {   // back from Intuit: /company?qb=<outcome>#finance
+    const p = new URLSearchParams(location.search), o = p.get('qb'); if (!o) return;
+    p.delete('qb'); history.replaceState(null, '', location.pathname + (p.toString() ? '?' + p : '') + location.hash);
+    const msg = { connected: null, denied: 'QuickBooks was not connected (permission not given).', state: 'That QuickBooks sign-in expired. Try Connect again.', failed: 'QuickBooks did not accept the sign-in. Try again.' };
+    if (o === 'connected') { toast('QuickBooks connected'); loadQB().then(() => { if (QB.st && QB.st.connected && !QB.st.matched) openQBMatch(); }); }
+    else toast(msg[o] || 'QuickBooks was not connected.', true);
+  })();
 
   // ---------- #360 client portal: who can sign in, and how each login is set up ----------
   const PA = { data: null, open: null, temp: null };
