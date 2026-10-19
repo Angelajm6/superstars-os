@@ -161,7 +161,7 @@ def main() -> int:
                  'data-subtabs="projects"', 'data-subtabs="finance"', 'data-subtabs="workforce"', 'data-subtabs="company"', 'data-subtabs="proposals"',
                  "sites_without_project", "function newProjectHref"):
         assert kept in po, kept
-    assert po.index('id="cc-week"') < po.index('id="ov-kpis"'), "the week comes first on the Dashboard"
+    assert po.index('id="ov-kpis"') < po.index('id="cc-week"') < po.index('id="td-needs"'), "cards, then the week, then Needs you"
     assert po.count('data-subtabs="projects"') == 2, "list and calendar both carry the Projects sub-tabs"
     for gone in ('id="view-buildings"', "#buildings", "loadBuildings", "Manage in CRM", "Edit in CRM", "/#crm", "Job sites", "job site", 'id="view-compliance"', "'#cp-nav a'"):
         assert gone not in po, gone

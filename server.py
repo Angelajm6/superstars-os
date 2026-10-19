@@ -256,6 +256,12 @@ import calendar_import  # noqa: E402
 calendar_import.register(app)   # each person's main Google Calendar, copied privately for them (only they see it)
 import inbox_schedule  # noqa: E402
 inbox_schedule.register(app)   # Inbox Mine (everyone) / All (admin + C-suite, server-checked): calendar + assigned work
+import today_feed  # noqa: E402
+today_feed.register(app)   # the Dashboard's Today: four cards, Your day, Needs you (live, each card opens its page)
+import proposal_template  # noqa: E402
+proposal_template.register(app)   # the company's own proposal layout, read once by Claude; every proposal PDF uses it
+import proposal_drafts  # noqa: E402
+proposal_drafts.register(app)   # proposals Claude drafts from an email: review the PDF, change it, send it in the thread
 import project_setup  # noqa: E402
 project_setup.register(app)   # Oct 7 notes batch C: job numbers, a color per job, access method, worker access
 

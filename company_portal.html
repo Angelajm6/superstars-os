@@ -396,7 +396,116 @@
           .cal-date .n, .cc-week-date .n{flex:none}
           .cal-date, .cc-week-date{min-width:0;overflow:hidden}
           .cal-date small, .cal-hc{min-width:0;overflow:hidden;text-overflow:ellipsis}
-          #ov-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}   /* the dashboard keeps two numbers; they share the row */
+          /* Today (accepted prototype 2026-10-19) */
+          #ov-kpis{grid-template-columns:repeat(4,minmax(0,1fr));margin:14px 0 12px}
+          @media (max-width:900px){ #ov-kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
+          .td-brief{padding:18px 20px}
+          .td-date{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+          .td-hello{font-size:22px;letter-spacing:-.02em;margin:4px 0 0;font-weight:700;text-wrap:balance}
+          .td-ask{display:flex;gap:8px}.td-ask input{flex:1;min-width:0}
+          .cp-kpi-v .of{font-size:13px;font-weight:500;color:var(--muted)}
+          .cp-kpi .warn-sub{color:var(--status-behind-deep,#A8382B)}
+          .cp-kpi-v.wx{display:flex;align-items:center;gap:6px}
+          .cc-week-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+          .cc-week-arrow{width:32px;height:32px;border:1px solid var(--line);background:#fff;border-radius:8px;font:inherit;font-size:16px;cursor:pointer;color:var(--ink)}
+          .cc-week-range{height:32px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:0 12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;color:var(--ink);white-space:nowrap}
+          .cc-week-range small{font-weight:500;color:var(--muted)}
+          .cc-week-range.cur{border-color:var(--ui-edge);color:var(--ui)}
+          .cc-week-arrow:hover,.cc-week-range:hover{background:var(--ui-soft,#E8EDF8)}
+          .td-cols{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:16px;align-items:start}
+          @media (max-width:1100px){ .td-cols{grid-template-columns:1fr} .td-side{order:-1} }
+          .td-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+          .td-head h2{margin:0;font-size:16px;font-weight:600}
+          .td-count{color:var(--muted);font-weight:500}
+          .td-live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+          .td-live i{width:7px;height:7px;border-radius:50%;background:var(--status-complete,#15a07e);box-shadow:0 0 0 3px var(--status-complete-soft,#e7f6f0);animation:td-pulse 2s ease-in-out infinite}
+          @keyframes td-pulse{50%{opacity:.35}}
+          .td-chips{display:flex;gap:6px;flex-wrap:wrap}
+          .td-chips button{border:1px solid var(--line);background:#fff;border-radius:99px;padding:4px 11px;font:inherit;font-size:12px;color:var(--ink-2);cursor:pointer}
+          .td-chips button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+          .td-group{font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--muted);margin:14px 2px 8px;display:flex;align-items:center;gap:8px}
+          .td-group::after{content:"";flex:1;height:1px;background:var(--line)}
+          .td-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;gap:12px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+          .td-card:hover{border-color:var(--accent-edge)}
+          .td-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+          .td-card.fresh{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-in);animation:td-in .45s ease both}
+          @keyframes td-in{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+          .td-ico{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:none;background:var(--accent-soft);color:var(--accent-ink);font-size:15px}
+          .td-ico.money{background:var(--status-complete-soft,#e7f6f0);color:var(--status-complete-deep,#0c7a5f)}
+          .td-ico.doc{background:var(--status-warn-soft,#FFF4E5);color:var(--status-warn,#9A5B00)}
+          .td-ico.crew,.td-ico.field{background:var(--status-behind-soft,#fceeec);color:var(--status-behind-deep,#A8382B)}
+          .td-main{flex:1;min-width:0}
+          .td-title{font-weight:600;line-height:1.4;overflow-wrap:anywhere}
+          .td-why{font-size:13px;color:var(--ink-2);margin-top:3px;line-height:1.5;overflow-wrap:anywhere}
+          .td-src{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:12px;color:var(--muted)}
+          .td-src a{color:var(--ui);text-decoration:none;font-weight:600}
+          .td-pill{font-size:11px;font-weight:600;border-radius:99px;padding:2px 8px;white-space:nowrap;background:var(--fill);color:var(--ink-2)}
+          .td-pill.now{background:var(--status-behind-soft,#fceeec);color:var(--status-behind-deep,#A8382B)}
+          .td-pill.today{background:var(--status-warn-soft,#FFF4E5);color:var(--status-warn,#9A5B00)}
+          .td-pill.new{background:var(--accent);color:#fff}
+          .td-draft{margin-top:10px;border:1px dashed var(--accent-edge);background:var(--accent-in);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--ink-2);line-height:1.5}
+          .td-draft b{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-ink);margin-bottom:4px}
+          .td-draft table{width:100%;border-collapse:collapse}.td-draft td{padding:3px 0;border-bottom:1px solid var(--line)}.td-draft td:last-child{text-align:right;white-space:nowrap}
+          .td-draft tr.t td{font-weight:700;color:var(--ink);border-bottom:0}
+          .td-draft .txt{white-space:pre-wrap;max-height:9em;overflow:hidden}
+          .td-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+          .td-btns .sp{flex:1}
+          .td-empty{background:#fff;border:1px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--muted)}
+          .td-sub{font-size:13px;margin-bottom:4px}
+          .td-tl{list-style:none;margin:6px 0 0;padding:0;position:relative}
+          .td-tl::before{content:"";position:absolute;left:62px;top:8px;bottom:8px;width:2px;background:var(--line)}
+          .td-tl li{display:grid;grid-template-columns:54px 18px minmax(0,1fr);gap:8px;padding:7px 4px;align-items:start;border-radius:8px;cursor:pointer}
+          .td-tl li:hover{background:var(--fill)}
+          .td-tl .t{font-size:12px;color:var(--muted);text-align:right;padding-top:2px;font-weight:600;white-space:nowrap}
+          .td-tl .dot{width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid var(--accent);margin:4px 0 0 1px;position:relative;z-index:1}
+          .td-tl li.past .dot{background:var(--line);border-color:var(--line)} .td-tl li.past .w{color:var(--muted)}
+          .td-tl li.next .dot{background:var(--accent);box-shadow:0 0 0 4px var(--accent-in)}
+          .td-tl li.bill .dot{border-color:var(--status-complete,#15a07e)} .td-tl li.calendar .dot{border-color:var(--muted)}
+          .td-tl .w{font-weight:600;font-size:13px;overflow-wrap:anywhere}
+          .td-tl .s{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.45;overflow-wrap:anywhere}
+          .td-tl .s a{color:var(--ui);text-decoration:none;font-weight:600}
+          .td-tl li.nowline{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--status-behind-deep,#A8382B);padding:0 4px;cursor:default}
+          .td-tl li.nowline:hover{background:none}
+          .td-tl li.nowline::after{content:"";flex:1;height:2px;background:var(--status-behind,#e9685a);opacity:.6}
+          .td-site{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;text-decoration:none;color:inherit}
+          .td-site:last-child{border-bottom:0} .td-site span{color:var(--muted);white-space:nowrap} .td-site span.bad{color:var(--status-behind-deep,#A8382B)}
+          .td-site b{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          /* proposal review panel */
+          .td-scrim{position:fixed;inset:0;background:rgba(20,24,36,.32);z-index:9100}
+          .td-drawer{position:fixed;top:0;right:0;bottom:0;width:min(680px,100%);background:#fff;border-left:1px solid var(--line);z-index:9101;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(36,65,140,.14)}
+          .td-drawer[hidden],.td-scrim[hidden]{display:none}
+          .pd-head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+          .pd-head h3{margin:2px 0 0;font-size:16px}
+          .pd-body{flex:1;overflow:auto;padding:16px 20px;display:flex;flex-direction:column;gap:12px}
+          .pd-body > *{flex-shrink:0}
+          .pd-body label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--ink-2)}
+          .pd-body textarea{resize:vertical;line-height:1.5;font:inherit}
+          .pd-foot{padding:12px 20px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+          .pd-tpl{display:flex;gap:12px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--fill)}
+          .pd-tpl .n{flex:1;min-width:0;font-size:13px}.pd-tpl .n b{display:block}.pd-tpl .n span{color:var(--muted);font-size:12px}
+          .pd-tpl label.btn-ghost{position:relative;overflow:hidden;cursor:pointer;flex-direction:row}
+          .pd-tpl input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+          .pd-email{background:var(--fill);border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.55;color:var(--ink-2);white-space:pre-wrap;max-height:180px;overflow:auto}
+          .pd-email .f{font-size:12px;color:var(--muted);margin-bottom:6px;white-space:normal}
+          .pd-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+          .pd-tabs button{border:0;background:none;padding:8px 12px;font:inherit;font-size:13px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer}
+          .pd-tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+          .pd-desk{background:#D9DCE3;border-radius:10px;padding:12px}
+          .pd-frame{display:block;width:100%;height:560px;border:0;background:#fff;box-shadow:0 4px 18px rgba(0,0,0,.18)}
+          .pd-note{font-size:12px;margin-top:6px}
+          #pd-pane-edit{display:flex;flex-direction:column;gap:12px}
+          #pd-pane-edit[hidden]{display:none}
+          .pd-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+          @media (max-width:560px){ .pd-grid2{grid-template-columns:1fr} }
+          .pd-lbl{font-size:12px;font-weight:600;color:var(--ink-2)}
+          .pd-lines input{width:100%;min-width:60px;border:1px solid transparent;background:none;border-radius:6px;padding:5px 6px;font:inherit;color:var(--ink)}
+          .pd-lines input:hover,.pd-lines input:focus{border-color:var(--line);background:var(--fill)}
+          .pd-lines td.num input{text-align:right}
+          .pd-line-foot{display:flex;justify-content:space-between;align-items:center;gap:10px}
+          .pd-ask{display:flex;gap:8px}.pd-ask input{flex:1;min-width:0}
+          .pd-thread{font-size:12px;color:var(--muted)}
+          .pd-thread b{color:var(--ink)}
+          .pd-att{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:3px 9px;font-weight:600;background:#fff;color:var(--ink);margin-left:4px}
           .tk-head-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
           #fp-table td.opt, #fp-table th.opt{background:#F7F8FB} #fp-table td.zero{color:#B45309;font-weight:700} #fp-table td.off{color:#B8BECB} #us-table td.none{color:#B8BECB} #fp-table td:first-child{min-width:180px}
           .us-roles{display:flex;gap:4px;flex-wrap:wrap} .us-roles span{font-size:13px;font-weight:600;background:#F0F1F4;color:#4A4F59;border-radius:99px;padding:1px 7px;white-space:nowrap}
@@ -523,20 +632,56 @@
           @media (max-width:560px){ .tk-grid2{grid-template-columns:1fr} }
           #tk-delete[hidden]{display:none}
         </style>
+        <!-- Today (accepted prototype 2026-10-19, today_feed.py): four cards, the week, Needs you (live) + Your day -->
+        <div class="cp-card td-brief" id="td-brief">
+          <div class="td-date" id="td-date"></div>
+          <h2 class="td-hello" id="td-hello">Today</h2>
+          <div class="cp-kpis" id="ov-kpis"></div>
+          <form class="td-ask" id="td-ask" autocomplete="off">
+            <input class="cp-input" id="td-ask-in" placeholder="Ask Claude… e.g. “Who is on site at Riverside?” or “Draft a proposal from Dana's email”" aria-label="Ask Claude">
+            <button type="submit" class="btn-primary btn-sm">Ask</button>
+          </form>
+        </div>
         <div class="cp-card cc-week" id="cc-week">
           <div class="cc-week-head">
-            <div><h2>This week</h2><div class="cp-muted">Jobs running each day, who is on site, tasks, events and what falls due. Click one to open it.</div></div>
-            <span style="display:inline-flex;gap:14px;align-items:center;flex-wrap:wrap"><label class="mine-tg" hidden><input type="checkbox" data-mine-toggle checked> My Google events</label>
-            <a class="cc-week-link" id="cc-week-open" href="#calendar">Open the calendar →</a></span>
+            <div><h2 id="cc-week-title">This week</h2><div class="cp-muted">Jobs running each day, who is on site, tasks, events and what falls due. Click one to open it.</div></div>
+            <div class="cc-week-nav">
+              <label class="mine-tg" hidden><input type="checkbox" data-mine-toggle checked> My Google events</label>
+              <button type="button" class="cc-week-arrow" id="cc-week-prev" aria-label="Previous week">‹</button>
+              <button type="button" class="cc-week-range cur" id="cc-week-range" title="Back to this week"></button>
+              <button type="button" class="cc-week-arrow" id="cc-week-next" aria-label="Next week">›</button>
+              <a class="cc-week-link" id="cc-week-open" href="#calendar">Open the calendar →</a>
+            </div>
           </div>
           <div class="cc-week-dow" id="cc-week-dow"></div>
           <div class="cc-week-row" id="cc-week-row"><div class="cp-empty" style="grid-column:1 / -1">Loading this week…</div></div>
           <div class="cc-week-foot" id="cc-week-foot"></div>
         </div>
-        <div class="cp-kpis" id="ov-kpis"></div>
-        <div class="cp-grid2">
+        <div class="td-cols">
+          <section class="td-needs-wrap" aria-label="Needs you">
+            <div class="td-head">
+              <div><h2>Needs you <span class="td-count" id="td-count"></span></h2>
+                <span class="td-live"><i></i>Live · Claude adds things here as they come in</span></div>
+              <div class="td-chips" role="tablist" aria-label="Show">
+                <button type="button" class="on" data-td-f="all">All</button><button type="button" data-td-f="email">Emails</button><button type="button" data-td-f="money">Money</button><button type="button" data-td-f="doc">Documents</button><button type="button" data-td-f="crew">Field &amp; crew</button><button type="button" data-td-f="task">Tasks</button>
+              </div>
+            </div>
+            <div id="td-needs"></div>
+          </section>
+          <aside class="td-side">
+            <div class="cp-card">
+              <div class="cp-card-head"><h2>Your day</h2><a class="cc-week-link" id="td-cal" href="#calendar">Open the calendar →</a></div>
+              <div class="cp-muted td-sub">Your tasks, events and meetings, your Google Calendar and the bills due today, in time order. Click one to open it.</div>
+              <ul class="td-tl" id="td-day"></ul>
+            </div>
+            <div class="cp-card">
+              <div class="cp-card-head"><h2>Sites today</h2><span class="cp-muted" id="td-sites-n"></span></div>
+              <div id="td-sites"></div>
+            </div>
+          </aside>
+        </div>
           <!-- the team to-do list: tasks (with or without a deadline) and events, on the calendar too -->
-          <div class="cp-card tk-card" id="tk-card">
+          <div class="cp-card tk-card" id="tk-card" style="margin-top:16px">
             <div class="cp-card-head"><h2>Tasks &amp; events</h2>
               <div class="tk-head-right">
                 <div class="cal-seg" role="tablist" aria-label="Which tasks"><button type="button" data-tk-filter="open" class="on">Open</button><button type="button" data-tk-filter="mine">Mine</button><button type="button" data-tk-filter="done">Done</button></div>
@@ -546,12 +691,46 @@
             <div data-gcal hidden></div>
             <div id="tk-list" class="tk-list"></div>
           </div>
-          <div class="cp-card">
-            <div class="cp-card-head"><h2>Needs attention</h2><a class="cp-link" href="#company">Open Company →</a></div>
-            <ul class="cp-list" id="ov-attention"></ul>
-          </div>
-        </div>
         <section class="cp-card" data-gmail-card hidden aria-label="From your email" style="margin-top:14px"></section>
+
+        <!-- review a proposal Claude drafted from an email, in the company template, before it goes out as a PDF -->
+        <div class="td-scrim" id="pd-scrim" hidden></div>
+        <aside class="td-drawer" id="pd-drawer" aria-label="Review proposal" hidden>
+          <div class="pd-head">
+            <div><div class="td-date">Proposal drafted by Claude</div><h3 id="pd-title">Proposal</h3></div>
+            <button type="button" class="btn-ghost btn-sm" id="pd-close" aria-label="Close">✕</button>
+          </div>
+          <div class="pd-body">
+            <div class="pd-tpl" id="pd-tpl"></div>
+            <div class="pd-email" id="pd-email"></div>
+            <div class="pd-tabs" role="tablist"><button type="button" class="on" data-pd-tab="pdf">PDF preview</button><button type="button" data-pd-tab="edit">Edit details</button></div>
+            <div id="pd-pane-pdf"><div class="pd-desk"><iframe id="pd-frame" class="pd-frame" title="The proposal PDF" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe></div>
+              <div class="cp-muted pd-note">This is the PDF that gets attached. Change anything under “Edit details”, or ask Claude below.</div></div>
+            <div id="pd-pane-edit" hidden>
+              <div class="pd-grid2">
+                <label>Title<input class="cp-input" id="pd-f-title"></label>
+                <label>Valid for (days)<input class="cp-input" id="pd-f-valid" type="number" min="1" max="180"></label>
+              </div>
+              <label>Building address<input class="cp-input" id="pd-f-addr"></label>
+              <label>Scope<textarea class="cp-input" id="pd-f-scope" rows="4"></textarea></label>
+              <div class="pd-lbl">Line items</div>
+              <div class="cp-table-wrap"><table class="cp-table pd-lines"><thead><tr><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Unit price</th><th class="num">Amount</th><th></th></tr></thead><tbody id="pd-lines"></tbody></table></div>
+              <div class="pd-line-foot"><button type="button" class="btn-ghost btn-sm" id="pd-add-line">+ Add a line</button><b>Total <span id="pd-total"></span></b></div>
+              <label>Schedule<textarea class="cp-input" id="pd-f-sched" rows="2"></textarea></label>
+              <label>Exclusions (blank = your standard ones)<textarea class="cp-input" id="pd-f-excl" rows="3"></textarea></label>
+            </div>
+            <form class="pd-ask" id="pd-ask"><input class="cp-input" id="pd-ask-in" placeholder="Ask Claude to change it, e.g. “add a 10% contingency”" aria-label="Ask Claude to change the proposal"><button type="submit" class="btn-ghost btn-sm">Change</button></form>
+            <div class="pd-thread" id="pd-thread"></div>
+            <label>Email with the PDF<textarea class="cp-input" id="pd-f-msg" rows="6"></textarea></label>
+            <div class="cp-form-err" id="pd-err"></div>
+          </div>
+          <div class="pd-foot">
+            <span class="cp-muted">Sends from your Gmail as a reply in the same thread, PDF attached</span>
+            <span style="flex:1"></span>
+            <button type="button" class="btn-ghost btn-sm" id="pd-save">Save draft</button>
+            <button type="button" class="btn-primary btn-sm" id="pd-send">Approve &amp; send PDF</button>
+          </div>
+        </aside>
       </section>
 
       <!-- ================= CLIENTS ================= -->
@@ -617,6 +796,7 @@
           .cal-seg button{font:inherit;font-size:13px;font-weight:700;padding:6px 12px;border:0;background:transparent;border-radius:8px;color:var(--cal-mute);cursor:pointer}
           .cal-seg button.on{background:#fff;color:var(--ui,#24418C);box-shadow:0 1px 3px rgba(0,0,0,.08)}
           .cal-nav{display:inline-flex;gap:4px;margin-left:auto}
+          .cal-nav .cal-now{white-space:nowrap}.cal-nav .cal-now small{font-weight:500;color:var(--cal-mute)}
           .cal-nav button{font:inherit;font-size:13px;font-weight:700;padding:6px 10px;border:1px solid var(--cal-line);background:#fff;border-radius:8px;cursor:pointer;color:var(--cal-ink)}
           .cal-nav button:hover{border-color:var(--ui-edge,rgba(36,65,140,.35));background:var(--ui-soft,#E8EDF8);color:var(--ui,#24418C)}
           .cal-grid{display:grid;border:1px solid var(--cal-line);border-radius:14px;overflow:hidden;background:#fff}
@@ -677,7 +857,7 @@
             <button type="button" class="btn-primary btn-sm" id="cal-new-item">+ Task or event</button>
             <label class="mine-tg" hidden><input type="checkbox" data-mine-toggle checked> My Google events</label>
             <div class="cal-seg" role="tablist"><button type="button" data-cal-view="3day">3 days</button><button type="button" data-cal-view="week">Week</button><button type="button" data-cal-view="month" class="on">Month</button></div>
-            <div class="cal-nav"><button type="button" id="cal-prev" title="Previous">‹</button><button type="button" id="cal-today">Today</button><button type="button" id="cal-next" title="Next">›</button><button type="button" id="cal-print" title="Print this view as a sheet for the foremen">Print</button></div>
+            <div class="cal-nav"><button type="button" id="cal-prev" title="Previous">‹</button><button type="button" id="cal-today" class="cal-now">This week</button><button type="button" id="cal-next" title="Next">›</button><button type="button" id="cal-print" title="Print this view as a sheet for the foremen">Print</button></div>
           </div>
           <div id="cal-note"></div>
           <div class="cal-dow" id="cal-dow"></div>
@@ -1352,30 +1532,296 @@
     return `<span class="cp-pill ok">${d}d left</span>`;
   }
 
-  // ---------- OVERVIEW ----------
+  // ---------- OVERVIEW: Today (accepted prototype 2026-10-19; today_feed.py) ----------
   // Dashboard → the view behind each number (every target must be a real view: smoke_company_dashboard_links)
+  const TD = { data: null, seen: null, f: 'all', timer: null, wx: null };
+  const tdSvg = d => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const TD_ICON = {
+    mail: tdSvg('<path d="M3 6h18v12H3z"/><path d="M3 6l9 7 9-7"/>'), task: tdSvg('<path d="M5 12l4 4 10-10"/>'),
+    bill: tdSvg('<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>'), cash: tdSvg('<rect x="3" y="7" width="18" height="10" rx="1"/><circle cx="12" cy="12" r="2.5"/>'),
+    doc: tdSvg('<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/>'), crew: tdSvg('<path d="M4 15a8 8 0 0116 0v2H4z"/><path d="M12 7V4"/>'),
+    weather: tdSvg('<path d="M7 15a4 4 0 010-8 5 5 0 019.6 1.5A3.5 3.5 0 0117 15z"/><path d="M9 18l-1 2M13 18l-1 2M17 18l-1 2"/>') };
+  TD_ICON.email = TD_ICON.mail; TD_ICON.money = TD_ICON.cash; TD_ICON.field = TD_ICON.weather;
   async function loadOverview() {
-    skeleton($('ov-kpis'), 1); skeleton($('ov-attention'), 4);
+    if (!TD.data) { skeleton($('ov-kpis'), 1); skeleton($('td-needs'), 3); }
     loadWeekStrip(); loadTasks();
-    try {
-      const { data: d } = await api('/overview');
-      // the dashboard stays clean: two numbers, the week, the to-do list, what needs attention
-      $('ov-kpis').innerHTML =
-        kpi('Active projects', num.format(d.projects.active), '', '', '#projects') +
-        kpi('Workforce', num.format(d.workforce.headcount), `${d.workforce.on_site_today} on site today · ${d.workforce.worked_hours_this_week} h worked this week`, '', '#workforce');
-      const att = [];
-      if (d.expiring.expired) att.push([`${d.expiring.expired} expired item(s)`, '<a class="cp-link" href="#company">review</a>']);
-      if (d.expiring.next_30) att.push([`${d.expiring.next_30} item(s) expire within 30 days`, '<a class="cp-link" href="#company">review</a>']);
-      if (d.spend.receipts_needing_review) att.push([`${d.spend.receipts_needing_review} receipt(s) need review`, '<a class="cp-link" href="#expenses">open</a>']);
-      if (d.invoices.overdue_count) att.push([`${d.invoices.overdue_count} invoice(s) overdue · ${money2.format(d.invoices.overdue_value)}`, '<a class="cp-link" href="#finance/overdue">collect</a>']);
-      if (d.invoices.draft_count) att.push([`${d.invoices.draft_count} draft invoice(s) waiting to be issued · ${money2.format(d.invoices.draft_value)}`, '<a class="cp-link" href="#finance/draft">issue</a>']);
-      if (d.invoices.due_soon_count) att.push([`${d.invoices.due_soon_count} invoice(s) due within ${d.invoices.horizon_days} days · ${money2.format(d.invoices.due_soon_value)}`, '<a class="cp-link" href="#finance">open</a>']);
-      if (d.receivables.awaiting_deposit) att.push([`${d.receivables.awaiting_deposit} job(s) awaiting deposit`, '<a class="cp-link" href="#finance">open</a>']);
-      if (!d.pipeline.open_count) att.push(['No open estimates in the pipeline', '<a class="cp-link" href="#proposals/estimates">estimates</a>']);
-      if (d.storage && d.storage.warn) att.push([`File storage ${d.storage.used_pct}% full (${d.storage.used_gb} of ${d.storage.total_gb} GB) · photos and videos`, '']);   // field_videos.py
-      $('ov-attention').innerHTML = att.length ? att.map(([k, v]) => { const m = /href="([^"]+)">([^<]+)</.exec(v); return m ? `<li class="has-link"><a href="${m[1]}"><span>${esc(k)}</span><span class="cp-link">${m[2]}</span></a></li>` : `<li><span>${esc(k)}</span>${v}</li>`; }).join('') : `<li><span class="cp-muted">All clear. Nothing needs attention right now.</span></li>`;
-    } catch (e) { toast(e.message, true); $('ov-kpis').innerHTML = empty('Could not load the overview', e.message); }
+    await loadToday();
+    loadTodayWeather();
+    clearInterval(TD.timer);
+    TD.timer = setInterval(() => { if (!document.hidden && /^#?(overview)?$/.test(location.hash.replace(/^#/, '')) ) loadToday(true); }, 60000);
   }
+  function tdGreeting() {
+    const u = window.__SSC_USER || {}, h = new Date().getHours(), who = String(u.display_name || u.full_name || '').trim().split(/\s+/)[0] || '';
+    return (h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening') + (who ? ', ' + who : '');
+  }
+  async function loadToday(live) {
+    let d;
+    try { d = (await api('/today')).data; }
+    catch (e) { if (!live) { toast(e.message, true); $('ov-kpis').innerHTML = empty('Could not load today', e.message); } return; }
+    TD.data = d;
+    const now = new Date();
+    $('td-date').textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    tdCards(d.cards);
+    tdDay(d.day);
+    tdSites(d.cards.crew);
+    tdNeeds(live);
+    if (!window.__SSC_USER) setTimeout(() => tdNeeds(), 1500);   // the name arrives with auth_menu.js
+  }
+  function tdCards(c) {
+    const types = c.jobs.by_type.map(t => t.code + ' ' + t.n).join(' · ');
+    const cr = c.crew, pay = c.payments, wx = TD.wx;
+    const crewSub = cr.missing ? `<span class="warn-sub">${cr.missing} from the last workday not in yet</span>` : (cr.signed_out ? `${cr.signed_out} signed out · ${cr.signed_in_today} today` : `${cr.signed_in_today} signed in today`);
+    const tile = (k, v, sub, href) => `<a class="cp-kpi cp-kpi-link" href="${href}" aria-label="${esc(k)} — open"><div class="cp-kpi-k">${esc(k)}</div><div class="cp-kpi-v">${v}</div><div class="cp-kpi-sub">${sub}</div></a>`;
+    const wxV = wx && wx.available ? `<span class="wx">${wx.temp_now != null ? Math.round(wx.temp_now) + '°' : (wx.sites[0].temp_max != null ? Math.round(wx.sites[0].temp_max) + '°' : '—')}</span>` : '—';
+    const wxSub = wx ? (wx.available ? `<span class="${wx.warn ? 'warn-sub' : ''}">${esc(wx.label || '')}${wx.headline ? ' · ' + esc(wx.headline) : ''}</span>` : 'Forecast unavailable right now') : 'Checking the forecast…';
+    $('ov-kpis').innerHTML =
+      tile('Active jobs', num.format(c.jobs.active), esc(types || 'No active jobs'), '#projects') +
+      tile('On site now', `${num.format(cr.on_site_now)}`, crewSub, '/#hours') +
+      tile('Weather', wxV, wxSub, '#calendar') +
+      tile('Payments due', `${money2.format(pay.due_now_value).replace(/\.00$/, '')} <span class="of">${pay.overdue_count ? 'due or late' : 'today'}</span>`,
+        esc(pay.soon_count ? `+ ${money2.format(pay.soon_value).replace(/\.00$/, '')} in the next 7 days (${pay.soon_count} bill${pay.soon_count === 1 ? '' : 's'})` : 'Nothing else due this week'), '#finance');
+  }
+  async function loadTodayWeather() {
+    try { TD.wx = (await api('/today/weather')).data; } catch (e) { TD.wx = { available: false, sites: [] }; }
+    if (TD.data) { tdCards(TD.data.cards); tdNeeds(true); }
+  }
+  function tdWeatherCards() {
+    const wx = TD.wx; if (!wx || !wx.available) return [];
+    const t = TD.data ? TD.data.as_of : '';
+    return wx.sites.filter(s => s.heads_up.length && s.project_code).map(s => ({
+      key: `weather:${s.project_code}:${t}`, cat: 'crew field', urgency: 'now', icon: 'weather',
+      title: `Weather at ${s.project_code} · ${s.name}`, why: s.heads_up.join('. ') + '.',
+      href: '/projects/' + encodeURIComponent(s.project_code), source: 'Forecast for the site', pill: 'Today',
+      actions: [{ type: 'open', label: 'Open the job', primary: true }] }));
+  }
+  function tdNeeds(live) {
+    const d = TD.data; if (!d) return;
+    const all = tdWeatherCards().concat(d.needs);
+    const fresh = new Set();
+    if (TD.seen && live) all.forEach(c => { if (!TD.seen.has(c.key)) fresh.add(c.key); });
+    TD.seen = new Set(all.map(c => c.key).concat(Array.from(TD.seen || [])));
+    TD.cards = all;
+    const shown = all.filter(c => TD.f === 'all' || (c.cat || '').split(' ').includes(TD.f));
+    $('td-count').textContent = '· ' + all.length + ' open';
+    $('td-hello').textContent = tdGreeting() + '. ' + (all.length ? all.length + (all.length === 1 ? ' thing needs' : ' things need') + ' you today.' : 'You’re all caught up.');
+    if (!shown.length) { $('td-needs').innerHTML = `<div class="td-empty">${all.length ? 'Nothing here under this filter.' : 'Nothing needs you right now. New emails, bills, expiring documents and crew sign-ins show up here as they happen.'}</div>`; return; }
+    const groups = [['now', 'Now'], ['today', 'Today'], ['week', 'This week']];
+    $('td-needs').innerHTML = groups.map(([g, label]) => {
+      const cs = shown.filter(c => c.urgency === g); if (!cs.length) return '';
+      return `<div class="td-group">${label}</div>` + cs.map(c => tdCard(c, fresh.has(c.key))).join('');
+    }).join('');
+    if (fresh.size) {
+      const first = all.find(c => fresh.has(c.key));
+      toast('New: ' + first.title);
+      setTimeout(() => document.querySelectorAll('.td-card.fresh').forEach(x => x.classList.remove('fresh')), 9000);
+    }
+  }
+  function tdCard(c, fresh) {
+    const ico = TD_ICON[c.icon] || TD_ICON[(c.cat || '').split(' ')[0]] || TD_ICON.task;
+    const icoCls = (c.cat || '').split(' ').includes('money') ? 'money' : (c.cat || '').split(' ')[0];
+    let draft = '';
+    if (c.draft && c.draft.rows) draft = `<div class="td-draft"><b>${esc(c.draft.label)}</b><table>${c.draft.rows.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}<tr class="t"><td>Total</td><td>${esc(c.draft.total)}</td></tr></table></div>`;
+    else if (c.draft && c.draft.text) draft = `<div class="td-draft"><b>${esc(c.draft.label)}</b><div class="txt">${esc(c.draft.text)}</div></div>`;
+    const btns = (c.actions || []).map((a, i) => `<button type="button" class="${a.primary ? 'btn-primary' : 'btn-ghost'} btn-sm" data-td-act="${i}">${esc(a.label)}</button>`).join('');
+    const where = c.href ? `<a href="${esc(c.href)}" data-td-go>${esc(tdWhere(c))} →</a>` : '';
+    return `<article class="td-card${fresh ? ' fresh' : ''}" data-td-key="${esc(c.key)}" tabindex="0" role="button" aria-label="${esc(c.title)} — open">` +
+      `<div class="td-ico ${esc(icoCls)}" aria-hidden="true">${ico}</div><div class="td-main"><div class="td-title">${esc(c.title)}</div>` +
+      (c.why ? `<div class="td-why">${esc(c.why)}</div>` : '') +
+      `<div class="td-src">${fresh ? '<span class="td-pill new">Just now</span>' : (c.pill ? `<span class="td-pill ${esc(c.urgency)}">${esc(c.pill)}</span>` : '')}<span>${esc(c.source || '')}</span>${where}</div>` +
+      draft + `<div class="td-btns">${btns}<span class="sp"></span><button type="button" class="btn-ghost btn-sm" data-td-hide="later">Later</button><button type="button" class="btn-ghost btn-sm" data-td-hide="good">Dismiss</button></div></div></article>`;
+  }
+  function tdWhere(c) {
+    const h = c.href || '';
+    if (h.startsWith('#inbox')) return 'Open in Inbox';
+    if (h.startsWith('#finance') || h.startsWith('#expenses')) return 'Open in Finance';
+    if (h.startsWith('#workforce') || h === '/#hours') return 'Open in Workforce';
+    if (h.startsWith('#company')) return 'Open in Company';
+    if (h.startsWith('#calendar')) return 'Open the calendar';
+    if (h.startsWith('#proposals')) return 'Open in Proposals';
+    if (h.startsWith('/projects/')) return 'Open the job';
+    return 'Open';
+  }
+  function tdGo(c) { if (!c || !c.href) return; if (c.href.startsWith('#')) location.hash = c.href; else location.href = c.href; }
+  $('td-needs').addEventListener('click', async e => {
+    const card = e.target.closest('[data-td-key]'); if (!card) return;
+    const c = (TD.cards || []).find(x => x.key === card.dataset.tdKey); if (!c) return;
+    const act = e.target.closest('[data-td-act]'), hide = e.target.closest('[data-td-hide]');
+    if (e.target.closest('[data-td-go]')) { e.preventDefault(); tdGo(c); return; }
+    if (hide) {
+      try { await api('/today/hide', { method: 'POST', body: JSON.stringify({ key: c.key, for: hide.dataset.tdHide }) }); }
+      catch (x) { toast(x.message, true); return; }
+      TD.data.needs = TD.data.needs.filter(x => x.key !== c.key); if (TD.wx) TD.wx.sites.forEach(s => { if (c.key.startsWith('weather:' + s.project_code + ':')) s.heads_up = []; });
+      tdNeeds(); toast(hide.dataset.tdHide === 'later' ? 'Hidden for 4 hours' : 'Dismissed'); return;
+    }
+    if (!act) { if (!e.target.closest('a, button')) tdGo(c); return; }
+    const a = c.actions[+act.dataset.tdAct];
+    if (a.type === 'open') tdGo(c);
+    else if (a.type === 'proposal') pdOpen(c.action_id);
+    else if (a.type === 'claude') { if (window.SSC_CLAUDE && window.SSC_CLAUDE.ask) window.SSC_CLAUDE.ask(a.prompt); else toast('Claude is not available on this page', true); }
+    else if (a.type === 'done') {
+      act.disabled = true;
+      try { await api('/team/items/' + c.item_id + '/done', { method: 'POST', body: JSON.stringify({ done: true }) }, true); toast('Marked done'); loadToday(); loadTasks(); loadWeekStrip(); }
+      catch (x) { toast(x.message, true); act.disabled = false; }
+    } else if (a.type === 'approve') {
+      act.disabled = true;
+      try { await api('/claude/actions/' + c.action_id + '/approve', { method: 'POST', body: JSON.stringify({ values: {} }) }, true); toast('Done'); loadToday(); }
+      catch (x) { toast(x.message, true); act.disabled = false; }
+    }
+  });
+  $('td-needs').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-td-key]')) { const c = (TD.cards || []).find(x => x.key === e.target.dataset.tdKey); tdGo(c); } });
+  document.querySelectorAll('[data-td-f]').forEach(b => b.addEventListener('click', () => {
+    TD.f = b.dataset.tdF; document.querySelectorAll('[data-td-f]').forEach(x => x.classList.toggle('on', x === b)); tdNeeds();
+  }));
+  $('cc-week-prev').addEventListener('click', () => { WK.off--; loadWeekStrip(); });
+  $('cc-week-next').addEventListener('click', () => { WK.off++; loadWeekStrip(); });
+  $('cc-week-range').addEventListener('click', () => { WK.off = 0; loadWeekStrip(); });
+  $('td-ask').addEventListener('submit', e => {
+    e.preventDefault(); const q = $('td-ask-in').value.trim(); if (!q) return;
+    if (window.SSC_CLAUDE && window.SSC_CLAUDE.ask) { window.SSC_CLAUDE.ask(q, true); $('td-ask-in').value = ''; } else toast('Claude is not available on this page', true);
+  });
+  function tdDay(items) {
+    const host = $('td-day'), t = todayISO();
+    $('td-cal').href = '#calendar/' + t;
+    if (!items.length) { host.innerHTML = '<li class="nowline" style="color:var(--muted)">Nothing on your calendar today</li>'; return; }
+    const nowHM = new Date().toTimeString().slice(0, 5);
+    let drewNow = false, nextDone = false; const out = [];
+    items.forEach((it, i) => {
+      const hm = it.all_day ? null : (it.time || '').slice(0, 5);
+      if (!drewNow && hm && hm > nowHM) { out.push(`<li class="nowline" aria-hidden="true">NOW ${esc(fmtTime(nowHM))}</li>`); drewNow = true; }
+      const past = hm && (it.end_time ? it.end_time.slice(0, 5) : hm) < nowHM;
+      const next = hm && !past && !nextDone; if (next) nextDone = true;
+      const sub = [it.sub ? esc(it.sub) : '', it.directions_url ? `<a href="${esc(it.directions_url)}" target="_blank" rel="noopener" data-td-ext>Directions ↗</a>` : '', it.meet_url ? `<a href="${esc(it.meet_url)}" target="_blank" rel="noopener" data-td-ext>Join Meet ↗</a>` : ''].filter(Boolean).join(' · ');
+      out.push(`<li class="${esc(it.kind)}${past ? ' past' : ''}${next ? ' next' : ''}" data-td-day="${i}" tabindex="0"><span class="t">${hm ? esc(fmtTime(hm)) : 'All day'}</span><span class="dot"></span><div><div class="w">${esc(it.title)}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div></li>`);
+    });
+    if (!drewNow) out.push(`<li class="nowline" aria-hidden="true">NOW ${esc(fmtTime(nowHM))}</li>`);
+    host.innerHTML = out.join('');
+    TD.day = items;
+  }
+  function tdDayOpen(li) {
+    const it = (TD.day || [])[+li.dataset.tdDay]; if (!it) return;
+    if (it.kind === 'calendar' && it.html_link) { window.open(it.html_link, '_blank', 'noopener'); return; }
+    if (it.item_id && typeof openItem === 'function') {
+      api('/team/items?status=open&from=' + todayISO() + '&to=' + todayISO(), null, true)
+        .then(r => { const x = (r.data || []).find(z => z.id === it.item_id); if (x) openItem(x); else location.hash = it.href; })
+        .catch(() => { location.hash = it.href; });
+      return;
+    }
+    if (it.href.startsWith('#')) location.hash = it.href; else location.href = it.href;
+  }
+  $('td-day').addEventListener('click', e => { if (e.target.closest('[data-td-ext]')) return; const li = e.target.closest('[data-td-day]'); if (li) tdDayOpen(li); });
+  $('td-day').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-td-day]')) tdDayOpen(e.target); });
+  function tdSites(cr) {
+    $('td-sites-n').textContent = cr.on_site_now ? cr.on_site_now + ' on site now' : '';
+    $('td-sites').innerHTML = cr.sites.length ? cr.sites.map(s => `<a class="td-site" href="/projects/${encodeURIComponent(s.project_code)}"><b>${esc(s.project_code)} · ${esc(s.name)}</b><span class="${s.missing.length ? 'bad' : ''}">${s.on_site}${s.missing.length ? ' · ' + s.missing.length + ' not in' : ''}</span></a>`).join('')
+      : '<div class="cp-muted" style="font-size:13px">Nobody has signed in yet today.</div>';
+  }
+
+  // ---- review a proposal Claude drafted from an email (proposal_drafts.py), drawn in the company template
+  const PD = { id: null, v: null, view: null, t: null };
+  // the open .cp-view keeps an animation transform that breaks position:fixed — the panel lives on <body>
+  document.body.appendChild($('pd-scrim')); document.body.appendChild($('pd-drawer'));
+  function pdShow(on) { $('pd-drawer').hidden = !on; $('pd-scrim').hidden = !on; if (on) setTimeout(() => $('pd-send').focus(), 50); }
+  async function pdOpen(id) {
+    PD.id = id; $('pd-err').className = 'cp-form-err'; pdShow(true);
+    $('pd-frame').srcdoc = '<p style="font:14px sans-serif;color:#888;padding:20px">Drawing the PDF…</p>';
+    try { pdFill((await api('/proposal-drafts/' + id, null, true)).data); pdPreview(); }
+    catch (e) { pdErr(e.message); }
+  }
+  function pdErr(m) { $('pd-err').textContent = m; $('pd-err').className = 'cp-form-err show'; }
+  function pdTplLine(t) {
+    const st = t.state === 'reading' ? 'Claude is reading it… the PDF switches to it when done'
+      : t.state === 'failed' ? (t.error || 'Claude could not read it') : t.active ? `Your template · uploaded ${t.uploaded_at ? fmtDate(t.uploaded_at) : ''}${t.uploaded_by_name ? ' by ' + t.uploaded_by_name : ''} · used for every proposal PDF`
+      : 'No template uploaded yet: the built-in layout is used. Upload the proposal you usually send (PDF works best).';
+    $('pd-tpl').innerHTML = `<div class="n"><b>${esc(t.name || 'Proposal template')}</b><span>${esc(st)}</span></div><label class="btn-ghost btn-sm">${t.active || t.state === 'reading' ? 'Upload a new template' : 'Upload your template'}<input type="file" id="pd-tpl-file" accept=".pdf,.docx" aria-label="Upload your proposal template"></label>`;
+    if (t.state === 'reading') { clearTimeout(PD.t); PD.t = setTimeout(pdTplPoll, 4000); }
+  }
+  async function pdTplPoll() {
+    try { const t = (await api('/proposal-template', null, true)).data; pdTplLine(t); if (t.state !== 'reading') { pdPreview(); if (t.state === 'ready') toast('Your template is ready'); } } catch (e) {}
+  }
+  function pdFill(v) {
+    PD.view = v; PD.v = JSON.parse(JSON.stringify(v.values));
+    $('pd-title').textContent = (v.values.title || 'Proposal') + ' · ' + (v.client_name || '');
+    pdTplLine(v.template);
+    const em = v.email;
+    $('pd-email').innerHTML = `<div class="f">${esc(em.from_name || em.from_email || '')}${em.from_email ? ' &lt;' + esc(em.from_email) + '&gt;' : ''} · ${esc((em.received_at || '').slice(0, 16).replace('T', ' '))} · ${esc(em.subject || '')}</div>${esc(em.text || '')}`;
+    $('pd-thread').innerHTML = `Reply in the thread <b>${esc(v.reply_subject)}</b> to ${esc(em.from_email || '')}${v.new_client ? ' · <b>' + esc(v.client_name) + '</b> is added as a new client' : ''} <span class="pd-att">PDF attached</span>`;
+    $('pd-f-title').value = PD.v.title || ''; $('pd-f-valid').value = PD.v.valid_days || 30; $('pd-f-addr').value = PD.v.building_address || '';
+    $('pd-f-scope').value = PD.v.scope_summary || ''; $('pd-f-sched').value = PD.v.schedule_text || ''; $('pd-f-excl').value = PD.v.exclusions_text || '';
+    $('pd-f-msg').value = PD.v.message || '';
+    pdLines();
+    const done = v.status !== 'pending';
+    $('pd-send').disabled = done; $('pd-save').disabled = done;
+    if (done) pdErr('This proposal was already ' + v.status + '.');
+  }
+  function pdLines() {
+    const rows = PD.v.lines || [];
+    $('pd-lines').innerHTML = rows.map((li, i) => `<tr><td><input data-pd-li="${i}" data-k="description" value="${esc(li.description)}" aria-label="Item ${i + 1}"></td>` +
+      `<td class="num"><input data-pd-li="${i}" data-k="qty" value="${li.qty}" inputmode="decimal" aria-label="Quantity ${i + 1}"></td>` +
+      `<td><input data-pd-li="${i}" data-k="unit" value="${esc(li.unit || '')}" aria-label="Unit ${i + 1}" style="max-width:60px"></td>` +
+      `<td class="num"><input data-pd-li="${i}" data-k="unit_price" value="${li.unit_price}" inputmode="decimal" aria-label="Unit price ${i + 1}"></td>` +
+      `<td class="num">${money2.format((+li.qty || 0) * (+li.unit_price || 0))}</td><td><button type="button" class="btn-ghost btn-sm" data-pd-del="${i}" aria-label="Remove line ${i + 1}">×</button></td></tr>`).join('');
+    $('pd-total').textContent = money2.format(rows.reduce((a, li) => a + (+li.qty || 0) * (+li.unit_price || 0), 0));
+  }
+  function pdRead() {
+    Object.assign(PD.v, { title: $('pd-f-title').value, valid_days: +$('pd-f-valid').value || 30, building_address: $('pd-f-addr').value,
+      scope_summary: $('pd-f-scope').value, schedule_text: $('pd-f-sched').value, exclusions_text: $('pd-f-excl').value, message: $('pd-f-msg').value });
+    return PD.v;
+  }
+  let pdPrevT = null;
+  async function pdPreview() {
+    clearTimeout(pdPrevT);
+    try { const r = (await api('/proposal-drafts/' + PD.id + '/preview', { method: 'POST', body: JSON.stringify({ values: pdRead() }) }, true)).data; $('pd-frame').srcdoc = r.html; $('pd-err').className = 'cp-form-err'; }
+    catch (e) { pdErr(e.message); }
+  }
+  const pdSoon = () => { clearTimeout(pdPrevT); pdPrevT = setTimeout(pdPreview, 600); };
+  $('pd-lines').addEventListener('input', e => {
+    const x = e.target.closest('[data-pd-li]'); if (!x) return;
+    const li = PD.v.lines[+x.dataset.pdLi], k = x.dataset.k;
+    li[k] = (k === 'qty' || k === 'unit_price') ? (parseFloat(String(x.value).replace(/[$,]/g, '')) || 0) : x.value;
+    $('pd-total').textContent = money2.format(PD.v.lines.reduce((a, l) => a + (+l.qty || 0) * (+l.unit_price || 0), 0));
+    const amt = x.closest('tr').children[4]; if (amt) amt.textContent = money2.format((+li.qty || 0) * (+li.unit_price || 0));
+    pdSoon();
+  });
+  $('pd-lines').addEventListener('click', e => { const b = e.target.closest('[data-pd-del]'); if (!b) return; PD.v.lines.splice(+b.dataset.pdDel, 1); pdLines(); pdSoon(); });
+  $('pd-add-line').addEventListener('click', () => { PD.v.lines.push({ description: 'New item', qty: 1, unit: '', unit_price: 0 }); pdLines(); });
+  ['pd-f-title', 'pd-f-valid', 'pd-f-addr', 'pd-f-scope', 'pd-f-sched', 'pd-f-excl'].forEach(id => $(id).addEventListener('input', pdSoon));
+  document.querySelectorAll('[data-pd-tab]').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-pd-tab]').forEach(x => x.classList.toggle('on', x === b));
+    $('pd-pane-pdf').hidden = b.dataset.pdTab !== 'pdf'; $('pd-pane-edit').hidden = b.dataset.pdTab !== 'edit';
+    if (b.dataset.pdTab === 'pdf') pdPreview();
+  }));
+  $('pd-ask').addEventListener('submit', async e => {
+    e.preventDefault(); const q = $('pd-ask-in').value.trim(); if (!q) return;
+    const btn = $('pd-ask').querySelector('button'); btn.disabled = true; btn.textContent = 'Changing…';
+    try { pdFill((await api('/proposal-drafts/' + PD.id + '/revise', { method: 'POST', body: JSON.stringify({ values: pdRead(), instruction: q }) }, true)).data); $('pd-ask-in').value = ''; pdPreview(); toast('Claude changed the draft'); }
+    catch (x) { pdErr(x.message); }
+    finally { btn.disabled = false; btn.textContent = 'Change'; }
+  });
+  $('pd-drawer').addEventListener('change', async e => {
+    if (e.target.id !== 'pd-tpl-file') return;
+    const f = e.target.files[0]; if (!f) return;
+    const fd = new FormData(); fd.append('file', f);
+    try {
+      const res = await fetch('/api/proposal-template', { method: 'POST', body: fd, credentials: 'same-origin' });
+      const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || 'Upload failed');
+      pdTplLine(j.data); toast('Uploaded. Claude is reading your template');
+    } catch (x) { pdErr(x.message); }
+  });
+  $('pd-save').addEventListener('click', async () => {
+    try { pdFill((await api('/proposal-drafts/' + PD.id + '/save', { method: 'POST', body: JSON.stringify({ values: pdRead() }) }, true)).data); toast('Draft saved'); }
+    catch (x) { pdErr(x.message); }
+  });
+  $('pd-send').addEventListener('click', async () => {
+    const b = $('pd-send'); b.disabled = true; b.textContent = 'Sending…';
+    try {
+      await api('/proposal-drafts/' + PD.id + '/send', { method: 'POST', body: JSON.stringify({ values: pdRead() }) }, true);
+      pdShow(false); toast('Proposal sent as a PDF in the email thread'); loadToday();
+    } catch (x) { pdErr(x.message); }
+    finally { b.disabled = false; b.textContent = 'Approve & send PDF'; }
+  });
+  $('pd-close').addEventListener('click', () => pdShow(false));
+  $('pd-scrim').addEventListener('click', () => pdShow(false));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('pd-drawer').hidden) pdShow(false); });
 
   // ---------- USAGE & JOB TOOLS (Settings; job page redesign step 1) ----------
   const US = { days: 14 };
@@ -1947,13 +2393,21 @@
   });
 
   // ---------- THIS WEEK on the Dashboard (#338 → #339: lives on the company home now) ----------
+  // the week label in place of "Today" (2026-10-19): "Oct 19 – 25 · Mon – Sun"; click it to come back to this week
+  const MON_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function weekRangeLabel(a, b, dows) {
+    return `${MON_SHORT[a.getMonth()]} ${a.getDate()} – ${a.getMonth() === b.getMonth() ? '' : MON_SHORT[b.getMonth()] + ' '}${b.getDate()} <small>· ${dows}</small>`;
+  }
+  const WK = { off: 0 };
   async function loadWeekStrip() {
     const W = $('cc-week'); if (!W) return;
     const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     const add = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
     const mdy = (s) => { if (!s) return ''; const p = String(s).slice(0, 10).split('-'); return p[1] + '/' + p[2]; };
     const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const today = new Date(), mon = add(today, -((today.getDay() + 6) % 7)), days = []; for (let i = 0; i < 7; i++) days.push(add(mon, i));
+    const today = new Date(), base = add(today, WK.off * 7), mon = add(base, -((base.getDay() + 6) % 7)), days = []; for (let i = 0; i < 7; i++) days.push(add(mon, i));
+    $('cc-week-title').textContent = WK.off === 0 ? 'This week' : WK.off === -1 ? 'Last week' : WK.off === 1 ? 'Next week' : 'Week of ' + MON_SHORT[mon.getMonth()] + ' ' + mon.getDate();
+    $('cc-week-range').innerHTML = weekRangeLabel(days[0], days[6], 'Mon – Sun'); $('cc-week-range').classList.toggle('cur', WK.off === 0);
     const from = iso(days[0]), to = iso(days[6]), t = iso(today);
     $('cc-week-open').href = '#calendar/' + from;
     $('cc-week-dow').innerHTML = days.map((x, i) => `<div class="${iso(x) === t ? 'today' : ''}">${DOW[i]} ${x.getDate()}</div>`).join('');
@@ -2020,12 +2474,20 @@
     const fm = MONTHS[f.getMonth()].slice(0, 3), lm = MONTHS[l.getMonth()].slice(0, 3);
     return fm + ' ' + f.getDate() + (fm === lm ? '' : ' ' + fm) + ' – ' + (fm === lm ? '' : lm + ' ') + l.getDate() + ', ' + l.getFullYear();
   }
+  // in place of "Today": the period that holds today, e.g. "Oct 19 – 25 · Mon – Sun" (clicking it comes back there)
+  function calNowLabel() {
+    const t = new Date();
+    if (CAL.view === 'month') return MONTHS[t.getMonth()] + ' <small>· this month</small>';
+    if (CAL.view === 'week') { const m = calMonday(t); return weekRangeLabel(m, calAdd(m, 6), 'Mon – Sun'); }
+    const e = calAdd(t, 2); return weekRangeLabel(t, e, DOW[(t.getDay() + 6) % 7] + ' – ' + DOW[(e.getDay() + 6) % 7]);
+  }
   async function loadCalendar() {
     if (!CAL.anchor) CAL.anchor = new Date();
     document.querySelectorAll('[data-cal-view]').forEach(b => b.classList.toggle('on', b.dataset.calView === CAL.view));
     $('cal').className = 'cal v' + CAL.view;
     const days = calDays(); const from = calISO(days[0]), to = calISO(days[days.length - 1]);
     $('cal-range').textContent = calLabel(days);
+    $('cal-today').innerHTML = calNowLabel(); $('cal-today').title = 'Back to ' + (CAL.view === 'month' ? 'this month' : CAL.view === 'week' ? 'this week' : 'today');
     try {
       const key = from + '|' + to; const { data: d } = CAL.cache[key] ? { data: CAL.cache[key] } : await api('/calendar?from=' + from + '&to=' + to);
       CAL.cache[key] = d; CAL.data = d; renderCalendar(days, d);

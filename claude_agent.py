@@ -1210,6 +1210,34 @@ def _exec_log_sent(ctx, inp):
             "link": f"/company#proposals/{pid}", "undo": False}
 
 
+# ---- proposals drafted from an email (2026-10-19): drawn in the company's template, sent as a PDF in the thread
+def _check_draft_proposal(ctx, inp):
+    import proposal_drafts
+    _mail(ctx, inp.get("mail_id"))
+    inp.update(proposal_drafts.clean(inp))   # normalized now, so the card and the review panel show clean values
+
+
+def _draft_proposal_card(ctx, inp):
+    import proposal_drafts
+    try:
+        v = proposal_drafts.clean(inp)
+        who, tot = proposal_drafts._client_name(ctx.conn, v), "${:,.2f}".format(proposal_drafts.total(v))
+    except ValueError as e:
+        who, tot = str(e), ""
+    return {"title": "Send a proposal (PDF reply)", "fields": [
+        {"key": "client_name", "label": "Client", "type": "readonly", "value": who,
+         "hint": "new client, created when you approve" if not inp.get("client_org_id") else ""},
+        {"key": "total", "label": "Total", "type": "readonly", "value": tot,
+         "hint": f"{len(inp.get('lines') or [])} lines · review the PDF from the Dashboard"},
+        {"key": "title", "label": "Title", "type": "text", "value": inp.get("title") or ""},
+        {"key": "message", "label": "Email with the PDF", "type": "textarea", "value": inp.get("message") or ""}]}
+
+
+def _exec_draft_proposal(ctx, inp):
+    import proposal_drafts
+    return proposal_drafts.create_and_send(ctx.conn, ctx.uid, proposal_drafts.clean(inp))
+
+
 _S, _D, _T, _I, _B = ({"type": "string"}, {"type": "string", "description": "YYYY-MM-DD"},
                       {"type": "string", "description": "HH:MM, 24-hour"}, {"type": "integer"}, {"type": "boolean"})
 TOOLS = [
@@ -1321,6 +1349,22 @@ TOOLS += [
          "emailed it from Gmail (mail_id of the sent email); optionally the price stated in that email.",
          {"proposal_id": _I, "mail_id": _I, "price": {"type": "number"}}, ["proposal_id", "mail_id"], write=True,
          roles=OFFICE_ROLES, office_only=True, run=_check_log_sent, card=_log_sent_card, execute=_exec_log_sent),
+    Tool("draft_proposal", "Proposal from an email", "Propose a complete proposal answering an email that asks for a price "
+         "(mail_id): the client (client_org_id of an existing client, else client_name), job type, borough, building "
+         "address, title, scope, priced lines (look up past proposals and estimates for rates), schedule, and the email that "
+         "goes with the PDF. Once approved it is drawn in the company's own proposal template and sent as a PDF reply in "
+         "the same Gmail thread.",
+         {"mail_id": _I, "client_org_id": _I, "client_name": _S,
+          "est_type": {"type": "string", "enum": ["FR", "IRA", "IR", "PG", "OTH"]}, "borough": _S, "building_address": _S,
+          "title": _S, "scope_summary": _S,
+          "lines": {"type": "array", "items": {"type": "object", "properties": {
+              "description": _S, "qty": {"type": "number"}, "unit": _S, "unit_price": {"type": "number"}},
+              "required": ["description", "qty", "unit_price"], "additionalProperties": False}},
+          "schedule_text": _S, "exclusions_text": _S, "valid_days": _I, "deposit_pct": {"type": "number"},
+          "message": {"type": "string", "description": "the reply email that carries the PDF, signed like reply_email"}},
+         ["mail_id", "est_type", "borough", "title", "scope_summary", "lines", "message"], write=True,
+         roles=OFFICE_ROLES, office_only=True, run=_check_draft_proposal, card=_draft_proposal_card,
+         execute=_exec_draft_proposal),
 ]
 BY_NAME = {t.name: t for t in TOOLS}
 
@@ -1636,7 +1680,7 @@ def _api_chats():
         sql = ("SELECT c.id, c.title, c.created_at, c.updated_at, COALESCE(c.starred, 0) AS starred, "
                "(SELECT COUNT(*) FROM claude_chat_message m WHERE m.chat_id = c.id AND m.role = 'user' AND m.kind = 'text') AS asked "
                "FROM claude_chat c WHERE c.user_id = ? AND c.surface = ? AND c.archived_at IS NULL "
-               "AND COALESCE(c.source, 'chat') <> 'mail'")
+               "AND COALESCE(c.source, 'chat') NOT IN ('mail', 'system')")
         params = [me["id"], surface]
         if request.args.get("saved") == "1":
             sql += " AND COALESCE(c.starred, 0) = 1"

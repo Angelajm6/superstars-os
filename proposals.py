@@ -556,6 +556,13 @@ _DOC_CSS = """
 """
 
 
+_SIG_CSS = (".sig{margin-top:30px;border:1px solid #E8E4DD;border-radius:12px;padding:18px 20px;page-break-inside:avoid}"
+            ".sig .line{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:22px}"
+            ".sig .line div{border-top:1px solid #14161C;padding-top:6px;font-size:11px;color:#76777E}"
+            ".stamp{background:#e7f6f0;color:#0c7a5f;border-radius:10px;padding:12px 16px;font-weight:700}"
+            ".stamp.bad{background:#fceeec;color:#A8382B}")
+
+
 def _company_facts(conn) -> dict:
     """Optional letterhead details from app_settings (company_address, company_phone,
     company_email, company_license). Blank when unset — the document still renders."""
@@ -569,11 +576,13 @@ def _company_facts(conn) -> dict:
     return out
 
 
-def render_document(conn, r: dict, *, mode: str = "pdf") -> str:
+def render_document(conn, r: dict, *, mode: str = "pdf", lis: Optional[list] = None) -> str:
     """Self-contained HTML of the proposal. mode: 'pdf' (signature lines, or the signed
-    stamp) | 'page' (the public page injects its accept/decline UI below)."""
+    stamp) | 'page' (the public page injects its accept/decline UI below). `lis` draws lines
+    that are not saved yet (a draft Claude made from an email). When the company uploaded its
+    own proposal template (proposal_template.py), the proposal is drawn in that layout."""
     e = _html.escape
-    lis = lines(conn, r["id"])
+    lis = lines(conn, r["id"]) if lis is None else lis
     facts = _company_facts(conn)
     addr = r.get("building_address_line") or r.get("building_address") or ""
     city = " ".join(x for x in (r.get("building_city"), r.get("building_state"), r.get("building_zip")) if x)
@@ -612,6 +621,32 @@ def render_document(conn, r: dict, *, mode: str = "pdf") -> str:
         sig = ""
     letter = " · ".join(x for x in (facts["company_address"], facts["company_phone"], facts["company_email"]) if x)
     lic = f" · License {e(facts['company_license'])}" if facts["company_license"] else ""
+    try:
+        import proposal_template
+        tpl = proposal_template.active_html(conn)
+    except Exception as x:
+        log.info("proposal template unavailable: %s", type(x).__name__)
+        tpl = None
+    if tpl:
+        t = proposal_template.text
+        sv = "".join(
+            f"<tr><td>{e(li['description'])}</td><td>{'' if li.get('qty') is None else ('%g' % float(li['qty']))}"
+            f"{(' ' + e(li['unit'])) if li.get('unit') else ''}</td>"
+            f"<td>{_money(li['unit_price']) if li.get('unit_price') is not None else ''}</td>"
+            f"<td>{_money(li['amount']) if li.get('amount') is not None else ''}</td></tr>" for li in lis)
+        dep = (f"Deposit to start: {_money(r['deposit_amount'])} ({'%g' % float(r.get('deposit_pct') or 0)}%), "
+               "balance on progress invoices.") if r.get("deposit_amount") else ""
+        return proposal_template.fill(tpl, {
+            "company_name": e(COMPANY_NAME), "company_address": e(facts["company_address"]), "company_phone": e(facts["company_phone"]),
+            "company_email": e(facts["company_email"]), "company_license": e(facts["company_license"]),
+            "logo": proposal_template.logo_tag(), "number": e(r["number"]),
+            "date": e(_fmt_date(r.get("sent_at") or r.get("updated_at"))), "valid_until": e(_fmt_date(r.get("valid_until"))),
+            "title": e(r.get("title") or "Proposal"), "client_name": e(r.get("client_name") or ""), "contact_name": e(contact),
+            "recipient_email": e(r.get("recipient_email") or ""),
+            "building": e(", ".join(x for x in (r.get("building_name"), addr, city) if x)),
+            "scope": t(r.get("scope_summary")), "line_items_rows": sv, "total": e(_money(r.get("price"))), "deposit": e(dep),
+            "schedule": t(r.get("schedule_text")), "exclusions": t(r.get("exclusions_text")), "terms": t(r.get("terms_text")),
+            "signature": f"<style>{_SIG_CSS}</style>{sig}" if sig else ""})
     return f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Proposal {e(r['number'])} — {COMPANY_NAME}</title><style>{_DOC_CSS}</style></head><body>
 <div class="sheet"><div class="bar"></div><div class="pad">

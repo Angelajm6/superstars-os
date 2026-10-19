@@ -548,6 +548,60 @@ def _labels(conn, m: dict) -> str:
     return "; ".join(parts) or "nothing matched yet"
 
 
+TODAY_TOOLS = {"draft_proposal": ("email money", "now"), "reply_email": ("email", "today"),
+               "create_estimate": ("email", "today"), "create_event": ("email", "today"), "create_task": ("email", "today"),
+               "save_email_attachments": ("email", "week"), "log_proposal_sent": ("email money", "today"),
+               "add_client_note": ("email", "week")}
+
+
+def today_cards(conn, uid: int) -> list:
+    """The dashboard's "Needs you" cards from Claude's pending suggestions on this person's email (today_feed.py).
+    Each points at the email in the Inbox; a drafted proposal opens the review panel on the dashboard."""
+    if not uid:
+        return []
+    import claude_agent
+    since = (datetime.now() - claude_agent.CARD_TTL).isoformat(timespec="seconds")
+    rows = _rows(conn, "SELECT a.id, a.tool, a.input, a.summary, a.created_at, c.mail_id FROM claude_action a "
+                       "JOIN claude_chat c ON c.id = a.chat_id WHERE a.user_id = ? AND a.status = 'pending' "
+                       "AND c.source = 'mail' AND a.created_at >= ? ORDER BY a.created_at DESC LIMIT 40", (uid, since))
+    out = []
+    for a in rows:
+        m = message(conn, a["mail_id"], uid) if a.get("mail_id") else None
+        if not m:
+            continue
+        try:
+            inp = json.loads(a["input"] or "{}")
+        except ValueError:
+            inp = {}
+        who = parseaddr(m["from"])[0] or parseaddr(m["from"])[1] or "Someone"
+        cat, urgency = TODAY_TOOLS.get(a["tool"], ("email", "today"))
+        href = f"#inbox/{m['id']}"
+        card = {"key": f"claude:{a['id']}", "cat": cat, "urgency": urgency, "icon": "mail", "action_id": a["id"],
+                "tool": a["tool"], "href": href, "source": "From your Inbox · " + (m["received_at"] or "")[:16].replace("T", " "),
+                "when": a["created_at"], "created_at": a["created_at"], "pill": None, "draft": None, "actions": []}
+        if a["tool"] == "draft_proposal":
+            lines = inp.get("lines") or []
+            total = sum(float(li.get("qty") or 0) * float(li.get("unit_price") or 0) for li in lines if isinstance(li, dict))
+            card.update(title=f"{who} asked for a proposal" + (f": {inp.get('title')}" if inp.get("title") else ""),
+                        why=(m["subject"] or "")[:160], pill="Proposal ready",
+                        draft={"label": "Claude drafted this proposal in your template",
+                               "rows": [[str(li.get("description") or "")[:90], "${:,.0f}".format(float(li.get("qty") or 0) * float(li.get("unit_price") or 0))]
+                                        for li in lines[:6] if isinstance(li, dict)],
+                               "total": "${:,.0f}".format(total)},
+                        actions=[{"type": "proposal", "label": "Review PDF & send", "primary": True},
+                                 {"type": "open", "label": "Read the email"}])
+        elif a["tool"] == "reply_email":
+            card.update(title=f"{who} is waiting for a reply", why=(m["subject"] or "")[:160], pill="Reply drafted",
+                        draft={"label": "Claude drafted the reply", "text": str(inp.get("body") or "")[:600]},
+                        actions=[{"type": "open", "label": "Review & send", "primary": True}])
+        else:
+            card.update(title=(a.get("summary") or a["tool"].replace("_", " ").capitalize())[:160],
+                        why=f"From {who}: {(m['subject'] or '')[:120]}", pill="Suggested",
+                        actions=[{"type": "approve", "label": "Approve", "primary": True}, {"type": "open", "label": "Open the email"}])
+        out.append(card)
+    return out
+
+
 def suggest_prompt(conn, m: dict, user_name: str) -> str:
     sig = identity(conn, m["user_id"], fetch=False)["signature"] if m.get("user_id") else ""
     sign = (f"ending with a short sign-off and {user_name.split()[0] if user_name else 'their first name'} only (their Gmail "
@@ -559,6 +613,9 @@ def suggest_prompt(conn, m: dict, user_name: str) -> str:
         "platform should do with it, as approval cards. Typical cards:\n"
         "- an invitation to bid: create_estimate with kind bid, the client, address, job type, borough and bid due date, "
         "with mail_id set so its attachments are saved to the new bid; plus create_event for a pre-bid walkthrough\n"
+        "- a request for a proposal, price or quote: draft_proposal with the full proposal (scope, line items priced from "
+        "past proposals and estimates you can look up, schedule) and the reply that goes with the PDF; it is drawn in the "
+        "company's own proposal template and sent as a PDF in this thread once approved\n"
         "- a proposal or price sent from Gmail outside the software: log_proposal_sent for the matching draft\n"
         "- attachments for an existing bid or estimate: save_email_attachments\n"
         f"- a question or request that needs an answer: reply_email with a complete, ready-to-send reply, {sign}\n"
@@ -824,7 +881,9 @@ def compose(conn, uid: int, to: str, cc: str, subject: str, body_text: str) -> d
     return r
 
 
-def send_reply(conn, uid: int, mid: int, body_text: str, subject: Optional[str] = None, reply_all: bool = False) -> dict:
+def send_reply(conn, uid: int, mid: int, body_text: str, subject: Optional[str] = None, reply_all: bool = False,
+               attachments: Optional[list] = None) -> dict:
+    """attachments: [(filename, bytes, mime)] — e.g. the proposal PDF Claude drafted from this email."""
     m = message(conn, mid, uid)
     if not m:
         raise LookupError("that email is not in your inbox")
@@ -846,6 +905,9 @@ def send_reply(conn, uid: int, mid: int, body_text: str, subject: Optional[str] 
     if m["rfc_id"]:
         em["In-Reply-To"], em["References"] = m["rfc_id"], m["rfc_id"]
     _gmail_body(em, body_text, ident, _quote(m))
+    for fname, data, mime in attachments or []:
+        main, _, sub = (mime or "application/octet-stream").partition("/")
+        em.add_attachment(data, maintype=main, subtype=sub or "octet-stream", filename=fname)
     _deliver(conn, uid, em, m["thread_id"], "reply")
     log.info("inbox reply sent for message %s", mid)
     return {"sent": True, "to": to, "cc": cc}

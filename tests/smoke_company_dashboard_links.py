@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Company Dashboard — every tile / row links to the view behind it (static guard, no DB).
 
-The Dashboard tab (company_portal.html, loadOverview) is kept clean (2026-10-07): the week, two
-KPI tiles (Active projects, Workforce), the Tasks & events list and "Needs attention". No money
-block. Each tile / row must be a real link to a real view:
-  * both KPI tiles carry an href, and they are the only two
+The Dashboard tab (company_portal.html, loadOverview) is the Today view (accepted prototype 2026-10-19):
+four cards (Active jobs, On site now, Weather, Payments due), the week, "Needs you" (today_feed.py) and
+"Your day". Each card / row must be a real link to a real view:
+  * the four tiles carry an href, and they are the only four
   * "Money at a glance" is gone (markup, loader, link table)
   * every destination is an existing view: `#x[/y]` -> a key of LOADERS, `/#x` -> a location the
-    shared company nav knows (so the link never lands on a dead page)
-  * Needs-attention rows are one link per row (no <a> nested inside an <a>)
+    shared company nav knows (so the link never lands on a dead page) — the tiles AND every href the
+    server puts on a "Needs you" card
+  * a card opens its page; its buttons are buttons, never an <a> nested inside an <a>
 """
 import re
 import sys
@@ -30,17 +31,19 @@ start = html.index("async function loadOverview()")
 end = html.index("// ---------- TASKS & EVENTS", start)
 fn = html[start:end]
 
-# ---- the two KPI tiles
-kpis = re.findall(r"kpi\('([^']+)',.*?, '(#[a-z]+|/#[a-z]+)'\)", fn)
+# ---- the four tiles
+kpis = re.findall(r"tile\('([^']+)',.*?, '(#[a-z]+|/#[a-z]+)'\)", fn, re.S)
 labels = [k for k, _ in kpis]
-ok("two KPI tiles are links", len(kpis) == 2)
-ok("KPI tiles are Active projects and Workforce", labels == ["Active projects", "Workforce"])
+ok("four tiles are links", len(kpis) == 4)
+ok("tiles are Active jobs, On site now, Weather, Payments due", labels == ["Active jobs", "On site now", "Weather", "Payments due"])
 
 # ---- no money block on the dashboard
 for gone in ("ov-money", "Money at a glance", "OV_MONEY_LINKS", "ov-asof"):
     ok(f"dashboard has no {gone}", gone not in html)
 ok("the Tasks & events card replaces it", 'id="tk-card"' in html and "<h2>Tasks &amp; events</h2>" in html and "loadTasks();" in fn)
-links = {}
+feed = (ROOT / "today_feed.py").read_text(encoding="utf-8") + (ROOT / "inbox.py").read_text(encoding="utf-8")
+links = {i: h for i, h in enumerate(re.findall(r'href="(#[a-z][^"{]*|/#[a-z][^"{]*)"', feed) + re.findall(r"href=f?\"(#[a-z]+)", feed))}
+ok("Needs you cards carry their page", len(links) >= 6 and "href=\"#finance\"" in feed and "#inbox/" in feed)
 
 # ---- every destination is a real view
 loaders = set(re.findall(r"(\w+):\s*load\w+", html[html.index("const LOADERS = {"): html.index("}", html.index("const LOADERS = {"))]))
@@ -61,7 +64,7 @@ ok("link targets were collected", len(targets) >= 3)
 
 # ---- markup: tiles are anchors, rows are one link, no nested anchors
 ok("KPI helper renders an <a> when given a link", "cp-kpi cp-kpi-link" in html and 'aria-label="${esc(k)} — open"' in html)
-ok("attention rows are a single link per row", '<li class="has-link"><a href="${m[1]}"><span>${esc(k)}</span><span class="cp-link">${m[2]}</span></a></li>' in fn)
+ok("a card is one clickable article with buttons, no nested links", '<article class="td-card' in fn and "data-td-act" in fn and "function tdGo(c)" in fn)
 ok("links are keyboard-focusable and visibly focused", "a.cp-kpi-link:focus-visible" in html)
 
 if FAILS:

@@ -295,7 +295,7 @@ def main() -> int:
                    "past ? (info.headcount || 0) + ' on site' : ''"):
         assert needle in html, needle
     ov = html[html.index("async function loadOverview()"):html.index("// ---------- TASKS & EVENTS")]
-    assert re.findall(r"kpi\('([^']+)'", ov) == ["Active projects", "Workforce"]
+    assert re.findall(r"tile\('([^']+)'", ov) == ["Active jobs", "On site now", "Weather", "Payments due"]
     assert "Money at a glance" not in html and "ov-money" not in html
     dp = (ROOT / "static" / "js" / "datepicker.js").read_text(encoding="utf-8")
     assert "e.type === 'click' && Date.now() - openedByFocus < 500" in dp, "the first click opens the picker"
