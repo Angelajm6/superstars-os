@@ -272,6 +272,23 @@ def _api_calendar():
         except Exception as ex:
             log.warning("calendar items skipped: %s", type(ex).__name__)
             data["items"] = []
+        # the signed-in person's OWN Google events (private: calendar_import.events_for is the only reader,
+        # and it gets this user's id only); drawn as "only you" chips, never anyone else's
+        data["mine"], data["mine_connected"] = [], False
+        try:
+            import calendar_import
+            import gcal_sync
+            u = current_user() or {}
+            if u.get("id"):
+                data["mine"] = calendar_import.events_for(conn, u["id"], data["range"]["from"], data["range"]["to"])
+                data["mine_connected"] = bool(data["mine"]) or (not gcal_sync.unavailable_reason()
+                                                                and calendar_import.can_read(gcal_sync._link(conn, u["id"])))
+        except Exception as ex:
+            log.warning("calendar own events skipped: %s", type(ex).__name__)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         return jsonify({"data": data})
     finally:
         conn.close()

@@ -182,7 +182,15 @@ def main() -> int:
         for k in ("admin", "pm", "super"):
             for url in (f"/api/team/calendar?from={D(-1)}&to={D(10)}", "/api/team/items?status=all", f"/api/team/items?status=all&mine=1"):
                 assert "PRIVATE" not in c[k].get(url).get_data(as_text=True), (k, url)
-        assert "PRIVATE" not in c["admin"].get(f"/api/company/portal/calendar?from={D(-1)}&to={D(10)}").get_data(as_text=True)
+        # the dashboard calendar carries the signed-in person's OWN events (data.mine), nobody else's (2026-10-19)
+        for k in ("admin", "cs"):
+            cal = c[k].get(f"/api/company/portal/calendar?from={D(-1)}&to={D(10)}")
+            body = cal.get_data(as_text=True)
+            assert PRIVATE["pm"] not in body and PRIVATE["super"] not in body, k   # never anyone else's
+            assert (PRIVATE["admin"] in body) == (k == "admin"), k
+            got = cal.get_json()["data"]
+            assert [m["title"] for m in got["mine"]] == ([PRIVATE["admin"]] if k == "admin" else []), (k, got.get("mine"), got.get("range"))
+            assert all(m["title"] not in [t["title"] for t in cal.get_json()["data"]["items"]] for m in cal.get_json()["data"]["mine"])
         passed += 1; print("  private calendars ok (owner only; never in All, team lists or calendars)")
 
         # ---- Mine: assigned to me + meetings I am in + my overdue tasks
