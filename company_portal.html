@@ -17,7 +17,7 @@
 <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
 <script src="/files/static/js/gcal_connect.js?v=1016" defer></script>
 <script src="/files/static/js/gmail_suggest.js?v=1009" defer></script>
-<script src="/files/static/js/inbox_schedule.js?v=1" defer></script>
+<script src="/files/static/js/inbox_schedule.js?v=2" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
 <style>
@@ -451,6 +451,21 @@
           .cp-field .tk-people input{width:auto;height:auto;margin:0;padding:0;flex:none}
           .cp-field .tk-people label{white-space:nowrap;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line,#E3E5EA);border-radius:10px;padding:5px 11px;font-size:13px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer;margin:0;color:var(--ink,#222633)}
           .tk-people label:has(input:checked){border-color:#4364DC;background:#EEF2FF;color:#24418C}
+          .tk-people small{color:var(--muted,#8C92A0);font-size:11.5px}
+          /* meeting invitations + Google Meet (2026-10-18, meeting_invites.py) */
+          .tk-ext{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid var(--line,#E3E5EA);border-radius:10px;padding:6px 8px;margin-top:8px}
+          #tk-ext #tk-ext-in{border:0 !important;outline:0;flex:1;min-width:160px;width:auto;padding:4px;background:transparent;box-shadow:none !important;height:auto}
+          .tk-chip{display:inline-flex;align-items:center;gap:4px;background:var(--canvas,#FAFBFD);border:1px solid var(--line,#E3E5EA);border-radius:999px;padding:3px 4px 3px 10px;font-size:13px}
+          .tk-chip button{border:0;background:none;cursor:pointer;color:var(--muted,#8C92A0);padding:0 6px;font-size:15px;line-height:1}
+          .tk-sub{font-size:12.5px;color:var(--muted,#8C92A0);margin:6px 0 0}
+          .tk-meetbtn{display:inline-flex;align-items:center;gap:10px;border:1px solid var(--line,#E3E5EA);background:#fff;border-radius:10px;padding:9px 14px;cursor:pointer;font-weight:600;font-size:13.5px;color:var(--ink,#222633)}
+          .tk-meetbtn:disabled{opacity:.55;cursor:not-allowed}
+          .tk-meeton{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid #0B8043;background:#E6F4EA;border-radius:10px;padding:9px 12px}
+          .tk-meeton .t{flex:1;min-width:160px;font-size:13px}.tk-meeton b{display:block;font-size:13.5px}
+          .tk-meeton a{color:#0B8043;font-weight:600}
+          .tk-meet-ic{width:22px;height:22px;flex:none}
+          .tk-warn{background:#FFF6E5;border:1px solid #F0D39A;color:#7A5410;border-radius:10px;padding:9px 12px;font-size:13px;margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+          .tk-warn p{margin:0;flex:1;min-width:200px}
           .tk-kind-seg label{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line,#E3E5EA);border-radius:8px;padding:9px 10px;cursor:pointer;font-weight:600;font-size:13px;text-transform:none;letter-spacing:0;color:var(--ink,#222633);margin:0;position:relative}
           .tk-lbl{display:block;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
           .tk-kind-seg input{position:absolute;opacity:0;pointer-events:none}
@@ -1174,10 +1189,17 @@
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" data-cancel>Close</button><button class="btn-primary" type="button" id="dy-add">+ Task or event on this day</button></div>
   </div>
 </div>
+<!-- meeting invitations: Send / Don't send, like Google Calendar (meeting_invites.py) -->
+<div class="cp-overlay" id="tk-send" role="dialog" aria-modal="true" aria-labelledby="tk-send-h" style="z-index:60">
+  <div class="cp-modal" style="max-width:420px">
+    <div class="cp-modal-head"><h2 id="tk-send-h">Send invitations?</h2><p class="cp-muted" id="tk-send-p" style="margin:6px 0 0;font-size:13.5px"></p></div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="tk-send-no">Don&#39;t send</button><button class="btn-primary" type="button" id="tk-send-yes">Send</button></div>
+  </div>
+</div>
 <!-- team task / event: one dialog for new and edit -->
 <div class="cp-overlay" id="tk-overlay" role="dialog" aria-modal="true" aria-labelledby="tk-title">
   <form class="cp-modal" id="tk-form" novalidate>
-    <div class="cp-modal-head"><h2 id="tk-title">New task, event or meeting</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">It shows on the team calendar for everyone. Leave the person or the deadline empty if there isn&#39;t one yet.</p></div>
+    <div class="cp-modal-head"><h2 id="tk-title">New task, event or meeting</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">It shows on the team calendar for everyone. Leave the person or the deadline empty if there isn&#39;t one yet. Meeting guests get a Google Calendar invitation by email.</p></div>
     <div class="cp-modal-body">
       <div class="cp-field full"><span class="tk-lbl" id="tk-kind-label">Type</span>
         <div class="tk-kind-seg" role="radiogroup" aria-labelledby="tk-kind-label">
@@ -1186,8 +1208,13 @@
           <label><input type="radio" name="tk-kind" id="tk-kind-meeting" value="meeting">◆ Meeting <span class="cp-muted" style="font-weight:400">with people</span></label>
         </div></div>
       <div class="cp-field full"><label for="tk-title-in">What</label><input id="tk-title-in" class="ssc-field" required maxlength="200" placeholder="e.g. Call the property manager, Job walkthrough, Send invoice"></div>
-      <div class="cp-field full" id="tk-people-field" hidden><span class="tk-lbl" id="tk-people-label">Also in the meeting</span>
-        <div class="tk-people" id="tk-people" role="group" aria-labelledby="tk-people-label"></div></div>
+      <div class="cp-field full" id="tk-people-field" hidden><span class="tk-lbl" id="tk-people-label">Guests</span>
+        <div class="tk-people" id="tk-people" role="group" aria-labelledby="tk-people-label"></div>
+        <div class="tk-ext" id="tk-ext"><input id="tk-ext-in" type="email" autocomplete="off" placeholder="Add guests by email, e.g. a client or an architect" aria-label="Add a guest by email"></div>
+        <p class="tk-sub" id="tk-inv-sub">Each guest gets the invitation from your Gmail, like any Google Calendar invite, and can answer Yes / No / Maybe.</p>
+        <span class="tk-lbl" style="margin-top:14px;display:block">Video</span>
+        <div id="tk-video"></div>
+        <div id="tk-gcal-warn"></div></div>
       <div class="cp-field"><label for="tk-assignee">Assign to</label><select id="tk-assignee" class="ssc-field"><option value="">Nobody yet</option></select></div>
       <div class="cp-field"><label for="tk-project">Job (optional)</label><select id="tk-project" class="ssc-field"><option value="">No job</option></select></div>
       <div class="tk-fields tk-grid2 cp-field full" id="tk-task-fields">
@@ -1460,7 +1487,46 @@
   }
   function tkKind() { return $('tk-kind-meeting').checked ? 'meeting' : $('tk-kind-event').checked ? 'event' : 'task'; }
   function tkShowKind() { const k = tkKind(), ev = k !== 'task'; $('tk-task-fields').hidden = ev; $('tk-event-fields').hidden = !ev; $('tk-people-field').hidden = k !== 'meeting'; }
-  function tkPeople(sel) { $('tk-people').innerHTML = (TK.people || []).map(p => `<label><input type="checkbox" value="${p.id}"${(sel || []).includes(p.id) ? ' checked' : ''}>${esc(p.name)}</label>`).join(''); }
+  function tkPeople(sel) { $('tk-people').innerHTML = (TK.people || []).map(p => `<label><input type="checkbox" value="${p.id}"${(sel || []).includes(p.id) ? ' checked' : ''}>${esc(p.name)}${p.hint ? ` <small>${esc(p.hint)}</small>` : ''}</label>`).join(''); }
+  // ---- meeting guests by email + Google Meet (meeting_invites.py)
+  const TKI = { guests: [], video: false, meet: null, problem: null, can: false, gcal: null };
+  const TK_MEET_IC = '<svg class="tk-meet-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="13" height="12" rx="2.5" fill="#00832d"/><path d="M15 10.5l5.2-3.4c.5-.3 1.1 0 1.1.6v8.6c0 .6-.6.9-1.1.6L15 13.5z" fill="#00ac47"/><rect x="2" y="6" width="5" height="6" rx="1" fill="#0066da"/><rect x="2" y="12" width="5" height="6" rx="1" fill="#2684fc"/></svg>';
+  const TK_EMAIL = /^[^@\s<>(),;:"]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
+  function tkInvites() {
+    $('tk-ext').querySelectorAll('.tk-chip').forEach(x => x.remove());
+    $('tk-ext-in').insertAdjacentHTML('beforebegin', TKI.guests.map((g, i) => `<span class="tk-chip">${esc(g)}<button type="button" data-tkx="${i}" aria-label="Remove ${esc(g)}">×</button></span>`).join(''));
+    $('tk-video').innerHTML = !TKI.can ? `<button type="button" class="tk-meetbtn" disabled>${TK_MEET_IC}Add Google Meet video conferencing</button>`
+      : TKI.video ? `<div class="tk-meeton">${TK_MEET_IC}<div class="t"><b>Join with Google Meet</b>${TKI.meet ? `<a href="${esc(TKI.meet)}" target="_blank" rel="noopener">${esc(TKI.meet.replace(/^https:\/\//, ''))}</a>` : '<span class="cp-muted">The link is made when you save</span>'}</div><button type="button" class="btn-ghost btn-sm" id="tk-video-off">Remove</button></div>`
+      : `<button type="button" class="tk-meetbtn" id="tk-video-on">${TK_MEET_IC}Add Google Meet video conferencing</button>`;
+    const next = encodeURIComponent(location.pathname + location.hash);
+    $('tk-gcal-warn').innerHTML = TKI.can ? (TKI.problem ? `<div class="tk-warn"><p>${esc(TKI.problem)}.</p></div>` : '')
+      : `<div class="tk-warn"><p><b>${TKI.gcal && TKI.gcal.status === 'needs_reconnect' ? 'Reconnect' : 'Connect'} your Google Calendar to send invitations and add video.</b> Until then the meeting is saved for the team, but guests are not emailed.</p>${TKI.gcal && TKI.gcal.available ? `<a class="btn-primary btn-sm" href="/google-calendar/connect?next=${next}">${TKI.gcal.status === 'needs_reconnect' ? 'Reconnect' : 'Connect'}</a>` : ''}</div>`;
+    $('tk-inv-sub').hidden = !TKI.can;
+  }
+  function tkAddGuest() {
+    const inp = $('tk-ext-in'), v = inp.value.trim().replace(/[,;]$/, '').toLowerCase();
+    if (!v) return true;
+    if (!TK_EMAIL.test(v)) { formErr('tk-err', 'That guest email address isn\'t valid.'); return false; }
+    if (!TKI.guests.includes(v)) TKI.guests.push(v);
+    inp.value = ''; $('tk-err').className = 'cp-form-err'; tkInvites(); return true;
+  }
+  $('tk-ext-in').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ',' || e.key === ';') { e.preventDefault(); tkAddGuest(); } else if (e.key === 'Backspace' && !e.target.value && TKI.guests.length) { TKI.guests.pop(); tkInvites(); } });
+  $('tk-ext-in').addEventListener('blur', () => { if ($('tk-ext-in').value.trim()) tkAddGuest(); });
+  $('tk-ext').addEventListener('click', (e) => { const b = e.target.closest('[data-tkx]'); if (b) { TKI.guests.splice(+b.dataset.tkx, 1); tkInvites(); } else if (e.target === $('tk-ext')) $('tk-ext-in').focus(); });
+  $('tk-video').addEventListener('click', (e) => { if (e.target.closest('#tk-video-on')) { TKI.video = true; tkInvites(); } else if (e.target.closest('#tk-video-off')) { TKI.video = false; TKI.meet = null; tkInvites(); } });
+  async function tkGcal() {
+    try { TKI.gcal = (await api('/google-calendar/status', null, true)).data; } catch (e) { TKI.gcal = null; }
+    TKI.can = !!(TKI.gcal && TKI.gcal.available && TKI.gcal.connected && TKI.gcal.status === 'active');
+  }
+  function tkAsk(n, video) {   // Send / Don't send, like Google Calendar; resolves true / false, or null when closed
+    return new Promise(res => {
+      $('tk-send-p').textContent = `Email a Google Calendar invitation to ${n} guest${n === 1 ? '' : 's'}${video ? ', with the Google Meet link' : ''}? Choose Don't send to save it without emailing anyone.`;
+      const ov = $('tk-send'); ov.classList.add('open'); $('tk-send-yes').focus();
+      const done = v => { ov.classList.remove('open'); $('tk-send-yes').onclick = $('tk-send-no').onclick = ov.onclick = null; res(v); };
+      $('tk-send-yes').onclick = () => done(true); $('tk-send-no').onclick = () => done(false);
+      ov.onclick = (e) => { if (e.target === ov) done(null); };
+    });
+  }
   ['tk-kind-task', 'tk-kind-event', 'tk-kind-meeting'].forEach(i => $(i).addEventListener('change', tkShowKind));
   async function openItem(it, preset) {
     if (it && !it.can_edit) { toast('Only admin and C-suite can edit this. ' + itemWhen(it)); return; }
@@ -1476,6 +1542,9 @@
     const kind = it ? it.kind : ((preset && preset.kind) || 'task');
     $('tk-kind-task').checked = kind === 'task'; $('tk-kind-event').checked = kind === 'event'; $('tk-kind-meeting').checked = kind === 'meeting'; tkShowKind();
     tkPeople(it ? it.attendee_ids : []);
+    Object.assign(TKI, { guests: it ? (it.guest_emails || []).slice() : [], video: !!(it && it.video), meet: it ? it.meet_url : null, problem: it ? it.invite_problem : null, owner: it ? it.invites : false });
+    $('tk-ext-in').value = '';
+    await tkGcal(); tkInvites();
     if (it) {
       $('tk-title-in').value = it.title || ''; $('tk-detail').value = it.detail || '';
       $('tk-assignee').value = it.assignee_user_id || ''; $('tk-project').value = it.project_code || '';
@@ -1532,14 +1601,26 @@
     if (!title) { formErr('tk-err', 'Say what it is.'); return; }
     if (kind !== 'task' && !dateGet($('tk-start'))) { formErr('tk-err', 'Pick the day of the ' + kind + '.'); return; }
     const body = { kind, title, detail: $('tk-detail').value.trim() || null, assignee_user_id: $('tk-assignee').value ? Number($('tk-assignee').value) : null, project_code: $('tk-project').value || null, address: $('tk-address').value.trim() || null };
-    if (kind === 'meeting') body.attendee_user_ids = [...$('tk-people').querySelectorAll('input:checked')].map(x => Number(x.value));
+    if (kind === 'meeting') {
+      if (!tkAddGuest()) return;
+      body.attendee_user_ids = [...$('tk-people').querySelectorAll('input:checked')].map(x => Number(x.value));
+      Object.assign(body, { guest_emails: TKI.guests.slice(), video: TKI.can && TKI.video });
+      const me = String((window.__SSC_USER || {}).id || ''), ppl = new Set([...body.attendee_user_ids, ...(body.assignee_user_id ? [body.assignee_user_id] : [])].map(String));
+      ppl.delete(me);   // the organizer is not invited to their own meeting
+      const n = ppl.size + TKI.guests.length;
+      if (TKI.can && n) {
+        const send = await tkAsk(n, body.video);
+        if (send === null) return;
+        body.send_invites = send;
+      }
+    }
     if (kind === 'task') Object.assign(body, { due_date: dateGet($('tk-due')) || null, due_time: $('tk-due-time').value || null });
     else Object.assign(body, { start_date: dateGet($('tk-start')), end_date: dateGet($('tk-end')) || null, start_time: $('tk-start-time').value || null, end_time: $('tk-end-time').value || null });   // no place name: the address covers it (older events keep theirs)
     $('tk-save').disabled = true;
     try {
       if (id) await api('/team/items/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) }, true);
       else await api('/team/items', { method: 'POST', body: JSON.stringify(body) }, true);
-      tkAfterSave(id ? 'Saved' : ({ event: 'Event added', meeting: 'Meeting added' }[kind] || 'Task added'));
+      tkAfterSave((id ? 'Saved' : ({ event: 'Event added', meeting: 'Meeting added' }[kind] || 'Task added')) + (body.send_invites ? ' · invitations sent' : ''));
     } catch (ex) { formErr('tk-err', ex.message); }
     finally { $('tk-save').disabled = false; }
   });

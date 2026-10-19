@@ -112,6 +112,7 @@ GATE = [
     "smoke_claude_files.py",         # Claude page + attached files: encrypted, private, saved to a bid only on Approve
     "smoke_calendar_import.py",      # each main Google Calendar copied privately for its owner
     "smoke_inbox_schedule.py",       # Inbox Mine / All permission boundaries
+    "smoke_meeting_invites.py",      # meeting invitations + Google Meet through Google Calendar
     "smoke_gcal_sync.py",             # each person's tasks & events in their own Google Calendar (Google faked)
     "smoke_team_home_2b.py",          # PM / super home: own to-do, team calendar, projects
     "smoke_team_items.py",            # team tasks & events: dashboard to-do list on the calendar

@@ -3,7 +3,8 @@
 Any kind of to-do: call someone, a job walkthrough, send an invoice, submit a proposal.
 The creator picks TASK (something to get done, optionally by a deadline), EVENT
 (something happening on a day, optionally at a time) or MEETING (an event with people in it,
-2026-10-16). Each can be assigned to a person, or to nobody yet, and edited later. A meeting
+2026-10-16; 2026-10-18: guests by email, Google Meet video and real Google Calendar invitations,
+see meeting_invites.py). Each can be assigned to a person, or to nobody yet, and edited later. A meeting
 also lists the other people in it (crm_task_attendee); it is "theirs" too (their Inbox, their
 Superstars Google calendar).
 
@@ -65,7 +66,12 @@ MAX_TITLE, MAX_DETAIL, MAX_LOCATION, MAX_ADDRESS = 200, 2000, 200, 300
 _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 COLUMNS = (("kind", "TEXT"), ("project_code", "TEXT"), ("due_time", "TEXT"), ("start_date", "TEXT"),
            ("start_time", "TEXT"), ("end_date", "TEXT"), ("end_time", "TEXT"), ("location", "TEXT"), ("address", "TEXT"),
-           ("updated_at", "TEXT"), ("updated_by", "INTEGER"))
+           ("updated_at", "TEXT"), ("updated_by", "INTEGER"),
+           # meetings (2026-10-18, meeting_invites.py): outside guests (JSON list of emails), Google Meet
+           # wanted, whose Google Calendar sends the invitations, and whether this write emails the guests
+           ("guest_emails", "TEXT"), ("video", "INTEGER"), ("invite_owner_id", "INTEGER"), ("invite_send", "TEXT"))
+MAX_GUESTS = 50
+_EMAIL = re.compile(r"^[^@\s<>(),;:\"]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$")
 
 
 # ------------------------------------------------------------------ schema
@@ -94,6 +100,11 @@ def ensure(conn) -> None:
     conn.execute("CREATE TABLE IF NOT EXISTS crm_task_attendee (task_id INTEGER NOT NULL, user_id INTEGER NOT NULL)")
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_task_attendee ON crm_task_attendee(task_id, user_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_crm_task_attendee_user ON crm_task_attendee(user_id)")
+    # the Google Calendar event that carries a meeting's invitations (meeting_invites.py)
+    conn.execute("CREATE TABLE IF NOT EXISTS meeting_invite (item_id INTEGER NOT NULL, owner_id INTEGER NOT NULL, "
+                 "google_event_id TEXT, calendar_id TEXT, body_hash TEXT, meet_url TEXT, meet_state TEXT, guest_status TEXT, "
+                 "last_error TEXT, synced_at TEXT, answers_at TEXT)")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_meeting_invite_item ON meeting_invite(item_id)")
     conn.commit()
 
 
@@ -141,7 +152,19 @@ def people(conn) -> list:
         "SELECT id, COALESCE(NULLIF(display_name, ''), NULLIF(full_name, ''), email) AS name, role FROM users "
         f"WHERE role IN ({marks}) AND COALESCE(is_active, 1) = 1 AND COALESCE(status, 'active') = 'active' "
         "AND COALESCE(is_system, 0) = 0 ORDER BY name", TEAM_ROLES))
-    return [{"id": r["id"], "name": r["name"], "role": r["role"]} for r in rows]
+    names = [r["name"] for r in rows]
+    out = []
+    for r in rows:
+        p = {"id": r["id"], "name": r["name"], "role": r["role"]}
+        if names.count(r["name"]) > 1:   # two people with one name: show whose address it is
+            p["hint"] = _email_of(conn, r["id"]).split("@")[0] + "@"
+        out.append(p)
+    return out
+
+
+def _email_of(conn, uid) -> str:
+    r = conn.execute("SELECT email FROM users WHERE id = ?", (uid,)).fetchone()
+    return (r["email"] if r else "") or ""
 
 
 def _assignable(conn, uid) -> bool:
@@ -201,6 +224,41 @@ def _validate(conn, p: dict, cur: Optional[dict] = None) -> dict:
                    location=_text(get("location"), "location", MAX_LOCATION))
     out["attendees"] = _attendees(conn, p.get("attendee_user_ids") if "attendee_user_ids" in p else cur.get("attendee_ids"),
                                   kind, out["assignee_user_id"], set(cur.get("attendee_ids") or ()))
+    if kind == "meeting":
+        out["guest_emails"] = _guests(p["guest_emails"] if "guest_emails" in p else _json_list(cur.get("guest_emails")))
+        out["video"] = 1 if (p["video"] if "video" in p else cur.get("video")) in (True, 1, "1", "true") else 0
+    else:
+        out["guest_emails"], out["video"] = [], 0
+    out["invite_send"] = "none" if p.get("send_invites") in (False, 0, "0", "false") else "all"
+    return out
+
+
+def _json_list(v) -> list:
+    import json
+    try:
+        x = json.loads(v) if isinstance(v, str) and v else (v or [])
+    except ValueError:
+        return []
+    return x if isinstance(x, list) else []
+
+
+def _guests(raw) -> list:
+    """Outside guests of a meeting: email addresses, checked, lower-cased, no repeats."""
+    if raw in (None, ""):
+        return []
+    if not isinstance(raw, (list, tuple)):
+        raise ValueError("list the guests' email addresses")
+    out = []
+    for v in raw:
+        e = str(v or "").strip().lower()
+        if not e:
+            continue
+        if len(e) > 254 or not _EMAIL.match(e):
+            raise ValueError("a guest's email address isn't valid")
+        if e not in out:
+            out.append(e)
+    if len(out) > MAX_GUESTS:
+        raise ValueError(f"a meeting can have up to {MAX_GUESTS} guests by email")
     return out
 
 
@@ -324,10 +382,24 @@ def _shape(r: dict, today: str, me: Optional[int], can_edit: bool, people_in=Non
         "today": bool(first and first <= today <= (last or first)),
         "created_at": r.get("created_at"), "completed_at": r.get("completed_at"),
         "attendee_ids": [p[0] for p in people_in], "attendee_names": [p[1] for p in people_in],
+        "guest_emails": _json_list(r.get("guest_emails")) if kind == "meeting" else [],
+        "video": bool(r.get("video")) and kind == "meeting", "meet_url": r.get("meet_url") if kind == "meeting" else None,
+        "invites": bool(r.get("invite_owner_id")) and kind == "meeting", "guest_answers": _answers(r) if kind == "meeting" else {},
+        "invite_problem": r.get("invite_error") if kind == "meeting" else None,
         "mine": bool(me and (r.get("assignee_user_id") == me or any(p[0] == me for p in people_in))),
         "can_edit": can_edit, "can_complete": bool(can_edit or (me and r.get("assignee_user_id") == me)),
         "source": r.get("source"),   # 'gcal' = came from the person's Google Calendar (calendar_import.py)
     }
+
+
+def _answers(r) -> dict:
+    """email -> Google's answer ('accepted' | 'declined' | 'tentative' | 'needsAction'), from meeting_invites."""
+    import json
+    try:
+        x = json.loads(r.get("guest_status") or "{}")
+    except ValueError:
+        return {}
+    return x if isinstance(x, dict) else {}
 
 
 def list_items(conn, *, status="open", mine_uid=None, date_from=None, date_to=None, me=None, can_edit=False,
@@ -357,8 +429,9 @@ def list_items(conn, *, status="open", mine_uid=None, date_from=None, date_to=No
     rows = _rows(conn.execute(
         "SELECT t.*, COALESCE(NULLIF(u.display_name, ''), NULLIF(u.full_name, ''), u.email) AS assignee_name, "
         "       COALESCE(NULLIF(c.display_name, ''), NULLIF(c.full_name, '')) AS creator_name, "
-        "       p.name AS project_name, o.name AS org_name "
+        "       p.name AS project_name, o.name AS org_name, mi.meet_url, mi.guest_status, mi.last_error AS invite_error "
         "FROM crm_task t LEFT JOIN users u ON u.id = t.assignee_user_id LEFT JOIN users c ON c.id = t.created_by "
+        "LEFT JOIN meeting_invite mi ON mi.item_id = t.id "
         "LEFT JOIN projects p ON p.project_code = t.project_code "
         "LEFT JOIN crm_organization o ON t.entity_type = 'organization' AND o.id = t.entity_id "
         "WHERE " + " AND ".join(where) +
@@ -426,18 +499,37 @@ def create(conn, p: dict, *, actor=None) -> int:
     conn.execute(
         "INSERT INTO crm_task (entity_type, entity_id, title, detail, due_date, assignee_user_id, status, priority, "
         "created_by, created_at, kind, project_code, due_time, start_date, start_time, end_date, end_time, location, "
-        "address, updated_at, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "address, updated_at, updated_by, guest_emails, video, invite_owner_id, invite_send) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         ("project" if v["project_code"] else "none", None, v["title"], v["detail"], v["due_date"], v["assignee_user_id"],
          "open", "normal", actor, now, v["kind"], v["project_code"], v["due_time"], v["start_date"], v["start_time"],
-         v["end_date"], v["end_time"], v["location"], v["address"], now, actor))
+         v["end_date"], v["end_time"], v["location"], v["address"], now, actor, _dump(v["guest_emails"]), v["video"],
+         _organizer(conn, v["kind"], actor), v["invite_send"]))
     conn.commit()
     new_id = conn.execute("SELECT MAX(id) AS m FROM crm_task").fetchone()["m"]
     if v["attendees"]:
         _set_attendees(conn, new_id, v["attendees"])
         conn.commit()
     log.info("team item created id=%s kind=%s by user=%s", new_id, v["kind"], actor)
-    _sync_google(v["assignee_user_id"], *v["attendees"])
+    _sync_google(v["assignee_user_id"], actor if v["kind"] == "meeting" else None, *v["attendees"])
     return new_id
+
+
+def _dump(v) -> Optional[str]:
+    import json
+    return json.dumps(v) if v else None
+
+
+def _organizer(conn, kind, actor) -> Optional[int]:
+    """Whose Google Calendar sends a meeting's invitations: the person saving it, when their Google
+    Calendar is connected and working. None = no invitations (the meeting still shows for the team)."""
+    if kind != "meeting" or not actor:
+        return None
+    try:
+        import meeting_invites
+        return actor if meeting_invites.can_organize(conn, actor) else None
+    except Exception:
+        return None
 
 
 def update(conn, item_id, p: dict, *, actor=None) -> None:
@@ -448,13 +540,15 @@ def update(conn, item_id, p: dict, *, actor=None) -> None:
         cur["kind"] = "task"
     v = _validate(conn, p, cur)
     cols = ["kind", "title", "detail", "assignee_user_id", "project_code", "due_date", "due_time", "start_date",
-            "start_time", "end_date", "end_time", "location", "address"]
-    conn.execute(f"UPDATE crm_task SET {', '.join(c + ' = ?' for c in cols)}, updated_at = ?, updated_by = ? WHERE id = ?",
-                 (*[v[c] for c in cols], _now(), actor, item_id))
+            "start_time", "end_date", "end_time", "location", "address", "video", "invite_send"]
+    owner = cur.get("invite_owner_id") or _organizer(conn, v["kind"], actor)   # the first organizer keeps the Google event
+    conn.execute(f"UPDATE crm_task SET {', '.join(c + ' = ?' for c in cols)}, guest_emails = ?, invite_owner_id = ?, "
+                 "updated_at = ?, updated_by = ? WHERE id = ?",
+                 (*[v[c] for c in cols], _dump(v["guest_emails"]), owner, _now(), actor, item_id))
     _set_attendees(conn, item_id, v["attendees"])
     conn.commit()
     log.info("team item updated id=%s by user=%s", item_id, actor)
-    _sync_google(cur.get("assignee_user_id"), v["assignee_user_id"], *cur["attendee_ids"], *v["attendees"])   # old and new people
+    _sync_google(cur.get("assignee_user_id"), v["assignee_user_id"], owner, *cur["attendee_ids"], *v["attendees"])   # old and new people
 
 
 def set_done(conn, item_id, done: bool, *, actor=None, actor_role=None) -> dict:
@@ -478,7 +572,7 @@ def cancel(conn, item_id, *, actor=None) -> None:
     conn.execute("UPDATE crm_task SET status = 'cancelled', updated_at = ?, updated_by = ? WHERE id = ?", (_now(), actor, item_id))
     conn.commit()
     log.info("team item deleted id=%s by user=%s", item_id, actor)
-    _sync_google(cur.get("assignee_user_id"), *cur["attendee_ids"])
+    _sync_google(cur.get("assignee_user_id"), cur.get("invite_owner_id"), *cur["attendee_ids"])
 
 
 # ------------------------------------------------------------------ routes

@@ -38,6 +38,8 @@
     '.isx-pill{font-size:11.5px;font-weight:600;border-radius:var(--r-tag,6px);padding:2px 8px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}' +
     '.isx-pill.calendar{background:#eeeefa;color:#5b5f9e}.isx-pill.task{background:#e3f4f4;color:#0f7a7a}' +
     '.isx-pill.event{background:var(--accent-soft,#ebf0fe);color:var(--accent-ink,#3a5fd0)}.isx-pill.meeting{background:#f1ebfc;color:#6a3fc0}' +
+    '.isx-join{display:inline-flex;align-items:center;gap:5px;color:#0b8043;font-weight:600;text-decoration:none}.isx-join:hover{text-decoration:underline}' +
+    '.isx-ans{display:flex;align-items:center;gap:7px;white-space:normal}.isx-ans i{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}' +
     '.isx-who{display:inline-flex;align-items:center;gap:6px;font-weight:500;color:var(--ink,#222633)}' +
     '.isx-av{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;font-size:10px;font-weight:700;color:#fff;flex:none}' +
     '.isx-empty{padding:28px 16px;text-align:center;color:var(--muted,#8c92a0)}' +
@@ -50,6 +52,8 @@
     '.isx-acts{display:flex;gap:8px;flex-wrap:wrap}' +
     '@media (max-width:720px){.isx-row{grid-template-columns:minmax(0,1fr) auto}.isx-time{grid-column:1/-1;display:flex;gap:8px;align-items:baseline}.isx-time small{display:inline}}';
   var LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+  var MEET = '<svg viewBox="0 0 24 24" aria-hidden="true" width="15" height="15"><rect x="2" y="6" width="13" height="12" rx="2.5" fill="#00832d"/><path d="M15 10.5l5.2-3.4c.5-.3 1.1 0 1.1.6v8.6c0 .6-.6.9-1.1.6L15 13.5z" fill="#00ac47"/></svg>';
+  var ANSWER = { accepted: ['Yes', '#15a07e'], declined: ['No', '#e9685a'], tentative: ['Maybe', '#a07d12'], needsAction: ['Waiting', '#8c92a0'] };
   var KIND = { task: 'Task', event: 'Event', meeting: 'Meeting', calendar: 'My calendar' };
   var COLORS = ['#4364dc', '#0f8a8a', '#7a4bd1', '#c26a1b', '#3d8b3d', '#b5476b', '#5b6b8c', '#a07d12'];
   var DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -178,9 +182,10 @@
         if (others.length) meta.push('With ' + esc(others.join(', ')));
       }
       if (r.overdue) meta.push('<span class="isx-over">Overdue</span>');
+      if (r.meet_url) meta.push('<a class="isx-join" href="' + esc(r.meet_url) + '" target="_blank" rel="noopener">' + MEET + 'Join video</a>');
       var pill = r.kind === 'calendar' ? '<span class="isx-pill calendar">' + LOCK + 'My calendar</span>' : '<span class="isx-pill ' + r.kind + '">' + KIND[r.kind] + '</span>';
-      return '<button type="button" class="isx-row" data-i="' + i + '"><div class="isx-time">' + esc(w.t) + (w.end ? '<small>to ' + esc(w.end) + '</small>' : '') + '</div>' +
-        '<div><div class="isx-t' + (r.status === 'done' ? ' done' : '') + '">' + esc(r.title) + '</div>' + (meta.length ? '<div class="isx-m">' + meta.join('<span aria-hidden="true">·</span>') + '</div>' : '') + '</div>' + pill + '</button>';
+      return '<div role="button" tabindex="0" class="isx-row" data-i="' + i + '"><div class="isx-time">' + esc(w.t) + (w.end ? '<small>to ' + esc(w.end) + '</small>' : '') + '</div>' +
+        '<div><div class="isx-t' + (r.status === 'done' ? ' done' : '') + '">' + esc(r.title) + '</div>' + (meta.length ? '<div class="isx-m">' + meta.join('<span aria-hidden="true">·</span>') + '</div>' : '') + '</div>' + pill + '</div>';
     }
 
     function render() {
@@ -222,6 +227,10 @@
       if (r.project_name || r.project_code) kv.push(['Job', esc(r.project_name || r.project_code)]);
       if (r.kind !== 'calendar') kv.push(['Assigned to', r.assignee_user_id ? '<span class="isx-who">' + av(r.assignee_user_id, r.assignee_name) + esc(r.assignee_name) + '</span>' : 'Nobody yet']);
       if ((r.attendee_names || []).length) kv.push(['People in it', esc(r.attendee_names.join(', '))]);
+      if ((r.guest_emails || []).length) kv.push(['Guests', esc(r.guest_emails.join(', '))]);
+      if (r.meet_url) kv.push(['Video', '<a class="isx-join" href="' + esc(r.meet_url) + '" target="_blank" rel="noopener">' + MEET + 'Join with Google Meet</a>']);
+      var ans = r.guest_answers || {}, ak = Object.keys(ans);
+      if (ak.length) kv.push(['Answers', ak.map(function (e) { var a = ANSWER[ans[e]] || ANSWER.needsAction; return '<span class="isx-ans"><i style="background:' + a[1] + '"></i>' + esc(e) + ' · ' + a[0] + '</span>'; }).join('')]);
       if (r.detail) kv.push(['Details', esc(r.detail)]);
       var acts = '';
       if (r.kind === 'task' && r.can_complete) acts = '<div class="isx-acts"><button type="button" class="btn-primary" data-done="' + (r.status === 'done' ? '0' : '1') + '">' + (r.status === 'done' ? 'Reopen' : 'Mark done') + '</button></div>';
@@ -248,10 +257,12 @@
     }
     function closeDrawer() { if (drawer) { drawer.remove(); drawer = null; } }
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDrawer(); });
+    el.addEventListener('keydown', function (e) { var b = e.target.closest && e.target.closest('.isx-row[data-i]'); if (b && e.target === b && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openRow(S.rows[+b.getAttribute('data-i')]); } });
 
     el.addEventListener('click', function (e) {
       var b = e.target.closest('[data-mt]'); if (b) { S.mineType = b.getAttribute('data-mt'); load(); return; }
       b = e.target.closest('[data-rg]'); if (b) { S.range = b.getAttribute('data-rg'); load(); return; }
+      if (e.target.closest('a')) return;   // Join video opens Meet, not the details
       b = e.target.closest('.isx-row[data-i]'); if (b) openRow(S.rows[+b.getAttribute('data-i')]);
     });
     el.addEventListener('change', function (e) {

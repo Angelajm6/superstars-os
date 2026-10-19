@@ -279,7 +279,7 @@ def _wanted(conn, uid) -> dict:
         conn.rollback()
         imported = set()
     for it in team_items.list_items(conn, status="all", mine_uid=uid, me=uid):
-        if it["id"] in imported:
+        if it["id"] in imported or it.get("invites"):   # a meeting with invitations: Google's invitation is everyone's copy (meeting_invites)
             continue
         if not it.get("calendar_from") or (it.get("calendar_to") or it["calendar_from"]) < cutoff:
             continue
@@ -359,6 +359,8 @@ def sync_user(conn, uid) -> dict:
             conn.execute("DELETE FROM google_calendar_event WHERE user_id = ? AND item_id = ?", (uid, item_id))
             conn.commit()
             removed += 1
+        import meeting_invites
+        meeting_invites.sync_owner(conn, uid, link, token, urllib.parse.unquote(cal))   # meetings this person sends invitations for
         total = conn.execute("SELECT COUNT(*) FROM google_calendar_event WHERE user_id = ?", (uid,)).fetchone()[0]
         conn.execute("UPDATE google_calendar_link SET last_sync_at = ?, last_error = NULL, synced_count = ? WHERE user_id = ?", (now, total, uid))
         conn.commit()
