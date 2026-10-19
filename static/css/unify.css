@@ -387,3 +387,9 @@ html body .cc-note, html body .cc-feed-time, html body .shc-drop-stage { font-si
 .proj-top .ssc-top-right > *, .proj-top .auth-menu > * { white-space: nowrap; flex-shrink: 0; }
 @media (max-width: 1180px) { .proj-top .cc-live { display: none; } }
 html body .proj-top h1 { font-size: 18px; font-weight: 700; text-transform: none; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- Phone: "+ Add a tab" lives in the Menu, not above every page (batch 5) ---- */
+@media (max-width: 860px) {
+  body .sidebar .nav-add { display: none; }
+  body .sidebar.nav-open .nav-add:not([hidden]) { display: flex; }
+}

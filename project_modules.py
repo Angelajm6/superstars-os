@@ -36,18 +36,18 @@ log = logging.getLogger("ssc.project_modules")
 
 # key, label, hint, dashboard views it owns (data-view values of the nav links)
 MODULES = (
-    {"key": "crew", "label": "Crew & certifications", "hint": "Employees & Certs", "views": ("employees",)},
-    {"key": "drawings", "label": "Drawing markup", "hint": "Mark up drawings and elevations", "views": ("drawings",)},
-    {"key": "drops", "label": "Drop plan & reports", "hint": "Drop Plan, Drop Report and the Complete tile on Project Health",
+    {"key": "crew", "label": "Crew", "hint": "Crew list with licenses", "views": ("employees",)},
+    {"key": "drawings", "label": "Drawings", "hint": "Mark up drawings and elevations", "views": ("drawings",)},
+    {"key": "drops", "label": "Drop Plan & Drop Reports", "hint": "Drop Plan, Drop Reports and the Complete tile on Summary",
      "views": ("drop-report", "drop-plans")},
-    {"key": "weekly", "label": "Weekly summary", "hint": "Weekly Summary", "views": ("weekly-summary",)},
-    {"key": "materials", "label": "Materials & product usage", "hint": "Materials & Deliveries, Product Usage",
+    {"key": "weekly", "label": "Weekly Summary", "hint": "Weekly Summary", "views": ("weekly-summary",)},
+    {"key": "materials", "label": "Materials & Products Used", "hint": "Materials, Products Used",
      "views": ("materials", "product-usage")},
-    {"key": "safety", "label": "Toolbox talks", "hint": "Toolbox Talks", "views": ("toolbox-talks",)},
-    {"key": "rfis", "label": "RFIs", "hint": "RFI Log", "views": ("rfis",)},
-    {"key": "compliance", "label": "Violations & permits", "hint": "Violations, Compliance & Permits",
+    {"key": "safety", "label": "Toolbox Talks", "hint": "Toolbox Talks", "views": ("toolbox-talks",)},
+    {"key": "rfis", "label": "Questions (RFIs)", "hint": "Questions to the engineer or architect", "views": ("rfis",)},
+    {"key": "compliance", "label": "City Violations & Permits", "hint": "City Violations, Permits & Compliance",
      "views": ("violations", "compliance")},
-    {"key": "templates", "label": "Templates", "hint": "Blank forms and templates", "views": ("templates",)},
+    {"key": "templates", "label": "Printable Signs & Forms", "hint": "Blank signs and forms", "views": ("templates",)},
 )
 KEYS = tuple(m["key"] for m in MODULES)
 VIEWS_BY_KEY = {m["key"]: m["views"] for m in MODULES}
