@@ -23,6 +23,9 @@
     '.isx-note svg,.isx-pill svg{width:12px;height:12px;flex:none}' +
     '.isx-banner{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#fff6e5;border:1px solid #f0d39a;color:#7a5410;padding:10px 14px;border-radius:var(--r-inner,10px);margin:0 0 14px}' +
     '.isx-banner p{margin:0;flex:1;min-width:200px;font-size:13.5px}' +
+    '.isx-hint{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--accent-soft,#ebf0fe);color:var(--accent-ink,#3a5fd0);padding:8px 12px;border-radius:var(--r-inner,10px);margin:0 0 14px;font-size:13px}' +
+    '.isx-hint p{margin:0;flex:1;min-width:180px}.isx-hint a{color:inherit;font-weight:600}' +
+    '.isx-hint button{border:0;background:none;color:inherit;cursor:pointer;font:inherit;font-size:16px;line-height:1;padding:2px 4px;opacity:.7}' +
     '.isx-day{margin:0 0 18px}' +
     '.isx-day h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted,#8c92a0);margin:0 0 8px;font-weight:600}' +
     '.isx-day h3 b{color:var(--accent-ink,#3a5fd0);margin-right:6px}' +
@@ -157,6 +160,9 @@
         '<p class="isx-note">' + LOCK + 'Tasks, events and meetings assigned to anyone on the team. People\'s own Google Calendar events are never shown here.</p>';
     }
 
+    var HINT_KEY = 'isx-other-cals-hint';
+    function hintHidden() { try { return localStorage.getItem(HINT_KEY) === 'off'; } catch (e) { return false; } }
+
     function banner() {
       if (S.scope !== 'mine') return '';
       var cs = S.data.calendar_status || {}, next = encodeURIComponent(opts.next || (location.pathname + location.hash));
@@ -166,6 +172,8 @@
         return '<div class="isx-banner" role="status"><p><b>Reconnect Google Calendar once</b> so your own events show here (only you see them).</p><a class="btn-primary btn-sm" href="/google-calendar/connect?next=' + next + '">Reconnect</a></div>';
       if (cs.available && !cs.connected)
         return '<div class="isx-banner" role="status"><p><b>See your own calendar here.</b> Connect Google Calendar; your events stay private to you.</p><a class="btn-primary btn-sm" href="/google-calendar/connect?next=' + next + '">Connect Google Calendar</a></div>';
+      if (cs.available && cs.connected && cs.reads && !cs.other_calendars && !hintHidden())   // connected before other calendars could come in
+        return '<div class="isx-hint" role="status"><p>Only your main Google calendar shows here. <a href="/google-calendar/connect?next=' + next + '">Reconnect to see your other calendars</a> (still only you see them).</p><button type="button" data-hint-off aria-label="Hide this">×</button></div>';
       return '';
     }
 
@@ -261,6 +269,7 @@
 
     el.addEventListener('click', function (e) {
       var b = e.target.closest('[data-mt]'); if (b) { S.mineType = b.getAttribute('data-mt'); load(); return; }
+      if (e.target.closest('[data-hint-off]')) { try { localStorage.setItem(HINT_KEY, 'off'); } catch (x) { } render(); return; }
       b = e.target.closest('[data-rg]'); if (b) { S.range = b.getAttribute('data-rg'); load(); return; }
       if (e.target.closest('a')) return;   // Join video opens Meet, not the details
       b = e.target.closest('.isx-row[data-i]'); if (b) openRow(S.rows[+b.getAttribute('data-i')]);
