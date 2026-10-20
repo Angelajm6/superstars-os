@@ -45,6 +45,7 @@ from typing import Optional
 
 from flask import jsonify, request
 
+import company_brand
 import crm
 import db_layer
 import invoices
@@ -577,10 +578,11 @@ def render_document(conn, app: dict, inv: Optional[dict] = None) -> str:
         for ln in app["lines"])
     t = app["totals"]
     instructions = facts.get("payment_instructions") or DEFAULT_PAY_INSTRUCTIONS
+    brand = company_brand.brand_block(conn, "Facade restoration · New York City")
     return f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Application for Payment #{app['number']} — {COMPANY_NAME}</title><style>{_DOC_CSS}{_AIA_CSS}</style></head><body>
+<title>Application for Payment #{app['number']} — {COMPANY_NAME}</title><style>{_DOC_CSS}{_AIA_CSS}{company_brand.BRAND_CSS}</style></head><body>
 <div class="sheet"><div class="bar"></div><div class="pad">
-  <div class="head"><div class="brand">{COMPANY_NAME}<small>Facade restoration · New York City</small></div>
+  <div class="head">{brand}
     <div class="meta"><strong>G702</strong>Application No. {app['number']}<br>Application date {e(_fmt_date(app['application_date']))}<br>Period {e(period)}{inv_line}{due_line}</div></div>
   <h1>Application and Certificate for Payment</h1>
   <div class="two" style="margin-top:14px">
@@ -611,7 +613,7 @@ def render_document(conn, app: dict, inv: Optional[dict] = None) -> str:
   <div class="foot">{COMPANY_NAME}{(' · ' + e(letter)) if letter else ''}{lic} · G702 · Application No. {app['number']} · {e(p.get('project_code') or '')}</div>
 </div></div>
 <div class="sheet brk" style="margin-top:24px"><div class="bar"></div><div class="pad g">
-  <div class="head"><div class="brand">{COMPANY_NAME}<small>Facade restoration · New York City</small></div>
+  <div class="head">{brand}
     <div class="meta"><strong>G703</strong>Continuation sheet<br>Application No. {app['number']} · {e(_fmt_date(app['application_date']))}<br>Period {e(period)}</div></div>
   <h1>Continuation Sheet</h1>
   <p style="font-size:12px;color:#76777E">{e(p.get('name') or '')} · {e(p.get('project_code') or '')}. Amounts are stated to the nearest dollar and cents. Column D is work completed on previous applications, E is this period, F is materials presently stored (not in D or E).</p>

@@ -51,6 +51,7 @@ from typing import Optional
 
 from flask import Response, jsonify, make_response, request, send_file
 
+import company_brand
 import crm
 import db_layer
 import estimates
@@ -718,9 +719,9 @@ def render_document(conn, r: dict, *, mode: str = "pdf", lis: Optional[list] = N
     ref = r.get("reference_text")
     block = lambda head, body: f"<div class='keep'><h2>{head}</h2><p>{body}</p></div>" if body else ""   # noqa: E731
     return f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Proposal {e(r['number'])} — {COMPANY_NAME}</title><style>{_DOC_CSS}{_EDIT_CSS if edit else ''}</style></head><body>
+<title>Proposal {e(r['number'])} — {COMPANY_NAME}</title><style>{_DOC_CSS}{company_brand.BRAND_CSS}{_EDIT_CSS if edit else ''}</style></head><body>
 <div class="sheet"><div class="bar"></div><div class="pad">
-  <div class="head"><div class="brand">{COMPANY_NAME}<small>Exterior restoration · New York City</small></div>
+  <div class="head">{company_brand.brand_block(conn, "Exterior restoration · New York City")}
     <div class="meta"><strong>PROPOSAL</strong>{e(r['number'])}<br>Issued {e(_fmt_date(r.get('sent_at') or r.get('updated_at')))}<br>Valid until {e(_fmt_date(r.get('valid_until')))}</div></div>
   <h1>{ed("title", e(r.get('title') or 'Proposal'))}</h1>
   <div class="two" style="margin-top:14px">

@@ -79,8 +79,9 @@
   // Account (each person's own name, password, two-step sign-in, devices) replaced
   // "Preferences & security" and its Interface card; /#settings forwards there.
   var PINNED = { key: 'settings', label: 'Settings', href: '/account', roles: COMPANY,
-    at: [['/account', null], ['/admin/users', null], ['/company', 'usage'], ['/company', 'claude'], ['/settings/interface', null]],
-    sub: [['Account', '/account'], ['Team & access', '/admin/users'], ['Usage & job tools', '/company#usage'], ['Claude approvals', '/company#claude']] };
+    at: [['/account', null], ['/admin/users', null], ['/company', 'usage'], ['/company', 'claude'], ['/company', 'brand'], ['/settings/interface', null]],
+    sub: [['Account', '/account'], ['Team & access', '/admin/users'], ['Usage & job tools', '/company#usage'], ['Claude approvals', '/company#claude'],
+      ['Company brand', '/company#brand', ['admin']]] };   // the logo + letterhead on every document (2026-10-20, admin only)
 
   // ---- the old homes forward here (runs at include time, before paint) ----
   var REDIRECTS = {

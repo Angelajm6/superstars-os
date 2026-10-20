@@ -262,6 +262,8 @@ import today_feed  # noqa: E402
 today_feed.register(app)   # the Dashboard's Today: four cards, Your day, Needs you (live, each card opens its page)
 import proposal_template  # noqa: E402
 proposal_template.register(app)   # the company's own proposal layout, read once by Claude; every proposal PDF uses it
+import company_brand  # noqa: E402
+company_brand.register(app)   # Settings > Company brand (admin): the logo + letterhead on every document
 import proposal_drafts  # noqa: E402
 proposal_drafts.register(app)   # proposals Claude drafts from an email: review the PDF, change it, send it in the thread
 import proposal_studio  # noqa: E402
