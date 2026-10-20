@@ -6,7 +6,7 @@ Proves, through a Flask test client against an ISOLATED database (no model call,
   * upload: a PNG and a plain SVG are kept; a renamed file, an SVG with a script or an outside link, an empty
     file and a file over 2 MB are refused with a plain message, and the last good logo stays
   * documents: the built-in proposal, the company template's {{logo}}, invoices and AIA pay applications print
-    the uploaded logo; removing it goes back to the standard mark
+    the uploaded logo; with none (never uploaded or removed) they print no logo, only the company name
   * Claude: the uploaded raster logo is handed to Claude as an image when it reads a template
   * letterhead: saved, printed on the proposal footer, blank hides the line
   * the page: the Settings tab exists, admin only, and the view calls the routes
@@ -131,16 +131,19 @@ def main() -> int:
         assert r.status_code == 200 and r.get_json()["data"]["logo"] is None
         passed += 1; print("  gating ok")
 
-        # ---- with no upload, documents keep the standard mark
+        # ---- with no upload, documents print no logo at all (no stand-in star), only the company name
+        import claude_docs
         conn = _db()
         try:
-            std = company_brand.document_logo_uri(conn)
-            assert std and std.startswith("data:image/svg+xml;base64,")
+            assert company_brand.logo_data_uri(conn) is None
             assert 'class="brand-logo"' not in _sample_proposal(conn)
-            assert std in proposal_template.logo_tag()
+            assert proposal_template.logo_tag() == ""
+            pg = claude_docs.page({"title": "x", "html": "<p>x</p>"})
+            assert '<div class="ssc-lh-name">Superstars Contracting</div>' in pg and "<img" not in pg
+            assert "logo-light.svg" not in (ROOT / "company_brand.py").read_text(encoding="utf-8")
         finally:
             conn.close()
-        passed += 1; print("  standard mark ok")
+        passed += 1; print("  no logo ok")
 
         # ---- upload
         png = _png()
@@ -251,6 +254,7 @@ def main() -> int:
         conn = _db()
         try:
             assert company_brand.logo_data_uri(conn) is None and 'class="brand-logo"' not in _sample_proposal(conn)
+            assert proposal_template.logo_tag() == ""
         finally:
             conn.close()
         passed += 1; print("  remove ok")
@@ -258,7 +262,8 @@ def main() -> int:
         # ---- the page
         html = (ROOT / "company_portal.html").read_text(encoding="utf-8")
         for needle in ('id="view-brand"', 'id="br-file"', 'id="br-lh"', 'id="br-locked"', "'/api/company-brand/logo'",
-                       "api('/company-brand', null, true)", "'/company-brand/letterhead'", "brand: loadBrand", "brand: 'Settings'"):
+                       "api('/company-brand', null, true)", "'/company-brand/letterhead'", "brand: loadBrand", "brand: 'Settings'",
+                       'id="br-empty"', "Drop your logo here", "'No logo yet'"):
             assert needle in html, needle
         nav = (ROOT / "static/js/company_nav.js").read_text(encoding="utf-8")
         assert "['Company brand', '/company#brand', ['admin']]" in nav and "['/company', 'brand']" in nav

@@ -4,12 +4,12 @@ An admin uploads the company logo once in Settings > Company brand. Proposals (t
 company's own template, including every proposal Claude drafts), invoices and AIA pay applications print it in
 their header, and so does every document Claude makes in the Claude window (claude_docs: PDF, editor and Word);
 Claude is also shown it when it reads a proposal template, so the layout matches. With no upload,
-documents keep the standard mark (static/brand/logo-light.svg) as before.
+documents print no logo (the company name as text); there is no stand-in mark (Angela, 2026-10-20).
 
   GET    /api/company-brand              -> {logo: {name, mime, size, uploaded_at, uploaded_by_name, data_uri} | null,
                                              letterhead: {company_address, company_phone, company_email, company_license}}
   POST   /api/company-brand/logo         multipart `file` (png / jpg / svg / webp, 2 MB)
-  DELETE /api/company-brand/logo         -> back to the standard mark
+  DELETE /api/company-brand/logo         -> no logo (documents print the company name)
   PUT    /api/company-brand/letterhead   JSON with any of the letterhead keys (blank hides the line)
 
 Admin only (the role, not C-suite). Stored in app_settings: 'company_logo' (JSON with the file as base64, so it
@@ -31,7 +31,7 @@ from typing import Optional
 from flask import jsonify, request
 
 import db_layer
-from auth import SCRIPT_DIR, current_user, requires_role
+from auth import current_user, requires_role
 
 log = logging.getLogger(__name__)
 
@@ -40,7 +40,6 @@ MAX_BYTES = 2 * 1024 * 1024
 LETTERHEAD = ("company_address", "company_phone", "company_email", "company_license")
 LETTERHEAD_MAX = 200
 COMPANY_NAME = "Superstars Contracting"
-STANDARD_LOGO = Path(SCRIPT_DIR) / "static" / "brand" / "logo-light.svg"
 EXT = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml", ".webp": "image/webp"}
 WRONG_TYPE = "{name} isn't a PNG, JPG, SVG or WebP image. Export the logo as one of those and try again."
 _SVG_BAD = re.compile(r"<\s*script|<\s*foreignObject|\bon[a-z]+\s*=|javascript:|(?:href|src)\s*=\s*[\"']?\s*(?:https?:|//)"
@@ -103,17 +102,6 @@ def logo_data_uri(conn=None) -> Optional[str]:
             conn.close()
 
 
-def document_logo_uri(conn=None) -> Optional[str]:
-    """The logo a document prints: the uploaded one, else the standard mark file."""
-    up = logo_data_uri(conn)
-    if up:
-        return up
-    try:
-        return "data:image/svg+xml;base64," + base64.b64encode(STANDARD_LOGO.read_bytes()).decode("ascii")
-    except OSError:
-        return None
-
-
 def brand_block(conn, tagline: str) -> str:
     """The `.brand` header cell of the built-in proposal / invoice / AIA sheets: the uploaded logo when there is
     one, otherwise the company name as text (as before)."""
@@ -159,13 +147,13 @@ def letterhead_lines(facts: dict) -> list:
 
 
 def letterhead_html(conn=None) -> str:
-    """The header Claude's documents print above their content (claude_docs): the logo (uploaded, else the
-    standard mark) and the letterhead lines. Never raises; at worst the company name as text."""
+    """The header Claude's documents print above their content (claude_docs): the uploaded logo (else the
+    company name as text) and the letterhead lines. Never raises."""
     import html as _html
     own = conn is None
     try:
         conn = conn or _conn()
-        facts, uri = letterhead(conn), document_logo_uri(conn)
+        facts, uri = letterhead(conn), logo_data_uri(conn)
     except Exception as x:
         log.info("letterhead unavailable: %s", type(x).__name__)
         facts, uri = {}, None
