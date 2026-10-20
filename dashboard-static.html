@@ -1113,7 +1113,7 @@
         <div id="user-menu" aria-live="polite"></div>
       </div>
     </header>
-    <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
+    <script src="/files/static/js/auth_menu.js?v=1010" defer></script>
     <script>
 
   // #305 — escape untrusted strings before innerHTML interpolation (stored XSS).
@@ -8713,7 +8713,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   // Live date — LOCAL components (CLAUDE.md dates rule: never toISOString)
   (function(){ var d=new Date(); var el=$('live-date'); if(el) el.textContent=pad(d.getMonth()+1)+'/'+pad(d.getDate())+'/'+d.getFullYear(); })();
 
-  var ROLE={admin:'Admin',c_suite:'C-Suite',pm:'PM',super:'Super'};
+  var ROLE={admin:'Admin',c_suite:'C-Suite',pm:'PM',super:'Foreman / Supervisor'};
   function initials(name){
     var parts=String(name||'').trim().split(/\s+/).filter(Boolean);
     if(!parts.length) return '··';

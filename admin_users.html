@@ -11,7 +11,7 @@
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
-<script src="/files/static/js/auth_menu.js?v=1009" defer></script>
+<script src="/files/static/js/auth_menu.js?v=1010" defer></script>
 <title>User Management · Superstars Contracting</title>
 <style>
   /* Uses the GLOBAL :root tokens from widgets.css (--accent/--ink/--line/...), so the
@@ -124,6 +124,7 @@
       <select id="c-role" class="ssc-field">
         <option value="c_suite">C-Suite — all operations + full cost &amp; rate approval</option>
         <option value="pm">PM — project ops + job cost (no individual rates)</option>
+        <option value="super">Foreman / Supervisor — field lead on every active job; no cost or company views</option>
         <option value="client">Client — external; lands on the welcome page until access is granted</option>
         <option value="estimator">Estimator — works the estimating queue; lands on /estimating</option>
         <option value="architect">Architect / Engineer — project view, comments and RFIs, no cost or workforce</option>
@@ -175,15 +176,15 @@
     <h3>Change role</h3>
     <div class="msub" id="role-for">—</div>
     <label for="r-role">New role</label>
-    <!-- #281 — `architect` added. NOTE: this dropdown has only ever offered c_suite and
-         pm, while the server's ASSIGNABLE_ROLES is every role except admin — so client,
-         estimator, super and vendor are assignable by API but not offered here. That gap
-         predates this change and is left alone deliberately rather than widened by
-         accident; flagged separately. -->
+    <!-- Every role an account can be created with (ONBOARDABLE_ROLES); admin goes
+         through Make admin, vendor is not assignable until it has a containment gate. -->
     <select id="r-role" class="ssc-field">
       <option value="c_suite">C-Suite</option>
       <option value="pm">PM</option>
+      <option value="super">Foreman / Supervisor</option>
+      <option value="estimator">Estimator</option>
       <option value="architect">Architect / Engineer</option>
+      <option value="client">Client</option>
     </select>
     <label for="r-reason">Reason (optional)</label>
     <input id="r-reason" class="ssc-field" type="text" autocomplete="off" placeholder="e.g. promoted to operations lead">
@@ -225,7 +226,7 @@
   var ME=null, USERS=[];
   function $(id){return document.getElementById(id);}
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
-  var ROLE_LABEL={admin:'Admin',c_suite:'C-Suite',pm:'PM',super:'Super',client:'Client',architect:'Architect',vendor:'Vendor',estimator:'Estimator'};
+  var ROLE_LABEL={admin:'Admin',c_suite:'C-Suite',pm:'PM',super:'Foreman / Supervisor',client:'Client',architect:'Architect',vendor:'Vendor',estimator:'Estimator'};
   function jget(u){return fetch(u,{credentials:'include'}).then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};});});}
   function jpost(u,body){return fetch(u,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}).then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};}).catch(function(){return {ok:r.ok,status:r.status,j:{}};});});}
   function showErr(t){var b=$('err-bar');b.textContent=t;b.className='err-bar show';}
@@ -330,7 +331,7 @@
     var u=USERS.filter(function(x){return String(x.id)===String(id);})[0];if(!u)return;
     ROLE_TARGET=u.id;
     $('role-for').textContent=u.display_name+' ('+u.email+') · currently '+(ROLE_LABEL[u.role]||u.role);
-    $('r-role').value=(u.role==='pm')?'pm':'c_suite';
+    $('r-role').value=u.role;if(!$('r-role').value)$('r-role').value='c_suite';
     $('r-reason').value='';$('role-err').className='m-err';
     $('ov-role').className='ov show';
   }

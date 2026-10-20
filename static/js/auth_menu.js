@@ -19,7 +19,7 @@
     admin: 'Admin',
     c_suite: 'C-Suite',
     pm: 'PM',
-    super: 'Super'
+    super: 'Foreman / Supervisor'
   };
 
   function $(id) { return document.getElementById(id); }

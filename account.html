@@ -11,7 +11,7 @@
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
-<script src="/files/static/js/auth_menu.js?v=1009" defer></script>
+<script src="/files/static/js/auth_menu.js?v=1010" defer></script>
 <title>Your account · Superstars Contracting</title>
 <!-- Settings > Account (prototype accepted 2026-10-08). Each signed-in staff member sees and
      edits their OWN account: name, password, two-step sign-in, Google connections and the
@@ -151,7 +151,7 @@
 (function () {
   'use strict';
   var ME = null;
-  var ROLE_LABEL = { admin: 'Admin', c_suite: 'C-Suite', pm: 'PM', super: 'Super', estimator: 'Estimator' };
+  var ROLE_LABEL = { admin: 'Admin', c_suite: 'C-Suite', pm: 'PM', super: 'Foreman / Supervisor', estimator: 'Estimator' };
   var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
