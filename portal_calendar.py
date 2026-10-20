@@ -32,6 +32,15 @@ WEATHER_MAX_DAYS = 14          # #333 — the strip is for the 3-day / week view
 DEFAULT_SITE = (40.8083, -73.9162)   # the company's home borough when no job has coordinates
 
 
+
+def _qb_hide() -> str:
+    """#316 1b: invoices that came from QuickBooks are for admins only."""
+    try:
+        import qbo
+        return qbo.hide_sql("i")
+    except Exception:
+        return ""
+
 def _conn():
     return db_layer.connect(pragma_fk=True)
 
@@ -173,7 +182,7 @@ def window(conn, start: date, end: date) -> dict:
         for r in _rows(conn.execute(
                 "SELECT i.id, i.number, i.project_code, i.due_at, i.amount, i.amount_paid, o.name AS client_name "
                 "FROM invoice i LEFT JOIN crm_organization o ON o.id = i.client_org_id "
-                "WHERE i.status = 'issued' AND i.due_at >= ? AND i.due_at <= ? ORDER BY i.due_at", (s, e))):
+                "WHERE i.status = 'issued' AND i.due_at >= ? AND i.due_at <= ?" + _qb_hide() + " ORDER BY i.due_at", (s, e))):
             when = str(r["due_at"])[:10]
             day(when)["milestones"].append({
                 "kind": "invoice", "id": r["id"], "number": r["number"], "project_code": r.get("project_code"),

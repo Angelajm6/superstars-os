@@ -128,6 +128,18 @@ def _uid():
     return u["id"] if u else None
 
 
+def _hide(alias: str = "") -> str:
+    """#316 1b: invoices that came from QuickBooks are for admins only (qbo.show_imported)."""
+    try:
+        import qbo
+        return qbo.hide_sql(alias)
+    except Exception:
+        return ""
+
+
+QB_OWNED = "this invoice lives in QuickBooks: change it there and it updates here"
+
+
 # ---------------------------------------------------------------- schema
 def ensure_schema(conn) -> None:
     """Idempotent on both backends. No FKs by design (boot-order on a fresh preprod
@@ -182,12 +194,21 @@ def ensure_schema(conn) -> None:
     conn.commit()
     import invoice_docs                     # #326 — sent / viewed / pdf / link columns
     invoice_docs.ensure_columns(conn)
+    # #316 1b: where the invoice came from (NULL = made here, 'quickbooks' = brought in) + its follow-up task
+    for col, ddl in (("source", "TEXT"), ("followup_item_id", "INTEGER")):
+        if not invoice_docs._has_column(conn, "invoice", col):
+            conn.execute(f"ALTER TABLE invoice ADD COLUMN {col} {ddl}")
+    conn.commit()
 
 
 # ---------------------------------------------------------------- reads
 _SELECT = ("SELECT i.*, o.name AS client_name, p.name AS project_name, "
-           "       b.address_line AS building_address, e.code AS estimate_code, pr.number AS proposal_number "
+           "       b.address_line AS building_address, e.code AS estimate_code, pr.number AS proposal_number, "
+           "       ft.title AS followup_title, ft.due_date AS followup_due, ft.status AS followup_status, "
+           "       COALESCE(fu.display_name, fu.full_name) AS followup_who "
            "FROM invoice i "
+           "LEFT JOIN crm_task ft ON ft.id = i.followup_item_id "
+           "LEFT JOIN users fu ON fu.id = ft.assignee_user_id "
            "LEFT JOIN crm_organization o ON o.id = i.client_org_id "
            "LEFT JOIN projects p ON p.project_code = i.project_code "
            "LEFT JOIN building b ON b.id = i.building_id "
@@ -207,7 +228,7 @@ def _decorate(r: dict, today: Optional[date] = None) -> dict:
 
 
 def get(conn, invoice_id: int, *, today: Optional[date] = None) -> Optional[dict]:
-    r = _one(conn.execute(_SELECT + "WHERE i.id = ?", (invoice_id,)))
+    r = _one(conn.execute(_SELECT + "WHERE i.id = ?" + _hide("i"), (invoice_id,)))
     if not r:
         return None
     r = _decorate(r, today)
@@ -220,7 +241,7 @@ def get(conn, invoice_id: int, *, today: Optional[date] = None) -> Optional[dict
 def list_invoices(conn, *, status=None, kind=None, client_org_id=None, project_code=None, proposal_id=None,
                   overdue_only=False, search=None, limit=500, today: Optional[date] = None) -> list:
     today = today or _today()
-    where, params = ["1=1"], []
+    where, params = ["1=1" + _hide("i")], []
     if status == "open":
         where.append("i.status = 'issued'")
     elif status:
@@ -262,11 +283,12 @@ def receivables_summary(conn, *, today: Optional[date] = None, horizon_days: int
         "  COALESCE(SUM(CASE WHEN due_at IS NOT NULL AND due_at >= ? AND due_at <= ? THEN amount - amount_paid ELSE 0 END),0) AS soon_v, "
         "  SUM(CASE WHEN kind = 'deposit' THEN 1 ELSE 0 END) AS dep_n, "
         "  COALESCE(SUM(CASE WHEN kind = 'deposit' THEN amount - amount_paid ELSE 0 END),0) AS dep_v "
-        "FROM invoice WHERE status = 'issued'", (t, t, t, h, t, h))) or {}
+        "FROM invoice WHERE status = 'issued'" + _hide(), (t, t, t, h, t, h))) or {}
     d = _one(conn.execute(
-        "SELECT COUNT(1) AS n, COALESCE(SUM(amount),0) AS v FROM invoice WHERE status = 'draft'")) or {}
+        "SELECT COUNT(1) AS n, COALESCE(SUM(amount),0) AS v FROM invoice WHERE status = 'draft'" + _hide())) or {}
     p = _one(conn.execute(
-        "SELECT COUNT(1) AS n, COALESCE(SUM(amount),0) AS v FROM invoice_payment WHERE paid_on >= ?", (y,))) or {}
+        "SELECT COUNT(1) AS n, COALESCE(SUM(amount),0) AS v FROM invoice_payment WHERE paid_on >= ?"
+        + ("" if not _hide() else " AND invoice_id NOT IN (SELECT id FROM invoice WHERE source = 'quickbooks')"), (y,))) or {}
     return {
         "open_count": int(o.get("n") or 0), "open_value": round(_num(o.get("v")), 2),
         "overdue_count": int(o.get("od_n") or 0), "overdue_value": round(_num(o.get("od_v")), 2),
@@ -395,6 +417,8 @@ def update(conn, invoice_id: int, fields: dict, *, actor=None) -> dict:
     r = get(conn, invoice_id)
     if not r:
         raise LookupError("invoice not found")
+    if r.get("source") == "quickbooks":
+        raise ValueError(QB_OWNED)
     if r["status"] == "draft":
         f = _validate({k: v for k, v in fields.items() if k in EDITABLE}, partial=True)
     elif r["status"] == "issued":
@@ -417,7 +441,7 @@ def issue(conn, invoice_id: int, *, issued_on=None, due_on=None, actor=None) -> 
     r = get(conn, invoice_id)
     if not r:
         raise LookupError("invoice not found")
-    if r["status"] != "draft":
+    if r.get("source") == "quickbooks" or r["status"] != "draft":
         raise ValueError(f"only a draft can be issued (this one is {r['status']})")
     if _num(r["amount"]) <= 0:
         raise ValueError("set an amount before issuing")
@@ -466,8 +490,11 @@ def record_payment(conn, invoice_id: int, *, amount, paid_on=None, method=None, 
     if qb_payment_id:
         conn.execute("UPDATE invoice_payment SET qb_payment_id = ?, source = 'quickbooks' WHERE id = "
                      "(SELECT MAX(id) FROM invoice_payment WHERE invoice_id = ?)", (str(qb_payment_id), invoice_id))
-    total = _num(_one(conn.execute("SELECT COALESCE(SUM(amount),0) AS v FROM invoice_payment WHERE invoice_id = ?",
-                                   (invoice_id,)))["v"])
+    if r.get("source") == "quickbooks":   # #316 1b: QuickBooks' balance is the truth; add this payment to it
+        total = _num(r["amount_paid"]) + amt
+    else:
+        total = _num(_one(conn.execute("SELECT COALESCE(SUM(amount),0) AS v FROM invoice_payment WHERE invoice_id = ?",
+                                       (invoice_id,)))["v"])
     fully = total >= _num(r["amount"]) - 0.005
     conn.execute("UPDATE invoice SET amount_paid = ?, status = ?, paid_at = ?, updated_at = ? WHERE id = ?",
                  (round(total, 2), "paid" if fully else "issued", paid if fully else None, now, invoice_id))
@@ -502,6 +529,8 @@ def void(conn, invoice_id: int, *, reason=None, actor=None) -> dict:
     r = get(conn, invoice_id)
     if not r:
         raise LookupError("invoice not found")
+    if r.get("source") == "quickbooks":
+        raise ValueError(QB_OWNED)
     if r["status"] not in ("draft", "issued"):
         raise ValueError(f"a {r['status']} invoice cannot be voided")
     if _num(r["amount_paid"]) > 0:
