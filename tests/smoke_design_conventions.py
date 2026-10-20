@@ -587,7 +587,8 @@ def main():
                   "portal_shell.html",     # #285 client portal shell (gained its drop filter)
                   "company_portal.html",   # #302 C-suite company portal (company-document modal)
                   "forgot_password.html", "reset_password.html",  # #301 self-service password reset
-                  "account.html"}          # Settings > Account (each person's own account)
+                  "account.html",          # Settings > Account (each person's own account)
+                  "proposal_studio.html"}  # Proposal Studio (ask Claude, edit, send the PDF)
     # #283 — surfaces that live OUTSIDE the repo root still get the structural
     # sweep. drawing-markup is served from templates/v2 (the #279 v2 tree), so the
     # root glob above cannot see it; registering it by path keeps the "guard never

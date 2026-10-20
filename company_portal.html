@@ -10,7 +10,7 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1016"></script>
+<script src="/files/static/js/company_nav.js?v=1017"></script>
 <script src="/files/static/js/claude_drawer.js?v=12" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1015" defer></script>
@@ -957,7 +957,8 @@
               <input class="cp-input search" id="pr-search" placeholder="Search number, title, client or address…" autocomplete="off">
               <select class="cp-select" id="pr-status"><option value="">All statuses</option><option value="draft">Draft</option><option value="sent">Sent</option><option value="viewed">Viewed</option><option value="signed">Signed</option><option value="declined">Declined</option><option value="superseded">Superseded</option></select>
               <span style="flex:1"></span>
-              <button class="btn-primary btn-sm" id="pr-new" type="button">+ New proposal</button>
+              <a class="btn-primary btn-sm" id="pr-studio" href="/proposal-studio#new">✦ New proposal with Claude</a>
+              <button class="btn-ghost btn-sm" id="pr-new" type="button">+ New proposal</button>
             </div>
             <div class="cp-table-wrap"><table class="cp-table" id="pr-table"></table></div>
           </div>

@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
+<script src="/files/static/js/company_nav.js?v=1017"></script>
+<script src="/files/static/js/claude_drawer.js?v=12" defer></script>
+<!-- #359 — apply a remembered collapsed rail before the first paint -->
+<script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
+<script src="/files/static/js/shell.js?v=1007" defer></script>
+<script src="/files/static/js/auth_menu.js?v=1009" defer></script>
+<title>Proposal Studio · Superstars Contracting</title>
+<!-- Proposal Studio (prototype accepted 2026-10-20): ask Claude for a proposal in the company's template and wording,
+     edit anything in place (the document itself, in a no-scripts frame the page edits), then send the PDF from
+     Gmail. Served by proposal_studio.py (/proposal-studio) to admin / C-suite. -->
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+  [hidden]{display:none!important}
+  .brand-mark{object-fit:contain}
+  .ps{padding:18px 28px 60px}
+  @media (max-width:760px){.ps{padding:14px 16px 60px}}
+  .ps-sub{color:var(--muted);font-size:13px;margin:0 0 14px}
+  .ps-steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+  .ps-steps button{border:1px solid var(--line);background:#fff;border-radius:99px;padding:6px 14px;font:inherit;font-size:13px;font-weight:600;color:var(--ink-2);display:inline-flex;gap:8px;align-items:center;cursor:pointer}
+  .ps-steps button b{width:20px;height:20px;border-radius:50%;background:var(--fill);display:inline-grid;place-items:center;font-size:11px}
+  .ps-steps button.on{background:var(--ink);color:#fff;border-color:var(--ink)}.ps-steps button.on b{background:#fff;color:var(--ink)}
+  .ps-steps button:disabled{opacity:.45;cursor:default}
+  .ps-steps .sp{flex:1}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;min-width:0}
+  .card h2{margin:0 0 4px;font-size:16px}.card h3{margin:0 0 8px;font-size:14px}
+  .stack{display:flex;flex-direction:column;gap:12px}
+  .grid-ask{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;align-items:start}
+  .grid-ed{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+  .grid-send{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;align-items:start}
+  .grid-set{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+  @media (max-width:1100px){.grid-ask,.grid-ed,.grid-send,.grid-set{grid-template-columns:1fr}}
+  .ask-card{position:relative;overflow:hidden;background:radial-gradient(620px 200px at 10% 0%,var(--accent-in),rgba(255,255,255,0) 65%),#fff}
+  .ask-card::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent-soft))}
+  .lbl{font-size:12px;font-weight:600;color:var(--ink-2);display:block;margin-bottom:5px}
+  .fld{width:100%;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 11px;font:inherit;font-size:13px;color:var(--ink)}
+  textarea.fld{resize:vertical;line-height:1.55}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media (max-width:560px){.row2{grid-template-columns:1fr}}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:99px;padding:4px 11px;font:inherit;font-size:12px;color:var(--ink-2);cursor:pointer}
+  .chip:hover{border-color:var(--accent-edge);color:var(--ink)}
+  .att{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:var(--fill);border-radius:6px;padding:4px 8px;font-size:12px;font-weight:600;max-width:100%}
+  .att span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .att i{font-style:normal;font-size:9px;font-weight:800;color:var(--brand-red)}
+  .att button{border:0;background:none;color:var(--muted);cursor:pointer;padding:0 2px;font-size:14px}
+  .file-in{position:relative;overflow:hidden}.file-in input{position:absolute;inset:0;opacity:0;cursor:pointer}
+  .muted{color:var(--muted);font-size:12px}
+  .err{color:var(--status-behind-deep,#A8382B);font-size:13px;min-height:1px}
+  .working{display:flex;flex-direction:column;gap:8px}
+  .wk{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+  .wk i{width:8px;height:8px;border-radius:50%;background:var(--line);flex:none}
+  .wk.done{color:var(--status-complete-deep,#0c7a5f)}.wk.done i{background:var(--status-complete,#15a07e)}
+  .wk.cur{color:var(--ink);font-weight:600}.wk.cur i{background:var(--accent);animation:ps-p 1s infinite}
+  @keyframes ps-p{50%{opacity:.3}}
+  .uses{display:flex;flex-direction:column;gap:10px}
+  .use{display:flex;gap:10px;font-size:13px;line-height:1.45}.use b{display:block}.use span{color:var(--muted);font-size:12px}
+  .use .ic{width:28px;height:28px;border-radius:8px;background:var(--accent-soft);color:var(--accent-ink);display:grid;place-items:center;flex:none;font-weight:700}
+  .plist{display:flex;flex-direction:column}
+  .prow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:9px 6px;border-bottom:1px solid var(--line);font-size:13px;text-decoration:none;color:inherit;border-radius:8px}
+  .prow:hover{background:var(--fill)}.prow:last-child{border-bottom:0}
+  .prow small{display:block;color:var(--muted)}.prow b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+  .pill{font-size:11px;font-weight:600;border-radius:99px;padding:2px 9px;white-space:nowrap;background:var(--fill);color:var(--ink-2)}
+  .pill.draft{background:var(--status-warn-soft,#FFF4E5);color:var(--status-warn,#9A5B00)}
+  .pill.sent,.pill.viewed{background:var(--accent-soft);color:var(--accent-ink)}
+  .pill.signed{background:var(--status-complete-soft,#e7f6f0);color:var(--status-complete-deep,#0c7a5f)}
+  .pill.declined,.pill.superseded{background:var(--fill);color:var(--muted)}
+  .num{font-variant-numeric:tabular-nums}
+  .ed-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .ed-top h2{margin:0;font-size:17px}
+  .banner{background:var(--accent-soft);border:1px solid var(--accent-edge);border-radius:10px;padding:10px 14px;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .desk{background:#E4E7EE;border-radius:14px;padding:18px;overflow-x:auto}
+  .doc{display:block;width:100%;min-width:560px;max-width:860px;margin:0 auto;border:0;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.18);height:900px}
+  .doc-tools{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+  .sidep{display:flex;flex-direction:column;gap:12px;position:sticky;top:12px}
+  @media (max-width:1100px){.sidep{position:static}}
+  .used{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--ink-2)}
+  .used div{display:flex;gap:8px;line-height:1.4}.used i{font-style:normal;color:var(--status-complete-deep,#0c7a5f);font-weight:700}
+  .chat{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto}
+  .msg{font-size:13px;line-height:1.5;padding:8px 11px;border-radius:10px;max-width:92%;white-space:pre-wrap}
+  .msg.c{background:var(--accent-soft);align-self:flex-start}.msg.u{background:var(--fill);align-self:flex-end}
+  .msg .undo{border:0;background:none;color:var(--accent-ink);font:inherit;font-weight:600;font-size:12px;padding:0;margin-left:6px;text-decoration:underline;cursor:pointer}
+  .chat-in{display:flex;gap:8px}.chat-in input{flex:1;min-width:0}
+  .secs{display:flex;flex-direction:column;gap:6px}
+  .secs label{display:flex;gap:8px;align-items:center;font-size:13px}
+  .secs .x{display:flex;justify-content:space-between;align-items:center;font-size:13px;gap:8px}
+  .secs .x span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mail{display:flex;flex-direction:column;gap:10px}
+  .mrow{display:grid;grid-template-columns:70px minmax(0,1fr);gap:10px;align-items:center;font-size:13px}
+  .mrow>span{color:var(--muted);font-weight:600;font-size:12px}
+  .how{display:flex;flex-direction:column;gap:6px}
+  .how label{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;cursor:pointer}
+  .how label.on{border-color:var(--accent);background:var(--accent-in)}
+  .how small{display:block;color:var(--muted);font-size:12px}
+  .how select{margin-top:6px}
+  .done{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:26px 10px}
+  .done .big{width:52px;height:52px;border-radius:50%;background:var(--status-complete-soft,#e7f6f0);color:var(--status-complete-deep,#0c7a5f);display:grid;place-items:center;font-size:24px}
+  .done ul{list-style:none;padding:0;margin:0;font-size:13px;color:var(--ink-2);display:flex;flex-direction:column;gap:4px}
+  .mini{width:100%;height:340px;border:1px solid var(--line);border-radius:6px;background:#fff}
+  .learn{display:flex;flex-direction:column;gap:10px}
+  .learn .item{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .learn .item b{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .learn textarea{margin-top:6px;border:1px solid transparent;background:none;padding:4px 6px;min-height:64px}
+  .learn textarea:hover{border-color:var(--line)}.learn textarea:focus{border-color:var(--accent-edge);background:var(--accent-in);outline:none}
+  .tg{display:flex;align-items:center;gap:10px;font-size:13px}
+  .tg input{width:36px;height:20px;appearance:none;background:var(--line);border-radius:99px;position:relative;cursor:pointer;transition:background .2s;flex:none;margin:0}
+  .tg input::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .2s}
+  .tg input:checked{background:var(--accent)}.tg input:checked::after{left:18px}
+  .ps-toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,16px);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:all .2s;z-index:9200;pointer-events:none;max-width:calc(100% - 32px)}
+  .ps-toast.on{opacity:1;transform:translate(-50%,0)}.ps-toast.err{background:var(--status-behind-deep,#A8382B)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="ssc-shell">
+<aside class="ssc-side" aria-label="Company navigation">
+  <div class="brand">
+    <img class="brand-mark" width="34" height="34" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
+    <div><div class="brand-name">Superstars Contracting</div><div class="brand-sub">Company</div></div>
+  </div>
+  <nav class="ssc-nav" id="ssc-nav" data-company-nav></nav>
+  <script>SSC_NAV.mount();</script>
+</aside>
+<div class="ssc-main">
+<header class="ssc-top">
+  <div class="ssc-top-title"><h1 data-nav-h1>Proposals</h1></div>
+  <div class="ssc-top-right"><div id="user-menu" aria-live="polite"></div></div>
+</header>
+<div class="ssc-subtabs" data-subtabs="proposals"></div>
+<main class="ps" aria-label="Proposal Studio">
+  <p class="ps-sub">Ask Claude for a proposal, edit anything, then send it as a PDF from your Gmail.</p>
+  <div class="ps-steps" role="tablist" aria-label="Steps">
+    <button type="button" data-step="ask"><b>1</b>Ask Claude</button>
+    <button type="button" data-step="edit" disabled><b>2</b>Edit the proposal</button>
+    <button type="button" data-step="send" disabled><b>3</b>PDF &amp; send</button>
+    <span class="sp"></span>
+    <button type="button" data-step="style"><b>⚙</b>Template &amp; house style</button>
+  </div>
+
+  <!-- 1. ask -->
+  <section id="v-ask" hidden>
+    <div class="grid-ask">
+      <form class="card ask-card stack" id="ask-form" autocomplete="off">
+        <div><h2>New proposal with Claude</h2><div class="muted">Say who it's for and what the work is, in your own words. Claude writes the whole proposal in your template.</div></div>
+        <div><label class="lbl" for="a-what">What's the job?</label>
+          <textarea class="fld" id="a-what" rows="5" placeholder="e.g. Rosen Properties wants pricing for 410 E 58th St: repoint the east elevation (about 1,850 sf) and replace the 6 lintels from the FISP report. Sidewalk shed and permits needed. One price with a line-item breakdown."></textarea></div>
+        <div class="row2">
+          <div><label class="lbl" for="a-client">Client</label><select class="fld" id="a-client"><option value="">Loading clients…</option></select>
+            <input class="fld" id="a-newclient" placeholder="New client's name" style="margin-top:6px" hidden></div>
+          <div><label class="lbl" for="a-addr">Building</label><input class="fld" id="a-addr" placeholder="Street address"></div>
+        </div>
+        <div><span class="lbl">Give Claude more to go on (optional)</span>
+          <div class="chips" id="a-atts">
+            <label class="chip file-in">+ Attach files<input type="file" id="a-file" multiple accept=".pdf,.png,.jpg,.jpeg,.heic,.docx,.xlsx,.csv,.txt" aria-label="Attach drawings, photos or documents"></label>
+            <select class="chip" id="a-mail" aria-label="Start from an email"><option value="">+ From an email…</option></select>
+          </div></div>
+        <div class="chips"><button class="btn-primary" type="submit" id="a-go">✦ Draft the proposal</button><span class="muted">About 30 seconds · nothing is sent</span></div>
+        <div class="err" id="a-err" role="alert"></div>
+        <div class="working" id="a-working" aria-live="polite" hidden></div>
+      </form>
+      <div class="stack">
+        <div class="card"><h3>What Claude writes from</h3>
+          <div class="uses">
+            <div class="use"><span class="ic">▤</span><div><b>Your proposal template</b><span id="u-tpl">Letterhead, section order and standard wording. Set it up in Template &amp; house style.</span></div></div>
+            <div class="use"><span class="ic">¶</span><div><b>Your house style</b><span>How you word openings, scope, exclusions and payment terms, from the proposals you've sent.</span></div></div>
+            <div class="use"><span class="ic">$</span><div><b>Your prices</b><span>From past proposals. Claude says where each price came from.</span></div></div>
+            <div class="use"><span class="ic">@</span><div><b>The client</b><span>Contacts, past jobs, and the email or files you add.</span></div></div>
+          </div></div>
+        <div class="card"><h3>Recent proposals</h3><div class="plist" id="recent"><div class="muted">Loading…</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. edit -->
+  <section id="v-edit" hidden>
+    <div class="ed-top">
+      <div><h2 id="e-title">Proposal</h2><div class="muted"><span id="e-num"></span> · <span class="pill" id="e-status"></span> · <span id="e-saved">Saved</span></div></div>
+      <div class="chips"><a class="btn-ghost btn-sm" id="e-pdf" href="#" download>Download PDF</a><button class="btn-primary btn-sm" type="button" data-step="send">Make PDF &amp; send →</button></div>
+    </div>
+    <div class="banner" id="e-locked" hidden><span id="e-locked-t"></span><button class="btn-ghost btn-sm" type="button" id="e-version">Make a new version to edit</button></div>
+    <div class="grid-ed">
+      <div>
+        <div class="desk"><iframe class="doc" id="doc" title="The proposal: click any text to edit it" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe></div>
+        <div class="doc-tools" id="doc-tools"><button class="btn-ghost btn-sm" type="button" id="e-addline">+ Add a price line</button><button class="btn-ghost btn-sm" type="button" id="e-addsec">+ Add a section</button></div>
+      </div>
+      <aside class="sidep">
+        <div class="card" id="e-used-card"><h3>Claude used</h3><div class="used" id="e-used"></div></div>
+        <div class="card"><h3>Ask Claude to change it</h3>
+          <div class="chat" id="chat"><div class="msg c">Click any text on the page to edit it, or tell me what to change.</div></div>
+          <div class="chips" style="margin:10px 0">
+            <button class="chip" type="button" data-ask="Add a 10% contingency line">Add 10% contingency</button>
+            <button class="chip" type="button" data-ask="Make the scope shorter">Shorter scope</button>
+            <button class="chip" type="button" data-ask="Split the work into two phases with their own lines">Two phases</button>
+            <button class="chip" type="button" data-ask="Add an alternate price for additional work the client may want">Add an alternate</button>
+          </div>
+          <form class="chat-in" id="chat-form"><input class="fld" id="chat-in" placeholder="e.g. “Lintels should be $2,600 each”" aria-label="Ask Claude to change the proposal"><button class="btn-ghost btn-sm" type="submit">Send</button></form>
+        </div>
+        <div class="card"><h3>Sections</h3><div class="secs" id="e-secs"></div></div>
+        <div class="card"><h3>Details</h3>
+          <div class="row2"><div><label class="lbl" for="e-valid">Valid until</label><input class="fld" id="e-valid" type="date"></div>
+            <div><label class="lbl" for="e-dep">Deposit %</label><input class="fld" id="e-dep" type="number" min="0" max="100" step="1"></div></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- 3. send -->
+  <section id="v-send" hidden>
+    <div class="grid-send">
+      <div class="card">
+        <div class="mail" id="s-form">
+          <h2>Send the proposal</h2>
+          <div class="how" id="s-how">
+            <label id="s-how-reply"><input type="radio" name="how" value="reply"> <span><b>Reply in an email thread</b><small>Keeps the conversation with the client together</small>
+              <select class="fld" id="s-thread" aria-label="Email to reply to"></select></span></label>
+            <label id="s-how-new"><input type="radio" name="how" value="new"> <span><b>New email</b><small>Starts a new conversation with the client</small></span></label>
+          </div>
+          <div class="mrow"><span>From</span><div id="s-from">Your Gmail</div></div>
+          <div class="mrow" id="s-to-row"><span>To</span><div><input class="fld" id="s-to" list="s-people" placeholder="name@company.com, …"></div></div>
+          <div class="mrow" id="s-cc-row"><span>Cc</span><div><input class="fld" id="s-cc" list="s-people" placeholder="optional"></div></div>
+          <datalist id="s-people"></datalist>
+          <div class="mrow"><span>Subject</span><input class="fld" id="s-subject"></div>
+          <textarea class="fld" id="s-msg" rows="9" aria-label="Message"></textarea>
+          <div class="mrow"><span>Attached</span><div><span class="att"><i>PDF</i><span id="s-file"></span></span></div></div>
+          <div class="chips"><button class="btn-primary" type="button" id="s-send">Send from my Gmail</button><button class="btn-ghost" type="button" data-step="edit">← Back to editing</button><span class="muted">Nothing goes out until you press Send</span></div>
+          <div class="err" id="s-err" role="alert"></div>
+        </div>
+        <div class="done" id="s-done" hidden>
+          <div class="big">✓</div><h2 id="s-done-t">Sent</h2>
+          <ul id="s-done-l"></ul>
+          <div class="chips"><a class="btn-ghost" id="s-done-pdf" href="#" download>Download the PDF</a><button class="btn-ghost" type="button" id="s-another">Start another proposal</button></div>
+        </div>
+      </div>
+      <div class="card stack">
+        <h3 style="margin:0">The PDF</h3>
+        <iframe class="mini" id="s-mini" title="The proposal PDF" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe>
+        <div class="muted">The PDF is saved on the proposal and the client's page. After it's sent, editing makes version 2, and the sent copy stays as it was.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- settings -->
+  <section id="v-style" hidden>
+    <div class="grid-set">
+      <div class="card stack">
+        <h2>Your proposal template</h2>
+        <div id="t-line" class="muted">Loading…</div>
+        <div class="chips"><label class="btn-ghost btn-sm file-in" id="t-up-l">Upload your template<input type="file" id="t-file" accept=".pdf,.docx" aria-label="Upload your proposal template"></label>
+          <a class="btn-ghost btn-sm" href="/api/proposal-template/preview" target="_blank" rel="noopener" id="t-sample" hidden>See a sample</a>
+          <button class="btn-ghost btn-sm" type="button" id="t-remove" hidden>Use the built-in layout</button></div>
+        <div class="muted">Upload the proposal you send today. A PDF keeps the exact layout; a Word file gives Claude the words only. Claude reads it once; replace it any time.</div>
+        <label class="tg"><input type="checkbox" id="t-learn"> Learn wording and prices from the proposals we send (last 20)</label>
+        <label class="tg"><input type="checkbox" id="t-sources"> Show where each price came from while editing</label>
+      </div>
+      <div class="card">
+        <h2>House style Claude follows</h2>
+        <div class="muted" style="margin-bottom:12px">Learned from your template and sent proposals. Correct anything; Claude uses your version from then on.</div>
+        <div class="learn" id="h-items"></div>
+        <div class="chips" style="margin-top:12px"><button class="btn-primary btn-sm" type="button" id="h-save">Save</button><button class="btn-ghost btn-sm" type="button" id="h-learn">Learn again from our proposals</button><span class="muted" id="h-state"></span></div>
+      </div>
+    </div>
+  </section>
+</main>
+</div>
+</div>
+<div class="ps-toast" id="toast" role="status"></div>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const money = n => '$' + (+n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const S = { id: null, v: null, job: null, files: [], stepT: null, undo: [] };
+  let tT = null;
+  function toast(m, bad) { const t = $('toast'); t.textContent = m; t.className = 'ps-toast on' + (bad ? ' err' : ''); clearTimeout(tT); tT = setTimeout(() => t.classList.remove('on'), 3200); }
+  async function api(path, opts) {
+    const res = await fetch('/api' + path, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' } }, opts || {}));
+    const j = await res.json().catch(() => ({}));
+    if (res.status === 401) { location.href = '/login?next=' + encodeURIComponent('/proposal-studio'); throw new Error('Sign in again'); }
+    if (!res.ok) throw new Error((j && j.error) || ('Request failed (' + res.status + ')'));
+    return j.data;
+  }
+  const fmtDate = iso => { if (!iso) return ''; const [y, m, d] = String(iso).slice(0, 10).split('-'); return `${m}/${d}/${y}`; };
+
+  // ---------------- steps + routing (#new, #p/<id>, #p/<id>/send, #style)
+  function show(step) {
+    ['ask', 'edit', 'send', 'style'].forEach(k => $('v-' + k).hidden = k !== step);
+    document.querySelectorAll('[data-step]').forEach(b => { if (b.closest('.ps-steps')) b.classList.toggle('on', b.dataset.step === step); });
+    document.querySelectorAll('.ps-steps [data-step="edit"], .ps-steps [data-step="send"]').forEach(b => b.disabled = !S.id);
+  }
+  async function route() {
+    const h = location.hash.replace(/^#/, '');
+    const m = /^p\/(\d+)(\/send)?$/.exec(h);
+    if (m) { await openProposal(+m[1]); if (m[2]) { show('send'); fillSend(); } else show('edit'); return; }
+    if (h === 'style') { show('style'); loadStyle(); return; }
+    show('ask'); loadAsk();
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-step]'); if (!b || b.disabled) return;
+    const st = b.dataset.step;
+    location.hash = st === 'ask' ? '#new' : st === 'style' ? '#style' : (S.id ? `#p/${S.id}${st === 'send' ? '/send' : ''}` : '#new');
+  });
+  window.addEventListener('hashchange', route);
+
+  // ---------------- 1. ask
+  let askLoaded = false;
+  async function loadAsk() {
+    loadRecent();
+    if (askLoaded) return; askLoaded = true;
+    try {
+      const cl = (await api('/company/portal/clients?type=all')) || [];
+      $('a-client').innerHTML = '<option value="">Pick a client…</option>' + cl.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('') + '<option value="new">+ New client…</option>';
+    } catch (e) { $('a-client').innerHTML = '<option value="new">+ New client…</option>'; }
+    try {
+      const rows = (await fetch('/api/inbox/messages', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : { data: [] })).data || [];
+      $('a-mail').innerHTML = '<option value="">+ From an email…</option>' + rows.slice(0, 40).map(m => `<option value="${m.id}">${esc((m.subject || '').slice(0, 60))} · ${esc(m.who || '')}</option>`).join('');
+    } catch (e) {}
+    try { const t = await api('/proposal-template'); $('u-tpl').textContent = t.active ? `Using ${t.name}. Change it in Template & house style.` : 'No template yet: the built-in layout is used. Upload yours in Template & house style.'; } catch (e) {}
+  }
+  async function loadRecent() {
+    try {
+      const rows = await api('/proposal-studio/proposals');
+      $('recent').innerHTML = rows.length ? rows.map(r => `<a class="prow" href="#p/${r.id}"><div><b>${esc(r.title || r.number)}</b><small>${esc(r.client_name)} · ${esc(r.number)}</small></div><span class="pill ${esc(r.status)}">${esc(r.status === 'sent' && r.sent_at ? 'Sent ' + fmtDate(r.sent_at) : r.status[0].toUpperCase() + r.status.slice(1))}</span><span class="num">${r.price != null ? money(r.price) : ''}</span></a>`).join('')
+        : '<div class="muted">No proposals yet. Your first one starts on the left.</div>';
+    } catch (e) { $('recent').innerHTML = `<div class="muted">${esc(e.message)}</div>`; }
+  }
+  $('a-client').addEventListener('change', () => { $('a-newclient').hidden = $('a-client').value !== 'new'; if ($('a-client').value === 'new') $('a-newclient').focus(); });
+  function drawAtts() {
+    document.querySelectorAll('#a-atts .att').forEach(x => x.remove());
+    $('a-atts').insertAdjacentHTML('afterbegin', S.files.map((f, i) => `<span class="att"><i>${esc((f.name.split('.').pop() || '').toUpperCase().slice(0, 4))}</i><span>${esc(f.name)}</span><button type="button" data-rmf="${i}" aria-label="Remove ${esc(f.name)}">×</button></span>`).join(''));
+  }
+  $('a-atts').addEventListener('click', e => { const b = e.target.closest('[data-rmf]'); if (b) { S.files.splice(+b.dataset.rmf, 1); drawAtts(); } });
+  $('a-file').addEventListener('change', async e => {
+    for (const f of Array.from(e.target.files || [])) {
+      const fd = new FormData(); fd.append('file', f);
+      try {
+        const res = await fetch('/api/claude/files', { method: 'POST', body: fd, credentials: 'same-origin' });
+        const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || 'Upload failed');
+        S.files.push({ id: (j.data || j).id, name: f.name }); drawAtts();
+      } catch (x) { toast(x.message, true); }
+    }
+    e.target.value = '';
+  });
+  $('ask-form').addEventListener('submit', async e => {
+    e.preventDefault(); $('a-err').textContent = '';
+    const c = $('a-client').value;
+    const body = { what: $('a-what').value, building_address: $('a-addr').value, file_ids: S.files.map(f => f.id), mail_id: $('a-mail').value || null };
+    if (c === 'new') body.client_name = $('a-newclient').value; else if (c) body.client_org_id = +c;
+    $('a-go').disabled = true;
+    try { const r = await api('/proposal-studio/drafts', { method: 'POST', body: JSON.stringify(body) }); S.job = r.job; working(r.steps); pollJob(); }
+    catch (x) { $('a-err').textContent = x.message; $('a-go').disabled = false; }
+  });
+  function working(steps) {
+    const w = $('a-working'); w.hidden = false;
+    w.innerHTML = steps.map((s, i) => `<div class="wk" data-w="${i}"><i></i>${esc(s)}</div>`).join('');
+    let shown = 0; clearInterval(S.stepT);
+    S.stepT = setInterval(() => { shown = Math.min(shown + 1, steps.length - 1); markStep(shown); }, 4500); markStep(0);
+  }
+  function markStep(n) { document.querySelectorAll('#a-working .wk').forEach((x, i) => x.className = 'wk' + (i < n ? ' done' : i === n ? ' cur' : '')); }
+  async function pollJob() {
+    try {
+      const j = await api('/proposal-studio/jobs/' + S.job);
+      if (j.state === 'working') { setTimeout(pollJob, 1500); return; }
+      clearInterval(S.stepT); $('a-go').disabled = false;
+      if (j.state === 'failed') { $('a-working').hidden = true; $('a-err').textContent = j.error || 'Claude could not finish the draft.'; return; }
+      markStep(99); S.files = []; drawAtts(); $('a-what').value = '';
+      location.hash = '#p/' + j.proposal_id; toast('Draft ready. Click any text to edit it');
+    } catch (x) { setTimeout(pollJob, 3000); }
+  }
+
+  // ---------------- 2. edit — the document in a no-scripts frame; the page edits it in place
+  async function openProposal(id, keep) {
+    if (S.id === id && S.v && keep !== false) return;
+    S.id = id;
+    try { draw(await api('/proposal-studio/' + id)); }
+    catch (e) { toast(e.message, true); location.hash = '#new'; }
+  }
+  function draw(v, flash) {
+    S.v = v; const p = v.proposal;
+    $('e-title').textContent = (p.title || 'Proposal') + ' · ' + (p.client_name || '');
+    $('e-num').textContent = p.number + (p.version > 1 ? ' (version ' + p.version + ')' : '');
+    $('e-status').textContent = p.status[0].toUpperCase() + p.status.slice(1); $('e-status').className = 'pill ' + p.status;
+    $('e-pdf').href = `/api/proposals/${p.id}/pdf`; $('s-done-pdf').href = $('e-pdf').href;
+    $('e-locked').hidden = v.editable;
+    $('e-locked-t').textContent = p.status === 'signed' ? 'Signed: this proposal is final.' : `This proposal was ${p.status}${p.sent_at ? ' on ' + fmtDate(p.sent_at) : ''}. The sent copy stays as it was.`;
+    $('e-version').hidden = !['sent', 'viewed', 'declined'].includes(p.status);
+    $('doc-tools').hidden = !v.editable;
+    $('e-used-card').hidden = !v.sources.length;
+    $('e-used').innerHTML = v.sources.map(s => `<div><i>✓</i>${esc(s)}</div>`).join('');
+    $('e-valid').value = (p.valid_until || '').slice(0, 10); $('e-dep').value = p.deposit_pct != null ? p.deposit_pct : '';
+    $('e-valid').disabled = $('e-dep').disabled = !v.editable;
+    drawSecs();
+    paint(v.html, flash);
+  }
+  function paint(html, flash) {
+    const f = $('doc'), y = f.contentWindow ? f.contentWindow.scrollY : 0;
+    f.onload = () => {
+      const d = f.contentDocument; if (!d) return;
+      if (!S.v.editable) d.querySelectorAll('[contenteditable]').forEach(x => x.removeAttribute('contenteditable'));
+      const fit = () => { f.style.height = Math.max(700, d.documentElement.scrollHeight + 20) + 'px'; };
+      fit(); setTimeout(fit, 300);
+      d.addEventListener('input', e => { onEdit(e.target); fit(); });
+      d.addEventListener('focusout', e => { if (e.target.closest && e.target.closest('[data-lf]')) saveSoon(true); });
+      d.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest && e.target.closest('[data-lf], span[data-f]')) { e.preventDefault(); e.target.blur(); } });
+      if (S.v.editable) d.querySelectorAll('tr[data-li]').forEach(tr => {
+        const td = tr.lastElementChild; if (!td) return;
+        const b = d.createElement('button'); b.type = 'button'; b.textContent = '×'; b.title = 'Remove this line';
+        b.style.cssText = 'margin-left:6px;border:0;background:none;color:#a0a4ae;cursor:pointer;font-size:14px;padding:0 2px';
+        b.addEventListener('click', () => { const i = +tr.dataset.li; const lines = readLines(); lines.splice(i, 1); save({}, lines, true); });
+        td.appendChild(b);
+      });
+      (flash || []).forEach(k => {
+        const els = k === 'lines' ? d.querySelectorAll('tr[data-li]') : d.querySelectorAll(`[data-f="${k}"]`);
+        els.forEach(x => { x.classList.add('ssc-flash'); setTimeout(() => x.classList.remove('ssc-flash'), 1800); });
+        if (els[0]) els[0].scrollIntoView({ block: 'center' });
+      });
+      if (!flash) try { f.contentWindow.scrollTo(0, y); } catch (e) {}
+    };
+    f.srcdoc = html;
+  }
+  const txt = el => (el.innerText || '').replace(/ /g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  function readLines() {
+    const d = $('doc').contentDocument;
+    return Array.from(d.querySelectorAll('tr[data-li]')).map(tr => {
+      const g = k => { const el = tr.querySelector(`[data-lf="${k}"]`); return el ? txt(el) : ''; };
+      const n = v => { const x = parseFloat(String(v).replace(/[$,\s]/g, '')); return isNaN(x) ? 0 : x; };
+      return { description: g('description'), qty: n(g('qty')), unit: g('unit'), unit_price: n(g('unit_price')) };
+    });
+  }
+  let pend = {}, pendLines = false, saveT = null;
+  function onEdit(el) {
+    const f = el.closest && el.closest('[data-f]'), lf = el.closest && el.closest('[data-lf]');
+    if (lf) pendLines = true;
+    else if (f) {
+      const k = f.dataset.f;
+      if (/^x\d+[hb]$/.test(k)) pend.extra_sections = true; else pend[k] = txt(f);
+    }
+    $('e-saved').textContent = 'Editing…'; saveSoon(false);
+  }
+  function saveSoon(redraw) { clearTimeout(saveT); saveT = setTimeout(() => flush(redraw), redraw ? 50 : 900); }
+  async function flush(redraw) {
+    const fields = Object.assign({}, pend); pend = {};
+    if (fields.extra_sections) fields.extra_sections = readExtras();
+    const lines = pendLines ? readLines() : null; pendLines = false;
+    if (!Object.keys(fields).length && !lines) return;
+    await save(fields, lines, redraw || !!lines);
+  }
+  function readExtras() {
+    const d = $('doc').contentDocument, cur = (S.v.sections.extra_sections || []);
+    return cur.map((s, i) => { const h = d.querySelector(`[data-f="x${i}h"]`), b = d.querySelector(`[data-f="x${i}b"]`); return { heading: h ? txt(h) : s.heading, body: b ? txt(b) : s.body }; });
+  }
+  async function save(fields, lines, redraw, flash) {
+    $('e-saved').textContent = 'Saving…';
+    const body = { fields }; if (lines) body.lines = lines;
+    try {
+      const v = await api('/proposal-studio/' + S.id, { method: 'PATCH', body: JSON.stringify(body) });
+      $('e-saved').textContent = 'Saved';
+      if (redraw) draw(v, flash); else { S.v = Object.assign(S.v, { proposal: v.proposal, lines: v.lines, sections: v.sections }); }
+    } catch (x) { $('e-saved').textContent = 'Not saved'; toast(x.message, true); }
+  }
+  $('e-addline').addEventListener('click', () => { const l = readLines(); l.push({ description: 'New item', qty: 1, unit: 'ls', unit_price: 0 }); save({}, l, true, ['lines']); });
+  $('e-addsec').addEventListener('click', () => { const x = readExtras(); x.push({ heading: 'New section', body: 'Type here, or ask Claude to write it.' }); save({ extra_sections: x }, null, true, ['x' + (x.length - 1) + 'h']); });
+  const SECS = [['intro', 'Opening letter'], ['scope', 'Scope of work'], ['schedule', 'Schedule'], ['exclusions', 'Exclusions'], ['terms', 'Payment terms']];
+  function drawSecs() {
+    const hid = new Set(S.v.sections.hidden_sections || []), ed = S.v.editable;
+    $('e-secs').innerHTML = SECS.map(([k, l]) => `<label><input type="checkbox" data-sec="${k}" ${hid.has(k) ? '' : 'checked'} ${ed ? '' : 'disabled'}> ${l}</label>`).join('') +
+      (S.v.sections.extra_sections || []).map((s, i) => `<div class="x"><span>${esc(s.heading || 'Section')}</span>${ed ? `<button class="btn-ghost btn-sm" type="button" data-rmsec="${i}">Remove</button>` : ''}</div>`).join('') +
+      '<div class="muted">Price lines and the signature block always show.</div>';
+  }
+  $('e-secs').addEventListener('change', e => {
+    const c = e.target.closest('[data-sec]'); if (!c) return;
+    const hid = new Set(S.v.sections.hidden_sections || []); c.checked ? hid.delete(c.dataset.sec) : hid.add(c.dataset.sec);
+    save({ hidden_sections: Array.from(hid) }, null, true);
+  });
+  $('e-secs').addEventListener('click', e => { const b = e.target.closest('[data-rmsec]'); if (!b) return; const x = readExtras(); x.splice(+b.dataset.rmsec, 1); save({ extra_sections: x }, null, true); });
+  $('e-valid').addEventListener('change', () => save({ valid_until: $('e-valid').value }, null, true));
+  $('e-dep').addEventListener('change', () => save({ deposit_pct: $('e-dep').value }, null, true));
+  $('e-version').addEventListener('click', async () => {
+    try { const r = await api('/proposal-studio/' + S.id + '/new-version', { method: 'POST', body: '{}' }); S.v = null; location.hash = '#p/' + r.id; toast(r.number + ' is ready to edit'); }
+    catch (x) { toast(x.message, true); }
+  });
+  // Claude's changes: saved as a draft, highlighted, with an Undo
+  const chat = $('chat');
+  function say(cls, html) { chat.insertAdjacentHTML('beforeend', `<div class="msg ${cls}">${html}</div>`); chat.scrollTop = chat.scrollHeight; return chat.lastElementChild; }
+  const LABEL = { title: 'title', prepared_for: 'prepared for', project_text: 'building', reference_text: 'reference', intro_text: 'opening', scope_summary: 'scope', schedule_text: 'schedule', exclusions_text: 'exclusions', terms_text: 'terms', deposit_pct: 'deposit', email_message: 'email', extra_sections: 'sections', lines: 'price lines' };
+  async function ask(q) {
+    if (!S.v || !S.v.editable) { toast('Make a new version first to change a sent proposal', true); return; }
+    await flush(false);
+    say('u', esc(q)); const wait = say('c', 'Working on it…');
+    try {
+      const r = await api('/proposal-studio/' + S.id + '/revise', { method: 'POST', body: JSON.stringify({ instruction: q }) });
+      wait.remove();
+      if (!r.changed.length) { say('c', 'Nothing needed to change for that. Try saying it another way.'); return; }
+      draw(r, r.changed);
+      const m = say('c', 'Changed the ' + esc(r.changed.map(k => LABEL[k] || k).join(', ')) + '. <button class="undo" type="button">Undo</button>');
+      m.querySelector('.undo').addEventListener('click', async ev => {
+        ev.target.remove(); const b = r.before;
+        await save({ title: b.title, prepared_for: b.prepared_for, project_text: b.project_text, reference_text: b.reference_text, intro_text: b.intro_text, scope_summary: b.scope_summary,
+          schedule_text: b.schedule_text, exclusions_text: b.exclusions_text, terms_text: b.terms_text, deposit_pct: b.deposit_pct, email_message: b.email_message, extra_sections: b.extra_sections }, b.lines, true);
+        say('c', 'Undone.');
+      });
+    } catch (x) { wait.remove(); say('c', esc(x.message)); }
+  }
+  document.addEventListener('click', e => { const a = e.target.closest('[data-ask]'); if (a) ask(a.dataset.ask); });
+  $('chat-form').addEventListener('submit', e => { e.preventDefault(); const q = $('chat-in').value.trim(); if (q) { $('chat-in').value = ''; ask(q); } });
+
+  // ---------------- 3. send
+  function fillSend() {
+    const v = S.v; if (!v) return; const p = v.proposal;
+    $('s-form').hidden = false; $('s-done').hidden = true; $('s-err').textContent = '';
+    $('s-from').textContent = v.gmail ? v.gmail + ' · your Gmail' : 'Connect your Gmail on the Inbox page first';
+    $('s-thread').innerHTML = v.threads.map(t => `<option value="${t.id}">${esc(t.subject || '(no subject)')} · ${esc((t.from || '').split('<')[0].trim())} · ${fmtDate(t.received_at)}</option>`).join('');
+    const hasThread = v.threads.length > 0;
+    $('s-how-reply').hidden = !hasThread;
+    const pre = hasThread && (p.source_mail_id || v.threads.length) ? 'reply' : 'new';
+    if (p.source_mail_id && v.threads.some(t => t.id === p.source_mail_id)) $('s-thread').value = String(p.source_mail_id);
+    setHow(pre);
+    $('s-people').innerHTML = v.contacts.map(c => `<option value="${esc(c.full_name)} <${esc(c.email)}>">${esc(c.title || '')}</option>`).join('');
+    if (!$('s-to').value) $('s-to').value = p.recipient_email ? `${p.recipient_name || ''} <${p.recipient_email}>`.trim() : (v.contacts[0] ? `${v.contacts[0].full_name} <${v.contacts[0].email}>` : '');
+    $('s-msg').value = p.email_message || `Hi,\n\nAttached is our proposal ${p.number} for ${p.title || 'the work'}.\n\nBest,`;
+    $('s-file').textContent = `${p.number} ${p.client_name || ''}.pdf`;
+    $('s-send').disabled = !v.editable;
+    if (!v.editable) $('s-err').textContent = 'This proposal was already sent. Make a new version to send it again.';
+    const mini = $('s-mini'); mini.srcdoc = v.html.replace(/contenteditable="true"/g, '').replace(/contenteditable='true'/g, '');
+  }
+  function setHow(how) {
+    document.querySelectorAll('#s-how input[name=how]').forEach(r => { r.checked = r.value === how; r.closest('label').classList.toggle('on', r.checked); });
+    $('s-to-row').hidden = $('s-cc-row').hidden = how === 'reply';
+    const p = S.v.proposal, t = S.v.threads.find(x => String(x.id) === $('s-thread').value);
+    $('s-subject').value = how === 'reply' && t ? 'Re: ' + String(t.subject || '').replace(/^\s*(re|fw|fwd)\s*:\s*/i, '') : `Proposal ${p.number} · ${p.title || ''}`;
+  }
+  $('s-how').addEventListener('change', e => { if (e.target.name === 'how') setHow(e.target.value); if (e.target.id === 's-thread') setHow('reply'); });
+  $('s-send').addEventListener('click', async () => {
+    const how = (document.querySelector('#s-how input[name=how]:checked') || {}).value || 'new';
+    const b = $('s-send'); b.disabled = true; b.textContent = 'Making the PDF and sending…'; $('s-err').textContent = '';
+    await flush(false);
+    try {
+      const r = await api('/proposal-studio/' + S.id + '/send', { method: 'POST', body: JSON.stringify({ how, mail_id: $('s-thread').value, to: $('s-to').value, cc: $('s-cc').value, subject: $('s-subject').value, message: $('s-msg').value }) });
+      $('s-form').hidden = true; $('s-done').hidden = false;
+      $('s-done-t').textContent = 'Sent to ' + (r.to || 'the client').split('<')[0].trim();
+      $('s-done-l').innerHTML = [`Sent from your Gmail${how === 'reply' ? ' in the same thread' : ''}, PDF attached`, `${esc(r.number)} is marked <b>Sent</b> on the client and in Proposals`,
+        r.follow_up_task ? `A follow-up task is on your calendar for ${fmtDate(r.follow_up_date)}` : ''].filter(Boolean).map(x => `<li>${x}</li>`).join('');
+      S.v = null; openProposal(S.id, false);
+    } catch (x) { $('s-err').textContent = x.message; }
+    finally { b.disabled = false; b.textContent = 'Send from my Gmail'; }
+  });
+  $('s-another').addEventListener('click', () => { S.id = null; S.v = null; location.hash = '#new'; });
+
+  // ---------------- template & house style
+  async function loadStyle() {
+    try {
+      const t = await api('/proposal-template'); tplLine(t);
+      const h = await api('/proposal-studio/house-style'); drawStyle(h);
+    } catch (e) { toast(e.message, true); }
+  }
+  function tplLine(t) {
+    $('t-line').innerHTML = t.state === 'reading' ? 'Claude is reading your template… this takes about a minute.'
+      : t.state === 'failed' ? esc(t.error || 'Claude could not read it.')
+      : t.active ? `<b>${esc(t.name)}</b> · uploaded ${fmtDate(t.uploaded_at)}${t.uploaded_by_name ? ' by ' + esc(t.uploaded_by_name) : ''} · every proposal PDF uses this layout`
+      : 'No template yet: proposals use the built-in layout.';
+    $('t-up-l').firstChild.textContent = t.active ? 'Upload a new one' : 'Upload your template';
+    $('t-sample').hidden = $('t-remove').hidden = !t.active;
+    if (t.state === 'reading') setTimeout(async () => { try { const n = await api('/proposal-template'); tplLine(n); if (n.state === 'ready') toast('Your template is ready'); } catch (e) {} }, 5000);
+  }
+  $('t-file').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return; const fd = new FormData(); fd.append('file', f);
+    try { const res = await fetch('/api/proposal-template', { method: 'POST', body: fd, credentials: 'same-origin' }); const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || 'Upload failed'); tplLine(j.data); toast('Uploaded. Claude is reading it'); }
+    catch (x) { toast(x.message, true); }
+    e.target.value = '';
+  });
+  $('t-remove').addEventListener('click', async () => { try { tplLine(await api('/proposal-template', { method: 'DELETE' })); toast('Back to the built-in layout'); } catch (x) { toast(x.message, true); } });
+  function drawStyle(h) {
+    $('t-learn').checked = !!h.learn; $('t-sources').checked = !!h.show_sources;
+    $('h-items').innerHTML = h.items.map(it => `<div class="item"><b><span>${esc(it.label)}</span>${it.source ? `<span class="pill">${esc(it.source)}</span>` : ''}</b><textarea class="fld" data-hk="${esc(it.key)}" aria-label="${esc(it.label)}" placeholder="Not learned yet">${esc(it.text || '')}</textarea></div>`).join('');
+    $('h-state').textContent = h.learned_at ? 'Learned ' + fmtDate(h.learned_at) + ' from ' + (h.learned_from || 0) + ' proposals' : 'Not learned yet';
+  }
+  async function putStyle(extra) {
+    const items = Array.from(document.querySelectorAll('[data-hk]')).map(t => ({ key: t.dataset.hk, text: t.value }));
+    try { drawStyle(await api('/proposal-studio/house-style', { method: 'PUT', body: JSON.stringify(Object.assign({ items, learn: $('t-learn').checked, show_sources: $('t-sources').checked }, extra || {})) })); toast('Saved'); }
+    catch (x) { toast(x.message, true); }
+  }
+  $('h-save').addEventListener('click', () => putStyle());
+  $('t-learn').addEventListener('change', () => putStyle()); $('t-sources').addEventListener('change', () => putStyle());
+  $('h-learn').addEventListener('click', async () => {
+    const b = $('h-learn'); b.disabled = true; b.textContent = 'Reading your proposals…';
+    try { drawStyle(await api('/proposal-studio/house-style/learn', { method: 'POST', body: '{}' })); toast('House style updated'); }
+    catch (x) { toast(x.message, true); }
+    finally { b.disabled = false; b.textContent = 'Learn again from our proposals'; }
+  });
+
+  route();
+})();
+</script>
+<link rel="stylesheet" href="/files/static/css/unify.css?v=15">
+</body>
+</html>
