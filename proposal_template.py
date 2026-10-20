@@ -43,7 +43,8 @@ SECTION = "company_portal"
 
 TOKENS = ("company_name", "company_address", "company_phone", "company_email", "company_license", "logo",
           "number", "date", "valid_until", "title", "client_name", "contact_name", "recipient_email", "building",
-          "scope", "line_items_rows", "total", "deposit", "schedule", "exclusions", "terms", "signature")
+          "scope", "line_items_rows", "total", "deposit", "schedule", "exclusions", "terms", "signature",
+          "intro", "reference", "extra_sections")
 REQUIRED = ("scope", "line_items_rows", "total")
 
 PROMPT = (
@@ -54,10 +55,12 @@ PROMPT = (
     "written exactly like this:\n"
     "{{company_name}} {{company_address}} {{company_phone}} {{company_email}} {{company_license}} {{logo}} (an <img> of "
     "their logo, sized by your CSS via the class `logo`), {{number}} {{date}} {{valid_until}} {{title}} "
-    "{{client_name}} {{contact_name}} {{recipient_email}} {{building}} (address), {{scope}} (the scope text), "
+    "{{client_name}} {{contact_name}} {{recipient_email}} {{building}} (address), {{reference}} (a short reference, may be "
+    "empty), {{intro}} (the opening letter paragraph, before the scope), {{scope}} (the scope text), "
     "{{line_items_rows}} (only <tr> rows with 4 cells: description, quantity, unit price, amount — put it inside "
     "your own <table> with the header row in their style), {{total}}, {{deposit}} (a sentence about the deposit, may be "
-    "empty), {{schedule}}, {{exclusions}}, {{terms}}, {{signature}} (the acceptance / signature block).\n"
+    "empty), {{schedule}}, {{exclusions}}, {{terms}}, {{extra_sections}} (any added sections, each with its own heading; "
+    "place it after the terms), {{signature}} (the acceptance / signature block).\n"
     "Keep wording that is the same on every proposal (for example standard terms or a closing paragraph) as plain "
     "text; when the template has standard exclusions or terms, keep them as text instead of the placeholder.\n"
     "Rules: inline <style> only; no <script>, no links to fonts or images, no external URLs; use page-break-inside: "

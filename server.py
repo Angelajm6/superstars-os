@@ -264,6 +264,8 @@ import proposal_template  # noqa: E402
 proposal_template.register(app)   # the company's own proposal layout, read once by Claude; every proposal PDF uses it
 import proposal_drafts  # noqa: E402
 proposal_drafts.register(app)   # proposals Claude drafts from an email: review the PDF, change it, send it in the thread
+import proposal_studio  # noqa: E402
+proposal_studio.register(app)   # Proposal Studio: ask Claude for a proposal, edit anything, send the PDF from Gmail
 import project_setup  # noqa: E402
 project_setup.register(app)   # Oct 7 notes batch C: job numbers, a color per job, access method, worker access
 

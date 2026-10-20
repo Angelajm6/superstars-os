@@ -859,8 +859,8 @@ def _deliver(conn, uid: int, em: EmailMessage, thread_id: Optional[str], label: 
     return {"sent": True}
 
 
-def compose(conn, uid: int, to: str, cc: str, subject: str, body_text: str) -> dict:
-    """A new email from the person's own Gmail (they wrote it and pressed Send)."""
+def compose(conn, uid: int, to: str, cc: str, subject: str, body_text: str, attachments: Optional[list] = None) -> dict:
+    """A new email from the person's own Gmail (they wrote it and pressed Send). attachments: [(filename, bytes, mime)]."""
     if not _addrs(to):
         raise ValueError("add at least one recipient")
     bad = [a for a in _addrs(to, cc) if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", a)]
@@ -876,6 +876,9 @@ def compose(conn, uid: int, to: str, cc: str, subject: str, body_text: str) -> d
     if me["email"]:
         em["From"] = _from(me)
     _gmail_body(em, body_text, me)
+    for fname, data, mime in attachments or []:
+        main, _, sub = (mime or "application/octet-stream").partition("/")
+        em.add_attachment(data, maintype=main, subtype=sub or "octet-stream", filename=fname)
     r = _deliver(conn, uid, em, None, "new")
     log.info("inbox new email sent by user %s", uid)
     return r
