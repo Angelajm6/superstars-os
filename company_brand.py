@@ -2,7 +2,8 @@
 
 An admin uploads the company logo once in Settings > Company brand. Proposals (the built-in layout and the
 company's own template, including every proposal Claude drafts), invoices and AIA pay applications print it in
-their header; Claude is also shown it when it reads a proposal template, so the layout matches. With no upload,
+their header, and so does every document Claude makes in the Claude window (claude_docs: PDF, editor and Word);
+Claude is also shown it when it reads a proposal template, so the layout matches. With no upload,
 documents keep the standard mark (static/brand/logo-light.svg) as before.
 
   GET    /api/company-brand              -> {logo: {name, mime, size, uploaded_at, uploaded_by_name, data_uri} | null,
@@ -19,6 +20,7 @@ handlers or outside links are refused.
 from __future__ import annotations
 
 import base64
+import io
 import json
 import logging
 import re
@@ -142,6 +144,59 @@ def model_image_block(conn) -> Optional[dict]:
 
 def letterhead(conn) -> dict:
     return {k: (_get(conn, k) or "").strip() for k in LETTERHEAD}
+
+
+LETTERHEAD_CSS = (".ssc-lh{max-width:760px;margin:0 auto;padding:30px 40px 0}"
+                  ".ssc-lh-in{display:flex;justify-content:space-between;align-items:center;gap:16px;border-bottom:3px solid #B11E2E;"
+                  "padding-bottom:12px}.ssc-lh img{display:block;max-height:52px;max-width:240px;object-fit:contain}"
+                  ".ssc-lh-name{font-size:15px;font-weight:800;letter-spacing:.6px;text-transform:uppercase}"
+                  ".ssc-lh-addr{font-size:10px;line-height:1.55;color:#6b7180;text-align:right}.ssc-lh-addr b{color:#1f2330;font-size:11px}")
+
+
+def letterhead_lines(facts: dict) -> list:
+    return [x for x in (facts.get("company_address"), " · ".join(x for x in (facts.get("company_phone"), facts.get("company_email")) if x),
+                        ("License " + facts["company_license"]) if facts.get("company_license") else "") if x]
+
+
+def letterhead_html(conn=None) -> str:
+    """The header Claude's documents print above their content (claude_docs): the logo (uploaded, else the
+    standard mark) and the letterhead lines. Never raises; at worst the company name as text."""
+    import html as _html
+    own = conn is None
+    try:
+        conn = conn or _conn()
+        facts, uri = letterhead(conn), document_logo_uri(conn)
+    except Exception as x:
+        log.info("letterhead unavailable: %s", type(x).__name__)
+        facts, uri = {}, None
+    finally:
+        if own and conn is not None:
+            conn.close()
+    mark = f'<img alt="{COMPANY_NAME}" src="{uri}">' if uri else f'<div class="ssc-lh-name">{COMPANY_NAME}</div>'
+    lines = "".join("<br>" + _html.escape(x) for x in letterhead_lines(facts))
+    return f'<header class="ssc-lh"><div class="ssc-lh-in">{mark}<div class="ssc-lh-addr"><b>{COMPANY_NAME}</b>{lines}</div></div></header>'
+
+
+def word_logo(conn=None) -> Optional[tuple]:
+    """(png bytes, width px, height px) of the uploaded logo for a Word file, or None (no upload, or an SVG,
+    which Word can't take without a picture copy)."""
+    own = conn is None
+    try:
+        conn = conn or _conn()
+        v = logo(conn)
+        if not v or v["mime"] == "image/svg+xml":
+            return None
+        from PIL import Image
+        im = Image.open(io.BytesIO(base64.b64decode(v["data"])))
+        out = io.BytesIO()
+        im.convert("RGBA").save(out, "PNG")
+        return out.getvalue(), im.width, im.height
+    except Exception as x:
+        log.info("company logo not added to Word: %s", type(x).__name__)
+        return None
+    finally:
+        if own and conn is not None:
+            conn.close()
 
 
 # ------------------------------------------------------------------ checks

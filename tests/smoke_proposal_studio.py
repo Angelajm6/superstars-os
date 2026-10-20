@@ -269,10 +269,9 @@ def main() -> int:
         html = (ROOT / "proposal_studio.html").read_text(encoding="utf-8")
         for needle in ('id="doc"', 'sandbox="allow-same-origin"', "'/proposal-studio/drafts'", "'/proposal-studio/' + S.id + '/revise'",
                        "'/proposal-studio/' + S.id + '/send'", 'data-subtabs="proposals"', "/api/proposal-template",
-                       # 2026-10-20: a plain button opens the file window and the card takes a dropped file
-                       '<button class="btn-primary btn-sm" type="button" id="t-up">', "$('t-up').addEventListener('click', () => $('t-file').click());",
-                       "$('t-card').addEventListener('drop'", "async function uploadTpl(f)",
-                       'id="t-list"', "'/proposal-template/' + u.dataset.tuse + '/use'", "/api/proposal-template/${t.id}/file"):
+                       # 2026-10-20 simpler Studio: one box to start, Send in a pop-up, past proposals (many, dropped or picked)
+                       'id="ask-form"', 'id="send-m"', "$('e-send').addEventListener('click'", 'id="v-past"', "$('pp-drop').addEventListener('drop'",
+                       "files.forEach(f => fd.append('file', f))", "/api/proposal-template/${x.id}/file", 'Newest · layout'):
             assert needle in html, needle
         assert "allow-scripts" not in html, "the document frame never runs scripts"
         nav = (ROOT / "static/js/company_nav.js").read_text(encoding="utf-8")

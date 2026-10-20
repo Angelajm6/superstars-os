@@ -23,7 +23,7 @@ import logging
 import re
 import threading
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -95,12 +95,20 @@ def _get_raw(conn) -> dict:
         return {}
 
 
+STUCK_MINUTES = 10
+
+
 def _store(conn) -> dict:
     """{templates: [...every upload...], active_id, next_id} (2026-10-20: every template is kept and listed).
-    The one-template shape from before is read as a list of one."""
+    The one-template shape from before is read as a list of one. A read that never finished (the server restarted
+    mid-read) shows as failed after STUCK_MINUTES, so it never says "reading" forever."""
     v = _get_raw(conn)
     if "templates" in v:
         v.setdefault("next_id", max([t.get("id", 0) for t in v["templates"]] + [0]) + 1)
+        cut = (datetime.now() - timedelta(minutes=STUCK_MINUTES)).isoformat(timespec="seconds")
+        for t in v["templates"]:
+            if t.get("state") == "reading" and (t.get("uploaded_at") or "") < cut:
+                t.update(state="failed", error="Claude didn't finish reading it. Remove it and upload it again.")
         return v
     if v.get("path"):
         t = dict(v, id=1)
@@ -117,7 +125,8 @@ def _put(conn, value: Optional[dict]) -> None:
     conn.commit()
 
 
-_PREVIEW = threading.local()   # "See a sample" for one saved template draws it without making it the one in use
+_PREVIEW = threading.local()
+_LOCK = threading.RLock()   # several uploads read at once: every read-change-write of the list is one at a time   # "See a sample" for one saved template draws it without making it the one in use
 
 
 def _item(st: dict, tid) -> Optional[dict]:
@@ -163,6 +172,11 @@ def public(conn) -> dict:
 
 
 def use(conn, tid: int) -> dict:
+    with _LOCK:
+        return _use(conn, tid)
+
+
+def _use(conn, tid: int) -> dict:
     st = _store(conn)
     t = _item(st, tid)
     if not t:
@@ -183,19 +197,52 @@ def use_builtin(conn) -> dict:
 
 
 def remove(conn, tid: int) -> dict:
+    with _LOCK:
+        return _remove(conn, tid)
+
+
+def _remove(conn, tid: int) -> dict:
     st = _store(conn)
     t = _item(st, tid)
     if not t:
         raise LookupError("template not found")
     st["templates"] = [x for x in st["templates"] if x.get("id") != tid]
-    if st.get("active_id") == tid:
-        st["active_id"] = None
+    if st.get("active_id") == tid:   # the newest one left that Claude read gives the layout
+        ready = [x for x in st["templates"] if x.get("state") == "ready"]
+        st["active_id"] = ready[-1]["id"] if ready else None
     _put(conn, st)
     try:
         ssc_paths.resolve_data_path(t["path"]).unlink(missing_ok=True)
     except Exception as e:
         log.info("proposal template file not removed: %s", type(e).__name__)
     return public(conn)
+
+
+def past_proposal_blocks(conn, limit: int = 4) -> list:
+    """The newest past proposals as the model reads them (PDF / picture / Word text), so a new proposal copies
+    their structure, wording, terms and pricing format exactly (Proposal Studio, 2026-10-20)."""
+    out = []
+    for t in list(reversed(_store(conn)["templates"]))[:limit]:
+        try:
+            raw = ssc_paths.resolve_data_path(t["path"]).read_bytes()
+        except Exception:
+            continue
+        ext, name = t.get("ext") or "", t.get("name") or "proposal"
+        try:
+            if ext == ".pdf":
+                out.append({"type": "document", "title": name, "source": {"type": "base64", "media_type": "application/pdf",
+                                                                        "data": base64.b64encode(raw).decode("ascii")}})
+            elif ext in (".png", ".jpg", ".jpeg", ".heic", ".webp"):
+                import claude_files
+                img, mime = claude_files._image_for_model(raw)
+                out.append({"type": "image", "source": {"type": "base64", "media_type": mime, "data": base64.b64encode(img).decode("ascii")}})
+            elif ext == ".docx":
+                import claude_files
+                out.append({"type": "document", "title": name, "source": {"type": "text", "media_type": "text/plain",
+                                                                        "data": (claude_files._docx_text(raw) or "")[:60000] or "(empty)"}})
+        except Exception as e:
+            log.info("past proposal %s not readable: %s", t.get("id"), type(e).__name__)
+    return out
 
 
 def original(conn, tid: int):
@@ -340,23 +387,27 @@ def _read_job(tid: int, rel: str, ext: str, name: str, uid) -> None:
             _record_usage(conn, uid, res)
         html = sanitize(out)
         problem = check(html)
-        st = _store(conn)
-        t = _item(st, tid)
-        if not t:   # removed while reading
-            return
-        t.update({"state": "failed", "error": problem} if problem else {"state": "ready", "html": html, "error": None})
-        if not problem:
-            st["active_id"] = tid   # a new upload becomes the one in use once it's read
-        _put(conn, st)
+        with _LOCK:
+            st = _store(conn)
+            t = _item(st, tid)
+            if not t:   # removed while reading
+                return
+            t.update({"state": "failed", "error": problem} if problem else {"state": "ready", "html": html, "error": None})
+            if not problem:   # the newest proposal Claude has read gives the layout
+                newer = [x for x in st["templates"] if x.get("state") == "ready" and x["id"] > tid]
+                if not newer:
+                    st["active_id"] = tid
+            _put(conn, st)
         log.info("proposal template %s read: %s", tid, "failed" if problem else "ready")
     except Exception as e:
         log.warning("proposal template read failed: %s", type(e).__name__)
         try:
-            st = _store(conn)
-            t = _item(st, tid)
-            if t:
-                t.update({"state": "failed", "error": "Claude couldn't read that file. Try a PDF of the proposal."})
-                _put(conn, st)
+            with _LOCK:
+                st = _store(conn)
+                t = _item(st, tid)
+                if t:
+                    t.update({"state": "failed", "error": "Claude couldn't read that file. Try a PDF of the proposal."})
+                    _put(conn, st)
         except Exception:
             pass
     finally:
@@ -382,12 +433,13 @@ def start_read(conn, filename: str, raw: bytes, uid, *, background=True) -> dict
     p.write_bytes(raw)
     rel = ssc_paths.store_rel(p)
     name = Path(filename).name[:120]
-    st = _store(conn)
-    tid = st["next_id"]
-    st["next_id"] = tid + 1
-    st["templates"].append({"id": tid, "name": name, "path": rel, "ext": ext, "state": "reading", "uploaded_at": _now(),
-                            "uploaded_by": uid, "html": None, "error": None})
-    _put(conn, st)
+    with _LOCK:
+        st = _store(conn)
+        tid = st["next_id"]
+        st["next_id"] = tid + 1
+        st["templates"].append({"id": tid, "name": name, "path": rel, "ext": ext, "state": "reading", "uploaded_at": _now(),
+                                "uploaded_by": uid, "html": None, "error": None})
+        _put(conn, st)
     if background:
         threading.Thread(target=_read_job, args=(tid, rel, ext, name, uid), daemon=True).start()
     else:
@@ -439,15 +491,20 @@ def register(app) -> None:
     @app.route("/api/proposal-template", methods=["POST"])
     @gate
     def proposal_template_upload():
-        f = request.files.get("file")
-        if not f:
-            return jsonify({"error": "Choose the template file to upload."}), 400
-        raw = f.read(MAX_BYTES + 1)
+        files = request.files.getlist("file")
+        if not files:
+            return jsonify({"error": "Choose the proposals to upload."}), 400
         conn = _conn()
-        try:
-            return jsonify({"data": start_read(conn, f.filename or "", raw, _uid())}), 202
-        except ValueError as e:
-            return jsonify({"error": str(e)}), 400
+        try:   # as many past proposals as they like, in one go
+            errors, out = [], None
+            for f in files[:30]:
+                try:
+                    out = start_read(conn, f.filename or "", f.read(MAX_BYTES + 1), _uid())
+                except ValueError as e:
+                    errors.append(f"{Path(f.filename or 'file').name}: {e}")
+            if out is None:
+                return jsonify({"error": " ".join(errors) or "Nothing was uploaded."}), 400
+            return jsonify({"data": dict(out, errors=errors)}), 202
         finally:
             conn.close()
 

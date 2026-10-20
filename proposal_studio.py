@@ -304,6 +304,18 @@ def _context(conn, uid, req: dict) -> list:
         if m:
             txt += f"<email from=\"{m['from']}\" subject=\"{m['subject']}\">\n{_clip(m['body'], 8000)}\n</email>\n"
     blocks.append({"type": "text", "text": txt})
+    try:   # their own past proposals, as uploaded: the model copies them
+        import proposal_template
+        past_docs = proposal_template.past_proposal_blocks(conn)
+    except Exception:
+        past_docs = []
+    if past_docs:
+        blocks.append({"type": "text", "text": f"The company's own past proposals follow ({len(past_docs)}). Copy them exactly: the "
+                                               "same section order and headings, the same opening and closing, the same way of "
+                                               "writing scope, the same exclusions, terms and signature wording, and the same price "
+                                               "formatting. Use their prices for the same kinds of work. Only the facts of this new "
+                                               "job change."})
+        blocks.extend(past_docs)
     if req.get("file_ids"):
         import claude_files
         for r in claude_files.owned(conn, uid, req["file_ids"]):

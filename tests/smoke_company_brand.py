@@ -183,6 +183,26 @@ def main() -> int:
         assert "company_brand.model_image_block(conn)" in src, "Claude sees the logo when it reads a template"
         passed += 1; print("  documents ok")
 
+        # ---- documents Claude makes in the Claude window: PDF / editor page and Word
+        import zipfile
+        import xml.dom.minidom
+        import claude_agent
+        import claude_docs
+        d = {"title": "Letter to the board", "html": "<h1>Notice</h1><p>Work starts Monday.</p>"}
+        pg = claude_docs.page(d, edit=True)
+        assert f'<header class="ssc-lh"><div class="ssc-lh-in"><img alt="Superstars Contracting" src="{uri}">' in pg
+        art = pg.split('<article class="doc"', 1)[1]
+        assert "ssc-lh" not in art and uri not in art, "the letterhead stays outside the editable document"
+        assert pg.index("ssc-lh-in") < pg.index('<article class="doc"')
+        z = zipfile.ZipFile(io.BytesIO(claude_docs.docx_bytes(d)))
+        docxml = z.read("word/document.xml").decode()
+        xml.dom.minidom.parseString(docxml)
+        assert "word/media/logo.png" in z.namelist() and 'r:embed="rIdLogo"' in docxml
+        assert 'Target="media/logo.png"' in z.read("word/_rels/document.xml.rels").decode()
+        assert 'Extension="png"' in z.read("[Content_Types].xml").decode()
+        assert "do not write your own company header or logo" in (ROOT / "claude_agent.py").read_text(encoding="utf-8")
+        passed += 1; print("  claude documents ok")
+
         # ---- an SVG replaces it; Claude isn't sent SVG
         r = up(a, "mark.svg", SVG)
         assert r.status_code == 200 and r.get_json()["data"]["logo"]["mime"] == "image/svg+xml"
@@ -190,6 +210,18 @@ def main() -> int:
         try:
             assert company_brand.model_image_block(conn) is None
             assert company_brand.logo_data_uri(conn) == "data:image/svg+xml;base64," + base64.b64encode(SVG).decode()
+            assert company_brand.word_logo(conn) is None, "Word can't take an SVG; the name prints instead"
+        finally:
+            conn.close()
+        import zipfile
+        import claude_docs
+        d = {"title": "x", "html": "<p>x</p>"}
+        assert "data:image/svg+xml;base64," + base64.b64encode(SVG).decode() in claude_docs.page(d)
+        z = zipfile.ZipFile(io.BytesIO(claude_docs.docx_bytes(d)))
+        assert "word/media/logo.png" not in z.namelist() and "SUPERSTARS CONTRACTING" in z.read("word/document.xml").decode()
+        conn = _db()
+        try:
+            pass
         finally:
             conn.close()
         passed += 1; print("  svg ok")
@@ -202,6 +234,9 @@ def main() -> int:
         try:
             html = _sample_proposal(conn)
             assert "1 Brd Ave, Bronx, NY" in html and "License 1234567" in html
+            import claude_docs
+            lh = claude_docs.page({"title": "x", "html": "<p>x</p>"})
+            assert "<br>1 Brd Ave, Bronx, NY<br>(555) 010-0100 · office@example.com<br>License 1234567" in lh
         finally:
             conn.close()
         r = a.put("/api/company-brand/letterhead", json={"company_license": ""})
