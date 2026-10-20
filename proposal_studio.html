@@ -253,10 +253,10 @@
       <div class="card stack">
         <h2>Your proposal template</h2>
         <div id="t-line" class="muted">Loading…</div>
-        <div class="chips"><label class="btn-ghost btn-sm file-in" id="t-up-l">Upload your template<input type="file" id="t-file" accept=".pdf,.docx" aria-label="Upload your proposal template"></label>
+        <div class="chips"><label class="btn-ghost btn-sm file-in" id="t-up-l">Upload your template<input type="file" id="t-file" aria-label="Upload your proposal template"></label>
           <a class="btn-ghost btn-sm" href="/api/proposal-template/preview" target="_blank" rel="noopener" id="t-sample" hidden>See a sample</a>
           <button class="btn-ghost btn-sm" type="button" id="t-remove" hidden>Use the built-in layout</button></div>
-        <div class="muted">Upload the proposal you send today. A PDF keeps the exact layout; a Word file gives Claude the words only. Claude reads it once; replace it any time.</div>
+        <div class="muted">Upload the proposal you send today: a PDF (best), a screenshot or photo of it, or a Word .docx (words only). Claude reads it once; replace it any time.</div>
         <label class="tg"><input type="checkbox" id="t-learn"> Learn wording and prices from the proposals we send (last 20)</label>
         <label class="tg"><input type="checkbox" id="t-sources"> Show where each price came from while editing</label>
       </div>
@@ -569,10 +569,14 @@
     $('t-sample').hidden = $('t-remove').hidden = !t.active;
     if (t.state === 'reading') setTimeout(async () => { try { const n = await api('/proposal-template'); tplLine(n); if (n.state === 'ready') toast('Your template is ready'); } catch (e) {} }, 5000);
   }
+  const TPL_OK = /\.(pdf|docx|png|jpe?g|heic|webp)$/i;
   $('t-file').addEventListener('change', async e => {
-    const f = e.target.files[0]; if (!f) return; const fd = new FormData(); fd.append('file', f);
+    const f = e.target.files[0]; if (!f) return;
+    if (!TPL_OK.test(f.name)) { const x = (f.name.split('.').pop() || '').toUpperCase(); $('t-line').innerHTML = `<span style="color:var(--status-behind-deep,#A8382B)">Claude can't read ${esc(x)} files. Open it and save it as a PDF (File › Export, or Print › Save as PDF), then upload the PDF. A screenshot of the proposal works too.</span>`; e.target.value = ''; return; }
+    $('t-line').textContent = 'Uploading ' + f.name + '…';
+    const fd = new FormData(); fd.append('file', f);
     try { const res = await fetch('/api/proposal-template', { method: 'POST', body: fd, credentials: 'same-origin' }); const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || 'Upload failed'); tplLine(j.data); toast('Uploaded. Claude is reading it'); }
-    catch (x) { toast(x.message, true); }
+    catch (x) { $('t-line').innerHTML = `<span style="color:var(--status-behind-deep,#A8382B)">${esc(x.message)}</span>`; toast(x.message, true); }
     e.target.value = '';
   });
   $('t-remove').addEventListener('click', async () => { try { tplLine(await api('/proposal-template', { method: 'DELETE' })); toast('Back to the built-in layout'); } catch (x) { toast(x.message, true); } });
