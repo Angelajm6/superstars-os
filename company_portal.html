@@ -192,6 +192,29 @@
   .ib-comp.drafted { box-shadow: 0 0 0 2px #E5C3B3, 0 4px 8px 3px rgba(60,64,67,.12); }
   .ib-drafted { font-size:13px; color: #A84E2C; font-weight: 600; display: flex; align-items: center; }
   .ib-comp-to { font-size: 13px; color: #444746; overflow-wrap: anywhere; } .ib-comp-to span { color: #5E5E5E; margin-right: 6px; }
+  /* Gmail-style recipients (2026-10-20) */
+  .ib-rc { font: 14px Arial, Helvetica, sans-serif; color: #1F1F1F; border-bottom: 1px solid #E0E3E7; margin: 0 -14px; padding: 0 14px; }
+  .ib-rline { display: flex; align-items: center; gap: 6px; padding: 4px 0 8px; } .ib-rline[hidden] { display: none; }
+  .ib-rmenu { position: relative; flex: none; }
+  .ib-rtype { border: 0; background: none; border-radius: 6px; padding: 3px 5px; color: #444746; font-size: 15px; cursor: pointer; } .ib-rtype:hover { background: #F2F2F2; }
+  .ib-menu { position: absolute; top: 30px; left: 0; z-index: 6; background: #fff; border-radius: 8px; box-shadow: 0 2px 6px rgba(60,64,67,.3), 0 6px 16px rgba(60,64,67,.15); padding: 6px 0; min-width: 180px; }
+  .ib-menu[hidden], .ib-sugg[hidden], .ib-subj[hidden] { display: none; }
+  .ib-menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 16px; font: 14px Arial, sans-serif; color: #1F1F1F; cursor: pointer; } .ib-menu button:hover { background: #F2F2F2; }
+  .ib-rsum { flex: 1; min-width: 0; border: 0; background: none; text-align: left; padding: 4px 2px; font: 14px Arial, sans-serif; color: #1F1F1F; cursor: text; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ib-rsum span { color: #5E5E5E; }
+  .ib-rrow { display: flex; align-items: flex-start; gap: 8px; padding: 5px 0; border-bottom: 1px solid #F0F1F4; min-height: 38px; }
+  .ib-rrow .k { color: #5E5E5E; width: 30px; padding-top: 6px; flex: none; }
+  .ib-rcs { flex: 1; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; position: relative; cursor: text; }
+  .ib-rchip { display: inline-flex; align-items: center; gap: 6px; background: #E8EAED; border-radius: 999px; padding: 3px 4px; font-size: 13px; max-width: 100%; }
+  .ib-rchip .av, .ib-sugg .av { width: 22px; height: 22px; border-radius: 50%; background: #7C8DB5; color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 700; flex: none; }
+  .ib-rchip .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ib-rchip button { border: 0; background: none; color: #5E5E5E; width: 20px; height: 20px; border-radius: 50%; font-size: 14px; line-height: 1; cursor: pointer; } .ib-rchip button:hover { background: rgba(0,0,0,.08); }
+  .ib-rchip.bad { background: #FCE8E6; color: #A50E0E; }
+  .ib-rc .ib-rcs input[data-rin], .ib-rc .ib-subj input { border: 0 !important; outline: none !important; box-shadow: none !important; background: none !important; border-radius: 0 !important; height: auto !important; min-height: 0 !important; flex: 1; min-width: 140px; padding: 5px 2px !important; margin: 0 !important; font: 14px Arial, sans-serif; }
+  .ib-ccb { display: flex; gap: 10px; padding-top: 6px; flex: none; } .ib-ccb button { border: 0; background: none; color: #5E5E5E; font: 14px Arial, sans-serif; padding: 0; cursor: pointer; } .ib-ccb button:hover { text-decoration: underline; color: #1F1F1F; }
+  .ib-sugg { position: absolute; top: 100%; left: 0; z-index: 7; background: #fff; border-radius: 8px; box-shadow: 0 2px 6px rgba(60,64,67,.3), 0 6px 16px rgba(60,64,67,.15); padding: 6px 0; min-width: 280px; max-width: 100%; }
+  .ib-sugg button { display: flex; gap: 10px; align-items: center; width: 100%; text-align: left; border: 0; background: none; padding: 7px 12px; font: 13px Arial, sans-serif; cursor: pointer; }
+  .ib-sugg button:hover, .ib-sugg button.on { background: #F2F2F2; } .ib-sugg small { display: block; color: #5E5E5E; font-size: 12px; }
+  .ib-subj { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #F0F1F4; } .ib-subj span { color: #5E5E5E; } .ib-subj input { flex: 1; }
   .ib-comp textarea { width: 100%; border: 0; outline: none; resize: vertical; font: 14px/1.5 Arial, Helvetica, sans-serif; color: #1F1F1F; min-height: 140px; padding: 4px 0; }
   .ib-sig { border-top: 1px dashed #E3E5E8; padding-top: 6px; }
   .ib-trim { display: inline-block; width: fit-content; font-size:13px; letter-spacing: 1px; color: #5F6368; background: #E8EAED; border-radius: 6px; padding: 0 6px; line-height: 14px; cursor: default; }
@@ -2929,7 +2952,7 @@
     bar.innerHTML = `<div class="ib-comp${draft ? ' drafted' : ''}">
         ${draft ? '<div class="ib-drafted"><span class="ib-claude-mk" aria-hidden="true">✦</span>Claude drafted this reply. Read it, change anything, then Send. Nothing goes out until you do.</div>' : ''}
         ${v.sender && v.sender.from ? `<div class="ib-comp-to"><span>From</span>${esc(v.sender.from)}</div>` : ''}
-        <div class="ib-comp-to"><span>To</span>${esc(rc.to)}${rc.cc ? `<span style="margin-left:10px">Cc</span>${esc(rc.cc)}` : ''}</div>
+        <div class="ib-rc" id="ib-rc"></div>
         <textarea id="ib-body" aria-label="Reply">${esc(draft ? draft.body : '')}</textarea>
         <div class="ib-sig" id="ib-sig"></div>
         <div class="ib-trim" title="The earlier email is quoted under your reply, as in Gmail">•••</div>
@@ -2938,12 +2961,17 @@
           ${!v.can_send ? '<span class="cp-muted" style="font-size:13px">Reconnect Gmail at the top of this page to allow sending.</span>' : ''}
           <span class="cp-form-err" id="ib-err" role="alert"></span></div></div>`;
     const ta = $('ib-body'); ta.style.height = Math.min(420, Math.max(140, ta.scrollHeight + 6)) + 'px';
+    IB.rc = ibRecipients($('ib-rc'), v, all ? 'all' : 'one');
     ibSig($('ib-sig'), v.sender);
     if (!draft) ta.focus();
     $('ib-send').addEventListener('click', async () => {
       const b = $('ib-send'); b.disabled = true; b.textContent = 'Sending…';
       try {
-        await api('/inbox/messages/' + v.last_id + '/reply', { method: 'POST', body: JSON.stringify({ body: ta.value, reply_all: all, draft_action_id: draft ? draft.action_id : null }) }, true);
+        const R = IB.rc.state;
+        if (R.bad()) throw new Error('Fix the address in red first.');
+        if (!R.to.length) throw new Error('Add at least one person in To.');
+        await api('/inbox/messages/' + v.last_id + '/reply', { method: 'POST', body: JSON.stringify({ body: ta.value, reply_all: R.kind === 'all', forward: R.kind === 'fwd',
+          to: R.list('to'), cc: R.list('cc'), bcc: R.list('bcc'), subject: R.subject || null, draft_action_id: draft ? draft.action_id : null }) }, true);
         toast('Sent from your Gmail'); await ibList(); ibOpen(IB.open, false);
       } catch (e) { const er = $('ib-err'); er.textContent = e.message; er.className = 'cp-form-err show'; b.disabled = false; b.textContent = 'Send'; }
     });
@@ -2951,6 +2979,94 @@
     const d = $('ib-discard'); if (d) d.addEventListener('click', async () => {
       try { await api('/claude/actions/' + draft.action_id + '/decline', { method: 'POST', body: '{}' }, true); toast('Draft discarded'); await ibList(); ibOpen(IB.open, false); } catch (e) { toast(e.message, true); }
     });
+  }
+  // Gmail-style recipients (accepted 2026-10-20): a one-line summary with the reply type menu (Reply / Reply all /
+  // Forward / Edit subject); a click opens To / Cc / Bcc as chips you add to (contacts, team, your own email) or remove.
+  function ibParse(str) {
+    const out = []; let cur = '', q = false;
+    for (const ch of String(str || '')) { if (ch === '"') q = !q; if ((ch === ',' || ch === ';') && !q) { if (cur.trim()) out.push(cur.trim()); cur = ''; } else cur += ch; }
+    if (cur.trim()) out.push(cur.trim());
+    return out.map(x => { const m = /^(.*)<([^>]+)>\s*$/.exec(x); return m ? { n: m[1].trim().replace(/^"|"$/g, ''), e: m[2].trim() } : { n: '', e: x.trim() }; });
+  }
+  const ibOkMail = e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e || '');
+  function ibRecipients(host, v, kind) {
+    const S = { kind, to: [], cc: [], bcc: [], subject: '', open: false, showCc: false, showBcc: false,
+      list(f) { return S[f].map(p => p.n ? `${p.n.replace(/[",<>]/g, '')} <${p.e}>` : p.e).join(', '); },
+      bad() { return ['to', 'cc', 'bcc'].some(f => S[f].some(p => !ibOkMail(p.e))); } };
+    const base = String(v.subject || '').replace(/^\s*(re|fw|fwd)\s*:\s*/i, '');
+    function setKind(k) {
+      S.kind = k;
+      const rc = k === 'all' ? v.reply_all_to : v.reply_to;
+      S.to = k === 'fwd' ? [] : ibParse(rc.to); S.cc = k === 'fwd' ? [] : ibParse(rc.cc || ''); S.bcc = [];
+      if (k === 'fwd') { S.subject = 'Fwd: ' + base; S.editSubj = true; S.open = true; }
+      else if (!S.editSubj) S.subject = '';
+    }
+    setKind(kind);
+    const ini = p => ((p.n || p.e).split(/[\s@.]+/).filter(Boolean).map(x => x[0]).join('').slice(0, 2) || '?').toUpperCase();
+    const icon = { one: '↩', all: '↩↩', fwd: '→' };
+    function draw(focus) {
+      const name = p => esc(p.n || p.e);
+      const sum = [S.to.map(name).join(', ') || '<span>Add recipients</span>', S.cc.length ? '<span>Cc:</span> ' + S.cc.map(name).join(', ') : '', S.bcc.length ? '<span>Bcc:</span> ' + S.bcc.map(name).join(', ') : ''].filter(Boolean).join('&nbsp;&nbsp;');
+      const row = f => `<div class="ib-rrow"><span class="k">${f === 'to' ? 'To' : f === 'cc' ? 'Cc' : 'Bcc'}</span><div class="ib-rcs" data-rf="${f}">` +
+        S[f].map((p, i) => `<span class="ib-rchip${ibOkMail(p.e) ? '' : ' bad'}" title="${esc(p.e)}"><span class="av">${esc(ini(p))}</span><span class="nm">${name(p)}</span><button type="button" data-rx="${f}:${i}" aria-label="Remove ${name(p)}">×</button></span>`).join('') +
+        `<input data-rin="${f}" autocomplete="off" aria-label="Add ${f === 'to' ? 'To' : f === 'cc' ? 'Cc' : 'Bcc'} recipients"><div class="ib-sugg" hidden></div></div>` +
+        (f === 'to' ? `<div class="ib-ccb">${S.showCc || S.cc.length ? '' : '<button type="button" data-show="cc">Cc</button>'}${S.showBcc || S.bcc.length ? '' : '<button type="button" data-show="bcc">Bcc</button>'}</div>` : '') + '</div>';
+      host.innerHTML = `<div class="ib-rline"${S.open ? ' hidden' : ''}><div class="ib-rmenu"><button type="button" class="ib-rtype" data-rtype aria-haspopup="true" aria-label="Reply type">${icon[S.kind]} ▾</button>` +
+        `<div class="ib-menu" hidden><button type="button" data-k="one">↩ Reply</button>${v.reply_all_to && v.reply_all_to.cc ? '<button type="button" data-k="all">↩↩ Reply all</button>' : ''}<button type="button" data-k="fwd">→ Forward</button><button type="button" data-k="subj">Edit subject</button></div></div>` +
+        `<button type="button" class="ib-rsum" data-ropen title="Change who gets this">${sum}</button></div>` +
+        `<div${S.open ? '' : ' hidden'}>${row('to')}${S.showCc || S.cc.length ? row('cc') : ''}${S.showBcc || S.bcc.length ? row('bcc') : ''}</div>` +
+        `<div class="ib-subj"${S.editSubj ? '' : ' hidden'}><span>Subject</span><input id="ib-subj" value="${esc(S.subject || ('Re: ' + base))}" aria-label="Subject"></div>`;
+      const sj = host.querySelector('#ib-subj'); if (sj) sj.addEventListener('input', () => { S.subject = sj.value; });
+      if (focus) { const i = host.querySelector(`[data-rin="${focus}"]`); if (i) i.focus(); }
+    }
+    function add(f, raw) {
+      for (const p of ibParse(String(raw || '').replace(/[,;]\s*$/, ''))) if (p.e && !['to', 'cc', 'bcc'].some(k => S[k].some(x => x.e.toLowerCase() === p.e.toLowerCase()))) S[f].push(p);
+      draw(f);
+    }
+    let sT = null;
+    host.addEventListener('click', e => {
+      const t = e.target;
+      if (t.closest('[data-rtype]')) { const m = host.querySelector('.ib-menu'); m.hidden = !m.hidden; return; }
+      const k = t.closest('[data-k]');
+      if (k) { if (k.dataset.k === 'subj') { S.editSubj = true; draw(); host.querySelector('#ib-subj').focus(); } else { setKind(k.dataset.k); draw(S.kind === 'fwd' ? 'to' : null); } return; }
+      if (t.closest('[data-ropen]')) { S.open = true; draw('to'); return; }
+      const x = t.closest('[data-rx]'); if (x) { const [f, i] = x.dataset.rx.split(':'); S[f].splice(+i, 1); draw(f); return; }
+      const sh = t.closest('[data-show]'); if (sh) { S[sh.dataset.show === 'cc' ? 'showCc' : 'showBcc'] = true; draw(sh.dataset.show); return; }
+      const pk = t.closest('[data-pick]'); if (pk) { add(pk.dataset.f, pk.dataset.pick); return; }
+      const ch = t.closest('.ib-rcs'); if (ch && t === ch) ch.querySelector('input').focus();
+    });
+    document.addEventListener('click', e => { if (!host.contains(e.target)) { const m = host.querySelector('.ib-menu'); if (m) m.hidden = true; } });
+    host.addEventListener('input', e => {
+      const f = e.target.dataset.rin; if (!f) return;
+      if (/[,;]\s*$/.test(e.target.value)) { add(f, e.target.value); return; }
+      const q = e.target.value.trim(), box = e.target.nextElementSibling;
+      clearTimeout(sT);
+      if (q.length < 2) { box.hidden = true; return; }
+      sT = setTimeout(async () => {
+        let rows = [];
+        try { rows = (await api('/inbox/people?q=' + encodeURIComponent(q), null, true)).data || []; } catch (x) {}
+        const used = new Set(['to', 'cc', 'bcc'].flatMap(k => S[k].map(p => p.e.toLowerCase())));
+        rows = rows.filter(r => !used.has(r.email.toLowerCase())).slice(0, 6);
+        box.hidden = !rows.length;
+        box.innerHTML = rows.map((r, i) => `<button type="button" class="${i ? '' : 'on'}" data-f="${f}" data-pick="${esc(r.name ? `${r.name.replace(/[",<>]/g, '')} <${r.email}>` : r.email)}"><span class="av">${esc(ini({ n: r.name, e: r.email }))}</span><span><b>${esc(r.name || r.email)}</b>${r.name ? ' &lt;' + esc(r.email) + '&gt;' : ''}<small>${esc(r.where || '')}</small></span></button>`).join('');
+      }, 180);
+    });
+    host.addEventListener('keydown', e => {
+      const f = e.target.dataset && e.target.dataset.rin; if (!f) return;
+      const box = e.target.nextElementSibling;
+      if ((e.key === 'Enter' || e.key === 'Tab') && e.target.value.trim()) {
+        e.preventDefault();
+        const first = box && !box.hidden ? box.querySelector('[data-pick]') : null;
+        add(f, first ? first.dataset.pick : e.target.value);
+      } else if (e.key === 'Backspace' && !e.target.value && S[f].length) { S[f].pop(); draw(f); }
+      else if (e.key === 'Escape') { box.hidden = true; }
+    });
+    host.addEventListener('focusout', e => {   // typed and left: keep it as a recipient, like Gmail
+      const f = e.target.dataset && e.target.dataset.rin;
+      if (f && e.target.value.trim() && !(e.relatedTarget && host.contains(e.relatedTarget) && e.relatedTarget.closest('[data-pick]'))) setTimeout(() => { if (document.activeElement !== e.target && e.target.isConnected && e.target.value.trim()) add(f, e.target.value); }, 150);
+    });
+    draw();
+    return { state: S };
   }
   function ibSig(host, sender) {   // the Gmail signature, exactly as it goes out under the text
     host.innerHTML = '';

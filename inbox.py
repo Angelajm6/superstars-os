@@ -798,6 +798,49 @@ def _quote(m: dict) -> tuple:
     return html, text
 
 
+def _forward_quote(m: dict) -> tuple:
+    """Gmail's "---------- Forwarded message ---------" block (html, text)."""
+    import html as _h
+    try:
+        d = datetime.fromisoformat(m["received_at"])
+        when = f"{d:%a}, {d:%b} {d.day}, {d.year} at {d.strftime('%I:%M %p').lstrip('0')}"
+    except Exception:
+        when = m.get("received_at") or ""
+    head = [("From", m.get("from") or ""), ("Date", when), ("Subject", m.get("subject") or ""), ("To", m.get("to") or "")]
+    if m.get("cc"):
+        head.append(("Cc", m["cc"]))
+    orig = m.get("html") or ""
+    if orig:
+        b = re.search(r"(?is)<body[^>]*>(.*)</body>", orig)
+        orig = b.group(1) if b else re.sub(r"(?is)<head\b.*?</head>|</?html[^>]*>", "", orig)
+        orig = _JS_URL.sub(r'\1=""', _ON_ATTR.sub("", _SCRIPTY.sub("", orig)))
+    else:
+        orig = '<div dir="ltr">' + _text_html(m.get("full") or m.get("body") or "") + "</div>"
+    html = ('<div class="gmail_quote"><div dir="ltr" class="gmail_attr">---------- Forwarded message ---------<br>' +
+            "".join(f"{k}: {_h.escape(v)}<br>" for k, v in head) + "</div><br><br>" + orig + "</div>")
+    text = "---------- Forwarded message ---------\n" + "".join(f"{k}: {v}\n" for k, v in head) + "\n" + \
+        (m.get("full") or m.get("body") or "")
+    return html, text
+
+
+def clean_recipients(value, label: str) -> str:
+    """'Name <a@b.c>, d@e.f' (a list or a string) -> the same, checked; raises ValueError naming the bad address."""
+    if isinstance(value, (list, tuple)):
+        value = ", ".join(str(v) for v in value if str(v or "").strip())
+    out, seen = [], set()
+    for n, a in getaddresses([str(value or "")]):
+        a = (a or "").strip()
+        if not a:
+            continue
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", a):
+            raise ValueError(f"check the {label} address: {a}")
+        if a.lower() in seen:
+            continue
+        seen.add(a.lower())
+        out.append(formataddr((n.strip(), a)) if n.strip() else a)
+    return ", ".join(out)
+
+
 def _gmail_body(em: EmailMessage, body_text: str, me: dict, quote: Optional[tuple] = None) -> None:
     """Plain text + the html Gmail itself sends: the text, the person's signature, the quoted email."""
     sig = me.get("signature") or ""
@@ -885,35 +928,51 @@ def compose(conn, uid: int, to: str, cc: str, subject: str, body_text: str, atta
 
 
 def send_reply(conn, uid: int, mid: int, body_text: str, subject: Optional[str] = None, reply_all: bool = False,
-               attachments: Optional[list] = None) -> dict:
-    """attachments: [(filename, bytes, mime)] — e.g. the proposal PDF Claude drafted from this email."""
+               attachments: Optional[list] = None, to=None, cc=None, bcc=None, forward: bool = False) -> dict:
+    """attachments: [(filename, bytes, mime)] — e.g. the proposal PDF Claude drafted from this email.
+    to / cc / bcc (2026-10-20, Gmail-style recipients): when given, exactly these people get it instead of the
+    usual reply / reply-all list. forward: the email (with its attachments) goes to `to`, still in this thread."""
     m = message(conn, mid, uid)
     if not m:
         raise LookupError("that email is not in your inbox")
-    if not (body_text or "").strip():
+    if not (body_text or "").strip() and not forward:
         raise ValueError("the reply is empty")
     link = _one(conn, "SELECT * FROM gmail_link WHERE user_id = ?", (uid,))
     me = (link or {}).get("google_email") or ""
-    to, cc = reply_recipients(m, me, reply_all)
+    if to is not None or forward:
+        to, cc, bcc = clean_recipients(to, "To"), clean_recipients(cc, "Cc"), clean_recipients(bcc, "Bcc")
+    else:
+        to, cc = reply_recipients(m, me, reply_all)
+        bcc = ""
     if not _addrs(to):
-        raise ValueError("this email has no address to reply to")
-    subj = (subject or "").strip() or ("Re: " + re.sub(r"^\s*(re|fw|fwd)\s*:\s*", "", m["subject"], flags=re.I)).strip()
+        raise ValueError("add at least one person in To" if forward or to == "" else "this email has no address to reply to")
+    base = re.sub(r"^\s*(re|fw|fwd)\s*:\s*", "", m["subject"], flags=re.I)
+    subj = (subject or "").strip() or (("Fwd: " if forward else "Re: ") + base).strip()
     ident = identity(conn, uid)
     em = EmailMessage()
     em["To"], em["Subject"] = to, subj
     if cc:
         em["Cc"] = cc
+    if bcc:
+        em["Bcc"] = bcc   # Gmail delivers to Bcc and never shows it to the others
     if me:
         em["From"] = _from(ident)
     if m["rfc_id"]:
         em["In-Reply-To"], em["References"] = m["rfc_id"], m["rfc_id"]
-    _gmail_body(em, body_text, ident, _quote(m))
+    _gmail_body(em, body_text, ident, _forward_quote(m) if forward else _quote(m))
+    if forward:   # the email's own files go along, as Gmail does
+        for att in m.get("attachments") or []:
+            try:
+                em.add_attachment(attachment_bytes(conn, uid, m, att), maintype=(att.get("mime") or "application/octet-stream").split("/")[0],
+                                  subtype=((att.get("mime") or "application/octet-stream").split("/") + ["octet-stream"])[1], filename=att.get("name") or "file")
+            except Exception as e:
+                log.info("inbox forward: an attachment of %s was not added (%s)", mid, type(e).__name__)
     for fname, data, mime in attachments or []:
         main, _, sub = (mime or "application/octet-stream").partition("/")
         em.add_attachment(data, maintype=main, subtype=sub or "octet-stream", filename=fname)
-    _deliver(conn, uid, em, m["thread_id"], "reply")
-    log.info("inbox reply sent for message %s", mid)
-    return {"sent": True, "to": to, "cc": cc}
+    _deliver(conn, uid, em, m["thread_id"], "forward" if forward else "reply")
+    log.info("inbox %s sent for message %s", "forward" if forward else "reply", mid)
+    return {"sent": True, "to": to, "cc": cc, "bcc": bcc}
 
 
 ATTACHABLE_EXT = (".pdf", ".jpg", ".jpeg", ".png", ".heic", ".heif", ".xlsx")
@@ -1430,6 +1489,49 @@ def _decline_draft(conn, uid, ids):
         conn.commit()
 
 
+def people(conn, uid: int, q: str, limit: int = 8) -> list:
+    """Who to add to an email: the company's contacts, the team, and people in this person's own recent mail."""
+    q = (q or "").strip().lower()
+    if len(q) < 1:
+        return []
+    out, seen = [], set()
+
+    def add(name, email, where):
+        e = (email or "").strip()
+        if not e or e.lower() in seen or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", e):
+            return
+        if q not in (name or "").lower() and q not in e.lower():
+            return
+        seen.add(e.lower())
+        out.append({"name": (name or "").strip(), "email": e, "where": where})
+    for r in _rows(conn, "SELECT c.full_name, c.email, c.title, o.name AS org FROM crm_contact c LEFT JOIN crm_organization o ON o.id = c.org_id "
+                         "WHERE c.email IS NOT NULL AND c.email <> '' AND COALESCE(c.status, 'active') <> 'inactive' "
+                         "AND (LOWER(c.full_name) LIKE ? OR LOWER(c.email) LIKE ?) LIMIT 20", (f"%{q}%", f"%{q}%")):
+        add(r["full_name"], r["email"], " · ".join(x for x in (r.get("org"), r.get("title")) if x) or "Contact")
+    for r in _rows(conn, "SELECT COALESCE(NULLIF(display_name, ''), NULLIF(full_name, ''), email) AS n, email FROM users "
+                         "WHERE COALESCE(status, 'active') = 'active' AND email IS NOT NULL AND (LOWER(email) LIKE ? OR "
+                         "LOWER(COALESCE(full_name, '')) LIKE ? OR LOWER(COALESCE(display_name, '')) LIKE ?) LIMIT 10",
+                     (f"%{q}%", f"%{q}%", f"%{q}%")):
+        add(r["n"], r["email"], "Your team")
+    if len(out) < limit:   # people in your own recent email (decrypted here only, never stored)
+        for r in _rows(conn, "SELECT from_enc, to_enc, cc_enc FROM mail_message WHERE user_id = ? ORDER BY received_at DESC LIMIT 150", (uid,)):
+            for n, a in getaddresses([_dec(r["from_enc"]) or "", _dec(r["to_enc"]) or "", _dec(r["cc_enc"]) or ""]):
+                add(n, a, "From your email")
+            if len(out) >= limit:
+                break
+    return out[:limit]
+
+
+@requires_role(*OFFICE_ROLES)
+def _api_people():
+    me = _me()
+    conn = _conn()
+    try:
+        return jsonify({"data": people(conn, me["id"], request.args.get("q") or "")})
+    finally:
+        conn.close()
+
+
 @requires_role(*OFFICE_ROLES)
 def _api_reply(mid):
     """The person wrote (or edited) a reply and pressed Send: that IS the approval."""
@@ -1441,7 +1543,9 @@ def _api_reply(mid):
         if not m:
             return _err("not found", 404)
         try:
-            r = send_reply(conn, me["id"], mid, str(d.get("body") or ""), d.get("subject"), bool(d.get("reply_all")))
+            given = any(k in d for k in ("to", "cc", "bcc"))
+            r = send_reply(conn, me["id"], mid, str(d.get("body") or ""), d.get("subject"), bool(d.get("reply_all")),
+                           to=d.get("to") if given else None, cc=d.get("cc"), bcc=d.get("bcc"), forward=bool(d.get("forward")))
         except (ValueError, LookupError) as e:
             return _err(str(e), 400)
         ids = [x["id"] for x in _rows(conn, "SELECT id FROM mail_message WHERE user_id = ? AND thread_id = ?",
@@ -1531,6 +1635,7 @@ def register(app) -> None:
     app.add_url_rule("/api/inbox/threads/<int:mid>", "inbox_thread", _api_thread, methods=["GET"])
     app.add_url_rule("/api/inbox/messages/<int:mid>/attachments/<int:n>", "inbox_attachment", _api_attachment, methods=["GET"])
     app.add_url_rule("/api/inbox/messages/<int:mid>/reply", "inbox_reply", _api_reply, methods=["POST"])
+    app.add_url_rule("/api/inbox/people", "inbox_people", _api_people, methods=["GET"])
     app.add_url_rule("/api/inbox/compose", "inbox_compose", _api_compose, methods=["POST"])
     app.add_url_rule("/api/inbox/refresh", "inbox_refresh", _api_refresh, methods=["POST"])
     app.add_url_rule("/gmail/push", "gmail_push", _api_push, methods=["POST"])

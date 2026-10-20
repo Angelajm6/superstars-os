@@ -55,6 +55,15 @@
   .file-in{position:relative;overflow:hidden}.file-in input{position:absolute;inset:0;opacity:0;cursor:pointer}
   .t-drop{border:2px dashed var(--line);border-radius:10px;padding:18px;text-align:center;color:var(--muted);font-size:13px;transition:border-color .15s,background .15s}
   .t-drop.on{border-color:var(--accent);background:var(--accent-in);color:var(--ink)}
+  .tlist{display:flex;flex-direction:column;gap:8px}
+  .trow{display:grid;grid-template-columns:44px minmax(0,1fr);gap:4px 12px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .trow.inuse{border-color:var(--accent-edge);background:var(--accent-in)}
+  .trow .thumb{width:44px;height:56px;background:#fff;border:1px solid var(--line);border-radius:4px;padding:5px;display:flex;flex-direction:column;gap:3px}
+  .trow .thumb i{height:3px;background:#b11e2e;border-radius:2px}.trow .thumb b{height:3px;background:#d8dbe2;border-radius:2px}.trow .thumb b.s{width:60%}
+  .trow .tn{min-width:0}.trow .tn b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.trow .tn span{color:var(--muted);font-size:12px}
+  .trow .pill{margin-left:6px}.pill.tuse{background:var(--accent);color:#fff}
+  .tacts{grid-column:2;display:flex;gap:4px;flex-wrap:wrap}
+  @media (max-width:560px){.tacts{grid-column:1/-1}}
   .muted{color:var(--muted);font-size:12px}
   .err{color:var(--status-behind-deep,#A8382B);font-size:13px;min-height:1px}
   .working{display:flex;flex-direction:column;gap:8px}
@@ -253,9 +262,11 @@
   <section id="v-style" hidden>
     <div class="grid-set">
       <div class="card stack" id="t-card">
-        <h2>Your proposal template</h2>
+        <h2>Your proposal templates</h2>
+        <div class="muted">Every template you upload is saved here, including uploads from the Dashboard. One is in use for new proposal PDFs; switch any time.</div>
         <div class="t-drop" id="t-drop">Drop your template PDF here, or use the button below</div>
         <div id="t-line" class="muted">Loading…</div>
+        <div class="tlist" id="t-list"></div>
         <div class="chips"><button class="btn-primary btn-sm" type="button" id="t-up">Upload your template</button><input type="file" id="t-file" hidden aria-label="Upload your proposal template">
           <a class="btn-ghost btn-sm" href="/api/proposal-template/preview" target="_blank" rel="noopener" id="t-sample" hidden>See a sample</a>
           <button class="btn-ghost btn-sm" type="button" id="t-remove" hidden>Use the built-in layout</button></div>
@@ -570,6 +581,7 @@
       : 'No template yet: proposals use the built-in layout.';
     $('t-up').textContent = t.active ? 'Upload a new one' : 'Upload your template';
     $('t-sample').hidden = $('t-remove').hidden = !t.active;
+    drawTList(t.templates || []);
     if (t.state === 'reading') setTimeout(async () => { try { const n = await api('/proposal-template'); tplLine(n); if (n.state === 'ready') toast('Your template is ready'); } catch (e) {} }, 5000);
   }
   const TPL_OK = /\.(pdf|docx|png|jpe?g|heic|webp)$/i;
@@ -587,6 +599,23 @@
     try { const res = await fetch('/api/proposal-template', { method: 'POST', body: fd, credentials: 'same-origin' }); const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || ('The upload didn\u2019t go through (' + res.status + '). Try again, or drop the file on this card.')); tplLine(j.data); toast('Uploaded. Claude is reading it'); }
     catch (x) { $('t-line').innerHTML = `<span style="color:var(--status-behind-deep,#A8382B)">${esc(x.message)}</span>`; toast(x.message, true); }
   }
+  // every saved template: in use / ready / reading; view the original, see a sample, use it, remove it
+  function drawTList(list) {
+    $('t-list').innerHTML = list.map(t => `<div class="trow${t.in_use ? ' inuse' : ''}"><div class="thumb" aria-hidden="true"><i></i><b></b><b class="s"></b><b></b><b></b><b class="s"></b></div>` +
+      `<div class="tn"><b>${esc(t.name || 'Template')}${t.in_use ? '<span class="pill tuse">In use</span>' : t.state === 'reading' ? '<span class="pill draft">Claude is reading it…</span>' : t.state === 'failed' ? '<span class="pill declined">Couldn’t read</span>' : '<span class="pill signed">Ready</span>'}</b>` +
+      `<span>Uploaded ${fmtDate(t.uploaded_at)}${t.uploaded_by_name ? ' · ' + esc(t.uploaded_by_name) : ''}${t.state === 'failed' && t.error ? ' · ' + esc(t.error) : ''}</span></div>` +
+      `<div class="tacts"><a class="btn-ghost btn-sm" href="/api/proposal-template/${t.id}/file" target="_blank" rel="noopener">View original</a>` +
+      (t.state === 'ready' ? `<a class="btn-ghost btn-sm" href="/api/proposal-template/${t.id}/preview" target="_blank" rel="noopener">See a sample</a>` : '') +
+      (t.in_use ? '' : (t.state === 'ready' ? `<button class="btn-ghost btn-sm" type="button" data-tuse="${t.id}">Use this one</button>` : '') + `<button class="btn-ghost btn-sm" type="button" data-trm="${t.id}">Remove</button>`) +
+      `</div></div>`).join('');
+  }
+  $('t-list').addEventListener('click', async e => {
+    const u = e.target.closest('[data-tuse]'), r = e.target.closest('[data-trm]');
+    try {
+      if (u) { tplLine(await api('/proposal-template/' + u.dataset.tuse + '/use', { method: 'POST', body: '{}' })); toast('New proposal PDFs now use this template'); }
+      if (r) { tplLine(await api('/proposal-template/' + r.dataset.trm, { method: 'DELETE' })); toast('Template removed'); }
+    } catch (x) { toast(x.message, true); }
+  });
   $('t-remove').addEventListener('click', async () => { try { tplLine(await api('/proposal-template', { method: 'DELETE' })); toast('Back to the built-in layout'); } catch (x) { toast(x.message, true); } });
   function drawStyle(h) {
     $('t-learn').checked = !!h.learn; $('t-sources').checked = !!h.show_sources;

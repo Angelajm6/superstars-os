@@ -236,13 +236,43 @@ def main() -> int:
         assert next(i for i in h["items"] if i["key"] == "words")["text"] == "Say repoint, never tuckpoint.", "a hand edit is kept"
         passed += 1; print("  house style ok")
 
+        # ---- saved templates (2026-10-20): every upload kept; one in use; view, sample, use, remove
+        conn = _db()
+        try:   # the one-template shape from before reads as a list of one
+            conn.execute("DELETE FROM app_settings WHERE key = 'proposal_template'")
+            conn.execute("INSERT INTO app_settings (key, value, updated_at) VALUES ('proposal_template', ?, '2026-10-19T10:00:00')",
+                         ('{"name": "Old template.pdf", "path": "data_room/proposal_template/old.pdf", "ext": ".pdf", "state": "ready", "html": "<html><body>{{scope}}<table>{{line_items_rows}}</table>{{total}}</body></html>"}',))
+            conn.commit()
+            t0 = proposal_template.public(conn)
+            assert len(t0["templates"]) == 1 and t0["templates"][0]["in_use"] and t0["active"]
+            a1 = proposal_template.start_read(conn, "Template A.pdf", b"%PDF-1.4 A", ids["admin"], background=False)
+            a2 = proposal_template.start_read(conn, "Template B.pdf", b"%PDF-1.4 B", ids["c_suite"], background=False)
+        finally:
+            conn.close()
+        lst = a.get("/api/proposal-template").get_json()["data"]
+        names = [t["name"] for t in lst["templates"]]
+        assert names == ["Template B.pdf", "Template A.pdf", "Old template.pdf"], names
+        tb, ta = lst["templates"][0], lst["templates"][1]
+        assert tb["in_use"] and not ta["in_use"] and tb["uploaded_by_name"] == "Pst C_Suite", tb
+        assert a.post(f"/api/proposal-template/{ta['id']}/use", json={}).get_json()["data"]["active_id"] == ta["id"]
+        f = a.get(f"/api/proposal-template/{ta['id']}/file")
+        assert f.status_code == 200 and f.data == b"%PDF-1.4 A" and f.mimetype == "application/pdf"
+        assert a.get(f"/api/proposal-template/{tb['id']}/preview").status_code == 200
+        lst = a.delete(f"/api/proposal-template/{tb['id']}").get_json()["data"]
+        assert [t["name"] for t in lst["templates"]] == ["Template A.pdf", "Old template.pdf"] and lst["active_id"] == ta["id"]
+        lst = a.delete("/api/proposal-template").get_json()["data"]
+        assert not lst["active"] and len(lst["templates"]) == 2, "the built-in layout keeps the saved list"
+        assert pm.get("/api/proposal-template").status_code == 403 and a.get("/api/proposal-template/9999/file").status_code == 404
+        passed += 1; print("  saved templates ok")
+
         # ---- the page
         html = (ROOT / "proposal_studio.html").read_text(encoding="utf-8")
         for needle in ('id="doc"', 'sandbox="allow-same-origin"', "'/proposal-studio/drafts'", "'/proposal-studio/' + S.id + '/revise'",
                        "'/proposal-studio/' + S.id + '/send'", 'data-subtabs="proposals"', "/api/proposal-template",
                        # 2026-10-20: a plain button opens the file window and the card takes a dropped file
                        '<button class="btn-primary btn-sm" type="button" id="t-up">', "$('t-up').addEventListener('click', () => $('t-file').click());",
-                       "$('t-card').addEventListener('drop'", "async function uploadTpl(f)"):
+                       "$('t-card').addEventListener('drop'", "async function uploadTpl(f)",
+                       'id="t-list"', "'/proposal-template/' + u.dataset.tuse + '/use'", "/api/proposal-template/${t.id}/file"):
             assert needle in html, needle
         assert "allow-scripts" not in html, "the document frame never runs scripts"
         nav = (ROOT / "static/js/company_nav.js").read_text(encoding="utf-8")

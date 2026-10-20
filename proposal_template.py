@@ -95,6 +95,20 @@ def _get_raw(conn) -> dict:
         return {}
 
 
+def _store(conn) -> dict:
+    """{templates: [...every upload...], active_id, next_id} (2026-10-20: every template is kept and listed).
+    The one-template shape from before is read as a list of one."""
+    v = _get_raw(conn)
+    if "templates" in v:
+        v.setdefault("next_id", max([t.get("id", 0) for t in v["templates"]] + [0]) + 1)
+        return v
+    if v.get("path"):
+        t = dict(v, id=1)
+        t.pop("previous", None)
+        return {"templates": [t], "active_id": 1 if v.get("state") == "ready" else None, "next_id": 2}
+    return {"templates": [], "active_id": None, "next_id": 1}
+
+
 def _put(conn, value: Optional[dict]) -> None:
     conn.execute("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)")
     conn.execute("DELETE FROM app_settings WHERE key = ?", (KEY,))
@@ -103,25 +117,93 @@ def _put(conn, value: Optional[dict]) -> None:
     conn.commit()
 
 
+_PREVIEW = threading.local()   # "See a sample" for one saved template draws it without making it the one in use
+
+
+def _item(st: dict, tid) -> Optional[dict]:
+    return next((t for t in st["templates"] if t.get("id") == tid), None)
+
+
 def active_html(conn) -> Optional[str]:
-    t = _get_raw(conn)
-    return t.get("html") if t.get("state") == "ready" and t.get("html") else None
+    over = getattr(_PREVIEW, "html", None)
+    if over:
+        return over
+    st = _store(conn)
+    t = _item(st, st.get("active_id"))
+    return t.get("html") if t and t.get("state") == "ready" and t.get("html") else None
+
+
+def _names(conn, ids) -> dict:
+    out = {}
+    for uid in {i for i in ids if i}:
+        try:
+            u = conn.execute("SELECT COALESCE(NULLIF(display_name, ''), NULLIF(full_name, ''), email) AS n FROM users WHERE id = ?",
+                             (uid,)).fetchone()
+            out[uid] = u["n"] if u else None
+        except Exception:
+            conn.rollback()
+    return out
 
 
 def public(conn) -> dict:
-    t = _get_raw(conn)
+    """The template in use (or the newest upload while Claude reads it) + every saved template."""
+    st = _store(conn)
+    act = _item(st, st.get("active_id"))
+    newest = st["templates"][-1] if st["templates"] else None
+    shown = newest if newest and newest.get("state") in ("reading", "failed") and newest is not act else act
+    who = _names(conn, [t.get("uploaded_by") for t in st["templates"]])
+    out = {"active": bool(act and act.get("state") == "ready"), "state": (shown or {}).get("state") or "none",
+           "name": (shown or {}).get("name"), "uploaded_at": (shown or {}).get("uploaded_at"),
+           "uploaded_by_name": who.get((shown or {}).get("uploaded_by")), "error": (shown or {}).get("error"),
+           "active_id": st.get("active_id") if act else None,
+           "templates": [{"id": t["id"], "name": t.get("name"), "ext": t.get("ext"), "state": t.get("state"), "error": t.get("error"),
+                          "uploaded_at": t.get("uploaded_at"), "uploaded_by_name": who.get(t.get("uploaded_by")),
+                          "in_use": bool(act and t["id"] == act["id"])} for t in reversed(st["templates"])]}
+    return out
+
+
+def use(conn, tid: int) -> dict:
+    st = _store(conn)
+    t = _item(st, tid)
     if not t:
-        return {"active": False, "state": "none"}
-    who = None
-    if t.get("uploaded_by"):
-        try:
-            u = conn.execute("SELECT COALESCE(NULLIF(display_name, ''), NULLIF(full_name, ''), email) AS n FROM users WHERE id = ?",
-                             (t["uploaded_by"],)).fetchone()
-            who = u["n"] if u else None
-        except Exception:
-            conn.rollback()
-    return {"active": t.get("state") == "ready", "state": t.get("state") or "none", "name": t.get("name"),
-            "uploaded_at": t.get("uploaded_at"), "uploaded_by_name": who, "error": t.get("error")}
+        raise LookupError("template not found")
+    if t.get("state") != "ready":
+        raise ValueError("Claude hasn't finished reading that one yet." if t.get("state") == "reading"
+                         else "Claude couldn't read that one. Upload a cleaner PDF instead.")
+    st["active_id"] = tid
+    _put(conn, st)
+    return public(conn)
+
+
+def use_builtin(conn) -> dict:
+    st = _store(conn)
+    st["active_id"] = None
+    _put(conn, st)
+    return public(conn)
+
+
+def remove(conn, tid: int) -> dict:
+    st = _store(conn)
+    t = _item(st, tid)
+    if not t:
+        raise LookupError("template not found")
+    st["templates"] = [x for x in st["templates"] if x.get("id") != tid]
+    if st.get("active_id") == tid:
+        st["active_id"] = None
+    _put(conn, st)
+    try:
+        ssc_paths.resolve_data_path(t["path"]).unlink(missing_ok=True)
+    except Exception as e:
+        log.info("proposal template file not removed: %s", type(e).__name__)
+    return public(conn)
+
+
+def original(conn, tid: int):
+    t = _item(_store(conn), tid)
+    if not t or not t.get("path"):
+        return None, None
+    p = ssc_paths.resolve_data_path(t["path"])
+    return (p if p.exists() else None), t
 
 
 # ------------------------------------------------------------------ the HTML
@@ -235,7 +317,7 @@ def _record_usage(conn, uid, res) -> None:
         log.info("proposal template usage not recorded: %s", type(e).__name__)
 
 
-def _read_job(rel: str, ext: str, name: str, uid) -> None:
+def _read_job(tid: int, rel: str, ext: str, name: str, uid) -> None:
     conn = _conn()
     try:
         raw = ssc_paths.resolve_data_path(rel).read_bytes()
@@ -248,19 +330,23 @@ def _read_job(rel: str, ext: str, name: str, uid) -> None:
             _record_usage(conn, uid, res)
         html = sanitize(out)
         problem = check(html)
-        t = _get_raw(conn)
-        if t.get("path") != rel:   # replaced while reading
+        st = _store(conn)
+        t = _item(st, tid)
+        if not t:   # removed while reading
             return
         t.update({"state": "failed", "error": problem} if problem else {"state": "ready", "html": html, "error": None})
-        _put(conn, t)
-        log.info("proposal template read: %s", "failed" if problem else "ready")
+        if not problem:
+            st["active_id"] = tid   # a new upload becomes the one in use once it's read
+        _put(conn, st)
+        log.info("proposal template %s read: %s", tid, "failed" if problem else "ready")
     except Exception as e:
         log.warning("proposal template read failed: %s", type(e).__name__)
         try:
-            t = _get_raw(conn)
-            if t.get("path") == rel:
+            st = _store(conn)
+            t = _item(st, tid)
+            if t:
                 t.update({"state": "failed", "error": "Claude couldn't read that file. Try a PDF of the proposal."})
-                _put(conn, t)
+                _put(conn, st)
         except Exception:
             pass
     finally:
@@ -285,19 +371,31 @@ def start_read(conn, filename: str, raw: bytes, uid, *, background=True) -> dict
     p = d / (uuid.uuid4().hex + ext)
     p.write_bytes(raw)
     rel = ssc_paths.store_rel(p)
-    old = _get_raw(conn)
     name = Path(filename).name[:120]
-    _put(conn, {"name": name, "path": rel, "ext": ext, "state": "reading", "uploaded_at": _now(), "uploaded_by": uid,
-                "html": old.get("html") if old.get("state") == "ready" else None, "error": None,
-                "previous": old.get("path")})
+    st = _store(conn)
+    tid = st["next_id"]
+    st["next_id"] = tid + 1
+    st["templates"].append({"id": tid, "name": name, "path": rel, "ext": ext, "state": "reading", "uploaded_at": _now(),
+                            "uploaded_by": uid, "html": None, "error": None})
+    _put(conn, st)
     if background:
-        threading.Thread(target=_read_job, args=(rel, ext, name, uid), daemon=True).start()
+        threading.Thread(target=_read_job, args=(tid, rel, ext, name, uid), daemon=True).start()
     else:
-        _read_job(rel, ext, name, uid)
+        _read_job(tid, rel, ext, name, uid)
     return public(conn)
 
 
-def sample_html(conn) -> str:
+def sample_html(conn, tid: Optional[int] = None) -> str:
+    """A sample proposal in the template in use, or in saved template `tid`."""
+    if tid is not None:
+        t = _item(_store(conn), tid)
+        if not t or t.get("state") != "ready":
+            raise LookupError("template not ready")
+        _PREVIEW.html = t["html"]
+        try:
+            return sample_html(conn)
+        finally:
+            _PREVIEW.html = None
     import proposals
     r = {"id": 0, "number": "SAMPLE-P1", "version": 1, "status": "draft", "title": "Exterior repairs · 410 E 58th St",
          "client_name": "Sample Client LLC", "recipient_name": "Dana Sample", "recipient_email": "client@example.com",
@@ -357,9 +455,64 @@ def register(app) -> None:
     @app.route("/api/proposal-template", methods=["DELETE"])
     @gate
     def proposal_template_delete():
+        """Use the built-in layout (the saved templates stay)."""
         conn = _conn()
         try:
-            _put(conn, None)
-            return jsonify({"data": public(conn)})
+            return jsonify({"data": use_builtin(conn)})
+        finally:
+            conn.close()
+
+    @app.route("/api/proposal-template/<int:tid>/use", methods=["POST"])
+    @gate
+    def proposal_template_use(tid):
+        conn = _conn()
+        try:
+            return jsonify({"data": use(conn, tid)})
+        except LookupError:
+            return jsonify({"error": "not found"}), 404
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        finally:
+            conn.close()
+
+    @app.route("/api/proposal-template/<int:tid>", methods=["DELETE"])
+    @gate
+    def proposal_template_remove(tid):
+        conn = _conn()
+        try:
+            return jsonify({"data": remove(conn, tid)})
+        except LookupError:
+            return jsonify({"error": "not found"}), 404
+        finally:
+            conn.close()
+
+    @app.route("/api/proposal-template/<int:tid>/file", methods=["GET"])
+    @gate
+    def proposal_template_file(tid):
+        from flask import send_file
+        conn = _conn()
+        try:
+            p, t = original(conn, tid)
+        finally:
+            conn.close()
+        if not p:
+            return jsonify({"error": "not found"}), 404
+        resp = send_file(str(p), mimetype=EXT.get(t.get("ext"), "application/octet-stream"), as_attachment=False,
+                         download_name=t.get("name") or ("template" + (t.get("ext") or "")))
+        resp.headers["Cache-Control"] = "no-store"   # (no sandbox CSP here: it would stop Chrome's PDF viewer)
+        return resp
+
+    @app.route("/api/proposal-template/<int:tid>/preview", methods=["GET"])
+    @gate
+    def proposal_template_preview_one(tid):
+        conn = _conn()
+        try:
+            try:
+                html = sample_html(conn, tid)
+            except LookupError:
+                return jsonify({"error": "not ready"}), 404
+            resp = app.response_class(html, mimetype="text/html")
+            resp.headers["Content-Security-Policy"] = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox"
+            return resp
         finally:
             conn.close()
