@@ -38,7 +38,11 @@ log = logging.getLogger(__name__)
 KEY = "proposal_template"
 MAX_BYTES = 10 * 1024 * 1024
 EXT = {".pdf": "application/pdf",
-       ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+       ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+       # a picture of the proposal (screenshot / photo / scan) keeps the layout too (2026-10-20)
+       ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".heic": "image/heic", ".webp": "image/webp"}
+SAVE_AS_PDF = ("Claude can't read {ext} files. Open it and save it as a PDF (File › Export, or Print › Save as PDF), "
+               "then upload the PDF. A screenshot of the proposal works too.")
 SECTION = "company_portal"
 
 TOKENS = ("company_name", "company_address", "company_phone", "company_email", "company_license", "logo",
@@ -191,6 +195,10 @@ def _read_with_claude(raw: bytes, ext: str, name: str) -> tuple:
     if ext == ".pdf":
         block = {"type": "document", "source": {"type": "base64", "media_type": "application/pdf",
                                                 "data": base64.b64encode(raw).decode("ascii")}, "title": name}
+    elif ext in (".png", ".jpg", ".jpeg", ".heic", ".webp"):
+        import claude_files
+        img, mime = claude_files._image_for_model(raw)
+        block = {"type": "image", "source": {"type": "base64", "media_type": mime, "data": base64.b64encode(img).decode("ascii")}}
     else:
         import claude_files
         block = {"type": "text", "text": "<template_text>\n" + (claude_files._docx_text(raw) or "")[:60000] + "\n</template_text>\n"
@@ -262,7 +270,7 @@ def _read_job(rel: str, ext: str, name: str, uid) -> None:
 def start_read(conn, filename: str, raw: bytes, uid, *, background=True) -> dict:
     ext = Path(filename or "").suffix.lower()
     if ext not in EXT:
-        raise ValueError("Upload the template as a PDF (best) or a Word .docx file.")
+        raise ValueError(SAVE_AS_PDF.format(ext=(ext.upper().lstrip(".") or "those")))
     if not raw:
         raise ValueError("That file is empty.")
     if len(raw) > MAX_BYTES:

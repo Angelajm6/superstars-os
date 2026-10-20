@@ -53,6 +53,8 @@
   .att i{font-style:normal;font-size:9px;font-weight:800;color:var(--brand-red)}
   .att button{border:0;background:none;color:var(--muted);cursor:pointer;padding:0 2px;font-size:14px}
   .file-in{position:relative;overflow:hidden}.file-in input{position:absolute;inset:0;opacity:0;cursor:pointer}
+  .t-drop{border:2px dashed var(--line);border-radius:10px;padding:18px;text-align:center;color:var(--muted);font-size:13px;transition:border-color .15s,background .15s}
+  .t-drop.on{border-color:var(--accent);background:var(--accent-in);color:var(--ink)}
   .muted{color:var(--muted);font-size:12px}
   .err{color:var(--status-behind-deep,#A8382B);font-size:13px;min-height:1px}
   .working{display:flex;flex-direction:column;gap:8px}
@@ -250,13 +252,14 @@
   <!-- settings -->
   <section id="v-style" hidden>
     <div class="grid-set">
-      <div class="card stack">
+      <div class="card stack" id="t-card">
         <h2>Your proposal template</h2>
+        <div class="t-drop" id="t-drop">Drop your template PDF here, or use the button below</div>
         <div id="t-line" class="muted">Loading…</div>
-        <div class="chips"><label class="btn-ghost btn-sm file-in" id="t-up-l">Upload your template<input type="file" id="t-file" accept=".pdf,.docx" aria-label="Upload your proposal template"></label>
+        <div class="chips"><button class="btn-primary btn-sm" type="button" id="t-up">Upload your template</button><input type="file" id="t-file" hidden aria-label="Upload your proposal template">
           <a class="btn-ghost btn-sm" href="/api/proposal-template/preview" target="_blank" rel="noopener" id="t-sample" hidden>See a sample</a>
           <button class="btn-ghost btn-sm" type="button" id="t-remove" hidden>Use the built-in layout</button></div>
-        <div class="muted">Upload the proposal you send today. A PDF keeps the exact layout; a Word file gives Claude the words only. Claude reads it once; replace it any time.</div>
+        <div class="muted">Upload the proposal you send today: a PDF (best), a screenshot or photo of it, or a Word .docx (words only). Claude reads it once; replace it any time.</div>
         <label class="tg"><input type="checkbox" id="t-learn"> Learn wording and prices from the proposals we send (last 20)</label>
         <label class="tg"><input type="checkbox" id="t-sources"> Show where each price came from while editing</label>
       </div>
@@ -565,16 +568,25 @@
       : t.state === 'failed' ? esc(t.error || 'Claude could not read it.')
       : t.active ? `<b>${esc(t.name)}</b> · uploaded ${fmtDate(t.uploaded_at)}${t.uploaded_by_name ? ' by ' + esc(t.uploaded_by_name) : ''} · every proposal PDF uses this layout`
       : 'No template yet: proposals use the built-in layout.';
-    $('t-up-l').firstChild.textContent = t.active ? 'Upload a new one' : 'Upload your template';
+    $('t-up').textContent = t.active ? 'Upload a new one' : 'Upload your template';
     $('t-sample').hidden = $('t-remove').hidden = !t.active;
     if (t.state === 'reading') setTimeout(async () => { try { const n = await api('/proposal-template'); tplLine(n); if (n.state === 'ready') toast('Your template is ready'); } catch (e) {} }, 5000);
   }
-  $('t-file').addEventListener('change', async e => {
-    const f = e.target.files[0]; if (!f) return; const fd = new FormData(); fd.append('file', f);
-    try { const res = await fetch('/api/proposal-template', { method: 'POST', body: fd, credentials: 'same-origin' }); const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || 'Upload failed'); tplLine(j.data); toast('Uploaded. Claude is reading it'); }
-    catch (x) { toast(x.message, true); }
-    e.target.value = '';
-  });
+  const TPL_OK = /\.(pdf|docx|png|jpe?g|heic|webp)$/i;
+  // a plain button opens the file window (no see-through input over a label), and the card takes a dropped file
+  $('t-up').addEventListener('click', () => $('t-file').click());
+  ['dragenter', 'dragover'].forEach(ev => $('t-card').addEventListener(ev, e => { e.preventDefault(); $('t-drop').classList.add('on'); }));
+  ['dragleave', 'drop'].forEach(ev => $('t-card').addEventListener(ev, e => { e.preventDefault(); if (ev === 'dragleave' && $('t-card').contains(e.relatedTarget)) return; $('t-drop').classList.remove('on'); }));
+  $('t-card').addEventListener('drop', e => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) uploadTpl(f); });
+  $('t-file').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) uploadTpl(f); });
+  async function uploadTpl(f) {
+    if (!TPL_OK.test(f.name)) { const x = (f.name.split('.').pop() || '').toUpperCase(); $('t-line').innerHTML = `<span style="color:var(--status-behind-deep,#A8382B)">Claude can't read ${esc(x)} files. Open it and save it as a PDF (File › Export, or Print › Save as PDF), then upload the PDF. A screenshot of the proposal works too.</span>`; return; }
+    if (f.size > 10 * 1024 * 1024) { $('t-line').innerHTML = `<span style="color:var(--status-behind-deep,#A8382B)">${esc(f.name)} is ${(f.size / 1048576).toFixed(1)} MB. The template must be 10 MB or smaller: send just the first pages, or save a smaller PDF.</span>`; return; }
+    $('t-line').textContent = 'Uploading ' + f.name + '…';
+    const fd = new FormData(); fd.append('file', f);
+    try { const res = await fetch('/api/proposal-template', { method: 'POST', body: fd, credentials: 'same-origin' }); const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || ('The upload didn\u2019t go through (' + res.status + '). Try again, or drop the file on this card.')); tplLine(j.data); toast('Uploaded. Claude is reading it'); }
+    catch (x) { $('t-line').innerHTML = `<span style="color:var(--status-behind-deep,#A8382B)">${esc(x.message)}</span>`; toast(x.message, true); }
+  }
   $('t-remove').addEventListener('click', async () => { try { tplLine(await api('/proposal-template', { method: 'DELETE' })); toast('Back to the built-in layout'); } catch (x) { toast(x.message, true); } });
   function drawStyle(h) {
     $('t-learn').checked = !!h.learn; $('t-sources').checked = !!h.show_sources;

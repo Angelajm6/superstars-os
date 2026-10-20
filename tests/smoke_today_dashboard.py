@@ -284,6 +284,10 @@ def main() -> int:
         r = a.get("/api/proposal-template/preview")
         assert r.status_code == 200 and "PROPOSAL SAMPLE-P1" in r.get_data(as_text=True) and "sandbox" in r.headers["Content-Security-Policy"]
         assert a.post("/api/proposal-template", data={}).status_code == 400
+        import io
+        bad = a.post("/api/proposal-template", data={"file": (io.BytesIO(b"x"), "Our proposal.pages")}, content_type="multipart/form-data")
+        assert bad.status_code == 400 and "save it as a PDF" in bad.get_json()["error"] and "PAGES" in bad.get_json()["error"]
+        assert ".png" in proposal_template.EXT and ".jpg" in proposal_template.EXT, "a screenshot of the proposal works too"
         conn = _db()
         try:
             n = conn.execute("SELECT COUNT(*) FROM claude_chat WHERE user_id = ? AND source = 'system'", (ids["admin"],)).fetchone()[0]

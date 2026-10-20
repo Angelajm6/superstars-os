@@ -1837,7 +1837,7 @@
     const st = t.state === 'reading' ? 'Claude is reading it… the PDF switches to it when done'
       : t.state === 'failed' ? (t.error || 'Claude could not read it') : t.active ? `Your template · uploaded ${t.uploaded_at ? fmtDate(t.uploaded_at) : ''}${t.uploaded_by_name ? ' by ' + t.uploaded_by_name : ''} · used for every proposal PDF`
       : 'No template uploaded yet: the built-in layout is used. Upload the proposal you usually send (PDF works best).';
-    $('pd-tpl').innerHTML = `<div class="n"><b>${esc(t.name || 'Proposal template')}</b><span>${esc(st)}</span></div><label class="btn-ghost btn-sm">${t.active || t.state === 'reading' ? 'Upload a new template' : 'Upload your template'}<input type="file" id="pd-tpl-file" accept=".pdf,.docx" aria-label="Upload your proposal template"></label>`;
+    $('pd-tpl').innerHTML = `<div class="n"><b>${esc(t.name || 'Proposal template')}</b><span>${esc(st)}</span></div><label class="btn-ghost btn-sm">${t.active || t.state === 'reading' ? 'Upload a new template' : 'Upload your template'}<input type="file" id="pd-tpl-file" aria-label="Upload your proposal template"></label>`;
     if (t.state === 'reading') { clearTimeout(PD.t); PD.t = setTimeout(pdTplPoll, 4000); }
   }
   async function pdTplPoll() {

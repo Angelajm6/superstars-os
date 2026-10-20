@@ -239,7 +239,10 @@ def main() -> int:
         # ---- the page
         html = (ROOT / "proposal_studio.html").read_text(encoding="utf-8")
         for needle in ('id="doc"', 'sandbox="allow-same-origin"', "'/proposal-studio/drafts'", "'/proposal-studio/' + S.id + '/revise'",
-                       "'/proposal-studio/' + S.id + '/send'", 'data-subtabs="proposals"', "/api/proposal-template"):
+                       "'/proposal-studio/' + S.id + '/send'", 'data-subtabs="proposals"', "/api/proposal-template",
+                       # 2026-10-20: a plain button opens the file window and the card takes a dropped file
+                       '<button class="btn-primary btn-sm" type="button" id="t-up">', "$('t-up').addEventListener('click', () => $('t-file').click());",
+                       "$('t-card').addEventListener('drop'", "async function uploadTpl(f)"):
             assert needle in html, needle
         assert "allow-scripts" not in html, "the document frame never runs scripts"
         nav = (ROOT / "static/js/company_nav.js").read_text(encoding="utf-8")
