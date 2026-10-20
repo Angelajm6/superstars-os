@@ -162,10 +162,13 @@ def refs_for_chat(conn, chat_id) -> dict:
 
 
 def page(d: dict, edit: bool = False) -> str:
+    """The letterhead (Settings > Company brand) sits above the article, outside the editable .doc, so edits never save it."""
+    import company_brand
     e = _html.escape
     attr = ' contenteditable="true" spellcheck="true"' if edit else ""
     return (f"<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>{e(d['title'])}</title>"
-            f"<style>{DOC_CSS}{EDIT_CSS if edit else ''}</style></head><body><article class=\"doc\"{attr}>{d['html']}</article></body></html>")
+            f"<style>{DOC_CSS}{company_brand.LETTERHEAD_CSS}{EDIT_CSS if edit else ''}</style></head><body>"
+            f"{company_brand.letterhead_html()}<article class=\"doc\"{attr}>{d['html']}</article></body></html>")
 
 
 def pdf_bytes(d: dict) -> bytes:
@@ -283,11 +286,46 @@ def _runs_xml(runs) -> str:
     return "".join(out)
 
 
+def _word_letterhead() -> tuple:
+    """(paragraphs XML, logo png or None) for the top of a Word file: the uploaded logo, then the letterhead lines."""
+    import company_brand
+    conn = _conn()
+    try:
+        facts, logo = company_brand.letterhead(conn), company_brand.word_logo(conn)
+    except Exception as x:
+        log.info("Word letterhead unavailable: %s", type(x).__name__)
+        facts, logo = {}, None
+    finally:
+        conn.close()
+    out = []
+    if logo:
+        _, w, h = logo
+        cy = 571500   # 0.625 in tall
+        cx = min(int(cy * w / max(h, 1)), 2743200)   # at most 3 in wide
+        cy = int(cx * h / max(w, 1)) if cx == 2743200 else cy
+        out.append('<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">'
+                   f'<wp:extent cx="{cx}" cy="{cy}"/><wp:docPr id="1" name="Logo" descr="{_x(company_brand.COMPANY_NAME)}"/>'
+                   '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic>'
+                   '<pic:nvPicPr><pic:cNvPr id="1" name="logo.png"/><pic:cNvPicPr/></pic:nvPicPr>'
+                   '<pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+                   f'<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+                   '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>')
+    else:
+        out.append(f'<w:p><w:r><w:rPr><w:b/><w:color w:val="B11E2E"/><w:sz w:val="28"/></w:rPr><w:t>{_x(company_brand.COMPANY_NAME.upper())}</w:t></w:r></w:p>')
+    lines = company_brand.letterhead_lines(facts)
+    if lines:
+        out.append('<w:p><w:pPr><w:spacing w:after="0"/></w:pPr>' + '<w:r><w:br/></w:r>'.join(
+            f'<w:r><w:rPr><w:color w:val="6B7180"/><w:sz w:val="17"/></w:rPr><w:t xml:space="preserve">{_x(t)}</w:t></w:r>' for t in lines) + '</w:p>')
+    out.append('<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="18" w:space="1" w:color="B11E2E"/></w:pBdr></w:pPr></w:p>')
+    return "".join(out), (logo[0] if logo else None)
+
+
 def docx_bytes(d: dict) -> bytes:
     p = _Blocks()
     p.feed(d["html"])
     p.close()
-    body = []
+    head, logo_png = _word_letterhead()
+    body = [head]
     for b in p.blocks:
         if b[0] == "h":
             body.append(f'<w:p><w:pPr><w:pStyle w:val="Heading{min(3, b[1])}"/></w:pPr>{_runs_xml(b[2])}</w:p>')
@@ -305,7 +343,11 @@ def docx_bytes(d: dict) -> bytes:
                         '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="BBBBBB"/><w:bottom w:val="single" w:sz="4" w:color="BBBBBB"/>'
                         '<w:insideH w:val="single" w:sz="4" w:color="DDDDDD"/></w:tblBorders></w:tblPr>' + "".join(rows) + "</w:tbl><w:p/>")
     ns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
-    document = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document {ns}><w:body>{"".join(body)}'
+    dns = (ns + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+           ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"'
+           ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+           ' xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"')
+    document = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document {dns}><w:body>{"".join(body)}'
                 '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080"/></w:sectPr></w:body></w:document>')
     styles = (f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles {ns}>'
               '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="21"/></w:rPr></w:rPrDefault></w:docDefaults>'
@@ -319,15 +361,19 @@ def docx_bytes(d: dict) -> bytes:
         z.writestr("[Content_Types].xml",
                    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
                    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-                   '<Default Extension="xml" ContentType="application/xml"/>'
+                   '<Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/>'
                    '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
                    '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>')
         z.writestr("_rels/.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
                    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>')
         z.writestr("word/_rels/document.xml.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-                   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>')
+                   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+                   + ('<Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logo.png"/>'
+                      if logo_png else '') + '</Relationships>')
         z.writestr("word/document.xml", document)
         z.writestr("word/styles.xml", styles)
+        if logo_png:
+            z.writestr("word/media/logo.png", logo_png)
     return buf.getvalue()
 
 

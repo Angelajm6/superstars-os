@@ -10,7 +10,7 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1017"></script>
+<script src="/files/static/js/company_nav.js?v=1020"></script>
 <script src="/files/static/js/claude_drawer.js?v=13" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1015" defer></script>
@@ -294,6 +294,50 @@
   .cp-modal-head h2 { margin: 0; font-size: 16px; }
   .cp-modal-body { padding: 14px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .cp-modal-body .full { grid-column: 1 / -1; }
+  /* Settings > Company brand */
+  #view-brand { --cal-line: #ECEEF3; --cal-soft: #F7F8FB; --cal-mute: #8C92A0; }
+  .br-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.1fr); gap: 16px; align-items: start; }
+  @media (max-width: 1060px) { .br-grid { grid-template-columns: 1fr; } }
+  .br-stack > .cp-card:last-child { margin-bottom: 0; }
+  .br-drop { border: 1.5px dashed var(--line); border-radius: 10px; padding: 14px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; transition: border-color .15s, background .15s; }
+  .br-drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .br-sws { display: flex; gap: 8px; flex-wrap: wrap; }
+  .br-sw { width: 150px; max-width: 100%; height: 84px; border-radius: 10px; display: grid; place-items: center; padding: 12px; border: 1px solid var(--line); }
+  .br-sw.l { background: repeating-conic-gradient(#EEF0F4 0% 25%, #fff 0% 50%) 50% / 14px 14px; }
+  .br-sw.d { background: #1B1E26; border-color: #1B1E26; }
+  .br-sw img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+  .br-meta { flex: 1; min-width: 160px; font-size: 13px; line-height: 1.6; }
+  .br-meta b { display: block; word-break: break-all; }
+  .br-meta span { color: var(--muted); }
+  .br-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+  .br-bad { color: #A8382B; }
+  #view-brand [hidden] { display: none !important; }
+  .br-confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; background: #FCEEEC; color: #A8382B; border-radius: 10px; padding: 10px 12px; margin-top: 10px; }
+  .br-hint { font-size: 13px; line-height: 1.5; margin: 12px 0 0; }
+  .br-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+  .br-fields .full { grid-column: 1 / -1; }
+  @media (max-width: 560px) { .br-fields { grid-template-columns: 1fr; } }
+  .br-uses > div { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .br-uses > div:last-child { border-bottom: 0; }
+  .br-uses small { display: block; color: var(--muted); font-size: 13px; }
+  .br-prev-card { position: sticky; top: 12px; }
+  .br-desk { background: #E4E7EE; border-radius: 10px; padding: 18px; overflow-x: auto; }
+  .br-paper { background: #fff; color: #1F2330; max-width: 640px; min-width: 460px; margin: 0 auto; padding: 30px 36px; box-shadow: 0 6px 24px rgba(0,0,0,.16); font: 12.5px/1.55 Georgia, 'Times New Roman', serif; }
+  .br-p-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; border-bottom: 3px solid #B11E2E; padding-bottom: 12px; }
+  .br-p-logo img { max-height: 46px; max-width: 220px; object-fit: contain; display: block; }
+  .br-p-addr { font: 9.5px/1.55 Inter, -apple-system, sans-serif; color: #6B7180; text-align: right; }
+  .br-p-addr b { color: #1F2330; font-size: 11px; }
+  .br-p-title { font: 700 19px Inter, -apple-system, sans-serif; letter-spacing: .14em; margin: 18px 0 2px; }
+  .br-p-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 22px; font: 10.5px Inter, -apple-system, sans-serif; color: #6B7180; margin: 8px 0 12px; }
+  .br-p-meta b { color: #1F2330; font-weight: 600; }
+  .br-p-h { font: 700 10px Inter, -apple-system, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #B11E2E; margin: 14px 0 4px; }
+  .br-paper table { width: 100%; border-collapse: collapse; font: 11px Inter, -apple-system, sans-serif; }
+  .br-paper th { text-align: left; border-bottom: 1.5px solid #1F2330; padding: 4px; font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; }
+  .br-paper td { border-bottom: 1px solid #E3E5EA; padding: 4px; }
+  .br-paper .r { text-align: right; } .br-paper tr.tot td { font-weight: 700; border-bottom: 0; }
+  .br-p-foot { font: 9px Inter, -apple-system, sans-serif; color: #6B7180; border-top: 1px solid #E3E5EA; margin-top: 18px; padding-top: 7px; }
+  .br-locked { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 36px 12px; color: var(--muted); font-size: 14px; }
+  .br-locked b { color: var(--ink); font-size: 16px; }
   .cp-field label { display: block; font-size:12px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
   .cp-field input, .cp-field select, .cp-field textarea { width: 100%; font: inherit; font-size: 13px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); outline: none; }
   .cp-field input:focus, .cp-field select:focus, .cp-field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
@@ -1179,6 +1223,67 @@
           <p class="cp-muted" id="tt-core" style="margin:0 0 10px;font-size:13px"></p>
           <div class="cp-table-wrap"><table class="cp-table" id="tt-table"></table></div>
           <div style="display:flex;gap:10px;align-items:center;margin-top:12px"><button type="button" class="btn-primary" id="tt-save" hidden>Save starting tabs</button><span id="tt-msg" class="cp-muted" role="status" style="font-size:13px"></span></div>
+        </div>
+      </section>
+
+      <!-- Settings > Company brand (accepted prototype 2026-10-20, admin only): the logo + letterhead every document prints -->
+      <section class="cp-view" id="view-brand" hidden>
+        <div class="ssc-subtabs" data-subtabs="settings"></div>
+        <div class="br-grid" id="br-admin">
+          <div class="br-stack">
+            <div class="cp-card">
+              <div class="cp-card-head"><h2>Company logo</h2><span class="cp-pill" id="br-state">Loading…</span></div>
+              <div class="br-drop" id="br-drop">
+                <div class="br-sws">
+                  <div class="br-sw l" title="On a light page"><img id="br-sw-l" alt="Company logo on a light background"></div>
+                  <div class="br-sw d" title="On a dark page"><img id="br-sw-d" alt="Company logo on a dark background"></div>
+                </div>
+                <div class="br-meta"><b id="br-name"></b><span id="br-info"></span></div>
+              </div>
+              <div class="br-acts">
+                <label class="btn-primary btn-sm" for="br-file" style="cursor:pointer">Upload a new logo</label>
+                <input type="file" id="br-file" accept="image/png,image/jpeg,image/svg+xml,image/webp,.png,.jpg,.jpeg,.svg,.webp" hidden>
+                <button class="btn-ghost btn-sm br-bad" type="button" id="br-rm" hidden>Remove</button>
+              </div>
+              <div class="br-confirm" id="br-rm-confirm" hidden>Remove the logo? Documents go back to the standard star mark.
+                <button class="btn-ghost btn-sm" type="button" id="br-rm-yes">Remove</button><button class="btn-ghost btn-sm" type="button" id="br-rm-no">Keep it</button></div>
+              <div class="cp-form-err" id="br-err" role="alert"></div>
+              <p class="cp-muted br-hint">PNG, JPG, SVG or WebP, up to 2 MB. A wide logo on a transparent background works best. Drop a file on the box above or use the button. It changes every new document at once; documents already sent stay as they were.</p>
+            </div>
+            <form class="cp-card" id="br-lh" novalidate>
+              <div class="cp-card-head"><h2>Letterhead details</h2></div>
+              <p class="cp-muted br-hint" style="margin-top:0">Printed with the logo on proposals, invoices and pay applications. Leave a line blank to hide it.</p>
+              <div class="br-fields">
+                <div class="cp-field full"><label for="br-addr">Address</label><input id="br-addr" data-lh="company_address" maxlength="200" autocomplete="off"></div>
+                <div class="cp-field"><label for="br-phone">Phone</label><input id="br-phone" data-lh="company_phone" maxlength="200" autocomplete="off"></div>
+                <div class="cp-field"><label for="br-mail">Email</label><input id="br-mail" data-lh="company_email" maxlength="200" autocomplete="off"></div>
+                <div class="cp-field full"><label for="br-lic">License no.</label><input id="br-lic" data-lh="company_license" maxlength="200" autocomplete="off"></div>
+              </div>
+              <div class="br-acts"><button class="btn-ghost btn-sm" type="submit" id="br-lh-save">Save letterhead</button><span class="cp-muted" id="br-lh-msg" role="status" style="font-size:13px"></span></div>
+            </form>
+            <div class="cp-card">
+              <div class="cp-card-head"><h2>Where the logo goes</h2></div>
+              <div class="br-uses">
+                <div><div><b>Anything Claude writes</b><small>Proposals from Proposal Studio and the Inbox. Claude also sees the logo when it reads your proposal template, so the header fits it.</small></div><span class="cp-pill ok">Yes</span></div>
+                <div><div><b>Proposals</b><small>The PDF and the copy sent from Gmail, in your template or the built-in layout</small></div><span class="cp-pill ok">Yes</span></div>
+                <div><div><b>Invoices and AIA pay applications</b><small>Top of the page, next to the letterhead</small></div><span class="cp-pill ok">Yes</span></div>
+                <div><div><b>Field reports</b><small>Daily report, RFIs, lookahead, toolbox talks keep the small star mark for now</small></div><span class="cp-pill">Later</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="cp-card br-prev-card">
+            <div class="cp-card-head"><h2>How documents look</h2>
+              <div class="cal-seg" role="tablist" aria-label="Document"><button type="button" data-br-doc="proposal" class="on">Proposal</button><button type="button" data-br-doc="invoice">Invoice</button><button type="button" data-br-doc="aia">Pay application</button></div></div>
+            <div class="br-desk"><article class="br-paper">
+              <div class="br-p-head"><div class="br-p-logo"><img id="br-p-logo" alt="Company logo"></div><div class="br-p-addr" id="br-p-addr"></div></div>
+              <div id="br-p-body"></div>
+              <div class="br-p-foot" id="br-p-foot"></div>
+            </article></div>
+            <p class="cp-muted br-hint">Example content. When you ask Claude for a proposal it starts from this header; you never attach the logo yourself.</p>
+          </div>
+        </div>
+        <div class="cp-card" id="br-locked" hidden>
+          <div class="br-locked"><b>Company brand is for admins</b><span>Your documents and Claude's drafts still use the logo an admin uploaded.</span></div>
         </div>
       </section>
     </div>
@@ -4753,10 +4858,85 @@
     } catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; $('pa-new-go').disabled = false; }
   });
 
+
+  // ---------- COMPANY BRAND (Settings, admin only; accepted prototype 2026-10-20) ----------
+  const BR = { doc: 'proposal', data: null };
+  const BR_STAR = '/files/static/brand/logo-light.svg';
+  const BR_BODY = {
+    proposal: ['Proposal FR-MN-021-P1', `<div class="br-p-title">PROPOSAL</div><div class="br-p-meta"><span>No. <b>FR-MN-021-P1</b></span><span>Date <b>October 20, 2026</b></span><span>Prepared for <b>Sample Client LLC</b></span><span>Project <b>410 E 58th St</b></span></div>
+      <div class="br-p-h">Scope of work</div><div>1. Sidewalk bridge and DOB permits.<br>2. Repoint the east elevation (approx. 1,850 sf).<br>3. Replace six (6) steel lintels per the FISP report.</div>
+      <div class="br-p-h">Price</div><table><tr><th>Item</th><th class="r">Amount</th></tr><tr><td>Sidewalk bridge, permits, mobilization</td><td class="r">$6,400</td></tr><tr><td>Repoint east elevation · 1,850 sf</td><td class="r">$27,750</td></tr><tr><td>Steel lintels · 6 ea</td><td class="r">$14,400</td></tr><tr class="tot"><td>Total</td><td class="r">$48,550</td></tr></table>`],
+    invoice: ['Invoice INV-2026-0142', `<div class="br-p-title">INVOICE</div><div class="br-p-meta"><span>No. <b>INV-2026-0142</b></span><span>Date <b>October 20, 2026</b></span><span>Bill to <b>Sample Client LLC</b></span><span>Due <b>November 4, 2026</b></span></div>
+      <table><tr><th>Description</th><th class="r">Amount</th></tr><tr><td>Garage slab repairs · progress to Oct 15</td><td class="r">$34,480</td></tr><tr><td>Less 10% retainage</td><td class="r">−$3,448</td></tr><tr class="tot"><td>Amount due</td><td class="r">$31,032</td></tr></table>`],
+    aia: ['G702 · Application No. 3', `<div class="br-p-title">APPLICATION FOR PAYMENT</div><div class="br-p-meta"><span>Application <b>No. 3</b></span><span>Period <b>Sep 16 – Oct 15, 2026</b></span><span>To owner <b>Sample Client LLC</b></span><span>Project <b>PG-MN-P2</b></span></div>
+      <table><tr><td>Contract sum to date</td><td class="r">$186,200</td></tr><tr><td>Completed &amp; stored to date</td><td class="r">$112,480</td></tr><tr><td>Less retainage</td><td class="r">−$11,248</td></tr><tr class="tot"><td>Current payment due</td><td class="r">$31,032</td></tr></table>`]
+  };
+  function brKb(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+  function brErr(m) { $('br-err').textContent = m || ''; $('br-err').className = 'cp-form-err' + (m ? ' show' : ''); }
+  function brDraw() {
+    const d = BR.data || { logo: null, letterhead: {} }, L = d.logo, src = L ? L.data_uri : BR_STAR;
+    ['br-sw-l', 'br-sw-d', 'br-p-logo'].forEach(id => $(id).src = src);
+    $('br-state').textContent = L ? 'On every document' : 'Standard star mark';
+    $('br-state').className = 'cp-pill' + (L ? ' ok' : '');
+    $('br-name').textContent = L ? L.name : 'No logo uploaded';
+    $('br-info').textContent = L ? `${(L.mime.split('/')[1] || '').replace('svg+xml', 'svg').replace('jpeg', 'jpg').toUpperCase()} · ${brKb(L.size || 0)} · uploaded ${fmtDate(L.uploaded_at)}${L.uploaded_by_name ? ' by ' + L.uploaded_by_name : ''}` : 'Documents use the standard star mark';
+    $('br-rm').hidden = !L; $('br-rm-confirm').hidden = true;
+    brPaper();
+  }
+  function brPaper() {
+    const v = k => (document.querySelector(`[data-lh="${k}"]`).value || '').trim();
+    const lines = [v('company_address'), [v('company_phone'), v('company_email')].filter(Boolean).join(' · '), v('company_license') ? 'License ' + v('company_license') : ''].filter(Boolean);
+    $('br-p-addr').innerHTML = '<b>Superstars Contracting</b>' + lines.map(x => '<br>' + esc(x)).join('');
+    const [foot, body] = BR_BODY[BR.doc];
+    $('br-p-body').innerHTML = body; $('br-p-foot').textContent = 'Superstars Contracting · ' + foot;
+    document.querySelectorAll('[data-br-doc]').forEach(b => b.classList.toggle('on', b.dataset.brDoc === BR.doc));
+  }
+  async function loadBrand() {
+    brErr('');
+    try {
+      BR.data = (await api('/company-brand', null, true)).data;
+      $('br-admin').hidden = false; $('br-locked').hidden = true;
+      document.querySelectorAll('[data-lh]').forEach(i => i.value = BR.data.letterhead[i.dataset.lh] || '');
+      brDraw();
+    } catch (e) {
+      if (e.message === 'forbidden') { $('br-admin').hidden = true; $('br-locked').hidden = false; return; }
+      brErr('Could not load the company brand: ' + e.message);
+    }
+  }
+  async function brUpload(f) {
+    brErr(''); if (!f) return;
+    if (f.size > 2 * 1024 * 1024) { brErr(`${f.name} is ${(f.size / 1048576).toFixed(1)} MB. The limit is 2 MB; a smaller export of the same logo works.`); return; }
+    const fd = new FormData(); fd.append('file', f);
+    $('br-state').textContent = 'Uploading…';
+    try {
+      const res = await fetch('/api/company-brand/logo', { method: 'POST', body: fd, credentials: 'same-origin' });
+      const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || 'Upload failed');
+      BR.data = j.data; brDraw(); toast('Logo saved. New documents use it from now on');
+    } catch (x) { brDraw(); brErr(x.message); }
+  }
+  $('br-file').addEventListener('change', e => { brUpload(e.target.files[0]); e.target.value = ''; });
+  ['dragenter', 'dragover'].forEach(t => $('br-drop').addEventListener(t, e => { e.preventDefault(); $('br-drop').classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(t => $('br-drop').addEventListener(t, e => { e.preventDefault(); $('br-drop').classList.remove('over'); }));
+  $('br-drop').addEventListener('drop', e => brUpload(e.dataTransfer.files[0]));
+  $('br-rm').addEventListener('click', () => { $('br-rm-confirm').hidden = false; });
+  $('br-rm-no').addEventListener('click', () => { $('br-rm-confirm').hidden = true; });
+  $('br-rm-yes').addEventListener('click', async () => {
+    try { BR.data = (await api('/company-brand/logo', { method: 'DELETE' }, true)).data; brDraw(); toast('Logo removed'); }
+    catch (x) { brErr(x.message); }
+  });
+  document.querySelectorAll('[data-lh]').forEach(i => i.addEventListener('input', () => { $('br-lh-msg').textContent = ''; brPaper(); }));
+  $('br-lh').addEventListener('submit', async e => {
+    e.preventDefault(); const b = $('br-lh-save'); b.disabled = true; brErr('');
+    const body = {}; document.querySelectorAll('[data-lh]').forEach(i => body[i.dataset.lh] = i.value.trim());
+    try { BR.data = (await api('/company-brand/letterhead', { method: 'PUT', body: JSON.stringify(body) }, true)).data; $('br-lh-msg').textContent = 'Saved'; toast('Letterhead saved'); }
+    catch (x) { brErr(x.message); } finally { b.disabled = false; }
+  });
+  document.querySelectorAll('[data-br-doc]').forEach(b => b.addEventListener('click', () => { BR.doc = b.dataset.brDoc; brPaper(); }));
+
   // ---------- router ----------
   // the sidebar section only; the sub-tab row names the page (no title said twice)
-  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients', calendar: 'Projects', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance', workforce: 'Workforce', company: 'Company', usage: 'Settings', claude: 'Settings', inbox: 'Inbox' };
-  const LOADERS = { overview: loadOverview, clients: loadClients, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance, usage: loadUsage, claude: loadClaudeLog, inbox: loadInbox };
+  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients', calendar: 'Projects', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance', workforce: 'Workforce', company: 'Company', usage: 'Settings', claude: 'Settings', brand: 'Settings', inbox: 'Inbox' };
+  const LOADERS = { overview: loadOverview, clients: loadClients, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance, usage: loadUsage, claude: loadClaudeLog, brand: loadBrand, inbox: loadInbox };
   const ALIASES = { buildings: 'projects', compliance: 'company' };   // #339 — old bookmarks and links keep working
   function route() {
     const h = (location.hash || '#overview').slice(1);

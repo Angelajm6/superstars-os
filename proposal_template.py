@@ -300,12 +300,10 @@ def check(html: str) -> Optional[str]:
 
 
 def logo_tag() -> str:
-    p = Path(SCRIPT_DIR) / "static" / "brand" / "logo-light.svg"
-    try:
-        data = base64.b64encode(p.read_bytes()).decode("ascii")
-    except OSError:
-        return ""
-    return f'<img class="logo" alt="Superstars Contracting" src="data:image/svg+xml;base64,{data}">'
+    """The company logo uploaded in Settings > Company brand, else the standard mark (company_brand)."""
+    import company_brand
+    uri = company_brand.document_logo_uri()
+    return f'<img class="logo" alt="Superstars Contracting" src="{uri}">' if uri else ""
 
 
 def fill(template: str, parts: dict) -> str:
@@ -333,8 +331,20 @@ def _read_with_claude(raw: bytes, ext: str, name: str) -> tuple:
         block = {"type": "text", "text": "<template_text>\n" + (claude_files._docx_text(raw) or "")[:60000] + "\n</template_text>\n"
                  "(This came from a Word file, so only its words reached you: keep a clean letter layout with a "
                  "red #B11E2E accent for Superstars Contracting.)"}
+    content = [block]
+    try:   # the logo from Settings > Company brand, so the layout around {{logo}} fits it (2026-10-20)
+        import company_brand
+        conn = _conn()
+        try:
+            seen = company_brand.model_image_block(conn)
+        finally:
+            conn.close()
+        if seen:
+            content += [{"type": "text", "text": "This is the company's logo. {{logo}} prints it; size and place the header around it."}, seen]
+    except Exception as x:
+        log.info("logo not added to the template read: %s", type(x).__name__)
     res = assistant._call_model([{"type": "text", "text": "You turn a company's document into an HTML template."}],
-                                [{"role": "user", "content": [block, {"type": "text", "text": PROMPT}]}])
+                                [{"role": "user", "content": content + [{"type": "text", "text": PROMPT}]}])
     return res["text"], res
 
 
