@@ -252,6 +252,8 @@ import assistant  # noqa: E402
 assistant.register(app)   # Claude on estimates, bids and proposals: saved conversations, daily cap (off until the key is set)
 import claude_agent  # noqa: E402
 claude_agent.register(app)   # Claude across the platform: lookups run, every change waits for a person's approval
+import claude_docs  # noqa: E402
+claude_docs.register(app)   # documents Claude makes: open beside the chat, edit, PDF / Word, save to a job
 import inbox  # noqa: E402
 inbox.register(app)   # admin / C-suite email live in the software: matched, sorted, Claude's cards (approval for every change and send)
 import calendar_import  # noqa: E402
