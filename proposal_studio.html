@@ -159,7 +159,7 @@
             <input class="fld" id="a-newclient" placeholder="New client's name" style="margin-top:6px" hidden></div>
           <div><label class="lbl" for="a-addr">Building</label><input class="fld" id="a-addr" placeholder="Street address"></div>
         </div>
-        <div><span class="lbl">Give Claude more to go on (optional)</span>
+        <div><span class="lbl">Give Claude more to go on (optional) · or drag files onto this card</span>
           <div class="chips" id="a-atts">
             <label class="chip file-in">+ Attach files<input type="file" id="a-file" multiple accept=".pdf,.png,.jpg,.jpeg,.heic,.docx,.xlsx,.csv,.txt" aria-label="Attach drawings, photos or documents"></label>
             <select class="chip" id="a-mail" aria-label="Start from an email"><option value="">+ From an email…</option></select>
@@ -611,5 +611,6 @@
 })();
 </script>
 <link rel="stylesheet" href="/files/static/css/unify.css?v=15">
+<script src="/files/static/js/file_drop.js?v=1" defer></script>
 </body>
 </html>
