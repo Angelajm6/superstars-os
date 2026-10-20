@@ -11,7 +11,7 @@
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
-<script src="/files/static/js/auth_menu.js?v=1009" defer></script>
+<script src="/files/static/js/auth_menu.js?v=1010" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1015" defer></script>
 <title>Project Assignments · Superstars Contracting</title>
 <!-- #263 — admin/c_suite project-assignment + project-close screen. Two axes wired here:
@@ -158,7 +158,7 @@
 <script>
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  var ROLE_LABEL = { admin:'Admin', c_suite:'C-Suite', pm:'PM', super:'Super' };
+  var ROLE_LABEL = { admin:'Admin', c_suite:'C-Suite', pm:'PM', super:'Foreman / Supervisor' };
   function showErr(m){ var e=$('err'); e.textContent=m; e.classList.add('show'); $('ok').classList.remove('show'); }
   function showOk(m){ var e=$('ok'); e.textContent=m; e.classList.add('show'); setTimeout(function(){e.classList.remove('show');},2600); }
   function clearBars(){ $('err').classList.remove('show'); $('ok').classList.remove('show'); }
