@@ -93,8 +93,9 @@
 .clx-err{font-size:12.5px;color:#A8382B}\
 .clx-wait{font-size:12.5px;color:#868C98}\
 .clx-intro{font-size:13px;color:#5B6170;line-height:1.5;display:grid;gap:8px}\
-.clx-sugg{display:flex;gap:6px;flex-wrap:wrap}\
-.clx-sugg button{border:1px solid #E6E8EE;background:#fff;border-radius:999px;padding:6px 10px;font:12.5px Inter,sans-serif;color:#5B6170;cursor:pointer;text-align:left}\
+.clx-hello{margin:0;font:600 17px Inter,sans-serif;color:#1B1F27}\
+.clx-sugg{display:grid;gap:6px}\
+.clx-sugg button{border:1px solid #E6E8EE;background:#fff;border-radius:10px;padding:9px 12px;font:13px Inter,sans-serif;color:#5B6170;cursor:pointer;text-align:left}\
 .clx-sugg button:hover{border-color:#C2603B;color:#A84E2C}\
 .clx-f{border-top:1px solid #E6E8EE;padding:10px 12px;display:grid;gap:6px}\
 .clx-f form{display:flex;gap:8px;align-items:flex-end}\
@@ -166,7 +167,25 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
 .clx-pagemode .clx-side.show{display:flex;position:absolute;inset:0;z-index:6}.clx-pagemode .clx-histbtn{display:inline-flex}\
 .clx-pagemode .clx-h{padding:10px 14px}.clx-pagemode .clx-msgs{padding:14px}.clx-pagemode .clx-f{padding:8px 14px 14px}}\
 @media (max-width:640px){#clx-panel:not(.clx-pagemode){width:100%}.clx-grip,.clx-size{display:none}#clx-fab{right:14px;bottom:14px}}\
-@media print{#clx-fab,#clx-panel{display:none!important}}\
+.clx-doccard{display:flex;align-items:center;gap:12px;border:1px solid #E6E8EE;border-radius:12px;padding:10px 12px;margin-top:8px;background:#fff;cursor:pointer;text-align:left;width:100%;font:13px Inter,sans-serif;color:#1B1F27;transition:border-color .15s,box-shadow .15s}\
+.clx-doccard:hover,.clx-doccard.on{border-color:#C2603B;box-shadow:0 2px 8px rgba(20,22,28,.06)}\
+.clx-doccard .pg{width:34px;height:42px;flex:none;border:1px solid #E6E8EE;border-radius:4px;background:#fff;display:flex;flex-direction:column;gap:3px;padding:6px 5px}\
+.clx-doccard .pg i{height:3px;background:#B11E2E;border-radius:2px}.clx-doccard .pg u{height:3px;background:#D8DBE2;border-radius:2px;text-decoration:none}.clx-doccard .pg u.s{width:60%}\
+.clx-doccard .tt{flex:1;min-width:0;display:grid;gap:2px}.clx-doccard .tt b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.clx-doccard .tt small{font-size:12px;color:#868C98}\
+.clx-doccard .op{font-size:12px;color:#A84E2C;font-weight:600;white-space:nowrap}\
+#clx-doc{position:fixed;top:0;bottom:0;left:0;z-index:9002;background:#E4E7EE;display:flex;flex-direction:column;border-right:1px solid #E6E8EE;box-shadow:-6px 0 24px rgba(20,22,28,.10);font:14px Inter,-apple-system,"Segoe UI",sans-serif;color:#1B1F27}\
+#clx-doc[hidden]{display:none}\
+.clx-dbar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#fff;border-bottom:1px solid #E6E8EE;flex-wrap:wrap}\
+.clx-dbar input{flex:1;min-width:140px;border:1px solid transparent;border-radius:8px;padding:6px 8px;font:600 14px Inter,sans-serif;color:#1B1F27;background:none}\
+.clx-dbar input:hover,.clx-dbar input:focus{border-color:#E6E8EE;outline:none;background:#F6F7FA}\
+.clx-dsaved{font-size:12px;color:#868C98;white-space:nowrap}\
+.clx-dscroll{flex:1;overflow:auto;padding:18px}\
+.clx-dframe{display:block;width:100%;max-width:820px;min-height:600px;margin:0 auto;border:0;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.16)}\
+.clx-dsave{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 14px;background:#fff;border-bottom:1px solid #E6E8EE;font-size:13px}\
+.clx-dsave[hidden]{display:none}\
+.clx-dsave select{font:13px Inter,sans-serif;border:1px solid #E6E8EE;border-radius:8px;padding:6px 8px;max-width:240px}\
+@media (max-width:900px){#clx-doc{left:0;right:0!important;z-index:9003}}\
+@media print{#clx-fab,#clx-panel,#clx-doc{display:none!important}}\
 @media (prefers-reduced-motion:reduce){#clx-panel{transition:none}}';
 
   var FORM = '<div class="clx-f"><div id="clx-off" hidden></div><div class="clx-pend" id="clx-pend"></div>' +
@@ -350,7 +369,7 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     S.open = open; store('open', open ? '1' : null);
     var p = $('clx-panel'); $('clx-fab').setAttribute('aria-expanded', String(open));
     if (open) { p.hidden = false; requestAnimationFrame(function () { p.classList.add('open'); }); if (!S.loaded) loadChats(); setTimeout(function () { $('clx-in').focus(); }, 60); }
-    else { p.classList.remove('open'); setTimeout(function () { if (!S.open) p.hidden = true; }, 240); }
+    else { p.classList.remove('open'); setTimeout(function () { if (!S.open) p.hidden = true; }, 240); if (D.id) closeDoc(); }
   }
 
   async function loadChats() {
@@ -435,7 +454,7 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
   }
 
   function suggestions() {
-    var st = S.status || {}, out = [];
+    var st = S.status || {}, out = ['Fill a form from the PDF I attach', 'Write a letter to the building manager'];
     if ((st.looks_up || []).indexOf('Weekly payroll') >= 0) out.push('Summarize payroll for last month');
     if ((st.proposes || []).indexOf('New event') >= 0) out.push('Add a walkthrough next Tuesday at 9am');
     out.push(FIELD ? 'What is open on this job?' : 'What is on the team calendar this week?');
@@ -452,9 +471,8 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
       : '<div class="clx-intro">Files you attach in this conversation show here.</div>';
     if (!v || !v.messages.length) {
       var st = S.status || {};
-      box.innerHTML = '<div class="clx-intro"><div>Hi' + (st.name ? ' ' + esc(String(st.name).split(' ')[0]) : '') + '. Ask me anything about the platform, or tell me what to do. I show you every change before it happens.</div>' +
-        (st.looks_up ? '<div><b>I can look up:</b> ' + esc(st.looks_up.join(', ')) + '.</div>' : '') +
-        (st.proposes && st.proposes.length ? '<div><b>I can propose:</b> ' + esc(st.proposes.join(', ')) + '. You approve each one.</div>' : '') +
+      box.innerHTML = '<div class="clx-intro"><h3 class="clx-hello">What can I help with' + (st.name ? ', ' + esc(String(st.name).split(' ')[0]) : '') + '?</h3>' +
+        '<div>Ask about anything in the platform, drop in files (PDFs, photos, Excel), or ask for a document: I make it, you edit and download it. Every change to a record waits for your OK.</div>' +
         '<div class="clx-sugg">' + suggestions().map(function (s) { return '<button type="button" data-say="' + esc(s) + '">' + esc(s) + '</button>'; }).join('') + '</div></div>' +
         (v && v.busy ? '<div class="clx-wait">Claude is working…</div>' : '');
       return;
@@ -468,12 +486,108 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
       }
       var looked = m.looked && m.looked.length ? '<div class="clx-looked">Looked at ' + m.looked.map(function (l) { return '<span>' + esc(l) + '</span>'; }).join('') + '</div>' : '';
       return '<div class="clx-m a"><span class="who">Claude · ' + esc(when(m.created_at)) + '</span>' + looked +
-        (m.text ? '<div class="clx-b">' + esc(m.text) + '</div>' : '') + (m.actions || []).map(card).join('') + '</div>';
+        (m.text ? '<div class="clx-b">' + esc(m.text) + '</div>' : '') + docCards(m.docs) + (m.actions || []).map(card).join('') + '</div>';
     }).join('') + (v.busy ? '<div class="clx-wait">Claude is working…</div>' : '') + (v.error ? '<div class="clx-err">' + esc(v.error) + '</div>' : '');
     // long text on a card (an email, a proposal scope) shows in full so it can be read before approving
     box.querySelectorAll('.clx-card textarea').forEach(function (t) { t.style.height = Math.min(360, t.scrollHeight + 4) + 'px'; });
     box.scrollTop = box.scrollHeight;
+    docFollow(v);
   }
+
+  // ---- documents Claude makes (2026-10-20): a card in the chat; it opens beside the chat to edit and download
+  var D = { id: null, at: null, seen: null, t: null };
+  function docCards(docs) {
+    var seen = {}, out = '';
+    (docs || []).forEach(function (d) {
+      if (seen[d.id]) return; seen[d.id] = 1;
+      out += '<button type="button" class="clx-doccard' + (D.id === d.id ? ' on' : '') + '" data-doc="' + d.id + '"><span class="pg" aria-hidden="true"><i></i><u></u><u class="s"></u><u></u><u class="s"></u></span>' +
+        '<span class="tt"><b>' + esc(d.title) + '</b><small>' + (d.kind === 'updated' ? 'Updated' : 'Document') + ' · click to open, edit or download</small></span><span class="op">Open ›</span></button>';
+    });
+    return out;
+  }
+  function docFollow(v) {   // a document Claude just made or changed opens by itself; an open one refreshes
+    var all = [];
+    (v.messages || []).forEach(function (m) { (m.docs || []).forEach(function (d) { all.push(d); }); });
+    var key = function (d) { return d.id + '@' + d.updated_at; };
+    if (D.seen === null) { D.seen = {}; all.forEach(function (d) { D.seen[key(d)] = 1; }); return; }
+    var fresh = all.filter(function (d) { return !D.seen[key(d)]; });
+    all.forEach(function (d) { D.seen[key(d)] = 1; });
+    if (fresh.length) openDoc(fresh[fresh.length - 1].id, true);
+  }
+  function docPanel() {
+    if ($('clx-doc')) return $('clx-doc');
+    var p = document.createElement('section');
+    p.id = 'clx-doc'; p.hidden = true; p.setAttribute('aria-label', 'Document');
+    var canSave = S.status && (S.status.role === 'admin' || S.status.role === 'c_suite');
+    p.innerHTML = '<div class="clx-dbar"><input id="clx-dtitle" aria-label="Document name"><span class="clx-dsaved" id="clx-dsaved">Saved</span>' +
+      '<a class="clx-btn" id="clx-dpdf" href="#">Download PDF</a><a class="clx-btn" id="clx-ddocx" href="#">Word</a>' +
+      (canSave ? '<button class="clx-btn" type="button" id="clx-dsavebtn">Save to a job…</button>' : '') +
+      '<button class="clx-x" type="button" id="clx-dclose" aria-label="Close the document">×</button></div>' +
+      '<div class="clx-dsave" id="clx-dsave" hidden><span>Save the PDF to</span><select id="clx-djob" aria-label="Job"></select><select id="clx-dcat" aria-label="Folder">' +
+      ['INSPECTIONS', 'PERMITS', 'CONTRACTS', 'DRAWINGS', 'SAFETY', 'CLOSEOUT'].map(function (c) { return '<option value="' + c + '">' + c[0] + c.slice(1).toLowerCase() + '</option>'; }).join('') +
+      '</select><button class="clx-btn go" type="button" id="clx-dsavego">Save</button><span class="clx-dsaved" id="clx-dsavemsg"></span></div>' +
+      '<div class="clx-dscroll"><iframe class="clx-dframe" id="clx-dframe" title="The document: click any text to edit it" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe></div>';
+    document.body.appendChild(p);
+    $('clx-dclose').addEventListener('click', closeDoc);
+    $('clx-dtitle').addEventListener('change', function () { docSave({ title: $('clx-dtitle').value }); });
+    if (canSave) {
+      $('clx-dsavebtn').addEventListener('click', async function () {
+        var bar = $('clx-dsave'); bar.hidden = !bar.hidden; if (bar.hidden || $('clx-djob').options.length) return;
+        try { var j = await api('/docs/jobs'); $('clx-djob').innerHTML = j.data.map(function (x) { return '<option value="' + esc(x.project_code) + '">' + esc(x.project_code + ' · ' + x.name) + '</option>'; }).join(''); }
+        catch (e) { $('clx-dsavemsg').textContent = e.message; }
+      });
+      $('clx-dsavego').addEventListener('click', async function () {
+        $('clx-dsavemsg').textContent = 'Saving…';
+        try { await docFlush(); await api('/docs/' + D.id + '/save', { method: 'POST', body: JSON.stringify({ project_code: $('clx-djob').value, category: $('clx-dcat').value }) });
+          $('clx-dsavemsg').textContent = 'Saved to ' + $('clx-djob').value + '. It\u2019s in the job\u2019s documents.'; }
+        catch (e) { $('clx-dsavemsg').textContent = e.message; }
+      });
+    }
+    window.addEventListener('resize', placeDoc);
+    if (window.ResizeObserver && $('clx-panel')) new ResizeObserver(placeDoc).observe($('clx-panel'));   // the window was dragged wider
+    return p;
+  }
+  function placeDoc() {
+    var p = $('clx-doc'); if (!p || p.hidden) return;
+    var side = $('clx-panel'), w = side && !PAGE && S.open ? side.getBoundingClientRect().width : 0;
+    p.style.right = (PAGE ? 0 : w) + 'px';
+    p.style.left = PAGE ? '38%' : '0';
+  }
+  async function openDoc(id, flash) {
+    var p = docPanel();
+    try {
+      var r = (await api('/docs/' + id)).data;
+      D.id = id; D.at = r.updated_at;
+      $('clx-dtitle').value = r.title; $('clx-dsaved').textContent = 'Saved';
+      $('clx-dpdf').href = '/api/claude/docs/' + id + '/pdf'; $('clx-ddocx').href = '/api/claude/docs/' + id + '/docx';
+      $('clx-dsave').hidden = true;
+      var f = $('clx-dframe');
+      f.onload = function () {
+        var d = f.contentDocument; if (!d) return;
+        var fit = function () { f.style.height = Math.max(600, d.documentElement.scrollHeight + 20) + 'px'; };
+        fit(); setTimeout(fit, 300);
+        d.addEventListener('input', function () { fit(); $('clx-dsaved').textContent = 'Editing…'; clearTimeout(D.t); D.t = setTimeout(docFlush, 900); });
+        if (flash) { var a = d.querySelector('.doc'); if (a) { a.classList.add('ssc-flash'); setTimeout(function () { a.classList.remove('ssc-flash'); }, 1900); } }
+      };
+      f.srcdoc = r.html;
+      p.hidden = false; placeDoc();
+      document.querySelectorAll('.clx-doccard').forEach(function (c) { c.classList.toggle('on', +c.getAttribute('data-doc') === id); });
+    } catch (e) { if (e.status === 404) closeDoc(); }
+  }
+  async function docFlush() {
+    clearTimeout(D.t);
+    var f = $('clx-dframe'), d = f && f.contentDocument, a = d && d.querySelector('.doc');
+    if (!a || !D.id) return;
+    await docSave({ html: a.innerHTML });
+  }
+  async function docSave(body) {
+    $('clx-dsaved').textContent = 'Saving…';
+    try { var r = (await api('/docs/' + D.id, { method: 'PATCH', body: JSON.stringify(body) })).data; D.at = r.updated_at; D.seen && (D.seen[D.id + '@' + r.updated_at] = 1); $('clx-dsaved').textContent = 'Saved'; }
+    catch (e) { $('clx-dsaved').textContent = e.message; }
+  }
+  function closeDoc() { docFlush(); var p = $('clx-doc'); if (p) p.hidden = true; D.id = null; document.querySelectorAll('.clx-doccard.on').forEach(function (c) { c.classList.remove('on'); }); }
+  document.addEventListener('click', function (e) { var c = e.target.closest && e.target.closest('[data-doc]'); if (c) { e.preventDefault(); openDoc(+c.getAttribute('data-doc')); } });
+
   function field(a, f) {
     var id = 'clx-a' + a.id + '-' + f.key, live = a.status === 'pending';
     var hint = f.hint ? '<span class="hint">' + esc(f.hint) + '</span>' : '';
