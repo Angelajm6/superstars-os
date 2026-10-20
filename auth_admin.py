@@ -46,12 +46,14 @@ ROLE_CATALOG = ('admin', 'c_suite', 'pm', 'super', 'client', 'architect', 'vendo
 # Onboardable via the UI this phase: the internal tier minus admin (admin is never
 # created, only promoted via Make admin) + the external `client` (#264 — read-only portal; email/password, forced
 # first-login reset) + `estimator` (#276 — lands on /estimating, works the queue).
-# super + architect/vendor stay defined-not-onboarded for now.
+# vendor stays defined-not-onboarded for now.
 # #280 — `architect` becomes onboardable: an outside architect/engineer gets a login,
 # is contained to the drawing-markup surface (elevation._architect_gate) and scoped to
 # ASSIGNED PROJECTS ONLY via the existing #263 pm_project_assignment grant. Creating the
 # account grants nothing on its own — with no assignment they see no project at all.
-ONBOARDABLE_ROLES = ('c_suite', 'pm', 'client', 'estimator', 'architect')
+# `super` becomes onboardable as Foreman / Supervisor: the internal field tier (every
+# active project, no financial/CRM/company surfaces), already gated everywhere.
+ONBOARDABLE_ROLES = ('c_suite', 'pm', 'super', 'client', 'estimator', 'architect')
 # Assignable as a role-change target: anything in the catalog EXCEPT admin
 # (no elevation to admin, ever).
 # #305 — 'vendor' has no containment gate anywhere yet; it is not assignable until it does.
