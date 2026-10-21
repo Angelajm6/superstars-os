@@ -43,6 +43,12 @@ from auth import current_user, requires_section
 
 log = logging.getLogger("ssc.invoices")
 
+
+def _proposal_label(p: dict) -> str:
+    """The proposal number the client sees (1042 on the company layout)."""
+    import proposal_engine
+    return proposal_engine.label(p)
+
 SECTION = "company_portal"
 KINDS = ("deposit", "progress", "final", "change_order", "other")
 STATUSES = ("draft", "issued", "paid", "void")
@@ -408,7 +414,7 @@ def create_from_proposal(conn, proposal: dict, *, created_by=None) -> Optional[d
         "project_code": proposal.get("converted_project_code") or proposal.get("project_code"),
         "building_id": proposal.get("building_id"), "estimate_id": proposal.get("estimate_id"),
         "proposal_id": proposal["id"], "source_doc": f"proposal:{proposal['id']}",
-        "description": f"Deposit {pct_txt}on proposal {proposal['number']} — {label}",
+        "description": f"Deposit {pct_txt}on proposal {_proposal_label(proposal)} — {label}",
         "amount": amt,
     }, created_by=created_by)
 

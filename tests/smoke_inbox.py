@@ -526,7 +526,7 @@ def main() -> int:
         assert "mountCards: mountCards" in (ROOT / "static/js/claude_drawer.js").read_text(encoding="utf-8")
         ib = cp[cp.index("// ---------- INBOX (inbox.py)"):cp.index("// a record's emails")]
         assert 'id="ib-refresh"' in cp and 'id="ib-new"' in cp and 'id="ib-compose"' in cp and "Draft with Claude" in ib
-        assert "data-top-rep" in ib and "bar.classList.add('btns')" in ib and ".ib-replybar.btns { position: sticky; bottom: 0;" in cp   # Reply always in reach
+        assert 'data-mrep="one"' in ib and "bar.classList.add('btns')" in ib and ".ib-replybar.btns { position: sticky; bottom: 0;" in cp   # Reply always in reach
         assert "f.srcdoc = doc" in ib and "allow-scripts" not in ib and "skip: ['reply_email']" in ib and "r.summary" not in ib and "m.summary" not in ib
         passed += 1; print("  logs + pages ok")
     finally:

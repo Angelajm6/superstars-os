@@ -114,8 +114,9 @@ def _seed() -> dict:
         ids["estF"] = ef["id"]
         for key, price, send in (("estA", None, True), ("estB", 9000, True), ("estC", 500, False), ("estF", 7000, True)):
             p = proposals.create_from_estimate(conn, ids[key], created_by=ids["admin"])
-            if price:
-                proposals.update(conn, p["id"], {"price": price}, actor=ids["admin"])
+            amt = price or 61000   # every proposal in the company layout has its Base Bid lines (2026-10-21)
+            proposals.update(conn, p["id"], {"price": amt}, line_items=[{"description": "Repointing", "qty": 1, "unit": "LS",
+                                                                        "unit_price": amt}], actor=ids["admin"])
             if send:
                 proposals.send(conn, p["id"], to_email="cprop308.client@example.com", to_name="Dana", actor=ids["admin"])
             ids["p_" + key] = p["id"]
@@ -276,7 +277,7 @@ def main() -> int:
 
     # ---- view flips to viewed; accept fires the trigger
     v = client.get(f"{base}/{pA['id']}/view")
-    assert v.status_code == 200 and b"Accept this proposal" not in v.data and pA["number"].encode() in v.data
+    assert v.status_code == 200 and b"Accept this proposal" not in v.data and f"Proposal No. {pA['display_no']}".encode() in v.data
     conn = _db()
     try:
         assert proposals.get(conn, pA["id"])["status"] == "viewed"

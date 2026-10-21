@@ -1,0 +1,325 @@
+"""Company brand: the logo and letterhead every document uses (accepted prototype 2026-10-20).
+
+An admin uploads the company logo once in Settings > Company brand. Proposals (the built-in layout and the
+company's own template, including every proposal Claude drafts), invoices and AIA pay applications print it in
+their header, and so does every document Claude makes in the Claude window (claude_docs: PDF, editor and Word);
+Claude is also shown it when it reads a proposal template, so the layout matches. With no upload,
+documents print no logo (the company name as text); there is no stand-in mark (Angela, 2026-10-20).
+
+  GET    /api/company-brand              -> {logo: {name, mime, size, uploaded_at, uploaded_by_name, data_uri} | null,
+                                             letterhead: {company_address, company_phone, company_email, company_license}}
+  POST   /api/company-brand/logo         multipart `file` (png / jpg / svg / webp, 2 MB)
+  DELETE /api/company-brand/logo         -> no logo (documents print the company name)
+  PUT    /api/company-brand/letterhead   JSON with any of the letterhead keys (blank hides the line)
+
+Admin only (the role, not C-suite). Stored in app_settings: 'company_logo' (JSON with the file as base64, so it
+lives in the database with everything else) and the four letterhead keys proposals / invoices already read.
+Documents embed the logo as a data: URI, so the PDF engine never fetches anything. SVGs with scripts, event
+handlers or outside links are refused.
+"""
+from __future__ import annotations
+
+import base64
+import io
+import json
+import logging
+import re
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+from flask import jsonify, request
+
+import db_layer
+from auth import current_user, requires_role
+
+log = logging.getLogger(__name__)
+
+KEY = "company_logo"
+MAX_BYTES = 2 * 1024 * 1024
+LETTERHEAD = ("company_address", "company_phone", "company_email", "company_license")
+LETTERHEAD_MAX = 200
+COMPANY_NAME = "Superstars Contracting"
+EXT = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml", ".webp": "image/webp"}
+WRONG_TYPE = "{name} isn't a PNG, JPG, SVG or WebP image. Export the logo as one of those and try again."
+_SVG_BAD = re.compile(r"<\s*script|<\s*foreignObject|\bon[a-z]+\s*=|javascript:|(?:href|src)\s*=\s*[\"']?\s*(?:https?:|//)"
+                      r"|@import|url\(\s*[\"']?\s*(?:https?:|//)", re.I)
+
+
+# ------------------------------------------------------------------ storage
+def _conn():
+    return db_layer.connect()
+
+
+def _now() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def _ensure(conn) -> None:
+    conn.execute("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)")
+
+
+def _get(conn, key: str) -> Optional[str]:
+    try:
+        r = conn.execute("SELECT value FROM app_settings WHERE key = ?", (key,)).fetchone()
+    except Exception:
+        conn.rollback()
+        return None
+    return r["value"] if r else None
+
+
+def _put(conn, key: str, value: Optional[str]) -> None:
+    _ensure(conn)
+    conn.execute("DELETE FROM app_settings WHERE key = ?", (key,))
+    if value is not None:
+        conn.execute("INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)", (key, value, _now()))
+
+
+def logo(conn) -> Optional[dict]:
+    """The uploaded logo ({name, mime, size, data (base64), uploaded_at, uploaded_by}) or None."""
+    raw = _get(conn, KEY)
+    if not raw:
+        return None
+    try:
+        v = json.loads(raw)
+    except ValueError:
+        return None
+    return v if isinstance(v, dict) and v.get("data") and v.get("mime") in EXT.values() else None
+
+
+def logo_data_uri(conn=None) -> Optional[str]:
+    """data: URI of the uploaded logo, or None when there is none. Never raises (documents still render)."""
+    own = conn is None
+    try:
+        conn = conn or _conn()
+        v = logo(conn)
+        return f"data:{v['mime']};base64,{v['data']}" if v else None
+    except Exception as x:
+        log.info("company logo unavailable: %s", type(x).__name__)
+        return None
+    finally:
+        if own and conn is not None:
+            conn.close()
+
+
+def brand_block(conn, tagline: str) -> str:
+    """The `.brand` header cell of the built-in proposal / invoice / AIA sheets: the uploaded logo when there is
+    one, otherwise the company name as text (as before)."""
+    import html as _html
+    up = logo_data_uri(conn)
+    if not up:
+        return f'<div class="brand">{COMPANY_NAME}<small>{_html.escape(tagline)}</small></div>'
+    return (f'<div class="brand"><img class="brand-logo" alt="{COMPANY_NAME}" src="{up}">'
+            f'<small>{_html.escape(tagline)}</small></div>')
+
+
+BRAND_CSS = ".brand-logo{display:block;max-height:52px;max-width:240px;object-fit:contain;margin-bottom:4px}"
+
+
+def model_image_block(conn) -> Optional[dict]:
+    """The uploaded logo as an image block Claude can look at (raster only; the API does not take SVG)."""
+    v = logo(conn)
+    if not v or v["mime"] == "image/svg+xml":
+        return None
+    try:
+        import claude_files
+        img, mime = claude_files._image_for_model(base64.b64decode(v["data"]))
+        return {"type": "image", "source": {"type": "base64", "media_type": mime, "data": base64.b64encode(img).decode("ascii")}}
+    except Exception as x:
+        log.info("company logo not shown to Claude: %s", type(x).__name__)
+        return None
+
+
+def letterhead(conn) -> dict:
+    return {k: (_get(conn, k) or "").strip() for k in LETTERHEAD}
+
+
+LETTERHEAD_CSS = (".ssc-lh{max-width:760px;margin:0 auto;padding:30px 40px 0}"
+                  ".ssc-lh-in{display:flex;justify-content:space-between;align-items:center;gap:16px;border-bottom:3px solid #B11E2E;"
+                  "padding-bottom:12px}.ssc-lh img{display:block;max-height:52px;max-width:240px;object-fit:contain}"
+                  ".ssc-lh-name{font-size:15px;font-weight:800;letter-spacing:.6px;text-transform:uppercase}"
+                  ".ssc-lh-addr{font-size:10px;line-height:1.55;color:#6b7180;text-align:right}.ssc-lh-addr b{color:#1f2330;font-size:11px}")
+
+
+def letterhead_lines(facts: dict) -> list:
+    return [x for x in (facts.get("company_address"), " · ".join(x for x in (facts.get("company_phone"), facts.get("company_email")) if x),
+                        ("License " + facts["company_license"]) if facts.get("company_license") else "") if x]
+
+
+def letterhead_html(conn=None) -> str:
+    """The header Claude's documents print above their content (claude_docs): the uploaded logo (else the
+    company name as text) and the letterhead lines. Never raises."""
+    import html as _html
+    own = conn is None
+    try:
+        conn = conn or _conn()
+        facts, uri = letterhead(conn), logo_data_uri(conn)
+    except Exception as x:
+        log.info("letterhead unavailable: %s", type(x).__name__)
+        facts, uri = {}, None
+    finally:
+        if own and conn is not None:
+            conn.close()
+    mark = f'<img alt="{COMPANY_NAME}" src="{uri}">' if uri else f'<div class="ssc-lh-name">{COMPANY_NAME}</div>'
+    lines = "".join("<br>" + _html.escape(x) for x in letterhead_lines(facts))
+    return f'<header class="ssc-lh"><div class="ssc-lh-in">{mark}<div class="ssc-lh-addr"><b>{COMPANY_NAME}</b>{lines}</div></div></header>'
+
+
+def word_logo(conn=None) -> Optional[tuple]:
+    """(png bytes, width px, height px) of the uploaded logo for a Word file, or None (no upload, or an SVG,
+    which Word can't take without a picture copy)."""
+    own = conn is None
+    try:
+        conn = conn or _conn()
+        v = logo(conn)
+        if not v or v["mime"] == "image/svg+xml":
+            return None
+        from PIL import Image
+        im = Image.open(io.BytesIO(base64.b64decode(v["data"])))
+        out = io.BytesIO()
+        im.convert("RGBA").save(out, "PNG")
+        return out.getvalue(), im.width, im.height
+    except Exception as x:
+        log.info("company logo not added to Word: %s", type(x).__name__)
+        return None
+    finally:
+        if own and conn is not None:
+            conn.close()
+
+
+# ------------------------------------------------------------------ checks
+def _sniff(raw: bytes) -> Optional[str]:
+    if raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if raw.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        return "image/webp"
+    head = raw[:2048].lstrip(b"\xef\xbb\xbf \t\r\n").lower()
+    if head.startswith(b"<svg") or (head.startswith(b"<?xml") or head.startswith(b"<!--")) and b"<svg" in raw[:4096].lower():
+        return "image/svg+xml"
+    return None
+
+
+def check(name: str, raw: bytes) -> str:
+    """The file's media type, or ValueError with a message for the person uploading."""
+    name = (name or "logo").rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    if not raw:
+        raise ValueError("That file is empty. Choose the logo image again.")
+    if len(raw) > MAX_BYTES:
+        raise ValueError(f"{name} is {len(raw) / 1048576:.1f} MB. The limit is 2 MB; a smaller export of the same logo works.")
+    ext = Path(name).suffix.lower()
+    mime = _sniff(raw)
+    if ext not in EXT or mime is None or EXT[ext] != mime and not (ext in (".jpg", ".jpeg") and mime == "image/jpeg"):
+        raise ValueError(WRONG_TYPE.format(name=name))
+    if mime == "image/svg+xml":
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            raise ValueError(WRONG_TYPE.format(name=name))
+        if _SVG_BAD.search(text):
+            raise ValueError(f"{name} has scripts or outside links inside it. Export a plain SVG, or a PNG, and try again.")
+    return mime
+
+
+def save_logo(conn, name: str, raw: bytes, uid) -> dict:
+    mime = check(name, raw)
+    clean = (name or "logo").rsplit("/", 1)[-1].rsplit("\\", 1)[-1][:120]
+    _put(conn, KEY, json.dumps({"name": clean, "mime": mime, "size": len(raw), "data": base64.b64encode(raw).decode("ascii"),
+                                "uploaded_at": _now(), "uploaded_by": uid}))
+    conn.commit()
+    return public(conn)
+
+
+def remove_logo(conn) -> dict:
+    _put(conn, KEY, None)
+    conn.commit()
+    return public(conn)
+
+
+def save_letterhead(conn, body: dict) -> dict:
+    for k in LETTERHEAD:
+        if k in body:
+            v = str(body.get(k) or "").strip()
+            if len(v) > LETTERHEAD_MAX:
+                raise ValueError(f"Keep each letterhead line under {LETTERHEAD_MAX} characters.")
+            _put(conn, k, v or None)
+    conn.commit()
+    return public(conn)
+
+
+def _user_name(conn, uid) -> str:
+    if not uid:
+        return ""
+    try:
+        r = conn.execute("SELECT display_name, email FROM users WHERE id = ?", (uid,)).fetchone()
+    except Exception:
+        conn.rollback()
+        return ""
+    return (r["display_name"] or (r["email"] or "").split("@")[0]) if r else ""
+
+
+def public(conn) -> dict:
+    v = logo(conn)
+    out = None
+    if v:
+        out = {"name": v.get("name"), "mime": v["mime"], "size": v.get("size"), "uploaded_at": v.get("uploaded_at"),
+               "uploaded_by_name": _user_name(conn, v.get("uploaded_by")), "data_uri": f"data:{v['mime']};base64,{v['data']}"}
+    return {"logo": out, "letterhead": letterhead(conn)}
+
+
+# ------------------------------------------------------------------ routes
+def _uid():
+    return (current_user() or {}).get("id")
+
+
+def register(app) -> None:
+    admin = requires_role("admin")
+
+    @app.route("/api/company-brand", methods=["GET"])
+    @admin
+    def company_brand_get():
+        conn = _conn()
+        try:
+            return jsonify({"data": public(conn)})
+        finally:
+            conn.close()
+
+    @app.route("/api/company-brand/logo", methods=["POST"])
+    @admin
+    def company_brand_logo_upload():
+        f = request.files.get("file")
+        if not f:
+            return jsonify({"error": "Choose the logo image to upload."}), 400
+        raw = f.read(MAX_BYTES + 1)
+        conn = _conn()
+        try:
+            data = save_logo(conn, f.filename or "", raw, _uid())
+            log.info("company logo uploaded mime=%s bytes=%d", data["logo"]["mime"], len(raw))
+            return jsonify({"data": data})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        finally:
+            conn.close()
+
+    @app.route("/api/company-brand/logo", methods=["DELETE"])
+    @admin
+    def company_brand_logo_remove():
+        conn = _conn()
+        try:
+            log.info("company logo removed")
+            return jsonify({"data": remove_logo(conn)})
+        finally:
+            conn.close()
+
+    @app.route("/api/company-brand/letterhead", methods=["PUT"])
+    @admin
+    def company_brand_letterhead():
+        body = request.get_json(silent=True) or {}
+        conn = _conn()
+        try:
+            return jsonify({"data": save_letterhead(conn, body)})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        finally:
+            conn.close()

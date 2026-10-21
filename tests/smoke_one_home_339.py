@@ -119,7 +119,7 @@ def main() -> int:
     assert "'/': { '': '/company#overview', 'projects': '/company#overview', 'crm': '/company#clients', 'settings': '/account' }" in js
     assert "'/company': { 'buildings': '/company#projects', 'compliance': '/company#company' }" in js
     for sub in ("'Weekly payroll', '/#labor-rate'", "'Pay rates', '/admin/labor-rates'", "'Calendar', '/company#calendar'",
-                "['Estimating queue', '/estimating']]", "'Team & access', '/admin/users'", "'Account', '/account'"):
+                "['Proposal Studio', '/proposal-studio', COMPANY]]", "'Team & access', '/admin/users'", "'Account', '/account'"):
         assert sub in js, sub
     # 2026-10-14 — the Proposals tab lost its Pipeline sub-tab (the type dropdown replaced it)
     assert "'Pipeline'" not in js and "'/#estimates', COMPANY" not in js

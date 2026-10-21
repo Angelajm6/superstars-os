@@ -14,8 +14,8 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1016"></script>
-<script src="/files/static/js/claude_drawer.js?v=12" defer></script>
+<script src="/files/static/js/company_nav.js?v=1021"></script>
+<script src="/files/static/js/claude_drawer.js?v=13" defer></script>
 <script src="/files/static/vendor/gridstack-all.js"></script>
 <script src="/files/static/js/dash_layout.js?v=292" defer></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -502,7 +502,7 @@
     <span id="user-menu" aria-live="polite"></span>
   </div>
 </div>
-<script src="/files/static/js/auth_menu.js?v=1009" defer></script>
+<script src="/files/static/js/auth_menu.js?v=1010" defer></script>
 
 <div class="container">
 
@@ -1589,8 +1589,8 @@
 
     <div style="margin-top:18px;">
       <div class="form-section-label" data-i18n="modal-step2">Step 2 · Project Assignment</div>
-      <div id="project-checks" style="background:var(--accent-soft);border:1px solid var(--accent-edge);padding:12px 14px;border-radius:9px;font-size:13px;color:#76777E;" data-i18n="loading-projects">
-        Loading projects…
+      <div id="project-checks" style="background:var(--accent-soft);border:1px solid var(--accent-edge);padding:12px 14px;border-radius:9px;font-size:13px;color:#76777E;">
+        <span data-i18n="loading-projects">Loading projects…</span>
       </div>
     </div>
 
@@ -2150,7 +2150,15 @@ applyLanguage();
     try {
       const resp = await fetch('/api/projects').then(r => r.json());
       const projects = (resp && resp.data) || [];
+      // Populate project checks in the New Worker Intake modal first: #project-grid was
+      // removed in #339, and a null grid used to throw before the modal list was filled.
+      const cks = projects.map(p => `<label style="display:block;margin-bottom:6px;color:#14161C;cursor:pointer;">
+        <input type="checkbox" class="project-check" value="${p.project_code}" ${p.status !== 'completed' ? 'checked' : ''}> ${escapeHtml(p.name || p.project_code)} <span style="color:#76777E;font-size:13px;">(${p.project_code})</span>
+      </label>`).join('');
+      $('#project-checks').innerHTML = cks || '<em>No projects defined. Worker will be added without a project assignment.</em>';
+
       const grid = $('#project-grid');
+      if (!grid) return;
       if (!projects.length) {
         grid.innerHTML = '<div class="placeholder">No projects yet. Add one in the Bid Tracker tab.</div>';
         return;
@@ -2173,13 +2181,11 @@ applyLanguage();
           </div>
         </a>`;
       }).join('');
-
-      // Populate project checks in modal
-      const cks = projects.map(p => `<label style="display:block;margin-bottom:6px;color:#14161C;cursor:pointer;">
-        <input type="checkbox" class="project-check" value="${p.project_code}" ${p.status !== 'completed' ? 'checked' : ''}> ${escapeHtml(p.name || p.project_code)} <span style="color:#76777E;font-size:13px;">(${p.project_code})</span>
-      </label>`).join('');
-      $('#project-checks').innerHTML = cks || '<em>No projects defined. Worker will be added without a project assignment.</em>';
-    } catch (e) { console.warn(e); }
+    } catch (e) {
+      console.warn(e);
+      const box = $('#project-checks');
+      if (box) box.innerHTML = '<em>Could not load projects. Close and reopen this window to retry.</em>';
+    }
   }
 
   // ---- Credential Action column helpers (E3) ----
@@ -5848,5 +5854,6 @@ applyLanguage();
 </div><!-- /.ssc-main -->
 </div><!-- /.ssc-shell -->
 <link rel="stylesheet" href="/files/static/css/unify.css?v=15">
+<script src="/files/static/js/file_drop.js?v=1" defer></script>
 </body>
 </html>

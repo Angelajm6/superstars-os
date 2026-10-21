@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
+<script src="/files/static/js/company_nav.js?v=1021"></script>
+<script src="/files/static/js/claude_drawer.js?v=13" defer></script>
+<!-- #359 — apply a remembered collapsed rail before the first paint -->
+<script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
+<script src="/files/static/js/shell.js?v=1007" defer></script>
+<script src="/files/static/js/auth_menu.js?v=1010" defer></script>
+<script src="/files/static/js/pdf_view.js?v=1" defer></script>
+<title>Proposal Studio · Superstars Contracting</title>
+<!-- Proposal Studio, simpler (prototype accepted 2026-10-20: https://claude.ai/artifact/SPTSgJ8bv7N8ENWMbzrXrE):
+     one box to start; the proposal itself, edited in place (a no-scripts frame the page edits) with one side panel;
+     Send in a pop-up (PDF from Gmail); "Your past proposals": upload as many as you like and Claude copies them.
+     Served by proposal_studio.py (/proposal-studio) to admin / C-suite. -->
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+  [hidden]{display:none!important}
+  .brand-mark{object-fit:contain}
+  .ps{padding:16px 28px 60px}
+  @media (max-width:760px){.ps{padding:12px 16px 60px}}
+  .ps-tabs{display:flex;gap:20px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto}
+  .ps-tabs button{border:0;background:none;padding:10px 2px;font:inherit;font-size:13.5px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;white-space:nowrap}
+  .ps-tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+  .ps-tabs button:disabled{opacity:.4;cursor:default}
+  .muted{color:var(--muted);font-size:12.5px}
+  .err{color:var(--status-behind-deep,#A8382B);font-size:13px}
+  .num{font-variant-numeric:tabular-nums}
+  .pill{font-size:11px;font-weight:600;border-radius:99px;padding:2px 9px;white-space:nowrap;background:var(--fill);color:var(--ink-2)}
+  .pill.draft{background:var(--status-warn-soft,#FFF4E5);color:var(--status-warn,#9A5B00)}
+  .pill.sent,.pill.viewed,.pill.lay{background:var(--accent-soft);color:var(--accent-ink)}
+  .pill.signed,.pill.ok{background:var(--status-complete-soft,#e7f6f0);color:var(--status-complete-deep,#0c7a5f)}
+  .pill.declined,.pill.superseded,.pill.bad{background:var(--fill);color:var(--muted)}
+  .att{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:var(--fill);border-radius:6px;padding:4px 8px;font-size:12px;font-weight:600;max-width:100%}
+  .att span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .att i{font-style:normal;font-size:9px;font-weight:800;color:var(--brand-red)}
+  .att button{border:0;background:none;color:var(--muted);cursor:pointer;padding:0 2px;font-size:14px}
+  /* new proposal */
+  .start{max-width:780px;margin:6px auto 26px;text-align:center}
+  .start h2{font-size:23px;margin:10px 0 6px;letter-spacing:-.01em;font-weight:700}
+  .bigbox{border:1px solid var(--line);border-radius:18px;background:#fff;padding:12px 14px;text-align:left;box-shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(20,24,36,.05);margin-top:16px}
+  .bigbox:focus-within{border-color:var(--accent-edge);box-shadow:0 0 0 4px var(--accent-in)}
+  .bigbox textarea{width:100%;border:0;outline:none;resize:none;background:none;font:inherit;font-size:15px;line-height:1.55;min-height:96px;color:var(--ink)}
+  .bb-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .bb-row select,.bb-row input.pi{border:1px solid var(--line);border-radius:99px;padding:6px 12px;font:inherit;font-size:12.5px;background:var(--fill);color:var(--ink);max-width:220px}
+  .bb-row .sp{flex:1}
+  .bb-atts{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0}
+  .bb-atts:empty{display:none}
+  .go{border:0;background:var(--accent);color:#fff;border-radius:99px;padding:9px 18px;font:inherit;font-weight:600;font-size:13.5px;cursor:pointer}
+  .go:disabled{opacity:.6;cursor:default}
+  .working{display:flex;flex-direction:column;gap:6px;margin:12px auto 0;max-width:780px;text-align:left}
+  .wk{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+  .wk i{width:8px;height:8px;border-radius:50%;background:var(--line);flex:none}
+  .wk.done{color:var(--status-complete-deep,#0c7a5f)}.wk.done i{background:var(--status-complete,#15a07e)}
+  .wk.cur{color:var(--ink);font-weight:600}.wk.cur i{background:var(--accent);animation:ps-p 1s infinite}
+  @keyframes ps-p{50%{opacity:.3}}
+  .recent{max-width:780px;margin:0 auto}
+  .prow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:10px 8px;border-bottom:1px solid var(--line);font-size:13px;text-decoration:none;color:inherit;border-radius:8px}
+  .prow:hover{background:var(--fill)}.prow small{display:block;color:var(--muted)}.prow b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* the proposal */
+  .ed-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .ed-top h2{margin:0;font-size:17px}
+  .banner{background:var(--accent-soft);border:1px solid var(--accent-edge);border-radius:10px;padding:10px 14px;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .ed{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+  @media (max-width:1100px){.ed{grid-template-columns:1fr}}
+  .desk{background:#E4E7EE;border-radius:14px;padding:18px;overflow-x:auto}
+  .doc{display:block;width:100%;max-width:860px;margin:0 auto;border:0;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.18);height:900px}
+  .doc-tools{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+  .rail{display:flex;flex-direction:column;gap:10px;position:sticky;top:12px}
+  @media (max-width:1100px){.rail{position:static}}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-width:0}
+  .card h3{margin:0 0 8px;font-size:13.5px}
+  .chat{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto}
+  .msg{font-size:13px;line-height:1.5;padding:8px 11px;border-radius:10px;max-width:92%;white-space:pre-wrap}
+  .msg.c{background:var(--accent-soft);align-self:flex-start}.msg.u{background:var(--fill);align-self:flex-end}
+  .msg .undo{border:0;background:none;color:var(--accent-ink);font:inherit;font-weight:600;font-size:12px;padding:0;margin-left:6px;text-decoration:underline;cursor:pointer}
+  .quick{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:99px;padding:4px 11px;font:inherit;font-size:12px;color:var(--ink-2);cursor:pointer}
+  .chip:hover{border-color:var(--accent-edge);color:var(--ink)}
+  .inl{display:flex;gap:6px}.inl input{flex:1;min-width:0}
+  .fld{width:100%;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 10px;font:inherit;font-size:13px;color:var(--ink)}
+  textarea.fld{resize:vertical;line-height:1.55}
+  details.more{border:1px solid var(--line);border-radius:14px;background:#fff}
+  details.more summary{padding:12px 16px;font-size:13.5px;font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between}
+  details.more summary::-webkit-details-marker{display:none}
+  details.more summary::after{content:"▸";color:var(--muted)}details.more[open] summary::after{content:"▾"}
+  details.more .in{padding:0 16px 14px;font-size:13px;display:flex;flex-direction:column;gap:10px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .lbl{font-size:12px;font-weight:600;color:var(--ink-2);display:block;margin-bottom:4px}
+  .secs{display:flex;flex-direction:column;gap:5px}
+  .secs label{display:flex;gap:8px;align-items:center}
+  .secs .x{display:flex;justify-content:space-between;align-items:center;gap:8px}.secs .x span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .used{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--ink-2)}.used div{display:flex;gap:6px;line-height:1.4}.used i{font-style:normal;color:var(--status-complete-deep,#0c7a5f);font-weight:700}
+  /* send pop-up */
+  .scrim{position:fixed;inset:0;background:rgba(20,24,36,.4);z-index:9100;display:grid;place-items:center;padding:16px}
+  .modal{background:#fff;border-radius:16px;box-shadow:0 14px 40px rgba(20,24,36,.22);width:min(580px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+  .modal h3{margin:0;font-size:16px}
+  .seg{display:inline-flex;background:var(--fill);border-radius:10px;padding:3px;flex-wrap:wrap}
+  .seg button{border:0;background:none;border-radius:8px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer}.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .mr{display:grid;grid-template-columns:64px minmax(0,1fr);gap:8px;align-items:center;font-size:13px}.mr>span{color:var(--muted);font-weight:600;font-size:12px}
+  .mfoot{display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
+  /* past proposals */
+  .pp{max-width:880px;margin:0 auto}
+  .drop{border:2px dashed var(--line);border-radius:16px;padding:30px 18px;text-align:center;background:#fff;transition:border-color .15s,background .15s}
+  .drop b{display:block;font-size:15px;margin-bottom:4px}
+  .drop.on{border-color:var(--accent);background:var(--accent-in)}
+  .learned{margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--ink-2);background:var(--status-complete-soft,#e7f6f0);border-radius:12px;padding:10px 14px}
+  .learned.reading{background:var(--status-warn-soft,#FFF4E5)}
+  /* the archive (2026-10-21): a record list of the proposals sent before the app; a row opens its PDF */
+  .arch{margin-top:16px;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .arch-h{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+  .arch-row{display:grid;grid-template-columns:76px minmax(0,1.3fr) minmax(0,1.3fr) 96px 116px 36px;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer}
+  .arch-row:last-child{border-bottom:0}.arch-row:hover{background:var(--fill)}
+  .arch-row.head{cursor:default;background:none;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);font-weight:600;padding-top:9px;padding-bottom:9px}
+  .arch-row .no{font-weight:700;color:var(--accent-ink)}.arch-row .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .arch-row .r{text-align:right;font-variant-numeric:tabular-nums}.arch-row .m{color:var(--muted)}
+  .arch-row .more{border:0;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;border-radius:8px;padding:4px 6px}
+  .arch-row .more:hover{background:#fff;color:var(--ink)}
+  .arch-row .chk{font-size:10.5px;font-weight:600;color:var(--status-warn,#9A5B00);background:var(--status-warn-soft,#FFF4E5);border-radius:99px;padding:1px 7px;margin-left:6px}
+  .arch-menu{position:absolute;z-index:9050;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(20,24,36,.12);padding:4px;display:flex;flex-direction:column;min-width:150px}
+  .arch-menu button{border:0;background:none;text-align:left;padding:8px 10px;font:inherit;font-size:13px;border-radius:8px;cursor:pointer;color:var(--ink)}
+  .arch-menu button:hover{background:var(--fill)}.arch-menu button.del{color:var(--status-behind-deep,#A8382B)}
+  @media (max-width:760px){
+    .arch-row{grid-template-columns:minmax(0,1fr) auto 32px;grid-template-areas:"no tot more" "who who more";row-gap:2px}
+    .arch-row.head{display:none}.arch-row .no{grid-area:no}.arch-row .tot{grid-area:tot}.arch-row .more{grid-area:more}
+    .arch-row .who{grid-area:who;color:var(--muted);font-size:12.5px}.arch-row .c-cl,.arch-row .c-ad,.arch-row .c-dt{display:none}
+  }
+  @media (min-width:761px){.arch-row .who{display:none}}
+  .ps-toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,16px);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:all .2s;z-index:9200;pointer-events:none;max-width:calc(100% - 32px)}
+  .ps-toast.on{opacity:1;transform:translate(-50%,0)}.ps-toast.err{background:var(--status-behind-deep,#A8382B)}
+  /* ready to send (2026-10-21) */
+  .ck{display:flex;flex-direction:column;gap:6px}
+  .ck div{display:flex;gap:8px;font-size:12.5px;line-height:1.4;padding:7px 9px;border-radius:9px;align-items:flex-start}
+  .ck i{font-style:normal;font-weight:800;flex:none;width:14px;text-align:center}
+  .ck .ok{background:var(--status-complete-soft,#e7f6f0)}.ck .ok i{color:var(--status-complete-deep,#0c7a5f)}
+  .ck .warn{background:var(--status-warn-soft,#FFF4E5)}.ck .warn i{color:var(--status-warn,#9A5B00)}
+  .ck .block{background:#fdecea}.ck .block i{color:var(--status-behind-deep,#A8382B)}
+  .ck button{margin-left:auto;flex:none}
+  .ck-note{font-size:12px;color:var(--muted);margin-top:8px}
+  /* fixed wording */
+  .fw{max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+  .fw .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media (max-width:760px){.fw .grid2{grid-template-columns:1fr}}
+  .lib{display:flex;flex-direction:column;gap:4px;max-height:340px;overflow:auto}
+  .lib div{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:1.45;padding:6px 8px;border-radius:8px;background:var(--fill)}
+  .lib div span{flex:1}.lib small{color:var(--muted);white-space:nowrap}
+  .lib button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 2px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="ssc-shell">
+<aside class="ssc-side" aria-label="Company navigation">
+  <div class="brand">
+    <img class="brand-mark" width="34" height="34" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
+    <div><div class="brand-name">Superstars Contracting</div><div class="brand-sub">Company</div></div>
+  </div>
+  <nav class="ssc-nav" id="ssc-nav" data-company-nav></nav>
+  <script>SSC_NAV.mount();</script>
+</aside>
+<div class="ssc-main">
+<header class="ssc-top">
+  <div class="ssc-top-title"><h1 data-nav-h1>Proposals</h1></div>
+  <div class="ssc-top-right"><div id="user-menu" aria-live="polite"></div></div>
+</header>
+<div class="ssc-subtabs" data-subtabs="proposals"></div>
+<main class="ps" aria-label="Proposal Studio">
+  <div class="ps-tabs" role="tablist" aria-label="Proposal Studio">
+    <button type="button" data-step="new">New proposal</button>
+    <button type="button" data-step="edit" disabled>The proposal</button>
+    <button type="button" data-step="past">Archive</button>
+    <button type="button" data-step="wording">Fixed wording</button>
+  </div>
+
+  <!-- new proposal -->
+  <section id="v-new" hidden>
+    <div class="start">
+      <h2>What proposal do you need?</h2>
+      <div class="muted">Describe the job in your own words. Claude writes it in your Superstars layout, from your past proposals; the wording that never changes is filled in for you.</div>
+      <form class="bigbox" id="ask-form" autocomplete="off">
+        <textarea id="a-what" rows="4" aria-label="Describe the job" placeholder="e.g. Rosen Properties, 410 E 58th St: repoint the east wall (about 1,850 sf) and replace the 6 lintels from the FISP report. Shed and permits needed. One price with a breakdown, repointing at our usual $15/sf."></textarea>
+        <div class="bb-atts" id="a-atts"></div>
+        <div class="bb-row">
+          <select id="a-client" aria-label="Client"><option value="">Client…</option></select>
+          <input class="pi" id="a-newclient" placeholder="New client's name" aria-label="New client's name" hidden>
+          <input class="pi" id="a-addr" placeholder="Building address" aria-label="Building address">
+          <select id="a-type" aria-label="Job type"><option value="">Job type…</option></select>
+          <select id="a-head" aria-label="Heading"><option value="ESTIMATE">ESTIMATE</option><option value="PROPOSAL">PROPOSAL</option></select>
+          <button class="chip" type="button" id="a-attach">+ Files</button><input type="file" id="a-file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.heic,.docx,.xlsx,.csv,.txt" aria-label="Attach files">
+          <select id="a-mail" aria-label="Start from an email"><option value="">+ From an email</option></select>
+          <span class="sp"></span>
+          <button class="go" type="submit" id="a-go">✦ Write it</button>
+        </div>
+      </form>
+      <div class="err" id="a-err" role="alert"></div>
+      <div class="working" id="a-working" aria-live="polite" hidden></div>
+    </div>
+    <div class="recent"><div class="muted" style="margin:0 8px 6px">Recent</div><div id="recent"><div class="muted">Loading…</div></div></div>
+  </section>
+
+  <!-- the proposal -->
+  <section id="v-edit" hidden>
+    <div class="ed-top">
+      <div><h2 id="e-title">Proposal</h2><div class="muted"><span id="e-num"></span> · <span class="pill" id="e-status"></span> · <span id="e-saved">Saved</span> · click any text to edit it</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-ghost btn-sm" type="button" id="e-view">View PDF</button><a class="btn-ghost btn-sm" id="e-pdf" href="#" download>Download PDF</a><button class="btn-primary btn-sm" type="button" id="e-send">Send…</button></div>
+    </div>
+    <div class="banner" id="e-locked" hidden><span id="e-locked-t"></span><button class="btn-ghost btn-sm" type="button" id="e-version">Make a new version to edit</button></div>
+    <div class="ed">
+      <div>
+        <div class="desk"><iframe class="doc" id="doc" title="The proposal: click any text to edit it" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe></div>
+        <div class="doc-tools" id="doc-tools"><button class="btn-ghost btn-sm" type="button" id="e-addline">+ Add a price line</button><button class="btn-ghost btn-sm" type="button" id="e-addsec">+ Add a section</button>
+          <button class="btn-ghost btn-sm" type="button" data-addlist="notes" hidden>+ Note</button><button class="btn-ghost btn-sm" type="button" data-addlist="deliverables" hidden>+ Deliverable</button><button class="btn-ghost btn-sm" type="button" data-addlist="exclusions" hidden>+ Exclusion</button></div>
+      </div>
+      <aside class="rail">
+        <div class="card" id="ck-card" hidden><h3>Ready to send</h3><div class="ck" id="ck"></div>
+          <div class="ck-note">The app checks these, not Claude. Send stays off while anything is red.</div></div>
+        <div class="card"><h3>Ask Claude to change it</h3>
+          <div class="chat" id="chat"><div class="msg c">Click any outlined text to edit it, or tell me what to change. The fixed wording and the totals take care of themselves.</div></div>
+          <div class="quick"><button class="chip" type="button" data-ask="Add a 10% contingency line">+ 10% contingency</button><button class="chip" type="button" data-ask="Make the scope shorter">Shorter scope</button><button class="chip" type="button" data-ask="Split the work into two phases with their own lines">Two phases</button></div>
+          <form class="inl" id="chat-form"><input class="fld" id="chat-in" placeholder="e.g. “lintels at $2,600 each”" aria-label="Ask Claude to change the proposal"><button class="btn-ghost btn-sm" type="submit">Send</button></form>
+        </div>
+        <details class="more"><summary>Details</summary><div class="in">
+          <div id="e-head-row" hidden><span class="lbl">Heading</span><div class="seg" id="e-head"><button type="button" data-head="ESTIMATE">ESTIMATE</button><button type="button" data-head="PROPOSAL">PROPOSAL</button></div></div>
+          <div class="row2" id="e-legacy-row"><div><label class="lbl" for="e-valid">Valid until</label><input class="fld" id="e-valid" type="date"></div>
+            <div><label class="lbl" for="e-dep">Deposit %</label><input class="fld" id="e-dep" type="number" min="0" max="100" step="1"></div></div>
+          <div id="e-secs-row"><span class="lbl">Sections</span><div class="secs" id="e-secs"></div></div>
+          <div id="e-used-box"><span class="lbl">Where prices came from</span><div class="used" id="e-used"></div></div>
+        </div></details>
+      </aside>
+    </div>
+  </section>
+
+  <!-- fixed wording: the same on every proposal, never written by Claude -->
+  <section id="v-wording" hidden>
+    <div class="fw">
+      <div class="card"><h3>On every proposal</h3><div class="muted" style="margin-bottom:10px">The app adds this wording to every proposal exactly as written here. Claude never changes it.</div>
+        <form id="fw-form" class="grid2" autocomplete="off">
+          <div><label class="lbl" for="fw-valid_text">Proposal Valid</label><input class="fld" id="fw-valid_text" data-h="valid_text"></div>
+          <div><label class="lbl" for="fw-next_number">Next proposal number</label><input class="fld" id="fw-next_number" data-h="next_number" inputmode="numeric"></div>
+          <div><label class="lbl" for="fw-submitted_by">Submitted by (one line each)</label><textarea class="fld" id="fw-submitted_by" data-h="submitted_by" rows="5"></textarea></div>
+          <div><label class="lbl" for="fw-signer">Authorized signature</label><input class="fld" id="fw-signer" data-h="signer">
+            <label class="lbl" for="fw-company_legal" style="margin-top:8px">Company name</label><input class="fld" id="fw-company_legal" data-h="company_legal"></div>
+          <div><label class="lbl" for="fw-deposit_pct">Deposit %</label><input class="fld" id="fw-deposit_pct" data-h="deposit_pct" inputmode="decimal"></div>
+          <div><label class="lbl" for="fw-net_days">Net days</label><input class="fld" id="fw-net_days" data-h="net_days" inputmode="numeric"></div>
+          <div><label class="lbl" for="fw-withdraw_note">First Important Note</label><textarea class="fld" id="fw-withdraw_note" data-h="withdraw_note" rows="2"></textarea></div>
+          <div><label class="lbl" for="fw-first_exclusion">First exclusion</label><textarea class="fld" id="fw-first_exclusion" data-h="first_exclusion" rows="2"></textarea></div>
+          <div><label class="lbl" for="fw-mobilization">Mobilization</label><textarea class="fld" id="fw-mobilization" data-h="mobilization" rows="2"></textarea></div>
+          <div><label class="lbl" for="fw-hours">Hours</label><textarea class="fld" id="fw-hours" data-h="hours" rows="2"></textarea></div>
+          <div><label class="lbl" for="fw-insurance">Insurance</label><textarea class="fld" id="fw-insurance" data-h="insurance" rows="2"></textarea></div>
+          <div><label class="lbl" for="fw-acceptance">Acceptance</label><textarea class="fld" id="fw-acceptance" data-h="acceptance" rows="2"></textarea></div>
+          <div style="grid-column:1/-1"><label class="lbl" for="fw-footer">Footer</label><input class="fld" id="fw-footer" data-h="footer"></div>
+          <div style="grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;align-items:center"><span class="err" id="fw-err"></span><button class="btn-primary" type="submit">Save wording</button></div>
+        </form></div>
+      <div class="card"><h3>Your library</h3><div class="muted" style="margin-bottom:10px">Learned from your past proposals. Claude uses these word for word when they fit. Remove anything you don't want reused.</div>
+        <div class="grid2"><div><span class="lbl">Important notes</span><div class="lib" id="lib-notes"></div></div>
+          <div><span class="lbl">Exclusions</span><div class="lib" id="lib-exclusions"></div></div>
+          <div><span class="lbl">Deliverables</span><div class="lib" id="lib-deliverables"></div></div>
+          <div><span class="lbl">Add to the library</span><form id="lib-add" style="display:flex;flex-direction:column;gap:6px"><select class="fld" id="lib-kind"><option value="notes">Important note</option><option value="exclusions">Exclusion</option><option value="deliverables">Deliverable</option></select>
+            <textarea class="fld" id="lib-text" rows="3" placeholder="The wording, exactly as you use it"></textarea><button class="btn-ghost btn-sm" type="submit">Add</button></form></div></div></div>
+    </div>
+  </section>
+
+  <!-- past proposals -->
+  <section id="v-past" hidden>
+    <div class="pp">
+      <div class="drop" id="pp-drop"><b>Drop the proposals you sent before the app</b><span class="muted">As many PDFs as you have, from any year (up to 30 at a time). Claude reads each one's number, date, client, address and total, and keeps it here and in Estimates &amp; proposals with its PDF. Its notes, exclusions and prices also go into your library.</span>
+        <div style="margin-top:12px"><button class="btn-primary btn-sm" type="button" id="pp-add">Upload proposals</button><input type="file" id="pp-file" multiple hidden aria-label="Upload past proposals"></div></div>
+      <div class="learned" id="pp-learned" hidden></div>
+      <div class="err" id="pp-err" role="alert"></div>
+      <div class="arch" id="pp-grid" hidden></div>
+    </div>
+  </section>
+</main>
+</div>
+</div>
+
+<!-- send -->
+<div class="scrim" id="arch-m" hidden>
+  <form class="modal" id="arch-f" role="dialog" aria-modal="true" aria-labelledby="arch-h" autocomplete="off">
+    <h3 id="arch-h">Proposal details</h3>
+    <div class="muted">As Claude read them from the PDF. Correct anything it got wrong.</div>
+    <div class="row2"><div><label class="lbl" for="af-number">Number</label><input class="fld" id="af-number" data-af="number"></div>
+      <div><label class="lbl" for="af-date">Date</label><input class="fld" id="af-date" data-af="date" placeholder="MM/DD/YYYY"></div></div>
+    <div><label class="lbl" for="af-client">Client</label><input class="fld" id="af-client" data-af="client"></div>
+    <div><label class="lbl" for="af-building">Address</label><input class="fld" id="af-building" data-af="building"></div>
+    <div><label class="lbl" for="af-total">Total</label><input class="fld" id="af-total" data-af="total" inputmode="decimal"></div>
+    <div class="err" id="af-err" role="alert"></div>
+    <div class="mfoot"><button class="btn-ghost" type="button" id="af-cancel">Cancel</button><button class="btn-primary" type="submit">Save</button></div>
+  </form>
+</div>
+<div class="scrim" id="send-m" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="s-h">
+    <h3 id="s-h">Send the proposal</h3>
+    <div class="seg" id="s-how"><button type="button" data-how="reply">Reply to an email</button><button type="button" data-how="new">New email</button></div>
+    <div class="mr" id="s-thread-row"><span>Email</span><select class="fld" id="s-thread" aria-label="Email to reply to"></select></div>
+    <div class="mr" id="s-to-row"><span>To</span><input class="fld" id="s-to" list="s-people" placeholder="name@company.com, …"></div>
+    <div class="mr" id="s-cc-row"><span>Cc</span><input class="fld" id="s-cc" list="s-people" placeholder="optional"></div>
+    <datalist id="s-people"></datalist>
+    <div class="mr"><span>Subject</span><input class="fld" id="s-subject"></div>
+    <textarea class="fld" id="s-msg" rows="7" aria-label="Message"></textarea>
+    <div><span class="att"><i>PDF</i><span id="s-file"></span></span> <span class="muted" id="s-from"></span></div>
+    <div class="err" id="s-err" role="alert"></div>
+    <div class="mfoot"><button class="btn-ghost" type="button" id="s-cancel">Cancel</button><button class="btn-primary" type="button" id="s-send">Send from my Gmail</button></div>
+  </div>
+</div>
+<div class="ps-toast" id="toast" role="status"></div>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const money = n => '$' + (+n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const fmtDate = iso => { if (!iso) return ''; const [y, m, d] = String(iso).slice(0, 10).split('-'); return `${m}/${d}/${y}`; };
+  const S = { id: null, v: null, job: null, files: [], stepT: null, how: 'new' };
+  const STEPS = ['Loading your fixed wording', 'Finding your closest past proposals and prices', 'Looking up the client', 'Reading what you attached', 'Writing the proposal'];
+  const LISTS = ['notes', 'deliverables', 'exclusions'], MULTI = ['submitted_to', 'project', 'reference'];
+  const ssc = () => !!(S.v && S.v.layout === 'ssc');
+  let tT = null;
+  function toast(m, bad) { const t = $('toast'); t.textContent = m; t.className = 'ps-toast on' + (bad ? ' err' : ''); clearTimeout(tT); tT = setTimeout(() => t.classList.remove('on'), 3200); }
+  async function api(path, opts) {
+    const res = await fetch('/api' + path, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' } }, opts || {}));
+    const j = await res.json().catch(() => ({}));
+    if (res.status === 401) { location.href = '/login?next=' + encodeURIComponent('/proposal-studio'); throw new Error('Sign in again'); }
+    if (!res.ok) throw new Error((j && j.error) || ('Request failed (' + res.status + ')'));
+    return j.data;
+  }
+
+  // ---------------- tabs (#new, #p/<id>, #past; old #style links land on #past)
+  function show(step) {
+    ['new', 'edit', 'past', 'wording'].forEach(k => $('v-' + k).hidden = k !== step);
+    document.querySelectorAll('[data-step]').forEach(b => { b.classList.toggle('on', b.dataset.step === step); if (b.dataset.step === 'edit') b.disabled = !S.id; });
+  }
+  async function route() {
+    const h = location.hash.replace(/^#/, '');
+    const m = /^p\/(\d+)(\/send)?$/.exec(h);
+    if (m) { await openProposal(+m[1]); show('edit'); if (m[2]) openSend(); return; }
+    if (h === 'past' || h === 'style') { show('past'); loadPast(); return; }
+    if (h === 'wording') { show('wording'); loadWording(); return; }
+    const jm = /^job\/([a-f0-9]+)$/.exec(h);   // a draft started from the Claude window or an email card
+    show('new'); loadNew();
+    if (jm && S.job !== jm[1]) { S.job = jm[1]; $('a-go').disabled = true; $('a-go').textContent = 'Writing…'; working(STEPS); pollJob(); }
+  }
+  document.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
+    const st = b.dataset.step; location.hash = st === 'new' ? '#new' : st === 'past' ? '#past' : st === 'wording' ? '#wording' : (S.id ? '#p/' + S.id : '#new');
+  }));
+  window.addEventListener('hashchange', route);
+  window.addEventListener('resize', () => { if (S.fit) S.fit(); });
+
+  // ---------------- new proposal
+  let newLoaded = false;
+  async function loadNew() {
+    loadRecent();
+    if (newLoaded) return; newLoaded = true;
+    try { const h = await api('/proposal-studio/house'); $('a-type').innerHTML = '<option value="">Job type…</option>' + h.job_types.map(t => `<option>${esc(t)}</option>`).join(''); } catch (e) {}
+    try {
+      const cl = (await api('/company/portal/clients?type=all')) || [];
+      $('a-client').innerHTML = '<option value="">Client…</option>' + cl.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('') + '<option value="new">+ New client…</option>';
+    } catch (e) { $('a-client').innerHTML = '<option value="new">+ New client…</option>'; }
+    try {
+      const rows = (await fetch('/api/inbox/messages', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : { data: [] })).data || [];
+      $('a-mail').innerHTML = '<option value="">+ From an email</option>' + rows.slice(0, 40).map(m => `<option value="${m.id}">${esc((m.subject || '').slice(0, 50))} · ${esc(m.who || '')}</option>`).join('');
+    } catch (e) {}
+  }
+  async function loadRecent() {
+    try {
+      const rows = await api('/proposal-studio/proposals');
+      $('recent').innerHTML = rows.length ? rows.map(r => `<a class="prow" href="#p/${r.id}"><div><b>${esc(r.title || r.number)}</b><small>${esc(r.client_name)} · ${esc(r.number)}</small></div><span class="pill ${esc(r.status)}">${esc(r.status === 'sent' && r.sent_at ? 'Sent ' + fmtDate(r.sent_at) : r.status[0].toUpperCase() + r.status.slice(1))}</span><span class="num">${r.price != null ? money(r.price) : ''}</span></a>`).join('')
+        : '<div class="muted" style="padding:8px">Your proposals show here.</div>';
+    } catch (e) { $('recent').innerHTML = `<div class="muted">${esc(e.message)}</div>`; }
+  }
+  $('a-client').addEventListener('change', () => { $('a-newclient').hidden = $('a-client').value !== 'new'; if ($('a-client').value === 'new') $('a-newclient').focus(); });
+  function drawAtts() {
+    $('a-atts').innerHTML = S.files.map((f, i) => `<span class="att"><i>${esc((f.name.split('.').pop() || '').toUpperCase().slice(0, 4))}</i><span>${esc(f.name)}</span><button type="button" data-rmf="${i}" aria-label="Remove ${esc(f.name)}">×</button></span>`).join('');
+  }
+  $('a-atts').addEventListener('click', e => { const b = e.target.closest('[data-rmf]'); if (b) { S.files.splice(+b.dataset.rmf, 1); drawAtts(); } });
+  $('a-attach').addEventListener('click', () => $('a-file').click());
+  $('a-file').addEventListener('change', async e => {
+    for (const f of Array.from(e.target.files || [])) {
+      const fd = new FormData(); fd.append('file', f);
+      try {
+        const res = await fetch('/api/claude/files', { method: 'POST', body: fd, credentials: 'same-origin' });
+        const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || 'Upload failed');
+        S.files.push({ id: (j.data || j).id, name: f.name }); drawAtts();
+      } catch (x) { toast(x.message, true); }
+    }
+    e.target.value = '';
+  });
+  $('a-what').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) $('ask-form').requestSubmit(); });
+  $('ask-form').addEventListener('submit', async e => {
+    e.preventDefault(); $('a-err').textContent = '';
+    const c = $('a-client').value;
+    const body = { what: $('a-what').value, building_address: $('a-addr').value, file_ids: S.files.map(f => f.id), mail_id: $('a-mail').value || null,
+      job_type: $('a-type').value || null, heading: $('a-head').value };
+    if (c === 'new') body.client_name = $('a-newclient').value; else if (c) body.client_org_id = +c;
+    $('a-go').disabled = true; $('a-go').textContent = 'Writing…';
+    try { const r = await api('/proposal-studio/drafts', { method: 'POST', body: JSON.stringify(body) }); S.job = r.job; working(r.steps); pollJob(); }
+    catch (x) { $('a-err').textContent = x.message; $('a-go').disabled = false; $('a-go').textContent = '✦ Write it'; }
+  });
+  function working(steps) {
+    const w = $('a-working'); w.hidden = false;
+    w.innerHTML = steps.map((s, i) => `<div class="wk" data-w="${i}"><i></i>${esc(s)}</div>`).join('');
+    let shown = 0; clearInterval(S.stepT);
+    S.stepT = setInterval(() => { shown = Math.min(shown + 1, steps.length - 1); markStep(shown); }, 5000); markStep(0);
+  }
+  function markStep(n) { document.querySelectorAll('#a-working .wk').forEach((x, i) => x.className = 'wk' + (i < n ? ' done' : i === n ? ' cur' : '')); }
+  async function pollJob() {
+    try {
+      const j = await api('/proposal-studio/jobs/' + S.job);
+      if (j.state === 'working') { setTimeout(pollJob, 1500); return; }
+      S.job = null;
+      clearInterval(S.stepT); $('a-go').disabled = false; $('a-go').textContent = '✦ Write it';
+      if (j.state === 'failed') { $('a-working').hidden = true; $('a-err').textContent = j.error || 'Claude could not finish the draft.'; return; }
+      $('a-working').hidden = true; S.files = []; drawAtts(); $('a-what').value = '';
+      location.hash = '#p/' + j.proposal_id; toast('Draft ready. Click any text to edit it');
+    } catch (x) { setTimeout(pollJob, 3000); }
+  }
+
+  // ---------------- the proposal (no-scripts frame the page edits in place)
+  async function openProposal(id, keep) {
+    if (S.id === id && S.v && keep !== false) return;
+    S.id = id;
+    try { draw(await api('/proposal-studio/' + id)); }
+    catch (e) { toast(e.message, true); S.id = null; location.hash = '#new'; }
+  }
+  function draw(v, flash) {
+    S.v = v; const p = v.proposal;
+    $('e-title').textContent = (p.title || 'Proposal') + ' · ' + (p.client_name || '');
+    $('e-num').textContent = /^\d/.test(v.label || '') ? 'Proposal No. ' + v.label : (v.label || p.number) + (p.version > 1 ? ' (version ' + p.version + ')' : '');
+    const lay = ssc();
+    $('ck-card').hidden = !lay; $('e-head-row').hidden = !lay; $('e-legacy-row').hidden = lay; $('e-secs-row').hidden = lay; $('e-addsec').hidden = lay;
+    document.querySelectorAll('[data-addlist]').forEach(b => b.hidden = !lay);
+    if (lay) { drawChecks(v); document.querySelectorAll('[data-head]').forEach(b => { b.classList.toggle('on', b.dataset.head === (v.content.heading || 'ESTIMATE')); b.disabled = !v.editable; }); }
+    $('e-status').textContent = p.status[0].toUpperCase() + p.status.slice(1); $('e-status').className = 'pill ' + p.status;
+    $('e-pdf').href = `/api/proposals/${p.id}/pdf`;
+    $('e-locked').hidden = v.editable; $('e-send').hidden = !v.editable;
+    $('e-send').disabled = lay && v.checks.some(x => x.level === 'block'); $('e-send').title = $('e-send').disabled ? 'Fix the red items on the checklist first' : '';
+    $('e-locked-t').textContent = p.status === 'signed' ? 'Signed: this proposal is final.' : `This proposal was ${p.status}${p.sent_at ? ' on ' + fmtDate(p.sent_at) : ''}. The sent copy stays as it was.`;
+    $('e-version').hidden = !['sent', 'viewed', 'declined'].includes(p.status);
+    $('doc-tools').hidden = !v.editable;
+    $('e-used-box').hidden = !v.sources.length;
+    $('e-used').innerHTML = v.sources.map(s => `<div><i>✓</i>${esc(s)}</div>`).join('');
+    $('e-valid').value = (p.valid_until || '').slice(0, 10); $('e-dep').value = p.deposit_pct != null ? p.deposit_pct : '';
+    $('e-valid').disabled = $('e-dep').disabled = !v.editable;
+    if (!lay) drawSecs(); paint(v.html, flash);
+    document.querySelectorAll('[data-step="edit"]').forEach(b => b.disabled = false);
+  }
+  function paint(html, flash) {
+    const f = $('doc'), y = f.contentWindow ? f.contentWindow.scrollY : 0;
+    f.onload = () => {
+      const d = f.contentDocument; if (!d) return;
+      if (!S.v.editable) d.querySelectorAll('[contenteditable]').forEach(x => x.removeAttribute('contenteditable'));
+      const fit = () => {   // the page is a Letter sheet: on a phone it scales down to fit instead of scrolling sideways
+        const z = Math.min(1, (f.clientWidth - 4) / 760); d.documentElement.style.zoom = z;
+        f.style.height = Math.max(400, Math.ceil(d.body.getBoundingClientRect().bottom) + 30) + 'px';   // measured zoomed, never the frame's own height
+      };
+      fit(); setTimeout(fit, 300); S.fit = fit;
+      d.addEventListener('input', e => { onEdit(e.target); fit(); });
+      d.addEventListener('focusout', e => { if (e.target.closest && e.target.closest('[data-lf]')) saveSoon(true); });
+      d.addEventListener('keydown', e => {
+        if (e.key !== 'Enter' || !e.target.closest) return;
+        const li = e.target.closest('li[data-f]');
+        if (li && !e.shiftKey) { e.preventDefault(); const k = li.dataset.f, items = readList(k); items.splice(+li.dataset.i + 1, 0, 'Type here'); pend[k] = items; flushNow(k, +li.dataset.i + 1); return; }
+        if (e.target.closest('[data-lf], span[data-f]')) { e.preventDefault(); e.target.blur(); }
+      });
+      d.addEventListener('focusin', e => { const el = e.target; if (el.matches && el.matches('li[data-f]') && txt(el) === 'Type here') { const r = d.createRange(); r.selectNodeContents(el); const sel = d.getSelection(); sel.removeAllRanges(); sel.addRange(r); } });
+      d.addEventListener('focusout', e => { const li = e.target.closest && e.target.closest('li[data-f]'); if (li && !txt(li)) { pend[li.dataset.f] = readList(li.dataset.f); saveSoon(true); } });
+      if (S.v.editable) d.querySelectorAll('tr[data-li]').forEach(tr => {
+        const td = tr.lastElementChild; if (!td) return;
+        const b = d.createElement('button'); b.type = 'button'; b.textContent = '×'; b.title = 'Remove this line';
+        b.style.cssText = 'margin-left:6px;border:0;background:none;color:#a0a4ae;cursor:pointer;font-size:14px;padding:0 2px';
+        b.addEventListener('click', () => { const lines = readLines(); lines.splice(+tr.dataset.li, 1); save({}, lines, true); });
+        td.appendChild(b);
+      });
+      (flash || []).forEach(k => {
+        const els = k === 'lines' ? d.querySelectorAll('tr[data-li]') : d.querySelectorAll(`[data-f="${k}"]`);
+        els.forEach(x => { x.classList.add('ssc-flash'); setTimeout(() => x.classList.remove('ssc-flash'), 1800); });
+        if (els[0]) els[0].scrollIntoView({ block: 'center' });
+      });
+      if (!flash) try { f.contentWindow.scrollTo(0, y); } catch (e) {}
+    };
+    f.srcdoc = html;
+  }
+  const txt = el => (el.innerText || '').replace(/ /g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  function readLines() {
+    const d = $('doc').contentDocument;
+    return Array.from(d.querySelectorAll('tr[data-li]')).map(tr => {
+      const g = k => { const el = tr.querySelector(`[data-lf="${k}"]`); return el ? txt(el) : ''; };
+      const n = v => { const x = parseFloat(String(v).replace(/[$,\s]/g, '')); return isNaN(x) ? 0 : x; };
+      if (ssc()) return { lead: g('lead'), detail: g('detail'), qty: n(g('qty')), unit: g('unit'), unit_price: n(g('unit_price')) };
+      return { description: g('description'), qty: n(g('qty')), unit: g('unit'), unit_price: n(g('unit_price')) };
+    });
+  }
+  // the company layout: lists are bullets, the four top boxes are lines
+  function readList(k) { return Array.from($('doc').contentDocument.querySelectorAll(`li[data-f="${k}"]`)).map(txt); }
+  async function flushNow(k, focusAt) {
+    clearTimeout(saveT); await flush(true);
+    if (focusAt != null) setTimeout(() => { const el = $('doc').contentDocument.querySelector(`li[data-f="${k}"][data-i="${focusAt}"]`); if (el) el.focus(); }, 120);
+  }
+  let pend = {}, pendLines = false, saveT = null;
+  function onEdit(el) {
+    const f = el.closest && el.closest('[data-f]'), lf = el.closest && el.closest('[data-lf]');
+    if (lf) pendLines = true;
+    else if (f && ssc()) { const k = f.dataset.f; pend[k] = LISTS.includes(k) ? readList(k) : MULTI.includes(k) ? txt(f).split('\n').map(x => x.trim()).filter(Boolean) : txt(f); }
+    else if (f) { const k = f.dataset.f; if (/^x\d+[hb]$/.test(k)) pend.extra_sections = true; else pend[k] = txt(f); }
+    $('e-saved').textContent = 'Editing…'; saveSoon(false);
+  }
+  function saveSoon(redraw) { clearTimeout(saveT); saveT = setTimeout(() => flush(redraw), redraw ? 50 : 900); }
+  async function flush(redraw) {
+    const fields = Object.assign({}, pend); pend = {};
+    if (fields.extra_sections && !ssc()) fields.extra_sections = readExtras();
+    const lines = pendLines ? readLines() : null; pendLines = false;
+    if (!Object.keys(fields).length && !lines) return;
+    await save(fields, lines, redraw || !!lines);
+  }
+  function readExtras() {
+    const d = $('doc').contentDocument, cur = (S.v.sections.extra_sections || []);
+    return cur.map((s, i) => { const h = d.querySelector(`[data-f="x${i}h"]`), b = d.querySelector(`[data-f="x${i}b"]`); return { heading: h ? txt(h) : s.heading, body: b ? txt(b) : s.body }; });
+  }
+  async function save(fields, lines, redraw, flash) {
+    $('e-saved').textContent = 'Saving…';
+    const body = ssc() ? { content: fields } : { fields }; if (lines) body.lines = lines;
+    try {
+      const v = await api('/proposal-studio/' + S.id, { method: 'PATCH', body: JSON.stringify(body) });
+      $('e-saved').textContent = 'Saved';
+      if (redraw) draw(v, flash);
+      else {
+        S.v = Object.assign(S.v, { proposal: v.proposal, lines: v.lines, sections: v.sections, content: v.content, checks: v.checks, new_clauses: v.new_clauses });
+        if (ssc()) { drawChecks(S.v); $('e-send').disabled = S.v.checks.some(x => x.level === 'block'); }
+      }
+    } catch (x) { $('e-saved').textContent = 'Not saved'; toast(x.message, true); }
+  }
+  $('e-addline').addEventListener('click', () => { const l = readLines(); l.push(ssc() ? { lead: 'New item', detail: '', qty: 1, unit: 'LS', unit_price: 0 } : { description: 'New item', qty: 1, unit: 'ls', unit_price: 0 }); save({}, l, true, ['lines']); });
+  document.querySelectorAll('[data-addlist]').forEach(b => b.addEventListener('click', async () => {
+    const k = b.dataset.addlist, items = readList(k); items.push('Type here'); await save({ [k]: items }, null, true, [k]);
+  }));
+  document.querySelectorAll('[data-head]').forEach(b => b.addEventListener('click', () => save({ heading: b.dataset.head }, null, true)));
+  function drawChecks(v) {
+    const ico = { ok: '✓', warn: '!', block: '✕' }, nc = v.new_clauses || [];
+    $('ck').innerHTML = v.checks.map(x => {
+      const m = /^Not in your library yet: “(.*)”\. Read it once\.$/.exec(x.text);
+      const full = m ? nc.find(c => c.startsWith(m[1].replace(/…$/, ''))) : null;
+      return `<div class="${x.level}"><i>${ico[x.level]}</i><span>${esc(x.text)}</span>${full != null ? `<button class="btn-ghost btn-sm" type="button" data-keep="${esc(full)}">Keep it</button>` : ''}</div>`;
+    }).join('');
+  }
+  $('ck').addEventListener('click', async e => {
+    const b = e.target.closest('[data-keep]'); if (!b) return; b.disabled = true;
+    try { draw(await api('/proposal-studio/' + S.id + '/keep', { method: 'POST', body: JSON.stringify({ text: b.dataset.keep }) })); toast('Added to your library'); }
+    catch (x) { toast(x.message, true); b.disabled = false; }
+  });
+  $('e-addsec').addEventListener('click', () => { const x = readExtras(); x.push({ heading: 'New section', body: 'Type here, or ask Claude to write it.' }); save({ extra_sections: x }, null, true, ['x' + (x.length - 1) + 'h']); });
+  const SECS = [['intro', 'Opening letter'], ['scope', 'Scope of work'], ['schedule', 'Schedule'], ['exclusions', 'Exclusions'], ['terms', 'Payment terms']];
+  function drawSecs() {
+    const hid = new Set(S.v.sections.hidden_sections || []), ed = S.v.editable;
+    $('e-secs').innerHTML = SECS.map(([k, l]) => `<label><input type="checkbox" data-sec="${k}" ${hid.has(k) ? '' : 'checked'} ${ed ? '' : 'disabled'}> ${l}</label>`).join('') +
+      (S.v.sections.extra_sections || []).map((s, i) => `<div class="x"><span>${esc(s.heading || 'Section')}</span>${ed ? `<button class="btn-ghost btn-sm" type="button" data-rmsec="${i}">Remove</button>` : ''}</div>`).join('');
+  }
+  $('e-secs').addEventListener('change', e => {
+    const c = e.target.closest('[data-sec]'); if (!c) return;
+    const hid = new Set(S.v.sections.hidden_sections || []); c.checked ? hid.delete(c.dataset.sec) : hid.add(c.dataset.sec);
+    save({ hidden_sections: Array.from(hid) }, null, true);
+  });
+  $('e-secs').addEventListener('click', e => { const b = e.target.closest('[data-rmsec]'); if (!b) return; const x = readExtras(); x.splice(+b.dataset.rmsec, 1); save({ extra_sections: x }, null, true); });
+  $('e-valid').addEventListener('change', () => save({ valid_until: $('e-valid').value }, null, true));
+  $('e-dep').addEventListener('change', () => save({ deposit_pct: $('e-dep').value }, null, true));
+  $('e-version').addEventListener('click', async () => {
+    try { const r = await api('/proposal-studio/' + S.id + '/new-version', { method: 'POST', body: '{}' }); S.v = null; location.hash = '#p/' + r.id; toast(r.number + ' is ready to edit'); }
+    catch (x) { toast(x.message, true); }
+  });
+  const chat = $('chat');
+  function say(cls, html) { chat.insertAdjacentHTML('beforeend', `<div class="msg ${cls}">${html}</div>`); chat.scrollTop = chat.scrollHeight; return chat.lastElementChild; }
+  const LABEL = { heading: 'heading', job_type: 'job type', submitted_to: 'submitted to', project: 'project', reference: 'reference', overview: 'overview',
+    notes: 'important notes', deliverables: 'deliverables', mobilization: 'mobilization', duration: 'duration', hours: 'hours', warranty: 'warranty',
+    additional_insureds: 'insured names', accepted_by: 'accepted by', title: 'title', submitted_by: 'submitted by', prepared_for: 'prepared for', project_text: 'building', reference_text: 'reference', intro_text: 'opening', scope_summary: 'scope', schedule_text: 'schedule', exclusions_text: 'exclusions', terms_text: 'terms', deposit_pct: 'deposit', email_message: 'email', extra_sections: 'sections', lines: 'price lines' };
+  async function ask(q) {
+    if (!S.v || !S.v.editable) { toast('Make a new version first to change a sent proposal', true); return; }
+    await flush(false);
+    say('u', esc(q)); const wait = say('c', 'Working on it…');
+    try {
+      const r = await api('/proposal-studio/' + S.id + '/revise', { method: 'POST', body: JSON.stringify({ instruction: q }) });
+      wait.remove();
+      if (!r.changed.length) { say('c', 'Nothing needed to change for that. Try saying it another way.'); return; }
+      draw(r, r.changed);
+      const m = say('c', 'Changed the ' + esc(r.changed.map(k => LABEL[k] || k).join(', ')) + '. <button class="undo" type="button">Undo</button>');
+      m.querySelector('.undo').addEventListener('click', async ev => {
+        ev.target.remove(); const b = r.before;
+        if (ssc()) { try { draw(await api('/proposal-studio/' + S.id + '/undo', { method: 'POST', body: JSON.stringify({ before: b }) })); say('c', 'Undone.'); } catch (x) { toast(x.message, true); } return; }
+        await save({ title: b.title, submitted_by: b.submitted_by, prepared_for: b.prepared_for, project_text: b.project_text, reference_text: b.reference_text, intro_text: b.intro_text, scope_summary: b.scope_summary,
+          schedule_text: b.schedule_text, exclusions_text: b.exclusions_text, terms_text: b.terms_text, deposit_pct: b.deposit_pct, email_message: b.email_message, extra_sections: b.extra_sections }, b.lines, true);
+        say('c', 'Undone.');
+      });
+    } catch (x) { wait.remove(); say('c', esc(x.message)); }
+  }
+  document.addEventListener('click', e => { const a = e.target.closest('[data-ask]'); if (a) ask(a.dataset.ask); });
+  $('chat-form').addEventListener('submit', e => { e.preventDefault(); const q = $('chat-in').value.trim(); if (q) { $('chat-in').value = ''; ask(q); } });
+
+  // ---------------- send (pop-up)
+  function openSend() {
+    const v = S.v; if (!v || !v.editable) return; const p = v.proposal;
+    $('s-err').textContent = '';
+    $('s-from').textContent = v.gmail ? 'from ' + v.gmail : 'Connect your Gmail on the Inbox page first';
+    $('s-thread').innerHTML = v.threads.map(t => `<option value="${t.id}">${esc(t.subject || '(no subject)')} · ${esc((t.from || '').split('<')[0].trim())} · ${fmtDate(t.received_at)}</option>`).join('');
+    if (p.source_mail_id && v.threads.some(t => t.id === p.source_mail_id)) $('s-thread').value = String(p.source_mail_id);
+    document.querySelector('[data-how="reply"]').hidden = !v.threads.length;
+    $('s-people').innerHTML = v.contacts.map(c => `<option value="${esc(c.full_name)} <${esc(c.email)}>">${esc(c.title || '')}</option>`).join('');
+    if (!$('s-to').value) $('s-to').value = p.recipient_email ? `${p.recipient_name || ''} <${p.recipient_email}>`.trim() : (v.contacts[0] ? `${v.contacts[0].full_name} <${v.contacts[0].email}>` : '');
+    const no = v.label || p.number;
+    $('s-msg').value = p.email_message || `Hi,\n\nAttached is our proposal ${no} for ${p.title || 'the work'}.\n\nBest,`;
+    $('s-file').textContent = ssc() ? `Proposal ${no} - ${((v.content.project || [])[0] || p.client_name || '').split(',')[0]}.pdf` : `${p.number} ${p.client_name || ''}.pdf`;
+    setHow(v.threads.length ? 'reply' : 'new');
+    $('send-m').hidden = false;
+  }
+  function setHow(how) {
+    S.how = how;
+    document.querySelectorAll('[data-how]').forEach(b => b.classList.toggle('on', b.dataset.how === how));
+    $('s-thread-row').hidden = how !== 'reply'; $('s-to-row').hidden = $('s-cc-row').hidden = how === 'reply';
+    const p = S.v.proposal, t = S.v.threads.find(x => String(x.id) === $('s-thread').value);
+    $('s-subject').value = how === 'reply' && t ? 'Re: ' + String(t.subject || '').replace(/^\s*(re|fw|fwd)\s*:\s*/i, '') : `Proposal ${S.v.label || p.number} · ${p.title || ''}`;
+  }
+  document.querySelectorAll('[data-how]').forEach(b => b.addEventListener('click', () => setHow(b.dataset.how)));
+  $('s-thread').addEventListener('change', () => setHow('reply'));
+  $('e-view').addEventListener('click', async () => {
+    await flush(false); const p = S.v.proposal, no = S.v.label || p.number;
+    window.SSC_PDF.panel({ title: (/^\d/.test(no) ? 'Proposal ' : '') + no, sub: p.client_name || '', url: `/api/proposals/${p.id}/pdf`, links: [{ label: 'Download', href: `/api/proposals/${p.id}/pdf`, download: true }] });
+  });
+  $('e-send').addEventListener('click', async () => { await flush(true); if (!$('e-send').disabled) openSend(); });
+  $('s-cancel').addEventListener('click', () => { $('send-m').hidden = true; });
+  $('send-m').addEventListener('click', e => { if (e.target === $('send-m')) $('send-m').hidden = true; });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('send-m').hidden = true; $('arch-m').hidden = true; closeMenu(); } });
+  $('s-send').addEventListener('click', async () => {
+    const b = $('s-send'); b.disabled = true; b.textContent = 'Making the PDF and sending…'; $('s-err').textContent = '';
+    try {
+      const r = await api('/proposal-studio/' + S.id + '/send', { method: 'POST', body: JSON.stringify({ how: S.how, mail_id: $('s-thread').value, to: $('s-to').value, cc: $('s-cc').value, subject: $('s-subject').value, message: $('s-msg').value }) });
+      $('send-m').hidden = true;
+      toast('Sent to ' + (r.to || 'the client').split('<')[0].trim() + ' with the PDF' + (r.follow_up_task ? ' · follow-up on ' + fmtDate(r.follow_up_date) : ''));
+      S.v = null; openProposal(S.id, false);
+    } catch (x) { $('s-err').textContent = x.message; }
+    finally { b.disabled = false; b.textContent = 'Send from my Gmail'; }
+  });
+
+  // ---------------- your past proposals
+  async function loadPast() { try { drawPast(await api('/proposal-template')); } catch (e) { $('pp-err').textContent = e.message; } }
+  function drawPast(t) {
+    const list = t.templates || [], reading = list.filter(x => x.state === 'reading').length, ready = list.filter(x => x.state === 'ready').length;
+    const lb = $('pp-learned');
+    lb.hidden = !list.length; lb.className = 'learned' + (reading ? ' reading' : '');
+    lb.innerHTML = reading ? `Claude is reading ${reading} proposal${reading === 1 ? '' : 's'}… about a minute each.`
+      : `<span>✓ Claude has read <b>${ready} proposal${ready === 1 ? '' : 's'}</b> · they're listed in Estimates &amp; proposals, their wording is in your library and their prices in your price history</span>` +
+        (list.some(x => x.state !== 'reading' && (!x.learned || !x.archive)) ? ` <button class="btn-ghost btn-sm" type="button" id="pp-relearn">Read them again</button>` : '');
+    S.arch = list;
+    const done = list.filter(x => x.state === 'ready' && x.archive), other = list.filter(x => !(x.state === 'ready' && x.archive));
+    done.sort((a, b) => String(b.archive.date || '').localeCompare(String(a.archive.date || '')) || String(b.archive.number).localeCompare(String(a.archive.number), undefined, { numeric: true }));
+    $('pp-grid').hidden = !list.length;
+    const row = x => { const a = x.archive, miss = !a.number || !a.date || !a.total;
+      return `<div class="arch-row" data-ppdf="${x.id}" role="button" tabindex="0" aria-label="Open proposal ${esc(a.number || x.name)}">` +
+        `<span class="no">${esc(a.number || '—')}${miss ? '<span class="chk" title="Claude couldn’t read everything">check</span>' : ''}</span>` +
+        `<span class="t c-cl">${esc(a.client || '—')}</span><span class="t c-ad m">${esc(a.building || '—')}</span>` +
+        `<span class="c-dt m">${a.date ? fmtDate(a.date) : '—'}</span><span class="r tot">${a.total ? money(a.total) : '—'}</span>` +
+        `<button class="more" type="button" data-amenu="${x.id}" aria-label="More for proposal ${esc(a.number || x.name)}">⋯</button>` +
+        `<span class="t who">${esc([a.client, a.building, a.date ? fmtDate(a.date) : ''].filter(Boolean).join(' · ') || x.name)}</span></div>`; };
+    const pending = x => `<div class="arch-row" style="cursor:default"><span class="no m">…</span><span class="t c-cl">${esc(x.name)}</span>` +
+      `<span class="t c-ad m">${x.state === 'reading' ? 'Claude is reading it…' : x.state === 'failed' ? esc(x.error || 'Couldn’t read it') : 'Not read yet: use “Read them again”'}</span><span class="c-dt"></span><span class="tot"></span>` +
+      `<button class="more" type="button" data-amenu="${x.id}" aria-label="More for ${esc(x.name)}">⋯</button><span class="t who">${esc(x.state === 'reading' ? 'Claude is reading it…' : x.name)}</span></div>`;
+    $('pp-grid').innerHTML = `<div class="arch-h"><span><b style="color:var(--ink)">${done.length}</b> proposal${done.length === 1 ? '' : 's'} from before the app</span><span>Click one to open its PDF</span></div>` +
+      `<div class="arch-row head"><span>No.</span><span>Client</span><span>Address</span><span>Date</span><span class="r">Total</span><span></span></div>` +
+      other.map(pending).join('') + done.map(row).join('');
+    if (reading) setTimeout(loadPast, 5000);
+  }
+  $('pp-learned').addEventListener('click', async e => {
+    if (!e.target.closest('#pp-relearn')) return;
+    try { drawPast(await api('/proposal-template/relearn', { method: 'POST', body: '{}' })); toast('Claude is reading them again'); } catch (x) { toast(x.message, true); }
+  });
+  function archItem(id) { return (S.arch || []).find(x => String(x.id) === String(id)); }
+  function closeMenu() { const m = document.querySelector('.arch-menu'); if (m) m.remove(); }
+  function openArchPdf(id) {
+    const x = archItem(id); if (!x) return; const a = x.archive || {}, url = '/api/proposal-template/' + x.id + '/file';
+    window.SSC_PDF.panel({ title: a.number ? 'Proposal ' + a.number : x.name, sub: [a.client, a.date ? fmtDate(a.date) : '', a.total ? money(a.total) : '', 'Before the app'].filter(Boolean).join(' · '),
+      url, links: [{ label: 'Download', href: url, download: true }] });
+  }
+  function openArchEdit(id) {
+    const x = archItem(id); if (!x) return; const a = x.archive || {};
+    S.archEdit = x.id; $('af-err').textContent = '';
+    $('af-number').value = a.number || ''; $('af-date').value = a.date ? fmtDate(a.date) : ''; $('af-client').value = a.client || '';
+    $('af-building').value = a.building || ''; $('af-total').value = a.total ? money(a.total) : '';
+    $('arch-m').hidden = false; $('af-number').focus();
+  }
+  $('pp-grid').addEventListener('click', async e => {
+    const m = e.target.closest('[data-amenu]');
+    if (m) {
+      e.stopPropagation(); const had = document.querySelector('.arch-menu'); closeMenu(); if (had && had.dataset.for === m.dataset.amenu) return;
+      const x = archItem(m.dataset.amenu), r = m.getBoundingClientRect(), menu = document.createElement('div');
+      menu.className = 'arch-menu'; menu.dataset.for = m.dataset.amenu;
+      menu.innerHTML = (x && x.archive ? '<button type="button" data-act="pdf">Open the PDF</button><button type="button" data-act="edit">Edit details</button>' : '') +
+        '<button type="button" class="del" data-act="rm">Remove from the archive</button>';
+      document.body.appendChild(menu);
+      menu.style.top = (window.scrollY + r.bottom + 4) + 'px'; menu.style.left = Math.max(8, window.scrollX + r.right - menu.offsetWidth) + 'px';
+      menu.addEventListener('click', async ev => {
+        const b = ev.target.closest('[data-act]'); if (!b) return; const id = menu.dataset.for; closeMenu();
+        if (b.dataset.act === 'pdf') openArchPdf(id);
+        else if (b.dataset.act === 'edit') openArchEdit(id);
+        else if (confirm('Remove this proposal from the archive? Its PDF is deleted.')) {
+          try { drawPast(await api('/proposal-template/' + id, { method: 'DELETE' })); toast('Removed'); } catch (x2) { toast(x2.message, true); }
+        }
+      });
+      return;
+    }
+    const r = e.target.closest('[data-ppdf]'); if (r) openArchPdf(r.dataset.ppdf);
+  });
+  $('pp-grid').addEventListener('keydown', e => { const r = e.target.closest('[data-ppdf]'); if (r && (e.key === 'Enter' || e.key === ' ') && e.target === r) { e.preventDefault(); openArchPdf(r.dataset.ppdf); } });
+  document.addEventListener('click', e => { if (!e.target.closest('.arch-menu')) closeMenu(); });
+  $('af-cancel').addEventListener('click', () => { $('arch-m').hidden = true; });
+  $('arch-m').addEventListener('click', e => { if (e.target === $('arch-m')) $('arch-m').hidden = true; });
+  $('arch-f').addEventListener('submit', async e => {
+    e.preventDefault(); const body = {}; document.querySelectorAll('[data-af]').forEach(i => { body[i.dataset.af] = i.value; });
+    try { drawPast(await api('/proposal-template/' + S.archEdit, { method: 'PATCH', body: JSON.stringify(body) })); $('arch-m').hidden = true; toast('Saved'); }
+    catch (x) { $('af-err').textContent = x.message; }
+  });
+  async function uploadPast(files) {
+    files = Array.from(files || []).filter(Boolean); if (!files.length) return;
+    $('pp-err').textContent = '';
+    const fd = new FormData(); files.forEach(f => fd.append('file', f));
+    try {
+      const res = await fetch('/api/proposal-template', { method: 'POST', body: fd, credentials: 'same-origin' });
+      const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || ('The upload didn’t go through (' + res.status + ')'));
+      drawPast(j.data); toast(files.length === 1 ? 'Uploaded. Claude is reading it' : files.length + ' proposals uploaded. Claude is reading them');
+      if (j.data.errors && j.data.errors.length) $('pp-err').textContent = j.data.errors.join(' ');
+    } catch (x) { $('pp-err').textContent = x.message; }
+  }
+  $('pp-add').addEventListener('click', () => $('pp-file').click());
+  $('pp-file').addEventListener('change', e => { const f = Array.from(e.target.files || []); e.target.value = ''; uploadPast(f); });
+  ['dragenter', 'dragover'].forEach(ev => $('pp-drop').addEventListener(ev, e => { e.preventDefault(); $('pp-drop').classList.add('on'); }));
+  ['dragleave', 'drop'].forEach(ev => $('pp-drop').addEventListener(ev, e => { e.preventDefault(); if (ev === 'dragleave' && $('pp-drop').contains(e.relatedTarget)) return; $('pp-drop').classList.remove('on'); }));
+  $('pp-drop').addEventListener('drop', e => uploadPast(e.dataTransfer && e.dataTransfer.files));
+
+  // ---------------- fixed wording + library
+  async function loadWording() { try { drawWording(await api('/proposal-studio/house')); } catch (e) { $('fw-err').textContent = e.message; } }
+  function drawWording(d) {
+    document.querySelectorAll('[data-h]').forEach(el => { const v = d.house[el.dataset.h]; el.value = Array.isArray(v) ? v.join('\n') : (v == null ? '' : v); });
+    drawLib(d.library);
+  }
+  function drawLib(lib) {
+    ['notes', 'exclusions', 'deliverables'].forEach(k => {
+      $('lib-' + k).innerHTML = (lib[k] || []).map(i => `<div><span>${esc(i.text)}</span><small>${i.added ? 'added' : i.uses + '×'}</small><button type="button" data-hide="${esc(i.text)}" aria-label="Remove from the library">×</button></div>`).join('') || '<span class="muted">Nothing yet. Upload past proposals.</span>';
+    });
+  }
+  $('fw-form').addEventListener('submit', async e => {
+    e.preventDefault(); $('fw-err').textContent = ''; const h = {};
+    document.querySelectorAll('[data-h]').forEach(el => { h[el.dataset.h] = el.value; });
+    try { drawWording(await api('/proposal-studio/house', { method: 'PUT', body: JSON.stringify({ house: h }) })); toast('Saved. Every proposal uses it from now on'); }
+    catch (x) { $('fw-err').textContent = x.message; }
+  });
+  $('v-wording').addEventListener('click', async e => {
+    const b = e.target.closest('[data-hide]'); if (!b) return;
+    try { drawLib(await api('/proposal-studio/library', { method: 'POST', body: JSON.stringify({ hide: b.dataset.hide }) })); toast('Removed from the library'); } catch (x) { toast(x.message, true); }
+  });
+  $('lib-add').addEventListener('submit', async e => {
+    e.preventDefault(); const t = $('lib-text').value.trim(); if (!t) return;
+    try { drawLib(await api('/proposal-studio/library', { method: 'POST', body: JSON.stringify({ add: { kind: $('lib-kind').value, text: t } }) })); $('lib-text').value = ''; toast('Added'); } catch (x) { toast(x.message, true); }
+  });
+
+  route();
+})();
+</script>
+<link rel="stylesheet" href="/files/static/css/unify.css?v=15">
+<script src="/files/static/js/file_drop.js?v=1" defer></script>
+</body>
+</html>

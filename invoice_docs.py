@@ -36,6 +36,7 @@ from typing import Optional
 
 from flask import Response, jsonify, make_response, request, send_file
 
+import company_brand
 import crm
 import db_layer
 import invoices
@@ -201,9 +202,9 @@ def render_document(conn, inv: dict) -> str:
     lic = f" · License {e(facts['company_license'])}" if facts["company_license"] else ""
     where = inv.get("building_address") or inv.get("project_name") or inv.get("project_code") or ""
     return f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Invoice {e(inv['number'])} — {COMPANY_NAME}</title><style>{_DOC_CSS}</style></head><body>
+<title>Invoice {e(inv['number'])} — {COMPANY_NAME}</title><style>{_DOC_CSS}{company_brand.BRAND_CSS}</style></head><body>
 <div class="sheet"><div class="bar"></div><div class="pad">
-  <div class="head"><div class="brand">{COMPANY_NAME}<small>Facade restoration · New York City</small></div>
+  <div class="head">{company_brand.brand_block(conn, "Facade restoration · New York City")}
     <div class="meta"><strong>{e(kind.upper())}</strong>{e(inv['number'])}<br>Issued {e(_fmt_date(inv.get('issued_at')))}<br>Due {e(_fmt_date(inv.get('due_at')))}</div></div>
   <h1>{e(inv.get('description') or kind)}</h1>
   <div class="two" style="margin-top:14px">

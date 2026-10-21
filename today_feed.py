@@ -422,7 +422,7 @@ def needs(conn, uid, today: date, now: datetime, pay_rows: list, crew_info: dict
             names = ", ".join(sorted({(i.get("subject") or i["title"]) for i in its})[:3])
             label = {"worker_cert": "worker certifications", "permit": "permits", "vehicle": "vehicle documents",
                      "project_document": "job documents", "estimate_document": "bid documents"}.get(kind, "company documents")
-            out.append(_card(f"docs-expired:{kind}:{len(its)}", "doc" + (" crew" if kind == "worker_cert" else ""), "today",
+            out.append(_card(f"docs-expired:{kind}:{len(its)}", "doc" + (" crew" if kind == "worker_cert" else ""), "now",
                              f"{len(its)} {label} have expired", f"Including {names}. " + _renew_hint(its[0]),
                              href={"worker_cert": "/#cert-health", "permit": "/#compliance", "project_document": "/#compliance",
                                    "estimate_document": "#proposals"}.get(kind, "#company"),
@@ -436,7 +436,7 @@ def needs(conn, uid, today: date, now: datetime, pay_rows: list, crew_info: dict
             subj = it.get("subject") or ""
             title = f"{it['title']}" + (f" · {subj}" if subj and it["kind"] != "company_document" else "")
             out.append(_card(f"doc:{it['kind']}:{it['id']}", "doc" + (" crew" if it["kind"] == "worker_cert" else ""),
-                             "today" if n <= 3 else "week",
+                             "now" if n < 0 else ("today" if n <= 3 else "week"),   # expired = overdue: do it first
                              (title + (" expired" if n < 0 else f" expires {_days_word(n)}")),
                              _renew_hint(it), href=_doc_href(it),
                              source={"worker_cert": "Workforce › Certifications", "permit": "Job › Permits",

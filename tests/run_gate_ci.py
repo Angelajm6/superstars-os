@@ -14,6 +14,9 @@ What it runs, in order — any failure fails the gate:
                         smoke_buildings_304, smoke_security_release_305, smoke_migrations_306
   5. design-conventions guard against a live server on 127.0.0.1:<GATE_PORT>
 
+`--shard K/N` runs 1 and 2 plus the K-th of N balanced slices of 3–5, so CI can run
+the slices on N machines at once (the design guard always lands in slice 1).
+
 The #260 gate (`run_gate_260.py`) stays the operator's full census on the Windows
 workstation; this is the subset every pull request must pass on GitHub.
 """
@@ -35,12 +38,16 @@ ROOT = Path(__file__).resolve().parents[1]
 PY = sys.executable
 STATIC = ["smoke_http_security_297.py", "smoke_login_experience_298.py",
           "smoke_client_building_hub_299.py", "smoke_password_reset_300.py",
-          "smoke_request_logging.py", "smoke_secret_box.py", "smoke_runtime_seams.py", "smoke_csrf_guard.py", "smoke_company_dashboard_links.py", "smoke_login_next_query.py", "smoke_edit_projects_clients.py", "smoke_worker_photos.py", "smoke_shell_titles_pin.py", "smoke_friendly_errors.py", "smoke_team_items.py", "smoke_team_home_2b.py", "smoke_gcal_sync.py", "smoke_gmail_suggest.py", "smoke_usage_footprint.py", "smoke_account_settings.py", "smoke_job_page_redesign.py", "smoke_projects_batch_c.py", "smoke_type_system.py", "smoke_card_style.py", "smoke_email_change.py", "smoke_assistant_proposals.py", "smoke_claude_agent.py", "smoke_claude_actions.py", "smoke_inbox.py", "smoke_claude_files.py", "smoke_calendar_import.py", "smoke_inbox_schedule.py", "smoke_meeting_invites.py", "smoke_today_dashboard.py", "smoke_quickbooks_316.py"]
+          "smoke_request_logging.py", "smoke_secret_box.py", "smoke_runtime_seams.py", "smoke_csrf_guard.py", "smoke_company_dashboard_links.py", "smoke_login_next_query.py", "smoke_edit_projects_clients.py", "smoke_worker_photos.py", "smoke_shell_titles_pin.py", "smoke_friendly_errors.py", "smoke_team_items.py", "smoke_team_home_2b.py", "smoke_gcal_sync.py", "smoke_gmail_suggest.py", "smoke_usage_footprint.py", "smoke_account_settings.py", "smoke_job_page_redesign.py", "smoke_projects_batch_c.py", "smoke_type_system.py", "smoke_card_style.py", "smoke_email_change.py", "smoke_assistant_proposals.py", "smoke_claude_agent.py", "smoke_claude_actions.py", "smoke_inbox.py", "smoke_claude_files.py", "smoke_calendar_import.py", "smoke_inbox_schedule.py", "smoke_meeting_invites.py", "smoke_event_reminders.py", "smoke_today_dashboard.py", "smoke_quickbooks_316.py", "smoke_proposal_studio.py", "smoke_proposal_layout.py", "smoke_file_drop.py", "smoke_inbox_recipients.py", "smoke_inbox_threads.py", "smoke_claude_docs.py", "smoke_company_brand.py"]
 BEHAVIORAL = ["smoke_password_reset_flow_301.py", "smoke_company_portal_302.py",
               "smoke_buildings_304.py", "smoke_security_release_305.py", "smoke_migrations_306.py",
               "smoke_proposals_307.py", "smoke_client_proposals_308.py", "smoke_csuite_reset_309.py",
               "smoke_payroll_week_310.py", "smoke_invoices_315.py", "smoke_company_vault_318.py", "smoke_worker_history_320.py", "smoke_project_onboard_324.py", "smoke_crew_sites_325.py", "smoke_project_payments_326.py", "smoke_doc_package_327.py", "smoke_nav_clarity_328.py", "smoke_aia_billing_317.py", "smoke_payables_319.py", "smoke_portal_projects_330.py", "smoke_regions_331.py", "smoke_calendar_332.py", "smoke_calendar_plus_333.py", "smoke_project_dates_334.py", "smoke_building3d_336.py", "smoke_job_sites_337.py", "smoke_dashboard_week_338.py", "smoke_one_home_339.py", "smoke_dcr_numbers_344.py", "smoke_workforce_archive_345.py", "smoke_worker_id_cleanup_346.py", "smoke_column_repair_352.py", "smoke_photoreal_3d_353.py", "smoke_fleet_355.py", "smoke_billing_type_356.py", "smoke_project_contacts_357.py", "smoke_job_dashboard_358.py", "smoke_layout_rail_359.py", "smoke_client_portal_tab_360.py", "smoke_project_modules.py", "smoke_projects_flow.py", "smoke_job_v2_preview.py", "smoke_dcr_steps.py", "smoke_make_admin.py"]
 PORT = int(os.environ.get("GATE_PORT", "5434"))
+# Rough seconds per suite on a GitHub runner (#119 run), used only to balance shards.
+# Unlisted suites count as DEFAULT_COST; the design guard is pinned to shard 1.
+SUITE_COST = {"smoke_card_style.py": 70}
+DEFAULT_COST, DESIGN_COST = 8, 30
 
 results: list = []
 
@@ -66,6 +73,17 @@ def build_sqlite_fixture(tmp: Path) -> str:
     return f"sqlite:{db}"
 
 
+def shard_suites(k: int, n: int) -> tuple:
+    """(suites for shard k of n, whether shard k runs the design guard). Greedy:
+    the costliest suite goes to the lightest shard; original order is kept within a shard."""
+    suites = STATIC + BEHAVIORAL
+    load = [0] * n; load[0] = DESIGN_COST
+    owner = {}
+    for name in sorted(suites, key=lambda s: -SUITE_COST.get(s, DEFAULT_COST)):
+        i = load.index(min(load)); owner[name] = i; load[i] += SUITE_COST.get(name, DEFAULT_COST)
+    return [s for s in suites if owner[s] == k - 1], k == 1
+
+
 def run(cmd: list, env: dict, timeout: int = 900) -> tuple:
     res = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True, timeout=timeout)
     tail = (res.stdout + "\n" + res.stderr).strip().splitlines()
@@ -76,7 +94,12 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--backend", choices=["sqlite", "postgres"], default="sqlite")
     ap.add_argument("--skip-design", action="store_true")
+    ap.add_argument("--shard", default="1/1", help="K/N — run the K-th of N slices of the suites")
     args = ap.parse_args()
+    k, n = (int(x) for x in args.shard.split("/"))
+    if not 1 <= k <= n:
+        print("--shard must be K/N with 1 <= K <= N"); return 2
+    suites, run_design = shard_suites(k, n)
     sys.path.insert(0, str(ROOT))
 
     tmp = Path(tempfile.mkdtemp(prefix="ssc_gate_ci_"))
@@ -94,7 +117,7 @@ def main() -> int:
         base_env.pop("SSC_DB_URL", None)          # suites build their own isolated SQLite
         print("building the strict-boot SQLite fixture…", flush=True)
         boot_url = build_sqlite_fixture(tmp)
-    print(f"gate backend: {args.backend}", flush=True)
+    print(f"gate backend: {args.backend} · shard {k}/{n} · {len(suites)} suites", flush=True)
 
     # 1. compile
     bad = []
@@ -119,13 +142,13 @@ def main() -> int:
     step("strict boot + migration ledger clean", code == 0, out)
 
     # 3 + 4. suites
-    for name in STATIC + BEHAVIORAL:
+    for name in suites:
         env = dict(base_env)
         code, out = run([PY, f"tests/{name}"], env)
         step(name, code == 0, out)
 
     # 5. design guard against a live server
-    if not args.skip_design:
+    if run_design and not args.skip_design:
         env = dict(base_env); env["SSC_DB_URL"] = boot_url; env["PORT"] = str(PORT); env["APP_BASE_URL"] = f"http://127.0.0.1:{PORT}"
         srv = subprocess.Popen([PY, "server.py"], cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         try:
@@ -152,7 +175,7 @@ def main() -> int:
 
     shutil.rmtree(tmp, ignore_errors=True)
     failed = [r for r in results if not r[1]]
-    print(f"\n== GATE ({args.backend}): {len(results) - len(failed)} PASS / {len(failed)} FAIL ==")
+    print(f"\n== GATE ({args.backend}, shard {k}/{n}): {len(results) - len(failed)} PASS / {len(failed)} FAIL ==")
     for name, _, detail in failed:
         print(f"FAILED {name}\n{detail}\n")
     return 1 if failed else 0

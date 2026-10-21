@@ -3,7 +3,7 @@ job, the access method of an exterior job, and what the job's workers see in the
 
   projects.job_number      INTEGER, unique, given once in creation order (#1 = the oldest job),
                            never reused or changed
-  projects.color_index     0..15 into PALETTE, chosen so no two ACTIVE jobs share one (until
+  projects.color_index     0..43 into PALETTE, chosen so no two ACTIVE jobs share one (until
                            there are more active jobs than colors); admin can change it
   projects.access_methods  JSON list of ACCESS_METHODS keys; [] = none; NULL = never set.
                            Exterior Restoration (FR) jobs only
@@ -29,10 +29,17 @@ from auth import current_user, requires_company
 
 log = logging.getLogger("ssc.project_setup")
 
-# 16 colors that read with white text; the first 8 are the calendar's old ones, so a job keeps
-# its familiar color where it can. company_portal.html and projects.html carry the same list.
-PALETTE = ("#24418C", "#0F766E", "#B45309", "#7C3AED", "#BE185D", "#0369A1", "#4D7C0F", "#B11E2E",
-           "#C2410C", "#047857", "#1D4ED8", "#A21CAF", "#854D0E", "#475569", "#DB2777", "#0E7490")
+# 44 soft colors. 0..31 are muted and read with white text (contrast >= 4.5); 0..15 are gentler
+# shades of the old 16, so a saved job keeps its color family. 32..43 are light pastels that
+# carry dark text instead: INK holds that same-family dark shade (text on bars, the job page).
+# company_portal.html and projects.html carry the same list.
+PALETTE = ("#4B5F94", "#3F7F76", "#9A6A30", "#7B68B5", "#8E4A6A", "#3F78A3", "#6B7D3E", "#A9524F",
+           "#B35E44", "#3D7B5C", "#5670C0", "#94549A", "#7E5F45", "#6A6560", "#A85A77", "#3A7E90",
+           "#5A7A5F", "#5A7287", "#8A6A86", "#85712A", "#55743F", "#2F6B5A", "#34557F", "#66466E",
+           "#82424F", "#6E4C3C", "#48467E", "#6B6390", "#9A4E2E", "#4A525C", "#A0646A", "#2E6670",
+           "#BCD9F2", "#F7E7A1", "#F9CFA5", "#C4E6D2", "#F4CBD6", "#D9D0F0",
+           "#BFE5E6", "#F5C3B8", "#D5E2C0", "#E6CDE8", "#E8DCC6", "#C9D2F2")
+INK = {32: "#1F4E79", 33: "#6B5408", 34: "#7A3F0E", 35: "#1F5B3C", 36: "#7A2E46", 37: "#44357A", 38: "#1D5A5C", 39: "#7D3226", 40: "#3F5520", 41: "#643068", 42: "#5E4A2C", 43: "#2E3F7A"}
 OLD_PALETTE = 8
 ACCESS_METHODS = (("suspended_scaffold", "Suspended scaffold"), ("supported_scaffold", "Supported scaffold"),
                   ("rope_access", "Rope access"), ("boom_lift", "Boom lift"))
@@ -153,6 +160,11 @@ def access_labels(row: dict) -> list:
 def color_hex(row: dict) -> str:
     c = row.get("color_index")
     return PALETTE[int(c) % len(PALETTE)] if c is not None else PALETTE[legacy_color(row.get("project_code"))]
+
+
+def color_ink(row: dict) -> str:
+    """The job color to use for text and accents: the dark shade for a light pastel, else the color."""
+    return INK.get(color_of(row), color_hex(row))
 
 
 def color_of(row: dict) -> int:

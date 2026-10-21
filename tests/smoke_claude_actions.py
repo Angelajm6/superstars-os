@@ -237,16 +237,22 @@ def main() -> int:
         assert not _q("SELECT id FROM proposal WHERE estimate_id = ?", (ids["est"],))
         assert a.post(f"/api/claude/actions/{card['id']}/approve", json={}).status_code == 200
         pid = _q("SELECT id FROM proposal WHERE estimate_id = ?", (ids["est"],))[0]["id"]
-        _script([{"tools": [{"name": "update_proposal", "input": {"proposal_id": pid, "scope": "• Repoint parapet\n• Rebuild 3 lintels",
-                                                                  "price": 51200}},
-                            {"name": "update_proposal", "input": {"proposal_id": pid}}]},
+        # 2026-10-21: proposals are in the company layout; a change is said in words and the Studio engine applies it
+        _script([{"tools": [{"name": "update_proposal", "input": {"proposal_id": pid, "instruction": "add a 10% contingency"}},
+                            {"name": "update_proposal", "input": {"proposal_id": pid, "price": 51200}}]},
                  {"text": "Edit card ready."}])
-        a.post(f"/api/claude/chats/{chat['id']}/messages", json={"text": "write the scope", "page": {"surface": "office"}})
-        assert _results(chat["id"])[-1].get("is_error") and "nothing to change" in _results(chat["id"])[-1]["content"]
+        a.post(f"/api/claude/chats/{chat['id']}/messages", json={"text": "add a contingency", "page": {"surface": "office"}})
+        assert _results(chat["id"])[-1].get("is_error") and "instruction" in _results(chat["id"])[-1]["content"]
         card = [c for c in _cards(a, chat["id"]) if c["status"] == "pending"][0]
-        assert a.post(f"/api/claude/actions/{card['id']}/approve", json={"values": {"price": "52,000"}}).status_code == 200
-        p = proposals.get(_db(), pid)
-        assert p["scope_summary"] == "• Repoint parapet\n• Rebuild 3 lintels" and float(p["price"]) == 52000.0
+        assert a.post(f"/api/claude/actions/{card['id']}/approve", json={}).status_code == 200
+        import proposal_engine
+        conn = _db()
+        try:
+            p = proposals.get(conn, pid)
+            assert any("10% contingency" in n for n in proposal_engine.content(p)["notes"])
+            proposal_engine.save(conn, pid, {}, [{"lead": "Repoint parapet", "detail": "", "qty": 1, "unit": "LS", "unit_price": 52000}])
+        finally:
+            conn.close()
         _script([{"tools": [{"name": "send_proposal", "input": {"proposal_id": pid, "message": "Here is our proposal."}}]},
                  {"text": "Send card ready."}])
         a.post(f"/api/claude/chats/{chat['id']}/messages", json={"text": "send it", "page": {"surface": "office"}})

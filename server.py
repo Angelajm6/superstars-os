@@ -252,18 +252,24 @@ import assistant  # noqa: E402
 assistant.register(app)   # Claude on estimates, bids and proposals: saved conversations, daily cap (off until the key is set)
 import claude_agent  # noqa: E402
 claude_agent.register(app)   # Claude across the platform: lookups run, every change waits for a person's approval
+import claude_docs  # noqa: E402
+claude_docs.register(app)   # documents Claude makes: open beside the chat, edit, PDF / Word, save to a job
 import inbox  # noqa: E402
 inbox.register(app)   # admin / C-suite email live in the software: matched, sorted, Claude's cards (approval for every change and send)
 import calendar_import  # noqa: E402
 calendar_import.register(app)   # each person's main Google Calendar, copied privately for them (only they see it)
+import event_reminders  # noqa: E402
+event_reminders.register(app)   # emails 1 day + 1 hour before every meeting, event, timed task and walkthrough
 import inbox_schedule  # noqa: E402
 inbox_schedule.register(app)   # Inbox Mine (everyone) / All (admin + C-suite, server-checked): calendar + assigned work
 import today_feed  # noqa: E402
 today_feed.register(app)   # the Dashboard's Today: four cards, Your day, Needs you (live, each card opens its page)
 import proposal_template  # noqa: E402
 proposal_template.register(app)   # the company's own proposal layout, read once by Claude; every proposal PDF uses it
-import proposal_drafts  # noqa: E402
-proposal_drafts.register(app)   # proposals Claude drafts from an email: review the PDF, change it, send it in the thread
+import company_brand  # noqa: E402
+company_brand.register(app)   # Settings > Company brand (admin): the logo + letterhead on every document
+import proposal_studio  # noqa: E402
+proposal_studio.register(app)   # Proposal Studio: ask Claude for a proposal, edit anything, send the PDF from Gmail
 import project_setup  # noqa: E402
 project_setup.register(app)   # Oct 7 notes batch C: job numbers, a color per job, access method, worker access
 

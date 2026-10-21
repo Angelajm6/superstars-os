@@ -844,7 +844,7 @@
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
-<script src="/files/static/js/claude_drawer.js?v=12" defer></script>
+<script src="/files/static/js/claude_drawer.js?v=13" defer></script>
 <script src="/files/static/js/dcr_steps.js?v=2" defer></script>
 <style>
   /* #356 — billing type per job: AIA-only pieces hide on jobs billed another way */
@@ -1113,7 +1113,7 @@
         <div id="user-menu" aria-live="polite"></div>
       </div>
     </header>
-    <script src="/files/static/js/auth_menu.js?v=1009" defer></script>
+    <script src="/files/static/js/auth_menu.js?v=1010" defer></script>
     <script>
 
   // #305 — escape untrusted strings before innerHTML interpolation (stored XSS).
@@ -1452,8 +1452,8 @@
               if (cl) cl.textContent = H.client || '';
               $j('jx-address').textContent = (H.client && H.address ? ' · ' : '') + (H.address || '');
               const wrap = document.querySelector('.ph-wrap');
-              if (wrap && H.color) wrap.style.setProperty('--job', H.color);   // the job's own calendar color
-              const ob = document.getElementById('ov-back'); if (ob && H.color) ob.style.setProperty('--job', H.color);   // and the Back to overview bar
+              if (wrap && H.color) wrap.style.setProperty('--job', H.color_ink || H.color);   // the job's own calendar color (its dark shade for a light pastel)
+              const ob = document.getElementById('ov-back'); if (ob && H.color) ob.style.setProperty('--job', H.color_ink || H.color);   // and the Back to overview bar
               $j('jx-hno').hidden = H.job_number == null; $j('jx-hno').textContent = H.job_number != null ? '#' + H.job_number : '';
               $j('jx-edit').hidden = !H.can_edit;
               const chips = [];
@@ -8713,7 +8713,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   // Live date — LOCAL components (CLAUDE.md dates rule: never toISOString)
   (function(){ var d=new Date(); var el=$('live-date'); if(el) el.textContent=pad(d.getMonth()+1)+'/'+pad(d.getDate())+'/'+d.getFullYear(); })();
 
-  var ROLE={admin:'Admin',c_suite:'C-Suite',pm:'PM',super:'Super'};
+  var ROLE={admin:'Admin',c_suite:'C-Suite',pm:'PM',super:'Foreman / Supervisor'};
   function initials(name){
     var parts=String(name||'').trim().split(/\s+/).filter(Boolean);
     if(!parts.length) return '··';
@@ -10126,5 +10126,6 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   window.SSC_openMoreFor = function (link) { var box = link && link.closest && link.closest('.nav-more'); if (box) setOpen(box, true, false); };
 })();
 </script>
+<script src="/files/static/js/file_drop.js?v=1" defer></script>
 </body>
 </html>

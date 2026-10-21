@@ -53,8 +53,8 @@
       sub: [['All clients', '/company#clients'], ['Client portal', '/company#portal']] },
     { key: 'proposals', label: 'Proposals', href: '/company#proposals', roles: COMPANY.concat(['estimator']),
       hrefFor: { estimator: '/estimating' },
-      at: [['/company', 'proposals'], ['/', 'estimates'], ['/estimating', null]],
-      sub: [['Estimates & proposals', '/company#proposals', COMPANY], ['Estimating queue', '/estimating']] },
+      at: [['/company', 'proposals'], ['/', 'estimates'], ['/estimating', null], ['/proposal-studio', null]],
+      sub: [['Estimates & proposals', '/company#proposals', COMPANY], ['Proposal Studio', '/proposal-studio', COMPANY]] },
     { key: 'finance', label: 'Finance', href: '/company#finance', roles: COMPANY,
       at: [['/company', 'finance'], ['/company', 'expenses'], ['/', 'labor-rate'], ['/admin/labor-rates', null]],
       sub: [['What needs to get paid', '/company#finance'], ['Expenses', '/company#expenses'], ['Weekly payroll', '/#labor-rate'], ['Pay rates', '/admin/labor-rates']] },
@@ -79,8 +79,9 @@
   // Account (each person's own name, password, two-step sign-in, devices) replaced
   // "Preferences & security" and its Interface card; /#settings forwards there.
   var PINNED = { key: 'settings', label: 'Settings', href: '/account', roles: COMPANY,
-    at: [['/account', null], ['/admin/users', null], ['/company', 'usage'], ['/company', 'claude'], ['/settings/interface', null]],
-    sub: [['Account', '/account'], ['Team & access', '/admin/users'], ['Usage & job tools', '/company#usage'], ['Claude approvals', '/company#claude']] };
+    at: [['/account', null], ['/admin/users', null], ['/company', 'usage'], ['/company', 'claude'], ['/company', 'brand'], ['/settings/interface', null]],
+    // Company brand (2026-10-20, admin only): the logo + letterhead on every document
+    sub: [['Account', '/account'], ['Team & access', '/admin/users'], ['Usage & job tools', '/company#usage'], ['Claude approvals', '/company#claude'], ['Company brand', '/company#brand', ['admin']]] };
 
   // ---- the old homes forward here (runs at include time, before paint) ----
   var REDIRECTS = {

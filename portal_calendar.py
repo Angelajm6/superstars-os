@@ -27,7 +27,7 @@ from auth import current_user, requires_section
 log = logging.getLogger("ssc.portal_calendar")
 
 MAX_DAYS = 120
-PALETTE = 8                  # the old hash colors; saved colors run 0..15 (project_setup.PALETTE)
+PALETTE = 8                  # the old hash colors; saved colors run 0..43 (project_setup.PALETTE)
 WEATHER_MAX_DAYS = 14          # #333 — the strip is for the 3-day / week views only
 DEFAULT_SITE = (40.8083, -73.9162)   # the company's home borough when no job has coordinates
 
