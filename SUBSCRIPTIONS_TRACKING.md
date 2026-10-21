@@ -7,7 +7,7 @@
 
 ## Where the data lives
 
-**Now (pre-dashboard):** `subscriptions_ledger.csv` in this folder. Edit by hand. Plain CSV so it's reviewable in any tool.
+**Now (pre-dashboard):** the "Subscriptions ledger" Google Doc in Google Drive (moved out of this repo on 2026-10-21, when the repo became public: it lists account-owner emails, MFA methods and admin links). Edit it by hand. To seed the database, export it as `subscriptions_ledger.csv` into this folder locally (it is git-ignored) and run `apply_subscriptions_schema.py`.
 
 **Later (once dashboard is on workstation):** `subscriptions` table in `superstars.db`, populated by importing this CSV once. From then on, the dashboard's Subscriptions module is the source of truth and the CSV becomes a historical export.
 
