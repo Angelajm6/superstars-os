@@ -318,6 +318,10 @@ body :is(.pd-modal, .fp-modal, .mt-modal, .pay-modal, .pk-modal, .jx-modal, .pc-
 }
 body :is(.pd-modal, .fp-modal, .mt-modal, .pay-modal, .pk-modal, .jx-modal, .pc-modal, .la-modal, .aia-modal,
          .cp-modal, .modal, .crm-modal, .est-modal, .np-modal) textarea { padding: 10px 12px; min-height: 88px; }
+/* "$"-prefixed money fields keep room for the prefix in dialogs too (must out-rank the dialog input rule above) */
+body :is(.pd-modal, .fp-modal, .mt-modal, .pay-modal, .pk-modal, .jx-modal, .pc-modal, .la-modal, .aia-modal,
+         .cp-modal, .modal, .crm-modal, .est-modal, .np-modal)
+  :is(.ps-money, .np-money) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]) { padding-left: 24px; }
 body :is(.pd-modal, .fp-modal, .mt-modal, .pay-modal, .pk-modal, .jx-modal, .pc-modal, .la-modal, .aia-modal,
          .cp-modal, .modal, .crm-modal, .est-modal, .np-modal)
   :is(input, select, textarea):focus { outline: 2px solid var(--accent-edge); outline-offset: 1px; border-color: var(--accent); }
