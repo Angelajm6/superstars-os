@@ -16,7 +16,6 @@
 <script src="/files/static/js/new_project_modal.js?v=1015" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1010" defer></script>
 <script src="/files/static/js/gcal_connect.js?v=1017" defer></script>
-<script src="/files/static/js/gmail_suggest.js?v=1010" defer></script>
 <script src="/files/static/js/inbox_schedule.js?v=4" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
@@ -440,7 +439,9 @@
           .cc-week-link{flex:none;font-size:13px;font-weight:700;color:var(--ui);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:7px 13px;white-space:nowrap;background:#fff}
           .cc-week-link:hover{background:var(--ui-soft,#E8EDF8)}
           .cc-week-dow{display:grid;grid-template-columns:repeat(7,1fr);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:0 0 6px}
-          .cc-week-dow div{padding:0 8px} .cc-week-dow div.today{color:var(--ui)}
+          .cc-week-dow div{padding:0 8px;display:flex;align-items:center;gap:6px;min-width:0} .cc-week-dow div.today{color:var(--ui)}
+          .cc-week-dow .n{font-size:13px;color:var(--ink);letter-spacing:0;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none}
+          .cc-week-dow div.today .n{background:var(--ui);color:#fff}
           .cc-week-row{position:relative;display:grid;grid-template-columns:repeat(7,1fr);min-height:120px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
           .cc-week-cell{border-right:1px solid var(--line);padding:8px 8px 6px;display:flex;flex-direction:column;gap:4px;min-width:0}
           .cc-week-cell:last-child{border-right:0} .cc-week-cell.wknd{background:#FBFBFD} .cc-week-cell.today{background:var(--ui-soft,#E8EDF8)}
@@ -448,18 +449,32 @@
           .cc-week-date .n{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
           .cc-week-cell.today .cc-week-date .n{background:var(--ui);color:#fff}
           .cc-week-hc{margin-left:auto;font-size:13px;font-weight:700;color:var(--ui);background:#fff;border:1px solid var(--line);border-radius:999px;padding:1px 6px;white-space:nowrap}
-          .cc-week-lanes{position:absolute;left:0;right:0;top:38px;pointer-events:none}
+          .cc-week-lanes{position:absolute;left:0;right:0;top:8px;pointer-events:none}
           .cc-week-bar{position:absolute;height:22px;border-radius:6px;padding:0 8px;font-size:13px;font-weight:700;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;cursor:pointer;pointer-events:auto;text-decoration:none;box-shadow:0 1px 2px rgba(0,0,0,.08)}
           .cc-week-bar:hover{filter:brightness(1.08)} .cc-week-bar small{font-weight:500;opacity:.85;margin-left:6px}
           .cc-week-bar.cont{border-top-left-radius:0;border-bottom-left-radius:0} .cc-week-bar.goes{border-top-right-radius:0;border-bottom-right-radius:0}
-          .cc-week-more{position:absolute;font-size:13px;font-weight:700;color:var(--ui);pointer-events:auto;padding:2px 6px;text-decoration:none}
-          .cc-week-ms{margin-top:auto;display:flex;flex-direction:column;gap:3px}
+          .cc-week-more{border:0;background:none;font:inherit;font-size:13px;font-weight:700;color:var(--ui);padding:2px 6px;border-radius:6px;cursor:pointer;align-self:flex-start;white-space:nowrap}
+          .cc-week-more:hover{background:rgba(255,255,255,.8);text-decoration:underline}
+          .cc-week-morejobs{position:absolute;width:14.2857%;height:24px;display:flex;align-items:center;padding-left:4px;pointer-events:auto}
+          .cc-week-grow{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;font-weight:700;color:var(--ui);cursor:pointer}
+          .cc-week-grow:hover{background:var(--ui-soft,#E8EDF8)}
+          /* phones: the week as a day list (#cc-week-list) */
+          .cc-week-list{display:none;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+          .cc-wl-day{display:grid;grid-template-columns:48px minmax(0,1fr);gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+          .cc-wl-day:last-child{border-bottom:0} .cc-wl-day.today{background:var(--ui-soft,#E8EDF8)}
+          .cc-wl-d{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)} .cc-wl-d b{display:block;font-size:20px;color:var(--ink);letter-spacing:0}
+          .cc-wl-day.today .cc-wl-d b{color:var(--ui)} .cc-wl-all{cursor:default;background:#FBFBFD} .cc-wl-all .cc-wl-d b{font-size:14px}
+          .cc-wl-rows{display:flex;flex-direction:column;gap:4px;min-width:0}
+          .cc-wl-jobs{display:flex;gap:4px;flex-wrap:wrap} .cc-wl-jobs a{font-size:12px;font-weight:700;color:#fff;border-radius:5px;padding:2px 7px;text-decoration:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          .cc-wl-hc{font-size:12px;font-weight:700;color:var(--ui)} .cc-wl-none{font-size:13px;color:var(--muted)}
+          .cc-week-list .cc-week-ms{margin-top:0}
+          .cc-week-ms{display:flex;flex-direction:column;gap:3px}
           .cc-week-ms span{font-size:13px;font-weight:700;line-height:1.3;padding:2px 6px;border-radius:5px;background:#FFF4DB;color:#8A5A00;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid #E0A82E}
           .cc-week-ms span.inv{background:#E8F1FB;color:#1B4F8A;border-left-color:#3B82F6} .cc-week-ms span.late{background:#FCEEEC;color:#A8382B;border-left-color:#B11E2E}
           .cc-week-foot{font-size:13px;color:var(--muted);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
           .cc-week-foot a{color:var(--ui);font-weight:700;text-decoration:none}
           .cw0{background:#24418C}.cw1{background:#0F766E}.cw2{background:#B45309}.cw3{background:#7C3AED}.cw4{background:#BE185D}.cw5{background:#0369A1}.cw6{background:#4D7C0F}.cw7{background:#B11E2E}.cw8{background:#C2410C}.cw9{background:#047857}.cw10{background:#1D4ED8}.cw11{background:#A21CAF}.cw12{background:#854D0E}.cw13{background:#475569}.cw14{background:#DB2777}.cw15{background:#0E7490}
-          @media (max-width:760px){ .cc-week-bar small{display:none} .cc-week-hc{display:none} .cc-week-row{min-height:96px} }
+          @media (max-width:760px){ .cc-week-dow, .cc-week-row, .cc-week-grow{display:none} .cc-week-list{display:block} }
           /* tasks & events: chips on the week strip + calendar, and the dashboard list */
           .cc-week-ms span.it, .cal-ms span.it{cursor:pointer;background:#EEF2FF;color:#24418C;border-left-color:#4364DC}
           .cc-week-ms span.it.event, .cal-ms span.it.event{background:#E7F6F1;color:#0F5E57;border-left-color:#0F766E}
@@ -517,9 +532,12 @@
           .td-chips{display:flex;gap:6px;flex-wrap:wrap}
           .td-chips button{border:1px solid var(--line);background:#fff;border-radius:99px;padding:4px 11px;font:inherit;font-size:12px;color:var(--ink-2);cursor:pointer}
           .td-chips button.on{background:var(--ink);border-color:var(--ink);color:#fff}
-          .td-group{font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--muted);margin:14px 2px 8px;display:flex;align-items:center;gap:8px}
+          .td-group{scroll-margin-top:80px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--muted);margin:14px 2px 8px;display:flex;align-items:center;gap:8px}
           .td-group::after{content:"";flex:1;height:1px;background:var(--line)}
-          .td-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;gap:12px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+          .td-card{position:relative;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 12px 12px 16px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+          .td-card::before{content:"";position:absolute;left:-1px;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--line)}
+          .td-card.u-now::before{background:var(--status-behind,#e9685a)} .td-card.u-today::before{background:#E0A82E}
+          .td-card.menu-open{z-index:4}
           .td-card:hover{border-color:var(--accent-edge)}
           .td-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
           .td-card.fresh{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-in);animation:td-in .45s ease both}
@@ -542,8 +560,24 @@
           .td-draft table{width:100%;border-collapse:collapse}.td-draft td{padding:3px 0;border-bottom:1px solid var(--line)}.td-draft td:last-child{text-align:right;white-space:nowrap}
           .td-draft tr.t td{font-weight:700;color:var(--ink);border-bottom:0}
           .td-draft .txt{white-space:pre-wrap;max-height:9em;overflow:hidden}
-          .td-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
-          .td-btns .sp{flex:1}
+          .td-btns{position:relative;display:flex;gap:6px;align-items:center;flex:none}
+          .td-more{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink-2);font:inherit;font-size:16px;line-height:1;cursor:pointer;display:grid;place-items:center}
+          .td-more:hover,.td-more[aria-expanded="true"]{background:var(--fill)}
+          .td-menu{position:absolute;right:0;top:calc(100% + 4px);z-index:5;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(20,22,28,.14);padding:4px;min-width:200px;display:flex;flex-direction:column}
+          .td-menu[hidden]{display:none}
+          .td-menu button{border:0;background:none;text-align:left;padding:8px 10px;border-radius:7px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer}
+          .td-menu button:hover,.td-menu button:focus-visible{background:var(--fill)}
+          .td-menu small{display:block;color:var(--muted);font-size:12px}
+          .td-showmore{display:block;width:100%;border:1px dashed var(--line);background:none;border-radius:10px;padding:9px;color:var(--ui);font:inherit;font-weight:600;font-size:13px;cursor:pointer}
+          .td-showmore:hover{background:#fff}
+          .td-group.now{color:var(--status-behind-deep,#A8382B)} .td-group.today{color:var(--status-warn,#9A5B00)}
+          .td-group small{font-weight:600;text-transform:none;letter-spacing:0;font-size:12px}
+          .td-chips button b{font-weight:700;margin-left:4px;opacity:.6} .td-chips button[hidden]{display:none}
+          .td-sum{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px} .td-sum:empty{display:none}
+          .td-sum button{border:1px solid var(--line);background:#fff;border-radius:99px;padding:6px 12px;font:inherit;font-size:13px;font-weight:600;color:var(--ink-2);display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+          .td-sum button:hover{border-color:var(--ui)} .td-sum i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+          .td-sum .now i{background:var(--status-behind,#e9685a)} .td-sum .today i{background:#E0A82E}
+          @media (max-width:560px){ .td-card{flex-wrap:wrap} .td-btns{width:100%;justify-content:flex-end} }
           .td-empty{background:#fff;border:1px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--muted)}
           .td-sub{font-size:13px;margin-bottom:4px}
           .td-tl{list-style:none;margin:6px 0 0;padding:0;position:relative}
@@ -632,41 +666,6 @@
           .tk-head-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
           #fp-table td.opt, #fp-table th.opt{background:#F7F8FB} #fp-table td.zero{color:#B45309;font-weight:700} #fp-table td.off{color:#B8BECB} #us-table td.none{color:#B8BECB} #fp-table td:first-child{min-width:180px}
           .us-roles{display:flex;gap:4px;flex-wrap:wrap} .us-roles span{font-size:13px;font-weight:600;background:#F0F1F4;color:#4A4F59;border-radius:99px;padding:1px 7px;white-space:nowrap}
-          /* "From your email" card (static/js/gmail_suggest.js) */
-          [data-gmail-card][hidden] { display: none; }
-          .gm-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
-          .gm-head h2 { font-family: 'Inter', -apple-system, 'Helvetica Neue', Arial, sans-serif; font-size: 16px; font-weight: 700; margin: 0; }
-          .gm-count { font-size:13px; color: #8C92A0; }
-          .gm-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; background: #F4F6FB; border: 1px solid #E3E5EA; border-radius: 9px; padding: 8px 10px; margin: 4px 0 8px; font-size:13px; color: #4A4F59; }
-          .gm-row.warn { background: #FBF0DC; border-color: #F0D9AE; }
-          .gm-row span { flex: 1; min-width: 180px; }
-          .gm-mute { color: #8C92A0; } .gm-bad { color: #A8382B; }
-          .gm-btn { flex: none; border: 1px solid #E3E5EA; background: #fff; color: #24418C; font: inherit; font-size:13px; font-weight: 600; border-radius: 7px; padding: 6px 10px; cursor: pointer; text-decoration: none; white-space: nowrap; }
-          .gm-btn.primary { background: #4364DC; border-color: #4364DC; color: #fff; }
-          .gm-btn.ghost { color: #4A4F59; }
-          .gm-btn:disabled { opacity: .6; cursor: progress; }
-          .gm-sug { border-top: 1px solid #E3E5EA; padding: 11px 0; display: grid; gap: 6px; }
-          .gm-row + .gm-sug { border-top: 0; }
-          .gm-from { font-size:13px; color: #8C92A0; } .gm-from b { color: #4A4F59; font-weight: 600; }
-          .gm-subj { font-size:13px; color: #4A4F59; overflow-wrap: anywhere; }
-          .gm-prop { display: flex; gap: 8px; align-items: flex-start; background: #EEF2FF; border-radius: 8px; padding: 8px 10px; }
-          .gm-prop.event { background: #E7F6F1; }
-          .gm-k { flex: none; font-size:12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #24418C; padding-top: 1px; }
-          .gm-prop.event .gm-k { color: #0F766E; }
-          .gm-pm { min-width: 0; } .gm-t { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; } .gm-m { font-size:13px; color: #4A4F59; overflow-wrap: anywhere; } .gm-why { color: #8C92A0; }
-          .gm-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-          .gm-open { font-size:13px; color: #24418C; text-decoration: none; margin-left: auto; white-space: nowrap; }
-          .gm-done { font-size: 13px; color: #1F8A5B; background: #E4F4EC; border-radius: 8px; padding: 8px 10px; }
-          .gm-gone { font-size:13px; color: #8C92A0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-          .gm-empty { font-size: 13px; color: #8C92A0; padding: 8px 0; }
-          .gm-flash { font-size:13px; color: #1F6B45; background: #E6F4EC; border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; }
-          .gm-flash.bad { color: #8B1623; background: #FDECEE; }
-          .gm-edit { border: 1px solid #E3E5EA; border-radius: 9px; padding: 10px; display: grid; gap: 8px; }
-          .gm-edit[hidden] { display: none; }
-          .gm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-          .gm-grid label { display: grid; gap: 4px; font-size:12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #8C92A0; min-width: 0; }
-          .gm-grid label.wide { grid-column: 1 / -1; }
-          .gm-grid input, .gm-grid select { font: 14px 'Inter', -apple-system, sans-serif; color: #222633; border: 1px solid #E3E5EA; border-radius: 8px; padding: 7px 9px; width: 100%; text-transform: none; letter-spacing: 0; background: #fff; }
           /* Google Calendar connect row (static/js/gcal_connect.js) */
           .gcal { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; background: #F4F6FB; border: 1px solid #E3E5EA; border-radius: 9px; padding: 8px 10px; margin: 4px 0 8px; font-size:13px; color: #4A4F59; }
           .gcal[hidden] { display: none; }
@@ -759,6 +758,7 @@
         <div class="cp-card td-brief" id="td-brief">
           <div class="td-date" id="td-date"></div>
           <h2 class="td-hello" id="td-hello">Today</h2>
+          <div class="td-sum" id="td-sum" aria-label="Jump to"></div>
           <div class="cp-kpis" id="ov-kpis"></div>
           <form class="td-ask" id="td-ask" autocomplete="off">
             <input class="cp-input" id="td-ask-in" placeholder="Ask Claude… e.g. “Who is on site at Riverside?” or “Draft a proposal from Dana's email”" aria-label="Ask Claude">
@@ -778,6 +778,7 @@
           </div>
           <div class="cc-week-dow" id="cc-week-dow"></div>
           <div class="cc-week-row" id="cc-week-row"><div class="cp-empty" style="grid-column:1 / -1">Loading this week…</div></div>
+          <div class="cc-week-list" id="cc-week-list"></div>
           <div class="cc-week-foot" id="cc-week-foot"></div>
         </div>
         <div class="td-cols">
@@ -814,7 +815,6 @@
             <div data-gcal hidden></div>
             <div id="tk-list" class="tk-list"></div>
           </div>
-        <section class="cp-card" data-gmail-card hidden aria-label="From your email" style="margin-top:14px"></section>
 
         <!-- review a proposal Claude drafted from an email, in the company template, before it goes out as a PDF -->
         <div class="td-scrim" id="pd-scrim" hidden></div>
@@ -1789,32 +1789,37 @@
   }
   async function loadTodayWeather() {
     try { TD.wx = (await api('/today/weather')).data; } catch (e) { TD.wx = { available: false, sites: [] }; }
-    if (TD.data) { tdCards(TD.data.cards); tdNeeds(true); }
+    if (TD.data) tdCards(TD.data.cards);
   }
-  function tdWeatherCards() {
-    const wx = TD.wx; if (!wx || !wx.available) return [];
-    const t = TD.data ? TD.data.as_of : '';
-    return wx.sites.filter(s => s.heads_up.length && s.project_code).map(s => ({
-      key: `weather:${s.project_code}:${t}`, cat: 'crew field', urgency: 'now', icon: 'weather',
-      title: `Weather at ${s.project_code} · ${s.name}`, why: s.heads_up.join('. ') + '.',
-      href: '/projects/' + encodeURIComponent(s.project_code), source: 'Forecast for the site', pill: 'Today',
-      actions: [{ type: 'open', label: 'Open the job', primary: true }] }));
-  }
+  // groups: Now (do these first) / Today / Later this week; one main button per card, the rest under "⋯" (2026-10-21)
+  const TD_GROUPS = [['now', 'Now', 'do these first'], ['today', 'Today', ''], ['week', 'Later this week', '']];
+  const TD_FOLD = 3;   // "Later this week" shows this many, then "Show N more"
   function tdNeeds(live) {
     const d = TD.data; if (!d) return;
-    const all = tdWeatherCards().concat(d.needs);
+    const all = d.needs;   // weather lives in the top tile only
     const fresh = new Set();
     if (TD.seen && live) all.forEach(c => { if (!TD.seen.has(c.key)) fresh.add(c.key); });
     TD.seen = new Set(all.map(c => c.key).concat(Array.from(TD.seen || [])));
     TD.cards = all;
-    const shown = all.filter(c => TD.f === 'all' || (c.cat || '').split(' ').includes(TD.f));
+    const inCat = (c, f) => f === 'all' || (c.cat || '').split(' ').includes(f);
+    document.querySelectorAll('[data-td-f]').forEach(b => {
+      const n = all.filter(c => inCat(c, b.dataset.tdF)).length;
+      if (!b.dataset.label) b.dataset.label = b.textContent;
+      b.innerHTML = `${esc(b.dataset.label)}<b>${n}</b>`;
+      b.hidden = !n && b.dataset.tdF !== 'all' && b.dataset.tdF !== TD.f;
+    });
+    const shown = all.filter(c => inCat(c, TD.f));
     $('td-count').textContent = '· ' + all.length + ' open';
     $('td-hello').textContent = tdGreeting() + '. ' + (all.length ? all.length + (all.length === 1 ? ' thing needs' : ' things need') + ' you today.' : 'You’re all caught up.');
+    const per = g => all.filter(c => c.urgency === g).length;
+    $('td-sum').innerHTML = [['now', per('now') === 1 ? 'needs you now' : 'need you now'], ['today', 'due today'], ['week', 'later this week']].filter(([g]) => per(g))
+      .map(([g, w]) => `<button type="button" class="${g}" data-td-jump="${g}"><i></i>${per(g)} ${w}</button>`).join('');
     if (!shown.length) { $('td-needs').innerHTML = `<div class="td-empty">${all.length ? 'Nothing here under this filter.' : 'Nothing needs you right now. New emails, bills, expiring documents and crew sign-ins show up here as they happen.'}</div>`; return; }
-    const groups = [['now', 'Now'], ['today', 'Today'], ['week', 'This week']];
-    $('td-needs').innerHTML = groups.map(([g, label]) => {
+    $('td-needs').innerHTML = TD_GROUPS.map(([g, label, sub]) => {
       const cs = shown.filter(c => c.urgency === g); if (!cs.length) return '';
-      return `<div class="td-group">${label}</div>` + cs.map(c => tdCard(c, fresh.has(c.key))).join('');
+      const cap = g === 'week' && !TD.allWeek ? TD_FOLD : cs.length;
+      return `<div class="td-group ${g}" id="td-g-${g}">${label}${sub ? ` <small>· ${sub}</small>` : ''}</div>` + cs.slice(0, cap).map(c => tdCard(c, fresh.has(c.key))).join('') +
+        (cs.length > cap ? `<button type="button" class="td-showmore" data-td-more>Show ${cs.length - cap} more</button>` : '');
     }).join('');
     if (fresh.size) {
       const first = all.find(c => fresh.has(c.key));
@@ -1828,13 +1833,20 @@
     let draft = '';
     if (c.draft && c.draft.rows) draft = `<div class="td-draft"><b>${esc(c.draft.label)}</b><table>${c.draft.rows.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}<tr class="t"><td>Total</td><td>${esc(c.draft.total)}</td></tr></table></div>`;
     else if (c.draft && c.draft.text) draft = `<div class="td-draft"><b>${esc(c.draft.label)}</b><div class="txt">${esc(c.draft.text)}</div></div>`;
-    const btns = (c.actions || []).map((a, i) => `<button type="button" class="${a.primary ? 'btn-primary' : 'btn-ghost'} btn-sm" data-td-act="${i}">${esc(a.label)}</button>`).join('');
-    const where = c.href ? `<a href="${esc(c.href)}" data-td-go>${esc(tdWhere(c))} →</a>` : '';
-    return `<article class="td-card${fresh ? ' fresh' : ''}" data-td-key="${esc(c.key)}" tabindex="0" role="button" aria-label="${esc(c.title)} — open">` +
+    const acts = c.actions || [];
+    let main = acts.findIndex(a => a.primary); if (main < 0) main = acts.length ? 0 : -1;
+    const mainBtn = main >= 0 ? `<button type="button" class="btn-primary btn-sm" data-td-act="${main}">${esc(acts[main].label)}</button>`
+      : (c.href ? `<button type="button" class="btn-primary btn-sm" data-td-go>${esc(tdWhere(c))}</button>` : '');
+    const menu = acts.map((a, i) => i === main || a.type === 'open' ? '' : `<button type="button" role="menuitem" data-td-act="${i}">${esc(a.label)}</button>`).join('') +
+      (c.href && !(main < 0) ? `<button type="button" role="menuitem" data-td-go>${esc(tdWhere(c))}</button>` : '') +
+      '<button type="button" role="menuitem" data-td-hide="later">Remind me later<small>Hidden for 4 hours</small></button>' +
+      '<button type="button" role="menuitem" data-td-hide="good">Dismiss<small>Gone until something changes</small></button>';
+    return `<article class="td-card u-${esc(c.urgency)}${fresh ? ' fresh' : ''}" data-td-key="${esc(c.key)}" tabindex="0" role="button" aria-label="${esc(c.title)} — open">` +
       `<div class="td-ico ${esc(icoCls)}" aria-hidden="true">${ico}</div><div class="td-main"><div class="td-title">${esc(c.title)}</div>` +
       (c.why ? `<div class="td-why">${esc(c.why)}</div>` : '') +
-      `<div class="td-src">${fresh ? '<span class="td-pill new">Just now</span>' : (c.pill ? `<span class="td-pill ${esc(c.urgency)}">${esc(c.pill)}</span>` : '')}<span>${esc(c.source || '')}</span>${where}</div>` +
-      draft + `<div class="td-btns">${btns}<span class="sp"></span><button type="button" class="btn-ghost btn-sm" data-td-hide="later">Later</button><button type="button" class="btn-ghost btn-sm" data-td-hide="good">Dismiss</button></div></div></article>`;
+      `<div class="td-src">${fresh ? '<span class="td-pill new">Just now</span>' : (c.pill ? `<span class="td-pill ${esc(c.urgency)}">${esc(c.pill)}</span>` : '')}<span>${esc(c.source || '')}</span></div>` +
+      draft + `</div><div class="td-btns">${mainBtn}<button type="button" class="td-more" data-td-menu aria-label="More options" aria-haspopup="menu" aria-expanded="false">⋯</button>` +
+      `<div class="td-menu" role="menu" hidden>${menu}</div></div></article>`;
   }
   function tdWhere(c) {
     const h = c.href || '';
@@ -1848,15 +1860,29 @@
     return 'Open';
   }
   function tdGo(c) { if (!c || !c.href) return; if (c.href.startsWith('#')) location.hash = c.href; else location.href = c.href; }
+  function tdCloseMenus(except) {
+    document.querySelectorAll('.td-menu:not([hidden])').forEach(m => { if (m !== except) { m.hidden = true; m.previousElementSibling.setAttribute('aria-expanded', 'false'); m.closest('.td-card').classList.remove('menu-open'); } });
+  }
+  document.addEventListener('click', e => { if (!e.target.closest('.td-btns')) tdCloseMenus(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') tdCloseMenus(); });
+  $('td-sum').addEventListener('click', e => {
+    const b = e.target.closest('[data-td-jump]'); if (!b) return;
+    if (TD.f !== 'all') { TD.f = 'all'; document.querySelectorAll('[data-td-f]').forEach(x => x.classList.toggle('on', x.dataset.tdF === 'all')); tdNeeds(); }
+    const g = $('td-g-' + b.dataset.tdJump); if (g) g.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
   $('td-needs').addEventListener('click', async e => {
+    if (e.target.closest('[data-td-more]')) { TD.allWeek = true; tdNeeds(); return; }
     const card = e.target.closest('[data-td-key]'); if (!card) return;
     const c = (TD.cards || []).find(x => x.key === card.dataset.tdKey); if (!c) return;
+    const tg = e.target.closest('[data-td-menu]');
+    if (tg) { const m = tg.nextElementSibling; tdCloseMenus(m); m.hidden = !m.hidden; tg.setAttribute('aria-expanded', String(!m.hidden)); card.classList.toggle('menu-open', !m.hidden); if (!m.hidden) m.querySelector('button').focus(); return; }
+    if (e.target.closest('.td-menu') && !e.target.closest('button')) return;
     const act = e.target.closest('[data-td-act]'), hide = e.target.closest('[data-td-hide]');
     if (e.target.closest('[data-td-go]')) { e.preventDefault(); tdGo(c); return; }
     if (hide) {
       try { await api('/today/hide', { method: 'POST', body: JSON.stringify({ key: c.key, for: hide.dataset.tdHide }) }); }
       catch (x) { toast(x.message, true); return; }
-      TD.data.needs = TD.data.needs.filter(x => x.key !== c.key); if (TD.wx) TD.wx.sites.forEach(s => { if (c.key.startsWith('weather:' + s.project_code + ':')) s.heads_up = []; });
+      TD.data.needs = TD.data.needs.filter(x => x.key !== c.key);
       tdNeeds(); toast(hide.dataset.tdHide === 'later' ? 'Hidden for 4 hours' : 'Dismissed'); return;
     }
     if (!act) { if (!e.target.closest('a, button')) tdGo(c); return; }
@@ -1881,6 +1907,7 @@
   $('cc-week-prev').addEventListener('click', () => { WK.off--; loadWeekStrip(); });
   $('cc-week-next').addEventListener('click', () => { WK.off++; loadWeekStrip(); });
   $('cc-week-range').addEventListener('click', () => { WK.off = 0; loadWeekStrip(); });
+  $('cc-week').addEventListener('click', e => { if (e.target.closest('[data-wk-more]')) { WK.all = !WK.all; loadWeekStrip(); } });
   $('td-ask').addEventListener('submit', e => {
     e.preventDefault(); const q = $('td-ask-in').value.trim(); if (!q) return;
     if (window.SSC_CLAUDE && window.SSC_CLAUDE.ask) { window.SSC_CLAUDE.ask(q, true); $('td-ask-in').value = ''; } else toast('Claude is not available on this page', true);
@@ -2401,7 +2428,7 @@
       const cell = e.target.closest('[data-day]'); if (cell) openDay(cell.dataset.day, getData());
     });
   }
-  dayClicks($('cc-week-row'), () => DAY.week);
+  dayClicks($('cc-week-row'), () => DAY.week); dayClicks($('cc-week-list'), () => DAY.week);
   dayClicks($('cal-grid'), () => CAL.data);
 
   // calendar chips: a task on its deadline day, an event on each of its days
@@ -2636,7 +2663,7 @@
   function weekRangeLabel(a, b, dows) {
     return `${MON_SHORT[a.getMonth()]} ${a.getDate()} – ${a.getMonth() === b.getMonth() ? '' : MON_SHORT[b.getMonth()] + ' '}${b.getDate()} <small>· ${dows}</small>`;
   }
-  const WK = { off: 0 };
+  const WK = { off: 0, all: false };
   async function loadWeekStrip() {
     const W = $('cc-week'); if (!W) return;
     const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -2648,43 +2675,61 @@
     $('cc-week-range').innerHTML = weekRangeLabel(days[0], days[6], 'Mon – Sun'); $('cc-week-range').classList.toggle('cur', WK.off === 0);
     const from = iso(days[0]), to = iso(days[6]), t = iso(today);
     $('cc-week-open').href = '#calendar/' + from;
-    $('cc-week-dow').innerHTML = days.map((x, i) => `<div class="${iso(x) === t ? 'today' : ''}">${DOW[i]} ${x.getDate()}</div>`).join('');
     let d;
     try { d = (await api('/calendar?from=' + from + '&to=' + to)).data; }
     catch (e) { $('cc-week-row').innerHTML = `<div class="cp-empty" style="grid-column:1 / -1">Could not load this week.</div>`; return; }
+    // WK.all (2026-10-21): "+N more" / "Show the whole week" grows the strip in place instead of jumping to the calendar
     const jobs = d.jobs.slice().sort((a, b) => a.start_date < b.start_date ? -1 : a.start_date > b.start_date ? 1 : ((b.days || 999) - (a.days || 999)));
-    const laneH = 26, maxLanes = 4, lanes = [], segs = [], overflow = {};
+    const laneH = 26, maxLanes = WK.all ? Infinity : 4, chipCap = WK.all ? Infinity : 3, lanes = [], segs = [], overflow = {};
+    const inWeek = [];
     jobs.forEach(j => {
       const js = j.start_date, je = j.open_ended ? '9999-12-31' : j.end_date; if (je < from || js > to) return;
       let c0 = 0; for (let i = 0; i < 7; i++) { if (iso(days[i]) >= js) { c0 = i; break; } }
       let c1 = 6; for (let k = 6; k >= 0; k--) { if (iso(days[k]) <= je) { c1 = k; break; } }
+      inWeek.push({ j, c0, c1 });
       let lane = 0; while (lanes[lane] && lanes[lane].some(r => !(c1 < r[0] || c0 > r[1]))) lane++;
       (lanes[lane] = lanes[lane] || []).push([c0, c1]);
       if (lane >= maxLanes) { for (let m = c0; m <= c1; m++) overflow[m] = (overflow[m] || 0) + 1; return; }
       segs.push({ j, c0, c1, lane, starts: js >= from, ends: !j.open_ended && je <= to });
     });
-    const laneCount = Math.min(lanes.length, maxLanes);
-    let msMax = 0; days.forEach(x => { msMax = Math.max(msMax, Math.min(((d.days[iso(x)] || {}).milestones || []).length + itemsOn(d, iso(x)).length, 3)); });
-    const minH = Math.max(120, 44 + laneCount * laneH + 14 + msMax * 19);
-    const cells = days.map(x => {
-      const k = iso(x), info = d.days[k] || {}, hc = info.headcount || 0, its = itemsOn(d, k), ms = (info.milestones || []).slice(0, Math.max(0, 3 - its.length));
-      const extra = its.length + (info.milestones || []).length - Math.min(3, its.length) - ms.length;
-      const chips = its.slice(0, 3).map(it => itemChip(it, k)).join('') + (extra > 0 ? `<span class="more">+${extra} more</span>` : '') + ms.map(m => `<span class="${m.kind === 'invoice' ? 'inv' : ''}${m.late ? ' late' : ''}" title="${esc(m.kind === 'invoice' ? (m.number + ' · ' + (m.client_name || '')) : ((m.project_name || m.project_code || '') + ' · ' + m.label))}">${m.kind === 'invoice' ? '$ ' : '◆ '}${esc(m.kind === 'invoice' ? m.number : m.label)}</span>`).join('');
+    const laneCount = Math.min(lanes.length, maxLanes), moreRow = Object.keys(overflow).length ? 24 : 0;
+    const top = laneCount * laneH + moreRow + 8;
+    let hiddenChips = 0;
+    $('cc-week-dow').innerHTML = days.map((x, i) => {
+      const info = d.days[iso(x)] || {}, hc = info.headcount || 0;
       const who = Object.keys(info.on_site || {}).map(c => { const jj = d.jobs.find(z => z.project_code === c); return info.on_site[c] + ' · ' + ((jj && jj.name) || c); }).join(' · ');
-      return `<div class="cc-week-cell ${(x.getDay() === 0 || x.getDay() === 6) ? 'wknd' : ''}${k === t ? ' today' : ''}" data-day="${k}" title="See everything on ${DOW[(x.getDay() + 6) % 7]} ${x.getDate()}" style="padding-top:${40 + laneCount * laneH}px;position:relative"><div class="cc-week-date" style="position:absolute;left:8px;right:8px;top:8px"><span class="n">${x.getDate()}</span>${hc ? `<span class="cc-week-hc" title="${esc(who)}">${hc} on site</span>` : ''}</div><div class="cc-week-ms">${chips}</div></div>`;
+      return `<div class="${iso(x) === t ? 'today' : ''}${(x.getDay() === 0 || x.getDay() === 6) ? ' wknd' : ''}">${DOW[i]} <span class="n">${x.getDate()}</span>${hc ? `<span class="cc-week-hc" title="${esc(who)}">${hc} on site</span>` : ''}</div>`;
+    }).join('');
+    const msChip = m => `<span class="${m.kind === 'invoice' ? 'inv' : ''}${m.late ? ' late' : ''}" title="${esc(m.kind === 'invoice' ? (m.number + ' · ' + (m.client_name || '')) : ((m.project_name || m.project_code || '') + ' · ' + m.label))}">${m.kind === 'invoice' ? '$ ' : '◆ '}${esc(m.kind === 'invoice' ? m.number : m.label)}</span>`;
+    const cells = days.map(x => {
+      const k = iso(x), info = d.days[k] || {}, its = itemsOn(d, k), msAll = info.milestones || [];
+      const room = Math.max(0, chipCap - its.length), ms = msAll.slice(0, room);
+      const extra = its.length + msAll.length - Math.min(chipCap, its.length) - ms.length; hiddenChips += Math.max(0, extra);
+      const chips = its.slice(0, chipCap).map(it => itemChip(it, k)).join('') + ms.map(msChip).join('') + (extra > 0 ? `<button type="button" class="cc-week-more" data-wk-more>+${extra} more</button>` : '');
+      return `<div class="cc-week-cell ${(x.getDay() === 0 || x.getDay() === 6) ? 'wknd' : ''}${k === t ? ' today' : ''}" data-day="${k}" title="See everything on ${DOW[(x.getDay() + 6) % 7]} ${x.getDate()}" style="padding-top:${top}px"><div class="cc-week-ms">${chips}</div></div>`;
     }).join('');
     const bars = segs.map(s => {
       const left = (s.c0 / 7 * 100).toFixed(3), width = ((s.c1 - s.c0 + 1) / 7 * 100).toFixed(3);
       return `<a class="cc-week-bar cw${s.j.color}${s.starts ? '' : ' cont'}${s.ends ? '' : ' goes'}" href="/projects/${encodeURIComponent(s.j.project_code)}" style="left:calc(${left}% + 4px);width:calc(${width}% - 8px);top:${s.lane * laneH}px" title="${esc(s.j.name)}${s.j.client_name ? ' · ' + esc(s.j.client_name) : ''} · ${mdy(s.j.start_date)} → ${s.j.open_ended ? 'no end date' : mdy(s.j.end_date)}">${esc(s.j.name)}${s.c1 - s.c0 >= 2 && s.j.client_name ? `<small>${esc(s.j.client_name)}</small>` : ''}</a>`;
-    }).join('') + Object.keys(overflow).map(i => `<a class="cc-week-more" href="#calendar/${from}" style="left:calc(${(i / 7 * 100).toFixed(3)}% + 6px);top:${maxLanes * laneH}px">+${overflow[i]} more</a>`).join('');
-    $('cc-week-row').style.minHeight = minH + 'px';
-    $('cc-week-row').innerHTML = cells + `<div class="cc-week-lanes" style="height:${laneCount * laneH}px">${bars}</div>`;
-    wireItemChips($('cc-week-row'), d);
+    }).join('') + Object.keys(overflow).map(i => `<div class="cc-week-morejobs" style="left:${(i / 7 * 100).toFixed(3)}%;top:${laneCount * laneH}px"><button type="button" class="cc-week-more" data-wk-more>+${overflow[i]} more job${overflow[i] === 1 ? '' : 's'}</button></div>`).join('');
+    $('cc-week-row').innerHTML = cells + `<div class="cc-week-lanes" style="height:${laneCount * laneH + moreRow}px">${bars}</div>`;
+    // phones: the same week as a day list (seven columns do not fit)
+    const allWk = inWeek.filter(s => s.c0 === 0 && s.c1 === 6), jobTags = ss => `<div class="cc-wl-jobs">${ss.map(s => `<a class="cw${s.j.color}" href="/projects/${encodeURIComponent(s.j.project_code)}">${esc(s.j.name)}</a>`).join('')}</div>`;
+    $('cc-week-list').innerHTML = (allWk.length ? `<div class="cc-wl-day cc-wl-all"><div class="cc-wl-d">All<b>week</b></div><div class="cc-wl-rows">${jobTags(allWk)}</div></div>` : '') + days.map((x, i) => {
+      const k = iso(x), info = d.days[k] || {}, hc = info.headcount || 0, its = itemsOn(d, k), js = inWeek.filter(s => s.c0 <= i && s.c1 >= i && !allWk.includes(s));
+      const rows = (js.length ? jobTags(js) : '') +
+        (hc ? `<div class="cc-wl-hc">${hc} on site</div>` : '') + `<div class="cc-week-ms">${its.map(it => itemChip(it, k)).join('') + (info.milestones || []).map(msChip).join('')}</div>` +
+        (!js.length && !its.length && !(info.milestones || []).length ? `<div class="cc-wl-none">${allWk.length ? 'Only the all-week jobs' : 'Nothing scheduled'}</div>` : '');
+      return `<div class="cc-wl-day${k === t ? ' today' : ''}" data-day="${k}"><div class="cc-wl-d">${DOW[i]}<b>${x.getDate()}</b></div><div class="cc-wl-rows">${rows}</div></div>`;
+    }).join('');
+    wireItemChips($('cc-week-row'), d); wireItemChips($('cc-week-list'), d);
     DAY.week = d;
-    const n = segs.length ? new Set(segs.map(s => s.j.project_code)).size : 0;
-    const foot = [n ? `${n} job(s) this week` : 'No dated jobs this week.'];
-    if (d.undated && d.undated.length) foot.push(`${d.undated.length} active job(s) have no start date yet — <a href="/admin/projects">set them under Crew &amp; site</a>`);
-    $('cc-week-foot').innerHTML = foot.map(x => `<span>${x}</span>`).join('') + mineFoot(d);
+    const n = new Set(inWeek.map(s => s.j.project_code)).size, u = (d.undated || []).length;
+    const foot = [n ? `${n} job${n === 1 ? '' : 's'} this week` : 'No dated jobs this week.'];
+    if (u) foot.push(`${u} active job${u === 1 ? ' has' : 's have'} no start date yet — <a href="/admin/projects">set ${u === 1 ? 'it' : 'them'} under Crew &amp; site</a>`);
+    const canGrow = WK.all || hiddenChips > 0 || Object.keys(overflow).length > 0;
+    $('cc-week-foot').innerHTML = foot.map(x => `<span>${x}</span>`).join('') + mineFoot(d) +
+      (canGrow ? `<button type="button" class="cc-week-grow" data-wk-more aria-expanded="${WK.all}">${WK.all ? 'Show less ↑' : 'Show the whole week ↓'}</button>` : '');
     mineShowToggles(d);
   }
 

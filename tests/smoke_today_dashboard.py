@@ -350,6 +350,13 @@ def main() -> int:
                        'id="wx-modal"', "if (e.target.closest('[data-td-wx]')) { e.preventDefault(); wxOpen(); }", "Next 7 days"):
             assert needle in html, needle
         assert '>Today</button>' not in html, "the calendar shows the week, not 'Today'"
+        # 2026-10-21 polish: weather stays in its tile (not in Needs you), one main button + "⋯" per card,
+        # "+N more" grows the week in place (not a link to the calendar), and phones get the week as a day list
+        for needle in ('id="td-sum"', "data-td-menu", 'data-td-hide="later"', 'data-td-hide="good"', "TD.allWeek", "data-wk-more",
+                       "WK.all = !WK.all", 'id="cc-week-list"', "Show the whole week"):
+            assert needle in html, needle
+        for gone in ("tdWeatherCards", 'class="cc-week-more" href="#calendar', "data-gmail-card"):
+            assert gone not in html, gone
         js = (ROOT / "static/js/claude_drawer.js").read_text(encoding="utf-8")
         assert "ask: ask" in js
         passed += 1; print("  page ok")

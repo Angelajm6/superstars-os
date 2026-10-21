@@ -335,9 +335,10 @@ def main() -> int:
     assert "gmail check user=" in out and "gmail suggestion added user=" in out
     passed += 1; print("  logs ok")
 
-    for page in ("projects.html", "company_portal.html"):
-        src = (ROOT / page).read_text(encoding="utf-8")
-        assert "data-gmail-card hidden" in src and 'src="/files/static/js/gmail_suggest.js?v=' in src and "ssc:items-changed" in src, page
+    src = (ROOT / "projects.html").read_text(encoding="utf-8")
+    assert "data-gmail-card hidden" in src and 'src="/files/static/js/gmail_suggest.js?v=' in src and "ssc:items-changed" in src
+    # the company dashboard dropped the card (2026-10-21): Needs you and Today already carry the email work
+    assert "data-gmail-card" not in (ROOT / "company_portal.html").read_text(encoding="utf-8")
     js = (ROOT / "static" / "js" / "gmail_suggest.js").read_text(encoding="utf-8")
     for needle in ("/api/gmail/status", "/api/gmail/suggestions", "/accept", "/dismiss", "/undo", "/api/gmail/disconnect",
                    "/gmail/connect?next=", "Add to my to-do", "Open in Gmail", "SSCDatePicker.getISO"):
