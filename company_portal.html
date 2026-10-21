@@ -133,57 +133,87 @@
   .ib-filters button { border: 0; background: none; font: 600 12.5px Inter, sans-serif; color: var(--muted); padding: 5px 9px; border-radius: 999px; cursor: pointer; }
   .ib-filters button[aria-pressed="true"] { background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); }
   #ib-rows { overflow-y: auto; flex: 1; min-height: 0; }
+  /* Gmail parity (2026-10-21): every email of a conversation, Gmail's folding (first · "N older" · last two),
+     quoted text behind •••, per-email Reply / Reply all / Forward, details under "to me", phone = list then email */
   .ib-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "from when" "line line" "snip snip"; gap: 1px 8px; padding: 9px 14px; border-bottom: 1px solid #EEF0F3; cursor: pointer; font-size: 13px; color: #5F6368; background: #F6F8FC; }
   .ib-row.unread { background: #fff; color: #202124; }
   .ib-row:hover { box-shadow: inset 1px 0 0 #dadce0, inset -1px 0 0 #dadce0, 0 1px 2px rgba(60,64,67,.2); position: relative; }
   .ib-row.on { background: #E8EDF8; }
-  .ib-from { grid-area: from; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib-row .ib-av { display: none; }
+  .ib-from { grid-area: from; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #202124; }
   .ib-row.unread .ib-from, .ib-row.unread .ib-sub, .ib-row.unread .ib-when { font-weight: 700; }
-  .ib-n { color: #5F6368; font-weight: 400; font-size:13px; }
+  .ib-n { color: #5F6368; font-weight: 400; font-size: 12px; margin-left: 2px; }
   .ib-line { grid-area: line; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ib-sub { color: #202124; }
-  .ib-snip { grid-area: snip; color: #5F6368; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size:13px; }
-  .ib-when { grid-area: when; font-size:13px; white-space: nowrap; }
-  .ib-clip { margin-right: 6px; font-size:13px; }
-  .ib-lbl { display: inline-block; font-size:13px; font-weight: 500; padding: 0 6px; border-radius: 4px; background: #E8EAED; color: #3C4043; margin-right: 5px; line-height: 18px; vertical-align: 1px; }
+  .ib-snip { grid-area: snip; color: #5F6368; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+  .ib-when { grid-area: when; font-size: 12px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+  .ib-row.unread .ib-when { color: #202124; }
+  .ib-ic { width: 20px; height: 20px; fill: currentColor; flex: none; display: block; }
+  .ib-ic.s { width: 16px; height: 16px; }
+  .ib-lbl { display: inline-block; font-size: 12px; font-weight: 500; padding: 0 6px; border-radius: 4px; background: #E8EAED; color: #3C4043; margin-right: 5px; line-height: 18px; vertical-align: 1px; }
   .ib-lbl.cl { background: #FBEFE9; color: #A84E2C; font-weight: 600; }
   .ib-pane { min-width: 0; overflow-y: auto; height: 100%; background: #fff; }
   .ib-empty { padding: 24px 16px; }
-  .ib-head { padding: 18px 22px 10px; display: grid; gap: 8px; }
+  .ib-tbar { position: sticky; top: 0; z-index: 2; background: #fff; display: flex; align-items: center; gap: 2px; padding: 6px 12px; min-height: 48px; border-bottom: 1px solid #EEF0F3; }
+  .ib-tbar .sp { flex: 1; }
+  .ib-ibtn { border: 0; background: none; width: 40px; height: 40px; border-radius: 50%; display: inline-grid; place-items: center; color: #444746; cursor: pointer; text-decoration: none; flex: none; }
+  .ib-ibtn:hover { background: rgba(68,71,70,.08); } .ib-ibtn:focus-visible { outline: 2px solid var(--accent, #4364dc); }
+  .ib-back { display: none; }
+  .ib-head { padding: 16px 22px 8px 74px; display: flex; gap: 6px 10px; flex-wrap: wrap; align-items: baseline; }
   .ib-head h2 { margin: 0; font: 400 22px/1.3 Arial, Helvetica, sans-serif; color: #1F1F1F; overflow-wrap: anywhere; }
-  .ib-head-x { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size:13px; }
-  .ib-linkbtn { background: none; border: 0; cursor: pointer; font: inherit; padding: 0; }
-  #ib-sugg:not(:empty) { margin: 0 22px 12px; border: 1px solid #F0D9CE; background: #FFFBF9; border-radius: 10px; padding: 8px 12px; }
+  #ib-sugg:not(:empty) { margin: 4px 22px 12px 74px; border: 1px solid #F0D9CE; background: #FFFBF9; border-radius: 10px; padding: 8px 12px; }
   .ib-sugg-h { font-size: 13px; font-weight: 600; color: #A84E2C; display: flex; gap: 2px; align-items: center; cursor: pointer; list-style: none; }
   .ib-sugg-h::-webkit-details-marker { display: none; }
-  .ib-sugg-show { margin-left: auto; font-weight: 600; color: var(--ui, #24418C); font-size:13px; }
+  .ib-sugg-show { margin-left: auto; font-weight: 600; color: var(--ui, #24418C); font-size: 13px; }
   #ib-sugg-d[open] #ib-sugg-cards { margin-top: 8px; }
-  .ib-claude-mk { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: #C2603B; color: #fff; font-size:13px; font-style: normal; margin-right: 6px; flex: none; }
-  .ib-thread { border-top: 1px solid #EEF0F3; }
-  .ib-msg { border-bottom: 1px solid #EEF0F3; }
-  .ib-mhead { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; padding: 12px 22px; cursor: pointer; align-items: start; }
-  .ib-msg.open .ib-mhead { cursor: default; padding-bottom: 6px; }
-  .ib-av { width: 40px; height: 40px; border-radius: 50%; color: #fff; display: grid; place-items: center; font: 500 17px Arial, sans-serif; }
-  .ib-mwho { min-width: 0; font-size: 14px; color: #1F1F1F; }
+  .ib-claude-mk { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: #C2603B; color: #fff; font-size: 12px; font-style: normal; margin-right: 6px; flex: none; }
+  .ib-thread { padding-bottom: 4px; }
+  .ib-msg { border-top: 1px solid #EEF0F3; }
+  .ib-msg:first-child { border-top: 0; }
+  .ib-mhead { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; padding: 12px 16px 10px 22px; cursor: pointer; align-items: start; }
+  .ib-msg.open .ib-mhead { padding-bottom: 4px; }
+  .ib-msg:not(.open) .ib-mhead:hover { background: #F6F8FC; }
+  .ib-av { width: 40px; height: 40px; border-radius: 50%; color: #fff; display: grid; place-items: center; font: 500 17px Arial, sans-serif; flex: none; }
+  .ib-mwho { min-width: 0; font: 14px/20px Arial, Helvetica, sans-serif; color: #1F1F1F; padding-top: 2px; }
   .ib-mwho b { font-weight: 700; }
-  .ib-addr { color: #5E5E5E; font-size:13px; }
-  .ib-to { font-size:13px; color: #5E5E5E; display: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib-msg.unread .ib-mwho b { font-weight: 700; }
+  .ib-addr { color: #5E5E5E; font-size: 12px; }
+  .ib-msg:not(.open) .ib-addr { display: none; }
+  .ib-tome { display: none; border: 0; background: none; padding: 0; font: 12px/18px Arial, sans-serif; color: #5E5E5E; cursor: pointer; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+  .ib-tome:hover { color: #1F1F1F; }
   .ib-snip1 { font-size: 13px; color: #5E5E5E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ib-msg.open .ib-to { display: block; } .ib-msg.open .ib-snip1 { display: none; }
-  .ib-mwhen { font-size:13px; color: #5E5E5E; white-space: nowrap; }
+  .ib-msg.open .ib-tome { display: block; } .ib-msg.open .ib-snip1 { display: none; }
+  .ib-mside { display: flex; align-items: center; gap: 2px; color: #5E5E5E; }
+  .ib-mwhen { font: 12px/20px Arial, sans-serif; color: #5E5E5E; white-space: nowrap; padding: 0 4px; }
+  .ib-mside .ib-ibtn { display: none; width: 36px; height: 36px; }
+  .ib-msg.open .ib-mside .ib-ibtn { display: inline-grid; }
+  .ib-mclip { display: inline-flex; } .ib-msg.open .ib-mclip { display: none; }
+  .ib-mmenu { position: relative; }
+  .ib-mmenu .ib-menu { left: auto; right: 0; top: 38px; }
+  .ib-details { margin: 2px 22px 8px 74px; border: 1px solid #DADCE0; border-radius: 8px; padding: 10px 14px; font: 12px/1.6 Arial, sans-serif; color: #1F1F1F; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; width: fit-content; max-width: calc(100% - 96px); box-shadow: 0 1px 3px rgba(60,64,67,.15); }
+  .ib-details[hidden] { display: none; } .ib-details dt { color: #5E5E5E; text-align: right; } .ib-details dd { margin: 0; overflow-wrap: anywhere; }
   .ib-mbody { display: none; padding: 0 22px 12px 74px; }
   .ib-msg.open .ib-mbody { display: block; }
   .ib-frame { width: 100%; border: 0; display: block; background: #fff; }
-  .ib-atts { display: none; flex-wrap: wrap; gap: 10px; padding: 4px 22px 16px 74px; }
-  .ib-msg.open .ib-atts { display: flex; }
+  .ib-more { display: inline-block; margin-top: 6px; border: 0; background: #E8EAED; color: #444746; border-radius: 6px; padding: 0 8px; height: 14px; line-height: 6px; font-size: 14px; letter-spacing: 1px; cursor: pointer; }
+  .ib-more:hover { background: #DADCE0; } .ib-more[hidden] { display: none; }
+  .ib-fold { display: flex; align-items: center; gap: 12px; padding: 0 22px; height: 26px; cursor: pointer; border: 0; width: 100%; background: none; position: relative; }
+  .ib-fold::before, .ib-fold::after { content: ""; position: absolute; left: 0; right: 0; border-top: 1px solid #DADCE0; }
+  .ib-fold::before { top: 10px; } .ib-fold::after { top: 15px; }
+  .ib-fold span { position: relative; z-index: 1; margin-left: 2px; width: 36px; height: 36px; border-radius: 50%; background: #fff; border: 1px solid #DADCE0; display: grid; place-items: center; font: 500 14px Arial, sans-serif; color: #444746; }
+  .ib-fold:hover span { background: #F2F2F2; }
+  .ib-atts { display: none; padding: 4px 22px 16px 74px; }
+  .ib-msg.open .ib-atts { display: block; }
+  .ib-atts-h { font: 500 13px Arial, sans-serif; color: #1F1F1F; border-top: 1px solid #EEF0F3; padding-top: 12px; margin-bottom: 10px; }
+  .ib-atts-l { display: flex; flex-wrap: wrap; gap: 10px; }
   .ib-att { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "ic n" "ic s"; column-gap: 8px; width: 210px; border: 1px solid #DADCE0; border-radius: 8px; padding: 8px 10px; text-decoration: none; color: #1F1F1F; background: #fff; }
   .ib-att:hover { background: #F6F8FC; }
   .ib-att-ic { grid-area: ic; align-self: center; font: 700 10px Arial, sans-serif; color: #fff; background: #D93025; border-radius: 4px; padding: 4px 5px; }
-  .ib-att-n { grid-area: n; font-size:13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ib-att-s { grid-area: s; font-size:13px; color: #5E5E5E; }
+  .ib-att-ic.img { background: #188038; } .ib-att-ic.file { background: #5F6368; }
+  .ib-att-n { grid-area: n; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib-att-s { grid-area: s; font-size: 12px; color: #5E5E5E; }
   .ib-replybar { padding: 16px 22px 24px 74px; display: flex; gap: 10px; flex-wrap: wrap; }
-  .ib-rbtn { border: 1px solid #747775; background: #fff; color: #444746; border-radius: 999px; padding: 7px 18px; font: 500 13.5px Arial, sans-serif; cursor: pointer; display: inline-flex; align-items: center; }
-  .ib-rbtn.sm { padding: 3px 12px; font-size:13px; }
+  .ib-rbtn { border: 1px solid #747775; background: #fff; color: #444746; border-radius: 999px; padding: 0 18px 0 14px; height: 40px; font: 500 14px Arial, sans-serif; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
   .ib-replybar.btns { position: sticky; bottom: 0; background: #fff; border-top: 1px solid #EEF0F3; padding-top: 12px; padding-bottom: 14px; z-index: 1; }
   .ib-rbtn:hover { background: #F2F2F2; } .ib-rbtn:disabled { opacity: .6; cursor: default; }
   .ib-rbtn.cl { border-color: #E5C3B3; color: #A84E2C; }
@@ -219,8 +249,20 @@
   .ib-trim { display: inline-block; width: fit-content; font-size:13px; letter-spacing: 1px; color: #5F6368; background: #E8EAED; border-radius: 6px; padding: 0 6px; line-height: 14px; cursor: default; }
   .ib-comp-x { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .ib-cmp .cp-field textarea { min-height: 240px; font: 14px/1.5 Arial, Helvetica, sans-serif; }
-  @media (max-width: 900px) { .ib-wrap { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; } .ib-pane { height: auto; overflow: visible; } .ib-list { border-right: 0; border-bottom: 1px solid var(--line); } #ib-rows { max-height: 360px; }
-    .ib-mbody, .ib-atts, .ib-replybar { padding-left: 16px; padding-right: 16px; } .ib-mhead, .ib-head { padding-left: 16px; padding-right: 16px; } }
+  @media (max-width: 1100px) {   /* phone / tablet: the list, or one conversation full width with a back arrow (Gmail app) */
+    .ib-wrap { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; overflow: visible; } .ib-pane { height: auto; overflow: visible; display: none; }
+    .ib-list { border-right: 0; } .ib-wrap.reading .ib-list { display: none; } .ib-wrap.reading .ib-pane { display: block; }
+    .ib-back { display: inline-grid; } .ib-tbar { padding: 4px 6px; } }
+  @media (max-width: 900px) {
+    .ib-row { grid-template-columns: 40px minmax(0, 1fr) auto; grid-template-areas: "av from when" "av line line" "av snip snip"; column-gap: 12px; padding: 10px 14px; font-size: 14px; }
+    .ib-row .ib-av { display: grid; grid-area: av; align-self: start; margin-top: 2px; } .ib-from { font-size: 15px; }
+    .ib-head { padding: 12px 16px 6px; } #ib-sugg:not(:empty) { margin-left: 16px; margin-right: 16px; }
+    .ib-mhead { grid-template-columns: 40px minmax(0, 1fr) auto; padding: 12px 8px 6px 16px; gap: 10px; }
+    .ib-mbody, .ib-atts, .ib-replybar { padding-left: 16px; padding-right: 16px; } .ib-details { margin-left: 16px; max-width: calc(100% - 32px); }
+    .ib-addr { display: none; } .ib-msg.open .ib-mwhen { padding-top: 2px; }
+    .ib-replybar.btns { gap: 8px; position: static; border-top: 0; padding-bottom: 76px; }   /* clear of the Ask Claude button */ .ib-replybar.btns .ib-rbtn { flex: 1 1 0; justify-content: center; padding: 0 8px; gap: 6px; min-width: 0; font-size: 13px; white-space: nowrap; }
+    .ib-replybar.btns .ib-rbtn.cl { flex-basis: 100%; order: -1; }
+    .ib-att { width: 100%; } .ib-fold { padding: 0 16px; } }
   .cl-card { display: flex; flex-direction: column; gap: 10px; }
   .cl-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .cl-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
@@ -2861,64 +2903,170 @@
     await ibList();
     const want = arg && /^\d+$/.test(arg) ? +arg : IB.open;
     if (want) ibOpen(want, false);
-    else $('ib-pane').innerHTML = `<div class="ib-empty">${empty(st.connected ? 'Pick an email' : 'Connect your Gmail', st.connected ? 'New email shows up by itself. Use Refresh to check right now.' : 'Your email then arrives here, as in Gmail.')}</div>`;
+    else { $('ib-mail').classList.remove('reading'); $('ib-pane').innerHTML = `<div class="ib-empty">${empty(st.connected ? 'Pick an email' : 'Connect your Gmail', st.connected ? 'New email shows up by itself. Use Refresh to check right now.' : 'Your email then arrives here, as in Gmail.')}</div>`; }
     IB.timer = setTimeout(function tick() { if (state.view !== 'inbox' || IB.sub !== 'mail') return; ibList(); IB.timer = setTimeout(tick, 30000); }, 30000);
   }
+  const IB_ICON = {   // Gmail's icons (Material, 24px grid)
+    back: 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z',
+    one: 'M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z',
+    all: 'M7 8V5l-7 7 7 7v-3l-4-4 4-4zm6 1V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z',
+    fwd: 'M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z',
+    more: 'M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
+    unfold: 'M12 5.83 15.17 9l1.41-1.41L12 3 7.41 7.59 8.83 9 12 5.83zm0 12.34L8.83 15l-1.41 1.41L12 21l4.59-4.59L15.17 15 12 18.17z',
+    fold: 'M7.41 18.59 8.83 20 12 16.83 15.17 20l1.41-1.41L12 14l-4.59 4.59zm9.18-13.18L15.17 4 12 7.17 8.83 4 7.41 5.41 12 10l4.59-4.59z',
+    open: 'M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z',
+    clip: 'M16.5 6v11.5a4 4 0 0 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6h-1.5z',
+    done: 'M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
+    flag: 'M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6z'
+  };
+  const ibI = (k, small) => `<svg class="ib-ic${small ? ' s' : ''}" viewBox="0 0 24 24" aria-hidden="true"><path d="${IB_ICON[k]}"/></svg>`;
+  const ibPhone = () => window.matchMedia('(max-width: 900px)').matches, ibSingle = () => window.matchMedia('(max-width: 1100px)').matches;
+  function ibLong(iso) {   // Gmail's open-email date: "Mon, Oct 20, 3:14 PM (2 days ago)"
+    const d = new Date(iso), now = new Date();
+    if (isNaN(d)) return '';
+    const o = { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
+    if (d.getFullYear() !== now.getFullYear()) o.year = 'numeric';
+    const min = Math.floor((now - d) / 60000), unit = (n, w) => n + ' ' + w + (n === 1 ? '' : 's') + ' ago';
+    const rel = min < 1 ? '' : min < 60 ? unit(min, 'minute') : min < 1440 ? unit(Math.floor(min / 60), 'hour') : min < 43200 ? unit(Math.floor(min / 1440), 'day') : '';
+    return d.toLocaleString('en-US', o) + (rel ? ` (${rel})` : '');
+  }
+  function ibPeople(r) {   // Gmail's sender column: "Dana, me", "Dana .. Pat, me", or the one sender's full name
+    const p = r.people || [];
+    if (p.length < 2) return (r.direction === 'out' && (!p.length || p[0] === 'me') ? 'To: ' : '') + (r.who || p[0] || '');
+    return p.length > 3 ? p[0] + ' .. ' + p.slice(-2).join(', ') : p.join(', ');
+  }
+  const ibInitial = s => esc(String(s || '?').trim().replace(/^To:\s*/, '').charAt(0).toUpperCase() || '?');
   async function ibList() {
     try { IB.rows = (await api('/inbox/messages?filter=' + IB.filter, null, true)).data; } catch (e) { $('ib-rows').innerHTML = empty('Could not load the inbox', e.message); return; }
     document.querySelectorAll('[data-ibf]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.ibf === IB.filter)));
     $('ib-rows').innerHTML = IB.rows.length ? IB.rows.map(r => `<div class="ib-row${r.id === IB.open ? ' on' : ''}${r.unread ? ' unread' : ''}" data-ib="${r.id}" tabindex="0">
-      <div class="ib-from">${r.direction === 'out' ? 'To: ' : ''}${esc(r.who || '')}${r.count > 1 ? ` <span class="ib-n">${r.count}</span>` : ''}</div>
+      <span class="ib-av" style="background:${ibColor(r.who)}" aria-hidden="true">${ibInitial(r.who)}</span>
+      <div class="ib-from">${esc(ibPeople(r))}${r.count > 1 ? `<span class="ib-n">${r.count}</span>` : ''}</div>
       <div class="ib-line">${r.pending_cards ? '<span class="ib-lbl cl" title="Claude has a reply or a suggestion ready">✦ Claude</span>' : ''}<span class="ib-sub">${esc(r.subject)}</span></div>
       <div class="ib-snip">${r.tags.slice(0, 1).map(t => `<span class="ib-lbl">${esc(t)}</span>`).join('')}${esc(r.snippet || '')}</div>
-      <div class="ib-when">${r.has_attachments ? '<span class="ib-clip" aria-label="has attachments">📎</span>' : ''}${ibAgo(r.received_at)}</div></div>`).join('')
+      <div class="ib-when">${r.has_attachments ? `<span aria-label="has attachments">${ibI('clip', 1)}</span>` : ''}${ibAgo(r.received_at)}</div></div>`).join('')
       : `<div class="ib-empty">${empty(IB.filter === 'act' ? 'Nothing needs a reply' : 'No email yet', IB.filter === 'act' ? 'Emails that need an answer or a change show here.' : '')}</div>`;
   }
-  function ibFrame(doc) {
+  function ibFrame(doc, ready) {
     const f = document.createElement('iframe');
     f.className = 'ib-frame'; f.title = 'Email';
     f.setAttribute('sandbox', 'allow-same-origin allow-popups allow-popups-to-escape-sandbox');   // no scripts ever run
     f.setAttribute('referrerpolicy', 'no-referrer');
     f.srcdoc = doc;
-    const fit = () => { try { const d = f.contentDocument; f.style.height = '1px'; f.style.height = Math.max(24, d.documentElement.scrollHeight, d.body.scrollHeight) + 'px'; } catch (e) {} };   // shrink first: a frame never reports less than its own height
-    f.addEventListener('load', () => { fit(); setTimeout(fit, 400); setTimeout(fit, 1500); });
+    f.fit = () => { try { const d = f.contentDocument; f.style.height = '1px'; f.style.height = Math.max(24, d.documentElement.scrollHeight, d.body.scrollHeight) + 'px'; } catch (e) {} };   // shrink first: a frame never reports less than its own height
+    f.addEventListener('load', () => { if (ready) ready(f); f.fit(); setTimeout(f.fit, 400); setTimeout(f.fit, 1500); });
     return f;
   }
+  function ibTrim(f, btn) {   // the earlier email quoted under a reply folds behind •••, as in Gmail
+    let d; try { d = f.contentDocument; } catch (e) { return; }
+    const q = d && d.body && d.querySelector('.gmail_quote, blockquote[type="cite"], .yahoo_quoted, #divRplyFwdMsg, #appendonsend, #mail-editor-reference-message-container');
+    if (!q || /^\s*-+\s*Forwarded message/i.test(q.textContent || '')) return;
+    const before = d.createRange(); before.setStart(d.body, 0); before.setEndBefore(q);
+    if (!before.toString().trim()) return;   // the quote is the whole email: keep it showing
+    const fold = [];   // the quote and everything after it (Outlook puts the earlier email after its header)
+    for (let n = q; n && n !== d.body; n = n.parentNode) for (let s = n === q ? n : n.nextSibling; s; s = s.nextSibling) if (s.nodeType === 1) fold.push(s);
+    for (let p = q.previousSibling; p && (p.nodeType === 1 ? /^(BR|HR)$/.test(p.tagName) : !p.textContent.trim()); p = p.previousSibling) if (p.nodeType === 1) fold.push(p);   // the gap above it
+    const set = show => { fold.forEach(el => { el.style.display = show ? '' : 'none'; }); f.fit(); };
+    set(false); btn.hidden = false;
+    btn.addEventListener('click', () => { const show = btn.getAttribute('aria-expanded') !== 'true'; btn.setAttribute('aria-expanded', String(show)); btn.title = show ? 'Hide trimmed content' : 'Show trimmed content'; set(show); });
+  }
   function ibWho(p, me) { return p.email && p.email === (me || '').toLowerCase() ? 'me' : (p.name || p.email); }
+  function ibMsg(v, m, open) {   // one email of the conversation: folded (name · first line · date) or open
+    const el = document.createElement('div');
+    el.className = 'ib-msg' + (open ? ' open' : '') + (m.unread ? ' unread' : '');
+    const nm = p => esc(ibWho(p, v.me)), full = p => esc(p.name && p.name !== p.email ? `${p.name} <${p.email}>` : p.email || p.name);
+    const to = m.to.concat(m.cc).map(nm).join(', ') || 'me';
+    const icon = a => /pdf/i.test(a.mime) ? ['PDF', ''] : /image/i.test(a.mime) ? ['IMG', ' img'] : ['FILE', ' file'];
+    el.innerHTML = `<div class="ib-mhead" tabindex="0" role="button" aria-expanded="${open}">
+        <span class="ib-av" style="background:${ibColor(m.from.email || m.from.name)}" aria-hidden="true">${ibInitial(m.from.name || m.from.email)}</span>
+        <div class="ib-mwho"><div><b>${esc(m.from.name || m.from.email)}</b>${m.from.email && m.from.name !== m.from.email ? ` <span class="ib-addr">&lt;${esc(m.from.email)}&gt;</span>` : ''}</div>
+          <button type="button" class="ib-tome" data-det aria-expanded="false" title="Show details">to ${to} ▾</button><div class="ib-snip1">${esc(m.snippet || '')}</div></div>
+        <div class="ib-mside">${m.attachments.length ? `<span class="ib-mclip" title="Has attachments">${ibI('clip', 1)}</span>` : ''}<span class="ib-mwhen" title="${esc(ibFull(m.when))}"></span>
+          <button type="button" class="ib-ibtn" data-mrep="one" title="Reply" aria-label="Reply">${ibI('one')}</button>
+          <span class="ib-mmenu"><button type="button" class="ib-ibtn" data-mmore title="More" aria-label="More" aria-haspopup="true">${ibI('more')}</button>
+            <div class="ib-menu" hidden><button type="button" data-mrep="one">Reply</button>${m.reply_all_to.cc ? '<button type="button" data-mrep="all">Reply all</button>' : ''}<button type="button" data-mrep="fwd">Forward</button></div></span></div></div>
+      <dl class="ib-details" hidden><dt>from:</dt><dd>${full(m.from)}</dd>${m.to.length ? `<dt>to:</dt><dd>${m.to.map(full).join(', ')}</dd>` : ''}${m.cc.length ? `<dt>cc:</dt><dd>${m.cc.map(full).join(', ')}</dd>` : ''}
+        <dt>date:</dt><dd>${esc(ibFull(m.when))}</dd><dt>subject:</dt><dd>${esc(m.subject || v.subject || '')}</dd></dl>
+      <div class="ib-mbody"><button type="button" class="ib-more" hidden title="Show trimmed content" aria-expanded="false" aria-label="Show trimmed content">•••</button></div>
+      ${m.attachments.length ? `<div class="ib-atts"><div class="ib-atts-h">${m.attachments.length === 1 ? 'One attachment' : m.attachments.length + ' attachments'}</div><div class="ib-atts-l">${m.attachments.map(a => `<a class="ib-att" href="/api/inbox/messages/${m.id}/attachments/${a.n}" target="_blank" rel="noopener"><span class="ib-att-ic${icon(a)[1]}">${icon(a)[0]}</span><span class="ib-att-n">${esc(a.name)}</span><span class="ib-att-s">${ibKB(a.size)}</span></a>`).join('')}</div></div>` : ''}`;
+    const when = el.querySelector('.ib-mwhen'), body = el.querySelector('.ib-mbody'), more = el.querySelector('.ib-more');
+    el.ibShow = () => {
+      const on = el.classList.contains('open');
+      when.textContent = on && !ibPhone() ? ibLong(m.when) : ibAgo(m.when);
+      el.querySelector('.ib-mhead').setAttribute('aria-expanded', String(on));
+      if (on && !body.querySelector('iframe')) body.insertBefore(ibFrame(m.doc, f => ibTrim(f, more)), more);
+    };
+    el.ibShow();
+    const head = el.querySelector('.ib-mhead');
+    const toggle = () => { el.classList.toggle('open'); if (!el.classList.contains('open')) el.querySelector('.ib-details').hidden = true; el.ibShow(); };
+    head.addEventListener('click', e => {
+      const t = e.target;
+      if (t.closest('[data-det]')) { const dl = el.querySelector('.ib-details'); dl.hidden = !dl.hidden; t.closest('[data-det]').setAttribute('aria-expanded', String(!dl.hidden)); return; }
+      if (t.closest('[data-mmore]')) { const mn = el.querySelector('.ib-menu'); const was = mn.hidden; document.querySelectorAll('#ib-pane .ib-menu').forEach(x => { x.hidden = true; }); mn.hidden = !was; return; }
+      const r = t.closest('[data-mrep]');
+      if (r) { el.querySelector('.ib-menu').hidden = true; ibComposer(v, r.dataset.mrep, null, m); ibToReply(); return; }
+      toggle();
+    });
+    head.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === head) { e.preventDefault(); toggle(); } });
+    return el;
+  }
+  function ibToReply() { const b = $('ib-body'); $('ib-replybar').scrollIntoView({ block: 'end', behavior: 'smooth' }); if (b) b.focus({ preventScroll: true }); }
+  function ibBack() {   // phone: back to the list, where you were
+    $('ib-mail').classList.remove('reading'); IB.open = null;
+    document.querySelectorAll('.ib-row.on').forEach(r => r.classList.remove('on'));
+    if (location.hash !== '#inbox') history.replaceState(null, '', '#inbox');
+    window.scrollTo(0, IB.listY || 0);
+  }
   async function ibOpen(id, push) {
     IB.open = id; IB.cards.forEach(c => c.stop()); IB.cards = [];
     if (push !== false && location.hash !== '#inbox/' + id) history.replaceState(null, '', '#inbox/' + id);
     document.querySelectorAll('.ib-row').forEach(r => r.classList.toggle('on', +r.dataset.ib === id));
+    const wrap = $('ib-mail');
+    const fromList = ibSingle() && !wrap.classList.contains('reading');
+    if (fromList) IB.listY = window.scrollY;
+    wrap.classList.add('reading');   // phone / tablet: the conversation takes the screen (desktop shows both)
+    if (fromList) window.scrollTo(0, 0);
     const pane = $('ib-pane'); pane.innerHTML = '<div class="cp-skel"></div><div class="cp-skel"></div>';
     let v;
     try { v = (await api('/inbox/threads/' + id, null, true)).data; } catch (e) { pane.innerHTML = empty('Could not open this email', e.message); return; }
+    if (IB.open !== id) return;   // another email was picked meanwhile
     IB.thread = v;
     const n = v.messages.length;
-    pane.innerHTML = `<div class="ib-head"><h2>${esc(v.subject || '(no subject)')}</h2>
-        <div class="ib-head-x">${v.tags.map(t => `<span class="ib-lbl">${esc(t)}</span>`).join('')}
-          <button type="button" class="ib-rbtn sm" data-top-rep="one">↩ Reply</button>${v.reply_all_to.cc ? '<button type="button" class="ib-rbtn sm" data-top-rep="all">↩↩ Reply all</button>' : ''}
-          <a class="cp-link" href="${esc(v.gmail_url)}" target="_blank" rel="noopener">Open in Gmail</a>
-          <button type="button" class="cp-link ib-linkbtn" id="ib-done">${v.needs_action ? 'Mark done' : 'Mark as needing action'}</button></div></div>
+    pane.innerHTML = `<div class="ib-tbar"><button type="button" class="ib-ibtn ib-back" id="ib-back" title="Back to Inbox" aria-label="Back to Inbox">${ibI('back')}</button><span class="sp"></span>
+        <button type="button" class="ib-ibtn" id="ib-done" title="${v.needs_action ? 'Mark done' : 'Done. Mark as needing action'}" aria-label="${v.needs_action ? 'Mark done' : 'Mark as needing action'}">${ibI(v.needs_action ? 'done' : 'flag')}</button>
+        ${n > 1 ? `<button type="button" class="ib-ibtn" id="ib-expand" title="Expand all" aria-label="Expand all">${ibI('unfold')}</button>` : ''}
+        <a class="ib-ibtn" href="${esc(v.gmail_url)}" target="_blank" rel="noopener" title="Open in Gmail" aria-label="Open in Gmail">${ibI('open')}</a></div>
+      <div class="ib-head"><h2>${esc(v.subject || '(no subject)')}</h2>${v.tags.map(t => `<span class="ib-lbl">${esc(t)}</span>`).join('')}</div>
       <div id="ib-sugg"></div>
       <div class="ib-thread" id="ib-thread"></div>
       <div class="ib-replybar" id="ib-replybar"></div>`;
-    const th = $('ib-thread');
-    v.messages.forEach((m, i) => {
-      const last = i === n - 1;
-      const el = document.createElement('div');
-      el.className = 'ib-msg' + (last ? ' open' : '');
-      const to = m.to.map(p => ibWho(p, v.me)).join(', ') + (m.cc.length ? ', cc: ' + m.cc.map(p => ibWho(p, v.me)).join(', ') : '');
-      el.innerHTML = `<div class="ib-mhead" tabindex="0"><span class="ib-av" style="background:${ibColor(m.from.email || m.from.name)}">${esc((m.from.name || m.from.email || '?').trim().charAt(0).toUpperCase())}</span>
-          <div class="ib-mwho"><div><b>${esc(m.from.name || m.from.email)}</b>${m.from.email && m.from.name !== m.from.email ? ` <span class="ib-addr">&lt;${esc(m.from.email)}&gt;</span>` : ''}</div>
-          <div class="ib-to">to ${esc(to || 'me')}</div><div class="ib-snip1">${esc(m.snippet || '')}</div></div>
-          <div class="ib-mwhen" title="${esc(ibFull(m.when))}">${ibAgo(m.when)}${m.attachments.length ? ' 📎' : ''}</div></div>
-        <div class="ib-mbody"></div>
-        ${m.attachments.length ? `<div class="ib-atts">${m.attachments.map(a => `<a class="ib-att" href="/api/inbox/messages/${m.id}/attachments/${a.n}" target="_blank" rel="noopener"><span class="ib-att-ic">${/pdf/i.test(a.mime) ? 'PDF' : /image/i.test(a.mime) ? 'IMG' : 'FILE'}</span><span class="ib-att-n">${esc(a.name)}</span><span class="ib-att-s">${ibKB(a.size)}</span></a>`).join('')}</div>` : ''}`;
-      th.appendChild(el);
-      const show = () => { if (!el.querySelector('iframe')) el.querySelector('.ib-mbody').appendChild(ibFrame(m.doc)); };
-      if (last) show();
-      el.querySelector('.ib-mhead').addEventListener('click', () => { if (last) return; el.classList.toggle('open'); if (el.classList.contains('open')) show(); });
+    // Gmail's folding: the first email, the last two and any unread stay in view; a run of 2+ others folds into "N"
+    const th = $('ib-thread'), keep = new Set([0, n - 2, n - 1]);
+    v.messages.forEach((m, i) => { if (m.unread) keep.add(i); });
+    const els = v.messages.map((m, i) => ibMsg(v, m, i === n - 1 || m.unread));
+    for (let i = 0; i < n;) {
+      if (keep.has(i)) { th.appendChild(els[i++]); continue; }
+      let j = i; while (j < n && !keep.has(j)) j++;
+      const run = els.slice(i, j);
+      if (run.length < 2) run.forEach(el => th.appendChild(el));
+      else {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'ib-fold'; b.title = 'Show ' + run.length + ' older messages'; b.setAttribute('aria-label', b.title);
+        b.innerHTML = `<span>${run.length}</span>`;
+        b.addEventListener('click', () => { run.forEach(el => b.before(el)); b.remove(); });
+        th.appendChild(b);
+      }
+      i = j;
+    }
+    const ex = $('ib-expand');
+    if (ex) ex.addEventListener('click', () => {
+      const all = ex.dataset.on !== '1';
+      th.querySelectorAll('.ib-fold').forEach(b => b.click());
+      els.forEach((el, i) => { el.classList.toggle('open', all || i === n - 1); el.ibShow(); });
+      ex.dataset.on = all ? '1' : ''; ex.title = all ? 'Collapse all' : 'Expand all'; ex.setAttribute('aria-label', ex.title); ex.innerHTML = ibI(all ? 'fold' : 'unfold');
     });
+    pane.addEventListener('click', e => { if (!e.target.closest('.ib-mmenu')) pane.querySelectorAll('.ib-mmenu .ib-menu').forEach(x => { x.hidden = true; }); });
+    $('ib-back').addEventListener('click', ibBack);
     // Claude's other suggestions (new bid, event, task...): one folded line above the conversation
     const sugg = $('ib-sugg');
     if (v.card_chats.length && window.SSC_CLAUDE && SSC_CLAUDE.mountCards) {
@@ -2934,22 +3082,19 @@
       new MutationObserver(sum).observe($('ib-sugg-cards'), { childList: true, subtree: true });
       $('ib-sugg-d').addEventListener('toggle', e => { sugg.querySelector('.ib-sugg-show').textContent = e.target.open ? 'Hide' : 'Show'; });
     }
-    $('ib-done').addEventListener('click', async () => { try { await api('/inbox/messages/' + v.last_id + '/done', { method: 'POST', body: JSON.stringify({ done: v.needs_action }) }, true); await ibList(); ibOpen(id, false); } catch (e) { toast(e.message, true); } });
-    pane.querySelectorAll('[data-top-rep]').forEach(b => b.addEventListener('click', () => {
-      if (!$('ib-body')) ibComposer(v, b.dataset.topRep === 'all', null);
-      $('ib-replybar').scrollIntoView({ block: 'end', behavior: 'smooth' }); $('ib-body').focus({ preventScroll: true });
-    }));
+    $('ib-done').addEventListener('click', async () => { try { await api('/inbox/messages/' + v.last_id + '/done', { method: 'POST', body: JSON.stringify({ done: v.needs_action }) }, true); toast(v.needs_action ? 'Marked done' : 'Marked as needing action'); await ibList(); ibOpen(id, false); } catch (e) { toast(e.message, true); } });
     ibReplyBar(v);
     pane.scrollTop = 0;
   }
   function ibReplyBar(v) {
     const bar = $('ib-replybar');
-    if (v.draft) { ibComposer(v, v.draft.reply_all, v.draft); return; }
+    if (v.draft) { ibComposer(v, v.draft.reply_all ? 'all' : 'one', v.draft); return; }
     bar.classList.add('btns');   // always in reach at the bottom of the reading pane
     const busy = v.ai_state === 'pending' || v.ai_state === 'asked';
-    bar.innerHTML = `<button type="button" class="ib-rbtn" data-rep="one">↩ Reply</button>${(v.reply_all_to.cc || '') ? '<button type="button" class="ib-rbtn" data-rep="all">↩↩ Reply all</button>' : ''}
+    bar.innerHTML = `<button type="button" class="ib-rbtn" data-rep="one">${ibI('one')}Reply</button>${(v.reply_all_to.cc || '') ? `<button type="button" class="ib-rbtn" data-rep="all">${ibI('all')}Reply all</button>` : ''}
+      <button type="button" class="ib-rbtn" data-rep="fwd">${ibI('fwd')}Forward</button>
       <button type="button" class="ib-rbtn cl" id="ib-ask"${busy ? ' disabled' : ''}><span class="ib-claude-mk" aria-hidden="true">✦</span>${busy ? 'Claude is writing a reply…' : 'Draft with Claude'}</button>`;
-    bar.querySelectorAll('[data-rep]').forEach(b => b.addEventListener('click', () => ibComposer(v, b.dataset.rep === 'all', null)));
+    bar.querySelectorAll('[data-rep]').forEach(b => b.addEventListener('click', () => { ibComposer(v, b.dataset.rep, null); ibToReply(); }));
     $('ib-ask').addEventListener('click', async () => {
       const b = $('ib-ask'); b.disabled = true; b.lastChild.textContent = 'Claude is writing a reply…';
       try { await api('/inbox/messages/' + v.last_id + '/suggest', { method: 'POST', body: JSON.stringify({ reply: true }) }, true); ibWait(v.id); }
@@ -2964,8 +3109,8 @@
       try { const t = (await api('/inbox/threads/' + id, null, true)).data; if (t.ai_state !== 'pending' && t.ai_state !== 'asked') { ibOpen(id, false); ibList(); } else ibWait(id); } catch (e) {}
     }, 2500);
   }
-  function ibComposer(v, all, draft) {
-    const bar = $('ib-replybar'), rc = all ? v.reply_all_to : v.reply_to;
+  function ibComposer(v, kind, draft, t) {   // kind: one | all | fwd; t: the email answered (default: the latest)
+    const bar = $('ib-replybar'), to = t ? Object.assign({}, v, { reply_to: t.reply_to, reply_all_to: t.reply_all_to }) : v;
     bar.classList.remove('btns');
     bar.innerHTML = `<div class="ib-comp${draft ? ' drafted' : ''}">
         ${draft ? '<div class="ib-drafted"><span class="ib-claude-mk" aria-hidden="true">✦</span>Claude drafted this reply. Read it, change anything, then Send. Nothing goes out until you do.</div>' : ''}
@@ -2979,7 +3124,7 @@
           ${!v.can_send ? '<span class="cp-muted" style="font-size:13px">Reconnect Gmail at the top of this page to allow sending.</span>' : ''}
           <span class="cp-form-err" id="ib-err" role="alert"></span></div></div>`;
     const ta = $('ib-body'); ta.style.height = Math.min(420, Math.max(140, ta.scrollHeight + 6)) + 'px';
-    IB.rc = ibRecipients($('ib-rc'), v, all ? 'all' : 'one');
+    IB.rc = ibRecipients($('ib-rc'), to, kind);
     ibSig($('ib-sig'), v.sender);
     if (!draft) ta.focus();
     $('ib-send').addEventListener('click', async () => {
@@ -2988,7 +3133,7 @@
         const R = IB.rc.state;
         if (R.bad()) throw new Error('Fix the address in red first.');
         if (!R.to.length) throw new Error('Add at least one person in To.');
-        await api('/inbox/messages/' + v.last_id + '/reply', { method: 'POST', body: JSON.stringify({ body: ta.value, reply_all: R.kind === 'all', forward: R.kind === 'fwd',
+        await api('/inbox/messages/' + (t ? t.id : v.last_id) + '/reply', { method: 'POST', body: JSON.stringify({ body: ta.value, reply_all: R.kind === 'all', forward: R.kind === 'fwd',
           to: R.list('to'), cc: R.list('cc'), bcc: R.list('bcc'), subject: R.subject || null, draft_action_id: draft ? draft.action_id : null }) }, true);
         toast('Sent from your Gmail'); await ibList(); ibOpen(IB.open, false);
       } catch (e) { const er = $('ib-err'); er.textContent = e.message; er.className = 'cp-form-err show'; b.disabled = false; b.textContent = 'Send'; }

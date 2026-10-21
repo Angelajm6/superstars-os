@@ -74,6 +74,9 @@ GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me"
 KEEP_DAYS = 90
 FIRST_QUERY = "newer_than:3d (in:inbox OR in:sent) -category:promotions -category:social -category:forums"
 MAX_PER_ROUND = 60
+MAX_THREADS_PER_ROUND = 20   # conversations completed per sync round (one Gmail call each)
+MAX_THREAD = 100             # emails kept per conversation
+THREAD_RECHECK_SECONDS = 60
 MAX_BODY = 20000
 SKIP_LABELS = {"SPAM", "TRASH", "DRAFT", "CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"}
 NOREPLY = re.compile(r"(no-?reply|do-?not-?reply|mailer-daemon|postmaster|notifications?@|bounce|newsletter)", re.I)
@@ -310,13 +313,15 @@ def match(conn, addrs: list, text: str, own_domain: str = "") -> dict:
 
 
 # ------------------------------------------------------------------ storing
-def ingest(conn, uid: int, msg: dict, own_email: str = "") -> Optional[int]:
-    """Store one Gmail message (format=full) for this person; None when skipped or already there."""
+def ingest(conn, uid: int, msg: dict, own_email: str = "", quiet: bool = False) -> Optional[int]:
+    """Store one Gmail message (format=full) for this person; None when skipped or already there.
+    quiet: an earlier email of a conversation (sync_thread), kept so the thread reads as in Gmail: never sorted
+    by Claude, never "needs action", already read."""
     import gmail_suggest
     if not msg.get("id") or _one(conn, "SELECT id FROM mail_message WHERE user_id = ? AND gmail_id = ?", (uid, msg["id"])):
         return None
     h = gmail_suggest._headers(msg.get("payload"))
-    if is_noise(msg, h):
+    if set(msg.get("labelIds") or []) & SKIP_LABELS or (is_noise(msg, h) and not quiet):
         return None
     direction = "out" if "SENT" in (msg.get("labelIds") or []) else "in"
     text = (gmail_suggest._text_of(msg.get("payload")) or msg.get("snippet") or "")[:MAX_BODY]
@@ -329,7 +334,8 @@ def ingest(conn, uid: int, msg: dict, own_email: str = "") -> Optional[int]:
         "estimate_id, proposal_id, project_code, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (uid, msg["id"], msg.get("threadId"), _enc(h.get("message-id")), direction, _when(msg, h), _enc(h.get("from")),
          _enc(h.get("to")), _enc(h.get("cc")), _enc((h.get("subject") or "")[:300]), _enc(text),
-         _enc((msg.get("snippet") or "")[:300]), _enc(json.dumps(atts)) if atts else None, 0, "new", "pending",
+         _enc((msg.get("snippet") or "")[:300]), _enc(json.dumps(atts)) if atts else None, 0, "seen" if quiet else "new",
+         "triaged" if quiet else "pending",
          m["client_org_id"], m["contact_id"], m["estimate_id"], m["proposal_id"], m["project_code"], _now()))
     conn.commit()
     mid = _one(conn, "SELECT id FROM mail_message WHERE user_id = ? AND gmail_id = ?", (uid, msg["id"]))["id"]
@@ -416,13 +422,17 @@ def sync_user(conn, uid) -> dict:
             if code != 200:
                 raise RuntimeError(f"list failed ({code})")
             ids = [m["id"] for m in body.get("messages") or [] if m.get("id")]
-        stored = 0
+        stored, threads = 0, []
         for gid in ids[:MAX_PER_ROUND]:
             if _one(conn, "SELECT id FROM mail_message WHERE user_id = ? AND gmail_id = ?", (uid, gid)):
                 continue
             code, msg = _gmail(conn, link, "GET", f"/messages/{gid}?format=full")
             if code == 200 and ingest(conn, uid, msg, link.get("google_email") or ""):
                 stored += 1
+                if msg.get("threadId") and msg["threadId"] not in threads:
+                    threads.append(msg["threadId"])
+        for tid in threads[:MAX_THREADS_PER_ROUND]:   # the earlier emails of those conversations, so the count is Gmail's
+            sync_thread(conn, uid, tid, link)
         now = _now()
         if _one(conn, "SELECT user_id FROM mail_sync WHERE user_id = ?", (uid,)):
             conn.execute("UPDATE mail_sync SET history_id = COALESCE(?, history_id), last_sync_at = ?, last_error = NULL "
@@ -447,6 +457,52 @@ def sync_user(conn, uid) -> dict:
         _set_sync_error(conn, uid, "The last sync did not finish; it retries by itself")
         log.warning("inbox sync user=%s failed: %s", uid, type(e).__name__)
         return {"error": True}
+
+
+_THREAD_SEEN: dict = {}   # (user, thread) -> when Gmail was last asked (opening / waiting on a thread re-reads it)
+
+
+def sync_thread(conn, uid: int, thread_id: str, link: Optional[dict] = None, force: bool = False) -> int:
+    """Every email of this conversation as Gmail has it. The mailbox sync only brings the last 3 days of the inbox and
+    Sent, without automated mail, so a long thread was missing its earlier emails, archived ones and robot replies:
+    those are fetched here (quietly: not sorted by Claude, not "needs action"). Trash, spam and drafts stay out, as in
+    Gmail. Returns how many were added; never raises (the thread still opens with what is stored)."""
+    if not thread_id:
+        return 0
+    key = (uid, thread_id)
+    if not force and time.time() - _THREAD_SEEN.get(key, 0) < THREAD_RECHECK_SECONDS:
+        return 0
+    link = link or _link(conn, uid)
+    if not link:
+        return 0
+    _THREAD_SEEN[key] = time.time()
+    try:
+        import gmail_suggest
+        code, body = _gmail(conn, link, "GET", f"/threads/{_q(thread_id)}?format=full")
+        if code != 200:
+            return 0
+        added = 0
+        recent = (datetime.now() - timedelta(days=3)).isoformat(timespec="seconds")
+        for msg in (body.get("messages") or [])[:MAX_THREAD]:
+            labels = set(msg.get("labelIds") or [])
+            if not msg.get("id") or labels & SKIP_LABELS:
+                continue
+            if not _one(conn, "SELECT id FROM mail_message WHERE user_id = ? AND gmail_id = ?", (uid, msg["id"])):
+                h = gmail_suggest._headers(msg.get("payload"))
+                # new business mail that the mailbox sync has not reached yet keeps the normal path (Claude sorts it)
+                quiet = not (labels & {"INBOX", "SENT"}) or is_noise(msg, h) or _when(msg, h) < recent
+                if ingest(conn, uid, msg, link.get("google_email") or "", quiet=quiet):
+                    added += 1
+        if added:
+            log.info("inbox thread completed for user %s (+%s)", uid, added)
+        return added
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        log.info("inbox thread sync for user %s skipped (%s)", uid, type(e).__name__)
+        return 0
 
 
 def _q(s: str) -> str:
@@ -1053,6 +1109,10 @@ _ON_ATTR = re.compile(r"""(?i)\s on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)""".rep
 _JS_URL = re.compile(r"""(?i)(href|src)\s*=\s*(["']?)\s*javascript:[^"'>\s]*\2""")
 
 
+# where a plain-text reply starts quoting the earlier email ("On Mon, ... wrote:", Outlook's header, or "> " lines)
+_QUOTE_START = re.compile(r"^(?:On [^\n]{4,300}?wrote:\s*$|-{2,} ?Original Message ?-{2,}|_{8,}\s*$\n^From: |From: [^\n]+\n(?:Sent|Date): |>)", re.M)
+
+
 def render_doc(conn, uid: int, m: dict) -> str:
     """The email as written, as a stand-alone document for a locked-down frame (no scripts run;
     links open in a new tab; pictures inside the email shown as Gmail shows them)."""
@@ -1072,8 +1132,11 @@ def render_doc(conn, uid: int, m: dict) -> str:
                 body = body.replace("cid:" + a["cid"], uri)
     else:
         text = m.get("full") or m.get("body") or m.get("snippet") or ""
-        body = ('<div style="white-space:pre-wrap">' + re.sub(r"(https?://[^\s<]+)", r'<a href="\1">\1</a>', _html.escape(text))
-                + "</div>")
+        cut = _QUOTE_START.search(text)   # the earlier email quoted under a plain-text reply: folded, as Gmail does
+        link = lambda t: re.sub(r"(https?://[^\s<]+)", r'<a href="\1">\1</a>', _html.escape(t))
+        body = '<div style="white-space:pre-wrap">' + link(text[:cut.start()] if cut and cut.start() else text) + "</div>"
+        if cut and cut.start():
+            body += '<div class="gmail_quote" style="white-space:pre-wrap">' + link(text[cut.start():]) + "</div>"
     head = ('<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
             'img-src https: data:; style-src \'unsafe-inline\' https:; font-src https: data:">'
             '<base target="_blank"><style>html,body{margin:0;padding:0;background:#fff;color:#222}'
@@ -1092,6 +1155,8 @@ def thread_view(conn, uid: int, mid: int) -> Optional[dict]:
     m = message(conn, mid, uid)
     if not m:
         return None
+    if m["thread_id"] and not runtime_seams.seam("SSC_INBOX_ATTACHMENT_FAKE"):   # the test mailbox never asks Google
+        sync_thread(conn, uid, m["thread_id"])
     ids = [r["id"] for r in _rows(conn, "SELECT id FROM mail_message WHERE user_id = ? AND thread_id = ? ORDER BY received_at, id",
                                      (uid, m["thread_id"]))] if m["thread_id"] else [mid]
     out = []
@@ -1104,6 +1169,7 @@ def thread_view(conn, uid: int, mid: int) -> Optional[dict]:
                     "to": [_person(v) for v in [a for a in (x["to"] or "").split(",") if a.strip()]],
                     "cc": [_person(v) for v in [a for a in (x["cc"] or "").split(",") if a.strip()]],
                     "when": x["received_at"], "snippet": x["snippet"], "doc": render_doc(conn, uid, x),
+                    "subject": x["subject"], "unread": x["status"] == "new",
                     "attachments": [{"n": n, "name": a["name"], "size": a["size"], "mime": a["mime"]}
                                     for n, a in enumerate(x["all_files"]) if not a.get("inline")],
                     "chat_id": x["chat_id"]})
@@ -1296,6 +1362,21 @@ def _sender_view(conn, uid: int) -> dict:
             "signature_doc": render_doc(conn, uid, {"html": me["signature"], "inline_images": []}) if me["signature"] else None}
 
 
+def _people_of(conn, msgs: list) -> list:
+    """Who wrote in this conversation, oldest first, as Gmail lists them: first names, "me" for your own emails."""
+    out = []
+    for r in sorted(msgs, key=lambda x: (x["received_at"] or "", x["id"])):
+        d = _one(conn, "SELECT direction, from_enc FROM mail_message WHERE id = ?", (r["id"],))
+        if d["direction"] == "out":
+            who = "me"
+        else:
+            n, a = parseaddr(_dec(d["from_enc"]))
+            who = (n.split()[0] if n.strip() and "@" not in n else a.split("@")[0]).strip('"\'')[:40] or "?"
+        if who not in out:
+            out.append(who)
+    return out
+
+
 @requires_role(*OFFICE_ROLES)
 def _api_messages():
     """One row per conversation (the latest email), like Gmail."""
@@ -1323,7 +1404,7 @@ def _api_messages():
                 continue
             row = _public_row(conn, msgs[0])
             row.update(count=len(msgs), unread=any(x["status"] == "new" for x in msgs), needs_action=act,
-                       filed=any(x["id"] in filed for x in msgs))
+                       filed=any(x["id"] in filed for x in msgs), people=_people_of(conn, msgs))
             if len(msgs) > 1:
                 row["pending_cards"] = sum(_public_row(conn, x)["pending_cards"] for x in msgs[1:]) + row["pending_cards"]
             out.append(row)
@@ -1452,6 +1533,10 @@ def _api_thread(mid):
         ids = [x["id"] for x in v["messages"]]
         last = message(conn, ids[-1], me["id"])
         link = _one(conn, "SELECT google_email, scopes FROM gmail_link WHERE user_id = ?", (me["id"],)) or {}
+        for x in v["messages"]:   # Reply / Reply all / Forward on any email of the conversation, as in Gmail
+            xm = x["id"] == ids[-1] and last or message(conn, x["id"], me["id"])
+            x["reply_to"] = dict(zip(("to", "cc"), reply_recipients(xm, link.get("google_email") or "", False)))
+            x["reply_all_to"] = dict(zip(("to", "cc"), reply_recipients(xm, link.get("google_email") or "", True)))
         row = _public_row(conn, {"id": mid})
         v.update({"id": mid, "last_id": ids[-1], "tags": row["tags"], "ai_state": last["ai_state"], "needs_action": any(
                       x["needs_action"] and x["status"] != "done" for x in _rows(conn, f"SELECT needs_action, status FROM mail_message "
