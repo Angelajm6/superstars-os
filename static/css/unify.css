@@ -188,6 +188,8 @@ body .ssc-main .cp-input, body .ssc-main .cp-select, body .ssc-main .ssc-field {
   font: inherit; font-size: 14px;
 }
 body .ssc-main textarea { padding: 10px 12px; min-height: 88px; }
+/* "$"-prefixed money fields keep room for the prefix (must out-rank the input rule above) */
+body .ssc-main :is(.ps-money, .np-money) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]) { padding-left: 24px; }
 body .ssc-main input:focus, body .ssc-main select:focus, body .ssc-main textarea:focus {
   outline: 2px solid var(--accent-edge); outline-offset: 1px; border-color: var(--accent);
 }
