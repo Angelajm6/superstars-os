@@ -380,13 +380,12 @@ def view(conn, pid: int, uid) -> Optional[dict]:
         log.info("proposal studio threads unavailable: %s", type(e).__name__)
     st = house_style(conn)
     me = _one(conn, "SELECT google_email FROM gmail_link WHERE user_id = ?", (uid,)) or {}
+    import proposal_engine
     ssc = r.get("layout") == "ssc"
-    extra = {}
+    extra = {"label": proposal_engine.label(r)}
     if ssc:
-        import proposal_engine
-        extra = {"layout": "ssc", "content": proposal_engine.snapshot(conn, pid), "checks": proposal_engine.checks(conn, r),
-                 "new_clauses": proposal_engine.new_clauses(conn, proposal_engine.content(r)), "label": proposal_engine.label(r),
-                 "house": proposal_engine.house(conn)}
+        extra.update({"layout": "ssc", "content": proposal_engine.snapshot(conn, pid), "checks": proposal_engine.checks(conn, r),
+                      "new_clauses": proposal_engine.new_clauses(conn, proposal_engine.content(r)), "house": proposal_engine.house(conn)})
     return {"proposal": {k: r.get(k) for k in ("id", "number", "version", "status", "title", "client_org_id", "client_name",
                                                 "price", "valid_until", "recipient_email", "recipient_name", "sent_at",
                                                 "estimate_code", "email_message", "deposit_pct", "source_mail_id", "updated_at")

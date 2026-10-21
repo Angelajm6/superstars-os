@@ -10,7 +10,7 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1020"></script>
+<script src="/files/static/js/company_nav.js?v=1021"></script>
 <script src="/files/static/js/claude_drawer.js?v=13" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1015" defer></script>
@@ -19,6 +19,7 @@
 <script src="/files/static/js/inbox_schedule.js?v=4" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
+<script src="/files/static/js/pdf_view.js?v=1" defer></script>
 <style>
   /* #302 Company Portal — tokens come from widgets.css :root (accent, ink, muted, line,
      canvas, brand-red, status-*). This block only lays out the shell + portal components. */
@@ -1031,7 +1032,7 @@
             <div class="cp-toolbar">
               <select class="cp-select pr-kind" id="pr-kind" aria-label="Show"><option value="proposal">Proposals</option><option value="estimate">Estimates</option><option value="bid">Bids</option></select>
               <input class="cp-input search" id="pr-search" placeholder="Search number, title, client or address…" autocomplete="off">
-              <select class="cp-select" id="pr-status"><option value="">All statuses</option><option value="draft">Draft</option><option value="sent">Sent</option><option value="viewed">Viewed</option><option value="signed">Signed</option><option value="declined">Declined</option><option value="superseded">Superseded</option></select>
+              <select class="cp-select" id="pr-status"><option value="">All statuses</option><option value="draft">Draft</option><option value="sent">Sent</option><option value="viewed">Viewed</option><option value="signed">Signed</option><option value="declined">Declined</option><option value="superseded">Superseded</option><option value="archived">Before the app</option></select>
               <span style="flex:1"></span>
               <a class="btn-primary btn-sm" id="pr-studio" href="/proposal-studio#new">✦ New proposal with Claude</a>
               <button class="btn-ghost btn-sm" id="pr-new" type="button">+ New proposal</button>
@@ -3315,8 +3316,17 @@
   $('ca-status').addEventListener('change', renderClaudeLog);
   $('ca-search').addEventListener('input', renderClaudeLog);
   // ---------- PROPOSALS (#307) ----------
-  const PR_PILL = { draft: '', sent: 'active', viewed: 'active', signed: 'ok', declined: 'bad', superseded: '', expired: 'warn' };
-  function prPill(p) { const st = p.display_status || p.status; return `<span class="cp-pill ${PR_PILL[st] || ''}">${esc(st)}</span>`; }
+  const PR_PILL = { draft: '', sent: 'active', viewed: 'active', signed: 'ok', declined: 'bad', superseded: '', expired: 'warn', archived: '' };
+  const PR_WORD = { archived: 'before the app' };
+  // 2026-10-21: any proposal's PDF in a side panel, without leaving the list (static/js/pdf_view.js draws the pages)
+  function prPdf(r) {
+    const arch = !!r.archived, no = r.label || r.number;
+    const url = arch ? r.pdf_url : `/api/proposals/${r.id}/pdf`;
+    const links = [{ label: 'Download', href: url, download: true }];
+    if (!arch) links.unshift({ label: r.layout === 'ssc' ? 'Open in Proposal Studio' : 'Open', href: r.layout === 'ssc' ? `/proposal-studio#p/${r.id}` : `#proposals/${r.id}` });
+    window.SSC_PDF.panel({ title: (/^\d/.test(no) ? 'Proposal ' : '') + no, sub: [r.client_name, r.price != null ? money.format(r.price) : '', arch ? 'Before the app' : r.display_status].filter(Boolean).join(' · '), url, links });
+  }
+  function prPill(p) { const st = p.display_status || p.status; return `<span class="cp-pill ${PR_PILL[st] || ''}">${esc(PR_WORD[st] || st)}</span>`; }
   function fmtWhen(iso) { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? esc(iso) : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
   async function proposeFromEstimate(estimateId) {
     try { const { data } = await api('/proposals', { method: 'POST', body: JSON.stringify({ estimate_id: estimateId }) }, true); toast(`Draft ${data.label || data.number} created`); if (data.layout === 'ssc') location.href = '/proposal-studio#p/' + data.id; else location.hash = '#proposals/' + data.id; }
@@ -3324,7 +3334,7 @@
   }
   async function loadProposalList() {
     skeleton($('pr-kpis'), 4);
-    const q = new URLSearchParams(); const s = $('pr-search').value.trim(); if (s) q.set('q', s); if ($('pr-status').value) q.set('status', $('pr-status').value);
+    const q = new URLSearchParams({ include: 'archive' }); const s = $('pr-search').value.trim(); if (s) q.set('q', s); if ($('pr-status').value) q.set('status', $('pr-status').value);
     try {
       const [{ data: rows, meta }, cc] = await Promise.all([api('/proposals?' + q.toString(), null, true), claudeCounts()]);
       if (PRK.kind !== 'proposal') return;
@@ -3335,16 +3345,19 @@
         kpi('Drafts', num.format(c.draft || 0), 'not sent yet') +
         kpi('Declined', num.format(c.declined || 0), `${num.format(c.superseded || 0)} superseded`);
       table($('pr-table'), [
-        { key: 'number', label: 'Proposal', render: r => `<a class="cp-link cp-id" href="#proposals/${r.id}">${esc(r.number)}</a>` },
-        { key: 'client_name', label: 'Client', render: r => `<a class="cp-link" href="#clients/${r.client_org_id}">${esc(r.client_name)}</a>` },
+        { key: 'number', label: 'Proposal', render: r => r.archived ? `<span class="cp-id">${esc(r.label)}</span>` : `<a class="cp-link cp-id" href="#proposals/${r.id}">${esc(r.label || r.number)}</a>`, sortVal: r => r.label || r.number },
+        { key: 'client_name', label: 'Client', render: r => r.client_org_id ? `<a class="cp-link" href="#clients/${r.client_org_id}">${esc(r.client_name)}</a>` : esc(r.client_name || '—') },
         { key: 'building_address', label: 'Address', render: r => esc(r.building_name || r.building_address || '—') },
         { key: 'title', label: 'Title' },
         { key: 'price', label: 'Price', num: true, render: r => r.price != null ? money.format(r.price) : '—' },
         { key: 'status', label: 'Status', render: prPill, sortVal: r => r.display_status },
-        { key: 'sent_at', label: 'Sent', render: r => fmtDate(r.sent_at) },
+        { key: 'sent_at', label: 'Sent', render: r => fmtDate(r.sent_at), sortVal: r => r.sent_at || '' },
         { key: 'updated_at', label: 'Updated', render: r => fmtDate(r.updated_at) },
-        { key: 'claude', label: '', render: r => claudeChip(cc, r.estimate_id), sortVal: r => cc[r.estimate_id] || 0 },
-      ], rows, { defaultSort: { key: 'updated_at', dir: 'desc' }, emptyTitle: 'No proposals yet', emptySub: 'Create one from an estimate — client, address and price come across.', onRow: r => { location.hash = '#proposals/' + r.id; } });
+        { key: 'claude', label: '', render: r => r.archived ? '' : claudeChip(cc, r.estimate_id), sortVal: r => cc[r.estimate_id] || 0 },
+        { key: 'pdf', label: '', render: r => `<button class="btn-ghost btn-sm" type="button" data-pr-pdf="${esc(String(r.id))}">PDF</button>`, sortVal: () => 0 },
+      ], rows, { defaultSort: { key: 'updated_at', dir: 'desc' }, emptyTitle: 'No proposals yet', emptySub: 'Create one with Claude, or upload the ones from before the app in Proposal Studio › Archive.',
+        onRow: r => { if (r.archived) prPdf(r); else location.hash = '#proposals/' + r.id; } });
+      $('pr-table').onclick = e => { const b = e.target.closest('[data-pr-pdf]'); if (!b) return; e.stopPropagation(); const r = rows.find(x => String(x.id) === b.dataset.prPdf); if (r) prPdf(r); };
     } catch (e) { toast(e.message, true); }
   }
   // ---------- Estimates / Bids / Proposals: one list, a type dropdown (2026-10-14; the Pipeline sub-tab is gone) ----------
@@ -3353,7 +3366,7 @@
   const PRK_ALIAS = { estimates: 'estimate', bids: 'bid', proposals: 'proposal' };
   const PRK_NEW = { proposal: '+ New proposal', estimate: '+ New estimate', bid: '+ New bid' };
   const PRK_STATUS = {
-    proposal: [['', 'All statuses'], ['draft', 'Draft'], ['sent', 'Sent'], ['viewed', 'Viewed'], ['signed', 'Signed'], ['declined', 'Declined'], ['superseded', 'Superseded']],
+    proposal: [['', 'All, including before the app'], ['draft', 'Draft'], ['sent', 'Sent'], ['viewed', 'Viewed'], ['signed', 'Signed'], ['declined', 'Declined'], ['superseded', 'Superseded'], ['archived', 'Before the app']],
     estimate: [['', 'Open'], ['intake', 'Intake'], ['scoping', 'Estimating'], ['submitted', 'Submitted'], ['approved', 'Approved'], ['lost', 'Lost'], ['converted', 'Became a project'], ['all', 'All, including closed']],
   };
   PRK_STATUS.bid = PRK_STATUS.estimate;
@@ -3476,7 +3489,7 @@
             </div>
             <div id="est-emails"></div>
             <div class="cp-card"><div class="cp-card-head"><h2>Proposals</h2></div>
-              ${props.length ? `<ul class="cp-list">${props.map(p => `<li><a class="cp-link cp-id" href="#proposals/${p.id}">${esc(p.number)}</a><span>${prPill(p)} ${p.price != null ? money.format(p.price) : ''}</span></li>`).join('')}</ul>` : empty('No proposal yet', 'Create one when the price is ready; client, address and price come across.')}
+              ${props.length ? `<ul class="cp-list">${props.map(p => `<li><a class="cp-link cp-id" href="#proposals/${p.id}">${esc(p.label || p.number)}</a><span>${prPill(p)} ${p.price != null ? money.format(p.price) : ''}</span></li>`).join('')}</ul>` : empty('No proposal yet', 'Create one when the price is ready; client, address and price come across.')}
             </div>
           </div>
           <div><div id="claude-host"></div></div>
@@ -3676,7 +3689,7 @@
     $('proposals-list').hidden = true; const host = $('proposal-detail'); host.hidden = false; skeleton(host, 6);
     try {
       const { data: p } = await api('/proposals/' + encodeURIComponent(id), null, true);
-      $('cp-title').textContent = p.label || p.number;
+      $('cp-title').textContent = /^\d/.test(p.label || '') ? 'Proposal No. ' + p.label : (p.label || p.number);
       // 2026-10-21: proposals in the locked Superstars layout are written and edited in Proposal Studio only
       const ssc = p.layout === 'ssc';
       const ed = p.editable && !ssc, d = ed ? '' : 'disabled';
@@ -3691,6 +3704,7 @@
           ${canVersion ? `<button class="btn-ghost btn-sm" type="button" id="pr-version-btn">New version</button>` : ''}
           ${canSend ? `<button class="btn-ghost btn-sm" type="button" id="pr-sign-btn">Mark signed offline</button>` : ''}
           ${p.status === 'draft' ? `<button class="btn-ghost btn-sm" type="button" id="pr-del-btn" style="color:#A8382B">Delete draft</button>` : ''}</div>
+        <div class="cp-card" style="padding:0;overflow:hidden;margin-bottom:14px"><div id="pr-pdf-pages" style="max-height:min(1100px,78vh)" aria-label="The proposal PDF"></div></div>
         <div class="cp-kpis">
           ${kpi('Proposal price', p.price != null ? money.format(p.price) : '—', p.lines.length ? `${p.lines.length} line item(s)` : 'lump sum')}
           ${kpi('Deposit', p.deposit_amount != null ? money.format(p.deposit_amount) : '—', p.deposit_pct != null ? `${p.deposit_pct}% to start` : '')}
@@ -3745,6 +3759,9 @@
           </div>
         </div>`;
       mountClaude($('claude-host'), { estimateId: p.estimate_id, proposalId: p.id, editable: ed, what: 'proposal' });
+      // the latest PDF, right on the page (2026-10-21; drafts show their current version)
+      const drawPdf = () => window.SSC_PDF ? window.SSC_PDF.render(`/api/proposals/${p.id}/pdf`, $('pr-pdf-pages')) : setTimeout(drawPdf, 200);
+      drawPdf();
       emailsCard($('pr-emails'), 'proposal', p.id);
       // #315: the deposit invoice drafted by the signature
       if (p.status === 'signed') {

@@ -151,7 +151,7 @@ def public(conn) -> dict:
            "uploaded_by_name": who.get((shown or {}).get("uploaded_by")), "error": (shown or {}).get("error"),
            "active_id": st.get("active_id") if act else None,
            "templates": [{"id": t["id"], "name": t.get("name"), "ext": t.get("ext"), "state": t.get("state"), "error": t.get("error"),
-                          "learned": _learned(t),
+                          "learned": _learned(t), "archive": _archive(conn, t),
                           "uploaded_at": t.get("uploaded_at"), "uploaded_by_name": who.get(t.get("uploaded_by")),
                           "in_use": bool(act and t["id"] == act["id"])} for t in reversed(st["templates"])]}
     return out
@@ -166,11 +166,89 @@ def _learned(t: dict) -> Optional[dict]:
             "deliverables": len(ex.get("deliverables") or [])}
 
 
+# ------------------------------------------------------------------ the archive (2026-10-21)
+# Every upload is also a proposal from before the app: listed in Estimates & proposals with its own PDF, by the
+# number, date, client, building and total Claude read (people can correct them).
+ARCHIVE_FIELDS = ("number", "date", "client", "building", "total")
+
+
+def _client_id(conn, name: str) -> Optional[int]:
+    if not name:
+        return None
+    try:
+        r = conn.execute("SELECT id FROM crm_organization WHERE LOWER(TRIM(name)) = ? ORDER BY id LIMIT 1",
+                         (name.strip().lower(),)).fetchone()
+    except Exception:
+        conn.rollback()
+        return None
+    return r["id"] if r else None
+
+
+def _archive(conn, t: dict) -> Optional[dict]:
+    a = t.get("archive")
+    if not isinstance(a, dict):
+        return None
+    return dict({k: a.get(k) for k in ARCHIVE_FIELDS}, edited=bool(a.get("edited")), client_org_id=_client_id(conn, a.get("client") or ""))
+
+
+def archive_rows(conn) -> list:
+    """The archived proposals, shaped like proposals.public rows for the Estimates & proposals list."""
+    out = []
+    for t in _store(conn)["templates"]:
+        a = _archive(conn, t) if t.get("state") == "ready" else None
+        if not a:
+            continue
+        out.append({"id": f"a{t['id']}", "archive_id": t["id"], "archived": True, "number": a["number"] or t.get("name"),
+                    "label": a["number"] or t.get("name"), "client_name": a["client"], "client_org_id": a["client_org_id"],
+                    "building_address": a["building"], "title": (t.get("example") or {}).get("title") or t.get("name"),
+                    "price": a["total"] or None, "status": "archived", "display_status": "archived", "sent_at": a["date"] or None,
+                    "updated_at": a["date"] or (t.get("uploaded_at") or "")[:10], "pdf_url": f"/api/proposal-template/{t['id']}/file",
+                    "is_pdf": t.get("ext") == ".pdf"})
+    return out
+
+
+def edit_archive(conn, tid: int, given: dict) -> dict:
+    import proposal_engine
+    with _LOCK:
+        st = _store(conn)
+        t = _item(st, tid)
+        if not t:
+            raise LookupError("not found")
+        a = dict(t.get("archive") or {})
+        for k in ARCHIVE_FIELDS:
+            if k not in given:
+                continue
+            v = given[k]
+            if k == "total":
+                v = round(proposal_engine._num(v), 2)
+            elif k == "date":
+                v = proposal_engine.archive_facts({"date": _iso_date(v)})["date"]
+                if str(given[k] or "").strip() and not v:
+                    raise ValueError("Write the date as MM/DD/YYYY.")
+            else:
+                v = str(v or "").strip()[:300]
+            a[k] = v
+        a["edited"] = True
+        t["archive"] = a
+        _put(conn, st)
+    return public(conn)
+
+
+def _iso_date(v) -> str:
+    """MM/DD/YYYY (how the app shows dates) or YYYY-MM-DD -> YYYY-MM-DD; anything else -> ''."""
+    v = str(v or "").strip()
+    m = re.match(r"^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$", v)
+    if m:
+        return f"{m.group(3)}-{int(m.group(1)):02d}-{int(m.group(2)):02d}"
+    return v if re.match(r"^\d{4}-\d{1,2}-\d{1,2}$", v) else ""
+
+
 def relearn(conn, uid) -> dict:
     """Read again, into the new structure, every upload that was only turned into a layout before 2026-10-21."""
     with _LOCK:
         st = _store(conn)
-        todo = [t for t in st["templates"] if not isinstance(t.get("example"), dict) and t.get("path")]
+        todo = [t for t in st["templates"] if t.get("path") and (not isinstance(t.get("example"), dict)
+                or not isinstance(t.get("archive"), dict) or t.get("state") != "ready")]   # incl. read before the archive
         for t in todo:
             t.update(state="reading", error=None, uploaded_at=_now())
         _put(conn, st)
@@ -372,7 +450,11 @@ def _read_job(tid: int, rel: str, ext: str, name: str, uid) -> None:
             t = _item(st, tid)
             if not t:   # removed while reading
                 return
-            t.update({"state": "failed", "error": problem} if problem else {"state": "ready", "example": ex, "error": None})
+            if problem:
+                t.update({"state": "failed", "error": problem})
+            else:   # a person's corrections to the archive facts survive a re-read
+                arch = t["archive"] if (t.get("archive") or {}).get("edited") else (ex.get("archive") or {})
+                t.update({"state": "ready", "example": ex, "archive": arch, "error": None})
             _put(conn, st)
         log.info("proposal template %s read: %s", tid, "failed" if problem else "ready")
     except Exception as e:
@@ -520,6 +602,20 @@ def register(app) -> None:
         conn = _conn()
         try:
             return jsonify({"data": use(conn, tid)})
+        except LookupError:
+            return jsonify({"error": "not found"}), 404
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        finally:
+            conn.close()
+
+    @app.route("/api/proposal-template/<int:tid>", methods=["PATCH"])
+    @gate
+    def proposal_template_edit(tid):
+        """Correct an archived proposal's number, date (MM/DD/YYYY), client, building or total."""
+        conn = _conn()
+        try:
+            return jsonify({"data": edit_archive(conn, tid, request.get_json(silent=True) or {})})
         except LookupError:
             return jsonify({"error": "not found"}), 404
         except ValueError as e:

@@ -341,13 +341,44 @@ def main() -> int:
         assert pm.get("/api/proposal-template").status_code == 403 and a.get("/api/proposal-template/9999/file").status_code == 404
         passed += 1; print("  saved templates ok")
 
+        # ---- the archive (2026-10-21): uploads are proposals from before the app, listed with the app's own
+        ta_arch = next(t for t in lst["templates"] if t["id"] == ta["id"])["archive"]
+        assert ta_arch["number"] == "1001" and ta_arch["date"] == "2025-03-14" and ta_arch["total"] == 27000.0 and not ta_arch["edited"], ta_arch
+        old_tpl = next(t for t in lst["templates"] if t["name"] == "Old template.pdf")
+        assert old_tpl["archive"] is None, "an upload read before the archive has no facts until it is read again"
+        e1 = a.patch(f"/api/proposal-template/{ta['id']}", json={"number": "1001-B", "date": "03/15/2025", "client": ORG, "total": "$27,500.00"})
+        assert e1.status_code == 200, e1.get_json()
+        ta_arch = next(t for t in e1.get_json()["data"]["templates"] if t["id"] == ta["id"])["archive"]
+        assert ta_arch["number"] == "1001-B" and ta_arch["date"] == "2025-03-15" and ta_arch["total"] == 27500.0 and ta_arch["edited"]
+        assert ta_arch["client_org_id"], "the client is matched by name"
+        assert a.patch(f"/api/proposal-template/{ta['id']}", json={"date": "next spring"}).status_code == 400
+        assert a.patch("/api/proposal-template/9999", json={"number": "x"}).status_code == 404
+        allp = a.get("/api/proposals?include=archive").get_json()
+        arch = [r for r in allp["data"] if r.get("archived")]
+        assert [r["label"] for r in arch] == ["1001-B"] and arch[0]["pdf_url"] == f"/api/proposal-template/{ta['id']}/file"
+        assert arch[0]["status"] == "archived" and arch[0]["price"] == 27500.0 and allp["meta"]["counts"]["archived"] == 1
+        assert any(not r.get("archived") for r in allp["data"]), "the app's proposals are listed too"
+        only = a.get("/api/proposals?status=archived").get_json()["data"]
+        assert [r["label"] for r in only] == ["1001-B"]
+        assert a.get("/api/proposals?status=archived&q=1001-b").get_json()["data"] and not a.get("/api/proposals?status=archived&q=zzz").get_json()["data"]
+        assert not [r for r in a.get("/api/proposals").get_json()["data"] if r.get("archived")], "only when asked"
+        conn = _db()
+        try:   # reading it again keeps a person's corrections
+            proposal_template._read_job(ta["id"], next(t for t in proposal_template._store(conn)["templates"] if t["id"] == ta["id"])["path"],
+                                        ".pdf", "Template A.pdf", ids["admin"])
+            assert proposal_template.archive_rows(conn)[0]["label"] == "1001-B"
+        finally:
+            conn.close()
+        passed += 1; print("  archive ok")
+
         # ---- the page
         html = (ROOT / "proposal_studio.html").read_text(encoding="utf-8")
         for needle in ('id="doc"', 'sandbox="allow-same-origin"', "'/proposal-studio/drafts'", "'/proposal-studio/' + S.id + '/revise'",
                        "'/proposal-studio/' + S.id + '/send'", 'data-subtabs="proposals"', "/api/proposal-template",
                        # 2026-10-20 simpler Studio: one box to start, Send in a pop-up, past proposals (many, dropped or picked)
                        'id="ask-form"', 'id="send-m"', "$('e-send').addEventListener('click'", 'id="v-past"', "$('pp-drop').addEventListener('drop'",
-                       "files.forEach(f => fd.append('file', f))", "/api/proposal-template/${x.id}/file",
+                       "files.forEach(f => fd.append('file', f))", "'/api/proposal-template/' + v.dataset.ppdf + '/file'", "data-step=\"past\">Archive<",
+                       'id="e-view"', "pdf_view.js",
                        # 2026-10-21 locked layout: job type + heading, the checklist, fixed wording + library, Claude-window drafts
                        'id="a-type"', 'id="a-head"', 'id="ck"', 'id="v-wording"', "'/proposal-studio/house'", "/^job\\/([a-f0-9]+)$/"):
             assert needle in html, needle

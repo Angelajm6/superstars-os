@@ -6,12 +6,13 @@
 <link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1020"></script>
+<script src="/files/static/js/company_nav.js?v=1021"></script>
 <script src="/files/static/js/claude_drawer.js?v=13" defer></script>
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1010" defer></script>
+<script src="/files/static/js/pdf_view.js?v=1" defer></script>
 <title>Proposal Studio · Superstars Contracting</title>
 <!-- Proposal Studio, simpler (prototype accepted 2026-10-20: https://claude.ai/artifact/SPTSgJ8bv7N8ENWMbzrXrE):
      one box to start; the proposal itself, edited in place (a no-scripts frame the page edits) with one side panel;
@@ -109,7 +110,7 @@
   .drop{border:2px dashed var(--line);border-radius:16px;padding:30px 18px;text-align:center;background:#fff;transition:border-color .15s,background .15s}
   .drop b{display:block;font-size:15px;margin-bottom:4px}
   .drop.on{border-color:var(--accent);background:var(--accent-in)}
-  .learned{margin-top:14px;display:flex;gap:10px;align-items:center;font-size:13px;color:var(--ink-2);background:var(--status-complete-soft,#e7f6f0);border-radius:12px;padding:10px 14px}
+  .learned{margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--ink-2);background:var(--status-complete-soft,#e7f6f0);border-radius:12px;padding:10px 14px}
   .learned.reading{background:var(--status-warn-soft,#FFF4E5)}
   .grid-pp{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:16px}
   .ppc{border:1px solid var(--line);border-radius:14px;background:#fff;padding:10px;display:flex;flex-direction:column;gap:6px;position:relative;min-width:0}
@@ -119,6 +120,15 @@
   .ppc .x{position:absolute;top:6px;right:6px;border:0;background:#fff;border-radius:50%;width:26px;height:26px;color:var(--muted);box-shadow:0 1px 4px rgba(0,0,0,.12);cursor:pointer;font-size:15px}
   .ppc .x:hover{color:var(--status-behind-deep,#A8382B)}
   .ppc .tag{position:absolute;top:16px;left:16px}
+  /* the archive (2026-10-21): each upload is a proposal from before the app, its facts editable */
+  .grid-pp{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+  .ppc .h{display:flex;justify-content:space-between;gap:8px;align-items:center}.ppc .h b{font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ppc label{font-size:11px;color:var(--muted);font-weight:600;display:block}
+  .ppc input{width:100%;border:1px solid transparent;border-radius:8px;padding:4px 6px;font:inherit;font-size:13px;background:var(--fill);color:var(--ink)}
+  .ppc input:focus{border-color:var(--accent-edge);background:#fff;outline:none}
+  .ppc .two{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .ppc .ft{display:flex;gap:6px;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted)}
+  .ppc .flag{font-size:11.5px;color:var(--status-warn,#9A5B00);background:var(--status-warn-soft,#FFF4E5);border-radius:8px;padding:4px 8px}
   .ps-toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,16px);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:all .2s;z-index:9200;pointer-events:none;max-width:calc(100% - 32px)}
   .ps-toast.on{opacity:1;transform:translate(-50%,0)}.ps-toast.err{background:var(--status-behind-deep,#A8382B)}
   /* ready to send (2026-10-21) */
@@ -161,7 +171,7 @@
   <div class="ps-tabs" role="tablist" aria-label="Proposal Studio">
     <button type="button" data-step="new">New proposal</button>
     <button type="button" data-step="edit" disabled>The proposal</button>
-    <button type="button" data-step="past">Your past proposals</button>
+    <button type="button" data-step="past">Archive</button>
     <button type="button" data-step="wording">Fixed wording</button>
   </div>
 
@@ -195,7 +205,7 @@
   <section id="v-edit" hidden>
     <div class="ed-top">
       <div><h2 id="e-title">Proposal</h2><div class="muted"><span id="e-num"></span> · <span class="pill" id="e-status"></span> · <span id="e-saved">Saved</span> · click any text to edit it</div></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn-ghost btn-sm" id="e-pdf" href="#" download>Download PDF</a><button class="btn-primary btn-sm" type="button" id="e-send">Send…</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-ghost btn-sm" type="button" id="e-view">View PDF</button><a class="btn-ghost btn-sm" id="e-pdf" href="#" download>Download PDF</a><button class="btn-primary btn-sm" type="button" id="e-send">Send…</button></div>
     </div>
     <div class="banner" id="e-locked" hidden><span id="e-locked-t"></span><button class="btn-ghost btn-sm" type="button" id="e-version">Make a new version to edit</button></div>
     <div class="ed">
@@ -256,7 +266,7 @@
   <!-- past proposals -->
   <section id="v-past" hidden>
     <div class="pp">
-      <div class="drop" id="pp-drop"><b>Drop your past proposals here</b><span class="muted">As many as you want. PDFs work best. Claude reads each one once: its notes, exclusions and deliverables join your library, and its lines your price history. The layout itself is fixed.</span>
+      <div class="drop" id="pp-drop"><b>Drop the proposals you sent before the app</b><span class="muted">As many PDFs as you have, from any year (up to 30 at a time). Claude reads each one's number, date, client, address and total, and keeps it here and in Estimates &amp; proposals with its PDF. Its notes, exclusions and prices also go into your library.</span>
         <div style="margin-top:12px"><button class="btn-primary btn-sm" type="button" id="pp-add">Upload proposals</button><input type="file" id="pp-file" multiple hidden aria-label="Upload past proposals"></div></div>
       <div class="learned" id="pp-learned" hidden></div>
       <div class="err" id="pp-err" role="alert"></div>
@@ -404,7 +414,7 @@
   function draw(v, flash) {
     S.v = v; const p = v.proposal;
     $('e-title').textContent = (p.title || 'Proposal') + ' · ' + (p.client_name || '');
-    $('e-num').textContent = v.label ? 'Proposal No. ' + v.label : p.number + (p.version > 1 ? ' (version ' + p.version + ')' : '');
+    $('e-num').textContent = /^\d/.test(v.label || '') ? 'Proposal No. ' + v.label : (v.label || p.number) + (p.version > 1 ? ' (version ' + p.version + ')' : '');
     const lay = ssc();
     $('ck-card').hidden = !lay; $('e-head-row').hidden = !lay; $('e-legacy-row').hidden = lay; $('e-secs-row').hidden = lay; $('e-addsec').hidden = lay;
     document.querySelectorAll('[data-addlist]').forEach(b => b.hidden = !lay);
@@ -597,6 +607,10 @@
   }
   document.querySelectorAll('[data-how]').forEach(b => b.addEventListener('click', () => setHow(b.dataset.how)));
   $('s-thread').addEventListener('change', () => setHow('reply'));
+  $('e-view').addEventListener('click', async () => {
+    await flush(false); const p = S.v.proposal, no = S.v.label || p.number;
+    window.SSC_PDF.panel({ title: (/^\d/.test(no) ? 'Proposal ' : '') + no, sub: p.client_name || '', url: `/api/proposals/${p.id}/pdf`, links: [{ label: 'Download', href: `/api/proposals/${p.id}/pdf`, download: true }] });
+  });
   $('e-send').addEventListener('click', async () => { await flush(true); if (!$('e-send').disabled) openSend(); });
   $('s-cancel').addEventListener('click', () => { $('send-m').hidden = true; });
   $('send-m').addEventListener('click', e => { if (e.target === $('send-m')) $('send-m').hidden = true; });
@@ -619,19 +633,34 @@
     const lb = $('pp-learned');
     lb.hidden = !list.length; lb.className = 'learned' + (reading ? ' reading' : '');
     lb.innerHTML = reading ? `Claude is reading ${reading} proposal${reading === 1 ? '' : 's'}… about a minute each.`
-      : `✓ Claude has read <b>${ready} proposal${ready === 1 ? '' : 's'}</b> · their wording is in your library and their prices in your price history` +
-        (list.some(x => x.state === 'ready' && !x.learned) ? ` <button class="btn-ghost btn-sm" type="button" id="pp-relearn">Read the older ones again</button>` : '');
-    $('pp-grid').innerHTML = list.map(x => `<div class="ppc">${x.in_use ? '<span class="pill lay tag">Newest · layout</span>' : ''}<button class="x" type="button" data-rm="${x.id}" aria-label="Remove ${esc(x.name)}">×</button>` +
-      `<a class="pg" href="/api/proposal-template/${x.id}/file" target="_blank" rel="noopener" aria-label="Open ${esc(x.name)}"><i></i><b></b><b class="s"></b><b></b><b></b><b class="s"></b><b></b><b class="s"></b></a>` +
-      `<div class="n" title="${esc(x.name)}">${esc(x.name)}</div><span class="muted">${x.state === 'reading' ? 'Claude is reading it…' : x.state === 'failed' ? esc(x.error || 'Couldn’t read it') : x.learned ? `${esc(x.learned.job_type || '')} · ${x.learned.lines} lines · ${x.learned.notes + x.learned.exclusions + x.learned.deliverables} clauses` : 'Read before the new layout'}</span></div>`).join('');
+      : `<span>✓ Claude has read <b>${ready} proposal${ready === 1 ? '' : 's'}</b> · they're listed in Estimates &amp; proposals, their wording is in your library and their prices in your price history</span>` +
+        (list.some(x => x.state !== 'reading' && (!x.learned || !x.archive)) ? ` <button class="btn-ghost btn-sm" type="button" id="pp-relearn">Read them again</button>` : '');
+    $('pp-grid').innerHTML = list.map(x => {
+      const a = x.archive, f = (k, lbl, v) => `<div><label for="pa-${x.id}-${k}">${lbl}</label><input id="pa-${x.id}-${k}" data-pa="${x.id}" data-k="${k}" value="${esc(v)}"></div>`;
+      if (x.state !== 'ready' || !a) return `<div class="ppc"><div class="h"><b title="${esc(x.name)}">${esc(x.name)}</b><button class="btn-ghost btn-sm" type="button" data-rm="${x.id}">Remove</button></div>` +
+        `<span class="muted">${x.state === 'reading' ? 'Claude is reading it…' : x.state === 'failed' ? esc(x.error || 'Couldn’t read it') : 'Read before the archive existed: use “Read them again” above'}</span></div>`;
+      return `<div class="ppc"><div class="h"><b>${a.number ? 'Proposal ' + esc(a.number) : esc(x.name)}</b><button class="btn-ghost btn-sm" type="button" data-ppdf="${x.id}">PDF</button></div>` +
+        f('number', 'Number', a.number) + f('client', 'Client', a.client) + f('building', 'Address', a.building) +
+        `<div class="two">${f('date', 'Date', a.date ? fmtDate(a.date) : '')}${f('total', 'Total', a.total ? money(a.total) : '')}</div>` +
+        (!a.date || !a.number || !a.total ? '<div class="flag">Claude couldn’t read everything. Fill in what’s missing.</div>' : '') +
+        `<div class="ft"><span>${a.edited ? 'Corrected by you' : 'Read by Claude'}${x.learned ? ' · in your library' : ''}</span><button class="btn-ghost btn-sm" type="button" data-rm="${x.id}">Remove</button></div></div>`;
+    }).join('');
     if (reading) setTimeout(loadPast, 5000);
   }
   $('pp-learned').addEventListener('click', async e => {
     if (!e.target.closest('#pp-relearn')) return;
     try { drawPast(await api('/proposal-template/relearn', { method: 'POST', body: '{}' })); toast('Claude is reading them again'); } catch (x) { toast(x.message, true); }
   });
+  $('pp-grid').addEventListener('change', async e => {
+    const i = e.target.closest('[data-pa]'); if (!i) return;
+    try { drawPast(await api('/proposal-template/' + i.dataset.pa, { method: 'PATCH', body: JSON.stringify({ [i.dataset.k]: i.value }) })); toast('Saved'); }
+    catch (x) { toast(x.message, true); }
+  });
   $('pp-grid').addEventListener('click', async e => {
+    const v = e.target.closest('[data-ppdf]');
+    if (v) { const n = (document.getElementById('pa-' + v.dataset.ppdf + '-number') || {}).value; window.SSC_PDF.panel({ title: n ? 'Proposal ' + n : 'Proposal', sub: 'Before the app', url: '/api/proposal-template/' + v.dataset.ppdf + '/file', links: [{ label: 'Download', href: '/api/proposal-template/' + v.dataset.ppdf + '/file', download: true }] }); return; }
     const r = e.target.closest('[data-rm]'); if (!r) return;
+    if (!confirm('Remove this proposal from the archive? Its PDF is deleted.')) return;
     try { drawPast(await api('/proposal-template/' + r.dataset.rm, { method: 'DELETE' })); toast('Removed'); } catch (x) { toast(x.message, true); }
   });
   async function uploadPast(files) {

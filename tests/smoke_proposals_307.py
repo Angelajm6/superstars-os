@@ -389,6 +389,35 @@ def main() -> int:
     assert admin.get(f"/api/proposals/{draft['id']}").status_code == 404
     passed += 1; print("  list + delete ok")
 
+    # ---- plain numbers (2026-10-21): unsent drafts made before them get one at boot; a sent proposal keeps its code
+    conn = _db()
+    try:
+        sent = conn.execute("SELECT id FROM proposal WHERE estimate_id IN (?, ?, ?) AND status <> 'draft' ORDER BY id",
+                            (ids["est"], ids["est2"], ids["est3"])).fetchone()["id"]
+        e4 = estimates.create_estimate(conn, est_type="FR", borough="BX", client_org_id=ids["org"],
+                                       building_address="44 Prop307 Terrace", created_by=ids["admin"])
+        drafts = [proposals.create_from_estimate(conn, e4["id"], created_by=ids["admin"])["id"]]
+        assert drafts, "a draft to number"
+        conn.execute(f"UPDATE proposal SET display_no = NULL WHERE id IN ({','.join('?' * (len(drafts) + 1))})", drafts + [sent])
+        conn.commit()
+        proposals.ensure_schema(conn)
+        proposals.ensure_schema(conn)   # idempotent
+        got = {x["id"]: x["display_no"] for x in conn.execute("SELECT id, display_no FROM proposal").fetchall()}
+        assert all(got[d] and got[d] >= 1042 for d in drafts) and got[sent] is None, (got, drafts, sent)
+        assert len({got[d] for d in drafts}) == len(drafts), "each draft its own number"
+        d0 = proposals.get(conn, drafts[0])
+        assert proposals.public(d0)["label"] == str(got[drafts[0]])
+        assert proposals.public(proposals.get(conn, sent))["label"].startswith("FR-") or "-P" in proposals.public(proposals.get(conn, sent))["label"]
+    finally:
+        conn.close()
+    html = (ROOT / "company_portal.html").read_text(encoding="utf-8")
+    for needle in ("pdf_view.js", "'Before the app'", "include: 'archive'", "data-pr-pdf", 'id="pr-pdf-pages"', "'Proposal No. ' + p.label"):
+        assert needle in html, needle
+    nav = (ROOT / "static/js/company_nav.js").read_text(encoding="utf-8")
+    assert "Estimating queue" not in nav and "hrefFor: { estimator: '/estimating' }" in nav, "the sub-tab is gone; estimators keep their page"
+    assert (ROOT / "static/vendor/pdfjs-4.0.379/pdf.min.js").exists() and (ROOT / "static/vendor/pdfjs-4.0.379/pdf.worker.min.js").exists()
+    passed += 1; print("  numbers + PDF in the page ok")
+
     print(f"PASS smoke_proposals_307 ({passed} groups)")
     return 0
 
