@@ -71,8 +71,9 @@ RULES = (
     "\"c/o Name, Title\" when there is a contact. project: the address, then one short line describing the building or "
     "the scope limits. reference: what this answers (report, drawings, request), 1–2 lines.\n"
     "- lines: lead is the bold item name, at most four words, the way the company writes it (\"Mobilization\", \"Rope "
-    "access drops\", \"Flagman\", \"Inspection report\", \"CMU crack repair\"); everything else goes in detail, in lower "
-    "case, one short phrase (\"rigging and close-up physical inspection\"). Never put quantities, rates or \"daily rate\" "
+    "access drops\", \"Flagman\", \"Inspection report\", \"CMU crack repair\"); everything else goes in detail, one short "
+    "phrase starting in lower case (\"rigging and close-up physical inspection\"); keep names, products and acronyms "
+    "capitalized as usual (SPRAT, PDF, DOB, FISP, QEWI, DOWSIL AllGuard, Jahn M100, SSX). Never put quantities, rates or \"daily rate\" "
     "in the text: they are columns. Units only from the list. Mobilization first, reports / tests last.\n"
     "- pricing: follow the pricing structure of the closest past proposal of the same job type, item by item: the same "
     "kinds of lines, the same units (per drop stays EA per drop, per day stays DAY, lump sums stay LS) and its rates. "
@@ -236,6 +237,16 @@ def unit(u) -> str:
     return UNIT_ALIASES.get(u, u)
 
 
+ACRONYMS = ("SPRAT", "IRATA", "IRA", "PDF", "DOB", "DOT", "FISP", "QEWI", "CMU", "EIFS", "COI", "OSHA", "SST", "LL11", "HVAC",
+            "NYC", "PE", "RA", "VIF")
+_ACRONYM_RE = re.compile(r"\b(" + "|".join(ACRONYMS) + r")\b", re.I)
+
+
+def fix_caps(text: str) -> str:
+    """Trade acronyms always upper case, even when Claude lower-cases a line's detail ("sprat-certified" -> "SPRAT-certified")."""
+    return _ACRONYM_RE.sub(lambda m: m.group(1).upper(), text or "")
+
+
 def clean_lines(raw) -> list:
     out = []
     for li in raw or []:
@@ -246,7 +257,7 @@ def clean_lines(raw) -> list:
             lead, detail = "", str(li["description"]).strip()[:300]
         if not lead and not detail:
             continue
-        out.append({"lead": lead, "detail": detail, "qty": _num(li.get("qty")), "unit": unit(li.get("unit")),
+        out.append({"lead": fix_caps(lead), "detail": fix_caps(detail), "qty": _num(li.get("qty")), "unit": unit(li.get("unit")),
                     "unit_price": _num(li.get("unit_price")), "source": str(li.get("source") or "")[:200]})
     return out[:60]
 

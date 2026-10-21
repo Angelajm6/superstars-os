@@ -154,6 +154,11 @@ def main() -> int:
     for needle in ("at most four words", "word for word, character for character", "follow the pricing structure of the closest past proposal",
                    "per drop stays EA per drop", "Rates the request gives always win"):
         assert needle in src, needle
+    assert "keep names, products and acronyms" in src
+    import proposal_engine as E   # the live draft wrote "sprat-certified" and "pdf elevations" (2026-10-21)
+    li = E.clean_lines([{"lead": "Rope access drops", "detail": "sprat-certified crew, deficiencies on pdf elevations, dob permits, dotted lines",
+                         "qty": 6, "unit": "ea", "unit_price": 4500}])[0]
+    assert li["detail"] == "SPRAT-certified crew, deficiencies on PDF elevations, DOB permits, dotted lines" and li["unit"] == "EA", li
     passed += 1; print("  drafting rules ok")
 
     print(f"PASS: proposal layout ({passed} groups)")
