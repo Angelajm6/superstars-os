@@ -21,7 +21,8 @@ When
 Once only: event_reminder_sent holds (source, item_id, user_id, slot, starts_at). The start is
 in the key, so a moved item is reminded again for its new time.
 
-Sending: the branded email through notifications._send_live (live only with SENDGRID_API_KEY);
+Sending: the branded email, from "Superstars App", listing everyone on the item (team by name, outside
+guests by email), through notifications._send_live (live only with SENDGRID_API_KEY);
 every reminder is a notification_log row (kind 'event_reminder'). A loop thread runs a round
 every minute (SSC_REMINDERS=0 turns it off). Logs carry ids and counts only, never titles or
 emails. Times are the app's local clock (ssc_tz).
@@ -43,6 +44,7 @@ log = logging.getLogger("ssc.event_reminders")
 ROUND_SECONDS = 60
 ALL_DAY_HOUR = 9
 LOOKAHEAD = timedelta(hours=25)
+FROM_NAME = "Superstars App"
 _LOOP = {"started": False}
 _F = "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 
@@ -98,6 +100,15 @@ def _active(conn, uids) -> list:
                                          "AND COALESCE(status, 'active') = 'active'", tuple(uids))]
 
 
+def _names(conn, uids) -> dict:
+    uids = sorted(uids)
+    if not uids:
+        return {}
+    marks = ",".join("?" * len(uids))
+    return {r["id"]: r["nm"] for r in _rows(conn, f"SELECT id, COALESCE(display_name, full_name, email) AS nm FROM users "
+                                                 f"WHERE id IN ({marks})", tuple(uids))}
+
+
 def _slots(start: datetime, timed: bool, made: Optional[datetime], now: datetime) -> list:
     """The slots due right now for an item starting at `start`."""
     if timed:
@@ -110,9 +121,10 @@ def _slots(start: datetime, timed: bool, made: Optional[datetime], now: datetime
 
 # ------------------------------------------------------------------ what is due
 def _team_items(conn, today: str, horizon: str) -> list:
+    import team_items
     rows = _rows(conn,
                  "SELECT t.id, t.title, t.kind, t.assignee_user_id, t.due_date, t.due_time, t.start_date, t.start_time, "
-                 "       t.end_time, t.location, t.address, t.created_at, t.updated_at, p.name AS project_name, mi.meet_url "
+                 "       t.end_time, t.location, t.address, t.guest_emails, t.created_at, t.updated_at, p.name AS project_name, mi.meet_url "
                  "FROM crm_task t LEFT JOIN projects p ON p.project_code = t.project_code "
                  "LEFT JOIN meeting_invite mi ON mi.item_id = t.id "
                  "WHERE t.status = 'open' AND ("
@@ -134,6 +146,7 @@ def _team_items(conn, today: str, horizon: str) -> list:
                     "made": _stamp(r["created_at"], r["updated_at"]), "job": r["project_name"],
                     "place": " · ".join(x for x in (r["location"], r["address"]) if x) or None, "address": r["address"],
                     "meet_url": r["meet_url"], "path": "/projects",
+                    "guests": team_items._json_list(r["guest_emails"]) if r["kind"] == "meeting" else [],
                     "people": {r["assignee_user_id"], *people.get(r["id"], ())}})
     return out
 
@@ -152,7 +165,7 @@ def _walkthroughs(conn, today: str, horizon: str) -> list:
              "title": "Walkthrough" + (" · " + r["building_address"] if r["building_address"] else ""),
              "start": _when(r["visit_date"], r["visit_time"]), "timed": bool(r["visit_time"]), "end_time": None,
              "made": _stamp(r["created_at"], r["updated_at"]), "job": r["code"], "place": r["building_address"],
-             "address": r["building_address"], "meet_url": None, "path": "/estimating#" + (r["code"] or ""),
+             "address": r["building_address"], "meet_url": None, "guests": [], "path": "/estimating#" + (r["code"] or ""),
              "people": {r["attendee_user_id"]}} for r in rows]
 
 
@@ -168,6 +181,7 @@ def due_reminders(conn, now: datetime) -> list:
             continue
         starts_at = it["start"].isoformat(timespec="minutes")
         it["people"] = set(_active(conn, it["people"]))
+        it["names"] = _names(conn, it["people"])
         for uid in sorted(it["people"]):
             for slot in slots:
                 if not conn.execute("SELECT 1 FROM event_reminder_sent WHERE source = ? AND item_id = ? AND user_id = ? "
@@ -191,8 +205,15 @@ def _day_word(start: datetime, now: datetime) -> str:
     return "Today" if gap == 0 else "Tomorrow" if gap == 1 else start.strftime("%A")
 
 
-def compose(it: dict, slot: str, now: datetime) -> dict:
-    """{subject, text, html} for one reminder."""
+def _everyone(it: dict, me: Optional[int]) -> list:
+    """Everyone on the item, for the email: the reader first ("You"), the team by name, then outside guests."""
+    names = it.get("names") or {}
+    team = sorted((names.get(u) or "Team member" for u in it["people"] if u != me), key=str.lower)
+    return (["You"] if me in it["people"] else []) + team + list(it.get("guests") or [])
+
+
+def compose(it: dict, slot: str, now: datetime, me: Optional[int] = None) -> dict:
+    """{subject, text, html} for one reminder to user `me`."""
     import notifications
     import team_items
     start, title = it["start"], it["title"]
@@ -202,7 +223,7 @@ def compose(it: dict, slot: str, now: datetime) -> dict:
     if it["timed"]:
         end = _hhmm(it.get("end_time"))
         when += f" · {_clock(start)}" + (f" – {end}" if end else "")
-    others = len(it["people"]) - 1
+    everyone = _everyone(it, me)
     link = notifications._base_url() + it["path"]
     directions = team_items.directions_url(it.get("address"))
     rows = [("When", when)]
@@ -212,11 +233,11 @@ def compose(it: dict, slot: str, now: datetime) -> dict:
         rows.append(("Where", it["place"]))
     if it.get("meet_url"):
         rows.append(("Video", it["meet_url"]))
-    if others > 0:
-        rows.append(("With", f"You + {others} other" + ("s" if others > 1 else "")))
-    text = "\n".join([f"{head}: {title}", ""] + [f"{k}: {v}" for k, v in rows] +
+    if len(everyone) > 1:
+        rows.append(("People", everyone))
+    text = "\n".join([f"{head}: {title}", ""] + [f"{k}: {', '.join(v) if isinstance(v, list) else v}" for k, v in rows] +
                      ([f"Directions: {directions}"] if directions else []) +
-                     ["", f"Open in Superstars: {link}", "", "— SSC Dashboard (reminders go out 1 day and 1 hour before)"])
+                     ["", f"Open in Superstars: {link}", "", f"— {FROM_NAME} (reminders go out 1 day and 1 hour before)"])
     e = html.escape
 
     def cell(k, v_html):
@@ -224,7 +245,7 @@ def compose(it: dict, slot: str, now: datetime) -> dict:
                 f'<td style="padding:6px 0;font-family:{_F};font-size:14px;line-height:1.45;color:#14161C;">{v_html}</td></tr>')
     cells = ""
     for k, v in rows:
-        v_html = e(v)
+        v_html = "<br>".join(e(x) for x in v) if isinstance(v, list) else e(v)
         if k == "Where" and directions:
             v_html += f' · <a href="{e(directions)}" style="color:#B11E2E;">Directions</a>'
         if k == "Video":
@@ -258,7 +279,7 @@ def run_round(conn, now: Optional[datetime] = None) -> int:
     for it, uid, slot in due:
         u = conn.execute("SELECT email FROM users WHERE id = ?", (uid,)).fetchone()
         email = u["email"] if u else None
-        msg = compose(it, slot, now)
+        msg = compose(it, slot, now, uid)
         conn.execute("INSERT INTO event_reminder_sent (source, item_id, user_id, slot, starts_at, sent_at) VALUES (?, ?, ?, ?, ?, ?)",
                      (it["source"], it["id"], uid, slot, it["start"].isoformat(timespec="minutes"), now.isoformat(timespec="seconds")))
         conn.commit()   # recorded before the send: a crash mid-send never sends twice
@@ -266,7 +287,7 @@ def run_round(conn, now: Optional[datetime] = None) -> int:
         if not email:
             error = "no recipient"
         elif notifications._live_key():
-            sent, error = notifications._send_live(email, msg["subject"], msg["text"], msg["html"])
+            sent, error = notifications._send_live(email, msg["subject"], msg["text"], msg["html"], from_name=FROM_NAME)
         conn.execute("INSERT INTO notification_log (kind, recipient_user_id, recipient_email, subject, deep_link, "
                      "created_at, sent, error) VALUES ('event_reminder', ?, ?, ?, ?, ?, ?, ?)",
                      (uid, email, msg["subject"], msg["link"], now.isoformat(timespec="seconds"), sent, error))
