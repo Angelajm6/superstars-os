@@ -44,7 +44,7 @@ STYLE_KEY = "proposal_house_style"
 PAST_N = 20
 FOLLOW_UP_DAYS = 3
 FIELDS = ("title", "prepared_for", "project_text", "reference_text", "intro_text", "scope_summary", "schedule_text",
-          "exclusions_text", "terms_text", "deposit_pct", "email_message")
+          "exclusions_text", "terms_text", "deposit_pct", "email_message", "submitted_by")
 STYLE_ITEMS = (("opening", "Opening"), ("scope_style", "Scope style"), ("exclusions", "Standard exclusions"),
                ("terms", "Payment terms"), ("words", "Words you use"))
 STEPS = ("Reading your template", "Reading your sent proposals for wording and prices", "Looking up the client",
@@ -373,6 +373,10 @@ def _create(conn, uid, req: dict, d: dict) -> int:
                                     building_address=req.get("building_address") or d.get("project_text"),
                                     notes="Drafted in Proposal Studio: " + _clip(req["what"], 400), created_by=uid)
     p = proposals.create_from_estimate(conn, est["id"], created_by=uid)
+    last = _one(conn, "SELECT submitted_by FROM proposal WHERE created_by = ? AND submitted_by IS NOT NULL AND id <> ? "
+                      "ORDER BY id DESC LIMIT 1", (uid, p["id"]))   # the SUBMITTED BY they wrote last time
+    if last and "submitted_by" not in d:
+        d = dict(d, submitted_by=last["submitted_by"])
     _apply(conn, p["id"], dict(d, _mail_id=req.get("mail_id")), uid, first=True)
     proposals._event(conn, p["id"], "drafted", actor=uid, detail="drafted by Claude in Proposal Studio")
     conn.commit()
@@ -398,9 +402,16 @@ def _job(job: str, uid, req: dict) -> None:
             if req.get("file_ids"):
                 step(3)
             step(4)
-            text, res = _call("You write construction proposals for this company, in its own voice.", content)
-            _usage(conn, uid, res, "Proposal Studio draft")
-            d = _json_from(text)
+            for attempt in (1, 2):   # one more try when the reply isn't usable JSON or the call drops (2026-10-21)
+                try:
+                    text, res = _call("You write construction proposals for this company, in its own voice.", content)
+                    _usage(conn, uid, res, "Proposal Studio draft")
+                    d = _json_from(text)
+                    break
+                except Exception as x:
+                    if attempt == 2 or "couldn't write" in str(x):
+                        raise
+                    log.info("proposal studio draft retry after %s", type(x).__name__)
         pid = _create(conn, uid, req, d)
         with _LOCK:
             _JOBS[job].update(state="done", proposal_id=pid)
@@ -498,9 +509,10 @@ def view(conn, pid: int, uid) -> Optional[dict]:
 
 REVISE_PROMPT = (
     "You are editing a construction proposal before it is sent. Apply the person's request to the JSON below and reply "
-    "with the complete updated JSON object only (same keys; lines are {description, qty, unit, unit_price}). Keep "
+    "with the complete updated JSON object only (same keys; lines are {description, qty, unit, unit_price}; "
+    "submitted_by is the SUBMITTED BY block: who the proposal is from, one item per line). Keep "
     "everything they didn't ask to change exactly as it is, in the company's own wording. Plain text, no markdown.")
-REVISE_KEYS = ("title", "prepared_for", "project_text", "reference_text", "intro_text", "scope_summary", "schedule_text",
+REVISE_KEYS = ("title", "submitted_by", "prepared_for", "project_text", "reference_text", "intro_text", "scope_summary", "schedule_text",
                "exclusions_text", "terms_text", "deposit_pct", "email_message", "extra_sections", "lines")
 
 
@@ -508,6 +520,7 @@ def snapshot(conn, pid) -> dict:
     import proposals
     r = proposals.get(conn, pid)
     d = {k: r.get(k) for k in REVISE_KEYS if k not in ("lines", "extra_sections")}
+    d["submitted_by"] = r.get("submitted_by") or proposals.default_submitted_by(proposals._company_facts(conn))
     d["extra_sections"] = proposals._json_list(r.get("extra_sections"))
     d["hidden_sections"] = proposals._json_list(r.get("hidden_sections"))
     d["lines"] = [{"description": li["description"], "qty": li["qty"], "unit": li["unit"], "unit_price": li["unit_price"]}

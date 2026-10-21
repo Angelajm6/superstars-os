@@ -186,6 +186,14 @@ def main() -> int:
         undo = a.patch(f"/api/proposal-studio/{pid}", json={"fields": {}, "lines": r["before"]["lines"]}).get_json()["data"]
         assert len(undo["lines"]) == 4
         assert a.post(f"/api/proposal-studio/{pid}/revise", json={"instruction": ""}).status_code == 400
+        # the SUBMITTED BY block is the proposal's own and editable in place (2026-10-21)
+        assert 'data-f="submitted_by"' in undo["html"] and "Superstars Contracting" in undo["html"]
+        sb = a.patch(f"/api/proposal-studio/{pid}", json={"fields": {"submitted_by": "Pst Person, VP\nSuperstars Contracting Inc."}}).get_json()["data"]
+        assert "Pst Person, VP<br>Superstars Contracting Inc." in sb["html"]
+        import proposal_template as _pt
+        t = "<td><b>SUBMITTED BY</b><br>{{company_name}}<br>{{company_address}}<br>{{company_phone}} | {{company_email}}</td>"
+        assert _pt.with_submitted_by(t) == "<td><b>SUBMITTED BY</b><br>{{submitted_by}}</td>", _pt.with_submitted_by(t)
+        assert _pt.with_submitted_by("<p>Submitted by</p><p>{{company_name}}</p>") == "<p>Submitted by</p><p>{{submitted_by}}</p>"
         passed += 1; print("  editing ok")
 
         # ---- sending: PDF attached to a new email from Gmail
