@@ -44,6 +44,11 @@ def check(doc: dict, house: dict | None = None) -> list:
     units = [i for i, li in enumerate(lines, 1) if str(li.get("unit") or "").upper() not in L.UNITS]
     if units:
         add("block", "Line " + ", ".join(map(str, units)) + " has a unit that isn't one of " + ", ".join(L.UNITS) + ".")
+    long_leads = [i for i, li in enumerate(lines, 1)
+                  if len(str(li.get("lead") or "").split()) > 4 or re.search(r"\d|\$", str(li.get("lead") or ""))]
+    if long_leads:
+        add("warn", "Line " + ", ".join(map(str, long_leads)) + ": keep the bold item name short (up to four words, no "
+                    "numbers), e.g. “Rope access drops”.")
     if lines and not bad:
         add("ok", f"Base bid adds up: {L.money(L.total(doc))}; deposit {L.money(L.deposit(doc, house))} "
                   f"({'%g' % float(house['deposit_pct'])}%).")

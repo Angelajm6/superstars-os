@@ -131,6 +131,9 @@ def main() -> int:
     red(lambda d: d["lines"][1].__setitem__("unit_price", 0), "missing a description, quantity or rate")
     d = copy.deepcopy(P1041); d["notes"][0] = d["notes"][0].replace("$4,500.00 per drop", "$4,000.00 per drop")
     assert any(r["level"] == "warn" and "$4,000.00 per drop" in r["text"] for r in C.check(d))
+    d = copy.deepcopy(P1041); d["lines"][1]["lead"] = "Industrial Rope Access for FISP close-up inspection"
+    assert any(r["level"] == "warn" and "Line 2" in r["text"] and "short" in r["text"] for r in C.check(d))
+    assert not any("short" in r["text"] for r in C.check(P1041)) and not any("short" in r["text"] for r in C.check(P1039))
     d = copy.deepcopy(P1041); d["accepted_by"] = "Someone Else LLC"
     assert any(r["level"] == "warn" and "ACCEPTED BY" in r["text"] for r in C.check(d))
     passed += 1; print("  checklist ok")
@@ -145,6 +148,13 @@ def main() -> int:
     s = L.render(P1041, signed={"name": "Dana Client", "title": "PM", "at": "2026-10-25T10:00:00"})
     assert "Accepted by Dana Client, PM on October 25, 2026" in _text(s) and "Printed Name and Title" not in s
     passed += 1; print("  edit mode + signed ok")
+
+    # ---- what Claude is told (2026-10-21 live check): short leads, the library word for word, the closest proposal's pricing
+    src = (ROOT / "proposal_engine.py").read_text(encoding="utf-8")
+    for needle in ("at most four words", "word for word, character for character", "follow the pricing structure of the closest past proposal",
+                   "per drop stays EA per drop", "Rates the request gives always win"):
+        assert needle in src, needle
+    passed += 1; print("  drafting rules ok")
 
     print(f"PASS: proposal layout ({passed} groups)")
     return 0
