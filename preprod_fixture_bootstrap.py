@@ -95,6 +95,7 @@ DUAL_BACKEND_MIGRATIONS = (
     "apply_payables_319.py",
     "apply_project_dates_334.py",
     "apply_building_geometry_336.py",
+    "apply_doc_intake.py",
 )
 
 

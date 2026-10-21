@@ -21,6 +21,27 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Documents tab = one drop zone; Claude tags, the user approves (Bookore, 2026-10-21)
+
+* The job's Documents tab is now: a big drop area (the whole tab takes drops; Choose files; Scan with camera on
+  phones) → one review card per file → **Approve** → filed. Below it, six folder tiles (the existing six categories)
+  replace the 28-row checklist; a tile opens its rows (same #270/#271 row: share, red-flag, Update/Replace, History)
+  plus the required items still missing. The permits & insurance package card moved under the folders.
+* **Intake** (`doc_intake.py`, routes in `server.py` next to the docs routes): `POST /api/projects/<code>/documents/intake`
+  saves the file at once (same `data_room/project_docs/<code>/` home), runs Claude's read, and keeps it in
+  `project_doc_intake` until approved, so a refresh never loses it. `GET …/intake` lists what's waiting;
+  `POST /api/documents/intake/<id>/approve {type_key, supersedes_id?}` files it (the tag decides folder + checklist
+  item; supersedes_id = "newer version of", same rules as Update); `DELETE /api/documents/intake/<id>` removes it.
+  No API key → the file still waits as `unread` and the user picks the type.
+* **Types** (`doc_types.py`, `GET /api/documents/types`): about 40 tags (PW2, CD-5, COI, AIA A101, G702/G703, SOV, change
+  order, TR1, SDS, lien waiver, …), each mapped to one category and, when it fulfils one, a checklist item.
+* **Claude's read** (`document_scanner.py`): the schema now also returns `type_key`, `summary`, `key_facts` and
+  `fields` (every label/value on the pages, capped at 80). Stored on the filed doc as `project_documents.ai_extract`
+  (+ `type_key`); shown as "Everything Claude found" on the card and "What Claude read" on the filed row.
+* Migration `apply_doc_intake.py` (dual-backend list); the app also ensures it at boot. Guard: `tests/smoke_doc_dropzone.py`
+  (in the gate). The live model read with the new schema was NOT exercised locally (no key); the seam-driven test covers
+  the pipeline. Check one real drop on production.
+
 ### Make admin: more than one admin (Bookore, 2026-10-16)
 
 * The single-admin rule is gone; the rule is now **never zero admins**. Arun (owner) needs admin alongside Amit.
