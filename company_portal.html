@@ -302,6 +302,10 @@
   .br-drop { border: 1.5px dashed var(--line); border-radius: 10px; padding: 14px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; transition: border-color .15s, background .15s; }
   .br-drop.over { border-color: var(--accent); background: var(--accent-soft); }
   .br-sws { display: flex; gap: 8px; flex-wrap: wrap; }
+  .br-empty { flex: 1; min-height: 110px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; text-align: center; font-size: 14px; color: var(--muted); }
+  .br-empty b { color: var(--ink); }
+  .br-empty:hover b { color: var(--accent-ink, #3a5fd0); }
+  .br-p-name { font: 800 15px Inter, -apple-system, sans-serif; letter-spacing: .6px; text-transform: uppercase; }
   .br-sw { width: 150px; max-width: 100%; height: 84px; border-radius: 10px; display: grid; place-items: center; padding: 12px; border: 1px solid var(--line); }
   .br-sw.l { background: repeating-conic-gradient(#EEF0F4 0% 25%, #fff 0% 50%) 50% / 14px 14px; }
   .br-sw.d { background: #1B1E26; border-color: #1B1E26; }
@@ -1234,18 +1238,19 @@
             <div class="cp-card">
               <div class="cp-card-head"><h2>Company logo</h2><span class="cp-pill" id="br-state">Loading…</span></div>
               <div class="br-drop" id="br-drop">
-                <div class="br-sws">
+                <label class="br-empty" for="br-file" id="br-empty" hidden><b>Drop your logo here</b><span>or click to choose a file</span></label>
+                <div class="br-sws" id="br-sws">
                   <div class="br-sw l" title="On a light page"><img id="br-sw-l" alt="Company logo on a light background"></div>
                   <div class="br-sw d" title="On a dark page"><img id="br-sw-d" alt="Company logo on a dark background"></div>
                 </div>
-                <div class="br-meta"><b id="br-name"></b><span id="br-info"></span></div>
+                <div class="br-meta" id="br-meta"><b id="br-name"></b><span id="br-info"></span></div>
               </div>
               <div class="br-acts">
                 <label class="btn-primary btn-sm" for="br-file" style="cursor:pointer">Upload a new logo</label>
                 <input type="file" id="br-file" accept="image/png,image/jpeg,image/svg+xml,image/webp,.png,.jpg,.jpeg,.svg,.webp" hidden>
                 <button class="btn-ghost btn-sm br-bad" type="button" id="br-rm" hidden>Remove</button>
               </div>
-              <div class="br-confirm" id="br-rm-confirm" hidden>Remove the logo? Documents go back to the standard star mark.
+              <div class="br-confirm" id="br-rm-confirm" hidden>Remove the logo? Documents show the company name instead until a new one is uploaded.
                 <button class="btn-ghost btn-sm" type="button" id="br-rm-yes">Remove</button><button class="btn-ghost btn-sm" type="button" id="br-rm-no">Keep it</button></div>
               <div class="cp-form-err" id="br-err" role="alert"></div>
               <p class="cp-muted br-hint">PNG, JPG, SVG or WebP, up to 2 MB. A wide logo on a transparent background works best. Drop a file on the box above or use the button. It changes every new document at once; documents already sent stay as they were.</p>
@@ -1275,7 +1280,7 @@
             <div class="cp-card-head"><h2>How documents look</h2>
               <div class="cal-seg" role="tablist" aria-label="Document"><button type="button" data-br-doc="proposal" class="on">Proposal</button><button type="button" data-br-doc="invoice">Invoice</button><button type="button" data-br-doc="aia">Pay application</button></div></div>
             <div class="br-desk"><article class="br-paper">
-              <div class="br-p-head"><div class="br-p-logo"><img id="br-p-logo" alt="Company logo"></div><div class="br-p-addr" id="br-p-addr"></div></div>
+              <div class="br-p-head"><div class="br-p-logo" id="br-p-logo"></div><div class="br-p-addr" id="br-p-addr"></div></div>
               <div id="br-p-body"></div>
               <div class="br-p-foot" id="br-p-foot"></div>
             </article></div>
@@ -4861,7 +4866,6 @@
 
   // ---------- COMPANY BRAND (Settings, admin only; accepted prototype 2026-10-20) ----------
   const BR = { doc: 'proposal', data: null };
-  const BR_STAR = '/files/static/brand/logo-light.svg';
   const BR_BODY = {
     proposal: ['Proposal FR-MN-021-P1', `<div class="br-p-title">PROPOSAL</div><div class="br-p-meta"><span>No. <b>FR-MN-021-P1</b></span><span>Date <b>October 20, 2026</b></span><span>Prepared for <b>Sample Client LLC</b></span><span>Project <b>410 E 58th St</b></span></div>
       <div class="br-p-h">Scope of work</div><div>1. Sidewalk bridge and DOB permits.<br>2. Repoint the east elevation (approx. 1,850 sf).<br>3. Replace six (6) steel lintels per the FISP report.</div>
@@ -4874,12 +4878,14 @@
   function brKb(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
   function brErr(m) { $('br-err').textContent = m || ''; $('br-err').className = 'cp-form-err' + (m ? ' show' : ''); }
   function brDraw() {
-    const d = BR.data || { logo: null, letterhead: {} }, L = d.logo, src = L ? L.data_uri : BR_STAR;
-    ['br-sw-l', 'br-sw-d', 'br-p-logo'].forEach(id => $(id).src = src);
-    $('br-state').textContent = L ? 'On every document' : 'Standard star mark';
+    const d = BR.data || { logo: null, letterhead: {} }, L = d.logo;
+    ['br-sw-l', 'br-sw-d'].forEach(id => L ? $(id).src = L.data_uri : $(id).removeAttribute('src'));
+    $('br-empty').hidden = !!L; $('br-sws').hidden = !L; $('br-meta').hidden = !L;
+    $('br-p-logo').innerHTML = L ? `<img alt="Company logo" src="${esc(L.data_uri)}">` : '<span class="br-p-name">Superstars Contracting</span>';
+    $('br-state').textContent = L ? 'On every document' : 'No logo yet';
     $('br-state').className = 'cp-pill' + (L ? ' ok' : '');
     $('br-name').textContent = L ? L.name : 'No logo uploaded';
-    $('br-info').textContent = L ? `${(L.mime.split('/')[1] || '').replace('svg+xml', 'svg').replace('jpeg', 'jpg').toUpperCase()} · ${brKb(L.size || 0)} · uploaded ${fmtDate(L.uploaded_at)}${L.uploaded_by_name ? ' by ' + L.uploaded_by_name : ''}` : 'Documents use the standard star mark';
+    $('br-info').textContent = L ? `${(L.mime.split('/')[1] || '').replace('svg+xml', 'svg').replace('jpeg', 'jpg').toUpperCase()} · ${brKb(L.size || 0)} · uploaded ${fmtDate(L.uploaded_at)}${L.uploaded_by_name ? ' by ' + L.uploaded_by_name : ''}` : '';
     $('br-rm').hidden = !L; $('br-rm-confirm').hidden = true;
     brPaper();
   }

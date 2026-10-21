@@ -300,9 +300,9 @@ def check(html: str) -> Optional[str]:
 
 
 def logo_tag() -> str:
-    """The company logo uploaded in Settings > Company brand, else the standard mark (company_brand)."""
+    """The company logo uploaded in Settings > Company brand; nothing until one is uploaded (2026-10-20)."""
     import company_brand
-    uri = company_brand.document_logo_uri()
+    uri = company_brand.logo_data_uri()
     return f'<img class="logo" alt="Superstars Contracting" src="{uri}">' if uri else ""
 
 
