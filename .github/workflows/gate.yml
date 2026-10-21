@@ -4,11 +4,12 @@
 # invisible on SQLite alone.
 name: gate
 
+# Pull requests only: a merge re-ran the whole gate on main, doubling the Actions
+# minutes for a commit its PR had already passed.
 on:
   pull_request:
     branches: [preprod, main]
-  push:
-    branches: [preprod, main]
+  workflow_dispatch:
 
 concurrency:
   group: gate-${{ github.ref }}
@@ -16,13 +17,16 @@ concurrency:
 
 jobs:
   gate:
-    name: gate (${{ matrix.backend }})
+    name: gate (${{ matrix.backend }} ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
         backend: [sqlite, postgres]
+        # Three machines per backend, each running a balanced third of the suites
+        # (run_gate_ci.py --shard); one leg alone took ~12 minutes.
+        shard: [1, 2, 3]
     services:
       postgres:
         image: postgres:16
@@ -65,4 +69,4 @@ jobs:
       - name: Gate
         env:
           SSC_DB_URL: ${{ matrix.backend == 'postgres' && 'postgresql://postgres:postgres@localhost:5432/ssc_gate' || '' }}
-        run: python tests/run_gate_ci.py --backend ${{ matrix.backend }}
+        run: python tests/run_gate_ci.py --backend ${{ matrix.backend }} --shard ${{ matrix.shard }}/3
