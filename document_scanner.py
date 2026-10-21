@@ -21,6 +21,8 @@ import os
 import re
 from pathlib import Path
 
+import doc_types
+
 # Default vision model — env-overridable so the operator can pin a different
 # model without a code change (same key as receipts/certs).
 MODEL = os.environ.get("DOC_SCAN_MODEL", "claude-sonnet-4-6")
@@ -28,6 +30,12 @@ MODEL = os.environ.get("DOC_SCAN_MODEL", "claude-sonnet-4-6")
 MAX_PAGES = 12                      # a permit/drawing set can run several pages
 MAX_FILE_BYTES = 16 * 1024 * 1024   # 16 MB / file
 CONFIDENCE_FLAG = 0.7               # < this -> flag "check this" / needs_review
+# caps on what is kept from the model's read (stored with the document)
+SUMMARY_MAX = 600
+KEY_FACTS_MAX = 4
+FIELDS_MAX = 80
+FIELD_LABEL_MAX = 80
+FIELD_VALUE_MAX = 400
 
 # Image media types the vision API accepts directly. HEIC is NOT accepted by the
 # image block, so it degrades: we still send it (labeled best-effort) but the
@@ -44,6 +52,13 @@ class ScanUnavailable(Exception):
 class ScanError(Exception):
     """The vision call or parse failed — caller should 502, keep manual entry."""
 
+
+_FIELD = {
+    "type": "object",
+    "properties": {"label": {"type": "string"}, "value": {"type": "string"}},
+    "required": ["label", "value"],
+    "additionalProperties": False,
+}
 
 SCAN_SCHEMA = {
     "type": "object",
@@ -64,9 +79,19 @@ SCAN_SCHEMA = {
         "confidence": {"type": "number",
                        "description": "0.0-1.0 overall confidence in the extracted fields"},
         "warnings": {"type": "array", "items": {"type": "string"}},
+        # drop-zone intake: the document TYPE tag + everything read off the pages
+        "type_key": {"type": "string", "enum": list(doc_types.KEYS),
+                     "description": "ONE of the document type keys provided"},
+        "summary": {"type": "string",
+                    "description": "One or two plain sentences: what this document is and what it says"},
+        "key_facts": {"type": "array", "items": _FIELD,
+                      "description": "The 2-4 facts a project manager checks first (e.g. expiry, amount due, status)"},
+        "fields": {"type": "array", "items": _FIELD,
+                   "description": "EVERY piece of information on the document, one label/value per item"},
     },
     "required": ["title", "doc_type", "category", "requirement_key",
-                 "effective_date", "expiry_date", "confidence"],
+                 "effective_date", "expiry_date", "confidence",
+                 "type_key", "summary", "key_facts", "fields"],
     "additionalProperties": False,
 }
 
@@ -82,6 +107,7 @@ def build_prompt(categories, requirements):
         req_lines.append(f"  {code}:")
         req_lines.extend(by_cat.get(code, ["      (no specific items)"]))
     req_block = "\n".join(req_lines)
+    type_block = "\n".join(f"  {t[0]} — {t[1]} (files to {t[2]})" for t in doc_types.TYPES)
     return f"""You are filing ONE document for an NYC facade-restoration general contractor (LL11 / FISP work). Read the document and classify it so it can be matched to the project's compliance checklist.
 
 You may be given MULTIPLE pages (a multi-page PDF and/or several images). Read ALL of them as ONE document — do not treat each page as a separate document.
@@ -99,6 +125,11 @@ Also extract:
 - expiry_date: the expiration / renewal / valid-until date as ISO YYYY-MM-DD (null if the document does not expire or none is shown).
 - confidence: 0.0-1.0 — your overall confidence. LOWER it when the scan is blurry/partial, the category is ambiguous, or you are guessing a date. Never invent a date you cannot read — use null and lower confidence.
 - warnings: short notes for the operator about anything uncertain (optional).
+- type_key: the document TYPE — exactly one key from this list. Its folder must match the category you picked. If nothing fits, use the "..._other" key for that folder.
+{type_block}
+- summary: one or two plain sentences saying what the document is and what it says (e.g. who it is between, what it covers, its status).
+- key_facts: the 2-4 facts a project manager would check first, as short label/value pairs (e.g. "Expires" / "03/14/2027", "Current payment due" / "$84,210.00", "Status" / "Approved").
+- fields: EVERY piece of information printed or written on the document, as label/value pairs in reading order — names, addresses, numbers (permit, job, policy, BIN, license), dates, amounts, limits, coverages, line items, signatures present or missing, checkboxes ticked. Write dates as MM/DD/YYYY and amounts as printed. Copy values exactly; if something is unreadable, say "unreadable" rather than guessing.
 
 Return ONLY the structured JSON. No prose."""
 
@@ -153,7 +184,7 @@ def call_vision_model(specs, categories, requirements):
     client = anthropic.Anthropic()
     try:
         resp = client.messages.create(
-            model=MODEL, max_tokens=1500, thinking={"type": "disabled"},
+            model=MODEL, max_tokens=8000, thinking={"type": "disabled"},
             output_config={"effort": "low",
                            "format": {"type": "json_schema", "schema": SCAN_SCHEMA}},
             messages=[{"role": "user", "content": content}],
@@ -236,6 +267,22 @@ def process_scan_result(raw, valid_categories, req_by_cat, default_category="PER
     title = (raw.get("title") or "").strip() or None
     doc_type = (raw.get("doc_type") or "").strip() or None
 
+    # type tag — a valid key whose folder agrees with the category; otherwise the
+    # checklist item's type, else the folder's catch-all (and flag it)
+    t = doc_types.get(raw.get("type_key"))
+    if t and t["category"] != cat:
+        warnings.append(f"The document type '{t['label']}' doesn't belong in {cat} — check the type.")
+        t = None
+        fields_to_check.append("type_key")
+    if t is None:
+        t = (doc_types.for_requirement(cat, rk)
+             or doc_types.get(doc_types.FALLBACK_BY_CATEGORY.get(cat)))
+    else:   # the tag decides which checklist item (if any) the document fulfils
+        rk = t["requirement_key"] if t["requirement_key"] in valid_keys else None
+    summary = str(raw.get("summary") or "").strip()[:SUMMARY_MAX] or None
+    key_facts = _pairs(raw.get("key_facts"), KEY_FACTS_MAX)
+    fields = _pairs(raw.get("fields"), FIELDS_MAX)
+
     return {
         "title": title,
         "doc_type": doc_type,
@@ -248,4 +295,23 @@ def process_scan_result(raw, valid_categories, req_by_cat, default_category="PER
         "fields_to_check": sorted(set(fields_to_check)),
         "page_count": raw.get("page_count"),
         "warnings": warnings,
+        "type_key": t["key"] if t else None,
+        "summary": summary,
+        "key_facts": key_facts,
+        "fields": fields,
     }
+
+
+def _pairs(items, limit):
+    """Model label/value pairs -> a clean, capped list of {label, value} strings."""
+    out = []
+    for it in items or []:
+        if not isinstance(it, dict):
+            continue
+        label = str(it.get("label") or "").strip()[:FIELD_LABEL_MAX]
+        value = str(it.get("value") or "").strip()[:FIELD_VALUE_MAX]
+        if label and value:
+            out.append({"label": label, "value": value})
+        if len(out) >= limit:
+            break
+    return out

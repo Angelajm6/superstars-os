@@ -5160,6 +5160,9 @@ def _projdoc_public(d, today_iso, d30_iso):
         'version': d['version'], 'notes': d['notes'], 'superseded': d['superseded'],
         'uploaded_at': d['uploaded_at'], 'status': _projdoc_status(d, today_iso, d30_iso),
         'file_url': f"/api/documents/{d['id']}/file",
+        # drop zone — the approved type tag + what Claude read off the pages
+        'type_key': d.get('type_key'), 'type_label': doc_intake.type_label(d.get('type_key')),
+        'ai': doc_intake.doc_ai_public(d),
     }
     # #271 — version history (computed by the list endpoint for current docs only)
     if '_history' in d:
@@ -5488,6 +5491,282 @@ def api_project_documents_scan(project_code):
     resp = response_wrapper(suggestion)
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return resp
+
+
+# ---------- Documents drop zone: intake -> Claude reads -> approve the tag -> filed ----------
+import doc_intake  # noqa: E402
+import doc_types  # noqa: E402
+
+try:
+    _di_conn = db()
+    try:
+        doc_intake.ensure_schema(_di_conn)
+        db_layer._PKMAP_CACHE.clear()
+    finally:
+        _di_conn.close()
+except Exception as _di_e:   # never blocks boot; apply_doc_intake.py is the migration
+    logging.warning(f"doc-intake schema ensure skipped: {_di_e}")
+
+
+def _projdoc_scope_err(conn, project_code):
+    """404 for an unknown project, 403 when a PM/super isn't on it, else None."""
+    if not validate_project_exists(conn, project_code):
+        return jsonify({"error": "project not found"}), 404
+    user = current_user() or {}
+    if not pm_scoping.pm_can_access_project(user.get("role"), user.get("id"), project_code, conn):
+        return jsonify({"error": "forbidden"}), 403
+    return None
+
+
+def _intake_row(conn, intake_id):
+    """(row, None) for an intake item the current user may act on, else (None, error)."""
+    row = conn.execute("SELECT * FROM project_doc_intake WHERE id=?", (intake_id,)).fetchone()
+    if not row:
+        return None, (jsonify({"error": "not found"}), 404)
+    err = _projdoc_scope_err(conn, row['project_code'])
+    if err:
+        return None, err
+    return row, None
+
+
+def _projdoc_unlink(path_text):
+    """Delete a stored file, confined to data_room/project_docs/."""
+    try:
+        p = ssc_paths.resolve_data_path(path_text)
+        base = (ssc_paths.under_root('data_room', 'project_docs')).resolve()
+        if p.resolve().is_relative_to(base):
+            p.unlink(missing_ok=True)
+    except (OSError, ValueError):
+        pass
+
+
+def _intake_read(conn_factory, project_code, data_bytes, filename):
+    """Run Claude's read on one stored file. Returns (status, suggestion|None, error|None).
+    The DB connection is NOT held across the model call."""
+    import document_scanner as scanner
+    fake_path = runtime_seams.seam('DOC_SCAN_FAKE')
+    if not os.environ.get('ANTHROPIC_API_KEY') and not fake_path:
+        return 'unread', None, "AI reading is off — pick the type yourself."
+    if len(data_bytes) > scanner.MAX_FILE_BYTES:
+        return 'unread', None, "Too large for Claude to read (max 16 MB) — pick the type yourself."
+    conn = conn_factory()
+    try:
+        req_rows = conn.execute(
+            "SELECT category, requirement_key, label FROM document_requirements "
+            "ORDER BY category, sort_order").fetchall()
+    finally:
+        conn.close()
+    categories = [(c, _PROJDOC_CATNAMES.get(c, c)) for c in _PROJDOC_CATEGORIES]
+    requirements = [(r['category'], r['requirement_key'], r['label']) for r in req_rows]
+    req_by_cat = {}
+    for cat, key, _label in requirements:
+        req_by_cat.setdefault(cat, set()).add(key)
+    try:
+        if fake_path:
+            with open(fake_path, encoding='utf-8') as fh:
+                raw = json.load(fh)
+        else:
+            raw = scanner.call_vision_model([scanner.spec_from_bytes(data_bytes, filename)],
+                                            categories, requirements)
+    except scanner.ScanUnavailable:
+        return 'unread', None, "AI reading is off — pick the type yourself."
+    except Exception as e:   # ScanError + anything unexpected; never log document content
+        logging.error(f"doc intake read failed: {type(e).__name__}")
+        return 'unread', None, "Claude couldn't read this one — pick the type yourself."
+    sug = scanner.process_scan_result(raw, set(_PROJDOC_CATEGORIES), req_by_cat)
+    sug['model'] = (raw.get('_meta') or {}).get('model') or scanner.MODEL
+    return 'ready', sug, None
+
+
+@app.route('/api/documents/types', methods=['GET'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_types():
+    """The document types the drop zone tags with (key, label, category, requirement_key)."""
+    return response_wrapper({'types': doc_types.public_list(),
+                             'categories': [{'code': c, 'name': _PROJDOC_CATNAMES[c]} for c in _PROJDOC_CATEGORIES]})
+
+
+@app.route('/api/projects/<project_code>/documents/intake', methods=['GET'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_intake_list(project_code):
+    """Files dropped on this project still waiting for their tag to be approved."""
+    conn = db()
+    try:
+        err = _projdoc_scope_err(conn, project_code)
+        if err:
+            return err
+        rows = conn.execute("SELECT * FROM project_doc_intake WHERE project_code=? ORDER BY id",
+                            (project_code,)).fetchall()
+        resp = response_wrapper({'items': [doc_intake.intake_public(r) for r in rows]})
+        resp.headers['Cache-Control'] = 'no-store'
+        return resp
+    finally:
+        conn.close()
+
+
+@app.route('/api/projects/<project_code>/documents/intake', methods=['POST'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_intake_add(project_code):
+    """Drop ONE file: save it now, have Claude read it, return the review card.
+    The file is sent to the Anthropic API (same trust as /documents/scan). Nothing is
+    filed until /approve. Without an API key the file still waits, as 'unread'."""
+    fs = request.files.get('file')
+    if not fs or not fs.filename:
+        return jsonify({"error": "no file"}), 400
+    conn = db()
+    try:
+        err = _projdoc_scope_err(conn, project_code)
+        if err:
+            return err
+        try:
+            fpath, ftype, mime, size = _projdoc_save_file(project_code, fs)
+        except ValueError as ve:
+            return jsonify({"error": str(ve)}), 400
+        file_name = Path(fs.filename).name
+        uid = (current_user() or {}).get('id')
+        try:
+            cur = conn.execute(
+                "INSERT INTO project_doc_intake (project_code, file_path, file_name, file_size, mime, "
+                "doc_type, status, uploaded_by_uid, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                (project_code, str(fpath), file_name, size, mime, ftype, 'unread', uid,
+                 datetime.now().isoformat(timespec='seconds')))
+            intake_id = cur.lastrowid
+            conn.commit()
+        except Exception:
+            _projdoc_unlink(str(fpath))
+            raise
+    finally:
+        conn.close()
+    status, sug, read_err = _intake_read(db, project_code, fpath.read_bytes(), file_name)
+    conn = db()
+    try:
+        conn.execute("UPDATE project_doc_intake SET status=?, suggestion_json=?, error=? WHERE id=?",
+                     (status, json.dumps(sug, ensure_ascii=False) if sug else None, read_err, intake_id))
+        conn.commit()
+        row = conn.execute("SELECT * FROM project_doc_intake WHERE id=?", (intake_id,)).fetchone()
+        resp = response_wrapper(doc_intake.intake_public(row))
+        resp.headers['Cache-Control'] = 'no-store'
+        return resp, 201
+    finally:
+        conn.close()
+
+
+@app.route('/api/documents/intake/<int:intake_id>/file', methods=['GET'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_intake_file(intake_id):
+    """View a waiting file (inline, gated, confined to data_room/project_docs/)."""
+    from flask import send_file
+    conn = db()
+    try:
+        row, err = _intake_row(conn, intake_id)
+        if err:
+            return err
+        p = ssc_paths.resolve_data_path(row['file_path'])
+        base = (ssc_paths.under_root('data_room', 'project_docs')).resolve()
+        if not (p.resolve().is_relative_to(base) and p.exists()):
+            return jsonify({"error": "file missing"}), 404
+        resp = send_file(str(p), mimetype=row['mime'] or 'application/octet-stream',
+                         as_attachment=False, download_name=(row['file_name'] or f"document-{intake_id}"))
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        return resp
+    finally:
+        conn.close()
+
+
+@app.route('/api/documents/intake/<int:intake_id>/approve', methods=['POST'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_intake_approve(intake_id):
+    """File a waiting document under the approved tag. Body {type_key, title?,
+    effective_date?, expiry_date?, supersedes_id?}. The tag decides the folder and the
+    checklist item. supersedes_id = 'newer version of' (same rules as Update: the old
+    version moves to History and loses its client shares; the new one starts internal)."""
+    body = request.get_json(silent=True) or {}
+    t = doc_types.get(body.get('type_key'))
+    if not t:
+        return jsonify({"error": "pick a document type"}), 400
+    conn = db()
+    try:
+        row, err = _intake_row(conn, intake_id)
+        if err:
+            return err
+        code = row['project_code']
+        try:
+            sug = json.loads(row['suggestion_json']) if row['suggestion_json'] else None
+        except ValueError:
+            sug = None
+        sug = sug or {}
+        valid_reqs = {r['requirement_key'] for r in conn.execute(
+            "SELECT requirement_key FROM document_requirements WHERE category=?", (t['category'],)).fetchall()}
+        rk = t['requirement_key'] if t['requirement_key'] in valid_reqs else None
+        title = (str(body.get('title') or '').strip() or sug.get('title') or row['file_name'] or 'Document')[:300]
+        dates = {}
+        for k in ('effective_date', 'expiry_date'):
+            v = body[k] if k in body else sug.get(k)
+            v = (str(v).strip() if v else '') or None
+            if v:
+                try:
+                    datetime.strptime(v, '%Y-%m-%d')   # LOCAL YYYY-MM-DD
+                except ValueError:
+                    return jsonify({"error": f"{k} must be YYYY-MM-DD"}), 400
+            dates[k] = v
+        supersedes_id = body.get('supersedes_id')
+        if supersedes_id not in (None, ''):
+            try:
+                supersedes_id = int(supersedes_id)
+            except (TypeError, ValueError):
+                return jsonify({"error": "supersedes_id must be an integer"}), 400
+            old = conn.execute("SELECT project_code, superseded FROM project_documents WHERE id=?",
+                               (supersedes_id,)).fetchone()
+            if not old or old['project_code'] != code:
+                return jsonify({"error": "document to update not found in this project"}), 404
+            if old['superseded']:
+                return jsonify({"error": "that version is already superseded"}), 409
+        else:
+            supersedes_id = None
+        set_by = 'ai' if sug.get('type_key') == t['key'] else 'user'
+        uid = (current_user() or {}).get('id')
+        cur = conn.execute(
+            "INSERT INTO project_documents (project_code, category, requirement_key, title, doc_type, "
+            "file_path, file_name, file_size, mime, effective_date, expiry_date, version, notes, "
+            "superseded, uploaded_by_uid, uploaded_at, supersedes_id, type_key, ai_extract) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?)",
+            (code, t['category'], rk, title, row['doc_type'], row['file_path'], row['file_name'],
+             row['file_size'], row['mime'], dates['effective_date'], dates['expiry_date'], None, None,
+             uid, datetime.now().isoformat(), supersedes_id, t['key'],
+             doc_intake.extract_for_storage(sug if sug else None, set_by)))
+        new_id = cur.lastrowid
+        if supersedes_id is not None:
+            conn.execute("UPDATE project_documents SET superseded=1 WHERE id=?", (supersedes_id,))
+            for aud in visibility.audiences_for(conn, 'document', supersedes_id):
+                visibility.unshare(conn, 'document', supersedes_id, aud, uid)
+        conn.execute("DELETE FROM project_doc_intake WHERE id=?", (intake_id,))
+        conn.commit()
+        today = date.today()
+        fresh = dict(conn.execute("SELECT * FROM project_documents WHERE id=?", (new_id,)).fetchone())
+        return response_wrapper(_projdoc_public(fresh, today.isoformat(),
+                                                (today + timedelta(days=30)).isoformat())), 201
+    except Exception as e:
+        logging.error(f"POST documents/intake/{intake_id}/approve: {type(e).__name__}")
+        return _server_error(e)
+    finally:
+        conn.close()
+
+
+@app.route('/api/documents/intake/<int:intake_id>', methods=['DELETE'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_intake_delete(intake_id):
+    """Remove a waiting file (row + file). Filed documents are untouched."""
+    conn = db()
+    try:
+        row, err = _intake_row(conn, intake_id)
+        if err:
+            return err
+        conn.execute("DELETE FROM project_doc_intake WHERE id=?", (intake_id,))
+        conn.commit()
+        _projdoc_unlink(row['file_path'])
+        return response_wrapper({'deleted': intake_id})
+    finally:
+        conn.close()
 
 
 @app.route('/api/documents/<int:doc_id>/file', methods=['GET'])
