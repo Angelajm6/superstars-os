@@ -192,10 +192,9 @@ MIGRATION_REPORT.txt
 *.placeholder
 
 # ===== CSV LEDGERS — DECIDE PER FILE =====
-# Subscription ledger has business-sensitive info but no secrets.
-# Keep it in the repo for visibility but be aware it's there.
-# Uncomment to exclude if it gets sensitive enough:
-# subscriptions_ledger.csv
+# Subscription ledger: business-sensitive (owner emails, MFA methods, admin links).
+# Lives in Google Drive since the repo went public (2026-10-21); never commit it.
+subscriptions_ledger.csv
 
 # #259 dev-only local Postgres (binaries + data) � never commit
 .pgdev/
