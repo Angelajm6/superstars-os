@@ -215,7 +215,8 @@ def main() -> int:
     assert p["number"] == f"{ids['code']}-P1" and p["status"] == "draft" and p["version"] == 1
     assert p["client_org_id"] == ids["org"] and p["contact_id"] == ids["contact"]
     assert p["recipient_email"] == "prop307.client@example.com" and p["recipient_name"] == "Prop307 Dana Client"
-    assert p["price"] == 48500 and p["deposit_pct"] == 30 and p["deposit_amount"] == 14550
+    assert p["price"] == 48500 and p["deposit_pct"] == 50 and p["deposit_amount"] == 24250   # the house deposit (2026-10-21)
+    assert p["layout"] == "ssc" and p["label"].isdigit()
     assert p["building_id"] and "Prop307 Terrace" in (p["building_address"] or "")
     assert p["scope_summary"].startswith("Repoint") and p["editable"] is True
     assert admin.post("/api/proposals", json={"estimate_id": ids["est"]}).status_code == 409
@@ -316,7 +317,7 @@ def main() -> int:
     r = admin.post("/api/proposals", json={"estimate_id": ids["est2"]}); assert r.status_code == 201
     p2 = r.get_json()["data"]
     assert admin.post(f"/api/proposals/{p2['id']}/send", json={"to_email": "prop307.client@example.com"}).status_code == 400  # no price
-    admin.patch(f"/api/proposals/{p2['id']}", json={"price": 9000, "lines": [{"description": "Lintel", "qty": 2, "unit_price": 1000}]})
+    admin.patch(f"/api/proposals/{p2['id']}", json={"price": 9000, "lines": [{"description": "Lintel", "qty": 2, "unit": "EA", "unit_price": 1000}]})
     r = admin.post(f"/api/proposals/{p2['id']}/send", json={"to_email": "prop307.client@example.com", "to_name": "Dana"})
     assert r.status_code == 200, r.get_data(as_text=True)
     tok2 = _token_from_mail()
@@ -348,7 +349,7 @@ def main() -> int:
 
     # ---- expired link
     r = admin.post("/api/proposals", json={"estimate_id": ids["est3"]}); p3 = r.get_json()["data"]
-    admin.patch(f"/api/proposals/{p3['id']}", json={"price": 1500})
+    admin.patch(f"/api/proposals/{p3['id']}", json={"price": 1500, "lines": [{"description": "Patch", "qty": 1, "unit": "LS", "unit_price": 1500}]})
     assert admin.post(f"/api/proposals/{p3['id']}/send", json={"to_email": "prop307.client@example.com"}).status_code == 200
     tok4 = _token_from_mail()
     conn = _db()

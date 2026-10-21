@@ -161,8 +161,8 @@ def main() -> int:
 
         assert "Never say you cannot create" in ca.SYSTEM and "make_document" in ca.SYSTEM
         import proposal_studio
-        src = (ROOT / "proposal_studio.py").read_text(encoding="utf-8")
-        assert "past_proposal_blocks" in src and "Copy them exactly" in src
+        src = (ROOT / "proposal_engine.py").read_text(encoding="utf-8")   # 2026-10-21: one engine writes every proposal
+        assert "<closest_past_proposals>" in src and "Copy the closest past" in src
         js = (ROOT / "static/js/claude_drawer.js").read_text(encoding="utf-8")
         for needle in ("function docCards(docs)", "async function openDoc(id, flash)", "'/api/claude/docs/' + id + '/docx'", "Save to a job…",
                        'sandbox="allow-same-origin"', "docFollow(v)"):

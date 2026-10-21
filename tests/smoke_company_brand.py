@@ -182,8 +182,8 @@ def main() -> int:
             assert blk and blk["type"] == "image" and blk["source"]["media_type"] == "image/jpeg"
         finally:
             conn.close()
-        src = (ROOT / "proposal_template.py").read_text(encoding="utf-8")
-        assert "company_brand.model_image_block(conn)" in src, "Claude sees the logo when it reads a template"
+        src = (ROOT / "proposal_engine.py").read_text(encoding="utf-8")
+        assert "company_brand.logo_data_uri(conn)" in src, "the company layout prints the uploaded logo (2026-10-21)"
         passed += 1; print("  documents ok")
 
         # ---- documents Claude makes in the Claude window: PDF / editor page and Word

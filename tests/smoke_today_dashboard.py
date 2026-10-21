@@ -26,6 +26,7 @@ import json
 import shutil
 import sys
 import tempfile
+import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -54,7 +55,7 @@ import crm  # noqa: E402
 import db_layer  # noqa: E402
 import inbox  # noqa: E402
 import payables  # noqa: E402
-import proposal_drafts  # noqa: E402
+import proposal_studio  # noqa: E402
 import proposal_template  # noqa: E402
 import proposals  # noqa: E402
 import team_items  # noqa: E402
@@ -189,7 +190,8 @@ def main() -> int:
     inbox.register(app)
     today_feed.register(app)
     proposal_template.register(app)
-    proposal_drafts.register(app)
+    proposals.register(app)
+    proposal_studio.register(app)
 
     def login(role):
         c = app.test_client()
@@ -204,12 +206,11 @@ def main() -> int:
         # ---- gating
         anon = app.test_client()
         a, cs, pm = login("admin"), login("c_suite"), login("pm")
-        for path in ("/api/company/portal/today", "/api/company/portal/today/weather", "/api/proposal-template",
-                     f"/api/proposal-drafts/{ids['action']}"):
+        for path in ("/api/company/portal/today", "/api/company/portal/today/weather", "/api/proposal-template"):
             assert anon.get(path).status_code == 401, path
             assert pm.get(path).status_code == 403, path
         assert pm.post("/api/company/portal/today/hide", json={"key": "x"}).status_code == 403
-        assert cs.get(f"/api/proposal-drafts/{ids['action']}").status_code == 404, "only the person whose email it is"
+        assert cs.post(f"/api/claude/actions/{ids['action']}/approve", json={}).status_code == 404, "only the person whose email it is"
         passed += 1; print("  gating ok")
 
         # ---- the feed
@@ -232,8 +233,9 @@ def main() -> int:
         assert doc["href"] == "#company" and doc["actions"][0]["type"] == "claude" and "expires" in doc["title"]
         assert needs[f"task:{ids['task']}"]["actions"][0]["type"] == "done"
         prop = needs[f"claude:{ids['action']}"]
-        assert prop["tool"] == "draft_proposal" and prop["actions"][0]["type"] == "proposal" and prop["href"] == f"#inbox/{ids['mail']}"
-        assert prop["draft"]["total"] == "$42,150" and prop["urgency"] == "now"
+        # 2026-10-21: the card carries the request; approving it has Proposal Studio write it in the company layout
+        assert prop["tool"] == "draft_proposal" and prop["actions"][0]["type"] == "studio" and prop["href"] == f"#inbox/{ids['mail']}"
+        assert "Repoint" in prop["draft"]["text"] and prop["urgency"] == "now"
         if late_check:
             assert needs[f"crew:{JOB}:{TODAY.isoformat()}"]["href"] == "/projects/" + JOB
         order = [x["urgency"] for x in d["needs"]]
@@ -280,9 +282,10 @@ def main() -> int:
             st = proposal_template.start_read(conn, "Our proposal.pdf", b"%PDF-1.4 tdy", ids["admin"], background=False)
         finally:
             conn.close()
-        assert st["active"] and st["state"] == "ready" and st["name"] == "Our proposal.pdf", st
+        t1 = st["templates"][0]   # since 2026-10-21 an upload is read into the proposal structure, not a layout
+        assert t1["state"] == "ready" and t1["name"] == "Our proposal.pdf" and t1["learned"]["lines"] == 1 and not st["active"], st
         r = a.get("/api/proposal-template/preview")
-        assert r.status_code == 200 and "PROPOSAL SAMPLE-P1" in r.get_data(as_text=True) and "sandbox" in r.headers["Content-Security-Policy"]
+        assert r.status_code == 200 and "SAMPLE-P1" in r.get_data(as_text=True) and "sandbox" in r.headers["Content-Security-Policy"]
         assert a.post("/api/proposal-template", data={}).status_code == 400
         import io
         bad = a.post("/api/proposal-template", data={"file": (io.BytesIO(b"x"), "Our proposal.pages")}, content_type="multipart/form-data")
@@ -296,56 +299,33 @@ def main() -> int:
         assert n == 0, "the fake model records no usage"
         passed += 1; print("  template ok")
 
-        # ---- the drafted proposal: view, preview in the template, save, Claude's change
-        v = a.get(f"/api/proposal-drafts/{ids['action']}").get_json()["data"]
-        assert v["new_client"] and v["client_name"] == ORG_NEW and v["email"]["from_email"] == "dana@rosen-tdy.example"
-        assert v["template"]["active"] and v["reply_subject"] == "Re: Pricing for east wall repairs"
-        vals = dict(v["values"], title="East wall repairs (rev)")
-        pv = a.post(f"/api/proposal-drafts/{ids['action']}/preview", json={"values": vals}).get_json()["data"]
-        assert "PROPOSAL DRAFT" in pv["html"] and "East wall repairs (rev)" in pv["html"] and pv["total"] == 42150
-        bad = a.post(f"/api/proposal-drafts/{ids['action']}/preview", json={"values": dict(vals, lines=[])})
-        assert bad.status_code == 400 and "priced line" in bad.get_json()["error"]
-        sv = a.post(f"/api/proposal-drafts/{ids['action']}/save", json={"values": vals}).get_json()["data"]
-        assert sv["values"]["title"] == "East wall repairs (rev)"
-        rv = a.post(f"/api/proposal-drafts/{ids['action']}/revise", json={"values": vals, "instruction": "add a 10% contingency"}).get_json()["data"]
-        assert rv["values"]["lines"][-1]["description"] == "Contingency (10%)" and rv["total"] == 46365
-        passed += 1; print("  review panel ok")
-
-        # ---- Approve & send: client + estimate + proposal, PDF attached in the same thread
-        real_render, real_file = proposals.render_pdf, proposals.pdf_file
-        pdf = Path(_TMP) / "p.pdf"
-        pdf.write_bytes(b"%PDF-1.4 tdy proposal")
-        proposals.render_pdf = lambda conn, pid, actor=None: {"ok": True}
-        proposals.pdf_file = lambda conn, pid: pdf
-        try:
-            r = a.post(f"/api/proposal-drafts/{ids['action']}/send", json={"values": rv["values"]})
-        finally:
-            proposals.render_pdf, proposals.pdf_file = real_render, real_file
+        # ---- approve: Proposal Studio writes it in the company layout from the email; nothing is sent
+        r = a.post(f"/api/claude/actions/{ids['action']}/approve", json={})
         assert r.status_code == 200, r.get_json()
-        assert r.get_json()["data"]["status"] == "approved"
-        emls = sorted(MAIL.glob("gmail-reply-*.eml"))
-        assert len(emls) == 1
-        msg = email.message_from_bytes(emls[0].read_bytes())
-        assert msg["In-Reply-To"] == "<tdy-1@mail.example>" and msg["To"].endswith("<dana@rosen-tdy.example>")
-        atts = [p for p in msg.walk() if p.get_content_disposition() == "attachment"]
-        assert len(atts) == 1 and atts[0].get_content_type() == "application/pdf" and atts[0].get_filename().endswith(".pdf")
-        assert atts[0].get_payload(decode=True) == b"%PDF-1.4 tdy proposal"
+        link = r.get_json()["data"]["result"]["link"]
+        assert link.startswith("/proposal-studio#job/"), link
+        job = link.rsplit("/", 1)[1]
+        for _ in range(100):
+            j = a.get(f"/api/proposal-studio/jobs/{job}").get_json()["data"]
+            if j["state"] != "working":
+                break
+            time.sleep(0.05)
+        assert j["state"] == "done", j
         conn = _db()
         try:
             p = conn.execute("SELECT p.* FROM proposal p JOIN crm_organization o ON o.id = p.client_org_id WHERE o.name = ?", (ORG_NEW,)).fetchone()
-            assert p and p["status"] == "sent" and float(p["price"]) == 46365 and p["recipient_email"] == "dana@rosen-tdy.example"
-            assert conn.execute("SELECT COUNT(*) FROM proposal_line WHERE proposal_id = ?", (p["id"],)).fetchone()[0] == 3
-            assert conn.execute("SELECT COUNT(*) FROM mail_link WHERE message_id = ? AND entity_type = 'proposal'", (ids["mail"],)).fetchone()[0] == 1
+            assert p and p["status"] == "draft" and p["layout"] == "ssc" and p["source_mail_id"] == ids["mail"]
         finally:
             conn.close()
-        assert a.post(f"/api/proposal-drafts/{ids['action']}/send", json={}).status_code == 409, "decided once"
+        assert not sorted(MAIL.glob("gmail-reply-*.eml")), "nothing is sent until the person sends it from Studio"
+        assert a.post(f"/api/claude/actions/{ids['action']}/approve", json={}).status_code == 409, "decided once"
         assert f"claude:{ids['action']}" not in {x["key"] for x in a.get("/api/company/portal/today").get_json()["data"]["needs"]}
-        passed += 1; print("  approve & send ok")
+        passed += 1; print("  approve opens Proposal Studio ok")
 
         # ---- the page carries the Today dashboard
         html = (ROOT / "company_portal.html").read_text(encoding="utf-8")
-        for needle in ('id="td-needs"', 'id="td-day"', 'id="pd-drawer"', 'id="pd-frame" class="pd-frame" title="The proposal PDF" sandbox="allow-same-origin" referrerpolicy="no-referrer"',
-                       "api('/today')", "api('/today/weather')", "'/proposal-drafts/' + PD.id + '/send'", "setInterval(", 'id="cc-week-range"',
+        for needle in ('id="td-needs"', 'id="td-day"', "a.type === 'studio'",
+                       "api('/today')", "api('/today/weather')", "setInterval(", 'id="cc-week-range"',
                        "calNowLabel()", "'Mon – Sun'", "window.SSC_CLAUDE.ask(",
                        'id="wx-modal"', "if (e.target.closest('[data-td-wx]')) { e.preventDefault(); wxOpen(); }", "Next 7 days"):
             assert needle in html, needle

@@ -1,5 +1,10 @@
-"""The company's own proposal template (accepted prototype 2026-10-19).
+"""The company's past proposals, uploaded (accepted prototype 2026-10-19; reworked 2026-10-21).
 
+Since 2026-10-21 every upload is read once by Claude into the structure a new proposal has (proposal_engine.learn):
+its wording becomes the library and its lines the price history. The layout itself is fixed in code
+(proposal_layout.py); the template HTML below only still draws proposals made before that date.
+
+Before 2026-10-21:
 An admin / C-suite person uploads the proposal they already send (PDF works best; a Word file gives Claude
 the words but not the layout). Claude reads it once and writes a self-contained HTML version of that
 layout with {{placeholders}}; every proposal PDF is then drawn in it (proposals.render_document), including the
@@ -50,28 +55,6 @@ TOKENS = ("company_name", "company_address", "company_phone", "company_email", "
           "scope", "line_items_rows", "total", "deposit", "schedule", "exclusions", "terms", "signature",
           "intro", "reference", "extra_sections", "submitted_by")
 REQUIRED = ("scope", "line_items_rows", "total")
-
-PROMPT = (
-    "This is the proposal template a construction company sends to its clients. Recreate its layout as ONE "
-    "self-contained HTML document that prints to the same look on US Letter paper: the letterhead, colors, "
-    "font sizes and weights (web-safe font stacks only), section order and headings, table style, footer, and any "
-    "standard wording they always use. Replace every part that changes per proposal with these placeholders, "
-    "written exactly like this:\n"
-    "{{company_name}} {{company_address}} {{company_phone}} {{company_email}} {{company_license}} {{logo}} (an <img> of "
-    "their logo, sized by your CSS via the class `logo`), {{number}} {{date}} {{valid_until}} {{title}} "
-    "{{client_name}} {{contact_name}} {{recipient_email}} {{building}} (address), {{submitted_by}} (who submits the "
-    "proposal: the person, their title, the company, address, phone and email, as lines; put it where the template shows "
-    "who it is from, e.g. a SUBMITTED BY box, instead of the company tokens), {{reference}} (a short reference, may be "
-    "empty), {{intro}} (the opening letter paragraph, before the scope), {{scope}} (the scope text), "
-    "{{line_items_rows}} (only <tr> rows with 4 cells: description, quantity, unit price, amount — put it inside "
-    "your own <table> with the header row in their style), {{total}}, {{deposit}} (a sentence about the deposit, may be "
-    "empty), {{schedule}}, {{exclusions}}, {{terms}}, {{extra_sections}} (any added sections, each with its own heading; "
-    "place it after the terms), {{signature}} (the acceptance / signature block).\n"
-    "Keep wording that is the same on every proposal (for example standard terms or a closing paragraph) as plain "
-    "text; when the template has standard exclusions or terms, keep them as text instead of the placeholder.\n"
-    "Rules: inline <style> only; no <script>, no links to fonts or images, no external URLs; use page-break-inside: "
-    "avoid on blocks that should stay together; @page margin 0.5in. Reply with the HTML document only, nothing else.")
-
 
 # ------------------------------------------------------------------ storage
 def _conn():
@@ -168,9 +151,32 @@ def public(conn) -> dict:
            "uploaded_by_name": who.get((shown or {}).get("uploaded_by")), "error": (shown or {}).get("error"),
            "active_id": st.get("active_id") if act else None,
            "templates": [{"id": t["id"], "name": t.get("name"), "ext": t.get("ext"), "state": t.get("state"), "error": t.get("error"),
+                          "learned": _learned(t),
                           "uploaded_at": t.get("uploaded_at"), "uploaded_by_name": who.get(t.get("uploaded_by")),
                           "in_use": bool(act and t["id"] == act["id"])} for t in reversed(st["templates"])]}
     return out
+
+
+def _learned(t: dict) -> Optional[dict]:
+    ex = t.get("example")
+    if not isinstance(ex, dict):
+        return None
+    return {"job_type": ex.get("job_type"), "client": ex.get("client_name"), "lines": len(ex.get("lines") or []),
+            "notes": len(ex.get("notes") or []), "exclusions": len(ex.get("exclusions") or []),
+            "deliverables": len(ex.get("deliverables") or [])}
+
+
+def relearn(conn, uid) -> dict:
+    """Read again, into the new structure, every upload that was only turned into a layout before 2026-10-21."""
+    with _LOCK:
+        st = _store(conn)
+        todo = [t for t in st["templates"] if not isinstance(t.get("example"), dict) and t.get("path")]
+        for t in todo:
+            t.update(state="reading", error=None, uploaded_at=_now())
+        _put(conn, st)
+    for t in todo:
+        threading.Thread(target=_read_job, args=(t["id"], t["path"], t.get("ext") or "", t.get("name") or "", uid), daemon=True).start()
+    return public(conn)
 
 
 def use(conn, tid: int) -> dict:
@@ -339,86 +345,34 @@ def text(v) -> str:
 
 
 # ------------------------------------------------------------------ reading the upload with Claude
-def _read_with_claude(raw: bytes, ext: str, name: str) -> tuple:
-    import assistant
+def _block(raw: bytes, ext: str, name: str) -> dict:
     if ext == ".pdf":
-        block = {"type": "document", "source": {"type": "base64", "media_type": "application/pdf",
-                                                "data": base64.b64encode(raw).decode("ascii")}, "title": name}
-    elif ext in (".png", ".jpg", ".jpeg", ".heic", ".webp"):
-        import claude_files
+        return {"type": "document", "title": name, "source": {"type": "base64", "media_type": "application/pdf",
+                                                            "data": base64.b64encode(raw).decode("ascii")}}
+    import claude_files
+    if ext in (".png", ".jpg", ".jpeg", ".heic", ".webp"):
         img, mime = claude_files._image_for_model(raw)
-        block = {"type": "image", "source": {"type": "base64", "media_type": mime, "data": base64.b64encode(img).decode("ascii")}}
-    else:
-        import claude_files
-        block = {"type": "text", "text": "<template_text>\n" + (claude_files._docx_text(raw) or "")[:60000] + "\n</template_text>\n"
-                 "(This came from a Word file, so only its words reached you: keep a clean letter layout with a "
-                 "red #B11E2E accent for Superstars Contracting.)"}
-    content = [block]
-    try:   # the logo from Settings > Company brand, so the layout around {{logo}} fits it (2026-10-20)
-        import company_brand
-        conn = _conn()
-        try:
-            seen = company_brand.model_image_block(conn)
-        finally:
-            conn.close()
-        if seen:
-            content += [{"type": "text", "text": "This is the company's logo. {{logo}} prints it; size and place the header around it."}, seen]
-    except Exception as x:
-        log.info("logo not added to the template read: %s", type(x).__name__)
-    res = assistant._call_model([{"type": "text", "text": "You turn a company's document into an HTML template."}],
-                                [{"role": "user", "content": content + [{"type": "text", "text": PROMPT}]}])
-    return res["text"], res
-
-
-def _fake_template() -> str:
-    return ("<!DOCTYPE html><html><head><meta charset='utf-8'><style>@page{margin:.5in}body{font-family:Georgia,serif;color:#222}"
-            ".hd{border-bottom:3px solid #B11E2E;display:flex;justify-content:space-between}.logo{height:40px}"
-            "table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #ddd;padding:4px}</style></head><body>"
-            "<div class='hd'>{{logo}}<div>{{company_name}}<br>{{company_address}}</div></div><h1>PROPOSAL {{number}}</h1>"
-            "<p>{{date}} · {{client_name}} · {{building}}</p><h2>{{title}}</h2><h3>Scope</h3><p>{{scope}}</p>"
-            "<table><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th></tr>{{line_items_rows}}</table>"
-            "<p><b>Total {{total}}</b> {{deposit}}</p><h3>Exclusions</h3><p>{{exclusions}}</p><h3>Terms</h3><p>{{terms}}</p>"
-            "{{signature}}</body></html>")
-
-
-def _record_usage(conn, uid, res) -> None:
-    """Counts toward the daily Claude cap like every other call (a hidden chat, never in History)."""
-    try:
-        import claude_agent
-        now = _now()
-        conn.execute("INSERT INTO claude_chat (user_id, surface, title, source, created_at, updated_at) VALUES (?,?,?,?,?,?)",
-                     (uid, "office", "Proposal template", "system", now, now))
-        conn.commit()
-        cid = conn.execute("SELECT MAX(id) AS m FROM claude_chat WHERE user_id = ? AND source = 'system'", (uid,)).fetchone()["m"]
-        claude_agent._add_msg(conn, cid, "assistant", "note", [{"type": "text", "text": "[Proposal template read]"}],
-                              replay=False, usage=res.get("usage"), model_id=res.get("model"))
-    except Exception as e:
-        log.info("proposal template usage not recorded: %s", type(e).__name__)
+        return {"type": "image", "source": {"type": "base64", "media_type": mime, "data": base64.b64encode(img).decode("ascii")}}
+    return {"type": "document", "title": name, "source": {"type": "text", "media_type": "text/plain",
+                                                        "data": (claude_files._docx_text(raw) or "")[:60000] or "(empty)"}}
 
 
 def _read_job(tid: int, rel: str, ext: str, name: str, uid) -> None:
+    """Since 2026-10-21 an upload is read ONCE into the same structure a new proposal has (proposal_engine.learn):
+    its wording, lines and prices become examples and library items. The layout itself is fixed in code."""
     conn = _conn()
     try:
         raw = ssc_paths.resolve_data_path(rel).read_bytes()
-        import assistant
-        if assistant._fake():
-            out, res = _fake_template(), None
-        else:
-            out, res = _read_with_claude(raw, ext, name)
-        if res:
-            _record_usage(conn, uid, res)
-        html = sanitize(out)
-        problem = check(html)
+        import proposal_engine
+        ex = proposal_engine.learn(_block(raw, ext, name), conn, uid)
+        problem = None if (ex.get("lines") or ex.get("exclusions") or ex.get("notes")) else \
+            "Claude couldn't find a proposal in that file. Upload the PDF of a proposal you sent."
         with _LOCK:
             st = _store(conn)
             t = _item(st, tid)
             if not t:   # removed while reading
                 return
-            t.update({"state": "failed", "error": problem} if problem else {"state": "ready", "html": html, "error": None})
-            if not problem:   # the newest proposal Claude has read gives the layout
-                newer = [x for x in st["templates"] if x.get("state") == "ready" and x["id"] > tid]
-                if not newer:
-                    st["active_id"] = tid
+            t.update({"state": "failed", "error": problem} if problem else {"state": "ready", "example": ex, "error": None})
             _put(conn, st)
         log.info("proposal template %s read: %s", tid, "failed" if problem else "ready")
     except Exception as e:
@@ -527,6 +481,15 @@ def register(app) -> None:
             if out is None:
                 return jsonify({"error": " ".join(errors) or "Nothing was uploaded."}), 400
             return jsonify({"data": dict(out, errors=errors)}), 202
+        finally:
+            conn.close()
+
+    @app.route("/api/proposal-template/relearn", methods=["POST"])
+    @gate
+    def proposal_template_relearn():
+        conn = _conn()
+        try:
+            return jsonify({"data": relearn(conn, _uid())})
         finally:
             conn.close()
 

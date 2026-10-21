@@ -69,7 +69,7 @@
   .ed{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
   @media (max-width:1100px){.ed{grid-template-columns:1fr}}
   .desk{background:#E4E7EE;border-radius:14px;padding:18px;overflow-x:auto}
-  .doc{display:block;width:100%;min-width:560px;max-width:860px;margin:0 auto;border:0;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.18);height:900px}
+  .doc{display:block;width:100%;max-width:860px;margin:0 auto;border:0;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.18);height:900px}
   .doc-tools{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
   .rail{display:flex;flex-direction:column;gap:10px;position:sticky;top:12px}
   @media (max-width:1100px){.rail{position:static}}
@@ -121,6 +121,23 @@
   .ppc .tag{position:absolute;top:16px;left:16px}
   .ps-toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,16px);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:all .2s;z-index:9200;pointer-events:none;max-width:calc(100% - 32px)}
   .ps-toast.on{opacity:1;transform:translate(-50%,0)}.ps-toast.err{background:var(--status-behind-deep,#A8382B)}
+  /* ready to send (2026-10-21) */
+  .ck{display:flex;flex-direction:column;gap:6px}
+  .ck div{display:flex;gap:8px;font-size:12.5px;line-height:1.4;padding:7px 9px;border-radius:9px;align-items:flex-start}
+  .ck i{font-style:normal;font-weight:800;flex:none;width:14px;text-align:center}
+  .ck .ok{background:var(--status-complete-soft,#e7f6f0)}.ck .ok i{color:var(--status-complete-deep,#0c7a5f)}
+  .ck .warn{background:var(--status-warn-soft,#FFF4E5)}.ck .warn i{color:var(--status-warn,#9A5B00)}
+  .ck .block{background:#fdecea}.ck .block i{color:var(--status-behind-deep,#A8382B)}
+  .ck button{margin-left:auto;flex:none}
+  .ck-note{font-size:12px;color:var(--muted);margin-top:8px}
+  /* fixed wording */
+  .fw{max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+  .fw .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media (max-width:760px){.fw .grid2{grid-template-columns:1fr}}
+  .lib{display:flex;flex-direction:column;gap:4px;max-height:340px;overflow:auto}
+  .lib div{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:1.45;padding:6px 8px;border-radius:8px;background:var(--fill)}
+  .lib div span{flex:1}.lib small{color:var(--muted);white-space:nowrap}
+  .lib button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 2px}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -145,13 +162,14 @@
     <button type="button" data-step="new">New proposal</button>
     <button type="button" data-step="edit" disabled>The proposal</button>
     <button type="button" data-step="past">Your past proposals</button>
+    <button type="button" data-step="wording">Fixed wording</button>
   </div>
 
   <!-- new proposal -->
   <section id="v-new" hidden>
     <div class="start">
       <h2>What proposal do you need?</h2>
-      <div class="muted">Describe the job in your own words. Claude writes it exactly like your past proposals.</div>
+      <div class="muted">Describe the job in your own words. Claude writes it in your Superstars layout, from your past proposals; the wording that never changes is filled in for you.</div>
       <form class="bigbox" id="ask-form" autocomplete="off">
         <textarea id="a-what" rows="4" aria-label="Describe the job" placeholder="e.g. Rosen Properties, 410 E 58th St: repoint the east wall (about 1,850 sf) and replace the 6 lintels from the FISP report. Shed and permits needed. One price with a breakdown, repointing at our usual $15/sf."></textarea>
         <div class="bb-atts" id="a-atts"></div>
@@ -159,6 +177,8 @@
           <select id="a-client" aria-label="Client"><option value="">Client…</option></select>
           <input class="pi" id="a-newclient" placeholder="New client's name" aria-label="New client's name" hidden>
           <input class="pi" id="a-addr" placeholder="Building address" aria-label="Building address">
+          <select id="a-type" aria-label="Job type"><option value="">Job type…</option></select>
+          <select id="a-head" aria-label="Heading"><option value="ESTIMATE">ESTIMATE</option><option value="PROPOSAL">PROPOSAL</option></select>
           <button class="chip" type="button" id="a-attach">+ Files</button><input type="file" id="a-file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.heic,.docx,.xlsx,.csv,.txt" aria-label="Attach files">
           <select id="a-mail" aria-label="Start from an email"><option value="">+ From an email</option></select>
           <span class="sp"></span>
@@ -181,28 +201,62 @@
     <div class="ed">
       <div>
         <div class="desk"><iframe class="doc" id="doc" title="The proposal: click any text to edit it" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe></div>
-        <div class="doc-tools" id="doc-tools"><button class="btn-ghost btn-sm" type="button" id="e-addline">+ Add a price line</button><button class="btn-ghost btn-sm" type="button" id="e-addsec">+ Add a section</button></div>
+        <div class="doc-tools" id="doc-tools"><button class="btn-ghost btn-sm" type="button" id="e-addline">+ Add a price line</button><button class="btn-ghost btn-sm" type="button" id="e-addsec">+ Add a section</button>
+          <button class="btn-ghost btn-sm" type="button" data-addlist="notes" hidden>+ Note</button><button class="btn-ghost btn-sm" type="button" data-addlist="deliverables" hidden>+ Deliverable</button><button class="btn-ghost btn-sm" type="button" data-addlist="exclusions" hidden>+ Exclusion</button></div>
       </div>
       <aside class="rail">
+        <div class="card" id="ck-card" hidden><h3>Ready to send</h3><div class="ck" id="ck"></div>
+          <div class="ck-note">The app checks these, not Claude. Send stays off while anything is red.</div></div>
         <div class="card"><h3>Ask Claude to change it</h3>
-          <div class="chat" id="chat"><div class="msg c">Written like your past proposals. Click any text to edit it, or tell me what to change.</div></div>
+          <div class="chat" id="chat"><div class="msg c">Click any outlined text to edit it, or tell me what to change. The fixed wording and the totals take care of themselves.</div></div>
           <div class="quick"><button class="chip" type="button" data-ask="Add a 10% contingency line">+ 10% contingency</button><button class="chip" type="button" data-ask="Make the scope shorter">Shorter scope</button><button class="chip" type="button" data-ask="Split the work into two phases with their own lines">Two phases</button></div>
           <form class="inl" id="chat-form"><input class="fld" id="chat-in" placeholder="e.g. “lintels at $2,600 each”" aria-label="Ask Claude to change the proposal"><button class="btn-ghost btn-sm" type="submit">Send</button></form>
         </div>
         <details class="more"><summary>Details</summary><div class="in">
-          <div class="row2"><div><label class="lbl" for="e-valid">Valid until</label><input class="fld" id="e-valid" type="date"></div>
+          <div id="e-head-row" hidden><span class="lbl">Heading</span><div class="seg" id="e-head"><button type="button" data-head="ESTIMATE">ESTIMATE</button><button type="button" data-head="PROPOSAL">PROPOSAL</button></div></div>
+          <div class="row2" id="e-legacy-row"><div><label class="lbl" for="e-valid">Valid until</label><input class="fld" id="e-valid" type="date"></div>
             <div><label class="lbl" for="e-dep">Deposit %</label><input class="fld" id="e-dep" type="number" min="0" max="100" step="1"></div></div>
-          <div><span class="lbl">Sections</span><div class="secs" id="e-secs"></div></div>
+          <div id="e-secs-row"><span class="lbl">Sections</span><div class="secs" id="e-secs"></div></div>
           <div id="e-used-box"><span class="lbl">Where prices came from</span><div class="used" id="e-used"></div></div>
         </div></details>
       </aside>
     </div>
   </section>
 
+  <!-- fixed wording: the same on every proposal, never written by Claude -->
+  <section id="v-wording" hidden>
+    <div class="fw">
+      <div class="card"><h3>On every proposal</h3><div class="muted" style="margin-bottom:10px">The app adds this wording to every proposal exactly as written here. Claude never changes it.</div>
+        <form id="fw-form" class="grid2" autocomplete="off">
+          <div><label class="lbl" for="fw-valid_text">Proposal Valid</label><input class="fld" id="fw-valid_text" data-h="valid_text"></div>
+          <div><label class="lbl" for="fw-next_number">Next proposal number</label><input class="fld" id="fw-next_number" data-h="next_number" inputmode="numeric"></div>
+          <div><label class="lbl" for="fw-submitted_by">Submitted by (one line each)</label><textarea class="fld" id="fw-submitted_by" data-h="submitted_by" rows="5"></textarea></div>
+          <div><label class="lbl" for="fw-signer">Authorized signature</label><input class="fld" id="fw-signer" data-h="signer">
+            <label class="lbl" for="fw-company_legal" style="margin-top:8px">Company name</label><input class="fld" id="fw-company_legal" data-h="company_legal"></div>
+          <div><label class="lbl" for="fw-deposit_pct">Deposit %</label><input class="fld" id="fw-deposit_pct" data-h="deposit_pct" inputmode="decimal"></div>
+          <div><label class="lbl" for="fw-net_days">Net days</label><input class="fld" id="fw-net_days" data-h="net_days" inputmode="numeric"></div>
+          <div><label class="lbl" for="fw-withdraw_note">First Important Note</label><textarea class="fld" id="fw-withdraw_note" data-h="withdraw_note" rows="2"></textarea></div>
+          <div><label class="lbl" for="fw-first_exclusion">First exclusion</label><textarea class="fld" id="fw-first_exclusion" data-h="first_exclusion" rows="2"></textarea></div>
+          <div><label class="lbl" for="fw-mobilization">Mobilization</label><textarea class="fld" id="fw-mobilization" data-h="mobilization" rows="2"></textarea></div>
+          <div><label class="lbl" for="fw-hours">Hours</label><textarea class="fld" id="fw-hours" data-h="hours" rows="2"></textarea></div>
+          <div><label class="lbl" for="fw-insurance">Insurance</label><textarea class="fld" id="fw-insurance" data-h="insurance" rows="2"></textarea></div>
+          <div><label class="lbl" for="fw-acceptance">Acceptance</label><textarea class="fld" id="fw-acceptance" data-h="acceptance" rows="2"></textarea></div>
+          <div style="grid-column:1/-1"><label class="lbl" for="fw-footer">Footer</label><input class="fld" id="fw-footer" data-h="footer"></div>
+          <div style="grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;align-items:center"><span class="err" id="fw-err"></span><button class="btn-primary" type="submit">Save wording</button></div>
+        </form></div>
+      <div class="card"><h3>Your library</h3><div class="muted" style="margin-bottom:10px">Learned from your past proposals. Claude uses these word for word when they fit. Remove anything you don't want reused.</div>
+        <div class="grid2"><div><span class="lbl">Important notes</span><div class="lib" id="lib-notes"></div></div>
+          <div><span class="lbl">Exclusions</span><div class="lib" id="lib-exclusions"></div></div>
+          <div><span class="lbl">Deliverables</span><div class="lib" id="lib-deliverables"></div></div>
+          <div><span class="lbl">Add to the library</span><form id="lib-add" style="display:flex;flex-direction:column;gap:6px"><select class="fld" id="lib-kind"><option value="notes">Important note</option><option value="exclusions">Exclusion</option><option value="deliverables">Deliverable</option></select>
+            <textarea class="fld" id="lib-text" rows="3" placeholder="The wording, exactly as you use it"></textarea><button class="btn-ghost btn-sm" type="submit">Add</button></form></div></div></div>
+    </div>
+  </section>
+
   <!-- past proposals -->
   <section id="v-past" hidden>
     <div class="pp">
-      <div class="drop" id="pp-drop"><b>Drop your past proposals here</b><span class="muted">As many as you want. PDFs work best. Claude copies their layout, wording and pricing for every new proposal.</span>
+      <div class="drop" id="pp-drop"><b>Drop your past proposals here</b><span class="muted">As many as you want. PDFs work best. Claude reads each one once: its notes, exclusions and deliverables join your library, and its lines your price history. The layout itself is fixed.</span>
         <div style="margin-top:12px"><button class="btn-primary btn-sm" type="button" id="pp-add">Upload proposals</button><input type="file" id="pp-file" multiple hidden aria-label="Upload past proposals"></div></div>
       <div class="learned" id="pp-learned" hidden></div>
       <div class="err" id="pp-err" role="alert"></div>
@@ -237,6 +291,9 @@
   const money = n => '$' + (+n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   const fmtDate = iso => { if (!iso) return ''; const [y, m, d] = String(iso).slice(0, 10).split('-'); return `${m}/${d}/${y}`; };
   const S = { id: null, v: null, job: null, files: [], stepT: null, how: 'new' };
+  const STEPS = ['Loading your fixed wording', 'Finding your closest past proposals and prices', 'Looking up the client', 'Reading what you attached', 'Writing the proposal'];
+  const LISTS = ['notes', 'deliverables', 'exclusions'], MULTI = ['submitted_to', 'project', 'reference'];
+  const ssc = () => !!(S.v && S.v.layout === 'ssc');
   let tT = null;
   function toast(m, bad) { const t = $('toast'); t.textContent = m; t.className = 'ps-toast on' + (bad ? ' err' : ''); clearTimeout(tT); tT = setTimeout(() => t.classList.remove('on'), 3200); }
   async function api(path, opts) {
@@ -249,7 +306,7 @@
 
   // ---------------- tabs (#new, #p/<id>, #past; old #style links land on #past)
   function show(step) {
-    ['new', 'edit', 'past'].forEach(k => $('v-' + k).hidden = k !== step);
+    ['new', 'edit', 'past', 'wording'].forEach(k => $('v-' + k).hidden = k !== step);
     document.querySelectorAll('[data-step]').forEach(b => { b.classList.toggle('on', b.dataset.step === step); if (b.dataset.step === 'edit') b.disabled = !S.id; });
   }
   async function route() {
@@ -257,18 +314,23 @@
     const m = /^p\/(\d+)(\/send)?$/.exec(h);
     if (m) { await openProposal(+m[1]); show('edit'); if (m[2]) openSend(); return; }
     if (h === 'past' || h === 'style') { show('past'); loadPast(); return; }
+    if (h === 'wording') { show('wording'); loadWording(); return; }
+    const jm = /^job\/([a-f0-9]+)$/.exec(h);   // a draft started from the Claude window or an email card
     show('new'); loadNew();
+    if (jm && S.job !== jm[1]) { S.job = jm[1]; $('a-go').disabled = true; $('a-go').textContent = 'Writing…'; working(STEPS); pollJob(); }
   }
   document.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
-    const st = b.dataset.step; location.hash = st === 'new' ? '#new' : st === 'past' ? '#past' : (S.id ? '#p/' + S.id : '#new');
+    const st = b.dataset.step; location.hash = st === 'new' ? '#new' : st === 'past' ? '#past' : st === 'wording' ? '#wording' : (S.id ? '#p/' + S.id : '#new');
   }));
   window.addEventListener('hashchange', route);
+  window.addEventListener('resize', () => { if (S.fit) S.fit(); });
 
   // ---------------- new proposal
   let newLoaded = false;
   async function loadNew() {
     loadRecent();
     if (newLoaded) return; newLoaded = true;
+    try { const h = await api('/proposal-studio/house'); $('a-type').innerHTML = '<option value="">Job type…</option>' + h.job_types.map(t => `<option>${esc(t)}</option>`).join(''); } catch (e) {}
     try {
       const cl = (await api('/company/portal/clients?type=all')) || [];
       $('a-client').innerHTML = '<option value="">Client…</option>' + cl.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('') + '<option value="new">+ New client…</option>';
@@ -306,7 +368,8 @@
   $('ask-form').addEventListener('submit', async e => {
     e.preventDefault(); $('a-err').textContent = '';
     const c = $('a-client').value;
-    const body = { what: $('a-what').value, building_address: $('a-addr').value, file_ids: S.files.map(f => f.id), mail_id: $('a-mail').value || null };
+    const body = { what: $('a-what').value, building_address: $('a-addr').value, file_ids: S.files.map(f => f.id), mail_id: $('a-mail').value || null,
+      job_type: $('a-type').value || null, heading: $('a-head').value };
     if (c === 'new') body.client_name = $('a-newclient').value; else if (c) body.client_org_id = +c;
     $('a-go').disabled = true; $('a-go').textContent = 'Writing…';
     try { const r = await api('/proposal-studio/drafts', { method: 'POST', body: JSON.stringify(body) }); S.job = r.job; working(r.steps); pollJob(); }
@@ -323,6 +386,7 @@
     try {
       const j = await api('/proposal-studio/jobs/' + S.job);
       if (j.state === 'working') { setTimeout(pollJob, 1500); return; }
+      S.job = null;
       clearInterval(S.stepT); $('a-go').disabled = false; $('a-go').textContent = '✦ Write it';
       if (j.state === 'failed') { $('a-working').hidden = true; $('a-err').textContent = j.error || 'Claude could not finish the draft.'; return; }
       $('a-working').hidden = true; S.files = []; drawAtts(); $('a-what').value = '';
@@ -340,10 +404,15 @@
   function draw(v, flash) {
     S.v = v; const p = v.proposal;
     $('e-title').textContent = (p.title || 'Proposal') + ' · ' + (p.client_name || '');
-    $('e-num').textContent = p.number + (p.version > 1 ? ' (version ' + p.version + ')' : '');
+    $('e-num').textContent = v.label ? 'Proposal No. ' + v.label : p.number + (p.version > 1 ? ' (version ' + p.version + ')' : '');
+    const lay = ssc();
+    $('ck-card').hidden = !lay; $('e-head-row').hidden = !lay; $('e-legacy-row').hidden = lay; $('e-secs-row').hidden = lay; $('e-addsec').hidden = lay;
+    document.querySelectorAll('[data-addlist]').forEach(b => b.hidden = !lay);
+    if (lay) { drawChecks(v); document.querySelectorAll('[data-head]').forEach(b => { b.classList.toggle('on', b.dataset.head === (v.content.heading || 'ESTIMATE')); b.disabled = !v.editable; }); }
     $('e-status').textContent = p.status[0].toUpperCase() + p.status.slice(1); $('e-status').className = 'pill ' + p.status;
     $('e-pdf').href = `/api/proposals/${p.id}/pdf`;
     $('e-locked').hidden = v.editable; $('e-send').hidden = !v.editable;
+    $('e-send').disabled = lay && v.checks.some(x => x.level === 'block'); $('e-send').title = $('e-send').disabled ? 'Fix the red items on the checklist first' : '';
     $('e-locked-t').textContent = p.status === 'signed' ? 'Signed: this proposal is final.' : `This proposal was ${p.status}${p.sent_at ? ' on ' + fmtDate(p.sent_at) : ''}. The sent copy stays as it was.`;
     $('e-version').hidden = !['sent', 'viewed', 'declined'].includes(p.status);
     $('doc-tools').hidden = !v.editable;
@@ -351,7 +420,7 @@
     $('e-used').innerHTML = v.sources.map(s => `<div><i>✓</i>${esc(s)}</div>`).join('');
     $('e-valid').value = (p.valid_until || '').slice(0, 10); $('e-dep').value = p.deposit_pct != null ? p.deposit_pct : '';
     $('e-valid').disabled = $('e-dep').disabled = !v.editable;
-    drawSecs(); paint(v.html, flash);
+    if (!lay) drawSecs(); paint(v.html, flash);
     document.querySelectorAll('[data-step="edit"]').forEach(b => b.disabled = false);
   }
   function paint(html, flash) {
@@ -359,11 +428,21 @@
     f.onload = () => {
       const d = f.contentDocument; if (!d) return;
       if (!S.v.editable) d.querySelectorAll('[contenteditable]').forEach(x => x.removeAttribute('contenteditable'));
-      const fit = () => { f.style.height = Math.max(700, d.documentElement.scrollHeight + 20) + 'px'; };
-      fit(); setTimeout(fit, 300);
+      const fit = () => {   // the page is a Letter sheet: on a phone it scales down to fit instead of scrolling sideways
+        const z = Math.min(1, (f.clientWidth - 4) / 760); d.documentElement.style.zoom = z;
+        f.style.height = Math.max(400, Math.ceil(d.body.getBoundingClientRect().bottom) + 30) + 'px';   // measured zoomed, never the frame's own height
+      };
+      fit(); setTimeout(fit, 300); S.fit = fit;
       d.addEventListener('input', e => { onEdit(e.target); fit(); });
       d.addEventListener('focusout', e => { if (e.target.closest && e.target.closest('[data-lf]')) saveSoon(true); });
-      d.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest && e.target.closest('[data-lf], span[data-f]')) { e.preventDefault(); e.target.blur(); } });
+      d.addEventListener('keydown', e => {
+        if (e.key !== 'Enter' || !e.target.closest) return;
+        const li = e.target.closest('li[data-f]');
+        if (li && !e.shiftKey) { e.preventDefault(); const k = li.dataset.f, items = readList(k); items.splice(+li.dataset.i + 1, 0, 'Type here'); pend[k] = items; flushNow(k, +li.dataset.i + 1); return; }
+        if (e.target.closest('[data-lf], span[data-f]')) { e.preventDefault(); e.target.blur(); }
+      });
+      d.addEventListener('focusin', e => { const el = e.target; if (el.matches && el.matches('li[data-f]') && txt(el) === 'Type here') { const r = d.createRange(); r.selectNodeContents(el); const sel = d.getSelection(); sel.removeAllRanges(); sel.addRange(r); } });
+      d.addEventListener('focusout', e => { const li = e.target.closest && e.target.closest('li[data-f]'); if (li && !txt(li)) { pend[li.dataset.f] = readList(li.dataset.f); saveSoon(true); } });
       if (S.v.editable) d.querySelectorAll('tr[data-li]').forEach(tr => {
         const td = tr.lastElementChild; if (!td) return;
         const b = d.createElement('button'); b.type = 'button'; b.textContent = '×'; b.title = 'Remove this line';
@@ -386,20 +465,28 @@
     return Array.from(d.querySelectorAll('tr[data-li]')).map(tr => {
       const g = k => { const el = tr.querySelector(`[data-lf="${k}"]`); return el ? txt(el) : ''; };
       const n = v => { const x = parseFloat(String(v).replace(/[$,\s]/g, '')); return isNaN(x) ? 0 : x; };
+      if (ssc()) return { lead: g('lead'), detail: g('detail'), qty: n(g('qty')), unit: g('unit'), unit_price: n(g('unit_price')) };
       return { description: g('description'), qty: n(g('qty')), unit: g('unit'), unit_price: n(g('unit_price')) };
     });
+  }
+  // the company layout: lists are bullets, the four top boxes are lines
+  function readList(k) { return Array.from($('doc').contentDocument.querySelectorAll(`li[data-f="${k}"]`)).map(txt); }
+  async function flushNow(k, focusAt) {
+    clearTimeout(saveT); await flush(true);
+    if (focusAt != null) setTimeout(() => { const el = $('doc').contentDocument.querySelector(`li[data-f="${k}"][data-i="${focusAt}"]`); if (el) el.focus(); }, 120);
   }
   let pend = {}, pendLines = false, saveT = null;
   function onEdit(el) {
     const f = el.closest && el.closest('[data-f]'), lf = el.closest && el.closest('[data-lf]');
     if (lf) pendLines = true;
+    else if (f && ssc()) { const k = f.dataset.f; pend[k] = LISTS.includes(k) ? readList(k) : MULTI.includes(k) ? txt(f).split('\n').map(x => x.trim()).filter(Boolean) : txt(f); }
     else if (f) { const k = f.dataset.f; if (/^x\d+[hb]$/.test(k)) pend.extra_sections = true; else pend[k] = txt(f); }
     $('e-saved').textContent = 'Editing…'; saveSoon(false);
   }
   function saveSoon(redraw) { clearTimeout(saveT); saveT = setTimeout(() => flush(redraw), redraw ? 50 : 900); }
   async function flush(redraw) {
     const fields = Object.assign({}, pend); pend = {};
-    if (fields.extra_sections) fields.extra_sections = readExtras();
+    if (fields.extra_sections && !ssc()) fields.extra_sections = readExtras();
     const lines = pendLines ? readLines() : null; pendLines = false;
     if (!Object.keys(fields).length && !lines) return;
     await save(fields, lines, redraw || !!lines);
@@ -410,14 +497,35 @@
   }
   async function save(fields, lines, redraw, flash) {
     $('e-saved').textContent = 'Saving…';
-    const body = { fields }; if (lines) body.lines = lines;
+    const body = ssc() ? { content: fields } : { fields }; if (lines) body.lines = lines;
     try {
       const v = await api('/proposal-studio/' + S.id, { method: 'PATCH', body: JSON.stringify(body) });
       $('e-saved').textContent = 'Saved';
-      if (redraw) draw(v, flash); else S.v = Object.assign(S.v, { proposal: v.proposal, lines: v.lines, sections: v.sections });
+      if (redraw) draw(v, flash);
+      else {
+        S.v = Object.assign(S.v, { proposal: v.proposal, lines: v.lines, sections: v.sections, content: v.content, checks: v.checks, new_clauses: v.new_clauses });
+        if (ssc()) { drawChecks(S.v); $('e-send').disabled = S.v.checks.some(x => x.level === 'block'); }
+      }
     } catch (x) { $('e-saved').textContent = 'Not saved'; toast(x.message, true); }
   }
-  $('e-addline').addEventListener('click', () => { const l = readLines(); l.push({ description: 'New item', qty: 1, unit: 'ls', unit_price: 0 }); save({}, l, true, ['lines']); });
+  $('e-addline').addEventListener('click', () => { const l = readLines(); l.push(ssc() ? { lead: 'New item', detail: '', qty: 1, unit: 'LS', unit_price: 0 } : { description: 'New item', qty: 1, unit: 'ls', unit_price: 0 }); save({}, l, true, ['lines']); });
+  document.querySelectorAll('[data-addlist]').forEach(b => b.addEventListener('click', async () => {
+    const k = b.dataset.addlist, items = readList(k); items.push('Type here'); await save({ [k]: items }, null, true, [k]);
+  }));
+  document.querySelectorAll('[data-head]').forEach(b => b.addEventListener('click', () => save({ heading: b.dataset.head }, null, true)));
+  function drawChecks(v) {
+    const ico = { ok: '✓', warn: '!', block: '✕' }, nc = v.new_clauses || [];
+    $('ck').innerHTML = v.checks.map(x => {
+      const m = /^Not in your library yet: “(.*)”\. Read it once\.$/.exec(x.text);
+      const full = m ? nc.find(c => c.startsWith(m[1].replace(/…$/, ''))) : null;
+      return `<div class="${x.level}"><i>${ico[x.level]}</i><span>${esc(x.text)}</span>${full != null ? `<button class="btn-ghost btn-sm" type="button" data-keep="${esc(full)}">Keep it</button>` : ''}</div>`;
+    }).join('');
+  }
+  $('ck').addEventListener('click', async e => {
+    const b = e.target.closest('[data-keep]'); if (!b) return; b.disabled = true;
+    try { draw(await api('/proposal-studio/' + S.id + '/keep', { method: 'POST', body: JSON.stringify({ text: b.dataset.keep }) })); toast('Added to your library'); }
+    catch (x) { toast(x.message, true); b.disabled = false; }
+  });
   $('e-addsec').addEventListener('click', () => { const x = readExtras(); x.push({ heading: 'New section', body: 'Type here, or ask Claude to write it.' }); save({ extra_sections: x }, null, true, ['x' + (x.length - 1) + 'h']); });
   const SECS = [['intro', 'Opening letter'], ['scope', 'Scope of work'], ['schedule', 'Schedule'], ['exclusions', 'Exclusions'], ['terms', 'Payment terms']];
   function drawSecs() {
@@ -439,7 +547,9 @@
   });
   const chat = $('chat');
   function say(cls, html) { chat.insertAdjacentHTML('beforeend', `<div class="msg ${cls}">${html}</div>`); chat.scrollTop = chat.scrollHeight; return chat.lastElementChild; }
-  const LABEL = { title: 'title', submitted_by: 'submitted by', prepared_for: 'prepared for', project_text: 'building', reference_text: 'reference', intro_text: 'opening', scope_summary: 'scope', schedule_text: 'schedule', exclusions_text: 'exclusions', terms_text: 'terms', deposit_pct: 'deposit', email_message: 'email', extra_sections: 'sections', lines: 'price lines' };
+  const LABEL = { heading: 'heading', job_type: 'job type', submitted_to: 'submitted to', project: 'project', reference: 'reference', overview: 'overview',
+    notes: 'important notes', deliverables: 'deliverables', mobilization: 'mobilization', duration: 'duration', hours: 'hours', warranty: 'warranty',
+    additional_insureds: 'insured names', accepted_by: 'accepted by', title: 'title', submitted_by: 'submitted by', prepared_for: 'prepared for', project_text: 'building', reference_text: 'reference', intro_text: 'opening', scope_summary: 'scope', schedule_text: 'schedule', exclusions_text: 'exclusions', terms_text: 'terms', deposit_pct: 'deposit', email_message: 'email', extra_sections: 'sections', lines: 'price lines' };
   async function ask(q) {
     if (!S.v || !S.v.editable) { toast('Make a new version first to change a sent proposal', true); return; }
     await flush(false);
@@ -452,6 +562,7 @@
       const m = say('c', 'Changed the ' + esc(r.changed.map(k => LABEL[k] || k).join(', ')) + '. <button class="undo" type="button">Undo</button>');
       m.querySelector('.undo').addEventListener('click', async ev => {
         ev.target.remove(); const b = r.before;
+        if (ssc()) { try { draw(await api('/proposal-studio/' + S.id + '/undo', { method: 'POST', body: JSON.stringify({ before: b }) })); say('c', 'Undone.'); } catch (x) { toast(x.message, true); } return; }
         await save({ title: b.title, submitted_by: b.submitted_by, prepared_for: b.prepared_for, project_text: b.project_text, reference_text: b.reference_text, intro_text: b.intro_text, scope_summary: b.scope_summary,
           schedule_text: b.schedule_text, exclusions_text: b.exclusions_text, terms_text: b.terms_text, deposit_pct: b.deposit_pct, email_message: b.email_message, extra_sections: b.extra_sections }, b.lines, true);
         say('c', 'Undone.');
@@ -471,8 +582,9 @@
     document.querySelector('[data-how="reply"]').hidden = !v.threads.length;
     $('s-people').innerHTML = v.contacts.map(c => `<option value="${esc(c.full_name)} <${esc(c.email)}>">${esc(c.title || '')}</option>`).join('');
     if (!$('s-to').value) $('s-to').value = p.recipient_email ? `${p.recipient_name || ''} <${p.recipient_email}>`.trim() : (v.contacts[0] ? `${v.contacts[0].full_name} <${v.contacts[0].email}>` : '');
-    $('s-msg').value = p.email_message || `Hi,\n\nAttached is our proposal ${p.number} for ${p.title || 'the work'}.\n\nBest,`;
-    $('s-file').textContent = `${p.number} ${p.client_name || ''}.pdf`;
+    const no = v.label || p.number;
+    $('s-msg').value = p.email_message || `Hi,\n\nAttached is our proposal ${no} for ${p.title || 'the work'}.\n\nBest,`;
+    $('s-file').textContent = ssc() ? `Proposal ${no} - ${((v.content.project || [])[0] || p.client_name || '').split(',')[0]}.pdf` : `${p.number} ${p.client_name || ''}.pdf`;
     setHow(v.threads.length ? 'reply' : 'new');
     $('send-m').hidden = false;
   }
@@ -481,11 +593,11 @@
     document.querySelectorAll('[data-how]').forEach(b => b.classList.toggle('on', b.dataset.how === how));
     $('s-thread-row').hidden = how !== 'reply'; $('s-to-row').hidden = $('s-cc-row').hidden = how === 'reply';
     const p = S.v.proposal, t = S.v.threads.find(x => String(x.id) === $('s-thread').value);
-    $('s-subject').value = how === 'reply' && t ? 'Re: ' + String(t.subject || '').replace(/^\s*(re|fw|fwd)\s*:\s*/i, '') : `Proposal ${p.number} · ${p.title || ''}`;
+    $('s-subject').value = how === 'reply' && t ? 'Re: ' + String(t.subject || '').replace(/^\s*(re|fw|fwd)\s*:\s*/i, '') : `Proposal ${S.v.label || p.number} · ${p.title || ''}`;
   }
   document.querySelectorAll('[data-how]').forEach(b => b.addEventListener('click', () => setHow(b.dataset.how)));
   $('s-thread').addEventListener('change', () => setHow('reply'));
-  $('e-send').addEventListener('click', async () => { await flush(false); openSend(); });
+  $('e-send').addEventListener('click', async () => { await flush(true); if (!$('e-send').disabled) openSend(); });
   $('s-cancel').addEventListener('click', () => { $('send-m').hidden = true; });
   $('send-m').addEventListener('click', e => { if (e.target === $('send-m')) $('send-m').hidden = true; });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') $('send-m').hidden = true; });
@@ -507,12 +619,17 @@
     const lb = $('pp-learned');
     lb.hidden = !list.length; lb.className = 'learned' + (reading ? ' reading' : '');
     lb.innerHTML = reading ? `Claude is reading ${reading} proposal${reading === 1 ? '' : 's'}… about a minute each.`
-      : `✓ Claude has read <b>${ready} proposal${ready === 1 ? '' : 's'}</b> · new proposals use the layout of the newest one and the wording and prices of all of them`;
+      : `✓ Claude has read <b>${ready} proposal${ready === 1 ? '' : 's'}</b> · their wording is in your library and their prices in your price history` +
+        (list.some(x => x.state === 'ready' && !x.learned) ? ` <button class="btn-ghost btn-sm" type="button" id="pp-relearn">Read the older ones again</button>` : '');
     $('pp-grid').innerHTML = list.map(x => `<div class="ppc">${x.in_use ? '<span class="pill lay tag">Newest · layout</span>' : ''}<button class="x" type="button" data-rm="${x.id}" aria-label="Remove ${esc(x.name)}">×</button>` +
       `<a class="pg" href="/api/proposal-template/${x.id}/file" target="_blank" rel="noopener" aria-label="Open ${esc(x.name)}"><i></i><b></b><b class="s"></b><b></b><b></b><b class="s"></b><b></b><b class="s"></b></a>` +
-      `<div class="n" title="${esc(x.name)}">${esc(x.name)}</div><span class="muted">${x.state === 'reading' ? 'Claude is reading it…' : x.state === 'failed' ? esc(x.error || 'Couldn’t read it') : 'Read by Claude · ' + fmtDate(x.uploaded_at)}</span></div>`).join('');
+      `<div class="n" title="${esc(x.name)}">${esc(x.name)}</div><span class="muted">${x.state === 'reading' ? 'Claude is reading it…' : x.state === 'failed' ? esc(x.error || 'Couldn’t read it') : x.learned ? `${esc(x.learned.job_type || '')} · ${x.learned.lines} lines · ${x.learned.notes + x.learned.exclusions + x.learned.deliverables} clauses` : 'Read before the new layout'}</span></div>`).join('');
     if (reading) setTimeout(loadPast, 5000);
   }
+  $('pp-learned').addEventListener('click', async e => {
+    if (!e.target.closest('#pp-relearn')) return;
+    try { drawPast(await api('/proposal-template/relearn', { method: 'POST', body: '{}' })); toast('Claude is reading them again'); } catch (x) { toast(x.message, true); }
+  });
   $('pp-grid').addEventListener('click', async e => {
     const r = e.target.closest('[data-rm]'); if (!r) return;
     try { drawPast(await api('/proposal-template/' + r.dataset.rm, { method: 'DELETE' })); toast('Removed'); } catch (x) { toast(x.message, true); }
@@ -533,6 +650,32 @@
   ['dragenter', 'dragover'].forEach(ev => $('pp-drop').addEventListener(ev, e => { e.preventDefault(); $('pp-drop').classList.add('on'); }));
   ['dragleave', 'drop'].forEach(ev => $('pp-drop').addEventListener(ev, e => { e.preventDefault(); if (ev === 'dragleave' && $('pp-drop').contains(e.relatedTarget)) return; $('pp-drop').classList.remove('on'); }));
   $('pp-drop').addEventListener('drop', e => uploadPast(e.dataTransfer && e.dataTransfer.files));
+
+  // ---------------- fixed wording + library
+  async function loadWording() { try { drawWording(await api('/proposal-studio/house')); } catch (e) { $('fw-err').textContent = e.message; } }
+  function drawWording(d) {
+    document.querySelectorAll('[data-h]').forEach(el => { const v = d.house[el.dataset.h]; el.value = Array.isArray(v) ? v.join('\n') : (v == null ? '' : v); });
+    drawLib(d.library);
+  }
+  function drawLib(lib) {
+    ['notes', 'exclusions', 'deliverables'].forEach(k => {
+      $('lib-' + k).innerHTML = (lib[k] || []).map(i => `<div><span>${esc(i.text)}</span><small>${i.added ? 'added' : i.uses + '×'}</small><button type="button" data-hide="${esc(i.text)}" aria-label="Remove from the library">×</button></div>`).join('') || '<span class="muted">Nothing yet. Upload past proposals.</span>';
+    });
+  }
+  $('fw-form').addEventListener('submit', async e => {
+    e.preventDefault(); $('fw-err').textContent = ''; const h = {};
+    document.querySelectorAll('[data-h]').forEach(el => { h[el.dataset.h] = el.value; });
+    try { drawWording(await api('/proposal-studio/house', { method: 'PUT', body: JSON.stringify({ house: h }) })); toast('Saved. Every proposal uses it from now on'); }
+    catch (x) { $('fw-err').textContent = x.message; }
+  });
+  $('v-wording').addEventListener('click', async e => {
+    const b = e.target.closest('[data-hide]'); if (!b) return;
+    try { drawLib(await api('/proposal-studio/library', { method: 'POST', body: JSON.stringify({ hide: b.dataset.hide }) })); toast('Removed from the library'); } catch (x) { toast(x.message, true); }
+  });
+  $('lib-add').addEventListener('submit', async e => {
+    e.preventDefault(); const t = $('lib-text').value.trim(); if (!t) return;
+    try { drawLib(await api('/proposal-studio/library', { method: 'POST', body: JSON.stringify({ add: { kind: $('lib-kind').value, text: t } }) })); $('lib-text').value = ''; toast('Added'); } catch (x) { toast(x.message, true); }
+  });
 
   route();
 })();
