@@ -13,7 +13,7 @@ Boots the real app on an ISOLATED database. Proves:
   * the projects list, the calendar and the job header carry the number, the color and the
     access chips
   * the worker app gets each job's features; with photos switched off the upload is refused
-  * the pages: the wide sectioned window with Edit mode, the # column, a 16-color palette that
+  * the pages: the wide sectioned window with Edit mode, the # column, a 44-color palette that
     matches project_setup.PALETTE everywhere, the photo button that hides
 Run:  venv/bin/python tests/smoke_projects_batch_c.py
 """
@@ -183,7 +183,7 @@ def main() -> int:
 
     # ---- onboarding: next number, chosen color, type, access, worker access; bad values refused first
     meta = cs.get("/api/admin/projects/setup-meta").get_json()["data"]
-    assert len(meta["palette"]) == 16 and meta["next_job_number"] == top + 4
+    assert len(meta["palette"]) == 44 and meta["next_job_number"] == top + 4
     assert pm.get("/api/admin/projects/setup-meta").status_code == 403
     base = {"new_org_name": f"{TAG} Owner LLC", "est_type": "FR", "borough": "BX", "address": "1 Batch C Ave", "billing_type": "lump_sum",
             "name": f"{TAG} Exterior job"}
@@ -308,7 +308,8 @@ def main() -> int:
     pal = list(project_setup.PALETTE)
     jc = re.search(r"const JOB_COLORS = \[([^\]]+)\]", portal).group(1)
     assert re.findall(r"'(#[0-9A-F]{6})'", jc) == pal
-    assert all(f".c{i}{{background:{c}}}" in portal and f".cw{i}{{background:{c}}}" in portal for i, c in enumerate(pal))
+    assert all(f".c{i}{{background:{c}" in portal and f".cw{i}{{background:{c}" in portal for i, c in enumerate(pal))
+    assert all(f".c{i}{{background:{pal[i]};color:{k}}}" in portal for i, k in project_setup.INK.items()), "light colors carry dark text"
     home = (ROOT / "projects.html").read_text(encoding="utf-8")
     assert re.findall(r"'(#[0-9A-F]{6})'", re.search(r"var COLORS = \[([^\]]+)\]", home).group(1)) == pal
     dash = cs.get(f"/projects/{fr}").get_data(as_text=True)
