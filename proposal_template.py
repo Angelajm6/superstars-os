@@ -48,7 +48,7 @@ SECTION = "company_portal"
 TOKENS = ("company_name", "company_address", "company_phone", "company_email", "company_license", "logo",
           "number", "date", "valid_until", "title", "client_name", "contact_name", "recipient_email", "building",
           "scope", "line_items_rows", "total", "deposit", "schedule", "exclusions", "terms", "signature",
-          "intro", "reference", "extra_sections")
+          "intro", "reference", "extra_sections", "submitted_by")
 REQUIRED = ("scope", "line_items_rows", "total")
 
 PROMPT = (
@@ -59,7 +59,9 @@ PROMPT = (
     "written exactly like this:\n"
     "{{company_name}} {{company_address}} {{company_phone}} {{company_email}} {{company_license}} {{logo}} (an <img> of "
     "their logo, sized by your CSS via the class `logo`), {{number}} {{date}} {{valid_until}} {{title}} "
-    "{{client_name}} {{contact_name}} {{recipient_email}} {{building}} (address), {{reference}} (a short reference, may be "
+    "{{client_name}} {{contact_name}} {{recipient_email}} {{building}} (address), {{submitted_by}} (who submits the "
+    "proposal: the person, their title, the company, address, phone and email, as lines; put it where the template shows "
+    "who it is from, e.g. a SUBMITTED BY box, instead of the company tokens), {{reference}} (a short reference, may be "
     "empty), {{intro}} (the opening letter paragraph, before the scope), {{scope}} (the scope text), "
     "{{line_items_rows}} (only <tr> rows with 4 cells: description, quantity, unit price, amount — put it inside "
     "your own <table> with the header row in their style), {{total}}, {{deposit}} (a sentence about the deposit, may be "
@@ -304,6 +306,26 @@ def logo_tag() -> str:
     import company_brand
     uri = company_brand.logo_data_uri()
     return f'<img class="logo" alt="Superstars Contracting" src="{uri}">' if uri else ""
+
+
+_COMPANY_RUN = re.compile(r"\{\{\s*company_name\s*\}\}(?:(?:\s|<[^>]{0,80}>|&nbsp;|&middot;|[|·•,\-–])*"
+                          r"\{\{\s*company_(?:address|phone|email|license)\s*\}\})+")
+
+
+def with_submitted_by(template: str) -> str:
+    """Templates read before {{submitted_by}} existed show who it's from as {{company_name}} followed by the letterhead
+    tokens; that run becomes {{submitted_by}} so each proposal can say who submits it (2026-10-21)."""
+    if re.search(r"\{\{\s*submitted_by\s*\}\}", template):
+        return template
+    out, n = _COMPANY_RUN.subn("{{submitted_by}}", template, count=1)
+    if n:
+        return out
+    m = re.search(r"(?i)submitted\s*by", template)   # a SUBMITTED BY box holding just {{company_name}}
+    if m:
+        t = re.compile(r"\{\{\s*company_name\s*\}\}").search(template, m.end(), m.end() + 600)
+        if t:
+            return template[:t.start()] + "{{submitted_by}}" + template[t.end():]
+    return template
 
 
 def fill(template: str, parts: dict) -> str:

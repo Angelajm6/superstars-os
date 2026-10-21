@@ -68,7 +68,8 @@ EDITABLE_FIELDS = ("title", "scope_summary", "price", "deposit_pct", "schedule_t
                    "recipient_name", "contact_id",
                    # Proposal Studio (2026-10-20)
                    "intro_text", "reference_text", "prepared_for", "project_text", "extra_sections",
-                   "hidden_sections", "email_message")
+                   "hidden_sections", "email_message",
+                   "submitted_by")   # 2026-10-21: the SUBMITTED BY block, per proposal
 LINK_DAYS_DEFAULT = 30
 DEPOSIT_PCT_DEFAULT = 30.0
 COMPANY_NAME = "Superstars Contracting"
@@ -591,7 +592,7 @@ def _company_facts(conn) -> dict:
 
 STUDIO_COLUMNS = (("intro_text", "TEXT"), ("reference_text", "TEXT"), ("prepared_for", "TEXT"), ("project_text", "TEXT"),
                   ("extra_sections", "TEXT"), ("hidden_sections", "TEXT"), ("email_message", "TEXT"),
-                  ("sources", "TEXT"), ("source_mail_id", "INTEGER"), ("studio", "INTEGER"))
+                  ("sources", "TEXT"), ("source_mail_id", "INTEGER"), ("studio", "INTEGER"), ("submitted_by", "TEXT"))
 HIDEABLE = ("intro", "scope", "schedule", "exclusions", "terms")
 
 
@@ -610,6 +611,12 @@ _EDIT_CSS = ("[data-f],[data-lf]{display:inline-block;min-width:2ch;border-radiu
              "[data-f]:focus,[data-lf]:focus{background:rgba(67,100,220,.07);box-shadow:0 0 0 1px rgba(67,100,220,.6)}"
              "div[data-f]{display:block}[data-f]:empty::before,[data-lf]:empty::before{content:'…';color:#aab}"
              ".ssc-flash{background:#fff3c4!important}")
+
+
+def default_submitted_by(facts: dict) -> str:
+    """The SUBMITTED BY block before anyone edits it: the company and its letterhead details (Settings > Company brand)."""
+    return "\n".join(x for x in (COMPANY_NAME, facts.get("company_address"),
+                                  " | ".join(y for y in (facts.get("company_phone"), facts.get("company_email")) if y)) if x)
 
 
 def render_document(conn, r: dict, *, mode: str = "pdf", lis: Optional[list] = None) -> str:
@@ -639,6 +646,7 @@ def render_document(conn, r: dict, *, mode: str = "pdf", lis: Optional[list] = N
     contact = r.get("recipient_name") or r.get("contact_name") or ""
     prepared = r.get("prepared_for") or ", ".join(x for x in (contact, r.get("client_name")) if x)
     project = r.get("project_text") or ", ".join(x for x in (r.get("building_name"), addr, city) if x)
+    submitted = r.get("submitted_by") or default_submitted_by(facts)
 
     def qty_of(li):
         return "" if li.get("qty") is None else ("%g" % float(li["qty"]))
@@ -693,7 +701,9 @@ def render_document(conn, r: dict, *, mode: str = "pdf", lis: Optional[list] = N
         has = lambda tok: re.search(r"\{\{\s*" + tok + r"\s*\}\}", tpl) is not None   # noqa: E731
         scope_part = scope if has("intro") or not intro else f"<div style='margin-bottom:10px'>{intro}</div>{scope}"
         terms_part = terms if has("extra_sections") or not extra_html else terms + extra_html
+        tpl = proposal_template.with_submitted_by(tpl)
         out = proposal_template.fill(tpl, {
+            "submitted_by": ed("submitted_by", txt(submitted), True),
             "company_name": e(COMPANY_NAME), "company_address": e(facts["company_address"]), "company_phone": e(facts["company_phone"]),
             "company_email": e(facts["company_email"]), "company_license": e(facts["company_license"]),
             "logo": proposal_template.logo_tag(), "number": e(r["number"]),
@@ -726,6 +736,7 @@ def render_document(conn, r: dict, *, mode: str = "pdf", lis: Optional[list] = N
   <h1>{ed("title", e(r.get('title') or 'Proposal'))}</h1>
   <div class="two" style="margin-top:14px">
     <div class="fact"><b>Prepared for</b>{ed("prepared_for", e(prepared))}{('<br>' + e(r['recipient_email'])) if r.get('recipient_email') and not edit else ''}</div>
+    <div class="fact"><b>Submitted by</b>{ed("submitted_by", txt(submitted), True)}</div>
     <div class="fact"><b>Building</b>{ed("project_text", e(project or '—'))}{('<br><b style="margin-top:6px">Reference</b>' + ed("reference_text", e(ref or ''))) if (ref or edit) else ''}</div>
   </div>
   {('<div style="margin-top:18px">' + intro + '</div>') if intro else ''}

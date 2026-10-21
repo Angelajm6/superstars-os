@@ -439,7 +439,7 @@
   });
   const chat = $('chat');
   function say(cls, html) { chat.insertAdjacentHTML('beforeend', `<div class="msg ${cls}">${html}</div>`); chat.scrollTop = chat.scrollHeight; return chat.lastElementChild; }
-  const LABEL = { title: 'title', prepared_for: 'prepared for', project_text: 'building', reference_text: 'reference', intro_text: 'opening', scope_summary: 'scope', schedule_text: 'schedule', exclusions_text: 'exclusions', terms_text: 'terms', deposit_pct: 'deposit', email_message: 'email', extra_sections: 'sections', lines: 'price lines' };
+  const LABEL = { title: 'title', submitted_by: 'submitted by', prepared_for: 'prepared for', project_text: 'building', reference_text: 'reference', intro_text: 'opening', scope_summary: 'scope', schedule_text: 'schedule', exclusions_text: 'exclusions', terms_text: 'terms', deposit_pct: 'deposit', email_message: 'email', extra_sections: 'sections', lines: 'price lines' };
   async function ask(q) {
     if (!S.v || !S.v.editable) { toast('Make a new version first to change a sent proposal', true); return; }
     await flush(false);
@@ -452,7 +452,7 @@
       const m = say('c', 'Changed the ' + esc(r.changed.map(k => LABEL[k] || k).join(', ')) + '. <button class="undo" type="button">Undo</button>');
       m.querySelector('.undo').addEventListener('click', async ev => {
         ev.target.remove(); const b = r.before;
-        await save({ title: b.title, prepared_for: b.prepared_for, project_text: b.project_text, reference_text: b.reference_text, intro_text: b.intro_text, scope_summary: b.scope_summary,
+        await save({ title: b.title, submitted_by: b.submitted_by, prepared_for: b.prepared_for, project_text: b.project_text, reference_text: b.reference_text, intro_text: b.intro_text, scope_summary: b.scope_summary,
           schedule_text: b.schedule_text, exclusions_text: b.exclusions_text, terms_text: b.terms_text, deposit_pct: b.deposit_pct, email_message: b.email_message, extra_sections: b.extra_sections }, b.lines, true);
         say('c', 'Undone.');
       });
