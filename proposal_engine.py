@@ -70,14 +70,21 @@ RULES = (
     "- submitted_to: one line each — the company (or person) first, then department / role lines, then the address; add "
     "\"c/o Name, Title\" when there is a contact. project: the address, then one short line describing the building or "
     "the scope limits. reference: what this answers (report, drawings, request), 1–2 lines.\n"
-    "- lines: lead is the short bold item name (\"Rope access drops\"), detail continues it in lower case (\"rigging and "
-    "close-up physical inspection\"). Units only from the list. Mobilization first, reports / tests last, like the "
-    "examples. Price from the examples and price history for the same kind of work; say where in source.\n"
+    "- lines: lead is the bold item name, at most four words, the way the company writes it (\"Mobilization\", \"Rope "
+    "access drops\", \"Flagman\", \"Inspection report\", \"CMU crack repair\"); everything else goes in detail, in lower "
+    "case, one short phrase (\"rigging and close-up physical inspection\"). Never put quantities, rates or \"daily rate\" "
+    "in the text: they are columns. Units only from the list. Mobilization first, reports / tests last.\n"
+    "- pricing: follow the pricing structure of the closest past proposal of the same job type, item by item: the same "
+    "kinds of lines, the same units (per drop stays EA per drop, per day stays DAY, lump sums stay LS) and its rates. "
+    "Use the price history only for items that proposal doesn't have. Rates the request gives always win. Say in each "
+    "line's source which proposal the rate came from.\n"
     "- notes: job notes only. When some items are billed on actual quantities, say \"Items 2 and 3 are unit-priced and "
     "will be billed on actual …\" with the real item numbers, and any \"Additional X will be priced at $Y per X\" uses "
     "that line's exact rate.\n"
     "- Numbers in words and digits, the company's way: \"six (6) drops\", \"eight (8) working days\".\n"
-    "- Use the library's wording word for word when it fits; change only the facts (names, counts, item numbers).\n"
+    "- notes, exclusions, deliverables: copy library items word for word, character for character. Pick the ones that "
+    "fit this job; write a new one only when nothing in the library covers it. When a library item needs this job's "
+    "facts (a count, item numbers, a name, a rate), change only those words and keep every other word.\n"
     "- mobilization / hours: \"\" to use the company's standard sentence; write one only when this job differs. warranty: "
     "\"\" when there is none. additional_insureds: \"the Owner\" plus the client / engineer / managing agent named in the "
     "job. accepted_by: the client's company name as on SUBMITTED TO.\n"
@@ -496,7 +503,8 @@ def context_blocks(conn, uid, req: dict) -> list:
         import claude_files
         for r in claude_files.owned(conn, uid, req["file_ids"]):
             blocks.extend(claude_files.blocks(conn, r))
-    blocks.append({"type": "text", "text": f"<request>\n{req['what']}\n</request>\n\nWrite this proposal. Copy the closest past "
+    blocks.append({"type": "text", "text": f"<request>\n{req['what']}\n</request>\n\nWrite this proposal. The first of the closest past proposals "
+                                           f"(same job type) sets the line structure and pricing. Copy the closest past "
                                            f"proposals' structure, order and wording; only the facts of this job change.\n\n{RULES}"})
     return blocks
 
