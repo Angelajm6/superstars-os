@@ -112,23 +112,26 @@
   .drop.on{border-color:var(--accent);background:var(--accent-in)}
   .learned{margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--ink-2);background:var(--status-complete-soft,#e7f6f0);border-radius:12px;padding:10px 14px}
   .learned.reading{background:var(--status-warn-soft,#FFF4E5)}
-  .grid-pp{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:16px}
-  .ppc{border:1px solid var(--line);border-radius:14px;background:#fff;padding:10px;display:flex;flex-direction:column;gap:6px;position:relative;min-width:0}
-  .ppc .pg{aspect-ratio:3/4;max-width:100%;background:#fff;border:1px solid var(--line);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:6px;text-decoration:none}
-  .ppc .pg i{height:5px;background:var(--brand-red);border-radius:2px}.ppc .pg b{height:4px;background:#D8DBE2;border-radius:2px}.ppc .pg b.s{width:60%}
-  .ppc .n{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .ppc .x{position:absolute;top:6px;right:6px;border:0;background:#fff;border-radius:50%;width:26px;height:26px;color:var(--muted);box-shadow:0 1px 4px rgba(0,0,0,.12);cursor:pointer;font-size:15px}
-  .ppc .x:hover{color:var(--status-behind-deep,#A8382B)}
-  .ppc .tag{position:absolute;top:16px;left:16px}
-  /* the archive (2026-10-21): each upload is a proposal from before the app, its facts editable */
-  .grid-pp{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
-  .ppc .h{display:flex;justify-content:space-between;gap:8px;align-items:center}.ppc .h b{font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .ppc label{font-size:11px;color:var(--muted);font-weight:600;display:block}
-  .ppc input{width:100%;border:1px solid transparent;border-radius:8px;padding:4px 6px;font:inherit;font-size:13px;background:var(--fill);color:var(--ink)}
-  .ppc input:focus{border-color:var(--accent-edge);background:#fff;outline:none}
-  .ppc .two{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-  .ppc .ft{display:flex;gap:6px;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted)}
-  .ppc .flag{font-size:11.5px;color:var(--status-warn,#9A5B00);background:var(--status-warn-soft,#FFF4E5);border-radius:8px;padding:4px 8px}
+  /* the archive (2026-10-21): a record list of the proposals sent before the app; a row opens its PDF */
+  .arch{margin-top:16px;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .arch-h{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+  .arch-row{display:grid;grid-template-columns:76px minmax(0,1.3fr) minmax(0,1.3fr) 96px 116px 36px;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer}
+  .arch-row:last-child{border-bottom:0}.arch-row:hover{background:var(--fill)}
+  .arch-row.head{cursor:default;background:none;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);font-weight:600;padding-top:9px;padding-bottom:9px}
+  .arch-row .no{font-weight:700;color:var(--accent-ink)}.arch-row .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .arch-row .r{text-align:right;font-variant-numeric:tabular-nums}.arch-row .m{color:var(--muted)}
+  .arch-row .more{border:0;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;border-radius:8px;padding:4px 6px}
+  .arch-row .more:hover{background:#fff;color:var(--ink)}
+  .arch-row .chk{font-size:10.5px;font-weight:600;color:var(--status-warn,#9A5B00);background:var(--status-warn-soft,#FFF4E5);border-radius:99px;padding:1px 7px;margin-left:6px}
+  .arch-menu{position:absolute;z-index:9050;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(20,24,36,.12);padding:4px;display:flex;flex-direction:column;min-width:150px}
+  .arch-menu button{border:0;background:none;text-align:left;padding:8px 10px;font:inherit;font-size:13px;border-radius:8px;cursor:pointer;color:var(--ink)}
+  .arch-menu button:hover{background:var(--fill)}.arch-menu button.del{color:var(--status-behind-deep,#A8382B)}
+  @media (max-width:760px){
+    .arch-row{grid-template-columns:minmax(0,1fr) auto 32px;grid-template-areas:"no tot more" "who who more";row-gap:2px}
+    .arch-row.head{display:none}.arch-row .no{grid-area:no}.arch-row .tot{grid-area:tot}.arch-row .more{grid-area:more}
+    .arch-row .who{grid-area:who;color:var(--muted);font-size:12.5px}.arch-row .c-cl,.arch-row .c-ad,.arch-row .c-dt{display:none}
+  }
+  @media (min-width:761px){.arch-row .who{display:none}}
   .ps-toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,16px);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:all .2s;z-index:9200;pointer-events:none;max-width:calc(100% - 32px)}
   .ps-toast.on{opacity:1;transform:translate(-50%,0)}.ps-toast.err{background:var(--status-behind-deep,#A8382B)}
   /* ready to send (2026-10-21) */
@@ -270,7 +273,7 @@
         <div style="margin-top:12px"><button class="btn-primary btn-sm" type="button" id="pp-add">Upload proposals</button><input type="file" id="pp-file" multiple hidden aria-label="Upload past proposals"></div></div>
       <div class="learned" id="pp-learned" hidden></div>
       <div class="err" id="pp-err" role="alert"></div>
-      <div class="grid-pp" id="pp-grid"></div>
+      <div class="arch" id="pp-grid" hidden></div>
     </div>
   </section>
 </main>
@@ -278,6 +281,19 @@
 </div>
 
 <!-- send -->
+<div class="scrim" id="arch-m" hidden>
+  <form class="modal" id="arch-f" role="dialog" aria-modal="true" aria-labelledby="arch-h" autocomplete="off">
+    <h3 id="arch-h">Proposal details</h3>
+    <div class="muted">As Claude read them from the PDF. Correct anything it got wrong.</div>
+    <div class="row2"><div><label class="lbl" for="af-number">Number</label><input class="fld" id="af-number" data-af="number"></div>
+      <div><label class="lbl" for="af-date">Date</label><input class="fld" id="af-date" data-af="date" placeholder="MM/DD/YYYY"></div></div>
+    <div><label class="lbl" for="af-client">Client</label><input class="fld" id="af-client" data-af="client"></div>
+    <div><label class="lbl" for="af-building">Address</label><input class="fld" id="af-building" data-af="building"></div>
+    <div><label class="lbl" for="af-total">Total</label><input class="fld" id="af-total" data-af="total" inputmode="decimal"></div>
+    <div class="err" id="af-err" role="alert"></div>
+    <div class="mfoot"><button class="btn-ghost" type="button" id="af-cancel">Cancel</button><button class="btn-primary" type="submit">Save</button></div>
+  </form>
+</div>
 <div class="scrim" id="send-m" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="s-h">
     <h3 id="s-h">Send the proposal</h3>
@@ -614,7 +630,7 @@
   $('e-send').addEventListener('click', async () => { await flush(true); if (!$('e-send').disabled) openSend(); });
   $('s-cancel').addEventListener('click', () => { $('send-m').hidden = true; });
   $('send-m').addEventListener('click', e => { if (e.target === $('send-m')) $('send-m').hidden = true; });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') $('send-m').hidden = true; });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('send-m').hidden = true; $('arch-m').hidden = true; closeMenu(); } });
   $('s-send').addEventListener('click', async () => {
     const b = $('s-send'); b.disabled = true; b.textContent = 'Making the PDF and sending…'; $('s-err').textContent = '';
     try {
@@ -635,33 +651,73 @@
     lb.innerHTML = reading ? `Claude is reading ${reading} proposal${reading === 1 ? '' : 's'}… about a minute each.`
       : `<span>✓ Claude has read <b>${ready} proposal${ready === 1 ? '' : 's'}</b> · they're listed in Estimates &amp; proposals, their wording is in your library and their prices in your price history</span>` +
         (list.some(x => x.state !== 'reading' && (!x.learned || !x.archive)) ? ` <button class="btn-ghost btn-sm" type="button" id="pp-relearn">Read them again</button>` : '');
-    $('pp-grid').innerHTML = list.map(x => {
-      const a = x.archive, f = (k, lbl, v) => `<div><label for="pa-${x.id}-${k}">${lbl}</label><input id="pa-${x.id}-${k}" data-pa="${x.id}" data-k="${k}" value="${esc(v)}"></div>`;
-      if (x.state !== 'ready' || !a) return `<div class="ppc"><div class="h"><b title="${esc(x.name)}">${esc(x.name)}</b><button class="btn-ghost btn-sm" type="button" data-rm="${x.id}">Remove</button></div>` +
-        `<span class="muted">${x.state === 'reading' ? 'Claude is reading it…' : x.state === 'failed' ? esc(x.error || 'Couldn’t read it') : 'Read before the archive existed: use “Read them again” above'}</span></div>`;
-      return `<div class="ppc"><div class="h"><b>${a.number ? 'Proposal ' + esc(a.number) : esc(x.name)}</b><button class="btn-ghost btn-sm" type="button" data-ppdf="${x.id}">PDF</button></div>` +
-        f('number', 'Number', a.number) + f('client', 'Client', a.client) + f('building', 'Address', a.building) +
-        `<div class="two">${f('date', 'Date', a.date ? fmtDate(a.date) : '')}${f('total', 'Total', a.total ? money(a.total) : '')}</div>` +
-        (!a.date || !a.number || !a.total ? '<div class="flag">Claude couldn’t read everything. Fill in what’s missing.</div>' : '') +
-        `<div class="ft"><span>${a.edited ? 'Corrected by you' : 'Read by Claude'}${x.learned ? ' · in your library' : ''}</span><button class="btn-ghost btn-sm" type="button" data-rm="${x.id}">Remove</button></div></div>`;
-    }).join('');
+    S.arch = list;
+    const done = list.filter(x => x.state === 'ready' && x.archive), other = list.filter(x => !(x.state === 'ready' && x.archive));
+    done.sort((a, b) => String(b.archive.date || '').localeCompare(String(a.archive.date || '')) || String(b.archive.number).localeCompare(String(a.archive.number), undefined, { numeric: true }));
+    $('pp-grid').hidden = !list.length;
+    const row = x => { const a = x.archive, miss = !a.number || !a.date || !a.total;
+      return `<div class="arch-row" data-ppdf="${x.id}" role="button" tabindex="0" aria-label="Open proposal ${esc(a.number || x.name)}">` +
+        `<span class="no">${esc(a.number || '—')}${miss ? '<span class="chk" title="Claude couldn’t read everything">check</span>' : ''}</span>` +
+        `<span class="t c-cl">${esc(a.client || '—')}</span><span class="t c-ad m">${esc(a.building || '—')}</span>` +
+        `<span class="c-dt m">${a.date ? fmtDate(a.date) : '—'}</span><span class="r tot">${a.total ? money(a.total) : '—'}</span>` +
+        `<button class="more" type="button" data-amenu="${x.id}" aria-label="More for proposal ${esc(a.number || x.name)}">⋯</button>` +
+        `<span class="t who">${esc([a.client, a.building, a.date ? fmtDate(a.date) : ''].filter(Boolean).join(' · ') || x.name)}</span></div>`; };
+    const pending = x => `<div class="arch-row" style="cursor:default"><span class="no m">…</span><span class="t c-cl">${esc(x.name)}</span>` +
+      `<span class="t c-ad m">${x.state === 'reading' ? 'Claude is reading it…' : x.state === 'failed' ? esc(x.error || 'Couldn’t read it') : 'Not read yet: use “Read them again”'}</span><span class="c-dt"></span><span class="tot"></span>` +
+      `<button class="more" type="button" data-amenu="${x.id}" aria-label="More for ${esc(x.name)}">⋯</button><span class="t who">${esc(x.state === 'reading' ? 'Claude is reading it…' : x.name)}</span></div>`;
+    $('pp-grid').innerHTML = `<div class="arch-h"><span><b style="color:var(--ink)">${done.length}</b> proposal${done.length === 1 ? '' : 's'} from before the app</span><span>Click one to open its PDF</span></div>` +
+      `<div class="arch-row head"><span>No.</span><span>Client</span><span>Address</span><span>Date</span><span class="r">Total</span><span></span></div>` +
+      other.map(pending).join('') + done.map(row).join('');
     if (reading) setTimeout(loadPast, 5000);
   }
   $('pp-learned').addEventListener('click', async e => {
     if (!e.target.closest('#pp-relearn')) return;
     try { drawPast(await api('/proposal-template/relearn', { method: 'POST', body: '{}' })); toast('Claude is reading them again'); } catch (x) { toast(x.message, true); }
   });
-  $('pp-grid').addEventListener('change', async e => {
-    const i = e.target.closest('[data-pa]'); if (!i) return;
-    try { drawPast(await api('/proposal-template/' + i.dataset.pa, { method: 'PATCH', body: JSON.stringify({ [i.dataset.k]: i.value }) })); toast('Saved'); }
-    catch (x) { toast(x.message, true); }
-  });
+  function archItem(id) { return (S.arch || []).find(x => String(x.id) === String(id)); }
+  function closeMenu() { const m = document.querySelector('.arch-menu'); if (m) m.remove(); }
+  function openArchPdf(id) {
+    const x = archItem(id); if (!x) return; const a = x.archive || {}, url = '/api/proposal-template/' + x.id + '/file';
+    window.SSC_PDF.panel({ title: a.number ? 'Proposal ' + a.number : x.name, sub: [a.client, a.date ? fmtDate(a.date) : '', a.total ? money(a.total) : '', 'Before the app'].filter(Boolean).join(' · '),
+      url, links: [{ label: 'Download', href: url, download: true }] });
+  }
+  function openArchEdit(id) {
+    const x = archItem(id); if (!x) return; const a = x.archive || {};
+    S.archEdit = x.id; $('af-err').textContent = '';
+    $('af-number').value = a.number || ''; $('af-date').value = a.date ? fmtDate(a.date) : ''; $('af-client').value = a.client || '';
+    $('af-building').value = a.building || ''; $('af-total').value = a.total ? money(a.total) : '';
+    $('arch-m').hidden = false; $('af-number').focus();
+  }
   $('pp-grid').addEventListener('click', async e => {
-    const v = e.target.closest('[data-ppdf]');
-    if (v) { const n = (document.getElementById('pa-' + v.dataset.ppdf + '-number') || {}).value; window.SSC_PDF.panel({ title: n ? 'Proposal ' + n : 'Proposal', sub: 'Before the app', url: '/api/proposal-template/' + v.dataset.ppdf + '/file', links: [{ label: 'Download', href: '/api/proposal-template/' + v.dataset.ppdf + '/file', download: true }] }); return; }
-    const r = e.target.closest('[data-rm]'); if (!r) return;
-    if (!confirm('Remove this proposal from the archive? Its PDF is deleted.')) return;
-    try { drawPast(await api('/proposal-template/' + r.dataset.rm, { method: 'DELETE' })); toast('Removed'); } catch (x) { toast(x.message, true); }
+    const m = e.target.closest('[data-amenu]');
+    if (m) {
+      e.stopPropagation(); const had = document.querySelector('.arch-menu'); closeMenu(); if (had && had.dataset.for === m.dataset.amenu) return;
+      const x = archItem(m.dataset.amenu), r = m.getBoundingClientRect(), menu = document.createElement('div');
+      menu.className = 'arch-menu'; menu.dataset.for = m.dataset.amenu;
+      menu.innerHTML = (x && x.archive ? '<button type="button" data-act="pdf">Open the PDF</button><button type="button" data-act="edit">Edit details</button>' : '') +
+        '<button type="button" class="del" data-act="rm">Remove from the archive</button>';
+      document.body.appendChild(menu);
+      menu.style.top = (window.scrollY + r.bottom + 4) + 'px'; menu.style.left = Math.max(8, window.scrollX + r.right - menu.offsetWidth) + 'px';
+      menu.addEventListener('click', async ev => {
+        const b = ev.target.closest('[data-act]'); if (!b) return; const id = menu.dataset.for; closeMenu();
+        if (b.dataset.act === 'pdf') openArchPdf(id);
+        else if (b.dataset.act === 'edit') openArchEdit(id);
+        else if (confirm('Remove this proposal from the archive? Its PDF is deleted.')) {
+          try { drawPast(await api('/proposal-template/' + id, { method: 'DELETE' })); toast('Removed'); } catch (x2) { toast(x2.message, true); }
+        }
+      });
+      return;
+    }
+    const r = e.target.closest('[data-ppdf]'); if (r) openArchPdf(r.dataset.ppdf);
+  });
+  $('pp-grid').addEventListener('keydown', e => { const r = e.target.closest('[data-ppdf]'); if (r && (e.key === 'Enter' || e.key === ' ') && e.target === r) { e.preventDefault(); openArchPdf(r.dataset.ppdf); } });
+  document.addEventListener('click', e => { if (!e.target.closest('.arch-menu')) closeMenu(); });
+  $('af-cancel').addEventListener('click', () => { $('arch-m').hidden = true; });
+  $('arch-m').addEventListener('click', e => { if (e.target === $('arch-m')) $('arch-m').hidden = true; });
+  $('arch-f').addEventListener('submit', async e => {
+    e.preventDefault(); const body = {}; document.querySelectorAll('[data-af]').forEach(i => { body[i.dataset.af] = i.value; });
+    try { drawPast(await api('/proposal-template/' + S.archEdit, { method: 'PATCH', body: JSON.stringify(body) })); $('arch-m').hidden = true; toast('Saved'); }
+    catch (x) { $('af-err').textContent = x.message; }
   });
   async function uploadPast(files) {
     files = Array.from(files || []).filter(Boolean); if (!files.length) return;
