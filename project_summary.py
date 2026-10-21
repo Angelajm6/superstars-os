@@ -81,7 +81,7 @@ def _header(conn, code, today, role=None):
     bt = p.get("billing_type")
     import project_setup
     return {"code": code, "name": p.get("name"), "job_number": p.get("job_number"), "access_labels": project_setup.access_labels(p),
-            "color": project_setup.color_hex({**p, "project_code": code}), "can_edit": role in FINANCIAL_ROLES, "address": p.get("address"), "status": p.get("status") or "active",
+            "color": project_setup.color_hex({**p, "project_code": code}), "color_ink": project_setup.color_ink({**p, "project_code": code}), "can_edit": role in FINANCIAL_ROLES, "address": p.get("address"), "status": p.get("status") or "active",
             "billing_type": bt, "billing_label": billing_type.label(bt), "billing_short": billing_type.SHORT.get(bt or "", "Not set"),
             "start_date": start, "target_completion": end, "days_left": days_left, "time_elapsed_pct": elapsed,
             "client": people.get("owner_client"), "project_manager": people.get("project_manager"),

@@ -1452,8 +1452,8 @@
               if (cl) cl.textContent = H.client || '';
               $j('jx-address').textContent = (H.client && H.address ? ' · ' : '') + (H.address || '');
               const wrap = document.querySelector('.ph-wrap');
-              if (wrap && H.color) wrap.style.setProperty('--job', H.color);   // the job's own calendar color
-              const ob = document.getElementById('ov-back'); if (ob && H.color) ob.style.setProperty('--job', H.color);   // and the Back to overview bar
+              if (wrap && H.color) wrap.style.setProperty('--job', H.color_ink || H.color);   // the job's own calendar color (its dark shade for a light pastel)
+              const ob = document.getElementById('ov-back'); if (ob && H.color) ob.style.setProperty('--job', H.color_ink || H.color);   // and the Back to overview bar
               $j('jx-hno').hidden = H.job_number == null; $j('jx-hno').textContent = H.job_number != null ? '#' + H.job_number : '';
               $j('jx-edit').hidden = !H.can_edit;
               const chips = [];
