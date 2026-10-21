@@ -252,6 +252,9 @@ def is_noise(msg: dict, h: dict) -> bool:
 
 
 # ------------------------------------------------------------------ matching
+PROPOSAL_NO_RE = re.compile(r"\bProposal(?:\s+No\.?)?\s*#?\s*(\d{3,6})(?:-(\d{1,2}))?\b", re.I)
+
+
 def match(conn, addrs: list, text: str, own_domain: str = "") -> dict:
     """Client / contact by email or company domain; estimate / proposal by number; job by code."""
     out = {"client_org_id": None, "contact_id": None, "estimate_id": None, "proposal_id": None, "project_code": None}
@@ -282,6 +285,18 @@ def match(conn, addrs: list, text: str, own_domain: str = "") -> dict:
         if e and not out["estimate_id"]:
             out["estimate_id"] = e["id"]
             out["client_org_id"] = out["client_org_id"] or e["client_org_id"]
+    if not out["proposal_id"]:   # "Proposal 1042" / "Proposal No. 1042-2": the numbers on the company layout (2026-10-21)
+        for n, v in PROPOSAL_NO_RE.findall(text or ""):
+            try:
+                p = _one(conn, "SELECT id, estimate_id, client_org_id FROM proposal WHERE display_no = ? AND version = ?",
+                         (int(n), int(v or 1)))
+            except Exception:
+                conn.rollback()
+                p = None
+            if p:
+                out["proposal_id"], out["estimate_id"] = p["id"], p["estimate_id"]
+                out["client_org_id"] = out["client_org_id"] or p["client_org_id"]
+                break
     try:
         codes = [r["project_code"] for r in _rows(conn, "SELECT project_code FROM projects")]
     except Exception:
@@ -579,16 +594,13 @@ def today_cards(conn, uid: int) -> list:
         card = {"key": f"claude:{a['id']}", "cat": cat, "urgency": urgency, "icon": "mail", "action_id": a["id"],
                 "tool": a["tool"], "href": href, "source": "From your Inbox · " + (m["received_at"] or "")[:16].replace("T", " "),
                 "when": a["created_at"], "created_at": a["created_at"], "pill": None, "draft": None, "actions": []}
-        if a["tool"] == "draft_proposal":
-            lines = inp.get("lines") or []
-            total = sum(float(li.get("qty") or 0) * float(li.get("unit_price") or 0) for li in lines if isinstance(li, dict))
-            card.update(title=f"{who} asked for a proposal" + (f": {inp.get('title')}" if inp.get("title") else ""),
-                        why=(m["subject"] or "")[:160], pill="Proposal ready",
-                        draft={"label": "Claude drafted this proposal in your template",
-                               "rows": [[str(li.get("description") or "")[:90], "${:,.0f}".format(float(li.get("qty") or 0) * float(li.get("unit_price") or 0))]
-                                        for li in lines[:6] if isinstance(li, dict)],
-                               "total": "${:,.0f}".format(total)},
-                        actions=[{"type": "proposal", "label": "Review PDF & send", "primary": True},
+        if a["tool"] == "draft_proposal":   # approving opens Proposal Studio, which writes it in the company layout
+            import claude_agent
+            f = claude_agent._draft_facts(inp)
+            card.update(title=f"{who} asked for a proposal" + (f": {f['building_address']}" if f["building_address"] else ""),
+                        why=(m["subject"] or "")[:160], pill="Proposal requested",
+                        draft={"label": "What Claude will write it from", "text": f["what"][:600]},
+                        actions=[{"type": "studio", "label": "Write it in Proposal Studio", "primary": True},
                                  {"type": "open", "label": "Read the email"}])
         elif a["tool"] == "reply_email":
             card.update(title=f"{who} is waiting for a reply", why=(m["subject"] or "")[:160], pill="Reply drafted",
@@ -613,9 +625,9 @@ def suggest_prompt(conn, m: dict, user_name: str) -> str:
         "platform should do with it, as approval cards. Typical cards:\n"
         "- an invitation to bid: create_estimate with kind bid, the client, address, job type, borough and bid due date, "
         "with mail_id set so its attachments are saved to the new bid; plus create_event for a pre-bid walkthrough\n"
-        "- a request for a proposal, price or quote: draft_proposal with the full proposal (scope, line items priced from "
-        "past proposals and estimates you can look up, schedule) and the reply that goes with the PDF; it is drawn in the "
-        "company's own proposal template and sent as a PDF in this thread once approved\n"
+        "- a request for a proposal, price or quote: draft_proposal with the facts only (client, building, job type, and "
+        "`what`: the work, quantities, the drawings or report it refers to, any prices given); once approved, Proposal "
+        "Studio writes it in the company's own layout and the person checks and sends it from there\n"
         "- a proposal or price sent from Gmail outside the software: log_proposal_sent for the matching draft\n"
         "- attachments for an existing bid or estimate: save_email_attachments\n"
         f"- a question or request that needs an answer: reply_email with a complete, ready-to-send reply, {sign}\n"

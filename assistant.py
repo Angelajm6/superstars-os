@@ -368,8 +368,9 @@ def _doc_blocks(conn, est_id, ids) -> list:
 
 
 # ------------------------------------------------------------------ the call
-def _call_model(system_blocks, messages) -> dict:
-    """One reply: {text, model, usage{...}, refused}. Raises on API / transport failure."""
+def _call_model(system_blocks, messages, schema=None) -> dict:
+    """One reply: {text, model, usage{...}, refused, truncated, data}. Raises on API / transport failure.
+    With `schema` (a JSON schema) the reply is structured output: `data` is that object, already valid."""
     fake = _fake()
     if fake:
         text = fake if fake not in ("1", "true") else (
@@ -379,14 +380,24 @@ def _call_model(system_blocks, messages) -> dict:
                 "usage": {"input_tokens": 1200, "output_tokens": 300, "cache_read_tokens": 0, "cache_write_tokens": 0}}
     import anthropic
     client = anthropic.Anthropic()
+    out_cfg = {"effort": "medium"}
+    if schema:
+        out_cfg["format"] = {"type": "json_schema", "schema": schema}
     resp = client.beta.messages.create(
         model=model(), max_tokens=MAX_TOKENS, system=system_blocks, messages=messages,
-        output_config={"effort": "medium"}, cache_control={"type": "ephemeral"},
+        output_config=out_cfg, cache_control={"type": "ephemeral"},
         betas=["server-side-fallback-2026-07-01"], fallbacks="default")
     text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip()
+    data = None
+    if schema and resp.stop_reason not in ("refusal", "max_tokens"):
+        try:
+            data = json.loads(text)
+        except ValueError:
+            data = None
     u = resp.usage
     return {"text": text, "model": getattr(resp, "model", None) or model(),
-            "refused": resp.stop_reason == "refusal",
+            "refused": resp.stop_reason == "refusal", "data": data,
+            "truncated": resp.stop_reason == "max_tokens",
             "usage": {"input_tokens": getattr(u, "input_tokens", 0) or 0,
                       "output_tokens": getattr(u, "output_tokens", 0) or 0,
                       "cache_read_tokens": getattr(u, "cache_read_input_tokens", 0) or 0,

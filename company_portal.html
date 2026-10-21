@@ -816,7 +816,6 @@
             <div id="tk-list" class="tk-list"></div>
           </div>
 
-        <!-- review a proposal Claude drafted from an email, in the company template, before it goes out as a PDF -->
         <div class="td-scrim" id="pd-scrim" hidden></div>
         <div class="td-wx" id="wx-modal" role="dialog" aria-modal="true" aria-labelledby="wx-title" hidden>
           <div class="pd-head">
@@ -826,42 +825,6 @@
           <div class="wx-tabs" id="wx-tabs" role="tablist" aria-label="Job"></div>
           <div class="wx-body" id="wx-body"></div>
         </div>
-        <aside class="td-drawer" id="pd-drawer" aria-label="Review proposal" hidden>
-          <div class="pd-head">
-            <div><div class="td-date">Proposal drafted by Claude</div><h3 id="pd-title">Proposal</h3></div>
-            <button type="button" class="btn-ghost btn-sm" id="pd-close" aria-label="Close">✕</button>
-          </div>
-          <div class="pd-body">
-            <div class="pd-tpl" id="pd-tpl"></div>
-            <div class="pd-email" id="pd-email"></div>
-            <div class="pd-tabs" role="tablist"><button type="button" class="on" data-pd-tab="pdf">PDF preview</button><button type="button" data-pd-tab="edit">Edit details</button></div>
-            <div id="pd-pane-pdf"><div class="pd-desk"><iframe id="pd-frame" class="pd-frame" title="The proposal PDF" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe></div>
-              <div class="cp-muted pd-note">This is the PDF that gets attached. Change anything under “Edit details”, or ask Claude below.</div></div>
-            <div id="pd-pane-edit" hidden>
-              <div class="pd-grid2">
-                <label>Title<input class="cp-input" id="pd-f-title"></label>
-                <label>Valid for (days)<input class="cp-input" id="pd-f-valid" type="number" min="1" max="180"></label>
-              </div>
-              <label>Building address<input class="cp-input" id="pd-f-addr"></label>
-              <label>Scope<textarea class="cp-input" id="pd-f-scope" rows="4"></textarea></label>
-              <div class="pd-lbl">Line items</div>
-              <div class="cp-table-wrap"><table class="cp-table pd-lines"><thead><tr><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Unit price</th><th class="num">Amount</th><th></th></tr></thead><tbody id="pd-lines"></tbody></table></div>
-              <div class="pd-line-foot"><button type="button" class="btn-ghost btn-sm" id="pd-add-line">+ Add a line</button><b>Total <span id="pd-total"></span></b></div>
-              <label>Schedule<textarea class="cp-input" id="pd-f-sched" rows="2"></textarea></label>
-              <label>Exclusions (blank = your standard ones)<textarea class="cp-input" id="pd-f-excl" rows="3"></textarea></label>
-            </div>
-            <form class="pd-ask" id="pd-ask"><input class="cp-input" id="pd-ask-in" placeholder="Ask Claude to change it, e.g. “add a 10% contingency”" aria-label="Ask Claude to change the proposal"><button type="submit" class="btn-ghost btn-sm">Change</button></form>
-            <div class="pd-thread" id="pd-thread"></div>
-            <label>Email with the PDF<textarea class="cp-input" id="pd-f-msg" rows="6"></textarea></label>
-            <div class="cp-form-err" id="pd-err"></div>
-          </div>
-          <div class="pd-foot">
-            <span class="cp-muted">Sends from your Gmail as a reply in the same thread, PDF attached</span>
-            <span style="flex:1"></span>
-            <button type="button" class="btn-ghost btn-sm" id="pd-save">Save draft</button>
-            <button type="button" class="btn-primary btn-sm" id="pd-send">Approve &amp; send PDF</button>
-          </div>
-        </aside>
       </section>
 
       <!-- ================= CLIENTS ================= -->
@@ -1888,7 +1851,12 @@
     if (!act) { if (!e.target.closest('a, button')) tdGo(c); return; }
     const a = c.actions[+act.dataset.tdAct];
     if (a.type === 'open') tdGo(c);
-    else if (a.type === 'proposal') pdOpen(c.action_id);
+    else if (a.type === 'studio') {   // approve the card: Proposal Studio writes it in the company layout and opens it
+      act.disabled = true;
+      try { const r = (await api('/claude/actions/' + c.action_id + '/approve', { method: 'POST', body: JSON.stringify({ values: {} }) }, true)).data;
+        location.href = (r && r.result && r.result.link) || '/proposal-studio'; }
+      catch (x) { toast(x.message, true); act.disabled = false; }
+    }
     else if (a.type === 'claude') { if (window.SSC_CLAUDE && window.SSC_CLAUDE.ask) window.SSC_CLAUDE.ask(a.prompt); else toast('Claude is not available on this page', true); }
     else if (a.type === 'done') {
       act.disabled = true;
@@ -1981,112 +1949,7 @@
   $('wx-close').addEventListener('click', () => wxShow(false));
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('wx-modal').hidden) wxShow(false); });
 
-  // ---- review a proposal Claude drafted from an email (proposal_drafts.py), drawn in the company template
-  const PD = { id: null, v: null, view: null, t: null };
-  // the open .cp-view keeps an animation transform that breaks position:fixed — the panel lives on <body>
-  document.body.appendChild($('pd-scrim')); document.body.appendChild($('pd-drawer'));
-  function pdShow(on) { $('pd-drawer').hidden = !on; $('pd-scrim').hidden = !on; if (on) setTimeout(() => $('pd-send').focus(), 50); }
-  async function pdOpen(id) {
-    PD.id = id; $('pd-err').className = 'cp-form-err'; pdShow(true);
-    $('pd-frame').srcdoc = '<p style="font:14px sans-serif;color:#888;padding:20px">Drawing the PDF…</p>';
-    try { pdFill((await api('/proposal-drafts/' + id, null, true)).data); pdPreview(); }
-    catch (e) { pdErr(e.message); }
-  }
-  function pdErr(m) { $('pd-err').textContent = m; $('pd-err').className = 'cp-form-err show'; }
-  function pdTplLine(t) {
-    const st = t.state === 'reading' ? 'Claude is reading it… the PDF switches to it when done'
-      : t.state === 'failed' ? (t.error || 'Claude could not read it') : t.active ? `Your template · uploaded ${t.uploaded_at ? fmtDate(t.uploaded_at) : ''}${t.uploaded_by_name ? ' by ' + t.uploaded_by_name : ''} · used for every proposal PDF`
-      : 'No template uploaded yet: the built-in layout is used. Upload the proposal you usually send (PDF works best).';
-    $('pd-tpl').innerHTML = `<div class="n"><b>${esc(t.name || 'Proposal template')}</b><span>${esc(st)}</span></div><label class="btn-ghost btn-sm">${t.active || t.state === 'reading' ? 'Upload a new template' : 'Upload your template'}<input type="file" id="pd-tpl-file" aria-label="Upload your proposal template"></label>`;
-    if (t.state === 'reading') { clearTimeout(PD.t); PD.t = setTimeout(pdTplPoll, 4000); }
-  }
-  async function pdTplPoll() {
-    try { const t = (await api('/proposal-template', null, true)).data; pdTplLine(t); if (t.state !== 'reading') { pdPreview(); if (t.state === 'ready') toast('Your template is ready'); } } catch (e) {}
-  }
-  function pdFill(v) {
-    PD.view = v; PD.v = JSON.parse(JSON.stringify(v.values));
-    $('pd-title').textContent = (v.values.title || 'Proposal') + ' · ' + (v.client_name || '');
-    pdTplLine(v.template);
-    const em = v.email;
-    $('pd-email').innerHTML = `<div class="f">${esc(em.from_name || em.from_email || '')}${em.from_email ? ' &lt;' + esc(em.from_email) + '&gt;' : ''} · ${esc((em.received_at || '').slice(0, 16).replace('T', ' '))} · ${esc(em.subject || '')}</div>${esc(em.text || '')}`;
-    $('pd-thread').innerHTML = `Reply in the thread <b>${esc(v.reply_subject)}</b> to ${esc(em.from_email || '')}${v.new_client ? ' · <b>' + esc(v.client_name) + '</b> is added as a new client' : ''} <span class="pd-att">PDF attached</span>`;
-    $('pd-f-title').value = PD.v.title || ''; $('pd-f-valid').value = PD.v.valid_days || 30; $('pd-f-addr').value = PD.v.building_address || '';
-    $('pd-f-scope').value = PD.v.scope_summary || ''; $('pd-f-sched').value = PD.v.schedule_text || ''; $('pd-f-excl').value = PD.v.exclusions_text || '';
-    $('pd-f-msg').value = PD.v.message || '';
-    pdLines();
-    const done = v.status !== 'pending';
-    $('pd-send').disabled = done; $('pd-save').disabled = done;
-    if (done) pdErr('This proposal was already ' + v.status + '.');
-  }
-  function pdLines() {
-    const rows = PD.v.lines || [];
-    $('pd-lines').innerHTML = rows.map((li, i) => `<tr><td><input data-pd-li="${i}" data-k="description" value="${esc(li.description)}" aria-label="Item ${i + 1}"></td>` +
-      `<td class="num"><input data-pd-li="${i}" data-k="qty" value="${li.qty}" inputmode="decimal" aria-label="Quantity ${i + 1}"></td>` +
-      `<td><input data-pd-li="${i}" data-k="unit" value="${esc(li.unit || '')}" aria-label="Unit ${i + 1}" style="max-width:60px"></td>` +
-      `<td class="num"><input data-pd-li="${i}" data-k="unit_price" value="${li.unit_price}" inputmode="decimal" aria-label="Unit price ${i + 1}"></td>` +
-      `<td class="num">${money2.format((+li.qty || 0) * (+li.unit_price || 0))}</td><td><button type="button" class="btn-ghost btn-sm" data-pd-del="${i}" aria-label="Remove line ${i + 1}">×</button></td></tr>`).join('');
-    $('pd-total').textContent = money2.format(rows.reduce((a, li) => a + (+li.qty || 0) * (+li.unit_price || 0), 0));
-  }
-  function pdRead() {
-    Object.assign(PD.v, { title: $('pd-f-title').value, valid_days: +$('pd-f-valid').value || 30, building_address: $('pd-f-addr').value,
-      scope_summary: $('pd-f-scope').value, schedule_text: $('pd-f-sched').value, exclusions_text: $('pd-f-excl').value, message: $('pd-f-msg').value });
-    return PD.v;
-  }
-  let pdPrevT = null;
-  async function pdPreview() {
-    clearTimeout(pdPrevT);
-    try { const r = (await api('/proposal-drafts/' + PD.id + '/preview', { method: 'POST', body: JSON.stringify({ values: pdRead() }) }, true)).data; $('pd-frame').srcdoc = r.html; $('pd-err').className = 'cp-form-err'; }
-    catch (e) { pdErr(e.message); }
-  }
-  const pdSoon = () => { clearTimeout(pdPrevT); pdPrevT = setTimeout(pdPreview, 600); };
-  $('pd-lines').addEventListener('input', e => {
-    const x = e.target.closest('[data-pd-li]'); if (!x) return;
-    const li = PD.v.lines[+x.dataset.pdLi], k = x.dataset.k;
-    li[k] = (k === 'qty' || k === 'unit_price') ? (parseFloat(String(x.value).replace(/[$,]/g, '')) || 0) : x.value;
-    $('pd-total').textContent = money2.format(PD.v.lines.reduce((a, l) => a + (+l.qty || 0) * (+l.unit_price || 0), 0));
-    const amt = x.closest('tr').children[4]; if (amt) amt.textContent = money2.format((+li.qty || 0) * (+li.unit_price || 0));
-    pdSoon();
-  });
-  $('pd-lines').addEventListener('click', e => { const b = e.target.closest('[data-pd-del]'); if (!b) return; PD.v.lines.splice(+b.dataset.pdDel, 1); pdLines(); pdSoon(); });
-  $('pd-add-line').addEventListener('click', () => { PD.v.lines.push({ description: 'New item', qty: 1, unit: '', unit_price: 0 }); pdLines(); });
-  ['pd-f-title', 'pd-f-valid', 'pd-f-addr', 'pd-f-scope', 'pd-f-sched', 'pd-f-excl'].forEach(id => $(id).addEventListener('input', pdSoon));
-  document.querySelectorAll('[data-pd-tab]').forEach(b => b.addEventListener('click', () => {
-    document.querySelectorAll('[data-pd-tab]').forEach(x => x.classList.toggle('on', x === b));
-    $('pd-pane-pdf').hidden = b.dataset.pdTab !== 'pdf'; $('pd-pane-edit').hidden = b.dataset.pdTab !== 'edit';
-    if (b.dataset.pdTab === 'pdf') pdPreview();
-  }));
-  $('pd-ask').addEventListener('submit', async e => {
-    e.preventDefault(); const q = $('pd-ask-in').value.trim(); if (!q) return;
-    const btn = $('pd-ask').querySelector('button'); btn.disabled = true; btn.textContent = 'Changing…';
-    try { pdFill((await api('/proposal-drafts/' + PD.id + '/revise', { method: 'POST', body: JSON.stringify({ values: pdRead(), instruction: q }) }, true)).data); $('pd-ask-in').value = ''; pdPreview(); toast('Claude changed the draft'); }
-    catch (x) { pdErr(x.message); }
-    finally { btn.disabled = false; btn.textContent = 'Change'; }
-  });
-  $('pd-drawer').addEventListener('change', async e => {
-    if (e.target.id !== 'pd-tpl-file') return;
-    const f = e.target.files[0]; if (!f) return;
-    const fd = new FormData(); fd.append('file', f);
-    try {
-      const res = await fetch('/api/proposal-template', { method: 'POST', body: fd, credentials: 'same-origin' });
-      const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || 'Upload failed');
-      pdTplLine(j.data); toast('Uploaded. Claude is reading your template');
-    } catch (x) { pdErr(x.message); }
-  });
-  $('pd-save').addEventListener('click', async () => {
-    try { pdFill((await api('/proposal-drafts/' + PD.id + '/save', { method: 'POST', body: JSON.stringify({ values: pdRead() }) }, true)).data); toast('Draft saved'); }
-    catch (x) { pdErr(x.message); }
-  });
-  $('pd-send').addEventListener('click', async () => {
-    const b = $('pd-send'); b.disabled = true; b.textContent = 'Sending…';
-    try {
-      await api('/proposal-drafts/' + PD.id + '/send', { method: 'POST', body: JSON.stringify({ values: pdRead() }) }, true);
-      pdShow(false); toast('Proposal sent as a PDF in the email thread'); loadToday();
-    } catch (x) { pdErr(x.message); }
-    finally { b.disabled = false; b.textContent = 'Approve & send PDF'; }
-  });
-  $('pd-close').addEventListener('click', () => pdShow(false));
-  $('pd-scrim').addEventListener('click', () => { pdShow(false); wxShow(false); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('pd-drawer').hidden) pdShow(false); });
+  $('pd-scrim').addEventListener('click', () => wxShow(false));
 
   // ---------- USAGE & JOB TOOLS (Settings; job page redesign step 1) ----------
   const US = { days: 14 };
@@ -3311,7 +3174,7 @@
   function prPill(p) { const st = p.display_status || p.status; return `<span class="cp-pill ${PR_PILL[st] || ''}">${esc(st)}</span>`; }
   function fmtWhen(iso) { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? esc(iso) : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
   async function proposeFromEstimate(estimateId) {
-    try { const { data } = await api('/proposals', { method: 'POST', body: JSON.stringify({ estimate_id: estimateId }) }, true); toast(`Draft ${data.number} created`); location.hash = '#proposals/' + data.id; }
+    try { const { data } = await api('/proposals', { method: 'POST', body: JSON.stringify({ estimate_id: estimateId }) }, true); toast(`Draft ${data.label || data.number} created`); if (data.layout === 'ssc') location.href = '/proposal-studio#p/' + data.id; else location.hash = '#proposals/' + data.id; }
     catch (e) { toast(e.message, true); }
   }
   async function loadProposalList() {
@@ -3668,8 +3531,10 @@
     $('proposals-list').hidden = true; const host = $('proposal-detail'); host.hidden = false; skeleton(host, 6);
     try {
       const { data: p } = await api('/proposals/' + encodeURIComponent(id), null, true);
-      $('cp-title').textContent = p.number;
-      const ed = p.editable, d = ed ? '' : 'disabled';
+      $('cp-title').textContent = p.label || p.number;
+      // 2026-10-21: proposals in the locked Superstars layout are written and edited in Proposal Studio only
+      const ssc = p.layout === 'ssc';
+      const ed = p.editable && !ssc, d = ed ? '' : 'disabled';
       const fact = (k, v) => `<li><span class="cp-muted">${esc(k)}</span><span style="text-align:right">${v == null || v === '' ? '—' : v}</span></li>`;
       const linkState = p.status === 'sent' || p.status === 'viewed' ? (p.display_status === 'expired' ? `expired ${fmtDate(p.link_expires_at)}` : `open until ${fmtDate(p.link_expires_at)}`) : (p.status === 'signed' ? 'accepted' : p.status);
       const canSend = ['draft', 'sent', 'viewed'].includes(p.status), canVersion = ['sent', 'viewed', 'declined'].includes(p.status);
@@ -3689,6 +3554,9 @@
         </div>
         <div class="cp-grid3">
           <div>
+            ${ssc ? `<div class="cp-card"><div class="cp-card-head"><h2>${esc(p.title || 'Proposal')}</h2></div>
+              <p class="cp-muted" style="margin:0 0 12px">Proposal ${esc(p.label || p.number)} uses your Superstars layout. ${p.editable ? 'Edit it, check it and send it in Proposal Studio.' : 'Open it in Proposal Studio to see it as sent.'}</p>
+              <a class="btn-primary btn-sm" href="/proposal-studio#p/${p.id}">${p.editable ? 'Open in Proposal Studio' : 'View in Proposal Studio'}</a></div>` : `
             <div class="cp-card"><div class="cp-card-head"><h2>${ed ? 'Edit the proposal' : 'Proposal'}</h2>${ed ? '' : '<span class="cp-muted" style="font-size:13px">Sent proposals are read-only — create a new version to change it.</span>'}</div>
               <form id="pr-form" class="pr-form" novalidate>
                 <div class="cp-field full"><label for="pr-title">Title</label><input id="pr-title" value="${esc(p.title || '')}" ${d}></div>
@@ -3706,7 +3574,7 @@
                 <div class="cp-form-err full" id="pr-err" role="alert"></div>
                 ${ed ? '<div class="full" style="display:flex;justify-content:flex-end;gap:8px"><button class="btn-primary" type="submit" id="pr-save">Save draft</button></div>' : ''}
               </form>
-            </div>
+            </div>`}
           </div>
           <div>
             <div id="claude-host"></div>
@@ -3741,7 +3609,7 @@
       // contact options for this client
       try {
         const { data: cd } = await api('/clients/' + p.client_org_id);
-        const sel = $('pr-contact'); sel.innerHTML = '<option value="">— none —</option>' + (cd.contacts || []).map(c => `<option value="${c.id}" ${c.id === p.contact_id ? 'selected' : ''}>${esc(c.full_name)}${c.email ? ' · ' + esc(c.email) : ''}</option>`).join('');
+        const sel = $('pr-contact'); if (sel) sel.innerHTML = '<option value="">— none —</option>' + (cd.contacts || []).map(c => `<option value="${c.id}" ${c.id === p.contact_id ? 'selected' : ''}>${esc(c.full_name)}${c.email ? ' · ' + esc(c.email) : ''}</option>`).join('');
       } catch (e) { /* contacts are optional */ }
       if (ed) {
         $('pr-add-line').addEventListener('click', () => { $('pr-lines').querySelector('tbody').insertAdjacentHTML('beforeend', prLineRow({}, true)); $('pr-lines').querySelector('tbody tr:last-child .l-desc').focus(); });
@@ -3798,7 +3666,7 @@
     e.preventDefault(); const v = $('pr-new-est').value; const err = $('pr-new-err'); err.className = 'cp-form-err';
     if (!v) { err.textContent = 'Pick an estimate.'; err.className = 'cp-form-err show'; return; }
     $('pr-new-go').disabled = true;
-    try { const { data } = await api('/proposals', { method: 'POST', body: JSON.stringify({ estimate_id: Number(v) }) }, true); closeOverlay('pr-new-overlay'); toast(`Draft ${data.number} created`); location.hash = '#proposals/' + data.id; }
+    try { const { data } = await api('/proposals', { method: 'POST', body: JSON.stringify({ estimate_id: Number(v) }) }, true); closeOverlay('pr-new-overlay'); toast(`Draft ${data.label || data.number} created`); if (data.layout === 'ssc') location.href = '/proposal-studio#p/' + data.id; else location.hash = '#proposals/' + data.id; }
     catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
     finally { $('pr-new-go').disabled = false; }
   });

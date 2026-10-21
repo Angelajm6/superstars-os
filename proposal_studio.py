@@ -47,7 +47,7 @@ FIELDS = ("title", "prepared_for", "project_text", "reference_text", "intro_text
           "exclusions_text", "terms_text", "deposit_pct", "email_message", "submitted_by")
 STYLE_ITEMS = (("opening", "Opening"), ("scope_style", "Scope style"), ("exclusions", "Standard exclusions"),
                ("terms", "Payment terms"), ("words", "Words you use"))
-STEPS = ("Reading your template", "Reading your sent proposals for wording and prices", "Looking up the client",
+STEPS = ("Loading your fixed wording", "Finding your closest past proposals and prices", "Looking up the client",
          "Reading what you attached", "Writing the proposal")
 
 _JOBS: dict = {}          # one Render instance (WEB_CONCURRENCY=1): in-memory is enough for a 30-second job
@@ -250,85 +250,7 @@ def learn(conn, uid) -> dict:
     return d
 
 
-# ------------------------------------------------------------------ drafting
-DRAFT_PROMPT = (
-    "Write a complete proposal for this job as the company would, following its house style and wording exactly, and "
-    "pricing from its past proposals (same kind of work, same units; say where each price came from). Reply with JSON "
-    "only, these keys:\n"
-    "est_type (FR exterior restoration | IRA rope access inspection | IR interior repair | PG parking garage | OTH other), "
-    "borough (MN, BX, BK, QN, SI, LI or NJ), title, prepared_for (contact and company), project_text (the address), "
-    "reference_text (short, may be empty), intro_text (their opening paragraph addressed to the contact), scope_summary "
-    "(their scope style; plain text with line breaks), lines (list of {description, qty, unit, unit_price, source}), "
-    "schedule_text, exclusions_text, terms_text, deposit_pct (number), valid_days (number), email_subject, "
-    "email_message (the short email that carries the PDF, signed with the person's first name), sources (3–6 short "
-    "notes on what you used: template, which past proposals, prices, files).\n"
-    "Plain text only, no markdown. Never invent a price with no basis: when there is none, use your best estimate and "
-    "say so in that line's source.")
-
-
-def _fake_draft(what: str, client: str, addr: str) -> dict:
-    return {"est_type": "FR", "borough": "MN", "title": "Exterior repairs" + (f" · {addr.split(',')[0]}" if addr else ""),
-            "prepared_for": client, "project_text": addr, "reference_text": "", "intro_text": f"Thank you for the opportunity. {what[:120]}",
-            "scope_summary": "1. Sidewalk bridge and permits.\n2. Repoint the east elevation.\n3. Replace six steel lintels.",
-            "lines": [{"description": "Sidewalk bridge, permits and mobilization", "qty": 1, "unit": "ls", "unit_price": 6400, "source": "last 3 jobs"},
-                      {"description": "Repoint east elevation", "qty": 1850, "unit": "sf", "unit_price": 15, "source": "FR-MN-014"},
-                      {"description": "Steel lintel replacement", "qty": 6, "unit": "ea", "unit_price": 2400, "source": "FR-MN-014"}],
-            "schedule_text": "About six weeks from permit approval.", "exclusions_text": "", "terms_text": "", "deposit_pct": 30,
-            "valid_days": 30, "email_subject": "Proposal", "email_message": "Hi,\n\nOur proposal is attached.\n\nThanks",
-            "sources": ["Your template", "Prices from FR-MN-014"]}
-
-
-def _context(conn, uid, req: dict) -> list:
-    import proposal_template
-    blocks = []
-    tpl = proposal_template.active_html(conn)
-    st = house_style(conn)
-    style = "\n".join(f"{i['label']}: {i['text']}" for i in st["items"] if i.get("text"))
-    past = past_proposals(conn) if st.get("learn", True) else []
-    org = None
-    if req.get("client_org_id"):
-        org = _one(conn, "SELECT id, name FROM crm_organization WHERE id = ?", (req["client_org_id"],))
-    client = (f"Existing client: {org['name']}" if org else f"New client: {req.get('client_name')}")
-    if org:
-        cs = _rows(conn, "SELECT full_name, title FROM crm_contact WHERE org_id = ? AND COALESCE(status,'active') <> 'inactive' LIMIT 8", (org["id"],))
-        jobs = _rows(conn, "SELECT project_code, name, address FROM projects WHERE client_org_id = ? LIMIT 8", (org["id"],))
-        client += ("\nContacts: " + "; ".join(f"{c['full_name']}{' (' + c['title'] + ')' if c.get('title') else ''}" for c in cs)) if cs else ""
-        client += ("\nPast jobs: " + "; ".join(f"{j['project_code']} {j['name']} {j.get('address') or ''}" for j in jobs)) if jobs else ""
-    txt = (f"<template_text>\n{_clip(_strip_html(tpl or ''), 6000) or '(no template uploaded; use a clean professional layout)'}\n</template_text>\n"
-           f"<house_style>\n{style or '(not learned yet: follow the past proposals)'}\n</house_style>\n"
-           f"<past_proposals>\n{_past_text(past, False) or '(none yet)'}\n</past_proposals>\n"
-           f"<client>\n{client}\nBuilding: {req.get('building_address') or '(not given)'}\n</client>\n")
-    if req.get("mail_id"):
-        import inbox
-        m = inbox.message(conn, int(req["mail_id"]), uid)
-        if m:
-            txt += f"<email from=\"{m['from']}\" subject=\"{m['subject']}\">\n{_clip(m['body'], 8000)}\n</email>\n"
-    blocks.append({"type": "text", "text": txt})
-    try:   # their own past proposals, as uploaded: the model copies them
-        import proposal_template
-        past_docs = proposal_template.past_proposal_blocks(conn)
-    except Exception:
-        past_docs = []
-    if past_docs:
-        blocks.append({"type": "text", "text": f"The company's own past proposals follow ({len(past_docs)}). Copy them exactly: the "
-                                               "same section order and headings, the same opening and closing, the same way of "
-                                               "writing scope, the same exclusions, terms and signature wording, and the same price "
-                                               "formatting. Use their prices for the same kinds of work. Only the facts of this new "
-                                               "job change."})
-        blocks.extend(past_docs)
-    if req.get("file_ids"):
-        import claude_files
-        for r in claude_files.owned(conn, uid, req["file_ids"]):
-            blocks.extend(claude_files.blocks(conn, r))
-    blocks.append({"type": "text", "text": f"<request from=\"{_me_name(conn, uid)}\">\n{req['what']}\n</request>\n\n{DRAFT_PROMPT}"})
-    return blocks
-
-
-def _me_name(conn, uid) -> str:
-    u = _one(conn, "SELECT COALESCE(NULLIF(display_name, ''), NULLIF(full_name, ''), email) AS n FROM users WHERE id = ?", (uid,))
-    return (u or {}).get("n") or ""
-
-
+# ------------------------------------------------------------------ drafting (proposal_engine writes it)
 def _apply(conn, pid: int, d: dict, uid, *, first=False) -> dict:
     """Claude's (or the person's) values onto a DRAFT proposal."""
     import proposals
@@ -358,31 +280,6 @@ def _apply(conn, pid: int, d: dict, uid, *, first=False) -> dict:
     return r
 
 
-def _create(conn, uid, req: dict, d: dict) -> int:
-    import crm
-    import estimates
-    import proposals
-    org_id = req.get("client_org_id")
-    if not org_id:
-        org_id = crm.create_org(conn, name=req["client_name"], relationship_type="client", created_by=uid)
-    et = str(d.get("est_type") or "FR").upper()
-    et = et if et in estimates.EST_TYPES else "FR"
-    bo = str(d.get("borough") or "MN").upper()
-    bo = bo if bo in estimates.BOROUGHS else "MN"
-    est = estimates.create_estimate(conn, est_type=et, borough=bo, client_org_id=org_id,
-                                    building_address=req.get("building_address") or d.get("project_text"),
-                                    notes="Drafted in Proposal Studio: " + _clip(req["what"], 400), created_by=uid)
-    p = proposals.create_from_estimate(conn, est["id"], created_by=uid)
-    last = _one(conn, "SELECT submitted_by FROM proposal WHERE created_by = ? AND submitted_by IS NOT NULL AND id <> ? "
-                      "ORDER BY id DESC LIMIT 1", (uid, p["id"]))   # the SUBMITTED BY they wrote last time
-    if last and "submitted_by" not in d:
-        d = dict(d, submitted_by=last["submitted_by"])
-    _apply(conn, p["id"], dict(d, _mail_id=req.get("mail_id")), uid, first=True)
-    proposals._event(conn, p["id"], "drafted", actor=uid, detail="drafted by Claude in Proposal Studio")
-    conn.commit()
-    return p["id"]
-
-
 def _job(job: str, uid, req: dict) -> None:
     conn = _conn()
 
@@ -392,27 +289,13 @@ def _job(job: str, uid, req: dict) -> None:
 
     try:
         import assistant
-        step(0)
-        if assistant._fake():
-            d, res = _fake_draft(req["what"], req.get("client_name") or "", req.get("building_address") or ""), None
-            step(4)
-        else:
-            content = _context(conn, uid, req)
-            step(1); step(2)
-            if req.get("file_ids"):
-                step(3)
-            step(4)
-            for attempt in (1, 2):   # one more try when the reply isn't usable JSON or the call drops (2026-10-21)
-                try:
-                    text, res = _call("You write construction proposals for this company, in its own voice.", content)
-                    _usage(conn, uid, res, "Proposal Studio draft")
-                    d = _json_from(text)
-                    break
-                except Exception as x:
-                    if attempt == 2 or "couldn't write" in str(x):
-                        raise
-                    log.info("proposal studio draft retry after %s", type(x).__name__)
-        pid = _create(conn, uid, req, d)
+        import proposal_engine
+        step(0); step(1); step(2)
+        if req.get("file_ids"):
+            step(3)
+        step(4)
+        d = proposal_engine.write(conn, uid, req)   # the locked layout: Claude writes only the job's own content
+        pid = proposal_engine.create(conn, uid, req, d)
         with _LOCK:
             _JOBS[job].update(state="done", proposal_id=pid)
         log.info("proposal studio draft %s ready", pid)
@@ -444,6 +327,9 @@ def start_draft(conn, uid, req: dict, *, background=True) -> str:
         raise ValueError("Pick the client, or type the name of a new one.")
     req["client_name"] = str(req.get("client_name") or "").strip()[:200]
     req["building_address"] = str(req.get("building_address") or "").strip()[:300]
+    import proposal_engine
+    req["job_type"] = req.get("job_type") if req.get("job_type") in proposal_engine.JOB_TYPES else None
+    req["heading"] = str(req.get("heading") or "ESTIMATE").upper() if str(req.get("heading") or "ESTIMATE").upper() in ("ESTIMATE", "PROPOSAL") else "ESTIMATE"
     if req.get("file_ids"):
         import claude_files
         claude_files.owned(conn, uid, [int(x) for x in req["file_ids"]][:10])   # raises LookupError for any other id
@@ -494,6 +380,13 @@ def view(conn, pid: int, uid) -> Optional[dict]:
         log.info("proposal studio threads unavailable: %s", type(e).__name__)
     st = house_style(conn)
     me = _one(conn, "SELECT google_email FROM gmail_link WHERE user_id = ?", (uid,)) or {}
+    ssc = r.get("layout") == "ssc"
+    extra = {}
+    if ssc:
+        import proposal_engine
+        extra = {"layout": "ssc", "content": proposal_engine.snapshot(conn, pid), "checks": proposal_engine.checks(conn, r),
+                 "new_clauses": proposal_engine.new_clauses(conn, proposal_engine.content(r)), "label": proposal_engine.label(r),
+                 "house": proposal_engine.house(conn)}
     return {"proposal": {k: r.get(k) for k in ("id", "number", "version", "status", "title", "client_org_id", "client_name",
                                                 "price", "valid_until", "recipient_email", "recipient_name", "sent_at",
                                                 "estimate_code", "email_message", "deposit_pct", "source_mail_id", "updated_at")
@@ -504,7 +397,7 @@ def view(conn, pid: int, uid) -> Optional[dict]:
             "lines": [{"description": li["description"], "qty": li["qty"], "unit": li["unit"], "unit_price": li["unit_price"]} for li in lis],
             "html": proposals.render_document(conn, r, mode="edit"),
             "contacts": contacts, "threads": threads, "template": proposal_template.public(conn),
-            "gmail": me.get("google_email"), "editable": r["status"] == "draft"}
+            "gmail": me.get("google_email"), "editable": r["status"] == "draft", **extra}
 
 
 REVISE_PROMPT = (
@@ -567,6 +460,10 @@ def send(conn, pid: int, uid, body: dict) -> dict:
         raise LookupError("proposal not found")
     if r["status"] != "draft":
         raise ValueError("This proposal was already sent. Make a new version to send it again.")
+    import proposal_engine
+    why = proposal_engine.blocked(conn, r)
+    if why:
+        raise ValueError(why)
     how = body.get("how") or "new"
     message = str(body.get("message") or "").strip()
     if not message:
@@ -575,7 +472,11 @@ def send(conn, pid: int, uid, body: dict) -> dict:
     pdf = proposals.pdf_file(conn, pid) if res.get("ok") else None
     if not pdf:
         raise ValueError("The PDF couldn't be made, so nothing was sent. Try again in a minute.")
-    fname = re.sub(r"[^A-Za-z0-9 .-]", "", f"{r['number']} {r.get('client_name') or ''}").strip()[:80] + ".pdf"
+    if r.get("layout") == "ssc":   # "Proposal 1042 - 21 West Street.pdf", the way they name them
+        addr = ((proposal_engine.content(r).get("project") or [""])[0] or r.get("client_name") or "").split(",")[0]
+        fname = re.sub(r"[^A-Za-z0-9 .-]", "", f"Proposal {proposal_engine.label(r)} - {addr}").strip(" -")[:90] + ".pdf"
+    else:
+        fname = re.sub(r"[^A-Za-z0-9 .-]", "", f"{r['number']} {r.get('client_name') or ''}").strip()[:80] + ".pdf"
     att = [(fname, pdf.read_bytes(), "application/pdf")]
     if how == "reply":
         mid = int(body.get("mail_id") or 0)
@@ -600,15 +501,15 @@ def send(conn, pid: int, uid, body: dict) -> dict:
     proposals._event(conn, pid, "sent", actor=uid, detail="PDF sent from Gmail (" + ("reply in the thread" if how == "reply" else "new email") + ")")
     conn.commit()
     r = proposals.get(conn, pid)
-    proposals._activity(conn, r, f"Proposal {r['number']} sent as a PDF from Gmail", actor=uid)
+    proposals._activity(conn, r, f"Proposal {proposal_engine.label(r)} sent as a PDF from Gmail", actor=uid)
     task = None
     try:
-        task = team_items.create(conn, {"kind": "task", "title": f"Follow up on proposal {r['number']} · {r.get('client_name') or ''}"[:160],
+        task = team_items.create(conn, {"kind": "task", "title": f"Follow up on proposal {proposal_engine.label(r)} · {r.get('client_name') or ''}"[:160],
                                         "due_date": (date.today() + timedelta(days=FOLLOW_UP_DAYS)).isoformat(),
                                         "assignee_user_id": uid}, actor=uid)
     except Exception as e:
         log.info("proposal follow-up task not created: %s", type(e).__name__)
-    return {"id": pid, "number": r["number"], "to": to, "follow_up_task": task,
+    return {"id": pid, "number": proposal_engine.label(r), "to": to, "follow_up_task": task,
             "follow_up_date": (date.today() + timedelta(days=FOLLOW_UP_DAYS)).isoformat()}
 
 
@@ -659,10 +560,11 @@ def register(app) -> None:
     @app.route("/api/proposal-studio/proposals", methods=["GET"])
     @gate
     def proposal_studio_list():
-        rows = with_conn(lambda c: _rows(c, "SELECT p.id, p.number, p.title, p.status, p.price, p.sent_at, p.updated_at, "
+        rows = with_conn(lambda c: _rows(c, "SELECT p.id, p.number, p.display_no, p.version, p.title, p.status, p.price, p.sent_at, p.updated_at, "
                                             "o.name AS client_name FROM proposal p JOIN crm_organization o ON o.id = p.client_org_id "
                                             "WHERE p.status <> 'superseded' ORDER BY p.updated_at DESC LIMIT 12"))
-        return jsonify({"data": rows})
+        import proposal_engine
+        return jsonify({"data": [dict(r, number=proposal_engine.label(r)) for r in rows]})
 
     @app.route("/api/proposal-studio/<int:pid>", methods=["GET"])
     @gate
@@ -678,6 +580,12 @@ def register(app) -> None:
         body = request.get_json(silent=True) or {}
 
         def run(c):
+            import proposal_engine
+            import proposals
+            r = proposals.get(c, pid)
+            if r and r.get("layout") == "ssc":   # {content: {...}, lines?: [{lead, detail, qty, unit, unit_price}]}
+                proposal_engine.save(c, pid, body.get("content") or {}, body.get("lines"), actor=me["id"])
+                return view(c, pid, me["id"])
             d = dict(body.get("fields") or {})
             if "lines" in body:
                 d["lines"] = body["lines"]
@@ -705,7 +613,11 @@ def register(app) -> None:
                 raise LookupError()
             if r["status"] != "draft":
                 raise ValueError("This proposal was already sent. Make a new version to change it.")
-            out = revise(c, pid, ins, me["id"])
+            if r.get("layout") == "ssc":
+                import proposal_engine
+                out = proposal_engine.revise(c, pid, ins, me["id"])
+            else:
+                out = revise(c, pid, ins, me["id"])
             return dict(view(c, pid, me["id"]), **out)
         try:
             return jsonify({"data": with_conn(run)})
@@ -713,6 +625,79 @@ def register(app) -> None:
             return err("not found", 404)
         except ValueError as e:
             return err(str(e))
+
+    @app.route("/api/proposal-studio/<int:pid>/undo", methods=["POST"])
+    @gate
+    def proposal_studio_undo(pid):
+        """Back to the snapshot a Claude change returned as `before`."""
+        me = _me()
+        before = (request.get_json(silent=True) or {}).get("before") or {}
+
+        def run(c):
+            import proposal_engine
+            proposal_engine.undo(c, pid, before, me["id"])
+            return view(c, pid, me["id"])
+        try:
+            return jsonify({"data": with_conn(run)})
+        except LookupError:
+            return err("not found", 404)
+        except ValueError as e:
+            return err(str(e))
+
+    @app.route("/api/proposal-studio/<int:pid>/keep", methods=["POST"])
+    @gate
+    def proposal_studio_keep(pid):
+        """OK a note / exclusion / deliverable Claude wrote: it joins the library, so it is known from now on."""
+        me = _me()
+        body = request.get_json(silent=True) or {}
+        text = str(body.get("text") or "").strip()
+
+        def run(c):
+            import proposal_engine
+            import proposals
+            r = proposals.get(c, pid)
+            if not r:
+                raise LookupError()
+            cont = proposal_engine.content(r)
+            kind = next((k for k in ("notes", "exclusions", "deliverables") if text in (cont.get(k) or [])), None)
+            if not kind:
+                raise ValueError("That wording isn't in this proposal any more.")
+            proposal_engine.library_change(c, add={"kind": kind, "text": text, "job_type": cont.get("job_type")})
+            return view(c, pid, me["id"])
+        try:
+            return jsonify({"data": with_conn(run)})
+        except LookupError:
+            return err("not found", 404)
+        except ValueError as e:
+            return err(str(e))
+
+    @app.route("/api/proposal-studio/house", methods=["GET"])
+    @gate
+    def proposal_studio_house():
+        import proposal_engine
+        return jsonify({"data": with_conn(lambda c: {"house": proposal_engine.house(c), "library": proposal_engine.library(c),
+                                                     "job_types": list(proposal_engine.JOB_TYPES)})})
+
+    @app.route("/api/proposal-studio/house", methods=["PUT"])
+    @gate
+    def proposal_studio_house_put():
+        import proposal_engine
+        body = request.get_json(silent=True) or {}
+        try:
+            return jsonify({"data": with_conn(lambda c: {"house": proposal_engine.put_house(c, body.get("house") or {}),
+                                                         "library": proposal_engine.library(c),
+                                                         "job_types": list(proposal_engine.JOB_TYPES)})})
+        except ValueError as e:
+            return err(str(e))
+
+    @app.route("/api/proposal-studio/library", methods=["POST"])
+    @gate
+    def proposal_studio_library():
+        """{hide: text} | {unhide: text} | {add: {kind, text, job_type}}"""
+        import proposal_engine
+        body = request.get_json(silent=True) or {}
+        return jsonify({"data": with_conn(lambda c: proposal_engine.library_change(
+            c, hide=body.get("hide"), unhide=body.get("unhide"), add=body.get("add")))})
 
     @app.route("/api/proposal-studio/<int:pid>/new-version", methods=["POST"])
     @gate
@@ -725,7 +710,8 @@ def register(app) -> None:
             return err("not found", 404)
         except ValueError as e:
             return err(str(e))
-        return jsonify({"data": {"id": r["id"], "number": r["number"]}})
+        import proposal_engine
+        return jsonify({"data": {"id": r["id"], "number": proposal_engine.label(r)}})
 
     @app.route("/api/proposal-studio/<int:pid>/send", methods=["POST"])
     @gate

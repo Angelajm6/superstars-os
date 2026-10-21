@@ -329,7 +329,7 @@ def main() -> int:
     conn = _db()
     try:
         p = proposals.create_from_estimate(conn, ids["est"], created_by=ids["admin"])
-        assert p["deposit_amount"] == 15000.0, p["deposit_amount"]          # 30% of 50,000
+        assert p["deposit_amount"] == 25000.0, p["deposit_amount"]          # the house 50% of 50,000
         conn.execute("UPDATE estimate SET converted_project_code = 'INV315-A' WHERE id = ?", (ids["est"],))
         conn.commit()
         p = proposals.mark_signed_offline(conn, p["id"], name="Inv315 Signer", actor=ids["admin"])
@@ -337,9 +337,9 @@ def main() -> int:
         dep = invoices.list_invoices(conn, proposal_id=p["id"])
         assert len(dep) == 1, dep
         dep = dep[0]
-        assert dep["kind"] == "deposit" and dep["status"] == "draft" and dep["amount"] == 15000.0
+        assert dep["kind"] == "deposit" and dep["status"] == "draft" and dep["amount"] == 25000.0
         assert dep["estimate_id"] == ids["est"] and dep["client_org_id"] == org and dep["project_code"] == "INV315-A"
-        assert dep["source_doc"] == f"proposal:{p['id']}" and "30%" in dep["description"] and p["number"] in dep["description"]
+        assert dep["source_doc"] == f"proposal:{p['id']}" and "50%" in dep["description"] and str(p["display_no"]) in dep["description"]
         again = invoices.create_from_proposal(conn, p)
         assert again["id"] == dep["id"], "idempotent per proposal"
         assert len(invoices.list_invoices(conn, proposal_id=p["id"])) == 1
@@ -349,8 +349,8 @@ def main() -> int:
         # issue + pay it -> the IRA job's deposit flag flips
         invoices.issue(conn, dep["id"])
         s = invoices.receivables_summary(conn)
-        assert delta(s, "awaiting_deposit_count") == 2 and delta(s, "awaiting_deposit_value") == 15900.0, s
-        paid = invoices.record_payment(conn, dep["id"], amount=15000, method="wire")
+        assert delta(s, "awaiting_deposit_count") == 2 and delta(s, "awaiting_deposit_value") == 25900.0, s
+        paid = invoices.record_payment(conn, dep["id"], amount=25000, method="wire")
         assert paid["status"] == "paid"
         if ids["ira"]:
             row = conn.execute("SELECT deposit_received, deposit_date FROM ira_job WHERE project_code='INV315-A'").fetchone()
@@ -364,7 +364,7 @@ def main() -> int:
         fin = company_portal.finance(conn)
         assert isinstance(fin["receivables"], list) and isinstance(fin["invoices"], list)
         assert {x["id"] for x in fin["invoices"]} >= {a["id"], b["id"], dep["id"]}
-        assert delta(fin["invoice_summary"], "collected_ytd_value") == 17000.0, fin["invoice_summary"]
+        assert delta(fin["invoice_summary"], "collected_ytd_value") == 27000.0, fin["invoice_summary"]
         _no_paths(ov); _no_paths(fin)
     finally:
         conn.close()

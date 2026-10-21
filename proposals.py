@@ -257,6 +257,8 @@ def ensure_schema(conn) -> None:
     for col, typ in STUDIO_COLUMNS:   # Proposal Studio (2026-10-20): every part of the document is editable
         if not _has_column(conn, "proposal", col):
             conn.execute(f"ALTER TABLE proposal ADD COLUMN {col} {typ}")
+    if not _has_column(conn, "proposal_line", "lead"):   # the bold part of a line (2026-10-21)
+        conn.execute("ALTER TABLE proposal_line ADD COLUMN lead TEXT")
     conn.commit()
 
 
@@ -285,7 +287,7 @@ def _by_token(conn, token: str) -> Optional[dict]:
 
 
 def lines(conn, proposal_id: int) -> list:
-    return _rows(conn.execute("SELECT id, sort, description, qty, unit, unit_price, amount "
+    return _rows(conn.execute("SELECT id, sort, description, lead, qty, unit, unit_price, amount "
                               "FROM proposal_line WHERE proposal_id = ? ORDER BY sort, id", (proposal_id,)))
 
 
@@ -323,6 +325,11 @@ def _internal_status(r: dict) -> str:
     return st
 
 
+def _label(r: dict) -> str:
+    import proposal_engine
+    return proposal_engine.label(r)
+
+
 def public(r: dict) -> dict:
     """Internal JSON shape. NO paths, NO token hash, NO html."""
     return {
@@ -330,6 +337,7 @@ def public(r: dict) -> dict:
         "estimate_status": r.get("estimate_status"), "estimate_type": r.get("estimate_type"),
         "converted_project_code": r.get("converted_project_code"),
         "version": r["version"], "number": r["number"], "status": r["status"],
+        "label": _label(r), "layout": r.get("layout"),
         "display_status": _internal_status(r),
         "client_org_id": r["client_org_id"], "client_name": r.get("client_name"),
         "contact_id": r.get("contact_id"), "contact_name": r.get("contact_name"),
@@ -411,6 +419,14 @@ def create_from_estimate(conn, estimate_id: int, *, created_by=None) -> dict:
          (contact or {}).get("email"), (contact or {}).get("full_name"), created_by, now, now))
     conn.commit()
     pid = _one(conn.execute("SELECT id FROM proposal WHERE number = ?", (number,)))["id"]
+    # every new proposal is drawn in the locked Superstars layout (2026-10-21)
+    import proposal_engine
+    h = proposal_engine.house(conn)
+    seeded = proposal_engine.seed(conn, dict(get(conn, pid)), org=org, contact=contact)
+    conn.execute("UPDATE proposal SET layout = 'ssc', display_no = ?, content = ?, deposit_pct = ?, deposit_amount = ?, "
+                 "valid_until = ? WHERE id = ?",
+                 (proposal_engine.next_number(conn), json.dumps(seeded), h["deposit_pct"], _deposit(price, h["deposit_pct"]),
+                  (_today() + timedelta(days=int(h["valid_days"]))).isoformat(), pid))
     _event(conn, pid, "created", actor=created_by, detail=f"from estimate {est['code']}")
     conn.commit()
     r = get(conn, pid)
@@ -467,9 +483,10 @@ def update(conn, proposal_id: int, fields: dict, line_items: Optional[list] = No
             amount = (float(li["amount"]) if li.get("amount") not in (None, "")
                       else (round(qty * unit_price, 2) if qty is not None and unit_price is not None else None))
             total += amount or 0
-            conn.execute("INSERT INTO proposal_line (proposal_id, sort, description, qty, unit, unit_price, amount) "
-                         "VALUES (?,?,?,?,?,?,?)",
-                         (proposal_id, i, desc, qty, (str(li.get("unit") or "").strip() or None), unit_price, amount))
+            conn.execute("INSERT INTO proposal_line (proposal_id, sort, description, lead, qty, unit, unit_price, amount) "
+                         "VALUES (?,?,?,?,?,?,?,?)",
+                         (proposal_id, i, desc, (str(li.get("lead") or "").strip() or None), qty,
+                          (str(li.get("unit") or "").strip() or None), unit_price, amount))
         if "price" not in fields and line_items and total > 0:
             sets.append("price = ?"); vals.append(round(total, 2))
     sets.append("updated_at = ?"); vals.append(_now())
@@ -507,9 +524,9 @@ def new_version(conn, proposal_id: int, *, actor=None) -> dict:
          src.get("recipient_name"), actor, now, now))
     pid = _one(conn.execute("SELECT id FROM proposal WHERE number = ?", (number,)))["id"]
     for li in lines(conn, proposal_id):
-        conn.execute("INSERT INTO proposal_line (proposal_id, sort, description, qty, unit, unit_price, amount) "
-                     "VALUES (?,?,?,?,?,?,?)",
-                     (pid, li["sort"], li["description"], li["qty"], li["unit"], li["unit_price"], li["amount"]))
+        conn.execute("INSERT INTO proposal_line (proposal_id, sort, description, lead, qty, unit, unit_price, amount) "
+                     "VALUES (?,?,?,?,?,?,?,?)",
+                     (pid, li["sort"], li["description"], li.get("lead"), li["qty"], li["unit"], li["unit_price"], li["amount"]))
     conn.execute("UPDATE proposal SET " + ", ".join(f"{c} = ?" for c, _ in STUDIO_COLUMNS) + " WHERE id = ?",
                  [src.get(c) for c, _ in STUDIO_COLUMNS] + [pid])
     conn.execute("UPDATE proposal SET status = 'superseded', superseded_by = ?, token_hash = NULL, "
@@ -592,7 +609,9 @@ def _company_facts(conn) -> dict:
 
 STUDIO_COLUMNS = (("intro_text", "TEXT"), ("reference_text", "TEXT"), ("prepared_for", "TEXT"), ("project_text", "TEXT"),
                   ("extra_sections", "TEXT"), ("hidden_sections", "TEXT"), ("email_message", "TEXT"),
-                  ("sources", "TEXT"), ("source_mail_id", "INTEGER"), ("studio", "INTEGER"), ("submitted_by", "TEXT"))
+                  ("sources", "TEXT"), ("source_mail_id", "INTEGER"), ("studio", "INTEGER"), ("submitted_by", "TEXT"),
+                  # 2026-10-21: the locked Superstars layout (proposal_engine / proposal_layout)
+                  ("content", "TEXT"), ("layout", "TEXT"), ("display_no", "INTEGER"))
 HIDEABLE = ("intro", "scope", "schedule", "exclusions", "terms")
 
 
@@ -624,7 +643,11 @@ def render_document(conn, r: dict, *, mode: str = "pdf", lis: Optional[list] = N
     'page' (the public page injects its accept/decline UI below) | 'edit' (Proposal Studio: the same
     document with every text marked data-f / data-lf so the person edits it in place). `lis` draws lines
     that are not saved yet. When the company uploaded its own proposal template (proposal_template.py),
-    the proposal is drawn in that layout."""
+    the proposal is drawn in that layout. Proposals made since 2026-10-21 (layout 'ssc') are drawn in the locked
+    Superstars layout by proposal_engine."""
+    if r.get("layout") == "ssc":
+        import proposal_engine
+        return proposal_engine.render(conn, r, mode, lis)
     e = _html.escape
     lis = lines(conn, r["id"]) if lis is None else lis
     facts = _company_facts(conn)
@@ -845,12 +868,12 @@ def render_email(r: dict, url: str, message: str) -> tuple:
     msg = (message or "").strip() or (
         f"Please find our proposal for {r.get('building_address_line') or r.get('building_address') or 'your building'} "
         f"below. Open the link to review the full scope, download the PDF, and accept online when you are ready.")
-    subject = EMAIL_SUBJECT.format(number=r["number"])
-    text = (f"{greeting}\n\n{msg}\n\nProposal {r['number']} — {r.get('title') or ''}\n"
+    subject = EMAIL_SUBJECT.format(number=_label(r))
+    text = (f"{greeting}\n\n{msg}\n\nProposal {_label(r)} — {r.get('title') or ''}\n"
             f"Price: {_money(r.get('price'))}\nValid until: {_fmt_date(r.get('valid_until'))}\n\n"
             f"Review and accept it here: {url}\n\n— {COMPANY_NAME}")
     html = _EMAIL_HTML.format(
-        subject=_html.escape(subject), number=_html.escape(r["number"]),
+        subject=_html.escape(subject), number=_html.escape(_label(r)),
         title=_html.escape(r.get("title") or "Your proposal"), greeting=_html.escape(greeting),
         message=_html.escape(msg),
         building=_html.escape(r.get("building_address_line") or r.get("building_address") or "—"),
@@ -889,6 +912,10 @@ def send(conn, proposal_id: int, *, to_email=None, to_name=None, message=None, a
     to_name = (to_name or r.get("recipient_name") or r.get("contact_name") or "").strip() or None
     if r.get("price") in (None, "") or float(r["price"]) <= 0:
         raise ValueError("set the proposal price before sending")
+    import proposal_engine
+    why = proposal_engine.blocked(conn, r) if r["status"] == "draft" else None
+    if why:
+        raise ValueError(why)
     valid_until = r.get("valid_until") or (_today() + timedelta(days=LINK_DAYS_DEFAULT)).isoformat()
     if valid_until < _today().isoformat():
         raise ValueError("valid_until is in the past — extend it before sending")
@@ -1087,7 +1114,7 @@ def _page(conn, r: dict, token: str) -> str:
     e = _html.escape
     state = _link_state(r)
     doc = render_document(conn, r, mode="page")
-    top = (f"<div class='top'><span class='note'>Proposal {e(r['number'])} · {COMPANY_NAME}</span>"
+    top = (f"<div class='top'><span class='note'>Proposal {e(_label(r))} · {COMPANY_NAME}</span>"
            f"<a href='/p/{e(token, quote=True)}/pdf'>Download PDF</a></div>")
     if state == "open":
         ui = f"""
