@@ -196,13 +196,18 @@ def main() -> int:
 
         it = next(i for i in er._team_items(conn, DAY, DAY) if i["id"] == meet)
         it["people"] = {ids["pm"], ids["super"]}   # as due_reminders leaves it: active people only
-        msg = er.compose(it, "1h", at(f"{DAY}T13:00"))
+        it["names"] = er._names(conn, it["people"])
+        it["guests"] = ["guest.one@example.org"]
+        msg = er.compose(it, "1h", at(f"{DAY}T13:00"), ids["pm"])
         check(msg["subject"] == f"In 1 hour · {SECRET} <b>", "the 1-hour subject reads 'In 1 hour · <title>'")
         check("&lt;b&gt;" in msg["html"] and "<b>" not in msg["html"].split("<h1", 1)[1].split("</h1>", 1)[0],
               "the title is escaped in the email")
         check("Remind Job" in msg["html"] and "google.com/maps/dir" in msg["html"] and "Open in Superstars" in msg["html"],
               "the email carries the job, directions and the Open button")
-        check("You + 1 other" in msg["text"], "the email says who else is on it")
+        check("People: You, Remind super, guest.one@example.org" in msg["text"]
+              and "You<br>Remind super<br>guest.one@example.org" in msg["html"],
+              "the email lists everyone on it: you first, the team by name, then outside guests")
+        check(er.FROM_NAME == "Superstars App", "the sender reads 'Superstars App'")
 
         # booked three hours ahead: no '1d'; the '1h' comes
         er.run_round(conn, at(f"{DAY}T14:30"))
