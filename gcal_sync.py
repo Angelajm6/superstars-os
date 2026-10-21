@@ -223,6 +223,18 @@ def _plus(d: str, t: str, minutes: int) -> str:
     return x.strftime("%Y-%m-%dT%H:%M:00")
 
 
+def _reminders(when: dict, kind: str, done: bool) -> dict:
+    """Google pop-ups at the same moments as the app's reminder emails (event_reminders): 1 day + 1 hour
+    before anything with a time; 9 AM the day before an all-day event (Google counts from midnight);
+    none for a task without a time or anything done."""
+    timed = "dateTime" in when["start"]
+    if done or (kind == "task" and not timed):
+        return {"useDefault": False, "overrides": []}
+    if timed:
+        return {"useDefault": False, "overrides": [{"method": "popup", "minutes": 1440}, {"method": "popup", "minutes": 60}]}
+    return {"useDefault": False, "overrides": [{"method": "popup", "minutes": 900}]}
+
+
 def event_body(it: dict) -> Optional[dict]:
     """The Google event for one team item (or None when it has no day)."""
     kind, done = it.get("kind") or "task", (it.get("status") == "done")
@@ -265,6 +277,7 @@ def event_body(it: dict) -> Optional[dict]:
     body = {"summary": summary, "description": "\n".join(lines), **when,
             "location": " · ".join(x for x in (it.get("location"), it.get("address")) if x) or None,
             "transparency": "transparent" if kind == "task" else "opaque",
+            "reminders": _reminders(when, kind, done),
             "extendedProperties": {"private": {"ssc_item": str(it["id"])}}}
     return {k: v for k, v in body.items() if v is not None}
 
