@@ -377,7 +377,9 @@ def main() -> int:
                        "'/proposal-studio/' + S.id + '/send'", 'data-subtabs="proposals"', "/api/proposal-template",
                        # 2026-10-20 simpler Studio: one box to start, Send in a pop-up, past proposals (many, dropped or picked)
                        'id="ask-form"', 'id="send-m"', "$('e-send').addEventListener('click'", 'id="v-past"', "$('pp-drop').addEventListener('drop'",
-                       "files.forEach(f => fd.append('file', f))", "'/api/proposal-template/' + v.dataset.ppdf + '/file'", "data-step=\"past\">Archive<",
+                       "files.forEach(f => fd.append('file', f))", "'/api/proposal-template/' + x.id + '/file'", "data-step=\"past\">Archive<",
+                       # 2026-10-21: the archive is a read-only record list; details are corrected in a pop-up
+                       'id="arch-m"', "data-amenu", "Edit details", "from before the app</span>",
                        'id="e-view"', "pdf_view.js",
                        # 2026-10-21 locked layout: job type + heading, the checklist, fixed wording + library, Claude-window drafts
                        'id="a-type"', 'id="a-head"', 'id="ck"', 'id="v-wording"', "'/proposal-studio/house'", "/^job\\/([a-f0-9]+)$/"):

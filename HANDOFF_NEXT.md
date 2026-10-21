@@ -41,6 +41,17 @@ grant, or elevation code.
 * Migration `apply_doc_intake.py` (dual-backend list); the app also ensures it at boot. Guard: `tests/smoke_doc_dropzone.py`
   (in the gate). The live model read with the new schema was NOT exercised locally (no key); the seam-driven test covers
   the pipeline. Check one real drop on production.
+### Calendar reminders: 1 day + 1 hour before (Bookore, 2026-10-21)
+
+* `event_reminders.py`: a loop thread (every 60s; `SSC_REMINDERS=0` turns it off) emails everyone on an item 1 day and
+  1 hour before it starts. Items: open events / meetings, open tasks **with a time** (`crm_task`), scheduled walkthrough
+  visits (`walkthrough_visit`). Who: assignee + meeting attendees; walkthrough attendee; active users only. No time set:
+  one email at 9 AM the day before. A reminder whose moment fell before the item was created / last edited is skipped.
+* Once only: `event_reminder_sent` (unique source, item, user, slot, start); a moved item is reminded again. Every send is
+  a `notification_log` row (`kind='event_reminder'`); live only with `SENDGRID_API_KEY`. Logs: ids only.
+* Google: `gcal_sync.event_body` sets `reminders` (popup 1440 + 60 timed, 900 all-day, none for untimed tasks / done);
+  meeting invitations inherit it. On boot the loop schedules a sync for every connected person so existing copies update.
+* Guard: `tests/smoke_event_reminders.py` (in `run_gate_ci.py`). Prototype: `../docs/review-2026-10-21-reminders/`.
 
 ### Make admin: more than one admin (Bookore, 2026-10-16)
 
