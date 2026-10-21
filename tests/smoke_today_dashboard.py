@@ -100,6 +100,7 @@ def _cleanup():
         purge(conn, "proposal_event", "proposal_id", pids)
         purge(conn, "proposal", "id", pids)
         purge(conn, "estimate_document", "estimate_id", ests)
+        purge(conn, "estimate_ira", "estimate_id", ests)   # rope access drafts are IRA estimates (Postgres enforces the FK)
         purge(conn, "estimate", "id", ests)
         if orgs:
             conn.execute(f"DELETE FROM crm_activity WHERE entity_type = 'organization' AND entity_id IN ({ph(orgs)})", orgs)
