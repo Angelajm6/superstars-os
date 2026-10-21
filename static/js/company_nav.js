@@ -54,7 +54,7 @@
     { key: 'proposals', label: 'Proposals', href: '/company#proposals', roles: COMPANY.concat(['estimator']),
       hrefFor: { estimator: '/estimating' },
       at: [['/company', 'proposals'], ['/', 'estimates'], ['/estimating', null], ['/proposal-studio', null]],
-      sub: [['Estimates & proposals', '/company#proposals', COMPANY], ['Proposal Studio', '/proposal-studio', COMPANY], ['Estimating queue', '/estimating']] },
+      sub: [['Estimates & proposals', '/company#proposals', COMPANY], ['Proposal Studio', '/proposal-studio', COMPANY]] },
     { key: 'finance', label: 'Finance', href: '/company#finance', roles: COMPANY,
       at: [['/company', 'finance'], ['/company', 'expenses'], ['/', 'labor-rate'], ['/admin/labor-rates', null]],
       sub: [['What needs to get paid', '/company#finance'], ['Expenses', '/company#expenses'], ['Weekly payroll', '/#labor-rate'], ['Pay rates', '/admin/labor-rates']] },

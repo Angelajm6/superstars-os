@@ -260,6 +260,18 @@ def ensure_schema(conn) -> None:
     if not _has_column(conn, "proposal_line", "lead"):   # the bold part of a line (2026-10-21)
         conn.execute("ALTER TABLE proposal_line ADD COLUMN lead TEXT")
     conn.commit()
+    _number_drafts(conn)
+
+
+def _number_drafts(conn) -> None:
+    """Unsent drafts made before plain numbers get one (1042, 1043…), oldest first; anything already sent keeps the
+    code the client saw (2026-10-21). Idempotent: only drafts with no number."""
+    import proposal_engine
+    rows = _rows(conn.execute("SELECT id FROM proposal WHERE status = 'draft' AND display_no IS NULL ORDER BY created_at, id"))
+    for r in rows:
+        conn.execute("UPDATE proposal SET display_no = ? WHERE id = ? AND display_no IS NULL",
+                     (proposal_engine.next_number(conn), r["id"]))
+        conn.commit()
 
 
 # ============================ reads ============================
@@ -697,7 +709,7 @@ def render_document(conn, r: dict, *, mode: str = "pdf", lis: Optional[list] = N
                f"{(' · ' + e(r['signed_title'])) if r.get('signed_title') else ''} on {e(_fmt_date(r.get('signed_at')))}</div>"
                f"<p style='margin:10px 0 0;font-size:12px;color:#76777E'>Electronic acceptance recorded at "
                f"{e(r.get('signed_at') or '')} from {e(r.get('signed_ip') or 'an unrecorded address')}. "
-               f"Proposal {e(r['number'])}.</p></div>")
+               f"Proposal {e(_label(r))}.</p></div>")
     elif r.get("status") == "declined":
         why = f"<p style='margin:10px 0 0'>{e(r['decline_reason'])}</p>" if r.get("decline_reason") else ""
         sig = (f"<div class='sig keep'><div class='stamp bad'>Declined on {e(_fmt_date(r.get('declined_at')))}</div>"
@@ -729,7 +741,7 @@ def render_document(conn, r: dict, *, mode: str = "pdf", lis: Optional[list] = N
             "submitted_by": ed("submitted_by", txt(submitted), True),
             "company_name": e(COMPANY_NAME), "company_address": e(facts["company_address"]), "company_phone": e(facts["company_phone"]),
             "company_email": e(facts["company_email"]), "company_license": e(facts["company_license"]),
-            "logo": proposal_template.logo_tag(), "number": e(r["number"]),
+            "logo": proposal_template.logo_tag(), "number": e(_label(r)),
             "date": e(_fmt_date(r.get("sent_at") or r.get("updated_at"))), "valid_until": e(_fmt_date(r.get("valid_until"))),
             "title": ed("title", e(r.get("title") or "Proposal")), "client_name": ed("prepared_for", e(prepared)),
             "contact_name": "", "recipient_email": e(r.get("recipient_email") or ""), "building": ed("project_text", e(project)),
@@ -752,10 +764,10 @@ def render_document(conn, r: dict, *, mode: str = "pdf", lis: Optional[list] = N
     ref = r.get("reference_text")
     block = lambda head, body: f"<div class='keep'><h2>{head}</h2><p>{body}</p></div>" if body else ""   # noqa: E731
     return f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Proposal {e(r['number'])} — {COMPANY_NAME}</title><style>{_DOC_CSS}{company_brand.BRAND_CSS}{_EDIT_CSS if edit else ''}</style></head><body>
+<title>Proposal {e(_label(r))} — {COMPANY_NAME}</title><style>{_DOC_CSS}{company_brand.BRAND_CSS}{_EDIT_CSS if edit else ''}</style></head><body>
 <div class="sheet"><div class="bar"></div><div class="pad">
   <div class="head">{company_brand.brand_block(conn, "Exterior restoration · New York City")}
-    <div class="meta"><strong>PROPOSAL</strong>{e(r['number'])}<br>Issued {e(_fmt_date(r.get('sent_at') or r.get('updated_at')))}<br>Valid until {e(_fmt_date(r.get('valid_until')))}</div></div>
+    <div class="meta"><strong>PROPOSAL</strong>{e(_label(r))}<br>Issued {e(_fmt_date(r.get('sent_at') or r.get('updated_at')))}<br>Valid until {e(_fmt_date(r.get('valid_until')))}</div></div>
   <h1>{ed("title", e(r.get('title') or 'Proposal'))}</h1>
   <div class="two" style="margin-top:14px">
     <div class="fact"><b>Prepared for</b>{ed("prepared_for", e(prepared))}{('<br>' + e(r['recipient_email'])) if r.get('recipient_email') and not edit else ''}</div>
@@ -771,7 +783,7 @@ def render_document(conn, r: dict, *, mode: str = "pdf", lis: Optional[list] = N
   {block('Terms', terms)}
   {''.join(block(h, b) for h, b in extras)}
   {sig}
-  <div class="foot">{COMPANY_NAME}{(' · ' + e(letter)) if letter else ''}{lic} · Proposal {e(r['number'])} v{r['version']}</div>
+  <div class="foot">{COMPANY_NAME}{(' · ' + e(letter)) if letter else ''}{lic} · Proposal {e(_label(r))} v{r['version']}</div>
 </div></div></body></html>"""
 
 
@@ -947,7 +959,7 @@ def send(conn, proposal_id: int, *, to_email=None, to_name=None, message=None, a
         log.warning("#307 proposal %s sent without a PDF: %s", r["number"], pdf.get("error"))
     conn.commit()
     r = get(conn, proposal_id)
-    _activity(conn, r, f"Proposal {r['number']} sent to {to_name or to_email}", actor=actor)
+    _activity(conn, r, f"Proposal {_label(r)} sent to {to_name or to_email}", actor=actor)
     return r
 
 
@@ -974,7 +986,7 @@ def record_view(conn, r: dict, ip=None) -> dict:
     conn.commit()
     r = get(conn, r["id"])
     if first:
-        _activity(conn, r, f"Proposal {r['number']} opened by the client")
+        _activity(conn, r, f"Proposal {_label(r)} opened by the client")
     return r
 
 
@@ -1008,13 +1020,13 @@ def _on_signed(conn, r: dict) -> None:
                      "updated_at = ? WHERE id = ?",
                      (r.get("price"), today, today, _now(), _now(), r["estimate_id"]))
         conn.commit()
-        _activity(conn, r, f"Estimate {est['code']}: {est['status']} → approved (proposal {r['number']} signed)")
+        _activity(conn, r, f"Estimate {est['code']}: {est['status']} → approved (proposal {_label(r)} signed)")
     due_coi = (_today() + timedelta(days=7)).isoformat()
     label = r.get("building_address_line") or r.get("building_address") or r.get("client_name")
     try:
         crm.create_task(conn, title=f"Collect Certificate of Insurance — {label}",
                         entity_type="organization", entity_id=r["client_org_id"],
-                        detail=f"Proposal {r['number']} was signed by {r.get('signed_name')} on {r.get('signed_at')}. "
+                        detail=f"Proposal {_label(r)} was signed by {r.get('signed_name')} on {r.get('signed_at')}. "
                                f"The COI is required before work starts.",
                         due_date=due_coi, priority="high", function_tag="sales")
         if r.get("deposit_amount"):
@@ -1028,16 +1040,16 @@ def _on_signed(conn, r: dict) -> None:
                      if inv else "Create the deposit invoice under Company Portal → Finance → Receivables.")
             crm.create_task(conn, title=f"Issue deposit invoice {_money(r['deposit_amount'])} — {label}",
                             entity_type="organization", entity_id=r["client_org_id"],
-                            detail=f"Deposit of {'%g' % float(r.get('deposit_pct') or 0)}% on proposal {r['number']} "
+                            detail=f"Deposit of {'%g' % float(r.get('deposit_pct') or 0)}% on proposal {_label(r)} "
                                    f"({_money(r.get('price'))}). {where}",
                             due_date=(_today() + timedelta(days=2)).isoformat(), priority="high", function_tag="sales")
     except Exception as e:
         log.warning("#307 follow-up tasks not created: %s", e)
-    _activity(conn, r, f"Proposal {r['number']} SIGNED by {r.get('signed_name')} — {_money(r.get('price'))}")
+    _activity(conn, r, f"Proposal {_label(r)} SIGNED by {r.get('signed_name')} — {_money(r.get('price'))}")
     try:
         import notifications
         notifications.notify_vps(conn, kind="proposal_signed",
-                                 subject=f"Proposal {r['number']} signed — {label} ({_money(r.get('price'))})",
+                                 subject=f"Proposal {_label(r)} signed — {label} ({_money(r.get('price'))})",
                                  estimate_code=r.get("estimate_code"), path="/company#proposals/" + str(r["id"]))
     except Exception as e:
         log.info("#307 VP notification skipped: %s", e)
@@ -1053,9 +1065,9 @@ def decline(conn, r: dict, *, reason: Optional[str] = None, ip=None) -> dict:
     _event(conn, r["id"], "declined", ip=ip, detail=reason)
     conn.commit()
     r = get(conn, r["id"])
-    _activity(conn, r, f"Proposal {r['number']} declined" + (f": {reason}" if reason else ""))
+    _activity(conn, r, f"Proposal {_label(r)} declined" + (f": {reason}" if reason else ""))
     try:
-        crm.create_task(conn, title=f"Follow up on declined proposal {r['number']}",
+        crm.create_task(conn, title=f"Follow up on declined proposal {_label(r)}",
                         entity_type="organization", entity_id=r["client_org_id"],
                         detail=reason or "No reason given.", due_date=(_today() + timedelta(days=3)).isoformat(),
                         priority="normal", function_tag="sales")
@@ -1123,7 +1135,7 @@ def _page(conn, r: dict, token: str) -> str:
   <p>Type your name to accept. Your name, the date and time, and your network address are recorded with the proposal as your electronic signature.</p>
   <div class="row"><div><label for="nm">Full name</label><input id="nm" autocomplete="name" placeholder="Your full name"></div>
   <div><label for="tt">Title (optional)</label><input id="tt" placeholder="e.g. Property manager"></div></div>
-  <label class="chk"><input type="checkbox" id="ag"> I have read the scope, price, exclusions and terms above and accept proposal {e(r['number'])} on behalf of {e(r.get('client_name') or 'the client')}.</label>
+  <label class="chk"><input type="checkbox" id="ag"> I have read the scope, price, exclusions and terms above and accept proposal {e(_label(r))} on behalf of {e(r.get('client_name') or 'the client')}.</label>
   <div class="err" id="er"></div>
   <div class="btns"><button class="btn" id="ok" type="button">Accept proposal</button><button class="btn ghost" id="no" type="button">Decline</button></div>
   <div id="dec" hidden><label for="rs">Let us know why (optional)</label><textarea id="rs" rows="3"></textarea>
@@ -1208,7 +1220,7 @@ def _public_pdf(token):
         if not p:
             return _gone("The PDF is not available right now — the proposal above is the reference copy.", 503)
         resp = make_response(send_file(str(p), mimetype="application/pdf", as_attachment=True,
-                                       download_name=f"{r['number']}.pdf"))
+                                       download_name=f"{_label(r)}.pdf"))
         return _no_store(resp)
     finally:
         conn.close()
@@ -1269,6 +1281,17 @@ def _api_list():
         counts = {s: 0 for s in STATUSES}
         for x in _rows(conn.execute("SELECT status, COUNT(*) AS n FROM proposal GROUP BY status")):
             counts[x["status"]] = x["n"]
+        st = (request.args.get("status") or "").strip()
+        if request.args.get("include") == "archive" or st == "archived":   # proposals from before the app (2026-10-21)
+            import proposal_template
+            arch = proposal_template.archive_rows(conn)
+            q = (request.args.get("q") or "").strip().lower()
+            if q:
+                arch = [a for a in arch if q in " ".join(str(a.get(k) or "") for k in ("label", "client_name", "building_address", "title")).lower()]
+            if request.args.get("client_org_id"):
+                arch = [a for a in arch if str(a["client_org_id"]) == str(request.args["client_org_id"])]
+            counts["archived"] = len(proposal_template.archive_rows(conn))
+            rows = arch if st == "archived" else (rows + arch if not st else rows)
         signed_ytd = _one(conn.execute("SELECT COALESCE(SUM(price),0) AS v, COUNT(*) AS n FROM proposal "
                                        "WHERE status = 'signed' AND signed_at >= ?", (f"{_today().year}-01-01",)))
         awaiting = _one(conn.execute("SELECT COALESCE(SUM(price),0) AS v, COUNT(*) AS n FROM proposal "
@@ -1405,7 +1428,7 @@ def _api_pdf(proposal_id):
         if not p:
             return _err("PDF engine unavailable on this server — use Preview and print to PDF", 503)
         return _no_store(make_response(send_file(str(p), mimetype="application/pdf", as_attachment=True,
-                                                 download_name=f"{r['number']}.pdf")))
+                                                 download_name=f"{_label(r)}.pdf")))
     finally:
         conn.close()
 

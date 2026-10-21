@@ -51,8 +51,10 @@ CONTENT_PROPS = {
     "lines": {"type": "array", "items": LINE_SCHEMA}, "notes": _SL, "deliverables": _SL, "mobilization": _S,
     "duration": _S, "hours": _S, "warranty": _S, "additional_insureds": _SL, "exclusions": _SL, "accepted_by": _S,
 }
-LEARN_SCHEMA = {"type": "object", "additionalProperties": False, "required": list(CONTENT_PROPS) + ["client_name"],
-                "properties": dict(CONTENT_PROPS, client_name=_S)}
+ARCHIVE_PROPS = {"proposal_number": _S, "proposal_date": _S, "total": {"type": "number"}, "building": _S}
+LEARN_SCHEMA = {"type": "object", "additionalProperties": False,
+                "required": list(CONTENT_PROPS) + ["client_name"] + list(ARCHIVE_PROPS),
+                "properties": dict(CONTENT_PROPS, client_name=_S, **ARCHIVE_PROPS)}
 DRAFT_SCHEMA = {"type": "object", "additionalProperties": False,
                 "required": list(CONTENT_PROPS) + ["borough", "email_subject", "email_message", "sources"],
                 "properties": dict(CONTENT_PROPS, borough={"type": "string", "enum": list(BOROUGHS)}, email_subject=_S,
@@ -640,7 +642,9 @@ LEARN_PROMPT = ("This is one of the company's own past proposals. Record it exac
                 "\"reserves the right to withdraw\" one; deliverables; the Schedule & Terms rows (mobilization, duration, hours, "
                 "warranty — \"\" when a row isn't there); the names on the COI (additional_insureds); every exclusion except "
                 "\"Any work not specifically listed above.\"; and who it's ACCEPTED BY. Copy the wording word for word. "
-                "source on each line: \"\". client_name: the client company.")
+                "source on each line: \"\". client_name: the client company. For the archive: proposal_number exactly as "
+                "printed (e.g. \"1041\"), proposal_date as YYYY-MM-DD (\"\" when there is none), total = the base bid total "
+                "as a number (0 when there is none), building = the project's street address.")
 
 
 def learn(raw_block: dict, conn=None, uid=None) -> dict:
@@ -648,6 +652,8 @@ def learn(raw_block: dict, conn=None, uid=None) -> dict:
     import assistant
     if assistant._fake():
         return {"heading": "ESTIMATE", "job_type": "Rope access inspection", "title": "Past proposal", "client_name": "Past client",
+                "archive": {"number": "1001", "date": "2025-03-14", "total": 27000.0, "building": "1 Past Street, New York, NY",
+                            "client": "Past client"},
                 "submitted_to": ["Past client"], "project": [], "reference": [], "overview": "",
                 "lines": [{"lead": "Rope access drops", "detail": "rigging and close-up physical inspection", "qty": 6,
                            "unit": "EA", "unit_price": 4500, "source": ""}],
@@ -661,4 +667,19 @@ def learn(raw_block: dict, conn=None, uid=None) -> dict:
     out = clean_content(d, h)
     out["lines"] = clean_lines(d.get("lines"))
     out["client_name"] = str(d.get("client_name") or "")[:200]
+    out["archive"] = archive_facts(d)
     return out
+
+
+def archive_facts(d: dict) -> dict:
+    """The facts an archived proposal is listed by: number, date (ISO or ""), client, building, total."""
+    m = re.match(r"^\s*(\d{4})-(\d{1,2})-(\d{1,2})", str(d.get("proposal_date") or d.get("date") or ""))
+    iso = ""
+    if m:
+        try:
+            iso = date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
+        except ValueError:
+            iso = ""
+    return {"number": str(d.get("proposal_number") or d.get("number") or "").strip()[:30],
+            "date": iso, "client": str(d.get("client_name") or d.get("client") or "").strip()[:200],
+            "building": str(d.get("building") or "").strip()[:300], "total": round(_num(d.get("total")), 2)}
