@@ -10,26 +10,38 @@
  * (an element #clx-page on the page): conversations | chat | files, same history as the
  * window. Files (PDF, photos, Word, Excel, CSV; 20 MB, 5 per message) attach with 📎 or by
  * dropping them on the chat; they upload first (claude_files.py), then go with the message.
+ *
+ * 2026-10-22 (accepted prototype https://claude.ai/artifact/7Z4s6fDgoiog8CHZb44tKE): one conversation
+ * follows the person. The open chat is kept in localStorage (every tab) and tabs tell each other
+ * (BroadcastChannel) when it changes; a fresh device reopens the last one (/chats/latest). Open /
+ * closed stays per tab. A chat with pay or email details (chat.office_only) opens on office pages
+ * only; on a job dashboard it shows a "start a new chat here" panel. Claude sees the page (the
+ * "Claude sees" line, × to hide it), a line picked on the page (select text → "Ask Claude about
+ * this") and @-mentions of jobs, bids, clients and people (/mentions).
  */
 (function () {
   'use strict';
   if (window.SSC_CLAUDE) return;
   var FIELD = /^\/projects\//.test(location.pathname) || /dashboard-static/.test(location.pathname);
   var SURFACE = FIELD ? 'field' : 'office';
-  var KEY = 'ssc.claude.' + SURFACE;
-  var S = { status: null, chat: null, chats: [], poll: null, open: false, sending: false, files: [], fk: 0 };
+  var KEY = 'ssc.claude.';
+  var S = { status: null, chat: null, chats: [], poll: null, open: false, sending: false, files: [], fk: 0,
+            quote: '', refs: [], ctxOff: false, locked: null, ment: null };
   var HOST = document.getElementById('clx-page'), PAGE = !!HOST;   // the full Claude page
   var ACCEPT = '.pdf,.png,.jpg,.jpeg,.heic,.heif,.webp,.gif,.docx,.xlsx,.xlsm,.csv,.txt,.eml,.md';
   var MAXF = 5, MAXB = 20 * 1024 * 1024, DEFAULT_TEXT = 'Here are the attached files.';
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function $(id) { return document.getElementById(id); }
-  function store(k, v) { try { if (v == null) sessionStorage.removeItem(KEY + k); else sessionStorage.setItem(KEY + k, v); } catch (e) {} }
-  function load(k) { try { return sessionStorage.getItem(KEY + k); } catch (e) { return null; } }
+  function box(k) { return k === 'chat' ? localStorage : sessionStorage; }   // the chat follows the person; open / closed is per tab
+  function store(k, v) { try { if (v == null) box(k).removeItem(KEY + k); else box(k).setItem(KEY + k, v); } catch (e) {} }
+  function load(k) { try { return box(k).getItem(KEY + k); } catch (e) { return null; } }
+  var BC = null; try { BC = new BroadcastChannel('ssc-claude'); } catch (e) {}
+  function tell(id) { if (BC) { try { BC.postMessage({ chat: id == null ? null : id }); } catch (e) {} } }
   async function api(path, opts) {
     var res = await fetch('/api/claude' + path, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' } }, opts || {}));
     var j = await res.json().catch(function () { return {}; });
-    if (!res.ok) { var e = new Error((j && j.error) || ('Request failed (' + res.status + ')')); e.status = res.status; throw e; }
+    if (!res.ok) { var e = new Error((j && j.error) || ('Request failed (' + res.status + ')')); e.status = res.status; e.data = j; throw e; }
     return j;
   }
   function fmtDay(v) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ''); if (!m) return v; return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }); }
@@ -45,7 +57,8 @@
     var h = document.querySelector('#cp-title, .page-title, h1');
     [tab, sub, h].forEach(function (el) { var t = el && (el.textContent || '').trim(); if (t && parts.indexOf(t) < 0 && t.length < 80) parts.push(t); });
     var m = location.pathname.match(/^\/projects\/([^/?#]+)/);
-    return { surface: SURFACE, path: location.pathname + location.hash, label: parts.join(' › ') || document.title, project_code: m ? decodeURIComponent(m[1]) : '' };
+    return { surface: SURFACE, path: location.pathname + location.hash, label: parts.join(' › ') || document.title, project_code: m ? decodeURIComponent(m[1]) : '',
+             shared: !S.ctxOff && !PAGE };
   }
 
   var CSS = '\
@@ -144,6 +157,30 @@ a.clx-att:hover{border-color:#C2603B}\
 .clx-atts{display:flex;gap:6px;flex-wrap:wrap}.clx-m.u .clx-atts{justify-content:flex-end}\
 .clx-clip{flex:none;border:1px solid #E6E8EE;background:#F6F7FA;border-radius:10px;width:40px;height:44px;display:grid;place-items:center;cursor:pointer;font-size:16px}\
 .clx-clip:hover{border-color:#C2603B}\
+.clx-see{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#343A48;background:#F3F5FA;border-radius:10px;padding:4px 4px 4px 10px;min-width:0}\
+.clx-see span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
+.clx-see button{border:0;background:none;color:#5B6170;font-size:16px;line-height:1;width:32px;height:32px;border-radius:8px;cursor:pointer}\
+.clx-see.off{background:none;padding:0}.clx-see.off button{width:auto;height:auto;border:1px dashed #C9CEDB;border-radius:10px;padding:6px 10px;font:600 12.5px Inter,sans-serif;color:#24418C}\
+.clx-see[hidden],.clx-quote[hidden],.clx-ment[hidden],#clx-askq[hidden],.clx-meta[hidden]{display:none}\
+.clx-quote{display:flex;align-items:flex-start;gap:8px;border-left:3px solid #C2603B;background:#FBF3EF;border-radius:6px;padding:6px 6px 6px 10px;font-size:12.5px;color:#343A48}\
+.clx-quote span{flex:1;min-width:0;font-style:italic;max-height:72px;overflow:auto}\
+.clx-quote button{border:0;background:none;color:#5B6170;font-size:15px;line-height:1;width:28px;height:28px;cursor:pointer}\
+.clx-ment{border:1px solid #E6E8EE;border-radius:12px;background:#fff;box-shadow:0 8px 24px rgba(20,22,28,.10);padding:4px;display:grid;max-height:240px;overflow-y:auto}\
+.clx-mi{display:flex;align-items:center;gap:10px;min-height:44px;padding:6px 10px;border:0;border-radius:8px;background:#fff;text-align:left;font:13px Inter,sans-serif;color:#1B1F27;cursor:pointer}\
+.clx-mi.on,.clx-mi:hover{background:#F3F5FA}\
+.clx-mi i{font-style:normal;min-width:58px;padding:2px 7px;border-radius:6px;background:#EEF0F4;color:#343A48;font-size:11.5px;font-weight:600;text-align:center}\
+.clx-mi span{display:grid;min-width:0}.clx-mi b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.clx-mi small{font-size:12px;color:#5B6170;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.clx-mhint{font-size:12.5px;color:#5B6170;padding:8px 10px}\
+.clx-at{flex:none;border:1px solid #E6E8EE;background:#F6F7FA;border-radius:10px;width:40px;height:44px;cursor:pointer;font:600 16px Inter,sans-serif;color:#343A48}\
+.clx-at:hover{border-color:#C2603B}\
+.clx-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px;color:#5B6170}\
+.clx-lock{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;background:#EEF0F4;color:#343A48;font-weight:600}\
+.clx-mq{border-left:3px solid #24418C;padding-left:8px;font-size:12.5px;font-style:italic;color:#343A48;margin-bottom:4px;white-space:pre-wrap}\
+.clx-locked{display:grid;gap:12px;padding:20px 6px;color:#5B6170;line-height:1.5}\
+.clx-locked b{font-size:16px;color:#1B1F27}.clx-locked .clx-acts{gap:8px}\
+.clx-locked .clx-btn{min-height:44px;padding:0 14px}\
+#clx-askq{position:fixed;z-index:9004;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border:0;border-radius:999px;background:#C2603B;color:#fff;font:600 12.5px Inter,sans-serif;box-shadow:0 4px 14px rgba(120,50,20,.25);cursor:pointer}\
+@media (max-width:640px){#clx-askq{min-height:44px}}\
 .clx-drop{position:absolute;inset:8px;border:2px dashed #C2603B;border-radius:14px;background:rgba(251,239,233,.95);display:grid;place-items:center;align-content:center;text-align:center;font:600 14px Inter,sans-serif;color:#A84E2C;z-index:5;pointer-events:none}\
 .clx-drop small{display:block;font-weight:500;color:#5B6170;margin-top:4px}\
 .clx-drop[hidden]{display:none}\
@@ -189,9 +226,12 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
 @media (prefers-reduced-motion:reduce){#clx-panel{transition:none}}';
 
   var FORM = '<div class="clx-f"><div id="clx-off" hidden></div><div class="clx-pend" id="clx-pend"></div>' +
+    '<div class="clx-ment" id="clx-ment" role="listbox" aria-label="Point Claude at" hidden></div>' +
+    '<div class="clx-quote" id="clx-quote" hidden></div><div class="clx-see" id="clx-see" hidden></div>' +
     '<form id="clx-form"><button type="button" class="clx-clip" id="clx-clip" aria-label="Attach files" title="Attach files: PDF, photos, Word, Excel, CSV (up to 20 MB each, 5 per message)">📎</button>' +
+    '<button type="button" class="clx-at" id="clx-at" aria-label="Point Claude at a job, bid, client or person" title="Point Claude at a job, bid, client or person">@</button>' +
     '<input id="clx-file" type="file" multiple hidden accept="' + ACCEPT + '">' +
-    '<textarea id="clx-in" rows="2" placeholder="Ask or tell Claude… or attach drawings, bid forms, photos" aria-label="Message to Claude"></textarea>' +
+    '<textarea id="clx-in" rows="2" placeholder="Ask Claude… type @ to point at a job, bid or client" aria-label="Message to Claude"></textarea>' +
     '<button class="clx-btn go" id="clx-send" type="submit">Send</button></form>' +
     '<div class="clx-foot"><span>Changes always wait for your approval</span><span>📎 PDF, photos, Word, Excel · 20 MB each</span></div></div>';
   var DROP = '<div class="clx-drop" id="clx-drop" hidden>Drop files to attach<small>PDF, photos, Word, Excel, CSV · up to 20 MB each</small></div>';
@@ -205,7 +245,7 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
       '<div class="clx-mainc" id="clx-mainc"><div class="clx-h"><div class="clx-t"><b><span class="clx-star" aria-hidden="true">✦</span>Claude</b>' +
       '<span class="clx-tools"><button class="clx-btn clx-histbtn" type="button" id="clx-hist" aria-pressed="false">Conversations</button>' +
       '<button class="clx-btn" type="button" id="clx-small" title="Keep this conversation in the small Ask Claude window while you work on another page">Open in small window ↘</button></span></div>' +
-      '<div class="clx-title" id="clx-title" hidden></div></div>' +
+      '<div class="clx-title" id="clx-title" hidden></div><div class="clx-meta" id="clx-meta" hidden></div></div>' +
       '<div class="clx-msgs" id="clx-msgs" aria-live="polite"></div>' + FORM + DROP + '</div>' +
       '<aside class="clx-files" aria-label="Files in this conversation"><h3>Files in this conversation</h3><div class="clx-flist" id="clx-flist"></div>' +
       '<div class="clx-fnote"><b>Where files go.</b> Files stay with this conversation and only you can open them. Claude saves one to a bid only when you approve it.</div>' +
@@ -224,7 +264,17 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
   function fullHref() { return '/claude' + (S.chat ? '#chat-' + S.chat.chat.id : ''); }
 
   function wireCommon(dropZone) {
-    $('clx-new').addEventListener('click', function () { clearTimeout(S.poll); S.chat = null; store('chat', null); showHistory(false); renderTitle(); render(); if (PAGE) history.replaceState(null, '', '/claude'); $('clx-in').focus(); });
+    $('clx-new').addEventListener('click', function () { newChat(); $('clx-in').focus(); });
+    $('clx-at').addEventListener('click', function () {
+      var el = $('clx-in'), v = el.value, at = el.selectionStart == null ? v.length : el.selectionStart;
+      var pre = v.slice(0, at), add = (pre && !/\s$/.test(pre) ? ' ' : '') + '@';
+      el.value = pre + add + v.slice(at); el.focus(); el.selectionStart = el.selectionEnd = at + add.length; mentCheck();
+    });
+    $('clx-in').addEventListener('input', mentCheck);
+    $('clx-ment').addEventListener('mousedown', function (e) { e.preventDefault(); });   // keep the caret in the box
+    $('clx-ment').addEventListener('click', function (e) { var b = e.target.closest('[data-mi]'); if (b) mentPick(+b.getAttribute('data-mi')); });
+    $('clx-quote').addEventListener('click', function (e) { if (e.target.closest('[data-unquote]')) { S.quote = ''; drawQuote(); } });
+    $('clx-see').addEventListener('click', function (e) { if (e.target.closest('button')) { S.ctxOff = !S.ctxOff; drawSee(); } });
     $('clx-hist').addEventListener('click', function () { showHistory(!S.hist); });
     $('clx-q').addEventListener('input', function () { clearTimeout(S.qt); S.qt = setTimeout(loadHistory, 250); });
     document.querySelectorAll('#clx-histp [data-saved]').forEach(function (b) { b.addEventListener('click', function () {
@@ -234,7 +284,7 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     $('clx-hlist').addEventListener('click', onHistoryClick);
     $('clx-title').addEventListener('click', onTitleClick);
     $('clx-form').addEventListener('submit', function (e) { e.preventDefault(); send($('clx-in').value); });
-    $('clx-in').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send($('clx-in').value); } });
+    $('clx-in').addEventListener('keydown', function (e) { if (mentKey(e)) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send($('clx-in').value); } });
     $('clx-msgs').addEventListener('click', onCardClick);
     $('clx-clip').addEventListener('click', function () { $('clx-file').click(); });
     $('clx-file').addEventListener('change', function (e) { addFiles(e.target.files); e.target.value = ''; });
@@ -298,6 +348,100 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     drawPend();
   }
 
+  // ---- what Claude is pointed at (2026-10-22): the page, a picked line, @-mentions
+  function drawSee() {
+    var b = $('clx-see'); if (!b) return;
+    if (PAGE) { b.hidden = true; return; }   // the full Claude page is not a page about anything
+    b.hidden = false;
+    b.className = 'clx-see' + (S.ctxOff ? ' off' : '');
+    b.innerHTML = S.ctxOff ? '<button type="button">Show Claude this page</button>'
+      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>' +
+        '<span>Claude sees: <b>' + esc(page().label) + '</b></span><button type="button" aria-label="Don\'t show Claude this page" title="Don\'t show Claude this page">×</button>';
+  }
+  function drawQuote() {
+    var b = $('clx-quote'); if (!b) return;
+    b.hidden = !S.quote;
+    b.innerHTML = S.quote ? '<span>“' + esc(S.quote) + '”</span><button type="button" data-unquote="1" aria-label="Remove the quote">×</button>' : '';
+  }
+  function mentToken() {
+    var el = $('clx-in'), at = el.selectionStart == null ? el.value.length : el.selectionStart;
+    var m = /(^|\s)@([^\s@]{0,30})$/.exec(el.value.slice(0, at));
+    return m ? { q: m[2], start: at - m[2].length - 1, end: at } : null;
+  }
+  function mentClose() { S.ment = null; var b = $('clx-ment'); if (b) { b.hidden = true; b.innerHTML = ''; } }
+  function mentCheck() {
+    var t = mentToken();
+    if (!t) { mentClose(); return; }
+    if (t.q.length < 2) { S.ment = { items: [], i: 0, t: t }; drawMent('Type 2 letters: a job code, bid, client or person'); return; }
+    clearTimeout(S.mt);
+    S.mt = setTimeout(async function () {
+      try {
+        var r = await api('/mentions?surface=' + SURFACE + '&q=' + encodeURIComponent(t.q)), now = mentToken();
+        if (!now || now.q !== t.q) return;
+        S.ment = { items: r.data || [], i: 0, t: now };
+        drawMent((r.data || []).length ? '' : 'Nothing matches "' + t.q + '"');
+      } catch (e) { mentClose(); }
+    }, 160);
+  }
+  function drawMent(hint) {
+    var b = $('clx-ment'), m = S.ment; if (!b || !m) return;
+    b.hidden = false;
+    b.innerHTML = hint ? '<div class="clx-mhint">' + esc(hint) + '</div>' : m.items.map(function (o, i) {
+      return '<button type="button" class="clx-mi' + (i === m.i ? ' on' : '') + '" role="option" aria-selected="' + (i === m.i) + '" data-mi="' + i + '">' +
+        '<i>' + esc(o.label) + '</i><span><b>@' + esc(o.tag) + '</b>' + (o.sub ? '<small>' + esc(o.sub) + '</small>' : '') + '</span></button>';
+    }).join('');
+  }
+  function mentPick(i) {
+    var m = S.ment, o = m && m.items[i], el = $('clx-in'); if (!o) return;
+    var t = mentToken() || m.t, ins = '@' + o.tag + ' ';
+    el.value = el.value.slice(0, t.start) + ins + el.value.slice(t.end);
+    el.selectionStart = el.selectionEnd = t.start + ins.length;
+    S.refs = S.refs.filter(function (r) { return r.tag !== o.tag; }).concat([{ kind: o.kind, id: o.id, tag: o.tag }]);
+    mentClose(); el.focus();
+  }
+  function mentKey(e) {   // the @ list takes the arrow keys, Enter / Tab and Escape while it is open
+    var m = S.ment; if (!m || $('clx-ment').hidden) return false;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); mentClose(); return true; }
+    if (!m.items.length) return false;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); m.i = (m.i + (e.key === 'ArrowDown' ? 1 : m.items.length - 1)) % m.items.length; drawMent(); return true; }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); mentPick(m.i); return true; }
+    return false;
+  }
+  function wireSelection() {   // select text on the page → "Ask Claude about this"
+    var b = document.createElement('button');
+    b.id = 'clx-askq'; b.type = 'button'; b.hidden = true;
+    b.innerHTML = '<span aria-hidden="true">✦</span>Ask Claude about this';
+    document.body.appendChild(b);
+    var picked = '';
+    var hide = function () { b.hidden = true; };
+    var check = function () {
+      var sel = window.getSelection && window.getSelection(), text = sel ? String(sel).trim() : '';
+      var node = sel && sel.anchorNode, el = node && (node.nodeType === 1 ? node : node.parentElement);
+      if (text.length < 3 || !el || el.closest('#clx-panel, #clx-doc, #clx-fab, input, textarea, [contenteditable="true"]')) { hide(); return; }
+      var rect = sel.getRangeAt(0).getBoundingClientRect();
+      if (!rect || (!rect.width && !rect.height)) { hide(); return; }
+      picked = text.replace(/\s+/g, ' ').slice(0, 1000);
+      b.hidden = false;
+      var w = b.offsetWidth || 190, top = rect.bottom + 8;
+      if (top + 48 > window.innerHeight) top = Math.max(8, rect.top - 52);
+      b.style.top = top + 'px';
+      b.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, rect.left)) + 'px';
+    };
+    ['mouseup', 'touchend', 'keyup'].forEach(function (ev) { document.addEventListener(ev, function () { setTimeout(check, 10); }); });
+    window.addEventListener('scroll', hide, true);
+    b.addEventListener('mousedown', function (e) { e.preventDefault(); });   // keep the selection while the button is pressed
+    b.addEventListener('click', function () {
+      S.quote = picked; hide();
+      try { window.getSelection().removeAllRanges(); } catch (e) {}
+      setOpen(true); drawQuote(); setTimeout(function () { $('clx-in').focus(); }, 80);
+    });
+  }
+  function newChat() {
+    clearTimeout(S.poll); S.chat = null; S.locked = null; store('chat', null); tell(null);
+    showHistory(false); renderTitle(); render();
+    if (PAGE) history.replaceState(null, '', '/claude');
+  }
+
   function build() {
     var st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
     if (PAGE) { buildPage(); return; }
@@ -310,7 +454,7 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     p.innerHTML =
       '<div class="clx-h"><div class="clx-t"><b><span class="clx-star" aria-hidden="true">✦</span>Claude</b>' +
       '<span class="clx-tools"><button class="clx-btn" type="button" id="clx-hist" aria-pressed="false">History</button><button class="clx-btn" type="button" id="clx-new">+ New</button><a class="clx-btn" id="clx-full" href="/claude" title="Open this conversation on the full Claude page">↗ Full page</a><button class="clx-btn clx-size" type="button" id="clx-size" aria-label="Make the Claude window bigger" title="Bigger">⤢</button><button class="clx-x" type="button" id="clx-close" aria-label="Close Claude">×</button></span></div>' +
-      '<div class="clx-title" id="clx-title" hidden></div></div>' +
+      '<div class="clx-title" id="clx-title" hidden></div><div class="clx-meta" id="clx-meta" hidden></div></div>' +
       HIST +
       '<div class="clx-msgs" id="clx-msgs" aria-live="polite"></div>' +
       FORM + DROP +
@@ -322,6 +466,7 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     $('clx-size').addEventListener('click', function () { setWidth(curWidth() < WIDE() - 20 ? WIDE() : NARROW, true); });
     wireGrip();
     wireCommon(p);
+    wireSelection();
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.open) setOpen(false); });
   }
 
@@ -368,18 +513,30 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
   function setOpen(open) {
     S.open = open; store('open', open ? '1' : null);
     var p = $('clx-panel'); $('clx-fab').setAttribute('aria-expanded', String(open));
-    if (open) { p.hidden = false; requestAnimationFrame(function () { p.classList.add('open'); }); if (!S.loaded) loadChats(); setTimeout(function () { $('clx-in').focus(); }, 60); }
+    if (open) { p.hidden = false; requestAnimationFrame(function () { p.classList.add('open'); }); drawSee(); renderMeta(); if (!S.loaded) loadChats(); setTimeout(function () { $('clx-in').focus(); }, 60); }
     else { p.classList.remove('open'); setTimeout(function () { if (!S.open) p.hidden = true; }, 240); if (D.id) closeDoc(); }
   }
 
   async function loadChats() {
     S.loaded = true;
     var keep = +load('chat');
-    if (keep) await openChat(keep); else { renderTitle(); render(); }
+    if (keep) { await openChat(keep, true); return; }
+    try {   // nothing kept in this browser (another device, cleared storage): the last conversation usable here
+      var r = await api('/chats/latest?surface=' + SURFACE);
+      if (r.data) { apply(r.data, true); return; }
+    } catch (e) {}
+    renderTitle(); render();
   }
-  async function openChat(id) {
-    try { var r = await api('/chats/' + id + '?surface=' + SURFACE); if (r.data.chat.archived) throw new Error('removed'); apply(r.data); }
-    catch (e) { S.chat = null; store('chat', null); renderTitle(); render(); }
+  async function openChat(id, quiet) {
+    try {
+      var r = await api('/chats/' + id + '?surface=' + SURFACE); if (r.data.chat.archived) throw new Error('removed');
+      S.locked = null; apply(r.data, quiet);
+    } catch (e) {
+      clearTimeout(S.poll); S.chat = null;
+      if (e.status === 403 && e.data && e.data.locked) S.locked = { id: id, msg: e.message };   // still the chat on office pages
+      else { S.locked = null; store('chat', null); }
+      renderTitle(); render();
+    }
   }
 
   // ---- History: every conversation is saved; ★ keeps one on top; rename; remove from the list
@@ -400,7 +557,7 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
           '<button type="button" class="clx-hstar' + (c.starred ? ' on' : '') + '" data-star="' + c.id + '" aria-pressed="' + c.starred + '" aria-label="' + (c.starred ? 'Unsave' : 'Save') + '">' + (c.starred ? '★' : '☆') + '</button>' +
           '<button type="button" class="clx-hopen" data-open="' + c.id + '"><b>' + esc(c.title) + '</b><span>' + esc(when(c.updated_at)) + ' · ' + c.asked + ' message' + (c.asked === 1 ? '' : 's') + '</span></button>' +
           '<button type="button" class="clx-hrm" data-remove="' + c.id + '" aria-label="Remove from the list">Remove</button></div>';
-      }).join('') : '<div class="clx-intro">' + (q || S.saved ? 'No conversations match.' : 'Your conversations show here once you ask Claude something.') + (SURFACE === 'field' ? ' Conversations started on office pages are listed there.' : '') + '</div>';
+      }).join('') : '<div class="clx-intro">' + (q || S.saved ? 'No conversations match.' : 'Your conversations show here once you ask Claude something.') + (SURFACE === 'field' ? ' Conversations with pay or email details are listed on office pages.' : '') + '</div>';
       if (PAGE) box.querySelectorAll('.clx-hrm').forEach(function (b) { b.textContent = '×'; b.title = 'Remove from the list'; });
     } catch (e) { box.innerHTML = '<div class="clx-err">' + esc(e.message) + '</div>'; }
   }
@@ -420,9 +577,20 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
       }
     } catch (x) { $('clx-hlist').insertAdjacentHTML('afterbegin', '<div class="clx-err">' + esc(x.message) + '</div>'); }
   }
+  var LOCK_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>';
+  function renderMeta() {
+    var b = $('clx-meta'), c = S.chat && S.chat.chat; if (!b) return;
+    var out = '';
+    if (c && c.office_only) out += '<span class="clx-lock">' + LOCK_SVG + 'Office only · has ' + (c.office_only === 'pay' ? 'pay details' : 'email') + '</span>';
+    var asked = S.chat ? S.chat.messages.filter(function (m) { return m.role === 'user' && m.page; }) : [];
+    var last = asked.length ? asked[asked.length - 1].page : '';
+    if (last && !PAGE && last !== page().label) out += '<span>Picked up from ' + esc(last) + ' · same conversation</span>';
+    b.innerHTML = out; b.hidden = !out;
+  }
   function renderTitle() {
     var t = $('clx-title'), c = S.chat && S.chat.chat;
     t.hidden = !c;
+    renderMeta();
     if (!c) { t.innerHTML = ''; return; }
     t.innerHTML = '<span class="clx-tname" id="clx-tname">' + esc(c.title) + '</span>' +
       '<button type="button" class="clx-hstar' + (c.starred ? ' on' : '') + '" id="clx-tstar" aria-pressed="' + !!c.starred + '" title="' + (c.starred ? 'Saved: stays at the top of History' : 'Save: keep at the top of History') + '">' + (c.starred ? '★ Saved' : '☆ Save') + '</button>' +
@@ -441,9 +609,11 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
       }
     } catch (x) { renderTitle(); }
   }
-  function apply(view) {
+  function apply(view, quiet) {
     var fresh = !S.chat || S.chat.chat.id !== view.chat.id || S.chat.chat.title !== view.chat.title;
-    S.chat = view; store('chat', view.chat.id);
+    var done = S.chat && S.chat.chat.id === view.chat.id && S.chat.busy && !view.busy;
+    S.chat = view; S.locked = null; store('chat', view.chat.id);
+    if (!quiet && (fresh || done)) tell(view.chat.id);   // other tabs follow (they load it quietly)
     renderTitle(); render();
     if (PAGE) { if (location.hash !== '#chat-' + view.chat.id) history.replaceState(null, '', '#chat-' + view.chat.id); if (fresh || !view.busy) loadHistory(); }
     clearTimeout(S.poll);
@@ -469,6 +639,14 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     syncSend(); $('clx-in').disabled = !!off;
     if (PAGE) $('clx-flist').innerHTML = v && v.files && v.files.length ? v.files.map(function (f) { return chip(f, { link: true }); }).join('')
       : '<div class="clx-intro">Files you attach in this conversation show here.</div>';
+    if (S.locked) {
+      box.innerHTML = '<div class="clx-locked"><span class="clx-lock" style="justify-self:start">' + LOCK_SVG + 'Office only</span><b>' + esc(S.locked.msg) + '</b>' +
+        '<div>Job dashboards can be seen in the field. The conversation stays in your History on office pages.</div>' +
+        '<div class="clx-acts"><button type="button" class="clx-btn go" data-newchat="1">Start a new chat here</button>' +
+        '<a class="clx-btn" href="/company#overview">Open the company dashboard</a></div></div>';
+      $('clx-in').disabled = true; $('clx-send').disabled = true;
+      return;
+    }
     if (!v || !v.messages.length) {
       var st = S.status || {};
       box.innerHTML = '<div class="clx-intro"><h3 class="clx-hello">What can I help with' + (st.name ? ', ' + esc(String(st.name).split(' ')[0]) : '') + '?</h3>' +
@@ -480,9 +658,9 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     box.innerHTML = v.messages.map(function (m) {
       if (m.role === 'user') {
         var fl = m.files || [], txt = fl.length && m.text === DEFAULT_TEXT ? '' : m.text;
-        return '<div class="clx-m u"><span class="who">You · ' + esc(when(m.created_at)) + '</span>' +
+        return '<div class="clx-m u"><span class="who">You · ' + esc(when(m.created_at)) + (m.page ? ' · on ' + esc(m.page) : '') + '</span>' +
           (fl.length ? '<div class="clx-atts">' + fl.map(function (f) { return chip(f, { link: true }); }).join('') + '</div>' : '') +
-          (txt ? '<div class="clx-b">' + esc(txt) + '</div>' : '') + '</div>';
+          (txt || m.quote ? '<div class="clx-b">' + (m.quote ? '<div class="clx-mq">“' + esc(m.quote) + '”</div>' : '') + esc(txt) + '</div>' : '') + '</div>';
       }
       var looked = m.looked && m.looked.length ? '<div class="clx-looked">Looked at ' + m.looked.map(function (l) { return '<span>' + esc(l) + '</span>'; }).join('') + '</div>' : '';
       return '<div class="clx-m a"><span class="who">Claude · ' + esc(when(m.created_at)) + '</span>' + looked +
@@ -620,6 +798,7 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
   }
   async function onCardClick(e) {
     var say = e.target.closest('[data-say]'); if (say) { send(say.getAttribute('data-say')); return; }
+    if (e.target.closest('[data-newchat]')) { newChat(); $('clx-in').focus(); return; }
     var ap = e.target.closest('[data-approve]'), de = e.target.closest('[data-decline]'), un = e.target.closest('[data-undo]') || e.target.closest('[data-reopen]');
     if (!ap && !de && !un) return;
     e.preventDefault();
@@ -635,21 +814,23 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     try {
       await api('/actions/' + id + '/' + verb, { method: 'POST', body: JSON.stringify({ values: values }) });
       await openChat(S.chat.chat.id);
+      tell(S.chat && S.chat.chat.id);
       if (ap) document.dispatchEvent(new CustomEvent('ssc:claude-changed', { detail: { action: +id } }));
     } catch (x) { var el = $('clx-e' + id); if (el) el.textContent = x.message; else { $('clx-msgs').insertAdjacentHTML('beforeend', '<div class="clx-err">' + esc(x.message) + '</div>'); } (ap || de || un).disabled = false; }
   }
   async function send(text) {
     text = (text || '').trim();
+    if (!text && S.quote) text = 'What about this?';
     var ready = S.files.filter(function (f) { return f.id && !f.err; });
-    if ((!text && !ready.length) || S.sending || (S.chat && S.chat.busy) || busyFiles()) return;
+    if ((!text && !ready.length) || S.sending || (S.chat && S.chat.busy) || busyFiles() || S.locked) return;
     S.sending = true; $('clx-send').disabled = true;
     try {
       if (!S.chat) { var c = await api('/chats', { method: 'POST', body: JSON.stringify({ surface: SURFACE }) }); S.chat = c.data; }
       $('clx-in').value = '';
       var r = await api('/chats/' + S.chat.chat.id + '/messages', { method: 'POST', body: JSON.stringify({ text: text, page: page(),
-        file_ids: ready.map(function (f) { return f.id; }) }) });
-      S.files = []; drawPend();
-      S.sending = false; apply(r.data);
+        quote: S.quote || undefined, refs: S.refs.length ? S.refs : undefined, file_ids: ready.map(function (f) { return f.id; }) }) });
+      S.files = []; drawPend(); S.quote = ''; S.refs = []; drawQuote(); mentClose();
+      S.sending = false; apply(r.data); tell(r.data.chat.id);
     } catch (e) {
       S.sending = false; $('clx-in').value = text;
       if (S.chat) await openChat(S.chat.chat.id);
@@ -673,6 +854,13 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
       return;
     }
     sizeFromStore();
+    drawSee();
+    if (BC) BC.onmessage = function (ev) {   // another tab switched, started or answered the conversation
+      var id = ev && ev.data ? ev.data.chat : undefined;
+      if (id === undefined || !S.loaded) return;
+      if (id === null) { if (S.chat || S.locked) { clearTimeout(S.poll); S.chat = null; S.locked = null; renderTitle(); render(); } return; }
+      openChat(+id, true);
+    };
     if (load('open') === '1') setOpen(true);
   }
   // ---- the same cards outside the drawer (the Inbox): one email's Claude pass, by its chat id
