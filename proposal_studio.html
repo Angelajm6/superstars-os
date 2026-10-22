@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
 <script src="/files/static/js/company_nav.js?v=1021"></script>
-<script src="/files/static/js/claude_drawer.js?v=14" defer></script>
+<script src="/files/static/js/claude_drawer.js?v=15" defer></script>
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
@@ -64,19 +64,74 @@
   .prow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:10px 8px;border-bottom:1px solid var(--line);font-size:13px;text-decoration:none;color:inherit;border-radius:8px}
   .prow:hover{background:var(--fill)}.prow small{display:block;color:var(--muted)}.prow b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* the proposal */
-  .ed-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  /* 2026-10-22: the toolbar stays on screen while the proposal scrolls; Claude is always one tap away */
+  .ed-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:-4px -4px 12px;padding:8px 4px;position:sticky;top:var(--ps-top,58px);z-index:4;background:var(--canvas)}
   .ed-top h2{margin:0;font-size:17px}
+  .ed-acts{display:flex;gap:8px;flex-wrap:wrap}
+  .ed-acts .sm{display:none}
+  /* the shell hides sideways overflow on narrow screens with overflow-x:hidden, which makes the main column a scroll box
+     and stops anything inside it from sticking; clip hides the overflow the same way without that */
+  @media (max-width:860px){.ssc-main{overflow-x:clip}}
   .banner{background:var(--accent-soft);border:1px solid var(--accent-edge);border-radius:10px;padding:10px 14px;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
-  .ed{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+  .banner.warn{background:var(--status-warn-soft,#FFF4E5);border-color:rgba(154,91,0,.25)}
+  .banner.bad{background:#fdecea;border-color:rgba(168,56,43,.25)}
+  .banner .sp{flex:1}
+  .ed{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
   @media (max-width:1100px){.ed{grid-template-columns:1fr}}
   .desk{background:#E4E7EE;border-radius:14px;padding:18px;overflow-x:auto}
+  @media (max-width:640px){.desk{padding:8px;border-radius:10px}}
   .doc{display:block;width:100%;max-width:860px;margin:0 auto;border:0;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.18);height:900px}
   .doc-tools{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
-  .rail{display:flex;flex-direction:column;gap:10px;position:sticky;top:12px}
-  @media (max-width:1100px){.rail{position:static}}
+  /* the right rail scrolls on its own beside a long proposal, Claude first */
+  .rail{display:flex;flex-direction:column;gap:10px;position:sticky;top:calc(var(--ps-top,58px) + var(--ps-bar,52px) + 6px);max-height:calc(100vh - var(--ps-top,58px) - var(--ps-bar,52px) - 18px);overflow:auto;overscroll-behavior:contain;padding-bottom:4px}
+  @media (max-width:1100px){.rail{position:static;max-height:none;overflow:visible}}
   .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-width:0}
   .card h3{margin:0 0 8px;font-size:13.5px}
-  .chat{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto}
+  .chat-card .chat-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .chat-card .chat-h h3{margin:0}
+  .chat-card .x{display:none;border:0;background:none;font-size:20px;line-height:1;color:var(--muted);cursor:pointer;padding:4px 8px;border-radius:8px}
+  #e-claude{display:none}
+  @media (max-width:1100px){
+    #e-claude{display:inline-flex}
+    /* tablet: Claude slides in from the right over the proposal; phone: a sheet from the bottom */
+    .chat-card{position:fixed;top:0;right:0;bottom:0;width:min(420px,100%);z-index:9060;border-radius:16px 0 0 16px;display:flex;flex-direction:column;
+      box-shadow:-10px 0 34px rgba(20,24,36,.18);transform:translateX(105%);transition:transform .22s ease;visibility:hidden}
+    .chat-card.open{transform:none;visibility:visible}
+    .chat-card .chat{max-height:none;flex:1;min-height:0}
+    .chat-card .x{display:block}
+    .chat-scrim{position:fixed;inset:0;background:rgba(20,24,36,.28);z-index:9055}
+  }
+  /* one Claude button while editing on a narrow screen: the toolbar's (the page-wide one would be a second, different chat) */
+  @media (max-width:1100px){body.ps-editing #clx-fab{display:none}}
+  @media (max-width:640px){
+    .ed-acts{flex-wrap:nowrap;gap:6px;width:100%}
+    .ed-acts>.btn-sm{flex:1 1 auto;min-width:0;justify-content:center;text-align:center;padding-left:6px;padding-right:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ed-acts .lg{display:none}.ed-acts .sm{display:inline}
+    .ed-top.stuck>div:first-child{display:none}
+    .chat-card{top:auto;left:0;width:100%;height:min(78vh,620px);border-radius:16px 16px 0 0;transform:translateY(105%);box-shadow:0 -10px 34px rgba(20,24,36,.18);padding-bottom:max(14px,env(safe-area-inset-bottom))}
+    .ed-top h2{font-size:15px}
+  }
+  .chat{display:flex;flex-direction:column;gap:8px;max-height:min(340px,42vh);overflow:auto}
+  .inl button:disabled,.inl input:disabled{opacity:.6}
+  /* revisions (2026-10-22) */
+  .rv{display:flex;flex-direction:column;gap:8px}
+  .rv-item{border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:12.5px;line-height:1.45}
+  .rv-item .h{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:3px}
+  .rv-item .m{color:var(--muted);font-size:12px}
+  .rv-item .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+  .pill.pending{background:var(--status-warn-soft,#FFF4E5);color:var(--status-warn,#9A5B00)}
+  .pill.approved{background:var(--status-complete-soft,#e7f6f0);color:var(--status-complete-deep,#0c7a5f)}
+  .pill.rejected{background:#fdecea;color:var(--status-behind-deep,#A8382B)}
+  .pill.withdrawn{background:var(--fill);color:var(--muted)}
+  .ex-list{display:flex;flex-direction:column;gap:5px}
+  .ex-list div{display:flex;gap:8px;align-items:flex-start;font-size:12px;line-height:1.4;background:var(--fill);border-radius:8px;padding:6px 8px}
+  .ex-list div span{flex:1}
+  /* send: review before it goes */
+  .thr{border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:12.5px;line-height:1.45;background:var(--fill)}
+  .thr b{display:block}
+  .rev{display:grid;grid-template-columns:84px minmax(0,1fr);gap:6px 10px;font-size:13px}
+  .rev>span{color:var(--muted);font-weight:600;font-size:12px}
+  .rev .msg-pre{white-space:pre-wrap;background:var(--fill);border-radius:8px;padding:8px 10px;max-height:180px;overflow:auto}
   .msg{font-size:13px;line-height:1.5;padding:8px 11px;border-radius:10px;max-width:92%;white-space:pre-wrap}
   .msg.c{background:var(--accent-soft);align-self:flex-start}.msg.u{background:var(--fill);align-self:flex-end}
   .msg .undo{border:0;background:none;color:var(--accent-ink);font:inherit;font-weight:600;font-size:12px;padding:0;margin-left:6px;text-decoration:underline;cursor:pointer}
@@ -206,11 +261,14 @@
 
   <!-- the proposal -->
   <section id="v-edit" hidden>
-    <div class="ed-top">
-      <div><h2 id="e-title">Proposal</h2><div class="muted"><span id="e-num"></span> · <span class="pill" id="e-status"></span> · <span id="e-saved">Saved</span> · click any text to edit it</div></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-ghost btn-sm" type="button" id="e-view">View PDF</button><a class="btn-ghost btn-sm" id="e-pdf" href="#" download>Download PDF</a><button class="btn-primary btn-sm" type="button" id="e-send">Send…</button></div>
+    <div class="ed-top" id="ed-top">
+      <div><h2 id="e-title">Proposal</h2><div class="muted"><span id="e-num"></span> · <span class="pill" id="e-status"></span> · <span id="e-total" class="num"></span> · <span id="e-saved">Saved</span><span id="e-hint"> · click any text to edit it</span></div></div>
+      <div class="ed-acts"><button class="btn-ghost btn-sm" type="button" id="e-claude" aria-controls="chat-card" aria-expanded="false" aria-label="Ask Claude"><span class="lg">✦ Ask Claude</span><span class="sm">✦ Claude</span></button><button class="btn-ghost btn-sm" type="button" id="e-view">View PDF</button><a class="btn-ghost btn-sm" id="e-pdf" href="#" download aria-label="Download PDF"><span class="lg">Download PDF</span><span class="sm">Download</span></a><button class="btn-primary btn-sm" type="button" id="e-send">Send…</button></div>
     </div>
-    <div class="banner" id="e-locked" hidden><span id="e-locked-t"></span><button class="btn-ghost btn-sm" type="button" id="e-version">Make a new version to edit</button></div>
+    <div class="banner bad" id="e-problem" hidden role="alert"></div>
+    <div class="banner" id="e-revises" hidden></div>
+    <div class="banner warn" id="e-expiry" hidden><span id="e-expiry-t"></span><span class="sp"></span><button class="btn-ghost btn-sm" type="button" id="e-follow">Draft a follow-up</button></div>
+    <div class="banner" id="e-locked" hidden><span id="e-locked-t"></span><span class="sp"></span><button class="btn-ghost btn-sm" type="button" id="e-review-rv" hidden>Review the request</button><button class="btn-ghost btn-sm" type="button" id="e-request">Request a revision…</button><button class="btn-ghost btn-sm" type="button" id="e-version">Make a new version</button></div>
     <div class="ed">
       <div>
         <div class="desk"><iframe class="doc" id="doc" title="The proposal: click any text to edit it" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe></div>
@@ -218,13 +276,16 @@
           <button class="btn-ghost btn-sm" type="button" data-addlist="notes" hidden>+ Note</button><button class="btn-ghost btn-sm" type="button" data-addlist="deliverables" hidden>+ Deliverable</button><button class="btn-ghost btn-sm" type="button" data-addlist="exclusions" hidden>+ Exclusion</button></div>
       </div>
       <aside class="rail">
+        <div class="chat-scrim" id="chat-scrim" hidden></div>
+        <div class="card chat-card" id="chat-card" role="region" aria-label="Ask Claude to change the proposal"><div class="chat-h"><h3>Ask Claude to change it</h3><button class="x" type="button" id="chat-x" aria-label="Close">×</button></div>
+          <div class="chat" id="chat" aria-live="polite"><div class="msg c">Click any outlined text to edit it, or tell me what to change. The fixed wording and the totals take care of themselves.</div></div>
+          <div class="quick"><button class="chip" type="button" data-ask="Add a 10% contingency line">+ 10% contingency</button><button class="chip" type="button" data-ask="Make the scope shorter">Shorter scope</button><button class="chip" type="button" data-ask="Split the work into two phases with their own lines">Two phases</button></div>
+          <form class="inl" id="chat-form"><input class="fld" id="chat-in" placeholder="e.g. “lintels at $2,600 each”" aria-label="Ask Claude to change the proposal"><button class="btn-ghost btn-sm" type="submit" id="chat-go">Send</button></form>
+        </div>
+        <div class="card" id="rv-card" hidden><h3>Revisions</h3><div class="rv" id="rv"></div></div>
         <div class="card" id="ck-card" hidden><h3>Ready to send</h3><div class="ck" id="ck"></div>
           <div class="ck-note">The app checks these, not Claude. Send stays off while anything is red.</div></div>
-        <div class="card"><h3>Ask Claude to change it</h3>
-          <div class="chat" id="chat"><div class="msg c">Click any outlined text to edit it, or tell me what to change. The fixed wording and the totals take care of themselves.</div></div>
-          <div class="quick"><button class="chip" type="button" data-ask="Add a 10% contingency line">+ 10% contingency</button><button class="chip" type="button" data-ask="Make the scope shorter">Shorter scope</button><button class="chip" type="button" data-ask="Split the work into two phases with their own lines">Two phases</button></div>
-          <form class="inl" id="chat-form"><input class="fld" id="chat-in" placeholder="e.g. “lintels at $2,600 each”" aria-label="Ask Claude to change the proposal"><button class="btn-ghost btn-sm" type="submit">Send</button></form>
-        </div>
+        <details class="more" id="ex-box" hidden><summary>Excluded paragraphs</summary><div class="in"><div class="muted">Taken out of this proposal as not relevant to this job. Claude won't add them back.</div><div class="ex-list" id="ex-list"></div></div></details>
         <details class="more"><summary>Details</summary><div class="in">
           <div id="e-head-row" hidden><span class="lbl">Heading</span><div class="seg" id="e-head"><button type="button" data-head="ESTIMATE">ESTIMATE</button><button type="button" data-head="PROPOSAL">PROPOSAL</button></div></div>
           <div class="row2" id="e-legacy-row"><div><label class="lbl" for="e-valid">Valid until</label><input class="fld" id="e-valid" type="date"></div>
@@ -297,17 +358,49 @@
 <div class="scrim" id="send-m" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="s-h">
     <h3 id="s-h">Send the proposal</h3>
-    <div class="seg" id="s-how"><button type="button" data-how="reply">Reply to an email</button><button type="button" data-how="new">New email</button></div>
-    <div class="mr" id="s-thread-row"><span>Email</span><select class="fld" id="s-thread" aria-label="Email to reply to"></select></div>
-    <div class="mr" id="s-to-row"><span>To</span><input class="fld" id="s-to" list="s-people" placeholder="name@company.com, …"></div>
-    <div class="mr" id="s-cc-row"><span>Cc</span><input class="fld" id="s-cc" list="s-people" placeholder="optional"></div>
-    <datalist id="s-people"></datalist>
-    <div class="mr"><span>Subject</span><input class="fld" id="s-subject"></div>
-    <textarea class="fld" id="s-msg" rows="7" aria-label="Message"></textarea>
-    <div><span class="att"><i>PDF</i><span id="s-file"></span></span> <span class="muted" id="s-from"></span></div>
+    <div id="s-step1" style="display:flex;flex-direction:column;gap:10px">
+      <div class="seg" id="s-how" role="tablist" aria-label="How to send it"><button type="button" data-how="reply">Reply in a client's email thread</button><button type="button" data-how="new">New email</button></div>
+      <div id="s-reply-box" style="display:flex;flex-direction:column;gap:8px">
+        <div class="mr"><span>Thread</span><select class="fld" id="s-thread" aria-label="Email thread to reply in"></select></div>
+        <form class="inl" id="s-find" role="search"><input class="fld" id="s-q" placeholder="Search your inbox for another thread" aria-label="Search your inbox"><button class="btn-ghost btn-sm" type="submit">Search</button></form>
+        <div class="muted" id="s-nothr" hidden></div>
+        <div class="thr" id="s-thr" hidden></div>
+      </div>
+      <div class="mr" id="s-to-row"><span>To</span><input class="fld" id="s-to" list="s-people" placeholder="name@company.com, …" autocomplete="off"></div>
+      <div class="mr" id="s-cc-row"><span>Cc</span><input class="fld" id="s-cc" list="s-people" placeholder="optional" autocomplete="off"></div>
+      <datalist id="s-people"></datalist>
+      <div class="mr"><span>Subject</span><input class="fld" id="s-subject" autocomplete="off"></div>
+      <textarea class="fld" id="s-msg" rows="6" aria-label="Message"></textarea>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="att"><i>PDF</i><span id="s-file"></span></span><span class="num muted" id="s-amt"></span><button class="btn-ghost btn-sm" type="button" id="s-pdfview">Preview the PDF</button><span class="muted" id="s-from"></span></div>
+    </div>
+    <div id="s-step2" hidden style="display:flex;flex-direction:column;gap:10px">
+      <div class="muted">Check it once more. Nothing is sent until you press Send now.</div>
+      <div class="rev" id="s-rev"></div>
+    </div>
     <div class="err" id="s-err" role="alert"></div>
-    <div class="mfoot"><button class="btn-ghost" type="button" id="s-cancel">Cancel</button><button class="btn-primary" type="button" id="s-send">Send from my Gmail</button></div>
+    <div class="mfoot"><button class="btn-ghost" type="button" id="s-cancel">Cancel</button><button class="btn-ghost" type="button" id="s-back" hidden>Back</button><button class="btn-primary" type="button" id="s-next">Review…</button><button class="btn-primary" type="button" id="s-send" hidden>Send now from my Gmail</button></div>
   </div>
+</div>
+<!-- revisions (2026-10-22): ask for one; an admin decides -->
+<div class="scrim" id="rq-m" hidden>
+  <form class="modal" id="rq-f" role="dialog" aria-modal="true" aria-labelledby="rq-h" autocomplete="off">
+    <h3 id="rq-h">Request a revision</h3>
+    <div class="muted">An admin approves or rejects it. The proposal the client has stays exactly as sent until a new version is sent.</div>
+    <div><label class="lbl" for="rq-reason">What should change, and why</label><textarea class="fld" id="rq-reason" rows="4" placeholder="e.g. A week after we sent it the client asked for a price review: they have a lower number for the drops."></textarea></div>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="rq-price"> This is a price review</label>
+    <div id="rq-price-row" hidden><label class="lbl" for="rq-amount">Price you'd propose (optional)</label><input class="fld" id="rq-amount" inputmode="decimal" placeholder="$0.00"></div>
+    <div class="err" id="rq-err" role="alert"></div>
+    <div class="mfoot"><button class="btn-ghost" type="button" id="rq-cancel">Cancel</button><button class="btn-primary" type="submit" id="rq-go">Ask an admin</button></div>
+  </form>
+</div>
+<div class="scrim" id="dc-m" hidden>
+  <form class="modal" id="dc-f" role="dialog" aria-modal="true" aria-labelledby="dc-h" autocomplete="off">
+    <h3 id="dc-h">Approve the revision</h3>
+    <div class="muted" id="dc-sub"></div>
+    <div><label class="lbl" for="dc-note">Note for the person who asked (optional)</label><textarea class="fld" id="dc-note" rows="3"></textarea></div>
+    <div class="err" id="dc-err" role="alert"></div>
+    <div class="mfoot"><button class="btn-ghost" type="button" id="dc-cancel">Cancel</button><button class="btn-primary" type="submit" id="dc-go">Approve</button></div>
+  </form>
 </div>
 <div class="ps-toast" id="toast" role="status"></div>
 <script>
@@ -315,9 +408,10 @@
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = n => '$' + (+n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const money2 = n => '$' + (+n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtDate = iso => { if (!iso) return ''; const [y, m, d] = String(iso).slice(0, 10).split('-'); return `${m}/${d}/${y}`; };
-  const S = { id: null, v: null, job: null, files: [], stepT: null, how: 'new' };
-  const STEPS = ['Loading your fixed wording', 'Finding your closest past proposals and prices', 'Looking up the client', 'Reading what you attached', 'Writing the proposal'];
+  const S = { id: null, v: null, job: null, files: [], how: 'new', send: null, preview: null, asking: false };
+  const STEPS = ['Loading your fixed wording', 'Finding your closest past proposals and prices', 'Looking up the client', 'Reading what you attached', 'Writing the proposal', 'Saving the draft'];
   const LISTS = ['notes', 'deliverables', 'exclusions'], MULTI = ['submitted_to', 'project', 'reference'];
   const ssc = () => !!(S.v && S.v.layout === 'ssc');
   let tT = null;
@@ -333,10 +427,12 @@
   // ---------------- tabs (#new, #p/<id>, #past; old #style links land on #past)
   function show(step) {
     ['new', 'edit', 'past', 'wording'].forEach(k => $('v-' + k).hidden = k !== step);
+    document.body.classList.toggle('ps-editing', step === 'edit');
     document.querySelectorAll('[data-step]').forEach(b => { b.classList.toggle('on', b.dataset.step === step); if (b.dataset.step === 'edit') b.disabled = !S.id; });
   }
   async function route() {
     const h = location.hash.replace(/^#/, '');
+    ['send-m', 'rq-m', 'dc-m', 'arch-m'].forEach(id => { $(id).hidden = true; }); chatPanel(false);
     const m = /^p\/(\d+)(\/send)?$/.exec(h);
     if (m) { await openProposal(+m[1]); show('edit'); if (m[2]) openSend(); return; }
     if (h === 'past' || h === 'style') { show('past'); loadPast(); return; }
@@ -349,7 +445,21 @@
     const st = b.dataset.step; location.hash = st === 'new' ? '#new' : st === 'past' ? '#past' : st === 'wording' ? '#wording' : (S.id ? '#p/' + S.id : '#new');
   }));
   window.addEventListener('hashchange', route);
-  window.addEventListener('resize', () => { if (S.fit) S.fit(); });
+  // the toolbar and the right rail stick just under the page header (its height differs on a phone)
+  function bars() {   // where the page's own sticky headers end (they stack differently on a phone)
+    let h = 0;
+    document.querySelectorAll('.ssc-side, .ssc-top').forEach(el => {
+      const pos = getComputedStyle(el).position, r = el.getBoundingClientRect();
+      if ((pos === 'sticky' || pos === 'fixed') && r.bottom > 0 && r.top < 200 && r.width < innerWidth + 1 && r.height < 200) h = Math.max(h, Math.round(r.bottom));
+    });
+    document.documentElement.style.setProperty('--ps-top', h + 'px');
+    const bar = $('ed-top');
+    bar.classList.toggle('stuck', !$('v-edit').hidden && bar.getBoundingClientRect().top <= h + 1 && scrollY > 0);
+    document.documentElement.style.setProperty('--ps-bar', (bar.offsetHeight || 52) + 'px');
+  }
+  let barsT = 0;
+  window.addEventListener('scroll', () => { if (!barsT) barsT = requestAnimationFrame(() => { barsT = 0; bars(); }); }, { passive: true });
+  window.addEventListener('resize', () => { if (S.fit) S.fit(); bars(); if (innerWidth > 1100) chatPanel(false); });
 
   // ---------------- new proposal
   let newLoaded = false;
@@ -401,19 +511,23 @@
     try { const r = await api('/proposal-studio/drafts', { method: 'POST', body: JSON.stringify(body) }); S.job = r.job; working(r.steps); pollJob(); }
     catch (x) { $('a-err').textContent = x.message; $('a-go').disabled = false; $('a-go').textContent = '✦ Write it'; }
   });
+  // the steps show what the server is really doing (2026-10-22: they used to advance on a timer)
   function working(steps) {
     const w = $('a-working'); w.hidden = false;
     w.innerHTML = steps.map((s, i) => `<div class="wk" data-w="${i}"><i></i>${esc(s)}</div>`).join('');
-    let shown = 0; clearInterval(S.stepT);
-    S.stepT = setInterval(() => { shown = Math.min(shown + 1, steps.length - 1); markStep(shown); }, 5000); markStep(0);
+    S.jobT0 = Date.now(); markStep(0);
   }
-  function markStep(n) { document.querySelectorAll('#a-working .wk').forEach((x, i) => x.className = 'wk' + (i < n ? ' done' : i === n ? ' cur' : '')); }
+  function markStep(n) {
+    document.querySelectorAll('#a-working .wk').forEach((x, i) => x.className = 'wk' + (i < n ? ' done' : i === n ? ' cur' : ''));
+    const cur = document.querySelector('#a-working .wk.cur'), secs = Math.round((Date.now() - (S.jobT0 || Date.now())) / 1000);
+    if (cur && n === 4 && secs >= 8) cur.lastChild.textContent = `${STEPS[4]} · ${secs}s (usually under a minute)`;
+  }
   async function pollJob() {
     try {
       const j = await api('/proposal-studio/jobs/' + S.job);
-      if (j.state === 'working') { setTimeout(pollJob, 1500); return; }
+      if (j.state === 'working') { markStep(j.step || 0); setTimeout(pollJob, 1000); return; }
       S.job = null;
-      clearInterval(S.stepT); $('a-go').disabled = false; $('a-go').textContent = '✦ Write it';
+      $('a-go').disabled = false; $('a-go').textContent = '✦ Write it';
       if (j.state === 'failed') { $('a-working').hidden = true; $('a-err').textContent = j.error || 'Claude could not finish the draft.'; return; }
       $('a-working').hidden = true; S.files = []; drawAtts(); $('a-what').value = '';
       location.hash = '#p/' + j.proposal_id; toast('Draft ready. Click any text to edit it');
@@ -431,23 +545,72 @@
     S.v = v; const p = v.proposal;
     $('e-title').textContent = (p.title || 'Proposal') + ' · ' + (p.client_name || '');
     $('e-num').textContent = /^\d/.test(v.label || '') ? 'Proposal No. ' + v.label : (v.label || p.number) + (p.version > 1 ? ' (version ' + p.version + ')' : '');
+    $('e-total').textContent = money2(v.amounts.total);   // the same total the PDF, the email and every list show
     const lay = ssc();
     $('ck-card').hidden = !lay; $('e-head-row').hidden = !lay; $('e-legacy-row').hidden = lay; $('e-secs-row').hidden = lay; $('e-addsec').hidden = lay;
     document.querySelectorAll('[data-addlist]').forEach(b => b.hidden = !lay);
     if (lay) { drawChecks(v); document.querySelectorAll('[data-head]').forEach(b => { b.classList.toggle('on', b.dataset.head === (v.content.heading || 'ESTIMATE')); b.disabled = !v.editable; }); }
-    $('e-status').textContent = p.status[0].toUpperCase() + p.status.slice(1); $('e-status').className = 'pill ' + p.status;
+    const st = p.display_status || p.status;
+    $('e-status').textContent = st[0].toUpperCase() + st.slice(1); $('e-status').className = 'pill ' + p.status;
     $('e-pdf').href = `/api/proposals/${p.id}/pdf`;
-    $('e-locked').hidden = v.editable; $('e-send').hidden = !v.editable;
-    $('e-send').disabled = lay && v.checks.some(x => x.level === 'block'); $('e-send').title = $('e-send').disabled ? 'Fix the red items on the checklist first' : '';
-    $('e-locked-t').textContent = p.status === 'signed' ? 'Signed: this proposal is final.' : `This proposal was ${p.status}${p.sent_at ? ' on ' + fmtDate(p.sent_at) : ''}. The sent copy stays as it was.`;
-    $('e-version').hidden = !['sent', 'viewed', 'declined'].includes(p.status);
+    $('e-hint').hidden = !v.editable;
+    $('e-send').hidden = !v.editable;
+    $('e-send').disabled = (lay && v.checks.some(x => x.level === 'block')) || !!v.revision_problem;
+    $('e-send').title = v.revision_problem ? v.revision_problem : ($('e-send').disabled ? 'Fix the red items on the checklist first' : '');
+    // sent, signed or replaced: read only, with the way to change it (an admin decides revisions)
+    const pending = (v.revisions || []).find(r => r.status === 'pending' && r.proposal_id === p.id);
+    const revisable = ['sent', 'viewed', 'declined'].includes(p.status), admin = !!(v.me && v.me.is_admin);
+    $('e-locked').hidden = v.editable;
+    $('e-locked-t').textContent = p.status === 'signed' ? 'Signed: this proposal is final.'
+      : p.status === 'superseded' ? 'Replaced by a newer version. This copy is kept as it was sent.'
+      : pending ? `Sent${p.sent_at ? ' ' + fmtDate(p.sent_at) : ''}. A revision is waiting for an admin; the client still has this copy.`
+      : `This proposal was ${p.status}${p.sent_at ? ' on ' + fmtDate(p.sent_at) : ''}. The sent copy stays as it was.`;
+    $('e-request').hidden = !revisable || !!pending || admin;
+    $('e-review-rv').hidden = !pending || !admin;
+    $('e-version').hidden = !revisable || !!pending || !admin;
+    // follow up before it lapses (opens Claude with the request typed in; nothing is sent from here)
+    const n = p.expires_in_days;
+    $('e-expiry').hidden = n == null || n > 7;
+    if (n != null) $('e-expiry-t').textContent = n < 0 ? `Expired ${-n} day${n === -1 ? '' : 's'} ago with no answer from ${p.client_name || 'the client'}.`
+      : `Expires ${n === 0 ? 'today' : n === 1 ? 'tomorrow' : 'in ' + n + ' days'} (${fmtDate(p.valid_until)}) and ${p.client_name || 'the client'} hasn't answered yet.`;
+    $('e-revises').hidden = !v.revises;
+    if (v.revises) $('e-revises').innerHTML = `This is a revision of proposal <a href="#p/${v.revises.id}">${esc(v.revises.label)}</a> (${esc(v.revises.status)}). ` +
+      (v.revises.status === 'superseded' ? 'It replaced that version when it was sent.' : 'The client keeps that version until you send this one.');
+    $('e-problem').hidden = !v.revision_problem; $('e-problem').textContent = v.revision_problem || '';
+    drawRevisions(v);
+    drawExcluded(v);
     $('doc-tools').hidden = !v.editable;
     $('e-used-box').hidden = !v.sources.length;
     $('e-used').innerHTML = v.sources.map(s => `<div><i>✓</i>${esc(s)}</div>`).join('');
     $('e-valid').value = (p.valid_until || '').slice(0, 10); $('e-dep').value = p.deposit_pct != null ? p.deposit_pct : '';
     $('e-valid').disabled = $('e-dep').disabled = !v.editable;
+    $('chat-in').disabled = $('chat-go').disabled = !v.editable || S.asking;
+    $('chat-in').placeholder = v.editable ? 'e.g. “lintels at $2,600 each”' : 'Sent proposals don’t change. Make a new version to edit.';
     if (!lay) drawSecs(); paint(v.html, flash);
     document.querySelectorAll('[data-step="edit"]').forEach(b => b.disabled = false);
+    bars();
+  }
+  const RV_WORD = { pending: 'Waiting for an admin', approved: 'Approved', rejected: 'Rejected', withdrawn: 'Withdrawn' };
+  function drawRevisions(v) {
+    const list = v.revisions || [], p = v.proposal, me = v.me || {};
+    $('rv-card').hidden = !list.length;
+    $('rv').innerHTML = list.map(r => {
+      const mine = r.requested_by === me.id, here = r.proposal_id === p.id;
+      const acts = r.status === 'pending' && here ? (me.is_admin
+          ? `<button class="btn-primary btn-sm" type="button" data-rv="approve" data-id="${r.id}">Approve</button><button class="btn-ghost btn-sm" type="button" data-rv="reject" data-id="${r.id}">Reject</button>`
+          : '<span class="m">Only an admin can approve or reject it.</span>') + (mine ? `<button class="btn-ghost btn-sm" type="button" data-rv="withdraw" data-id="${r.id}">Withdraw</button>` : '')
+        : (r.status === 'approved' && r.new_proposal_id && r.new_proposal_id !== p.id ? `<a class="btn-ghost btn-sm" href="#p/${r.new_proposal_id}">Open the new version</a>` : '');
+      return `<div class="rv-item"><div class="h"><b>${r.price_review ? 'Price review' : 'Revision'}${here ? '' : ' of ' + esc(r.label)}</b><span class="pill ${esc(r.status)}">${esc(RV_WORD[r.status] || r.status)}</span></div>` +
+        `<div>${esc(r.reason)}${r.proposed_price ? ` <b class="num">Proposed ${money2(r.proposed_price)}</b>` : ''}</div>` +
+        `<div class="m">${esc(r.requested_by_name || 'Someone')} · ${fmtDate(r.requested_at)}${r.decided_at && r.status !== 'pending' ? ` · ${esc(RV_WORD[r.status])} by ${esc(r.decided_by_name || 'an admin')} ${fmtDate(r.decided_at)}` : ''}</div>` +
+        (r.decision_note ? `<div class="m">“${esc(r.decision_note)}”</div>` : '') + (acts ? `<div class="acts">${acts}</div>` : '') + '</div>';
+    }).join('');
+  }
+  function drawExcluded(v) {
+    const ex = (v.content && v.content.excluded) || [];
+    $('ex-box').hidden = !ssc() || !ex.length;
+    const KIND = { notes: 'Note', exclusions: 'Exclusion', deliverables: 'Deliverable' };
+    $('ex-list').innerHTML = ex.map(x => `<div><span><b>${KIND[x.kind] || ''}:</b> ${esc(x.text)}</span>${v.editable ? `<button class="btn-ghost btn-sm" type="button" data-restore="${esc(x.text)}">Put back</button>` : ''}</div>`).join('');
   }
   function paint(html, flash) {
     const f = $('doc'), y = f.contentWindow ? f.contentWindow.scrollY : 0;
@@ -476,6 +639,7 @@
         b.addEventListener('click', () => { const lines = readLines(); lines.splice(+tr.dataset.li, 1); save({}, lines, true); });
         td.appendChild(b);
       });
+      if (S.v.editable && ssc()) paraTools(d);
       (flash || []).forEach(k => {
         const els = k === 'lines' ? d.querySelectorAll('tr[data-li]') : d.querySelectorAll(`[data-f="${k}"]`);
         els.forEach(x => { x.classList.add('ssc-flash'); setTimeout(() => x.classList.remove('ssc-flash'), 1800); });
@@ -485,6 +649,54 @@
     };
     f.srcdoc = html;
   }
+  // paragraph controls (2026-10-22): beside the note / exclusion / deliverable being pointed at or edited, "Exclude" takes
+  // it out of this proposal (listed under Excluded paragraphs, so it can be put back) and, for wording Claude wrote that
+  // isn't in the library yet, "Keep" OKs it, as the checklist does. The bar lives outside the paragraph's own text.
+  function paraTools(d) {
+    const st = d.createElement('style');
+    st.textContent = '.ssc-pt{position:absolute;z-index:5;display:none;gap:4px;background:#fff;border:1px solid #d9dce4;border-radius:8px;padding:3px;box-shadow:0 4px 14px rgba(20,24,36,.14);font:600 11px Inter,Arial,sans-serif}' +
+      '.ssc-pt button{border:0;background:none;border-radius:6px;padding:5px 8px;cursor:pointer;font:inherit;color:#384152}.ssc-pt button:hover{background:#eef1f7}' +
+      '.ssc-pt button.x{color:#A8382B}.ssc-pt.on{display:flex}li.ssc-pt-on{background:rgba(67,100,220,.06)}';
+    d.head.appendChild(st);
+    const bar = d.createElement('div'); bar.className = 'ssc-pt'; bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-label', 'Paragraph');
+    d.body.appendChild(bar);
+    let cur = null, hideT = null;
+    const place = li => {
+      clearTimeout(hideT);
+      if (cur && cur !== li) cur.classList.remove('ssc-pt-on');
+      cur = li; li.classList.add('ssc-pt-on');
+      const flagged = li.classList.contains('new');
+      bar.innerHTML = (flagged ? '<button type="button" data-pt="keep" title="It fits: add it to your library">✓ Keep</button>' : '') +
+        '<button type="button" class="x" data-pt="exclude" title="Not relevant to this job: take it out">✕ Exclude</button>';
+      const r = li.getBoundingClientRect(), w = d.defaultView, z = parseFloat(d.documentElement.style.zoom) || 1;   // a phone shows the sheet zoomed out
+      bar.classList.add('on');
+      bar.style.top = Math.max(0, (r.top + w.scrollY) / z - bar.offsetHeight - 4) + 'px';
+      bar.style.left = Math.max(4, (r.right + w.scrollX) / z - bar.offsetWidth) + 'px';
+    };
+    const off = () => { hideT = setTimeout(() => { bar.classList.remove('on'); if (cur) cur.classList.remove('ssc-pt-on'); cur = null; }, 250); };
+    d.querySelectorAll('li[data-f]').forEach(li => {
+      li.addEventListener('mouseenter', () => place(li)); li.addEventListener('focus', () => place(li));
+      li.addEventListener('mouseleave', off); li.addEventListener('blur', off);
+    });
+    bar.addEventListener('mouseenter', () => clearTimeout(hideT)); bar.addEventListener('mouseleave', off);
+    bar.addEventListener('mousedown', e => e.preventDefault());   // keep the paragraph's text as typed until the click lands
+    bar.addEventListener('click', async e => {
+      const b = e.target.closest('[data-pt]'); if (!b || !cur) return;
+      const k = cur.dataset.f, i = +cur.dataset.i;
+      await flushNow();
+      const text = ((S.v.content || {})[k] || [])[i];
+      if (text == null) return;
+      paragraph(b.dataset.pt, text);
+    });
+  }
+  async function paragraph(verb, text) {
+    try {
+      if (verb === 'keep') { draw(await api('/proposal-studio/' + S.id + '/keep', { method: 'POST', body: JSON.stringify({ text }) })); toast('Kept: added to your library'); return; }
+      draw(await api('/proposal-studio/' + S.id + '/' + verb, { method: 'POST', body: JSON.stringify({ text }) }));
+      toast(verb === 'exclude' ? 'Excluded from this proposal. Put it back under Excluded paragraphs' : 'Put back');
+    } catch (x) { toast(x.message, true); }
+  }
+  $('ex-list').addEventListener('click', e => { const b = e.target.closest('[data-restore]'); if (b) paragraph('restore', b.dataset.restore); });
   const txt = el => (el.innerText || '').replace(/ /g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   function readLines() {
     const d = $('doc').contentDocument;
@@ -529,8 +741,9 @@
       $('e-saved').textContent = 'Saved';
       if (redraw) draw(v, flash);
       else {
-        S.v = Object.assign(S.v, { proposal: v.proposal, lines: v.lines, sections: v.sections, content: v.content, checks: v.checks, new_clauses: v.new_clauses });
-        if (ssc()) { drawChecks(S.v); $('e-send').disabled = S.v.checks.some(x => x.level === 'block'); }
+        S.v = Object.assign(S.v, { proposal: v.proposal, lines: v.lines, sections: v.sections, content: v.content, checks: v.checks, new_clauses: v.new_clauses, amounts: v.amounts });
+        $('e-total').textContent = money2(v.amounts.total);
+        if (ssc()) { drawChecks(S.v); $('e-send').disabled = S.v.checks.some(x => x.level === 'block') || !!S.v.revision_problem; }
       }
     } catch (x) { $('e-saved').textContent = 'Not saved'; toast(x.message, true); }
   }
@@ -544,13 +757,14 @@
     $('ck').innerHTML = v.checks.map(x => {
       const m = /^Not in your library yet: “(.*)”\. Read it once\.$/.exec(x.text);
       const full = m ? nc.find(c => c.startsWith(m[1].replace(/…$/, ''))) : null;
-      return `<div class="${x.level}"><i>${ico[x.level]}</i><span>${esc(x.text)}</span>${full != null ? `<button class="btn-ghost btn-sm" type="button" data-keep="${esc(full)}">Keep it</button>` : ''}</div>`;
+      const ctl = full != null && v.editable ? `<button class="btn-ghost btn-sm" type="button" data-keep="${esc(full)}">Keep it</button><button class="btn-ghost btn-sm" type="button" data-exclude="${esc(full)}" style="margin-left:0">Exclude</button>` : '';
+      return `<div class="${x.level}"><i>${ico[x.level]}</i><span>${esc(x.text)}</span>${ctl}</div>`;
     }).join('');
   }
   $('ck').addEventListener('click', async e => {
-    const b = e.target.closest('[data-keep]'); if (!b) return; b.disabled = true;
-    try { draw(await api('/proposal-studio/' + S.id + '/keep', { method: 'POST', body: JSON.stringify({ text: b.dataset.keep }) })); toast('Added to your library'); }
-    catch (x) { toast(x.message, true); b.disabled = false; }
+    const b = e.target.closest('[data-keep], [data-exclude]'); if (!b) return; b.disabled = true;
+    await flushNow();
+    await paragraph(b.dataset.keep != null ? 'keep' : 'exclude', b.dataset.keep != null ? b.dataset.keep : b.dataset.exclude);
   });
   $('e-addsec').addEventListener('click', () => { const x = readExtras(); x.push({ heading: 'New section', body: 'Type here, or ask Claude to write it.' }); save({ extra_sections: x }, null, true, ['x' + (x.length - 1) + 'h']); });
   const SECS = [['intro', 'Opening letter'], ['scope', 'Scope of work'], ['schedule', 'Schedule'], ['exclusions', 'Exclusions'], ['terms', 'Payment terms']];
@@ -567,22 +781,86 @@
   $('e-secs').addEventListener('click', e => { const b = e.target.closest('[data-rmsec]'); if (!b) return; const x = readExtras(); x.splice(+b.dataset.rmsec, 1); save({ extra_sections: x }, null, true); });
   $('e-valid').addEventListener('change', () => save({ valid_until: $('e-valid').value }, null, true));
   $('e-dep').addEventListener('change', () => save({ deposit_pct: $('e-dep').value }, null, true));
+  // ---------------- revisions: anyone asks, an admin decides (the server checks the role too)
   $('e-version').addEventListener('click', async () => {
+    if (!confirm('Make a new version to edit? The client keeps the sent copy until you send the new one.')) return;
     try { const r = await api('/proposal-studio/' + S.id + '/new-version', { method: 'POST', body: '{}' }); S.v = null; location.hash = '#p/' + r.id; toast(r.number + ' is ready to edit'); }
     catch (x) { toast(x.message, true); }
   });
+  $('e-review-rv').addEventListener('click', () => { $('rv-card').scrollIntoView({ behavior: 'smooth', block: 'center' }); const b = $('rv').querySelector('[data-rv="approve"]'); if (b) setTimeout(() => b.focus(), 400); });
+  $('e-request').addEventListener('click', () => {
+    $('rq-err').textContent = ''; $('rq-reason').value = ''; $('rq-price').checked = false; $('rq-amount').value = ''; $('rq-price-row').hidden = true;
+    $('rq-m').hidden = false; setTimeout(() => $('rq-reason').focus(), 30);
+  });
+  $('rq-price').addEventListener('change', () => { $('rq-price-row').hidden = !$('rq-price').checked; });
+  $('rq-cancel').addEventListener('click', () => { $('rq-m').hidden = true; });
+  $('rq-f').addEventListener('submit', async e => {
+    e.preventDefault(); const b = $('rq-go'); b.disabled = true; $('rq-err').textContent = '';
+    try {
+      await api('/proposals/' + S.id + '/revisions', { method: 'POST', body: JSON.stringify({ reason: $('rq-reason').value, price_review: $('rq-price').checked,
+        proposed_price: $('rq-price').checked ? $('rq-amount').value : null }) });
+      $('rq-m').hidden = true; toast('Sent to the admins for approval'); S.v = null; await openProposal(S.id, false);
+    } catch (x) { $('rq-err').textContent = x.message; }
+    finally { b.disabled = false; }
+  });
+  $('rv').addEventListener('click', async e => {
+    const b = e.target.closest('[data-rv]'); if (!b) return;
+    const verb = b.dataset.rv, r = (S.v.revisions || []).find(x => String(x.id) === b.dataset.id); if (!r) return;
+    if (verb === 'withdraw') {
+      if (!confirm('Withdraw this revision request?')) return;
+      try { await api('/proposals/revisions/' + r.id + '/withdraw', { method: 'POST', body: '{}' }); toast('Withdrawn'); S.v = null; await openProposal(S.id, false); } catch (x) { toast(x.message, true); }
+      return;
+    }
+    S.decide = { id: r.id, verb };
+    $('dc-h').textContent = verb === 'approve' ? 'Approve the revision' : 'Reject the revision';
+    $('dc-sub').textContent = verb === 'approve' ? 'A new version is drafted for editing. The client keeps the sent copy until the new version is sent.'
+      : 'Nothing changes on the proposal. The person who asked is told.';
+    $('dc-go').textContent = verb === 'approve' ? 'Approve' : 'Reject'; $('dc-note').value = ''; $('dc-err').textContent = '';
+    $('dc-m').hidden = false; setTimeout(() => $('dc-note').focus(), 30);
+  });
+  $('dc-cancel').addEventListener('click', () => { $('dc-m').hidden = true; });
+  $('dc-f').addEventListener('submit', async e => {
+    e.preventDefault(); const b = $('dc-go'); b.disabled = true; $('dc-err').textContent = '';
+    try {
+      const r = await api('/proposals/revisions/' + S.decide.id + '/' + S.decide.verb, { method: 'POST', body: JSON.stringify({ note: $('dc-note').value }) });
+      $('dc-m').hidden = true;
+      if (S.decide.verb === 'approve' && r.new_proposal_id) { toast('Approved. The new version is ready to edit'); S.v = null; location.hash = '#p/' + r.new_proposal_id; }
+      else { toast('Rejected'); S.v = null; await openProposal(S.id, false); }
+    } catch (x) { $('dc-err').textContent = x.message; }
+    finally { b.disabled = false; }
+  });
+  $('e-follow').addEventListener('click', () => {
+    const p = S.v.proposal, no = S.v.label || p.number;
+    const q = `Draft a short, friendly follow-up email to ${p.client_name || 'the client'} about proposal ${no} (${p.title || 'our proposal'}, ${money2(S.v.amounts.total)}), ` +
+      `sent ${fmtDate(p.sent_at)} and valid until ${fmtDate(p.valid_until)}. Reply in their latest email thread if there is one. Show me the draft; don't send it.`;
+    if (window.SSC_CLAUDE && window.SSC_CLAUDE.ask) window.SSC_CLAUDE.ask(q); else toast('Claude is not available on this page', true);
+  });
+
+  // ---------------- Claude beside the proposal: in the rail on a wide screen, one tap away on a tablet or phone
+  function chatPanel(open) {
+    const c = $('chat-card'); c.classList.toggle('open', open); $('chat-scrim').hidden = !open;
+    $('e-claude').setAttribute('aria-expanded', String(open));
+    if (open) setTimeout(() => $('chat-in').focus(), 230);
+  }
+  $('e-claude').addEventListener('click', () => chatPanel(!$('chat-card').classList.contains('open')));
+  $('chat-x').addEventListener('click', () => chatPanel(false));
+  $('chat-scrim').addEventListener('click', () => chatPanel(false));
   const chat = $('chat');
   function say(cls, html) { chat.insertAdjacentHTML('beforeend', `<div class="msg ${cls}">${html}</div>`); chat.scrollTop = chat.scrollHeight; return chat.lastElementChild; }
   const LABEL = { heading: 'heading', job_type: 'job type', submitted_to: 'submitted to', project: 'project', reference: 'reference', overview: 'overview',
     notes: 'important notes', deliverables: 'deliverables', mobilization: 'mobilization', duration: 'duration', hours: 'hours', warranty: 'warranty',
     additional_insureds: 'insured names', accepted_by: 'accepted by', title: 'title', submitted_by: 'submitted by', prepared_for: 'prepared for', project_text: 'building', reference_text: 'reference', intro_text: 'opening', scope_summary: 'scope', schedule_text: 'schedule', exclusions_text: 'exclusions', terms_text: 'terms', deposit_pct: 'deposit', email_message: 'email', extra_sections: 'sections', lines: 'price lines' };
+  function asking(on) { S.asking = on; $('chat-go').disabled = $('chat-in').disabled = on || !(S.v && S.v.editable); $('chat-go').textContent = on ? 'Working…' : 'Send'; document.querySelectorAll('[data-ask]').forEach(b => b.disabled = on); }
   async function ask(q) {
     if (!S.v || !S.v.editable) { toast('Make a new version first to change a sent proposal', true); return; }
+    if (S.asking) return;   // one change at a time: a second request would race the first
+    asking(true);
     await flush(false);
-    say('u', esc(q)); const wait = say('c', 'Working on it…');
+    say('u', esc(q)); const wait = say('c', 'Working on it…'), t0 = Date.now();
+    const tick = setInterval(() => { const n = Math.round((Date.now() - t0) / 1000); if (n >= 6) wait.textContent = `Working on it… ${n}s`; }, 1000);
     try {
       const r = await api('/proposal-studio/' + S.id + '/revise', { method: 'POST', body: JSON.stringify({ instruction: q }) });
-      wait.remove();
+      clearInterval(tick); wait.remove(); asking(false);
       if (!r.changed.length) { say('c', 'Nothing needed to change for that. Try saying it another way.'); return; }
       draw(r, r.changed);
       const m = say('c', 'Changed the ' + esc(r.changed.map(k => LABEL[k] || k).join(', ')) + '. <button class="undo" type="button">Undo</button>');
@@ -593,53 +871,115 @@
           schedule_text: b.schedule_text, exclusions_text: b.exclusions_text, terms_text: b.terms_text, deposit_pct: b.deposit_pct, email_message: b.email_message, extra_sections: b.extra_sections }, b.lines, true);
         say('c', 'Undone.');
       });
-    } catch (x) { wait.remove(); say('c', esc(x.message)); }
+    } catch (x) { clearInterval(tick); wait.remove(); asking(false); say('c', '<span class="err">' + esc(x.message) + '</span>'); }
   }
   document.addEventListener('click', e => { const a = e.target.closest('[data-ask]'); if (a) ask(a.dataset.ask); });
   $('chat-form').addEventListener('submit', e => { e.preventDefault(); const q = $('chat-in').value.trim(); if (q) { $('chat-in').value = ''; ask(q); } });
 
-  // ---------------- send (pop-up)
-  function openSend() {
-    const v = S.v; if (!v || !v.editable) return; const p = v.proposal;
-    $('s-err').textContent = '';
-    $('s-from').textContent = v.gmail ? 'from ' + v.gmail : 'Connect your Gmail on the Inbox page first';
-    $('s-thread').innerHTML = v.threads.map(t => `<option value="${t.id}">${esc(t.subject || '(no subject)')} · ${esc((t.from || '').split('<')[0].trim())} · ${fmtDate(t.received_at)}</option>`).join('');
-    if (p.source_mail_id && v.threads.some(t => t.id === p.source_mail_id)) $('s-thread').value = String(p.source_mail_id);
-    document.querySelector('[data-how="reply"]').hidden = !v.threads.length;
-    $('s-people').innerHTML = v.contacts.map(c => `<option value="${esc(c.full_name)} <${esc(c.email)}>">${esc(c.title || '')}</option>`).join('');
-    if (!$('s-to').value) $('s-to').value = p.recipient_email ? `${p.recipient_name || ''} <${p.recipient_email}>`.trim() : (v.contacts[0] ? `${v.contacts[0].full_name} <${v.contacts[0].email}>` : '');
-    const no = v.label || p.number;
-    $('s-msg').value = p.email_message || `Hi,\n\nAttached is our proposal ${no} for ${p.title || 'the work'}.\n\nBest,`;
-    $('s-file').textContent = ssc() ? `Proposal ${no} - ${((v.content.project || [])[0] || p.client_name || '').split(',')[0]}.pdf` : `${p.number} ${p.client_name || ''}.pdf`;
-    setHow(v.threads.length ? 'reply' : 'new');
-    $('send-m').hidden = false;
+  // ---------------- send (pop-up): reply in the client's thread or a new email, then a review, then Send now.
+  // Nothing goes out until the person presses Send now (the server refuses a send without that confirmation).
+  const who = a => String(a || '').split(',').map(x => x.split('<')[0].trim().replace(/^"|"$/g, '') || x.trim()).filter(Boolean).join(', ');
+  function threadOptions(list) {
+    $('s-thread').innerHTML = list.map(t => `<option value="${t.id}">${esc(t.subject || '(no subject)')} · ${esc(who(t.direction === 'out' ? t.to : t.from))} · ${fmtDate(t.received_at)}</option>`).join('');
   }
-  function setHow(how) {
-    S.how = how;
-    document.querySelectorAll('[data-how]').forEach(b => b.classList.toggle('on', b.dataset.how === how));
-    $('s-thread-row').hidden = how !== 'reply'; $('s-to-row').hidden = $('s-cc-row').hidden = how === 'reply';
-    const p = S.v.proposal, t = S.v.threads.find(x => String(x.id) === $('s-thread').value);
-    $('s-subject').value = how === 'reply' && t ? 'Re: ' + String(t.subject || '').replace(/^\s*(re|fw|fwd)\s*:\s*/i, '') : `Proposal ${S.v.label || p.number} · ${p.title || ''}`;
+  async function openSend() {
+    const v = S.v; if (!v || !v.editable) return; const p = v.proposal, no = v.label || p.number;
+    stepSend(1); $('s-err').textContent = ''; $('s-thr').hidden = true; $('s-q').value = '';
+    $('s-from').textContent = 'Loading…'; $('s-thread').innerHTML = '<option>Loading your emails with this client…</option>';
+    $('s-msg').value = p.email_message || `Hi,\n\nAttached is our proposal ${no} for ${p.title || 'the work'}.\n\nBest,`;
+    $('s-file').textContent = '…'; $('s-amt').textContent = money2(v.amounts.total);
+    $('send-m').hidden = false;
+    try { S.send = await api('/proposal-studio/' + S.id + '/send-options'); }
+    catch (x) { $('s-err').textContent = x.message; S.send = { threads: [], contacts: [], amounts: v.amounts, attachment: '' }; }
+    const o = S.send;
+    $('s-from').textContent = o.gmail ? (o.can_send ? 'from ' + o.gmail : o.gmail + ' can read but not send: reconnect Gmail on the Inbox page') : 'Connect your Gmail on the Inbox page first';
+    $('s-file').textContent = o.attachment; $('s-amt').textContent = 'Base bid total ' + money2(o.amounts.total);
+    threadOptions(o.threads);
+    if (p.source_mail_id && o.threads.some(t => t.id === p.source_mail_id)) $('s-thread').value = String(p.source_mail_id);
+    $('s-people').innerHTML = o.contacts.map(c => `<option value="${esc(c.full_name)} <${esc(c.email)}>">${esc(c.title || '')}</option>`).join('');
+    S.newTo = p.recipient_email ? `${p.recipient_name || ''} <${p.recipient_email}>`.trim() : (o.contacts[0] ? `${o.contacts[0].full_name} <${o.contacts[0].email}>` : '');
+    setHow(o.threads.length ? 'reply' : 'new');
+  }
+  function noThreads() {
+    const n = $('s-thread').options.length === 0;
+    $('s-nothr').hidden = !n; $('s-thread').disabled = n;
+    if (n) $('s-nothr').textContent = $('s-q').value.trim() ? 'No emails in your inbox match that.' : 'No emails with this client in your inbox yet. Search for the thread, or send a new email.';
+    return n;
+  }
+  async function setHow(how) {
+    S.how = how; S.preview = null;
+    document.querySelectorAll('[data-how]').forEach(b => { b.classList.toggle('on', b.dataset.how === how); b.setAttribute('aria-selected', String(b.dataset.how === how)); });
+    $('s-reply-box').hidden = how !== 'reply';
+    const p = S.v.proposal;
+    if (how === 'new') {
+      $('s-to').value = S.newTo || ''; $('s-cc').value = '';
+      $('s-subject').value = `Proposal ${S.v.label || p.number} · ${p.title || ''}`; return;
+    }
+    if (noThreads()) { $('s-thr').hidden = true; $('s-to').value = ''; $('s-cc').value = ''; return; }
+    await previewThread();
+  }
+  async function previewThread() {   // the thread it joins and the people Gmail would answer (they can be changed)
+    $('s-err').textContent = ''; $('s-thr').hidden = false; $('s-thr').textContent = 'Loading the thread…';
+    try {
+      const r = await api('/proposal-studio/' + S.id + '/send-preview', { method: 'POST', body: JSON.stringify({ how: 'reply', mail_id: $('s-thread').value }) });
+      S.preview = r; const t = r.thread;
+      $('s-thr').innerHTML = `<b>${esc(t.subject)}</b><span class="muted">${t.count} email${t.count === 1 ? '' : 's'} · latest from ${esc(who(t.from))}, ${fmtDate(t.received_at)}</span><div style="margin-top:4px">${esc(t.snippet || '')}</div>`;
+      $('s-to').value = r.to || ''; $('s-cc').value = r.cc || ''; $('s-subject').value = r.subject;
+    } catch (x) { $('s-thr').hidden = true; $('s-err').textContent = x.message; }
   }
   document.querySelectorAll('[data-how]').forEach(b => b.addEventListener('click', () => setHow(b.dataset.how)));
   $('s-thread').addEventListener('change', () => setHow('reply'));
+  $('s-find').addEventListener('submit', async e => {
+    e.preventDefault(); const q = $('s-q').value.trim();
+    try { const o = await api('/proposal-studio/' + S.id + '/send-options' + (q ? '?q=' + encodeURIComponent(q) : '')); S.send.threads = o.threads; threadOptions(o.threads); setHow('reply'); }
+    catch (x) { $('s-err').textContent = x.message; }
+  });
+  function stepSend(n) {
+    $('s-step1').hidden = n !== 1; $('s-step2').hidden = n !== 2;
+    $('s-next').hidden = n !== 1; $('s-back').hidden = $('s-send').hidden = n !== 2;
+    $('s-h').textContent = n === 1 ? 'Send the proposal' : 'Review before sending';
+  }
+  $('s-next').addEventListener('click', () => {   // the review: exactly what will go out
+    $('s-err').textContent = '';
+    const reply = S.how === 'reply', o = S.send || {};
+    if (reply && (noThreads() || !S.preview)) { $('s-err').textContent = 'Pick the email thread to reply in, or send a new email.'; return; }
+    if (!$('s-to').value.trim()) { $('s-err').textContent = 'Add who it goes to.'; return; }
+    if (!$('s-msg').value.trim()) { $('s-err').textContent = 'Write the message that goes with the PDF.'; return; }
+    if (!o.can_send) { $('s-err').textContent = $('s-from').textContent; return; }
+    const row = (k, v) => `<span>${k}</span><div>${v}</div>`;
+    $('s-rev').innerHTML = row('From', esc(o.gmail || '')) + row('To', esc($('s-to').value)) + ($('s-cc').value.trim() ? row('Cc', esc($('s-cc').value)) : '') +
+      row('How', reply ? `A reply in “${esc(S.preview.thread.subject)}” (${S.preview.thread.count} email${S.preview.thread.count === 1 ? '' : 's'}), kept in that conversation` : 'A new email') +
+      row('Subject', esc($('s-subject').value)) + row('Message', `<div class="msg-pre">${esc($('s-msg').value)}</div>`) +
+      row('Attached', `<span class="att"><i>PDF</i><span>${esc(o.attachment)}</span></span> <span class="num">Base bid total ${money2(o.amounts.total)}</span>`);
+    stepSend(2); $('s-send').focus();
+  });
+  $('s-back').addEventListener('click', () => stepSend(1));
   $('e-view').addEventListener('click', async () => {
     await flush(false); const p = S.v.proposal, no = S.v.label || p.number;
     window.SSC_PDF.panel({ title: (/^\d/.test(no) ? 'Proposal ' : '') + no, sub: p.client_name || '', url: `/api/proposals/${p.id}/pdf`, links: [{ label: 'Download', href: `/api/proposals/${p.id}/pdf`, download: true }] });
   });
+  $('s-pdfview').addEventListener('click', () => $('e-view').click());
+  // the PDF is made from what is saved: finish saving the last edit first, so it never shows an older amount
+  $('e-pdf').addEventListener('click', async e => {
+    if (!S.v || !S.v.editable) return;
+    e.preventDefault(); $('e-saved').textContent = 'Saving…';
+    await flushNow();
+    const a = document.createElement('a'); a.href = $('e-pdf').href; a.download = ''; document.body.appendChild(a); a.click(); a.remove();
+  });
   $('e-send').addEventListener('click', async () => { await flush(true); if (!$('e-send').disabled) openSend(); });
   $('s-cancel').addEventListener('click', () => { $('send-m').hidden = true; });
   $('send-m').addEventListener('click', e => { if (e.target === $('send-m')) $('send-m').hidden = true; });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('send-m').hidden = true; $('arch-m').hidden = true; closeMenu(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { ['send-m', 'arch-m', 'rq-m', 'dc-m'].forEach(id => { $(id).hidden = true; }); chatPanel(false); closeMenu(); } });
   $('s-send').addEventListener('click', async () => {
-    const b = $('s-send'); b.disabled = true; b.textContent = 'Making the PDF and sending…'; $('s-err').textContent = '';
+    const b = $('s-send'); b.disabled = true; $('s-back').disabled = true; b.textContent = 'Making the PDF and sending…'; $('s-err').textContent = '';
     try {
-      const r = await api('/proposal-studio/' + S.id + '/send', { method: 'POST', body: JSON.stringify({ how: S.how, mail_id: $('s-thread').value, to: $('s-to').value, cc: $('s-cc').value, subject: $('s-subject').value, message: $('s-msg').value }) });
+      const r = await api('/proposal-studio/' + S.id + '/send', { method: 'POST', body: JSON.stringify({ how: S.how, mail_id: S.how === 'reply' ? $('s-thread').value : null,
+        to: $('s-to').value, cc: $('s-cc').value, subject: $('s-subject').value, message: $('s-msg').value, confirm: true, expected_total: S.send.amounts.total }) });
       $('send-m').hidden = true;
-      toast('Sent to ' + (r.to || 'the client').split('<')[0].trim() + ' with the PDF' + (r.follow_up_task ? ' · follow-up on ' + fmtDate(r.follow_up_date) : ''));
+      toast('Sent to ' + who(r.to || 'the client') + ' with the PDF' + (r.follow_up_task ? ' · follow-up on ' + fmtDate(r.follow_up_date) : ''));
       S.v = null; openProposal(S.id, false);
     } catch (x) { $('s-err').textContent = x.message; }
-    finally { b.disabled = false; b.textContent = 'Send from my Gmail'; }
+    finally { b.disabled = false; $('s-back').disabled = false; b.textContent = 'Send now from my Gmail'; }
   });
 
   // ---------------- your past proposals

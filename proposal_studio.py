@@ -11,11 +11,16 @@ Send; Claude's changes are drafts with an Undo.
                                                   -> {job}; Claude drafts in the background
   GET   /api/proposal-studio/jobs/<job>           -> {state: working | done | failed, step, proposal_id, error}
   GET   /api/proposal-studio/proposals            recent proposals for the start page
-  GET   /api/proposal-studio/<pid>                the proposal + its document in edit mode + people / threads to send to
+  GET   /api/proposal-studio/<pid>                the proposal + its document in edit mode + its total, revisions, expiry
   PATCH /api/proposal-studio/<pid>                {fields, lines?} -> saved; the document again
   POST  /api/proposal-studio/<pid>/revise         {instruction} -> Claude's change saved; {changed, before}
-  POST  /api/proposal-studio/<pid>/new-version    a sent proposal becomes v2 to edit (the sent copy stays)
-  POST  /api/proposal-studio/<pid>/send           {how: reply | new, mail_id, to, cc, subject, message} -> PDF + Gmail
+  POST  /api/proposal-studio/<pid>/new-version    ADMIN: a sent proposal becomes v2 to edit (the sent copy stays the client's
+                                                  until v2 is sent); everyone else asks for a revision (proposals.py)
+  POST  /api/proposal-studio/<pid>/exclude        {text} a note / exclusion / deliverable that doesn't apply; /restore puts it back
+  GET   /api/proposal-studio/<pid>/send-options   the client's people + email conversations (?q= searches), Gmail
+  POST  /api/proposal-studio/<pid>/send-preview   {how, mail_id} -> the recipients, thread, subject and PDF Send would use
+  POST  /api/proposal-studio/<pid>/send           {how: reply | new, mail_id, to, cc, subject, message, confirm: true,
+                                                  expected_total} -> PDF + Gmail. Refused without confirm.
   GET / PUT /api/proposal-studio/house-style      what Claude follows (editable); POST .../learn reads the sent proposals
 
 Every model call counts toward the daily Claude limit (a hidden 'system' chat, never in History).
@@ -48,7 +53,7 @@ FIELDS = ("title", "prepared_for", "project_text", "reference_text", "intro_text
 STYLE_ITEMS = (("opening", "Opening"), ("scope_style", "Scope style"), ("exclusions", "Standard exclusions"),
                ("terms", "Payment terms"), ("words", "Words you use"))
 STEPS = ("Loading your fixed wording", "Finding your closest past proposals and prices", "Looking up the client",
-         "Reading what you attached", "Writing the proposal")
+         "Reading what you attached", "Writing the proposal", "Saving the draft")
 
 _JOBS: dict = {}          # one Render instance (WEB_CONCURRENCY=1): in-memory is enough for a 30-second job
 _LOCK = threading.Lock()
@@ -270,10 +275,10 @@ def _apply(conn, pid: int, d: dict, uid, *, first=False) -> dict:
         if k in d:
             fields[k] = d[k]
     lines = clean_lines(d["lines"]) if "lines" in d and d["lines"] is not None else None
-    if lines is not None:
-        fields["price"] = round(sum(li["qty"] * li["unit_price"] for li in lines), 2)
-    r = proposals.update(conn, pid, fields, line_items=[dict(li, amount=round(li["qty"] * li["unit_price"], 2)) for li in lines]
-                         if lines is not None else None, actor=uid)
+    if lines is not None:   # the total is the sum of the amounts the document prints, each already rounded to the cent
+        lines = [dict(li, amount=round(li["qty"] * li["unit_price"], 2)) for li in lines]
+        fields["price"] = round(sum(li["amount"] for li in lines), 2)
+    r = proposals.update(conn, pid, fields, line_items=lines, actor=uid)
     if first:
         conn.execute("UPDATE proposal SET studio = 1, sources = ?, source_mail_id = ? WHERE id = ?",
                      (json.dumps([str(s)[:200] for s in (d.get("sources") or [])][:8]), d.get("_mail_id"), pid))
@@ -289,13 +294,10 @@ def _job(job: str, uid, req: dict) -> None:
             _JOBS[job]["step"] = i
 
     try:
-        import assistant
         import proposal_engine
-        step(0); step(1); step(2)
-        if req.get("file_ids"):
-            step(3)
-        step(4)
-        d = proposal_engine.write(conn, uid, req)   # the locked layout: Claude writes only the job's own content
+        # the page shows the step the job is really on (it used to advance on a timer, whatever the job was doing)
+        d = proposal_engine.write(conn, uid, req, progress=step)   # the locked layout: Claude writes only the job's own content
+        step(5)
         pid = proposal_engine.create(conn, uid, req, d)
         with _LOCK:
             _JOBS[job].update(state="done", proposal_id=pid)
@@ -353,51 +355,129 @@ def start_draft(conn, uid, req: dict, *, background=True) -> str:
 
 
 # ------------------------------------------------------------------ the editor
-def view(conn, pid: int, uid) -> Optional[dict]:
+def view(conn, pid: int, uid, role: Optional[str] = None) -> Optional[dict]:
+    """The proposal as the editor shows it. Returned after every autosave, so it stays light (2026-10-22): the people
+    and email threads to send to are only read when the Send pop-up opens (send_options), and the clause library,
+    which is read from every past proposal, is read once for the document, the checklist and the flags."""
     import proposal_template
     import proposals
     r = proposals.get(conn, pid)
     if not r:
         return None
     lis = proposals.lines(conn, pid)
-    contacts = _rows(conn, "SELECT id, full_name, email, title FROM crm_contact WHERE org_id = ? AND email IS NOT NULL "
-                           "AND email <> '' AND COALESCE(status,'active') <> 'inactive' ORDER BY full_name LIMIT 30", (r["client_org_id"],))
-    threads = []
-    try:
-        import inbox
-        ids = _rows(conn, "SELECT id FROM mail_message WHERE user_id = ? AND (client_org_id = ? OR id = ?) "
-                          "ORDER BY received_at DESC LIMIT 25", (uid, r["client_org_id"], r.get("source_mail_id") or 0))
-        seen = set()
-        for x in ids:
-            m = inbox.message(conn, x["id"], uid)
-            if not m or m["thread_id"] in seen:
-                continue
-            seen.add(m["thread_id"])
-            threads.append({"id": m["id"], "subject": m["subject"], "from": m["from"], "received_at": m["received_at"],
-                            "direction": m["direction"]})
-            if len(threads) >= 8:
-                break
-    except Exception as e:
-        log.info("proposal studio threads unavailable: %s", type(e).__name__)
     st = house_style(conn)
-    me = _one(conn, "SELECT google_email FROM gmail_link WHERE user_id = ?", (uid,)) or {}
     import proposal_engine
     ssc = r.get("layout") == "ssc"
     extra = {"label": proposal_engine.label(r)}
+    known = proposal_engine.library_words(conn) if ssc else None
     if ssc:
-        extra.update({"layout": "ssc", "content": proposal_engine.snapshot(conn, pid), "checks": proposal_engine.checks(conn, r),
-                      "new_clauses": proposal_engine.new_clauses(conn, proposal_engine.content(r)), "house": proposal_engine.house(conn)})
-    return {"proposal": {k: r.get(k) for k in ("id", "number", "version", "status", "title", "client_org_id", "client_name",
-                                                "price", "valid_until", "recipient_email", "recipient_name", "sent_at",
-                                                "estimate_code", "email_message", "deposit_pct", "source_mail_id", "updated_at")
-                         },
+        extra.update({"layout": "ssc", "content": proposal_engine.snapshot(conn, pid), "checks": proposal_engine.checks(conn, r, known),
+                      "new_clauses": proposal_engine.new_clauses(conn, proposal_engine.content(r), known), "house": proposal_engine.house(conn)})
+    prev = proposals.get(conn, r["revision_of"]) if r.get("revision_of") else None
+    return {"proposal": dict({k: r.get(k) for k in ("id", "number", "version", "status", "title", "client_org_id", "client_name",
+                                                     "price", "valid_until", "recipient_email", "recipient_name", "sent_at",
+                                                     "estimate_code", "email_message", "deposit_pct", "source_mail_id", "updated_at",
+                                                     "revision_of", "superseded_by")},
+                             expires_in_days=proposals.expires_in_days(r), display_status=proposals._internal_status(r)),
+            "amounts": proposals.amounts(conn, r),
+            "revisions": proposals.revisions(conn, pid),
+            "revises": {"id": prev["id"], "label": proposal_engine.label(prev), "status": prev["status"]} if prev else None,
+            "revision_problem": proposals.predecessor_problem(conn, r) if r["status"] == "draft" else None,
+            "me": {"id": uid, "role": role, "is_admin": role == "admin"},
             "sections": {"extra_sections": proposals._json_list(r.get("extra_sections")),
                          "hidden_sections": proposals._json_list(r.get("hidden_sections"))},
             "sources": proposals._json_list(r.get("sources")) if st.get("show_sources", True) else [],
             "lines": [{"description": li["description"], "qty": li["qty"], "unit": li["unit"], "unit_price": li["unit_price"]} for li in lis],
-            "html": proposals.render_document(conn, r, mode="edit"),
-            "contacts": contacts, "threads": threads, "template": proposal_template.public(conn),
-            "gmail": me.get("google_email"), "editable": r["status"] == "draft", **extra}
+            "html": proposals.render_document(conn, r, mode="edit", known=known),
+            "template": proposal_template.public(conn), "editable": r["status"] == "draft", **extra}
+
+
+# ------------------------------------------------------------------ who and where to send it (the Send pop-up)
+THREADS_SCANNED = 400   # the person's newest emails looked at for conversations with this client
+
+
+def threads_for(conn, uid, r: dict, q: Optional[str] = None, limit: int = 10) -> list:
+    """The person's own email conversations with this client, newest first: filed to the client, the email the proposal
+    started from, or with any of the client's contacts on it. `q` searches every recent conversation instead (subject or
+    people), for a thread the app hasn't matched to the client. One row per conversation: its latest email, which is
+    the one a reply answers. Only the headers are decrypted, never the bodies."""
+    import inbox
+    from email.utils import getaddresses
+    emails = {(x["email"] or "").strip().lower() for x in _rows(
+        conn, "SELECT email FROM crm_contact WHERE org_id = ? AND email IS NOT NULL AND email <> ''", (r["client_org_id"],))}
+    emails |= {e.strip().lower() for e in (r.get("recipient_email"), r.get("contact_email")) if e}
+    emails.discard("")
+    ql = (q or "").strip().lower()
+    threads, order = {}, []
+    for m in _rows(conn, "SELECT id, thread_id, gmail_id, direction, received_at, client_org_id, from_enc, to_enc, cc_enc, "
+                         "subject_enc FROM mail_message WHERE user_id = ? ORDER BY received_at DESC, id DESC LIMIT ?",
+                   (uid, THREADS_SCANNED)):
+        t = m["thread_id"] or m["gmail_id"]
+        frm, to, cc, subj = (inbox._dec(m["from_enc"]), inbox._dec(m["to_enc"]), inbox._dec(m["cc_enc"]), inbox._dec(m["subject_enc"]))
+        addrs = {a.lower() for _, a in getaddresses([frm, to, cc]) if a}
+        client = m["client_org_id"] == r["client_org_id"] or m["id"] == r.get("source_mail_id") or bool(addrs & emails)
+        hit = (ql in subj.lower() or ql in frm.lower() or ql in to.lower()) if ql else client
+        if t not in threads:
+            threads[t] = {"id": m["id"], "subject": subj or "(no subject)", "from": frm, "to": to, "received_at": m["received_at"],
+                          "direction": m["direction"], "count": 0, "hit": False, "client": False}
+            order.append(t)
+        x = threads[t]
+        x["count"] += 1
+        x["hit"] = x["hit"] or hit
+        x["client"] = x["client"] or client
+    out = [dict((k, v) for k, v in threads[t].items() if k != "hit") for t in order if threads[t]["hit"]]
+    return out[:limit]
+
+
+def send_options(conn, pid: int, uid, q: Optional[str] = None) -> dict:
+    import proposals
+    r = proposals.get(conn, pid)
+    if not r:
+        raise LookupError("proposal not found")
+    contacts = _rows(conn, "SELECT id, full_name, email, title FROM crm_contact WHERE org_id = ? AND email IS NOT NULL "
+                           "AND email <> '' AND COALESCE(status,'active') <> 'inactive' ORDER BY full_name LIMIT 30", (r["client_org_id"],))
+    try:
+        threads = threads_for(conn, uid, r, q)
+    except Exception as e:
+        log.info("proposal studio threads unavailable: %s", type(e).__name__)
+        threads = []
+    link = _one(conn, "SELECT google_email, scopes, status FROM gmail_link WHERE user_id = ?", (uid,)) or {}
+    import inbox
+    return {"contacts": contacts, "threads": threads, "gmail": link.get("google_email") if link.get("status") == "active" else None,
+            "can_send": inbox.can_send(link) if link.get("status") == "active" else False,
+            "attachment": attachment_name(r), "amounts": proposals.amounts(conn, r)}
+
+
+def attachment_name(r: dict) -> str:
+    """"Proposal 1042 - 21 West Street.pdf", the way they name them."""
+    import proposal_engine
+    if r.get("layout") == "ssc":
+        addr = ((proposal_engine.content(r).get("project") or [""])[0] or r.get("client_name") or "").split(",")[0]
+        return re.sub(r"[^A-Za-z0-9 .-]", "", f"Proposal {proposal_engine.label(r)} - {addr}").strip(" -")[:90] + ".pdf"
+    return re.sub(r"[^A-Za-z0-9 .-]", "", f"{r['number']} {r.get('client_name') or ''}").strip()[:80] + ".pdf"
+
+
+def send_preview(conn, pid: int, uid, body: dict) -> dict:
+    """Exactly what Send would do, nothing sent: the recipients (a reply goes to the people Gmail would answer, which
+    the person can change), the conversation it joins, the subject and the PDF with its total."""
+    import inbox
+    import proposals
+    r = proposals.get(conn, pid)
+    if not r:
+        raise LookupError("proposal not found")
+    out = {"how": "reply" if body.get("how") == "reply" else "new", "attachment": attachment_name(r),
+           "amounts": proposals.amounts(conn, r)}
+    if out["how"] == "reply":
+        m = inbox.message(conn, int(body.get("mail_id") or 0), uid)
+        if not m:
+            raise ValueError("Pick the email to reply to.")
+        link = _one(conn, "SELECT google_email FROM gmail_link WHERE user_id = ?", (uid,)) or {}
+        to, cc = inbox.reply_recipients(m, link.get("google_email") or "", bool(body.get("reply_all")))
+        n = _one(conn, "SELECT COUNT(*) AS n FROM mail_message WHERE user_id = ? AND thread_id = ?", (uid, m["thread_id"])) if m["thread_id"] else None
+        out.update(to=to, cc=cc, subject="Re: " + re.sub(r"^\s*(re|fw|fwd)\s*:\s*", "", m["subject"] or "", flags=re.I).strip(),
+                   thread={"id": m["id"], "subject": m["subject"] or "(no subject)", "from": m["from"], "received_at": m["received_at"],
+                           "snippet": _clip(m.get("snippet") or m.get("body"), 280), "count": (n or {}).get("n") or 1})
+    return out
 
 
 REVISE_PROMPT = (
@@ -460,31 +540,36 @@ def send(conn, pid: int, uid, body: dict) -> dict:
         raise LookupError("proposal not found")
     if r["status"] != "draft":
         raise ValueError("This proposal was already sent. Make a new version to send it again.")
+    if body.get("confirm") is not True:   # the person saw the review (recipients, thread, message, PDF) and said Send
+        raise ValueError("Review the email first, then confirm to send it.")
+    proposals.sync_price(conn, pid, layout=r.get("layout"))
+    conn.commit()
+    r = proposals.get(conn, pid)
     import proposal_engine
-    why = proposal_engine.blocked(conn, r)
+    why = proposal_engine.blocked(conn, r) or proposals.predecessor_problem(conn, r)
     if why:
         raise ValueError(why)
+    total = proposals.amounts(conn, r)["total"]
+    if body.get("expected_total") not in (None, "") and abs(float(body["expected_total"]) - total) > 0.005:
+        raise ValueError(f"The proposal's total is now ${total:,.2f}, not what you reviewed. Review it again before sending.")
     how = body.get("how") or "new"
     message = str(body.get("message") or "").strip()
     if not message:
         raise ValueError("Write the message that goes with the PDF.")
+    proposal_engine.freeze_house(conn, pid)   # the fixed wording it goes out with stays with the sent copy
     res = proposals.render_pdf(conn, pid, actor=uid)
     pdf = proposals.pdf_file(conn, pid) if res.get("ok") else None
     if not pdf:
         raise ValueError("The PDF couldn't be made, so nothing was sent. Try again in a minute.")
-    if r.get("layout") == "ssc":   # "Proposal 1042 - 21 West Street.pdf", the way they name them
-        addr = ((proposal_engine.content(r).get("project") or [""])[0] or r.get("client_name") or "").split(",")[0]
-        fname = re.sub(r"[^A-Za-z0-9 .-]", "", f"Proposal {proposal_engine.label(r)} - {addr}").strip(" -")[:90] + ".pdf"
-    else:
-        fname = re.sub(r"[^A-Za-z0-9 .-]", "", f"{r['number']} {r.get('client_name') or ''}").strip()[:80] + ".pdf"
-    att = [(fname, pdf.read_bytes(), "application/pdf")]
+    att = [(attachment_name(r), pdf.read_bytes(), "application/pdf")]
     if how == "reply":
         mid = int(body.get("mail_id") or 0)
         m = inbox.message(conn, mid, uid)
         if not m:
             raise ValueError("Pick the email to reply to.")
+        given = str(body.get("to") or "").strip()   # the recipients the person reviewed; else Gmail's usual reply list
         out = inbox.send_reply(conn, uid, mid, message, subject=body.get("subject"), reply_all=bool(body.get("reply_all")),
-                               attachments=att)
+                               attachments=att, to=given or None, cc=str(body.get("cc") or "") if given else None)
         to = out.get("to") or ""
         inbox.link_record(conn, mid, "proposal", pid, uid)
     else:
@@ -501,6 +586,7 @@ def send(conn, pid: int, uid, body: dict) -> dict:
     proposals._event(conn, pid, "sent", actor=uid, detail="PDF sent from Gmail (" + ("reply in the thread" if how == "reply" else "new email") + ")")
     conn.commit()
     r = proposals.get(conn, pid)
+    proposals.supersede_predecessor(conn, r, actor=uid)
     proposals._activity(conn, r, f"Proposal {proposal_engine.label(r)} sent as a PDF from Gmail", actor=uid)
     task = None
     try:
@@ -570,7 +656,7 @@ def register(app) -> None:
     @gate
     def proposal_studio_get(pid):
         me = _me()
-        v = with_conn(lambda c: view(c, pid, me["id"]))
+        v = with_conn(lambda c: view(c, pid, me["id"], me["role"]))
         return jsonify({"data": v}) if v else err("not found", 404)
 
     @app.route("/api/proposal-studio/<int:pid>", methods=["PATCH"])
@@ -585,12 +671,12 @@ def register(app) -> None:
             r = proposals.get(c, pid)
             if r and r.get("layout") == "ssc":   # {content: {...}, lines?: [{lead, detail, qty, unit, unit_price}]}
                 proposal_engine.save(c, pid, body.get("content") or {}, body.get("lines"), actor=me["id"])
-                return view(c, pid, me["id"])
+                return view(c, pid, me["id"], me["role"])
             d = dict(body.get("fields") or {})
             if "lines" in body:
                 d["lines"] = body["lines"]
             _apply(c, pid, d, me["id"])
-            return view(c, pid, me["id"])
+            return view(c, pid, me["id"], me["role"])
         try:
             return jsonify({"data": with_conn(run)})
         except LookupError:
@@ -618,7 +704,7 @@ def register(app) -> None:
                 out = proposal_engine.revise(c, pid, ins, me["id"])
             else:
                 out = revise(c, pid, ins, me["id"])
-            return dict(view(c, pid, me["id"]), **out)
+            return dict(view(c, pid, me["id"], me["role"]), **out)
         try:
             return jsonify({"data": with_conn(run)})
         except LookupError:
@@ -636,7 +722,7 @@ def register(app) -> None:
         def run(c):
             import proposal_engine
             proposal_engine.undo(c, pid, before, me["id"])
-            return view(c, pid, me["id"])
+            return view(c, pid, me["id"], me["role"])
         try:
             return jsonify({"data": with_conn(run)})
         except LookupError:
@@ -663,7 +749,7 @@ def register(app) -> None:
             if not kind:
                 raise ValueError("That wording isn't in this proposal any more.")
             proposal_engine.library_change(c, add={"kind": kind, "text": text, "job_type": cont.get("job_type")})
-            return view(c, pid, me["id"])
+            return view(c, pid, me["id"], me["role"])
         try:
             return jsonify({"data": with_conn(run)})
         except LookupError:
@@ -702,16 +788,85 @@ def register(app) -> None:
     @app.route("/api/proposal-studio/<int:pid>/new-version", methods=["POST"])
     @gate
     def proposal_studio_version(pid):
+        """Admin only (2026-10-22); everyone else asks for a revision. The sent copy stays the client's until the new
+        version is sent."""
         me = _me()
         try:
             import proposals
-            r = with_conn(lambda c: proposals.new_version(c, pid, actor=me["id"]))
+            r = with_conn(lambda c: proposals.admin_new_version(c, pid, actor=me["id"], actor_role=me["role"], supersede=False))
+        except PermissionError as e:
+            return err(str(e), 403)
         except LookupError:
             return err("not found", 404)
         except ValueError as e:
             return err(str(e))
         import proposal_engine
         return jsonify({"data": {"id": r["id"], "number": proposal_engine.label(r)}})
+
+    @app.route("/api/proposal-studio/<int:pid>/send-options", methods=["GET"])
+    @gate
+    def proposal_studio_send_options(pid):
+        """The Send pop-up: the client's people, the email conversations with them (or ?q= to search), Gmail."""
+        me = _me()
+        try:
+            return jsonify({"data": with_conn(lambda c: send_options(c, pid, me["id"], request.args.get("q")))})
+        except LookupError:
+            return err("not found", 404)
+
+    @app.route("/api/proposal-studio/<int:pid>/send-preview", methods=["POST"])
+    @gate
+    def proposal_studio_send_preview(pid):
+        me = _me()
+        try:
+            return jsonify({"data": with_conn(lambda c: send_preview(c, pid, me["id"], request.get_json(silent=True) or {}))})
+        except LookupError:
+            return err("not found", 404)
+        except ValueError as e:
+            return err(str(e))
+
+    def _paragraph(pid, take_out: bool):
+        """Exclude a paragraph (a note, exclusion or deliverable) that doesn't apply to this job, or put it back. It is
+        kept on the proposal's list of excluded paragraphs, so it can be restored and Claude won't add it again."""
+        me = _me()
+        text = str((request.get_json(silent=True) or {}).get("text") or "").strip()
+
+        def run(c):
+            import proposal_engine
+            import proposals
+            r = proposals.get(c, pid)
+            if not r:
+                raise LookupError()
+            cont = proposal_engine.content(r)
+            gone = list(cont.get("excluded") or [])
+            if take_out:
+                kind = next((k for k in ("notes", "exclusions", "deliverables") if text in (cont.get(k) or [])), None)
+                if not kind:
+                    raise ValueError("That paragraph isn't in this proposal any more.")
+                patch = {kind: [x for x in cont[kind] if x != text],
+                         "excluded": [g for g in gone if g.get("text") != text] + [{"kind": kind, "text": text}]}
+            else:
+                g = next((g for g in gone if g.get("text") == text), None)
+                if not g:
+                    raise ValueError("That paragraph isn't excluded.")
+                patch = {g["kind"]: list(cont.get(g["kind"]) or []) + [text], "excluded": [x for x in gone if x is not g]}
+            proposal_engine.save(c, pid, patch, None, actor=me["id"])
+            return view(c, pid, me["id"], me["role"])
+        try:
+            return jsonify({"data": with_conn(run)})
+        except LookupError:
+            return err("not found", 404)
+        except ValueError as e:
+            return err(str(e))
+
+    @app.route("/api/proposal-studio/<int:pid>/exclude", methods=["POST"])
+    @gate
+    def proposal_studio_exclude(pid):
+        return _paragraph(pid, True)
+
+    @app.route("/api/proposal-studio/<int:pid>/restore", methods=["POST"])
+    @gate
+    def proposal_studio_restore(pid):
+        return _paragraph(pid, False)
 
     @app.route("/api/proposal-studio/<int:pid>/send", methods=["POST"])
     @gate

@@ -56,13 +56,15 @@ import crm
 import db_layer
 import estimates
 import ssc_paths
-from auth import current_user, requires_section
+from auth import current_user, requires_role, requires_section
 
 log = logging.getLogger(__name__)
 
 SECTION = "estimates"
 STATUSES = ("draft", "sent", "viewed", "signed", "declined", "superseded")
 OPEN_STATUSES = ("sent", "viewed")            # a client can still act
+REVISABLE = ("sent", "viewed", "declined")    # a sent proposal that can get a new version (signed is final)
+REVISION_STATUSES = ("pending", "approved", "rejected", "withdrawn")
 EDITABLE_FIELDS = ("title", "scope_summary", "price", "deposit_pct", "schedule_text",
                    "exclusions_text", "terms_text", "valid_until", "recipient_email",
                    "recipient_name", "contact_id",
@@ -254,6 +256,23 @@ def ensure_schema(conn) -> None:
         f"  detail         TEXT"
         f")")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_proposal_event_p ON proposal_event(proposal_id, at)")
+    # 2026-10-22: a revision of a sent proposal is asked for, then an admin approves or rejects it
+    conn.execute(
+        f"CREATE TABLE IF NOT EXISTS proposal_revision ("
+        f"  {pk},"
+        f"  proposal_id      INTEGER NOT NULL,"
+        f"  requested_by     INTEGER,"
+        f"  requested_at     TEXT NOT NULL,"
+        f"  reason           TEXT NOT NULL,"
+        f"  price_review     INTEGER NOT NULL DEFAULT 0,"
+        f"  proposed_price   REAL,"
+        f"  status           TEXT NOT NULL DEFAULT 'pending',"
+        f"  decided_by       INTEGER,"
+        f"  decided_at       TEXT,"
+        f"  decision_note    TEXT,"
+        f"  new_proposal_id  INTEGER"
+        f")")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_proposal_revision_p ON proposal_revision(proposal_id, status)")
     for col, typ in STUDIO_COLUMNS:   # Proposal Studio (2026-10-20): every part of the document is editable
         if not _has_column(conn, "proposal", col):
             conn.execute(f"ALTER TABLE proposal ADD COLUMN {col} {typ}")
@@ -369,8 +388,20 @@ def public(r: dict) -> dict:
         "has_pdf": bool(r.get("pdf_path")), "pdf_rendered_at": r.get("pdf_rendered_at"),
         "pdf_doc_id": r.get("pdf_doc_id"),
         "editable": r["status"] == "draft",
+        "expires_in_days": expires_in_days(r), "revision_of": r.get("revision_of"),
         "created_at": r["created_at"], "updated_at": r["updated_at"],
     }
+
+
+def expires_in_days(r: dict, today: Optional[date] = None) -> Optional[int]:
+    """Days until a sent proposal's valid-until date (0 = today, negative = lapsed); None once the client has answered
+    or it was never sent. LOCAL dates."""
+    if r.get("status") not in OPEN_STATUSES or not r.get("valid_until"):
+        return None
+    try:
+        return (date.fromisoformat(str(r["valid_until"])[:10]) - (today or _today())).days
+    except ValueError:
+        return None
 
 
 # ============================ writes ============================
@@ -439,6 +470,10 @@ def create_from_estimate(conn, estimate_id: int, *, created_by=None) -> dict:
                  "valid_until = ? WHERE id = ?",
                  (proposal_engine.next_number(conn), json.dumps(seeded), h["deposit_pct"], _deposit(price, h["deposit_pct"]),
                   (_today() + timedelta(days=int(h["valid_days"]))).isoformat(), pid))
+    if price and float(price) > 0:   # the document prints its lines' total: the estimate's price is the first line
+        conn.execute("INSERT INTO proposal_line (proposal_id, sort, description, lead, qty, unit, unit_price, amount) "
+                     "VALUES (?,?,?,?,?,?,?,?)", (pid, 0, "Base bid", "Base bid", 1, "LS", float(price), round(float(price), 2)))
+    sync_price(conn, pid, layout="ssc")
     _event(conn, pid, "created", actor=created_by, detail=f"from estimate {est['code']}")
     conn.commit()
     r = get(conn, pid)
@@ -504,22 +539,90 @@ def update(conn, proposal_id: int, fields: dict, line_items: Optional[list] = No
     sets.append("updated_at = ?"); vals.append(_now())
     vals.append(proposal_id)
     conn.execute(f"UPDATE proposal SET {', '.join(sets)} WHERE id = ?", vals)
-    # keep the deposit amount derived
-    cur = _one(conn.execute("SELECT price, deposit_pct FROM proposal WHERE id = ?", (proposal_id,)))
-    conn.execute("UPDATE proposal SET deposit_amount = ? WHERE id = ?",
-                 (_deposit(cur["price"], cur["deposit_pct"]), proposal_id))
+    sync_price(conn, proposal_id, layout=r.get("layout"))
     conn.commit()
     return get(conn, proposal_id)
 
 
-def new_version(conn, proposal_id: int, *, actor=None) -> dict:
+def line_total(conn, proposal_id: int) -> Optional[float]:
+    """The base bid total exactly as the document draws it (each line rounded to the cent, then summed); None with no lines."""
+    import proposal_layout as L
+    lis = lines(conn, proposal_id)
+    return L.total({"lines": lis}) if lis else None
+
+
+def sync_price(conn, proposal_id: int, layout: Optional[str] = None) -> None:
+    """ONE amount everywhere (2026-10-22): a proposal in the Superstars layout prints the total of its lines, so its stored
+    price (the list, the email, the deposit invoice) is always that total and can't be set apart from them. The deposit
+    amount stays derived from the price. Caller commits."""
+    if layout is None:
+        layout = (_one(conn.execute("SELECT layout FROM proposal WHERE id = ?", (proposal_id,))) or {}).get("layout")
+    if layout == "ssc":
+        conn.execute("UPDATE proposal SET price = ? WHERE id = ?", (line_total(conn, proposal_id), proposal_id))
+    cur = _one(conn.execute("SELECT price, deposit_pct FROM proposal WHERE id = ?", (proposal_id,)))
+    conn.execute("UPDATE proposal SET deposit_amount = ? WHERE id = ?",
+                 (_deposit(cur["price"], cur["deposit_pct"]), proposal_id))
+
+
+def logged_price_problem(conn, r: dict, price) -> Optional[str]:
+    """A price read from outside the app (a proposal emailed from Gmail) can become the proposal's price only when the
+    document agrees with it or has no breakdown of its own; else this says what to fix."""
+    if r.get("layout") != "ssc" or price in (None, ""):
+        return None
+    price = round(float(str(price).replace("$", "").replace(",", "")), 2)
+    lis, total = lines(conn, r["id"]), line_total(conn, r["id"])
+    if total is not None and abs(total - price) < 0.005:
+        return None
+    if len(lis) > 1 or (lis and (lis[0].get("lead") or lis[0].get("description")) != "Base bid"):
+        return (f"The proposal's price lines add up to {_money(total)}, not {_money(price)}. Change the lines in Proposal Studio "
+                f"so the record matches what was sent, then log it.")
+    return None
+
+
+def log_price(conn, proposal_id: int, price, *, actor=None) -> dict:
+    """Record the price a proposal was sent at outside the app. In the Superstars layout the price is the document's
+    total, so a proposal with no breakdown (none, or the estimate's single "Base bid" line) gets that one line at this
+    price; one whose lines disagree is refused (logged_price_problem)."""
+    r = get(conn, proposal_id)
+    if not r:
+        raise LookupError("proposal not found")
+    why = logged_price_problem(conn, r, price)
+    if why:
+        raise ValueError(why)
+    price = round(float(str(price).replace("$", "").replace(",", "")), 2)
+    if r.get("layout") != "ssc":
+        return update(conn, proposal_id, {"price": price}, actor=actor)
+    total = line_total(conn, proposal_id)
+    if total is not None and abs(total - price) < 0.005:
+        return r
+    return update(conn, proposal_id, {}, [{"description": "Base bid", "lead": "Base bid", "qty": 1, "unit": "LS",
+                                           "unit_price": price, "amount": price}], actor=actor)
+
+
+def amounts(conn, r: dict) -> dict:
+    """{total, deposit, deposit_pct}: the figures the document, its PDF, the email and every list show."""
+    if r.get("layout") == "ssc":
+        import proposal_engine
+        total = line_total(conn, r["id"]) or 0.0
+        pct = float(proposal_engine.house_for(conn, r)["deposit_pct"])
+        return {"total": total, "deposit_pct": pct, "deposit": round(total * pct / 100, 2)}
+    return {"total": round(float(r.get("price") or 0), 2), "deposit_pct": r.get("deposit_pct"),
+            "deposit": r.get("deposit_amount")}
+
+
+def new_version(conn, proposal_id: int, *, actor=None, supersede: bool = True) -> dict:
     """Clone into a fresh draft (vN+1) and mark the source superseded. Allowed from
-    sent / viewed / declined (a signed proposal is final; a draft is simply edited)."""
+    sent / viewed / declined (a signed proposal is final; a draft is simply edited).
+    supersede=False (an approved revision, 2026-10-22): the sent copy stays live for the client until the new version
+    is sent (supersede_predecessor); the draft remembers it in revision_of."""
     src = get(conn, proposal_id)
     if not src:
         raise LookupError("proposal not found")
-    if src["status"] not in ("sent", "viewed", "declined"):
+    if src["status"] not in REVISABLE:
         raise ValueError(f"cannot version a {src['status']} proposal")
+    open_draft = _one(conn.execute("SELECT id FROM proposal WHERE revision_of = ? AND status = 'draft'", (proposal_id,)))
+    if open_draft:
+        raise ValueError("a new version of this proposal is already being edited")
     last = _one(conn.execute("SELECT MAX(version) AS v FROM proposal WHERE estimate_id = ?", (src["estimate_id"],)))
     version = int(last["v"]) + 1
     number = f"{src['estimate_code']}-P{version}"
@@ -539,16 +642,42 @@ def new_version(conn, proposal_id: int, *, actor=None) -> dict:
         conn.execute("INSERT INTO proposal_line (proposal_id, sort, description, lead, qty, unit, unit_price, amount) "
                      "VALUES (?,?,?,?,?,?,?,?)",
                      (pid, li["sort"], li["description"], li.get("lead"), li["qty"], li["unit"], li["unit_price"], li["amount"]))
-    conn.execute("UPDATE proposal SET " + ", ".join(f"{c} = ?" for c, _ in STUDIO_COLUMNS) + " WHERE id = ?",
-                 [src.get(c) for c, _ in STUDIO_COLUMNS] + [pid])
-    conn.execute("UPDATE proposal SET status = 'superseded', superseded_by = ?, token_hash = NULL, "
-                 "updated_at = ? WHERE id = ?", (pid, now, proposal_id))
-    _event(conn, proposal_id, "superseded", actor=actor, detail=f"by {number}")
+    copied = [c for c, _ in STUDIO_COLUMNS if c not in ("pdf_hash", "revision_of")]
+    conn.execute("UPDATE proposal SET " + ", ".join(f"{c} = ?" for c in copied) + ", revision_of = ? WHERE id = ?",
+                 [src.get(c) for c in copied] + [proposal_id, pid])
+    sync_price(conn, pid)
+    if supersede:
+        conn.execute("UPDATE proposal SET status = 'superseded', superseded_by = ?, token_hash = NULL, "
+                     "updated_at = ? WHERE id = ?", (pid, now, proposal_id))
+        _event(conn, proposal_id, "superseded", actor=actor, detail=f"by {number}")
+    else:
+        _event(conn, proposal_id, "revision_started", actor=actor, detail=f"{number} drafted; this copy stays with the client until it is sent")
     _event(conn, pid, "created", actor=actor, detail=f"version {version} of {src['number']}")
     conn.commit()
     r = get(conn, pid)
     _activity(conn, r, f"Proposal {number} drafted (replaces {src['number']})", actor=actor)
     return r
+
+
+def predecessor_problem(conn, r: dict) -> Optional[str]:
+    """Why a revision draft can't go out: the client answered the version it replaces in the meantime."""
+    if not r.get("revision_of"):
+        return None
+    prev = _one(conn.execute("SELECT status FROM proposal WHERE id = ?", (r["revision_of"],)))
+    if prev and prev["status"] == "signed":
+        return "The client signed the version this one revises, so this revision can't be sent. Delete the draft or talk to an admin."
+    return None
+
+
+def supersede_predecessor(conn, r: dict, *, actor=None) -> None:
+    """A revision was just sent: the version it replaces is superseded now (its record, PDF and history stay)."""
+    if not r.get("revision_of"):
+        return
+    cur = conn.execute("UPDATE proposal SET status = 'superseded', superseded_by = ?, token_hash = NULL, updated_at = ? "
+                       "WHERE id = ? AND status IN ('sent','viewed','declined')", (r["id"], _now(), r["revision_of"]))
+    if (getattr(cur, "rowcount", 0) or 0) > 0:
+        _event(conn, r["revision_of"], "superseded", actor=actor, detail=f"by {_label(r)}")
+    conn.commit()
 
 
 def delete_draft(conn, proposal_id: int) -> None:
@@ -623,7 +752,9 @@ STUDIO_COLUMNS = (("intro_text", "TEXT"), ("reference_text", "TEXT"), ("prepared
                   ("extra_sections", "TEXT"), ("hidden_sections", "TEXT"), ("email_message", "TEXT"),
                   ("sources", "TEXT"), ("source_mail_id", "INTEGER"), ("studio", "INTEGER"), ("submitted_by", "TEXT"),
                   # 2026-10-21: the locked Superstars layout (proposal_engine / proposal_layout)
-                  ("content", "TEXT"), ("layout", "TEXT"), ("display_no", "INTEGER"))
+                  ("content", "TEXT"), ("layout", "TEXT"), ("display_no", "INTEGER"),
+                  # 2026-10-22: the PDF on disk is the rendered document with this fingerprint; the version a revision replaces
+                  ("pdf_hash", "TEXT"), ("revision_of", "INTEGER"))
 HIDEABLE = ("intro", "scope", "schedule", "exclusions", "terms")
 
 
@@ -650,7 +781,7 @@ def default_submitted_by(facts: dict) -> str:
                                   " | ".join(y for y in (facts.get("company_phone"), facts.get("company_email")) if y)) if x)
 
 
-def render_document(conn, r: dict, *, mode: str = "pdf", lis: Optional[list] = None) -> str:
+def render_document(conn, r: dict, *, mode: str = "pdf", lis: Optional[list] = None, known: Optional[set] = None) -> str:
     """Self-contained HTML of the proposal. mode: 'pdf' (signature lines, or the signed stamp) |
     'page' (the public page injects its accept/decline UI below) | 'edit' (Proposal Studio: the same
     document with every text marked data-f / data-lf so the person edits it in place). `lis` draws lines
@@ -659,7 +790,7 @@ def render_document(conn, r: dict, *, mode: str = "pdf", lis: Optional[list] = N
     Superstars layout by proposal_engine."""
     if r.get("layout") == "ssc":
         import proposal_engine
-        return proposal_engine.render(conn, r, mode, lis)
+        return proposal_engine.render(conn, r, mode, lis, known)
     e = _html.escape
     lis = lines(conn, r["id"]) if lis is None else lis
     facts = _company_facts(conn)
@@ -791,9 +922,15 @@ def _pdf_dir() -> Path:
     return ssc_paths.under_root("data_room", "proposals")
 
 
-def render_pdf(conn, proposal_id: int, *, actor=None) -> dict:
+def _fingerprint(html: str) -> str:
+    return hashlib.sha256(html.encode("utf-8")).hexdigest()
+
+
+def render_pdf(conn, proposal_id: int, *, actor=None, html: Optional[str] = None) -> dict:
     """HTML → PDF with the app's engine; stores the file under data_room/proposals and a
-    row in estimate_document (category 'proposal'). Returns {"ok", "error"?}. Never raises."""
+    row in estimate_document (category 'proposal'). Returns {"ok", "error"?}. Never raises.
+    The PDF is the very document the editor and the client page draw (render_document mode 'pdf'); its fingerprint
+    is kept so pdf_file knows when the document changed (2026-10-22)."""
     r = get(conn, proposal_id)
     if not r:
         return {"ok": False, "error": "proposal not found"}
@@ -803,7 +940,8 @@ def render_pdf(conn, proposal_id: int, *, actor=None) -> dict:
         d.mkdir(parents=True, exist_ok=True)
         html_path = d / f"{r['number']}.html"
         pdf_path = d / f"{r['number']}.pdf"
-        html_path.write_text(render_document(conn, r, mode="pdf"), encoding="utf-8")
+        html = render_document(conn, r, mode="pdf") if html is None else html
+        html_path.write_text(html, encoding="utf-8")
         res = pdf_export.render_html_to_pdf(html_path, pdf_path, timeout_sec=30)
         try:
             html_path.unlink(missing_ok=True)
@@ -825,8 +963,8 @@ def render_pdf(conn, proposal_id: int, *, actor=None) -> dict:
                 (r["estimate_id"], "proposal", f"Proposal {r['number']}", "PDF", rel, f"{r['number']}.pdf",
                  size, "application/pdf", actor, now))
             doc_id = _one(conn.execute("SELECT MAX(id) AS m FROM estimate_document"))["m"]
-        conn.execute("UPDATE proposal SET pdf_path = ?, pdf_doc_id = ?, pdf_rendered_at = ? WHERE id = ?",
-                     (rel, doc_id, now, proposal_id))
+        conn.execute("UPDATE proposal SET pdf_path = ?, pdf_doc_id = ?, pdf_rendered_at = ?, pdf_hash = ? WHERE id = ?",
+                     (rel, doc_id, now, _fingerprint(html), proposal_id))
         conn.commit()
         return {"ok": True, "size": size, "engine": res.get("engine")}
     except Exception as e:   # missing browser, timeout, disk — the proposal still sends
@@ -835,15 +973,18 @@ def render_pdf(conn, proposal_id: int, *, actor=None) -> dict:
 
 
 def pdf_file(conn, proposal_id: int) -> Optional[Path]:
-    r = _one(conn.execute("SELECT pdf_path, status, updated_at, pdf_rendered_at FROM proposal WHERE id = ?", (proposal_id,)))
+    """The PDF of the proposal as it is NOW. It used to be re-made only when updated_at was later than the last render,
+    to the second, so an edit in the same second as a render (or the Download click racing the autosave) served the
+    old amount. Now the document is drawn and compared with the fingerprint of the PDF on disk."""
+    r = get(conn, proposal_id)
     if not r:
         return None
-    stale = (not r.get("pdf_path")) or (r.get("pdf_rendered_at") or "") < (r.get("updated_at") or "")
-    if stale:
-        if not render_pdf(conn, proposal_id).get("ok"):
+    html = render_document(conn, r, mode="pdf")
+    p = ssc_paths.resolve_data_path(r["pdf_path"]) if r.get("pdf_path") else None
+    if p is None or not p.exists() or r.get("pdf_hash") != _fingerprint(html):
+        if not render_pdf(conn, proposal_id, html=html).get("ok"):
             return None
-        r = _one(conn.execute("SELECT pdf_path FROM proposal WHERE id = ?", (proposal_id,)))
-    p = ssc_paths.resolve_data_path(r["pdf_path"])
+        p = ssc_paths.resolve_data_path(get(conn, proposal_id)["pdf_path"])
     return p if p.exists() else None
 
 
@@ -922,10 +1063,13 @@ def send(conn, proposal_id: int, *, to_email=None, to_name=None, message=None, a
     if "@" not in to_email or "." not in to_email.split("@")[-1]:
         raise ValueError("a valid recipient email is required")
     to_name = (to_name or r.get("recipient_name") or r.get("contact_name") or "").strip() or None
+    sync_price(conn, proposal_id, layout=r.get("layout"))   # rows written before 2026-10-22 may have drifted from their lines
+    conn.commit()
+    r = get(conn, proposal_id)
     if r.get("price") in (None, "") or float(r["price"]) <= 0:
         raise ValueError("set the proposal price before sending")
     import proposal_engine
-    why = proposal_engine.blocked(conn, r) if r["status"] == "draft" else None
+    why = (proposal_engine.blocked(conn, r) or predecessor_problem(conn, r)) if r["status"] == "draft" else None
     if why:
         raise ValueError(why)
     valid_until = r.get("valid_until") or (_today() + timedelta(days=LINK_DAYS_DEFAULT)).isoformat()
@@ -940,6 +1084,8 @@ def send(conn, proposal_id: int, *, to_email=None, to_name=None, message=None, a
         "updated_at = ? WHERE id = ?",
         (to_email, to_name, valid_until, _hash(token), expires, now, actor, now, proposal_id))
     conn.commit()
+    # the fixed wording as sent, so the sent copy never changes (a resend keeps what it first went out with)
+    proposal_engine.freeze_house(conn, proposal_id, keep=r["status"] != "draft")
     pdf = render_pdf(conn, proposal_id, actor=actor)     # best effort; the page has the PDF link
     r = get(conn, proposal_id)
     url = f"{_base_url()}/p/{token}"
@@ -959,6 +1105,7 @@ def send(conn, proposal_id: int, *, to_email=None, to_name=None, message=None, a
         log.warning("#307 proposal %s sent without a PDF: %s", r["number"], pdf.get("error"))
     conn.commit()
     r = get(conn, proposal_id)
+    supersede_predecessor(conn, r, actor=actor)
     _activity(conn, r, f"Proposal {_label(r)} sent to {to_name or to_email}", actor=actor)
     return r
 
@@ -1096,6 +1243,166 @@ def mark_signed_offline(conn, proposal_id: int, *, name: str, signed_on=None, ac
     r = get(conn, proposal_id)
     _on_signed(conn, r)
     return r
+
+
+# ============================ revisions (2026-10-22) ============================
+# Anyone who works on proposals can ask for a revision of a SENT proposal (a scope change, or a price review a week
+# after sending). Only an ADMIN approves or rejects it — checked here, whatever the screen shows. Approval drafts the
+# next version (vN+1) to edit; the sent copy is never touched and stays the client's live proposal until the new
+# version is sent (supersede_predecessor). Every step is a proposal_event, so the timeline tells the whole story.
+
+def _revision_row(conn, rid: int) -> Optional[dict]:
+    return _one(conn.execute(
+        "SELECT v.*, ru.full_name AS requested_by_name, du.full_name AS decided_by_name, p.number AS proposal_number, "
+        "p.display_no, p.version, p.client_org_id, o.name AS client_name FROM proposal_revision v "
+        "JOIN proposal p ON p.id = v.proposal_id JOIN crm_organization o ON o.id = p.client_org_id "
+        "LEFT JOIN users ru ON ru.id = v.requested_by LEFT JOIN users du ON du.id = v.decided_by WHERE v.id = ?", (rid,)))
+
+
+def revision_public(v: dict) -> dict:
+    return {"id": v["id"], "proposal_id": v["proposal_id"], "label": _label({"display_no": v.get("display_no"),
+                                                                           "version": v.get("version"), "number": v.get("proposal_number")}),
+            "client_name": v.get("client_name"), "status": v["status"], "reason": v["reason"],
+            "price_review": bool(v.get("price_review")), "proposed_price": v.get("proposed_price"),
+            "requested_by": v.get("requested_by"), "requested_by_name": v.get("requested_by_name"), "requested_at": v["requested_at"],
+            "decided_by_name": v.get("decided_by_name"), "decided_at": v.get("decided_at"), "decision_note": v.get("decision_note"),
+            "new_proposal_id": v.get("new_proposal_id")}
+
+
+def revisions(conn, proposal_id: int) -> list:
+    """The requests about this proposal: made on it, or the one that created it (newest first)."""
+    ids = [r["id"] for r in _rows(conn.execute(
+        "SELECT id FROM proposal_revision WHERE proposal_id = ? OR new_proposal_id = ? ORDER BY requested_at DESC, id DESC",
+        (proposal_id, proposal_id)))]
+    return [revision_public(_revision_row(conn, i)) for i in ids]
+
+
+def pending_revisions(conn) -> list:
+    ids = [r["id"] for r in _rows(conn.execute(
+        "SELECT id FROM proposal_revision WHERE status = 'pending' ORDER BY requested_at, id"))]
+    return [revision_public(_revision_row(conn, i)) for i in ids]
+
+
+def _notify(conn, user_ids, subject: str, path: str) -> None:
+    """Internal email to staff (notification_log row first; live only with SendGrid). Never blocks the change."""
+    try:
+        import notifications
+        for uid in {u for u in user_ids if u}:
+            notifications.notify_user(conn, kind="proposal_revision", user_id=uid, subject=subject, path=path)
+    except Exception as e:
+        log.info("proposal revision notification skipped: %s", type(e).__name__)
+
+
+def request_revision(conn, proposal_id: int, *, actor, reason: str, price_review: bool = False,
+                     proposed_price=None) -> dict:
+    r = get(conn, proposal_id)
+    if not r:
+        raise LookupError("proposal not found")
+    if r["status"] not in REVISABLE:
+        raise ValueError("Only a sent proposal can be revised." if r["status"] == "draft" else
+                         f"A {r['status']} proposal can't be revised.")
+    reason = (reason or "").strip()
+    if len(reason) < 3:
+        raise ValueError("Say what should change, so the admin can decide.")
+    price = None
+    if proposed_price not in (None, ""):
+        try:
+            price = round(float(str(proposed_price).replace("$", "").replace(",", "")), 2)
+        except ValueError:
+            raise ValueError("The proposed price must be a number.")
+        if price <= 0:
+            raise ValueError("The proposed price must be more than zero.")
+    if _one(conn.execute("SELECT id FROM proposal_revision WHERE proposal_id = ? AND status = 'pending'", (proposal_id,))):
+        raise ValueError("A revision of this proposal is already waiting for an admin.")
+    if _one(conn.execute("SELECT id FROM proposal WHERE revision_of = ? AND status = 'draft'", (proposal_id,))):
+        raise ValueError("A new version of this proposal is already being edited.")
+    now = _now()
+    conn.execute("INSERT INTO proposal_revision (proposal_id, requested_by, requested_at, reason, price_review, proposed_price, status) "
+                 "VALUES (?,?,?,?,?,?, 'pending')", (proposal_id, actor, now, reason[:2000], 1 if (price_review or price) else 0, price))
+    rid = _one(conn.execute("SELECT MAX(id) AS m FROM proposal_revision WHERE proposal_id = ?", (proposal_id,)))["m"]
+    _event(conn, proposal_id, "revision_requested", actor=actor,
+           detail=("Price review" if (price_review or price) else "Revision") + (f" (proposed {_money(price)})" if price else "") + f": {reason[:300]}")
+    conn.commit()
+    _activity(conn, r, f"Revision of proposal {_label(r)} requested", actor=actor)
+    admins = [x["id"] for x in _rows(conn.execute(
+        "SELECT id FROM users WHERE role = 'admin' AND status = 'active' AND is_active = 1"))]
+    _notify(conn, [a for a in admins if a != actor], f"Proposal {_label(r)}: a revision is waiting for your approval",
+            f"/proposal-studio#p/{proposal_id}")
+    return revision_public(_revision_row(conn, rid))
+
+
+def decide_revision(conn, rid: int, *, actor, actor_role: str, approve: bool, note: Optional[str] = None) -> dict:
+    """Admin only. Approve = the next version is drafted to edit; reject = nothing changes. The request's status, the
+    deciding admin, the time and the note are kept, and the person who asked is told."""
+    if actor_role != "admin":
+        raise PermissionError("Only an admin can approve or reject a revision.")
+    v = _revision_row(conn, rid)
+    if not v:
+        raise LookupError("revision not found")
+    if v["status"] != "pending":
+        raise ValueError(f"This revision was already {v['status']}.")
+    note = (note or "").strip()[:1000] or None
+    if approve:
+        src = get(conn, v["proposal_id"])
+        if src["status"] not in REVISABLE:
+            raise ValueError(f"The proposal is {src['status']} now, so it can't be revised. Reject the request instead.")
+    # claim the request first: a second click (or a second admin) gets "already decided", never a second version
+    cur = conn.execute("UPDATE proposal_revision SET status = ?, decided_by = ?, decided_at = ?, decision_note = ? "
+                       "WHERE id = ? AND status = 'pending'", ("approved" if approve else "rejected", actor, _now(), note, rid))
+    if not (getattr(cur, "rowcount", 0) or 0):
+        conn.rollback()
+        raise ValueError("Someone decided this revision a moment ago. Reload.")
+    conn.commit()
+    new_id = None
+    if approve:
+        try:
+            new_id = new_version(conn, v["proposal_id"], actor=actor, supersede=False)["id"]
+        except Exception:
+            conn.rollback()
+            conn.execute("UPDATE proposal_revision SET status = 'pending', decided_by = NULL, decided_at = NULL, "
+                         "decision_note = NULL WHERE id = ?", (rid,))
+            conn.commit()
+            raise
+        conn.execute("UPDATE proposal_revision SET new_proposal_id = ? WHERE id = ?", (new_id, rid))
+        _event(conn, new_id, "revision_approved", actor=actor, detail=note or v["reason"][:300])
+    _event(conn, v["proposal_id"], "revision_approved" if approve else "revision_rejected", actor=actor,
+           detail=("new version drafted" if approve else "nothing changed") + (f": {note}" if note else ""))
+    conn.commit()
+    out = revision_public(_revision_row(conn, rid))
+    _notify(conn, [v["requested_by"]] if v["requested_by"] != actor else [],
+            f"Proposal {out['label']}: your revision was {'approved' if approve else 'rejected'}",
+            f"/proposal-studio#p/{new_id or v['proposal_id']}")
+    return out
+
+
+def withdraw_revision(conn, rid: int, *, actor, actor_role: str) -> dict:
+    v = _revision_row(conn, rid)
+    if not v:
+        raise LookupError("revision not found")
+    if v["requested_by"] != actor and actor_role != "admin":
+        raise PermissionError("Only the person who asked (or an admin) can withdraw it.")
+    if v["status"] != "pending":
+        raise ValueError(f"This revision was already {v['status']}.")
+    conn.execute("UPDATE proposal_revision SET status = 'withdrawn', decided_by = ?, decided_at = ? WHERE id = ?", (actor, _now(), rid))
+    _event(conn, v["proposal_id"], "revision_withdrawn", actor=actor)
+    conn.commit()
+    return revision_public(_revision_row(conn, rid))
+
+
+def admin_new_version(conn, proposal_id: int, *, actor, actor_role: str, supersede: bool = True) -> dict:
+    """An admin skips the request: the change is recorded as a revision the admin approved, then versioned."""
+    if actor_role != "admin":
+        raise PermissionError("Only an admin can make a new version directly. Ask for a revision instead.")
+    r = get(conn, proposal_id)
+    if not r:
+        raise LookupError("proposal not found")
+    new = new_version(conn, proposal_id, actor=actor, supersede=supersede)
+    now = _now()
+    conn.execute("INSERT INTO proposal_revision (proposal_id, requested_by, requested_at, reason, status, decided_by, decided_at, "
+                 "decision_note, new_proposal_id) VALUES (?,?,?,?, 'approved', ?,?,?,?)",
+                 (proposal_id, actor, now, "New version made by an admin", actor, now, None, new["id"]))
+    conn.commit()
+    return new
 
 
 # ============================ public page ============================
@@ -1267,7 +1574,13 @@ def _detail(conn, r: dict) -> dict:
     d["lines"] = lines(conn, r["id"])
     d["events"] = events(conn, r["id"])
     d["signed_ip"] = r.get("signed_ip")
+    d["amounts"] = amounts(conn, r)
+    d["revisions"] = revisions(conn, r["id"])
     return d
+
+
+def _role() -> Optional[str]:
+    return (current_user() or {}).get("role")
 
 
 def _api_list():
@@ -1379,15 +1692,85 @@ def _api_send(proposal_id):
 
 
 def _api_new_version(proposal_id):
+    """Admin only since 2026-10-22: everyone else asks for a revision, which an admin approves."""
     conn = _conn()
     try:
         try:
-            r = new_version(conn, proposal_id, actor=_uid())
+            r = admin_new_version(conn, proposal_id, actor=_uid(), actor_role=_role())
+        except PermissionError as e:
+            return _err(str(e), 403)
         except LookupError as e:
             return _err(str(e), 404)
         except ValueError as e:
             return _err(str(e), 409)
         return _wrap(_detail(conn, r)), 201
+    finally:
+        conn.close()
+
+
+def _api_revisions(proposal_id):
+    conn = _conn()
+    try:
+        if not get(conn, proposal_id):
+            return _err("proposal not found", 404)
+        return _wrap(revisions(conn, proposal_id))
+    finally:
+        conn.close()
+
+
+def _api_revisions_pending():
+    conn = _conn()
+    try:
+        return _wrap(pending_revisions(conn))
+    finally:
+        conn.close()
+
+
+def _api_revision_request(proposal_id):
+    body = request.get_json(silent=True) or {}
+    conn = _conn()
+    try:
+        try:
+            v = request_revision(conn, proposal_id, actor=_uid(), reason=body.get("reason"),
+                                 price_review=bool(body.get("price_review")), proposed_price=body.get("proposed_price"))
+        except LookupError as e:
+            return _err(str(e), 404)
+        except ValueError as e:
+            return _err(str(e), 409 if "already" in str(e) else 400)
+        return _wrap(v), 201
+    finally:
+        conn.close()
+
+
+def _api_revision_decide(rid, approve: bool):
+    body = request.get_json(silent=True) or {}
+    conn = _conn()
+    try:
+        try:
+            v = decide_revision(conn, rid, actor=_uid(), actor_role=_role(), approve=approve, note=body.get("note"))
+        except PermissionError as e:
+            return _err(str(e), 403)
+        except LookupError as e:
+            return _err(str(e), 404)
+        except ValueError as e:
+            return _err(str(e), 409)
+        return _wrap(v)
+    finally:
+        conn.close()
+
+
+def _api_revision_withdraw(rid):
+    conn = _conn()
+    try:
+        try:
+            v = withdraw_revision(conn, rid, actor=_uid(), actor_role=_role())
+        except PermissionError as e:
+            return _err(str(e), 403)
+        except LookupError as e:
+            return _err(str(e), 404)
+        except ValueError as e:
+            return _err(str(e), 409)
+        return _wrap(v)
     finally:
         conn.close()
 
@@ -1450,6 +1833,16 @@ def register(app) -> None:
     app.add_url_rule("/api/proposals/<int:proposal_id>/mark-signed", "proposals_mark_signed", gate(_api_mark_signed), methods=["POST"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/preview", "proposals_preview", gate(_api_preview), methods=["GET"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/pdf", "proposals_pdf", gate(_api_pdf), methods=["GET"])
+    # revisions (2026-10-22): anyone on proposals asks; approve / reject check the admin role inside decide_revision too
+    admin = requires_role("admin")
+    app.add_url_rule("/api/proposals/<int:proposal_id>/revisions", "proposals_revisions", gate(_api_revisions), methods=["GET"])
+    app.add_url_rule("/api/proposals/<int:proposal_id>/revisions", "proposals_revision_request", gate(_api_revision_request), methods=["POST"])
+    app.add_url_rule("/api/proposals/revisions", "proposals_revisions_pending", gate(_api_revisions_pending), methods=["GET"])
+    app.add_url_rule("/api/proposals/revisions/<int:rid>/approve", "proposals_revision_approve",
+                     gate(admin(lambda rid: _api_revision_decide(rid, True))), methods=["POST"])
+    app.add_url_rule("/api/proposals/revisions/<int:rid>/reject", "proposals_revision_reject",
+                     gate(admin(lambda rid: _api_revision_decide(rid, False))), methods=["POST"])
+    app.add_url_rule("/api/proposals/revisions/<int:rid>/withdraw", "proposals_revision_withdraw", gate(_api_revision_withdraw), methods=["POST"])
     # public — token is the credential (auth._PUBLIC_PREFIXES: /p/ and /api/p/)
     app.add_url_rule("/p/<token>", "proposal_public_page", _public_page, methods=["GET"])
     app.add_url_rule("/p/<token>/pdf", "proposal_public_pdf", _public_pdf, methods=["GET"])

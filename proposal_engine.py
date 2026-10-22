@@ -171,14 +171,15 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9$]+", " ", str(s or "").lower()).strip()
 
 
-def library(conn) -> dict:
-    """{notes|exclusions|deliverables: [{text, job_types, uses, added}]} from the examples, minus hidden, plus added."""
+def library(conn, exs: Optional[list] = None) -> dict:
+    """{notes|exclusions|deliverables: [{text, job_types, uses, added}]} from the examples, minus hidden, plus added.
+    `exs`: the examples when the caller already read them."""
     h = house(conn)
     lib = _get(conn, LIBRARY_KEY)
     hidden = {_norm(x) for x in lib.get("hidden") or []}
     skip = {_norm(h["withdraw_note"]), _norm(h["first_exclusion"])}
     out = {"notes": {}, "exclusions": {}, "deliverables": {}}
-    for ex in examples(conn):
+    for ex in (examples(conn) if exs is None else exs):
         for kind in out:
             for x in ex.get(kind) or []:
                 k = _norm(x)
@@ -209,6 +210,11 @@ def library_change(conn, *, hide: Optional[str] = None, unhide: Optional[str] = 
         lib["hidden"] = [x for x in lib["hidden"] if _norm(x) != _norm(add["text"])]
     _put(conn, LIBRARY_KEY, lib)
     return library(conn)
+
+
+def library_words(conn) -> set:
+    """Every library wording, normalized: read once per screen and passed to doc / checks / render as `known`."""
+    return _known(conn)
 
 
 def _known(conn) -> set:
@@ -328,21 +334,23 @@ def content(r: dict) -> dict:
     return _json(r.get("content"))
 
 
-def doc(conn, r: dict, lis: Optional[list] = None) -> dict:
+def doc(conn, r: dict, lis: Optional[list] = None, known: Optional[set] = None) -> dict:
+    """`known`: the library's wording, when the caller already has it (one view draws, checks and flags the same
+    proposal; the library is read from every past proposal, so it is read once)."""
     import proposals
     c = content(r)
     rows = proposals.lines(conn, r["id"]) if lis is None else lis
     d = {k: c.get(k) for k in TEXT_KEYS + LIST_KEYS if k in c}
     d.update(number=label(r), date=(r.get("sent_at") or date.today().isoformat())[:10],
              lines=[dict(li, **split_line(li)) if "detail" not in li else li for li in rows],
-             new_clauses=new_clauses(conn, c))
+             new_clauses=new_clauses(conn, c, known))
     d["title"] = r.get("title") or c.get("title") or ""
     return d
 
 
-def new_clauses(conn, c: dict) -> list:
+def new_clauses(conn, c: dict, known: Optional[set] = None) -> list:
     """Notes / exclusions / deliverables that aren't in the library yet and nobody has OK'd."""
-    known, acked = _known(conn), {_norm(x) for x in c.get("acked") or []}
+    known, acked = (_known(conn) if known is None else known), {_norm(x) for x in c.get("acked") or []}
     out = []
     for kind in ("notes", "exclusions", "deliverables"):
         for x in c.get(kind) or []:
@@ -353,17 +361,37 @@ def new_clauses(conn, c: dict) -> list:
 
 
 def house_for(conn, r: dict) -> dict:
-    """The house wording, with this proposal's own deposit % (set from the house when it was made)."""
+    """The house wording, with this proposal's own deposit % (set from the house when it was made). Once a proposal is
+    sent it keeps the wording it went out with (freeze_house), so the sent copy reads the same in every view and PDF
+    even after Fixed wording is edited."""
     h = house(conn)
+    frozen = content(r).get("house") if r.get("status") != "draft" else None
+    if isinstance(frozen, dict):
+        h.update({k: v for k, v in frozen.items() if k in HOUSE_EDITABLE})
     if r.get("deposit_pct") is not None:
         h["deposit_pct"] = float(r["deposit_pct"])
     return h
 
 
-def render(conn, r: dict, mode: str = "pdf", lis: Optional[list] = None) -> str:
+def freeze_house(conn, pid: int, keep: bool = False) -> None:
+    """Keep the fixed wording a proposal is sent with (2026-10-22). Called by every send path before the PDF is made.
+    keep=True (a resend of a proposal already sent): the wording it first went out with stays."""
+    import proposals
+    r = proposals.get(conn, pid)
+    if not r or r.get("layout") != "ssc":
+        return
+    c = content(r)
+    if keep and isinstance(c.get("house"), dict):
+        return
+    c["house"] = {k: v for k, v in house_for(conn, dict(r, status="draft")).items() if k in HOUSE_EDITABLE}
+    conn.execute("UPDATE proposal SET content = ? WHERE id = ?", (json.dumps(c), pid))
+    conn.commit()
+
+
+def render(conn, r: dict, mode: str = "pdf", lis: Optional[list] = None, known: Optional[set] = None) -> str:
     import company_brand
     h = house_for(conn, r)
-    d = doc(conn, r, lis)
+    d = doc(conn, r, lis, known)
     signed = None
     if r.get("status") == "signed":
         signed = {"name": r.get("signed_name"), "title": r.get("signed_title"), "at": r.get("signed_at")}
@@ -371,8 +399,8 @@ def render(conn, r: dict, mode: str = "pdf", lis: Optional[list] = None) -> str:
                     flagged=d["new_clauses"] if mode == "edit" else None)
 
 
-def checks(conn, r: dict) -> list:
-    return proposal_checks.check(doc(conn, r), house_for(conn, r))
+def checks(conn, r: dict, known: Optional[set] = None) -> list:
+    return proposal_checks.check(doc(conn, r, known=known), house_for(conn, r))
 
 
 def blocked(conn, r: dict) -> Optional[str]:
@@ -397,6 +425,10 @@ def save(conn, pid: int, patch: dict, lines: Optional[list] = None, *, actor=Non
     c.update(clean_content(patch or {}, h))
     if "acked" in (patch or {}):
         c["acked"] = [str(x)[:600] for x in patch["acked"]][:60]
+    if "excluded" in (patch or {}):   # paragraphs the person took out as irrelevant to this job (2026-10-22)
+        c["excluded"] = [{"kind": x["kind"], "text": str(x.get("text") or "")[:600]} for x in patch["excluded"] or []
+                         if isinstance(x, dict) and x.get("kind") in ("notes", "exclusions", "deliverables")
+                         and str(x.get("text") or "").strip()][:60]
     if "email_message" in (patch or {}):
         c["email_message"] = str(patch["email_message"] or "")[:4000]
     fields = {"title": c.get("title") or r.get("title"), "scope_summary": c.get("overview") or "",
@@ -486,13 +518,17 @@ def _model(system: str, blocks: list, schema: dict, conn, uid, title: str) -> di
     raise ValueError("Claude couldn't finish it. Try again in a minute.")
 
 
-def context_blocks(conn, uid, req: dict) -> list:
-    """What Claude reads to write a new proposal."""
+def context_blocks(conn, uid, req: dict, progress=None) -> list:
+    """What Claude reads to write a new proposal. progress(i) reports the real step (proposal_studio.STEPS)."""
     import proposal_studio
+    progress = progress or (lambda i: None)
+    progress(0)
     h = house(conn)
+    progress(1)
     exs = examples(conn)
     jt = req.get("job_type")
     close = _closest(exs, jt)
+    progress(2)
     org = None
     if req.get("client_org_id"):
         org = proposal_studio._one(conn, "SELECT id, name FROM crm_organization WHERE id = ?", (req["client_org_id"],))
@@ -504,7 +540,7 @@ def context_blocks(conn, uid, req: dict) -> list:
     # the company's own material is the same for every draft of a job type: cached (a retry or the next draft
     # within 5 minutes reads it at a twentieth of the price); what is about this job follows it
     style = (f"<fixed_wording_the_app_adds>\n{_house_text(h)}\n</fixed_wording_the_app_adds>\n"
-             f"<library>\n{_library_text(library(conn), jt)}\n</library>\n"
+             f"<library>\n{_library_text(library(conn, exs), jt)}\n</library>\n"
              f"<closest_past_proposals>\n{json.dumps([_strip(e) for e in close], indent=1)[:60000] or '(none yet)'}\n</closest_past_proposals>\n"
              f"<price_history>\n{_prices(exs) or '(none yet)'}\n</price_history>\n")
     txt = (f"<client>\n{client}\nBuilding: {req.get('building_address') or '(not given)'}\nJob type: {jt or '(decide)'}\n"
@@ -516,9 +552,11 @@ def context_blocks(conn, uid, req: dict) -> list:
             txt += f"<email from=\"{m['from']}\" subject=\"{m['subject']}\">\n{proposal_studio._clip(m['body'], 8000)}\n</email>\n"
     blocks = [{"type": "text", "text": style, "cache_control": {"type": "ephemeral"}}, {"type": "text", "text": txt}]
     if req.get("file_ids"):
+        progress(3)
         import claude_files
         for r in claude_files.owned(conn, uid, req["file_ids"]):
             blocks.extend(claude_files.blocks(conn, r))
+    progress(4)
     blocks.append({"type": "text", "text": f"<request>\n{req['what']}\n</request>\n\nWrite this proposal. The first of the closest past proposals "
                                            f"(same job type) sets the line structure and pricing. Copy the closest past "
                                            f"proposals' structure, order and wording; only the facts of this job change.\n\n{RULES}"})
@@ -554,12 +592,14 @@ def fake_draft(req: dict) -> dict:
             "sources": ["Your past proposal 1041"]}
 
 
-def write(conn, uid, req: dict) -> dict:
+def write(conn, uid, req: dict, progress=None) -> dict:
     """Claude writes the content of a new proposal (not saved yet)."""
     import assistant
     if assistant._fake():
+        for i in range(5):
+            (progress or (lambda i: None))(i)
         return fake_draft(req)
-    return _model(SYSTEM, context_blocks(conn, uid, req), DRAFT_SCHEMA, conn, uid, "Proposal Studio draft")
+    return _model(SYSTEM, context_blocks(conn, uid, req, progress), DRAFT_SCHEMA, conn, uid, "Proposal Studio draft")
 
 
 def create(conn, uid, req: dict, d: dict) -> int:
@@ -600,6 +640,7 @@ def snapshot(conn, pid: int) -> dict:
     out["lines"] = [{k: v for k, v in dict(li, **split_line(li)).items() if k in ("lead", "detail", "qty", "unit", "unit_price")}
                     for li in proposals.lines(conn, pid)]
     out["acked"] = c.get("acked") or []
+    out["excluded"] = c.get("excluded") or []
     return out
 
 
@@ -622,8 +663,11 @@ def revise(conn, pid: int, instruction: str, uid) -> dict:
     else:
         import proposal_studio
         proposal_studio._claude_ready(conn, uid)
+        gone = before.get("excluded") or []
         txt = (f"<rules>\n{RULES}\n</rules>\n<proposal>\n{json.dumps(payload, indent=1)}\n</proposal>\n"
-               f"<request>\n{instruction[:2000]}\n</request>")
+               + (f"<taken_out_by_the_person>\n{json.dumps(gone, indent=1)}\n</taken_out_by_the_person>\n"
+                  "Those paragraphs don't apply to this job: never put them back unless the request asks for them.\n" if gone else "")
+               + f"<request>\n{instruction[:2000]}\n</request>")
         out = _model(REVISE_SYSTEM, [{"type": "text", "text": txt}], REVISE_SCHEMA, conn, uid, "Proposal Studio change")
     patch = {k: out[k] for k in out if k != "lines"}
     save(conn, pid, patch, out.get("lines") if "lines" in out else None, actor=uid)

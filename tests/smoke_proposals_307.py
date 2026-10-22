@@ -325,7 +325,9 @@ def main() -> int:
     r = admin.post(f"/api/proposals/{p2['id']}/new-version"); assert r.status_code == 201, r.get_data(as_text=True)
     p2b = r.get_json()["data"]
     assert p2b["version"] == 2 and p2b["number"] == f"{ids['code2']}-P2" and p2b["status"] == "draft"
-    assert [l["description"] for l in p2b["lines"]] == ["Lintel"] and p2b["price"] == 9000   # explicit price wins over the lines
+    # 2026-10-22: the Superstars layout prints its lines' total, so that IS the price (a price apart from the lines was
+    # the PDF-vs-proposal mismatch); the price given with the lines above is ignored
+    assert [l["description"] for l in p2b["lines"]] == ["Lintel"] and p2b["price"] == 2000 and p2b["amounts"]["total"] == 2000
     old = admin.get(f"/api/proposals/{p2['id']}").get_json()["data"]
     assert old["status"] == "superseded" and old["superseded_by"] == p2b["id"]
     assert anon.get(f"/p/{tok2}").status_code == 404
