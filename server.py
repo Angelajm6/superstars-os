@@ -5163,6 +5163,8 @@ def _projdoc_public(d, today_iso, d30_iso):
         # drop zone — the approved type tag + what Claude read off the pages
         'type_key': d.get('type_key'), 'type_label': doc_intake.type_label(d.get('type_key')),
         'ai': doc_intake.doc_ai_public(d),
+        # whose record it is (NULL = our company); several parties can share a checklist item
+        'party': d.get('party'), 'party_name': d.get('party_name'),
     }
     # #271 — version history (computed by the list endpoint for current docs only)
     if '_history' in d:
@@ -5209,13 +5211,15 @@ def _projdoc_insert(conn, project_code, fs, form, supersedes_id=None):
                 datetime.strptime(dval, '%Y-%m-%d')   # LOCAL YYYY-MM-DD validation
         version = (form.get('version') or '').strip() or None
         notes = (form.get('notes') or '').strip() or None
+        party, party_name = doc_intake.clean_party(form.get('party'), form.get('party_name'))
         uid = (current_user() or {}).get('id')
         cur = conn.execute(
             "INSERT INTO project_documents (project_code, category, requirement_key, title, doc_type, "
             "file_path, file_name, file_size, mime, effective_date, expiry_date, version, notes, "
-            "superseded, uploaded_by_uid, uploaded_at, supersedes_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?)",
+            "superseded, uploaded_by_uid, uploaded_at, supersedes_id, party, party_name) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?)",
             (project_code, category, rk, title, doc_type, str(fpath), file_name, size, mime,
-             eff, exp, version, notes, uid, datetime.now().isoformat(), supersedes_id))
+             eff, exp, version, notes, uid, datetime.now().isoformat(), supersedes_id, party, party_name))
         return cur.lastrowid
     except Exception:
         try:
@@ -5230,7 +5234,10 @@ def _projdoc_insert(conn, project_code, fs, form, supersedes_id=None):
 def api_project_documents(project_code):
     """#229 — the compliance checklist payload: per category, each REQUIRED item with
     its computed status (on_file/missing/expiring/expired) + extra docs + the readiness
-    rollup (on_file/missing/attention + % of required on file). NO *_path. no-store."""
+    rollup (on_file/missing/attention + % of required on file). NO *_path. no-store.
+    An item can hold several current documents (ours + each subcontractor's COI, say):
+    `docs` lists them all; `doc` is the one that decides the item's status (the best
+    standing, newest first). `suggestions` = doc_suggest over what is filed."""
     conn = db()
     try:
         today = date.today()
@@ -5242,11 +5249,12 @@ def api_project_documents(project_code):
         docs = [dict(d) for d in conn.execute(
             "SELECT * FROM project_documents WHERE project_code=? ORDER BY uploaded_at DESC, id DESC",
             (project_code,)).fetchall()]
-        by_req = {}   # most-recent non-superseded doc fulfilling each requirement
+        by_req = {}   # every non-superseded doc fulfilling each requirement, newest first
         for d in docs:
             rk = d['requirement_key']
-            if rk and not d['superseded'] and rk not in by_req:
-                by_req[rk] = d
+            if rk and not d['superseded']:
+                by_req.setdefault((d['category'], rk), []).append(d)
+        _rank = {'on_file': 0, 'expiring': 1, 'expired': 2}
         # #271 — version chains: history = walk supersedes_id from each CURRENT doc.
         # A superseded row that is REFERENCED by a newer version lives in History (not
         # extras); legacy superseded rows with no successor stay extras as before.
@@ -5278,17 +5286,19 @@ def api_project_documents(project_code):
         for code in _PROJDOC_CATEGORIES:
             items = []
             for r in cat_reqs.get(code, []):
-                d = by_req.get(r['requirement_key'])
+                held = [_projdoc_public(d, today_iso, d30_iso)
+                        for d in by_req.get((code, r['requirement_key']), [])]
                 agg['required_total'] += 1
-                if d:
-                    st = _projdoc_status(d, today_iso, d30_iso)
+                if held:
+                    best = min(held, key=lambda x: _rank.get(x['status'], 9))   # stable: newest wins ties
+                    st = best['status']
                     agg['attention' if st in ('expiring', 'expired') else 'on_file'] += 1
                     items.append({'requirement_key': r['requirement_key'], 'label': r['label'],
-                                  'status': st, 'doc': _projdoc_public(d, today_iso, d30_iso)})
+                                  'status': st, 'doc': best, 'docs': held})
                 else:
                     agg['missing'] += 1
                     items.append({'requirement_key': r['requirement_key'], 'label': r['label'],
-                                  'status': 'missing', 'doc': None})
+                                  'status': 'missing', 'doc': None, 'docs': []})
             req_keys = {r['requirement_key'] for r in cat_reqs.get(code, [])}
             extras = [_projdoc_public(d, today_iso, d30_iso) for d in docs
                       if d['category'] == code and d['id'] not in in_history
@@ -5303,16 +5313,19 @@ def api_project_documents(project_code):
         # query pair via visibility.document_states; default internal-only/not-flagged).
         states = visibility.document_states(conn, project_code)
         for c in out_cats:
-            for it in c['items']:
-                if it.get('doc'):
-                    st = states.get(it['doc']['id'], {})
-                    it['doc']['shared_client'] = bool(st.get('shared_client'))
-                    it['doc']['flagged'] = bool(st.get('flagged'))
-            for d in c['extras']:
+            for d in [x for it in c['items'] for x in it['docs']] + c['extras']:   # `doc` is one of `docs`
                 st = states.get(d['id'], {})
                 d['shared_client'] = bool(st.get('shared_client'))
                 d['flagged'] = bool(st.get('flagged'))
-        resp = response_wrapper({'categories': out_cats, 'readiness': {**agg, 'pct': pct}})
+        missing_reqs = {(c['category'], it['requirement_key']) for c in out_cats
+                        for it in c['items'] if it['status'] == 'missing'}
+        current = [{**d, 'ai': doc_intake.doc_ai_public(d)} for d in docs if not d['superseded']]
+        dismissed = {r['suggestion_key'] for r in conn.execute(
+            "SELECT suggestion_key FROM project_doc_suggest_dismissed WHERE project_code=?",
+            (project_code,)).fetchall()}
+        suggestions = doc_suggest.suggest(current, missing_reqs, dismissed)
+        resp = response_wrapper({'categories': out_cats, 'readiness': {**agg, 'pct': pct},
+                                 'suggestions': suggestions})
         resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         return resp
     finally:
@@ -5496,6 +5509,7 @@ def api_project_documents_scan(project_code):
 # ---------- Documents drop zone: intake -> Claude reads -> approve the tag -> filed ----------
 import doc_intake  # noqa: E402
 import doc_types  # noqa: E402
+import doc_suggest  # noqa: E402
 
 try:
     _di_conn = db()
@@ -5677,7 +5691,8 @@ def api_projdoc_intake_file(intake_id):
 @requires_role(*_PROJDOC_ROLES)
 def api_projdoc_intake_approve(intake_id):
     """File a waiting document under the approved tag. Body {type_key, title?,
-    effective_date?, expiry_date?, supersedes_id?}. The tag decides the folder and the
+    effective_date?, expiry_date?, supersedes_id?, party?, party_name?}. party = whose
+    record it is (company / subcontractor / owner / other; Claude's read when omitted). The tag decides the folder and the
     checklist item. supersedes_id = 'newer version of' (same rules as Update: the old
     version moves to History and loses its client shares; the new one starts internal)."""
     body = request.get_json(silent=True) or {}
@@ -5724,16 +5739,20 @@ def api_projdoc_intake_approve(intake_id):
         else:
             supersedes_id = None
         set_by = 'ai' if sug.get('type_key') == t['key'] else 'user'
+        if 'party' in body:
+            party, party_name = doc_intake.clean_party(body.get('party'), body.get('party_name'))
+        else:
+            party, party_name = doc_intake.clean_party(sug.get('party'), sug.get('party_name'))
         uid = (current_user() or {}).get('id')
         cur = conn.execute(
             "INSERT INTO project_documents (project_code, category, requirement_key, title, doc_type, "
             "file_path, file_name, file_size, mime, effective_date, expiry_date, version, notes, "
-            "superseded, uploaded_by_uid, uploaded_at, supersedes_id, type_key, ai_extract) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?)",
+            "superseded, uploaded_by_uid, uploaded_at, supersedes_id, type_key, ai_extract, party, party_name) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?)",
             (code, t['category'], rk, title, row['doc_type'], row['file_path'], row['file_name'],
              row['file_size'], row['mime'], dates['effective_date'], dates['expiry_date'], None, None,
              uid, datetime.now().isoformat(), supersedes_id, t['key'],
-             doc_intake.extract_for_storage(sug if sug else None, set_by)))
+             doc_intake.extract_for_storage(sug if sug else None, set_by), party, party_name))
         new_id = cur.lastrowid
         if supersedes_id is not None:
             conn.execute("UPDATE project_documents SET superseded=1 WHERE id=?", (supersedes_id,))
@@ -5748,6 +5767,30 @@ def api_projdoc_intake_approve(intake_id):
     except Exception as e:
         logging.error(f"POST documents/intake/{intake_id}/approve: {type(e).__name__}")
         return _server_error(e)
+    finally:
+        conn.close()
+
+
+@app.route('/api/projects/<project_code>/documents/suggestions/dismiss', methods=['POST'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_suggestion_dismiss(project_code):
+    """Mark a suggested document 'not needed' for this job. Body {key}."""
+    key = str((request.get_json(silent=True) or {}).get('key') or '').strip()
+    if not key or len(key) > 300 or not doc_types.get(key.split('|', 1)[0]):
+        return jsonify({"error": "unknown suggestion"}), 400
+    conn = db()
+    try:
+        err = _projdoc_scope_err(conn, project_code)
+        if err:
+            return err
+        if not conn.execute("SELECT 1 FROM project_doc_suggest_dismissed WHERE project_code=? AND suggestion_key=?",
+                            (project_code, key)).fetchone():
+            conn.execute("INSERT INTO project_doc_suggest_dismissed (project_code, suggestion_key, dismissed_by_uid, "
+                         "dismissed_at) VALUES (?,?,?,?)",
+                         (project_code, key, (current_user() or {}).get('id'),
+                          datetime.now().isoformat(timespec='seconds')))
+            conn.commit()
+        return response_wrapper({'dismissed': key})
     finally:
         conn.close()
 
@@ -5861,6 +5904,8 @@ def api_projdoc_patch(doc_id):
         for k in ('category', 'requirement_key', 'title', 'effective_date', 'expiry_date', 'version', 'notes', 'superseded'):
             if k in body:
                 fields[k] = body[k]
+        if 'party' in body:
+            fields['party'], fields['party_name'] = doc_intake.clean_party(body.get('party'), body.get('party_name'))
         if 'category' in fields and fields['category'] not in _PROJDOC_CATEGORIES:
             return jsonify({"error": "invalid category"}), 400
         for dk in ('effective_date', 'expiry_date'):

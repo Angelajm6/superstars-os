@@ -22,6 +22,7 @@ import re
 from pathlib import Path
 
 import ai_models
+import brand
 import doc_types
 
 # Default vision model — env-overridable so the operator can pin a different
@@ -38,6 +39,8 @@ KEY_FACTS_MAX = 4
 FIELDS_MAX = 80
 FIELD_LABEL_MAX = 80
 FIELD_VALUE_MAX = 400
+RELATED_MAX = 5
+RELATED_REASON_MAX = 200
 
 # Image media types the vision API accepts directly. HEIC is NOT accepted by the
 # image block, so it degrades: we still send it (labeled best-effort) but the
@@ -59,6 +62,14 @@ _FIELD = {
     "type": "object",
     "properties": {"label": {"type": "string"}, "value": {"type": "string"}},
     "required": ["label", "value"],
+    "additionalProperties": False,
+}
+
+_RELATED = {
+    "type": "object",
+    "properties": {"type_key": {"type": "string", "enum": list(doc_types.KEYS)},
+                   "reason": {"type": "string"}},
+    "required": ["type_key", "reason"],
     "additionalProperties": False,
 }
 
@@ -90,10 +101,17 @@ SCAN_SCHEMA = {
                       "description": "The 2-4 facts a project manager checks first (e.g. expiry, amount due, status)"},
         "fields": {"type": "array", "items": _FIELD,
                    "description": "EVERY piece of information on the document, one label/value per item"},
+        # whose record this is, and what other documents it points to
+        "party": {"type": "string", "enum": ["company", "subcontractor", "owner", "other", "unknown"],
+                  "description": "Whose record this is: our company, a subcontractor, the owner/client, or other"},
+        "party_name": {"type": ["string", "null"],
+                       "description": "The subcontractor / owner / other company's name as printed, else null"},
+        "related": {"type": "array", "items": _RELATED,
+                    "description": "Other documents this one references or clearly calls for (max 5)"},
     },
     "required": ["title", "doc_type", "category", "requirement_key",
                  "effective_date", "expiry_date", "confidence",
-                 "type_key", "summary", "key_facts", "fields"],
+                 "type_key", "summary", "key_facts", "fields", "party", "party_name", "related"],
     "additionalProperties": False,
 }
 
@@ -132,6 +150,9 @@ Also extract:
 - summary: one or two plain sentences saying what the document is and what it says (e.g. who it is between, what it covers, its status).
 - key_facts: the 2-4 facts a project manager would check first, as short label/value pairs (e.g. "Expires" / "03/14/2027", "Current payment due" / "$84,210.00", "Status" / "Approved").
 - fields: EVERY piece of information printed or written on the document, as label/value pairs in reading order — names, addresses, numbers (permit, job, policy, BIN, license), dates, amounts, limits, coverages, line items, signatures present or missing, checkboxes ticked. Write dates as MM/DD/YYYY and amounts as printed. Copy values exactly; if something is unreadable, say "unreadable" rather than guessing.
+- party: whose record this is. The general contractor filing it is {brand.COMPANY_NAME} ("company"). Use "subcontractor" for a subcontractor's own record (its COI, its subcontract, its lien waiver), "owner" for the building owner / client's own record, "other" for anyone else, "unknown" if you cannot tell.
+- party_name: for subcontractor / owner / other, that company's name exactly as printed; otherwise null.
+- related: up to 5 OTHER documents this one names, attaches, or clearly calls for (e.g. a contract requiring a bond or a certificate of insurance, a pay application calling for lien waivers, a permit referencing approved plans). Each is a type key from the list above plus a short reason quoting or paraphrasing the document. Only list what the document itself supports — never a generic checklist. Empty list if none.
 
 Return ONLY the structured JSON. No prose."""
 
@@ -284,6 +305,20 @@ def process_scan_result(raw, valid_categories, req_by_cat, default_category="PER
     summary = str(raw.get("summary") or "").strip()[:SUMMARY_MAX] or None
     key_facts = _pairs(raw.get("key_facts"), KEY_FACTS_MAX)
     fields = _pairs(raw.get("fields"), FIELDS_MAX)
+    party = str(raw.get("party") or "").strip().lower()
+    party = party if party in ("company", "subcontractor", "owner", "other") else None
+    party_name = (" ".join(str(raw.get("party_name") or "").split())[:120] or None) if party not in (None, "company") else None
+    related, seen = [], set()
+    for r in raw.get("related") or []:
+        if not isinstance(r, dict):
+            continue
+        rt = doc_types.get(r.get("type_key"))
+        reason = str(r.get("reason") or "").strip()[:RELATED_REASON_MAX]
+        if rt and reason and rt["key"] not in seen and rt["key"] != (t["key"] if t else None):
+            seen.add(rt["key"])
+            related.append({"type_key": rt["key"], "reason": reason})
+        if len(related) >= RELATED_MAX:
+            break
 
     return {
         "title": title,
@@ -301,6 +336,9 @@ def process_scan_result(raw, valid_categories, req_by_cat, default_category="PER
         "summary": summary,
         "key_facts": key_facts,
         "fields": fields,
+        "party": party,
+        "party_name": party_name,
+        "related": related,
     }
 
 

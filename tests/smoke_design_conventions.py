@@ -790,10 +790,10 @@ def main():
         if not fs or float(fs.group(1)) != want:
             bad_t.append(sel)
     ok("density_title_scale", not bad_t, f"off the 20/18/15 scale: {bad_t}")
-    modals = [".dr-sheet", ".pk-modal", ".pd-modal", ".la-modal", ".dcrg-panel", ".mt-modal", ".pay-modal", ".aia-modal", ".fp-modal", ".pc-modal"]
+    modals = [".dr-sheet", ".pd-modal", ".la-modal", ".dcrg-panel", ".mt-modal", ".pay-modal", ".aia-modal", ".fp-modal", ".pc-modal"]
     bad_m = [sel for sel in modals if not re.search(r"(?:^|[\s}])" + re.escape(sel) + r"\s*\{[^{}]*max-width:\s*var\(--modal-(sm|md|lg|xl)\)", inline)]
     ok("density_modal_sizes", not bad_m and "--modal-md: 640px" in inline, f"dialogs off the four sizes: {bad_m}")
-    bad_p = [sel for sel in (".dcr-primary", ".pk-btn.primary", ".pay-btn.primary")
+    bad_p = [sel for sel in (".dcr-primary", ".pay-btn.primary")
              if not re.search(re.escape(sel) + r"\s*\{[^{}]*background:\s*var\(--accent", inline)]
     ok("density_one_primary", not bad_p, f"primary buttons not on --accent: {bad_p}")
     skip = _print_spans(inline)

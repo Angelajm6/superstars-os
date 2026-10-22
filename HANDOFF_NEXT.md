@@ -111,7 +111,24 @@ grant, or elevation code.
 * Not done yet (verify first, costs real calls): Haiku 5.5 for the scanners / Claude window; Claude window context
   clearing (must stay append-only: Opus 5.5 checks replayed thinking blocks against an unchanged history).
 
-### Documents tab = one drop zone; Claude tags, the user approves (Bookore, 2026-10-21)
+### Documents tab: several per item, whose record, suggested documents (Bookore, 2026-10-22)
+
+* **Several documents per checklist item.** Each item in `GET /api/projects/<code>/documents` now carries `docs` (every
+  current doc on it, newest first); `doc` stays as the one that sets the item's status (best standing). Before this, a
+  second COI (a sub's) vanished from the payload. Folder rows list each one.
+* **Whose record it is**: `project_documents.party` (`company` | `subcontractor` | `owner` | `other`, NULL = company) +
+  `party_name`. Claude's read returns `party` / `party_name`; the review card has a "Belongs to" picker; approve, upload
+  and PATCH accept it. "Newer version of" now only matches the same item **and** party, so a sub's COI files alongside ours.
+* **Suggested for this job** (`doc_suggest.py`, pure): rules (subcontract → that sub's COI + lien waiver, G702 → SOV +
+  lien waiver, BEST permit → rigging engineering, …), words in what Claude read ("performance bond", "after-hours"), and
+  Claude's new `related` scan field. Returned as `suggestions` on the documents payload. "Required · missing" only when it
+  fills a missing checklist item **and** the document would be ours; everything else is "May be needed". Upload from a
+  suggestion pre-sets the type + party; "Not needed" → `POST …/documents/suggestions/dismiss {key}` (`project_doc_suggest_dismissed`).
+* **Removed from the tab**: the Specifications table and the permits & insurance package card + send dialog. Their APIs
+  stay (`/document-specs`, `/documents/package`); the Company Portal job page still uses the package.
+* Guard: `tests/smoke_doc_dropzone.py` (12 groups). The live model read with the new `party` / `related` fields was NOT run
+  locally (no key).
+
 
 * The job's Documents tab is now: a big drop area (the whole tab takes drops; Choose files; Scan with camera on
   phones) → one review card per file → **Approve** → filed. Below it, six folder tiles (the existing six categories)
