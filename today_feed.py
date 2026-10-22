@@ -332,6 +332,91 @@ def _doc_href(it: dict) -> str:
     return "#company"
 
 
+PROPOSAL_EXPIRY_DAYS = 7       # a sent proposal shows up a week before its valid-until date
+PROPOSAL_LAPSED_DAYS = 14      # ... and for two weeks after it lapsed without an answer
+REVISION_NEWS_DAYS = 7         # the person who asked for a revision sees the answer for a week (or until dismissed)
+
+
+def _us(iso) -> str:
+    """MM/DD/YYYY for people (DESIGN_SYSTEM: display MM/DD/YYYY, store ISO)."""
+    try:
+        d = date.fromisoformat(str(iso)[:10])
+    except ValueError:
+        return str(iso or "")
+    return f"{d.month:02d}/{d.day:02d}/{d.year}"
+
+
+def _proposal_href(r: dict) -> str:
+    return f"/proposal-studio#p/{r['id']}" if r.get("layout") == "ssc" else f"#proposals/{r['id']}"
+
+
+def proposal_cards(conn, uid, today: date) -> list:
+    """Proposals that need a person. Nothing here sends anything: "Draft a follow-up" opens the Claude window with the
+    request typed in, and whatever Claude writes is a draft the person approves (claude_agent cards)."""
+    import proposals
+    me = (_rows(conn, "SELECT role FROM users WHERE id = ?", (uid,)) or [{}])[0]
+    admin = me.get("role") == "admin"
+    out = []
+    lo, hi = (today - timedelta(days=PROPOSAL_LAPSED_DAYS)).isoformat(), (today + timedelta(days=PROPOSAL_EXPIRY_DAYS)).isoformat()
+    # 8. sent, no answer yet, valid-until close (or just passed): the person who sent it, and the admins, follow up
+    for r in _rows(conn, "SELECT p.id, p.number, p.display_no, p.version, p.layout, p.status, p.title, p.price, p.valid_until, "
+                         "p.sent_at, p.sent_by, p.recipient_name, o.name AS client_name FROM proposal p "
+                         "JOIN crm_organization o ON o.id = p.client_org_id WHERE p.status IN ('sent','viewed') "
+                         "AND p.valid_until IS NOT NULL AND p.valid_until >= ? AND p.valid_until <= ?", (lo, hi)):
+        if not (admin or r.get("sent_by") in (None, uid)):
+            continue
+        if _rows(conn, "SELECT id FROM proposal WHERE revision_of = ? AND status = 'draft'", (r["id"],)):
+            continue   # a new version is already being made: the follow-up is that version
+        n = proposals.expires_in_days(r, today)
+        no = proposals._label(r)
+        client = r.get("client_name") or "the client"
+        seen = "opened it, no answer yet" if r["status"] == "viewed" else "hasn't opened it yet"
+        when = "expired " + _days_word(n).replace(" late", " ago") if n < 0 else "expires " + _days_word(n)
+        out.append(_card(f"proposal-expiry:{r['id']}:{r['valid_until']}", "money email",
+                         "now" if n <= 1 else ("today" if n <= 3 else "week"),
+                         f"Proposal {no} {when} · {_money(r.get('price'))}",
+                         f"{client} {seen}. Sent {_us(r.get('sent_at'))}, valid until {_us(r['valid_until'])}. "
+                         + ("Follow up, or make a new version with fresh dates." if n < 0 else "Follow up before it lapses."),
+                         href=_proposal_href(r), source="Proposals", pill=("Expired " if n < 0 else "Valid until ") + _us(r["valid_until"]),
+                         icon="cash", proposal_id=r["id"],
+                         actions=[{"type": "open", "label": "Open proposal", "primary": True},
+                                  {"type": "claude", "label": "Draft a follow-up",
+                                   "prompt": f"Draft a short, friendly follow-up email to {client} about proposal {no} "
+                                             f"({r.get('title') or 'our proposal'}, {_money(r.get('price'))}), sent "
+                                             f"{_us(r.get('sent_at'))} and valid until {_us(r['valid_until'])}. Reply in their "
+                                             f"latest email thread if there is one. Show me the draft; don't send it."}]))
+    # 9. revisions waiting for an admin (only admins can decide them)
+    if admin:
+        for v in proposals.pending_revisions(conn):
+            r = proposals.get(conn, v["proposal_id"]) or {}
+            what = "Price review" if v["price_review"] else "Revision"
+            out.append(_card(f"proposal-revision:{v['id']}", "money", "today",
+                             f"{what} requested on proposal {v['label']} · {v.get('client_name') or ''}".rstrip(" ·"),
+                             f"{v.get('requested_by_name') or 'Someone'}: {v['reason'][:220]}"
+                             + (f" Proposed price {_money(v['proposed_price'])}." if v.get("proposed_price") else ""),
+                             href=_proposal_href(dict(r, id=v["proposal_id"])), source="Proposals › Revisions",
+                             pill="Waiting for an admin", icon="task", proposal_id=v["proposal_id"],
+                             actions=[{"type": "open", "label": "Review it", "primary": True}], when=v["requested_at"]))
+    # 10. the answer to a revision this person asked for
+    since = (today - timedelta(days=REVISION_NEWS_DAYS)).isoformat()
+    for x in _rows(conn, "SELECT id FROM proposal_revision WHERE requested_by = ? AND status IN ('approved','rejected') "
+                         "AND decided_by <> requested_by AND decided_at >= ?", (uid, since)):
+        v = proposals.revision_public(proposals._revision_row(conn, x["id"]))
+        ok = v["status"] == "approved"
+        target = proposals.get(conn, v["new_proposal_id"] or v["proposal_id"]) or {}
+        out.append(_card(f"proposal-revision-answer:{v['id']}", "money", "today",
+                         f"Revision of proposal {v['label']} {'approved' if ok else 'rejected'}",
+                         (f"{v.get('decided_by_name') or 'An admin'}: {v['decision_note']}" if v.get("decision_note") else
+                          f"Decided by {v.get('decided_by_name') or 'an admin'}.")
+                         + (" The new version is ready to edit and send." if ok else " The sent proposal stays as it was."),
+                         href=_proposal_href(dict(target, id=v["new_proposal_id"] or v["proposal_id"])),
+                         source="Proposals › Revisions", pill="Approved" if ok else "Rejected", icon="task",
+                         proposal_id=v["new_proposal_id"] or v["proposal_id"],
+                         actions=[{"type": "open", "label": "Open the new version" if ok else "Open proposal", "primary": True}],
+                         when=v["decided_at"]))
+    return out
+
+
 def needs(conn, uid, today: date, now: datetime, pay_rows: list, crew_info: dict) -> list:
     t = today.isoformat()
     out = []
@@ -449,6 +534,16 @@ def needs(conn, uid, today: date, now: datetime, pay_rows: list, crew_info: dict
                          href="/projects/" + s["project_code"], source="Worker app sign-ins",
                          pill="Since " + _fmt_time("%02d:00" % CREW_CHECK_HOUR), icon="crew",
                          actions=[{"type": "open", "label": "Open the job", "primary": True}]))
+
+    # 8-10. proposals: about to expire, revisions waiting for an admin, revisions just decided (2026-10-22)
+    try:
+        out += proposal_cards(conn, uid, today)
+    except Exception as e:
+        log.info("today_feed proposals: %s", e)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
     # 7. the old "Needs attention" lines, now cards
     rec = _rows(conn, "SELECT COUNT(1) AS n FROM expenses WHERE status = 'needs_review'")

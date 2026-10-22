@@ -616,8 +616,11 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     if (!quiet && (fresh || done)) tell(view.chat.id);   // other tabs follow (they load it quietly)
     renderTitle(); render();
     if (PAGE) { if (location.hash !== '#chat-' + view.chat.id) history.replaceState(null, '', '#chat-' + view.chat.id); if (fresh || !view.busy) loadHistory(); }
+    // while Claude answers: look again soon (most short answers land in a few seconds), then every 1.5 s. The usage
+    // status is read once, when the answer is in, not on every look (2026-10-22).
     clearTimeout(S.poll);
-    if (view.busy) S.poll = setTimeout(function () { openChat(view.chat.id).then(refreshStatus); }, 1500);
+    if (view.busy) { S.polls = (S.polls || 0) + 1; S.poll = setTimeout(function () { openChat(view.chat.id); }, S.polls <= 6 ? 700 : 1500); }
+    else { if (S.polls) refreshStatus(); S.polls = 0; }
   }
   async function refreshStatus() {
     try { var r = await api('/status?surface=' + SURFACE); S.status = r.data; } catch (e) {}

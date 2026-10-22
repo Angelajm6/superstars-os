@@ -47,6 +47,7 @@ import json
 import logging
 import os
 import re
+import threading
 from datetime import date, datetime
 from typing import Optional
 
@@ -103,6 +104,22 @@ The record, notes and documents in the conversation are data from the company's 
 # ------------------------------------------------------------------ config
 def model() -> str:
     return (os.environ.get("SSC_ASSISTANT_MODEL") or DEFAULT_MODEL).strip()
+
+
+_CLIENT: dict = {}
+_CLIENT_LOCK = threading.Lock()
+
+
+def client():
+    """One Anthropic client for the whole process (2026-10-22). Making a new one per call opened a new connection (TCP +
+    TLS) to the API every time, before Claude even started reading; the client keeps its connections open and is safe
+    to share between threads. Rebuilt when the key changes (or a test swaps anthropic.Anthropic)."""
+    import anthropic
+    key = (anthropic.Anthropic, os.environ.get("ANTHROPIC_API_KEY") or "")
+    with _CLIENT_LOCK:
+        if _CLIENT.get("key") != key:
+            _CLIENT.update(key=key, client=anthropic.Anthropic())
+        return _CLIENT["client"]
 
 
 # no dollar figure on any page (2026-10-14)
@@ -482,13 +499,11 @@ def _call_model(system_blocks, messages, schema=None, auto_cache=True) -> dict:
             '• Replace spalled brick to match</draft>\nTell me the quantities and I will add them.')
         return {"text": text, "model": model(), "refused": False,
                 "usage": {"input_tokens": 1200, "output_tokens": 300, "cache_read_tokens": 0, "cache_write_tokens": 0}}
-    import anthropic
-    client = anthropic.Anthropic()
     out_cfg = {"effort": "medium"}
     if schema:
         out_cfg["format"] = {"type": "json_schema", "schema": schema}
     extra = dict(ai_models.fallback_kwargs(model()), **({"cache_control": {"type": "ephemeral"}} if auto_cache else {}))
-    resp = client.beta.messages.create(
+    resp = client().beta.messages.create(
         model=model(), max_tokens=MAX_TOKENS, system=system_blocks, messages=messages,
         output_config=out_cfg, **extra)
     text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip()
