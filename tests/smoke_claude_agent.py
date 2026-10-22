@@ -181,8 +181,7 @@ def main() -> int:
 
         # ---- privacy + surfaces
         assert pm.get(f"/api/claude/chats/{chat['id']}").status_code == 404
-        assert a.get(f"/api/claude/chats/{chat['id']}?surface=field").status_code == 403
-        assert all(c["id"] != chat["id"] for c in a.get("/api/claude/chats?surface=field").get_json()["data"])
+        assert a.get(f"/api/claude/chats/{chat['id']}?surface=field").status_code == 200   # a chat follows the person (2026-10-22)
         passed += 1; print("  private + surfaces ok")
 
         # ---- a read runs; a write becomes a card; nothing created yet
@@ -333,6 +332,72 @@ def main() -> int:
         assert assistant.spent_today_micro(_db()) >= ca.spent_today_micro(_db()) > 0
         passed += 1; print("  budget ok")
 
+        # ---- one conversation follows the person; pay keeps it on office pages (2026-10-22)
+        fchat = a.post("/api/claude/chats", json={"surface": "office"}).get_json()["data"]["chat"]
+        _script([{"text": "Here is today."}])
+        r = a.post(f"/api/claude/chats/{fchat['id']}/messages", json={
+            "text": "What needs me on @FR-CLAG today?", "page": {"surface": "office", "label": "Company dashboard › Today"},
+            "quote": "Invoice 2031 is late; call 212-555-0199 or ap@example.com",
+            "refs": [{"kind": "job", "id": "FR-CLAG", "tag": "FR-CLAG"}, {"kind": "client", "id": 3, "tag": "Not In Text"},
+                     {"kind": "evil", "id": 1, "tag": "FR-CLAG"}]})
+        assert r.status_code == 202, r.get_json()
+        first = lambda cid: json.loads(_q("SELECT content FROM claude_chat_message WHERE chat_id = ? AND role = 'user' "  # noqa: E731
+                                          "AND kind = 'text' ORDER BY id", (cid,))[-1]["content"])[0]["text"]
+        head = first(fchat["id"])
+        assert head.startswith("[Page: Company dashboard › Today; today ") and "job dashboard" not in head
+        assert "[Quoted from the page: Invoice 2031 is late; call [phone] or [email]]" in head
+        assert "[Points at: job FR-CLAG]\n" in head and "Not In Text" not in head and "evil" not in head
+        v = a.get(f"/api/claude/chats/{fchat['id']}?surface=field").get_json()["data"]
+        u = v["messages"][0]
+        assert u["text"] == "What needs me on @FR-CLAG today?" and u["page"] == "Company dashboard › Today"
+        assert u["quote"] == "Invoice 2031 is late; call [phone] or [email]" and v["chat"]["office_only"] is None
+        assert fchat["id"] in [c["id"] for c in a.get("/api/claude/chats?surface=field").get_json()["data"]]
+        assert a.get("/api/claude/chats/latest?surface=field").get_json()["data"]["chat"]["id"] == fchat["id"]
+        # on a job dashboard, payroll is refused and the chat stays open there
+        _script([{"tools": [{"name": "payroll_summary", "input": {}}]}, {"text": "That is on office pages."}])
+        r = a.post(f"/api/claude/chats/{fchat['id']}/messages", json={
+            "text": "and payroll?", "page": {"surface": "field", "label": "FR-CLAG · Job dashboard", "project_code": "FR-CLAG"}})
+        assert r.status_code == 202, r.get_json()
+        assert "job FR-CLAG; a job dashboard (seen in the field" in first(fchat["id"])
+        res = [b for m in ca._history(_db(), fchat["id"]) if m["role"] == "user" for b in m["content"] if b.get("type") == "tool_result"]
+        assert len(res) == 1 and res[0].get("is_error") and "office pages" in res[0]["content"]
+        assert _q("SELECT office_only FROM claude_chat WHERE id = ?", (fchat["id"],))[0]["office_only"] is None
+        # on an office page it runs, and from then on the chat opens on office pages only
+        _script([{"tools": [{"name": "payroll_summary", "input": {}}]}, {"text": "Totals for the two weeks."}])
+        assert a.post(f"/api/claude/chats/{fchat['id']}/messages", json={"text": "payroll now", "page": {"surface": "office"}}).status_code == 202
+        assert _q("SELECT office_only FROM claude_chat WHERE id = ?", (fchat["id"],))[0]["office_only"] == "pay"
+        assert _q("SELECT id FROM claude_chat_message WHERE chat_id = ? AND role = 'assistant' AND content LIKE ?",   # the boot backfill's match
+                  (fchat["id"], '%"name": "payroll_summary"%'))
+        r = a.get(f"/api/claude/chats/{fchat['id']}?surface=field")
+        assert r.status_code == 403 and r.get_json()["locked"] == "pay" and "pay details" in r.get_json()["error"]
+        r = a.post(f"/api/claude/chats/{fchat['id']}/messages", json={"text": "more", "page": {"surface": "field"}})
+        assert r.status_code == 403 and r.get_json()["locked"] == "pay"
+        assert fchat["id"] not in [c["id"] for c in a.get("/api/claude/chats?surface=field").get_json()["data"]]
+        assert fchat["id"] in [c["id"] for c in a.get("/api/claude/chats?surface=office").get_json()["data"]]
+        assert a.get(f"/api/claude/chats/{fchat['id']}?surface=office").get_json()["data"]["chat"]["office_only"] == "pay"
+        lf = a.get("/api/claude/chats/latest?surface=field").get_json()["data"]
+        assert lf is None or lf["chat"]["id"] != fchat["id"]
+        assert a.get("/api/claude/chats/latest?surface=office").get_json()["data"]["chat"]["id"] == fchat["id"]
+        # the person hid the page
+        _script([{"text": "ok"}])
+        a.post(f"/api/claude/chats/{fchat['id']}/messages", json={"text": "no page", "page": {"surface": "office", "label": "Secret page", "shared": False}})
+        assert first(fchat["id"]).startswith("[Page: not shared; today ") and "Secret page" not in first(fchat["id"])
+        assert a.get(f"/api/claude/chats/{fchat['id']}").get_json()["data"]["messages"][-2]["page"] is None
+        # @: the same search Claude uses; nothing under 2 letters; signed-out refused
+        assert app.test_client().get("/api/claude/mentions?q=ab").status_code == 401
+        assert a.get("/api/claude/mentions?q=c").get_json()["data"] == []
+        conn = _db()
+        try:
+            import crm
+            org = crm.create_org(conn, name=f"Clag Mention Org {TAG}", relationship_type="client")
+        finally:
+            conn.close()
+        ms = a.get("/api/claude/mentions?q=clag%20mention&surface=office").get_json()["data"]
+        assert {"kind": "client", "label": "Client", "tag": f"Clag Mention Org {TAG}", "id": org, "sub": "client"} in ms, ms
+        assert all("@" not in m["tag"] for m in a.get("/api/claude/mentions?q=clag").get_json()["data"])
+        _x("DELETE FROM crm_organization WHERE id = ?", (org,))
+        passed += 1; print("  follows you + office-only lock + quote / @ ok")
+
         # ---- the real request shape + fallback cleanup
         import anthropic
         seen = {}
@@ -398,8 +463,8 @@ def main() -> int:
         os.environ.pop("SSC_ASSISTANT_FAKE", None)
         _cleanup()
         shutil.rmtree(_TMP, ignore_errors=True)
-    print(f"smoke_claude_agent: {passed}/14 groups passed")
-    return 0 if passed == 14 else 1
+    print(f"smoke_claude_agent: {passed}/15 groups passed")
+    return 0 if passed == 15 else 1
 
 
 if __name__ == "__main__":

@@ -21,6 +21,27 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Claude follows you: one conversation across pages, tabs and devices (Bookore, 2026-10-22)
+
+* Accepted prototype: https://claude.ai/artifact/7Z4s6fDgoiog8CHZb44tKE. Close Claude on the company dashboard, open it
+  on a job dashboard: same conversation ("Picked up from … · same conversation" under the title).
+* Drawer (`static/js/claude_drawer.js`, v=14): the open chat id is in **localStorage** `ssc.claude.chat` (every tab);
+  open/closed stays per tab (sessionStorage). Tabs tell each other on a send / switch / new chat / finished turn
+  (BroadcastChannel `ssc-claude`, receivers reload quietly). No stored id (new device) → `GET /api/claude/chats/latest`.
+* **Office-only rule** (Angela, 2026-10-22): a chat follows everywhere unless it has shown pay or email details.
+  `claude_chat.office_only` = 'pay' | 'email', set when `payroll_summary` / `search_email` / `email_detail` return data
+  (backfilled at boot from stored tool calls; Inbox mail chats count as 'email'). On a job dashboard such a chat is not
+  listed and GET/POST return 403 `{locked}`; the drawer shows "Start a new chat here / Open the company dashboard".
+  Tools + system prompt stay those of the surface the chat STARTED on (Opus 5.5 binds replayed thinking to an unchanged
+  prefix: never change a live chat's tools); `claude_chat.page_surface` (the page NOW) makes office-only tools refuse
+  on a job dashboard.
+* What Claude sees, in the message head: `[Page: …]` ("Claude sees" line, × hides it → `[Page: not shared]`),
+  `[Quoted from the page: …]` (select text → "Ask Claude about this"; emails/phones scrubbed), `[Points at: …]`
+  (@-mentions from `GET /api/claude/mentions` = the `find` tool's search; hints only, Claude looks them up with its
+  tools). The chat view returns `page` + `quote` per user message.
+* Not yet: workers as @-mentions (needs a new lookup tool; adding tools changes every live chat's prefix, so batch
+  it with other tool changes).
+
 ### Claude budget + cost: monthly budget, per-person guard, cheaper calls (Bookore, 2026-10-22)
 
 * The $5/day company-wide cap is gone (it stopped Proposal Studio testing on 2026-10-21). `assistant.limit_reason(conn,

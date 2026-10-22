@@ -11,10 +11,18 @@ platform comes back as an approval card, and nothing happens until a person pres
     field (editable). Approve runs it with the approver's own permissions; Decline drops it.
     Only the person who asked can decide; a card expires after 48 hours. Every action, its
     decision, who made it and the result are kept (the Approvals log).
-  * Pay data (the payroll summary) is offered ONLY to admin / c_suite, and only in
-    conversations started on an office page — never on a job dashboard, which is field-
-    reachable (CLAUDE.md compensation rule). Conversations are stamped with that surface and
-    a job dashboard never lists or opens an office conversation.
+  * Pay data (the payroll summary) is offered ONLY to admin / c_suite, and only on an office
+    page — never on a job dashboard, which is field-reachable (CLAUDE.md compensation rule).
+  * One conversation follows the person (2026-10-22, accepted): closed on the company dashboard,
+    opened again on a job dashboard, it is the same chat. The exception: a chat that has shown
+    pay or email details (claude_chat.office_only = 'pay' | 'email', set when payroll_summary /
+    search_email / email_detail return data; Inbox mail chats count as 'email') opens and is
+    listed on office pages only. A chat's tools and system prompt stay those of the surface it
+    started on (Opus 5.5 binds replayed thinking to an unchanged prefix); the page the person is
+    on NOW (claude_chat.page_surface) decides whether an office-only tool may run.
+  * Each message carries what the person points at: the page (unless they hid it), a quote
+    they picked on the page, and @-mentions (GET /api/claude/mentions); Claude looks them up
+    with the same tools, so access is checked as always.
   * Never offered: deleting, pay rates, sign-in details or access, invoices. Email goes only to a client
     contact the person picks, on its own card each time; Claude never sees contact email addresses.
   * Tool results are scrubbed of emails, phone numbers and file paths before Claude sees them;
@@ -30,11 +38,13 @@ low since 2026-10-22: lookups and short answers; was medium), server-side refusa
 offers it; off without ANTHROPIC_API_KEY. Test seam SSC_ASSISTANT_FAKE (JSON script; inert in production).
 
   GET  /api/claude/status?surface=           available? cap, spend, what Claude can do here
-  GET  /api/claude/chats?surface=            my conversations on this surface
+  GET  /api/claude/chats?surface=            my conversations (on a job dashboard: not office-only ones)
+  GET  /api/claude/chats/latest?surface=     the conversation to reopen (the last one usable here), or null
+  GET  /api/claude/mentions?q=&surface=      jobs, bids / estimates, clients, team people for @
   POST /api/claude/chats                     {surface}
   GET  /api/claude/chats/<id>                messages, cards, busy
   PATCH /api/claude/chats/<id>               {title?, starred?, archived?}  (History: rename, save, remove)
-  POST /api/claude/chats/<id>/messages       {text, page{path,label,project_code}} -> 202 (runs)
+  POST /api/claude/chats/<id>/messages       {text, page{surface,path,label,project_code,shared}, quote?, refs?} -> 202
   POST /api/claude/actions/<id>/approve      {values} -> runs the change
   POST /api/claude/actions/<id>/decline
   POST /api/claude/actions/<id>/undo         creates only (cancels the new task / event)
@@ -63,6 +73,7 @@ from auth import current_user, requires_role
 log = logging.getLogger("ssc.claude_agent")
 
 TEAM_ROLES = ("admin", "c_suite", "pm", "super")
+LOCK_TOOLS = {"payroll_summary": "pay", "search_email": "email", "email_detail": "email"}   # results keep a chat on office pages
 OFFICE_ROLES = ("admin", "c_suite")
 SURFACES = ("office", "field")
 MAX_STEPS = 8                 # model calls per turn
@@ -108,10 +119,13 @@ def ensure(conn) -> None:
         f"CREATE TABLE IF NOT EXISTS claude_chat ({pk}, user_id INTEGER NOT NULL, surface TEXT NOT NULL, title TEXT, "
         f"busy_since TEXT, last_error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_claude_chat_user ON claude_chat(user_id)")
-    for col, typ in (("starred", "INTEGER"), ("archived_at", "TEXT"), ("source", "TEXT"), ("mail_id", "INTEGER")):
+    backfill = False
+    for col, typ in (("starred", "INTEGER"), ("archived_at", "TEXT"), ("source", "TEXT"), ("mail_id", "INTEGER"),
+                     ("page_surface", "TEXT"), ("office_only", "TEXT")):
         # History: saved chats, removed from the list; source 'mail' = an Inbox email's own Claude pass (not History)
         if not _has_column(conn, "claude_chat", col):
             conn.execute(f"ALTER TABLE claude_chat ADD COLUMN {col} {typ}")
+            backfill = backfill or col == "office_only"
     conn.execute(
         f"CREATE TABLE IF NOT EXISTS claude_chat_message ({pk}, chat_id INTEGER NOT NULL, role TEXT NOT NULL, "
         f"kind TEXT NOT NULL, content TEXT NOT NULL, replay INTEGER NOT NULL, created_at TEXT NOT NULL, model TEXT, "
@@ -119,6 +133,11 @@ def ensure(conn) -> None:
         f"cost_micro INTEGER)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_claude_msg_chat ON claude_chat_message(chat_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_claude_msg_created ON claude_chat_message(created_at)")
+    if backfill:   # chats from before 2026-10-22 that already looked at pay or email stay on office pages
+        for tool_name, why in LOCK_TOOLS.items():
+            conn.execute("UPDATE claude_chat SET office_only = ? WHERE office_only IS NULL AND id IN "
+                         "(SELECT chat_id FROM claude_chat_message WHERE role = 'assistant' AND content LIKE ?)",
+                         (why, f'%"name": "{tool_name}"%'))
     conn.execute(
         f"CREATE TABLE IF NOT EXISTS claude_action ({pk}, chat_id INTEGER NOT NULL, message_id INTEGER, "
         f"tool_use_id TEXT, user_id INTEGER NOT NULL, tool TEXT NOT NULL, input TEXT NOT NULL, summary TEXT, "
@@ -178,8 +197,10 @@ def scrub(v):
 
 # ------------------------------------------------------------------ tools
 class Ctx:
-    def __init__(self, conn, user: dict, surface: str):
+    def __init__(self, conn, user: dict, surface: str, page_surface: Optional[str] = None):
+        # surface: where the chat started (its tools); page_surface: the page the person is on now
         self.conn, self.user, self.surface = conn, user, surface
+        self.page_surface = page_surface or surface
         self.uid, self.role = user.get("id"), user.get("role")
 
 
@@ -1588,7 +1609,7 @@ def run_turn(chat_id: int, user: dict) -> None:
     conn = _conn()
     try:
         chat = _one(conn, "SELECT * FROM claude_chat WHERE id = ?", (chat_id,))
-        ctx = Ctx(conn, user, chat["surface"])
+        ctx = Ctx(conn, user, chat["surface"], chat.get("page_surface"))
         tools = tools_for(ctx.role, ctx.surface)
         system_text = _system_for(user, chat["surface"])
         error = None
@@ -1638,6 +1659,10 @@ def _tool_result(ctx, chat_id, message_id, block) -> dict:
     if not tool or not tool.allowed(ctx.role, ctx.surface):
         return {"type": "tool_result", "tool_use_id": tid, "is_error": True,
                 "content": "That tool is not available to this person here."}
+    if tool.office_only and ctx.page_surface != "office":
+        return {"type": "tool_result", "tool_use_id": tid, "is_error": True,
+                "content": "Pay and email details only show on office pages. The person is on a job dashboard, which "
+                           "can be seen in the field: tell them to ask on the company dashboard."}
     unknown = set(inp) - set(tool.schema["properties"])
     missing = [k for k in tool.schema["required"] if inp.get(k) in (None, "")]
     if unknown or missing:
@@ -1651,6 +1676,10 @@ def _tool_result(ctx, chat_id, message_id, block) -> dict:
             if len(text) > MAX_RESULT_CHARS:
                 text = text[:MAX_RESULT_CHARS] + ' … (cut; ask for a narrower range)'
             log.info("claude read tool %s on chat %s (%s chars)", tool.name, chat_id, len(text))
+            if tool.name in LOCK_TOOLS:   # from now on this chat opens on office pages only
+                ctx.conn.execute("UPDATE claude_chat SET office_only = COALESCE(office_only, ?) WHERE id = ?",
+                                 (LOCK_TOOLS[tool.name], chat_id))
+                ctx.conn.commit()
             return {"type": "tool_result", "tool_use_id": tid, "content": text}
         tool.run(ctx, inp)   # validate now so the card never shows an impossible change
     except (ValueError, LookupError, PermissionError) as e:
@@ -1726,9 +1755,16 @@ def _chat_view(conn, chat: dict) -> dict:
         c = json.loads(m["content"])
         if m["role"] == "user" and m["kind"] == "text":
             text = "".join(b.get("text", "") for b in c if b.get("type") == "text")
-            text = re.sub(r"^\[Page:[^\]]*\]\n", "", text)
+            pg = re.match(r"^\[Page: ([^;\]]*)[^\]]*\]\n", text)
+            text = text[pg.end():] if pg else text
+            qt = re.match(r"^\[Quoted from the page: ([^\n]*)\]\n", text)
+            text = text[qt.end():] if qt else text
+            text = re.sub(r"^\[Points at:[^\n]*\]\n", "", text)
             text = re.sub(r"^\[Attached:[^\n]*\]\n?", "", text)
+            label = pg.group(1).strip() if pg else ""
             out.append({"id": m["id"], "role": "user", "text": text, "created_at": m["created_at"],
+                        "page": None if label in ("", "not shared", "unknown") else label,
+                        "quote": qt.group(1) if qt else None,
                         "files": [files[b["id"]] for b in c if b.get("type") == "ssc_file" and b.get("id") in files]})
         elif m["role"] == "assistant":
             text = "\n".join(b.get("text", "") for b in c if b.get("type") == "text").strip()
@@ -1745,7 +1781,7 @@ def _chat_view(conn, chat: dict) -> dict:
     busy = bool(chat.get("busy_since") and datetime.fromisoformat(chat["busy_since"]) > datetime.now() - BUSY_STALE)
     return {"chat": {"id": chat["id"], "title": chat.get("title") or "New conversation", "surface": chat["surface"],
                      "updated_at": chat["updated_at"], "starred": bool(chat.get("starred")),
-                     "archived": bool(chat.get("archived_at"))},
+                     "archived": bool(chat.get("archived_at")), "office_only": office_lock(chat)},
             "messages": out, "busy": busy, "error": None if busy else chat.get("last_error"), "files": list(files.values())}
 
 
@@ -1759,6 +1795,22 @@ def _me() -> dict:
 def _surface(v) -> str:
     v = str(v or "").strip().lower()
     return v if v in SURFACES else "office"
+
+
+def office_lock(chat: dict) -> Optional[str]:
+    """'pay' / 'email' when the chat has shown those details (job dashboards never open it), else None."""
+    return chat.get("office_only") or ("email" if chat.get("source") == "mail" else None)
+
+
+LOCKED_MSG = {"pay": "This conversation has pay details, so it only opens on office pages.",
+              "email": "This conversation has email in it, so it only opens on office pages."}
+
+
+def _locked_here(chat, surface) -> Optional[tuple]:
+    why = office_lock(chat)
+    if why and surface == "field":
+        return _err(LOCKED_MSG[why], 403, locked=why)
+    return None
 
 
 def _own_chat(conn, chat_id, me):
@@ -1788,9 +1840,11 @@ def _api_chats():
     try:
         sql = ("SELECT c.id, c.title, c.created_at, c.updated_at, COALESCE(c.starred, 0) AS starred, "
                "(SELECT COUNT(*) FROM claude_chat_message m WHERE m.chat_id = c.id AND m.role = 'user' AND m.kind = 'text') AS asked "
-               "FROM claude_chat c WHERE c.user_id = ? AND c.surface = ? AND c.archived_at IS NULL "
+               "FROM claude_chat c WHERE c.user_id = ? AND c.archived_at IS NULL "
                "AND COALESCE(c.source, 'chat') NOT IN ('mail', 'system')")
-        params = [me["id"], surface]
+        params = [me["id"]]
+        if surface == "field":
+            sql += " AND c.office_only IS NULL"
         if request.args.get("saved") == "1":
             sql += " AND COALESCE(c.starred, 0) = 1"
         q = (request.args.get("q") or "").strip().lower()[:100]
@@ -1801,6 +1855,48 @@ def _api_chats():
         rows = _rows(conn, sql + " ORDER BY COALESCE(c.starred, 0) DESC, c.updated_at DESC, c.id DESC LIMIT 200", params)
         rows = [r for r in rows if r["asked"] or r["starred"]]   # an empty "New" chat is not history
         return jsonify({"data": [dict(r, title=r["title"] or "New conversation", starred=bool(r["starred"])) for r in rows]})
+    finally:
+        conn.close()
+
+
+@requires_role(*TEAM_ROLES)
+def _api_chat_latest():
+    """The conversation the window reopens on another device or a fresh tab: the last one usable here."""
+    me, surface = _me(), _surface(request.args.get("surface"))
+    conn = _conn()
+    try:
+        sql = ("SELECT c.* FROM claude_chat c WHERE c.user_id = ? AND c.archived_at IS NULL "
+               "AND COALESCE(c.source, 'chat') NOT IN ('mail', 'system') AND EXISTS (SELECT 1 FROM claude_chat_message m "
+               "WHERE m.chat_id = c.id AND m.role = 'user' AND m.kind = 'text')")
+        if surface == "field":
+            sql += " AND c.office_only IS NULL"
+        c = _one(conn, sql + " ORDER BY c.updated_at DESC, c.id DESC LIMIT 1", (me["id"],))
+        return jsonify({"data": _chat_view(conn, c) if c else None})
+    finally:
+        conn.close()
+
+
+@requires_role(*TEAM_ROLES)
+def _api_mentions():
+    """What @ can point at: the same search Claude uses (jobs the person can see; clients and estimates for office
+    roles; team people). Names only, never contact details."""
+    me, surface = _me(), _surface(request.args.get("surface"))
+    q = (request.args.get("q") or "").strip()[:60]
+    if len(q) < 2:
+        return jsonify({"data": []})
+    conn = _conn()
+    try:
+        f = _t_find(Ctx(conn, me, surface), {"query": q})
+        out = [{"kind": "job", "label": "Job", "tag": j["project_code"], "id": j["project_code"],
+                "sub": " · ".join(x for x in (j.get("name"), j.get("address")) if x)} for j in f.get("jobs", [])]
+        out += [{"kind": "estimate", "label": "Bid" if e.get("inquiry_kind") == "bid" else "Estimate", "tag": e["code"] or f"E-{e['id']}",
+                 "id": e["id"], "sub": " · ".join(x for x in (e.get("building_address"), e.get("client")) if x)}
+                for e in f.get("estimates", [])]
+        out += [{"kind": "client", "label": "Client", "tag": o["name"], "id": o["id"], "sub": o.get("relationship_type") or ""}
+                for o in f.get("clients", [])]
+        out += [{"kind": "person", "label": "Person", "tag": (p["name"] or "").split("@")[0], "id": p["id"],
+                 "sub": (p.get("role") or "").replace("_", "-")} for p in f.get("team_people", [])]
+        return jsonify({"data": out[:12]})
     finally:
         conn.close()
 
@@ -1829,8 +1925,9 @@ def _api_chat_get(chat_id):
         c = _own_chat(conn, chat_id, me)
         if not c:
             return _err("not found", 404)
-        if c["surface"] == "office" and _surface(request.args.get("surface")) == "field":
-            return _err("This conversation is only shown on office pages.", 403)
+        locked = _locked_here(c, _surface(request.args.get("surface")))
+        if locked:
+            return locked
         return jsonify({"data": _chat_view(conn, c)})
     finally:
         conn.close()
@@ -1884,8 +1981,10 @@ def _api_message(chat_id):
         c = _own_chat(conn, chat_id, me)
         if not c:
             return _err("not found", 404)
-        if c["surface"] == "office" and _surface((d.get("page") or {}).get("surface")) == "field":
-            return _err("This conversation is only shown on office pages.", 403)
+        here = _surface((d.get("page") or {}).get("surface"))
+        locked = _locked_here(c, here)
+        if locked:
+            return locked
         if c.get("busy_since") and datetime.fromisoformat(c["busy_since"]) > datetime.now() - BUSY_STALE:
             return _err("Claude is still answering the last message.", 409)
         why = _over_budget(conn, me["id"])
@@ -1898,10 +1997,21 @@ def _api_message(chat_id):
         if any(f["message_id"] for f in att):
             return _err("One of those files was already sent. Attach it again.", 409)
         page = d.get("page") or {}
-        label = re.sub(r"[\[\]\n]", " ", str(page.get("label") or ""))[:120].strip()
-        code = re.sub(r"[^A-Za-z0-9_-]", "", str(page.get("project_code") or ""))[:40]
         today = date.today()
-        head = f"[Page: {label or page.get('path') or 'unknown'}{'; job ' + code if code else ''}; today {today.strftime('%a')} {today.isoformat()}]\n"
+        when_ = f"today {today.strftime('%a')} {today.isoformat()}"
+        field = "; a job dashboard (seen in the field: no pay or email here)" if here == "field" else ""
+        if page.get("shared") is False:   # the person hid the page from Claude
+            head = f"[Page: not shared{field}; {when_}]\n"
+        else:
+            label = _clean_line(page.get("label"), 120).replace(";", ",")
+            code = re.sub(r"[^A-Za-z0-9_-]", "", str(page.get("project_code") or ""))[:40]
+            head = f"[Page: {label or _clean_line(page.get('path'), 120) or 'unknown'}{'; job ' + code if code else ''}{field}; {when_}]\n"
+        quote = scrub_text(_clean_line(d.get("quote"), 1000))
+        if quote:   # a line the person picked on the page
+            head += f"[Quoted from the page: {quote}]\n"
+        refs = _refs(d.get("refs"), text)
+        if refs:
+            head += "[Points at: " + "; ".join(refs) + "]\n"
         if att:   # their ids, so Claude can save one to a record (through a card)
             head += "[Attached: " + "; ".join(f"file {f['id']} \"{f['name']}\"" for f in att) + "]\n"
         content = [{"type": "ssc_file", "id": f["id"]} for f in att] + \
@@ -1910,8 +2020,8 @@ def _api_message(chat_id):
         for f in att:
             conn.execute("UPDATE claude_file SET chat_id = ?, message_id = ? WHERE id = ?", (chat_id, mid, f["id"]))
         title = text.splitlines()[0][:60] if text else att[0]["name"][:60]
-        conn.execute("UPDATE claude_chat SET busy_since = ?, last_error = NULL, updated_at = ?, title = COALESCE(title, ?) "
-                     "WHERE id = ?", (_now(), _now(), title, chat_id))
+        conn.execute("UPDATE claude_chat SET busy_since = ?, last_error = NULL, updated_at = ?, title = COALESCE(title, ?), "
+                     "page_surface = ? WHERE id = ?", (_now(), _now(), title, here, chat_id))
         conn.commit()
         log.info("claude turn started on chat %s by user %s (%s files)", chat_id, me["id"], len(att))
     finally:
@@ -1925,6 +2035,37 @@ def _api_message(chat_id):
         return jsonify({"data": _chat_view(conn, _one(conn, "SELECT * FROM claude_chat WHERE id = ?", (chat_id,)))}), 202
     finally:
         conn.close()
+
+
+_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(\.[\w-]+)+")
+_PHONE_RE = re.compile(r"(?<!\d)(\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)")
+
+
+def scrub_text(s: str) -> str:
+    """A quote from the page as Claude sees it: no email addresses or phone numbers (like tool results)."""
+    return _PHONE_RE.sub("[phone]", _EMAIL_RE.sub("[email]", s))
+
+
+def _clean_line(v, n) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[\[\]]", " ", str(v or ""))).strip()[:n]
+
+
+_REF_KINDS = {"job": "job", "estimate": "estimate", "client": "client", "person": "team member"}
+
+
+def _refs(raw, text) -> list:
+    """@-mentions still in the text, as '<kind> <tag> (id …)'. Hints only: Claude looks each up with its tools."""
+    out = []
+    for r in (raw if isinstance(raw, list) else [])[:8]:
+        if not isinstance(r, dict) or r.get("kind") not in _REF_KINDS:
+            continue
+        tag = scrub_text(_clean_line(r.get("tag"), 60)).replace(";", ",")
+        rid = re.sub(r"[^A-Za-z0-9_-]", "", str(r.get("id") or ""))[:40]
+        if tag and ("@" + tag).lower() in text.lower():
+            line = f"{_REF_KINDS[r['kind']]} {tag}" + (f" (id {rid})" if rid and rid != tag else "")
+            if line not in out:
+                out.append(line)
+    return out
 
 
 def _decide(action_id, verb):
@@ -2089,6 +2230,8 @@ def register(app) -> None:
     app.add_url_rule("/api/claude/status", "claude_status", _api_status, methods=["GET"])
     app.add_url_rule("/api/claude/chats", "claude_chats", _api_chats, methods=["GET"])
     app.add_url_rule("/api/claude/chats", "claude_chat_create", _api_chat_create, methods=["POST"])
+    app.add_url_rule("/api/claude/chats/latest", "claude_chat_latest", _api_chat_latest, methods=["GET"])
+    app.add_url_rule("/api/claude/mentions", "claude_mentions", _api_mentions, methods=["GET"])
     app.add_url_rule("/api/claude/chats/<int:chat_id>", "claude_chat_get", _api_chat_get, methods=["GET"])
     app.add_url_rule("/api/claude/chats/<int:chat_id>", "claude_chat_update", _api_chat_update, methods=["PATCH"])
     app.add_url_rule("/api/claude/chats/<int:chat_id>/messages", "claude_message", _api_message, methods=["POST"])
