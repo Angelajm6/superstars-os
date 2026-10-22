@@ -11,7 +11,7 @@
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
 <script src="/files/static/js/company_nav.js?v=1021"></script>
-<script src="/files/static/js/claude_drawer.js?v=14" defer></script>
+<script src="/files/static/js/claude_drawer.js?v=15" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1015" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1010" defer></script>
@@ -1370,9 +1370,23 @@
       <div class="cp-field"><label for="pr-send-email">Recipient email</label><input id="pr-send-email" type="email" autocomplete="off"></div>
       <div class="cp-field full"><label for="pr-send-msg">Personal note (optional)</label><textarea id="pr-send-msg" placeholder="Thanks for walking the building with us on Tuesday…"></textarea></div>
       <p class="cp-muted full" style="margin:0;font-size:13px">The email carries a private link where the client reviews the proposal, downloads the PDF, and accepts with a typed signature. The link expires on the proposal's valid-until date. Sending again issues a fresh link.</p>
+      <p class="full" id="pr-send-gmail" style="margin:0;font-size:13px">Already talking with the client by email? <a class="cp-link" id="pr-send-gmail-a" href="#">Reply in their email thread from your Gmail, with the PDF attached</a>. You review the recipients, thread and message before it goes.</p>
       <div class="cp-form-err" id="pr-send-err" role="alert"></div>
     </div>
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-send-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-send-go">Send</button></div>
+  </form>
+</div>
+<!-- revisions (2026-10-22): anyone asks; only an admin approves or rejects (the server checks it too) -->
+<div class="cp-overlay" id="pr-rv-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-rv-title">
+  <form class="cp-modal" id="pr-rv-form" novalidate>
+    <div class="cp-modal-head"><h2 id="pr-rv-title">Request a revision</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="pr-rv-sub"></p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><label for="pr-rv-text" id="pr-rv-label">What should change, and why</label><textarea id="pr-rv-text" style="min-height:90px"></textarea></div>
+      <div class="cp-field full" id="pr-rv-price-row"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-weight:500"><input type="checkbox" id="pr-rv-price" style="width:auto"> This is a price review</label></div>
+      <div class="cp-field" id="pr-rv-amount-row" hidden><label for="pr-rv-amount">Price you'd propose (optional)</label><input id="pr-rv-amount" inputmode="decimal" autocomplete="off"></div>
+      <div class="cp-form-err" id="pr-rv-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-rv-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-rv-go">Ask an admin</button></div>
   </form>
 </div>
 <div class="cp-overlay" id="pr-sign-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-sign-title">
@@ -1706,6 +1720,12 @@
     if (res.status === 401) { window.location.href = '/login?next=' + encodeURIComponent('/company'); throw new Error('unauthenticated'); }
     if (!res.ok) throw new Error((j && j.error) || ('Request failed (' + res.status + ')'));
     return j;
+  }
+  // who is signed in (2026-10-22: admin-only buttons; the server checks the role again on every call)
+  let MY_ROLE = null;
+  async function myRole() {
+    if (MY_ROLE == null) { try { MY_ROLE = ((await (await fetch('/api/auth/me', { credentials: 'same-origin' })).json()).user || {}).role || ''; } catch (e) { MY_ROLE = ''; } }
+    return MY_ROLE;
   }
 
   // ---------- tables with sort ----------
@@ -3327,6 +3347,10 @@
     window.SSC_PDF.panel({ title: (/^\d/.test(no) ? 'Proposal ' : '') + no, sub: [r.client_name, r.price != null ? money.format(r.price) : '', arch ? 'Before the app' : r.display_status].filter(Boolean).join(' · '), url, links });
   }
   function prPill(p) { const st = p.display_status || p.status; return `<span class="cp-pill ${PR_PILL[st] || ''}">${esc(PR_WORD[st] || st)}</span>`; }
+  // a sent proposal close to its valid-until date: follow up (the Dashboard's Needs you has the same card)
+  function prExpiry(p) { const n = p.expires_in_days; return n != null && n >= 0 && n <= 7 ? ` <span class="cp-pill warn">${n === 0 ? 'expires today' : 'expires in ' + n + 'd'}</span>` : ''; }
+  const RV_WORD = { pending: 'waiting for an admin', approved: 'approved', rejected: 'rejected', withdrawn: 'withdrawn' };
+  const RV_PILL = { pending: 'warn', approved: 'ok', rejected: 'bad', withdrawn: '' };
   function fmtWhen(iso) { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? esc(iso) : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
   async function proposeFromEstimate(estimateId) {
     try { const { data } = await api('/proposals', { method: 'POST', body: JSON.stringify({ estimate_id: estimateId }) }, true); toast(`Draft ${data.label || data.number} created`); if (data.layout === 'ssc') location.href = '/proposal-studio#p/' + data.id; else location.hash = '#proposals/' + data.id; }
@@ -3350,7 +3374,7 @@
         { key: 'building_address', label: 'Address', render: r => esc(r.building_name || r.building_address || '—') },
         { key: 'title', label: 'Title' },
         { key: 'price', label: 'Price', num: true, render: r => r.price != null ? money.format(r.price) : '—' },
-        { key: 'status', label: 'Status', render: prPill, sortVal: r => r.display_status },
+        { key: 'status', label: 'Status', render: r => prPill(r) + prExpiry(r), sortVal: r => r.display_status },
         { key: 'sent_at', label: 'Sent', render: r => fmtDate(r.sent_at), sortVal: r => r.sent_at || '' },
         { key: 'updated_at', label: 'Updated', render: r => fmtDate(r.updated_at) },
         { key: 'claude', label: '', render: r => r.archived ? '' : claudeChip(cc, r.estimate_id), sortVal: r => cc[r.estimate_id] || 0 },
@@ -3688,26 +3712,29 @@
   async function loadProposalDetail(id) {
     $('proposals-list').hidden = true; const host = $('proposal-detail'); host.hidden = false; skeleton(host, 6);
     try {
-      const { data: p } = await api('/proposals/' + encodeURIComponent(id), null, true);
+      const [{ data: p }, role] = await Promise.all([api('/proposals/' + encodeURIComponent(id), null, true), myRole()]);
+      const admin = role === 'admin', pendingRv = (p.revisions || []).find(r => r.status === 'pending' && r.proposal_id === p.id);
       $('cp-title').textContent = /^\d/.test(p.label || '') ? 'Proposal No. ' + p.label : (p.label || p.number);
       // 2026-10-21: proposals in the locked Superstars layout are written and edited in Proposal Studio only
       const ssc = p.layout === 'ssc';
       const ed = p.editable && !ssc, d = ed ? '' : 'disabled';
       const fact = (k, v) => `<li><span class="cp-muted">${esc(k)}</span><span style="text-align:right">${v == null || v === '' ? '—' : v}</span></li>`;
       const linkState = p.status === 'sent' || p.status === 'viewed' ? (p.display_status === 'expired' ? `expired ${fmtDate(p.link_expires_at)}` : `open until ${fmtDate(p.link_expires_at)}`) : (p.status === 'signed' ? 'accepted' : p.status);
-      const canSend = ['draft', 'sent', 'viewed'].includes(p.status), canVersion = ['sent', 'viewed', 'declined'].includes(p.status);
+      const revisable = ['sent', 'viewed', 'declined'].includes(p.status) && !pendingRv;
+      const canSend = ['draft', 'sent', 'viewed'].includes(p.status), canVersion = admin && revisable, canAsk = !admin && revisable;
       host.innerHTML = `
         <div class="cp-toolbar"><a class="cp-link" href="#proposals/proposals">← All proposals</a>${prPill(p)}<span class="cp-muted" style="font-size:13px">v${p.version} · estimate <strong>${esc(p.estimate_code)}</strong> (${esc(p.estimate_status)})</span><span style="flex:1"></span>
           <a class="btn-ghost btn-sm" href="/api/proposals/${p.id}/preview" target="_blank" rel="noopener">Preview</a>
           <a class="btn-ghost btn-sm" href="/api/proposals/${p.id}/pdf" target="_blank" rel="noopener">PDF</a>
           ${canSend ? `<button class="btn-primary btn-sm" type="button" id="pr-send-btn">${p.status === 'draft' ? 'Send…' : 'Resend…'}</button>` : ''}
           ${canVersion ? `<button class="btn-ghost btn-sm" type="button" id="pr-version-btn">New version</button>` : ''}
+          ${canAsk ? `<button class="btn-ghost btn-sm" type="button" id="pr-rq-btn">Request a revision…</button>` : ''}
           ${canSend ? `<button class="btn-ghost btn-sm" type="button" id="pr-sign-btn">Mark signed offline</button>` : ''}
           ${p.status === 'draft' ? `<button class="btn-ghost btn-sm" type="button" id="pr-del-btn" style="color:#A8382B">Delete draft</button>` : ''}</div>
         <div class="cp-card" style="padding:0;overflow:hidden;margin-bottom:14px"><div id="pr-pdf-pages" style="max-height:min(1100px,78vh)" aria-label="The proposal PDF"></div></div>
         <div class="cp-kpis">
-          ${kpi('Proposal price', p.price != null ? money.format(p.price) : '—', p.lines.length ? `${p.lines.length} line item(s)` : 'lump sum')}
-          ${kpi('Deposit', p.deposit_amount != null ? money.format(p.deposit_amount) : '—', p.deposit_pct != null ? `${p.deposit_pct}% to start` : '')}
+          ${kpi('Proposal price', p.amounts.total ? money2.format(p.amounts.total) : '—', p.lines.length ? `${p.lines.length} line item(s)` : 'lump sum')}
+          ${kpi('Deposit', p.amounts.deposit != null ? money2.format(p.amounts.deposit) : '—', p.amounts.deposit_pct != null ? `${p.amounts.deposit_pct}% to start` : '')}
           ${kpi('Valid until', fmtDate(p.valid_until), `link ${linkState}`)}
           ${kpi(p.status === 'signed' ? 'Signed' : (p.status === 'declined' ? 'Declined' : 'Client activity'), p.status === 'signed' ? fmtDate(p.signed_at) : (p.status === 'declined' ? fmtDate(p.declined_at) : (p.viewed_at ? `${p.view_count} view(s)` : (p.sent_at ? 'not opened yet' : 'not sent'))), p.status === 'signed' ? `by ${p.signed_name}${p.signed_title ? ', ' + p.signed_title : ''}` : (p.viewed_at ? 'first opened ' + fmtWhen(p.viewed_at) : ''), p.status === 'signed' ? 'good' : '')}
         </div>
@@ -3752,6 +3779,12 @@
                 <li id="pr-deposit-inv" hidden></li>
               </ul>
             </div>
+            ${(p.revisions || []).length ? `<div class="cp-card"><div class="cp-card-head"><h2>Revisions</h2><span class="hint">an admin approves or rejects</span></div><ul class="cp-list">${p.revisions.map(r => `<li style="display:block">
+              <div style="display:flex;justify-content:space-between;gap:8px"><strong>${r.price_review ? 'Price review' : 'Revision'}${r.proposal_id === p.id ? '' : ' of ' + esc(r.label)}</strong><span class="cp-pill ${RV_PILL[r.status] || ''}">${esc(RV_WORD[r.status] || r.status)}</span></div>
+              <div style="font-size:13px;margin-top:2px">${esc(r.reason)}${r.proposed_price ? ` · proposed <strong>${money2.format(r.proposed_price)}</strong>` : ''}</div>
+              <div class="cp-muted" style="font-size:13px">${esc(r.requested_by_name || '')} · ${fmtWhen(r.requested_at)}${r.decided_at && r.status !== 'pending' ? ` · ${esc(RV_WORD[r.status])} by ${esc(r.decided_by_name || 'an admin')}` : ''}${r.decision_note ? ` · “${esc(r.decision_note)}”` : ''}</div>
+              ${r.status === 'pending' && r.proposal_id === p.id && admin ? `<div style="display:flex;gap:6px;margin-top:6px"><button class="btn-primary btn-sm" type="button" data-pr-rv="approve" data-id="${r.id}">Approve</button><button class="btn-ghost btn-sm" type="button" data-pr-rv="reject" data-id="${r.id}">Reject</button></div>` : ''}
+              ${r.status === 'approved' && r.new_proposal_id && r.new_proposal_id !== p.id ? `<a class="cp-link" href="#proposals/${r.new_proposal_id}" style="font-size:13px">Open the new version</a>` : ''}</li>`).join('')}</ul></div>` : ''}
             <div id="pr-emails"></div>
             <div class="cp-card"><div class="cp-card-head"><h2>Timeline</h2></div>
               ${p.events.length ? `<ul class="cp-list pr-timeline">${p.events.slice().reverse().map(ev => `<li><span class="cp-pill ${PR_PILL[ev.event] || ''}">${esc(ev.event.replace('_', ' '))}</span> ${esc(ev.detail || '')}<div class="when">${fmtWhen(ev.at)}</div></li>`).join('')}</ul>` : empty('Nothing yet')}
@@ -3791,7 +3824,8 @@
       }
       if (canSend) {
         $('pr-send-btn').addEventListener('click', () => {
-          $('pr-send-form').dataset.id = p.id; $('pr-send-sub').textContent = `${p.number} · ${money.format(p.price || 0)} · valid until ${fmtDate(p.valid_until)}`;
+          $('pr-send-form').dataset.id = p.id; $('pr-send-sub').textContent = `${p.label || p.number} · ${money2.format(p.amounts.total || 0)} · valid until ${fmtDate(p.valid_until)}`;
+          $('pr-send-gmail').hidden = p.status !== 'draft'; $('pr-send-gmail-a').href = `/proposal-studio#p/${p.id}/send`;
           $('pr-send-name').value = p.recipient_name || p.contact_name || ''; $('pr-send-email').value = p.recipient_email || p.contact_email || ''; $('pr-send-msg').value = '';
           $('pr-send-err').className = 'cp-form-err'; $('pr-send-overlay').classList.add('open'); setTimeout(() => $('pr-send-email').focus(), 30);
         });
@@ -3800,6 +3834,8 @@
           $('pr-sign-err').className = 'cp-form-err'; $('pr-sign-overlay').classList.add('open');
         });
       }
+      if (canAsk) $('pr-rq-btn').addEventListener('click', () => prRevision('request', p.id));
+      host.querySelectorAll('[data-pr-rv]').forEach(b => b.addEventListener('click', () => prRevision(b.dataset.prRv, +b.dataset.id, p.id)));
       if (canVersion) $('pr-version-btn').addEventListener('click', async () => {
         if (!confirm(`Create version ${p.version + 1}? ${p.number} becomes superseded and its link stops working.`)) return;
         try { const { data } = await api('/proposals/' + p.id + '/new-version', { method: 'POST' }, true); toast(`${data.number} drafted`); location.hash = '#proposals/' + data.id; } catch (e) { toast(e.message, true); }
@@ -3810,6 +3846,38 @@
       });
     } catch (e) { toast(e.message, true); host.innerHTML = `<div class="cp-card">${empty('Could not load this proposal', e.message)}</div>`; }
   }
+  // revisions: 'request' (anyone on proposals) | 'approve' / 'reject' (admins; the server refuses anyone else)
+  function prRevision(mode, id, back) {
+    const f = $('pr-rv-form'); f.dataset.mode = mode; f.dataset.id = id; f.dataset.back = back || id;
+    const req = mode === 'request';
+    $('pr-rv-title').textContent = req ? 'Request a revision' : mode === 'approve' ? 'Approve the revision' : 'Reject the revision';
+    $('pr-rv-sub').textContent = req ? 'An admin approves or rejects it. The client keeps the sent proposal exactly as it is until a new version is sent.'
+      : mode === 'approve' ? 'A new version is drafted to edit. The client keeps the sent copy until it is sent.' : 'Nothing changes on the proposal. The person who asked is told.';
+    $('pr-rv-label').textContent = req ? 'What should change, and why' : 'Note for the person who asked (optional)';
+    $('pr-rv-price-row').hidden = !req; $('pr-rv-amount-row').hidden = true; $('pr-rv-price').checked = false;
+    $('pr-rv-text').value = ''; $('pr-rv-amount').value = ''; $('pr-rv-err').className = 'cp-form-err';
+    $('pr-rv-go').textContent = req ? 'Ask an admin' : mode === 'approve' ? 'Approve' : 'Reject';
+    $('pr-rv-overlay').classList.add('open'); setTimeout(() => $('pr-rv-text').focus(), 30);
+  }
+  $('pr-rv-price').addEventListener('change', () => { $('pr-rv-amount-row').hidden = !$('pr-rv-price').checked; });
+  $('pr-rv-cancel').addEventListener('click', () => closeOverlay('pr-rv-overlay'));
+  $('pr-rv-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const f = $('pr-rv-form'), mode = f.dataset.mode, err = $('pr-rv-err'); err.className = 'cp-form-err';
+    $('pr-rv-go').disabled = true;
+    try {
+      if (mode === 'request') {
+        await api('/proposals/' + f.dataset.id + '/revisions', { method: 'POST', body: JSON.stringify({ reason: $('pr-rv-text').value, price_review: $('pr-rv-price').checked,
+          proposed_price: $('pr-rv-price').checked ? $('pr-rv-amount').value : null }) }, true);
+        closeOverlay('pr-rv-overlay'); toast('Sent to the admins for approval'); loadProposalDetail(f.dataset.back);
+      } else {
+        const { data: r } = await api('/proposals/revisions/' + f.dataset.id + '/' + mode, { method: 'POST', body: JSON.stringify({ note: $('pr-rv-text').value }) }, true);
+        closeOverlay('pr-rv-overlay'); toast(mode === 'approve' ? 'Approved. The new version is ready to edit' : 'Rejected');
+        if (mode === 'approve' && r.new_proposal_id) location.hash = '#proposals/' + r.new_proposal_id; else loadProposalDetail(f.dataset.back);
+      }
+    } catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('pr-rv-go').disabled = false; }
+  });
+
   // new-proposal modal
   async function openNewProposal() {
     const sel = $('pr-new-est'); sel.innerHTML = '<option value="">Loading…</option>'; $('pr-new-err').className = 'cp-form-err';
@@ -3849,8 +3917,8 @@
     catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
     finally { $('pr-sign-go').disabled = false; }
   });
-  ['pr-new-overlay', 'pr-send-overlay', 'pr-sign-overlay'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target === $(id)) closeOverlay(id); }));
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ['pr-new-overlay', 'pr-send-overlay', 'pr-sign-overlay'].forEach(closeOverlay); });
+  ['pr-new-overlay', 'pr-send-overlay', 'pr-sign-overlay', 'pr-rv-overlay'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target === $(id)) closeOverlay(id); }));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ['pr-new-overlay', 'pr-send-overlay', 'pr-sign-overlay', 'pr-rv-overlay'].forEach(closeOverlay); });
 
   // ---------- FINANCE ----------
   async function loadFinance() {

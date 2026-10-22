@@ -1352,6 +1352,9 @@ def _check_log_sent(ctx, inp):
         raise ValueError(f"{p['number']} is already {p['status']}")
     if inp.get("price") not in (None, ""):
         float(str(inp["price"]).replace("$", "").replace(",", ""))
+        why = proposals.logged_price_problem(ctx.conn, p, inp["price"])   # the record must match the document (2026-10-22)
+        if why:
+            raise ValueError(why)
 
 
 def _log_sent_card(ctx, inp):
@@ -1376,7 +1379,7 @@ def _exec_log_sent(ctx, inp):
     m = _mail(ctx, inp["mail_id"])
     pid = int(inp["proposal_id"])
     if inp.get("price") not in (None, ""):
-        proposals.update(ctx.conn, pid, {"price": str(inp["price"]).replace("$", "").replace(",", "")}, actor=ctx.uid)
+        proposals.log_price(ctx.conn, pid, inp["price"], actor=ctx.uid)
     from email.utils import parseaddr
     name, addr = parseaddr(m["to"])
     ctx.conn.execute("UPDATE proposal SET status = 'sent', sent_at = ?, sent_by = ?, recipient_email = COALESCE(?, recipient_email), "
@@ -1675,9 +1678,9 @@ def effort() -> str:
 def call_model(system_text, tools, messages) -> dict:
     if assistant._fake():
         return _fake_call(messages)
-    import anthropic
-    client = anthropic.Anthropic()
     m = model()
+    import anthropic
+    client = assistant.client()   # one shared client: no new connection per step
     req = dict(model=m, max_tokens=assistant.MAX_TOKENS,
                system=[{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}],
                tools=[t.api() for t in tools], messages=messages, output_config={"effort": effort()},
@@ -1719,7 +1722,9 @@ def _add_msg(conn, chat_id, role, kind, content, replay=True, usage=None, model_
     return _one(conn, "SELECT MAX(id) AS m FROM claude_chat_message WHERE chat_id = ?", (chat_id,))["m"]
 
 
-def _history(conn, chat_id) -> list:
+def _history(conn, chat_id, file_cache: Optional[dict] = None) -> list:
+    """The conversation as the model reads it. `file_cache` (one turn's): an attached file is read (and an image resized,
+    a spreadsheet parsed) once per turn, not again on every step of it."""
     rows = _rows(conn, "SELECT role, content FROM claude_chat_message WHERE chat_id = ? AND replay = 1 ORDER BY id", (chat_id,))
     msgs = []
     for r in rows:
@@ -1741,7 +1746,12 @@ def _history(conn, chat_id) -> list:
                     if b.get("type") != "ssc_file":
                         out.append(b)
                     elif b.get("id") in files:
-                        out.extend(claude_files.blocks(conn, files[b["id"]]))
+                        if file_cache is None:
+                            out.extend(claude_files.blocks(conn, files[b["id"]]))
+                        else:
+                            if b["id"] not in file_cache:
+                                file_cache[b["id"]] = claude_files.blocks(conn, files[b["id"]])
+                            out.extend(file_cache[b["id"]])
                     else:
                         out.append({"type": "text", "text": "[An attached file was removed.]"})
                 m["content"] = out
@@ -1762,12 +1772,13 @@ def run_turn(chat_id: int, user: dict) -> None:
         tools = tools_for(ctx.role, ctx.surface)
         system_text = _system_for(user, chat["surface"])
         error = None
+        files: dict = {}
         for _step in range(MAX_STEPS):
             error = _over_budget(conn, user.get("id"))
             if error:
                 break
             try:
-                out = call_model(system_text, tools, _history(conn, chat_id))
+                out = call_model(system_text, tools, _history(conn, chat_id, files))
             except Exception as e:   # anthropic.APIError + transport; never log message text
                 log.warning("claude call failed on chat %s: %s", chat_id, type(e).__name__)
                 error = "Claude did not answer (" + type(e).__name__ + "). Try again in a minute."
@@ -1846,9 +1857,20 @@ def _tool_result(ctx, chat_id, message_id, block) -> dict:
             "content": f"Shown to the person as approval card A-{aid}. NOT done yet: it happens only if they approve it."}
 
 
-def purge_expired(conn) -> int:
+_PURGED = {"at": 0.0}
+PURGE_EVERY = 60   # seconds: the open conversation is re-read every second or two while Claude answers
+
+
+def purge_expired(conn, throttle: bool = False) -> int:
     """Delete cards nobody answered within CARD_TTL: they leave no trace (Angela 2026-10-19).
-    Approved / declined / undone / failed cards stay in the approvals log."""
+    Approved / declined / undone / failed cards stay in the approvals log. throttle=True (the open conversation, read
+    every second or two while Claude answers): at most once a minute per process. A card past its 48 hours already
+    shows as expired and can't be approved (_decide checks the time), so waiting a minute to delete it changes nothing."""
+    import time
+    now = time.monotonic()
+    if throttle and now - _PURGED["at"] < PURGE_EVERY:
+        return 0
+    _PURGED["at"] = now
     cutoff = (datetime.now() - CARD_TTL).isoformat(timespec="seconds")
     cur = conn.execute("DELETE FROM claude_action WHERE status = 'pending' AND created_at < ?", (cutoff,))
     n = max(getattr(cur, "rowcount", 0) or 0, 0)
@@ -1884,7 +1906,7 @@ def _action_public(conn, a: dict, me_id=None) -> dict:
 
 
 def _chat_view(conn, chat: dict) -> dict:
-    purge_expired(conn)
+    purge_expired(conn, throttle=True)
     msgs = _rows(conn, "SELECT id, role, kind, content, created_at FROM claude_chat_message WHERE chat_id = ? ORDER BY id",
                  (chat["id"],))
     acts = {}

@@ -37,6 +37,37 @@ grant, or elevation code.
   and old chats keep working; if the API ever refuses that control, `call_model` retries once without it (log line
   "claude thinking-binding control refused"). New tools can now be added without breaking open conversations.
 
+### Proposals: one amount everywhere, admin-approved revisions, expiry follow-ups, reply in a thread (Bookore, 2026-10-22)
+
+* **One amount.** A Superstars-layout proposal's stored `price` is always its lines' total as the document prints it
+  (`proposals.sync_price`, called by every write and both send paths); a price sent apart from the lines is ignored.
+  `proposals.amounts(conn, r)` = {total, deposit, deposit_pct} is what the editor, portal, email, send review and PDF
+  show. A new proposal from an estimate gets the estimate's price as a "Base bid" line. **PDF:** `pdf_file` re-renders
+  when the drawn document's sha256 differs from `proposal.pdf_hash` (it used to compare second-resolution timestamps, so
+  an edit in the same second, or Download racing the autosave, served the old amount); Studio's Download flushes the
+  autosave first. A sent proposal keeps the fixed wording it went out with (`content.house`, `proposal_engine.freeze_house`).
+* **Revisions** (`proposal_revision`, `proposal.revision_of`): anyone on proposals asks (`POST /api/proposals/<id>/revisions`
+  {reason, price_review, proposed_price}); **only admins** approve/reject (`/api/proposals/revisions/<rid>/approve|reject`,
+  `requires_role('admin')` + `decide_revision` checks the role again). Approval drafts vN+1; the sent copy stays live for
+  the client, untouched, until the revision is sent (`supersede_predecessor`). A revision can't be sent if the client signed
+  the version it replaces. New version directly = admin only (recorded as an approved revision). Withdraw = the asker or an admin.
+* **Today › Needs you** (`today_feed.proposal_cards`): sent proposals 7 days before / 14 days after valid-until (the sender +
+  admins; Open proposal / Draft a follow-up = Claude window prefilled, nothing sent); pending revisions (admins); the
+  decision (the asker, 7 days). Studio shows an expiry banner with the same follow-up button.
+* **Send** (Studio): the pop-up loads the client's threads lazily (`/send-options`, `?q=` searches the inbox), previews a
+  reply's recipients/thread (`/send-preview`), then a Review step; `/send` refuses without `confirm: true` and when the
+  total differs from `expected_total`. Reply = `inbox.send_reply` with the reviewed To/Cc, In-Reply-To, linked to the proposal.
+  The portal's link-email Send modal points drafts to Studio's reply flow.
+* **Studio editor:** Exclude / Keep beside each note, exclusion and deliverable (and in the checklist); excluded paragraphs
+  are listed with Put back and Claude is told not to re-add them. Claude chat is first in a sticky right rail; on tablet it
+  slides in from the right, on a phone it is a bottom sheet (toolbar "✦ Claude"); the toolbar sticks under the header.
+* **Claude speed:** one shared Anthropic client (`assistant.client()`), the chat poll's card purge throttled to once a
+  minute, a turn reads each attached file once, the drawer polls at 0.7 s then 1.5 s and reads /status once per answer,
+  Studio's view no longer decrypts the inbox on every autosave, the clause library is read once per view, and the draft
+  progress shows the server's real step (it was a 5-second timer).
+* Guard: `tests/smoke_proposal_revisions.py` (in the gate). `smoke_proposals_307` now expects the line total as the price.
+  Not exercised locally: a real Gmail send and a real Chromium PDF (the suite fakes both).
+
 ### Claude follows you: one conversation across pages, tabs and devices (Bookore, 2026-10-22)
 
 * Accepted prototype: https://claude.ai/artifact/7Z4s6fDgoiog8CHZb44tKE. Close Claude on the company dashboard, open it

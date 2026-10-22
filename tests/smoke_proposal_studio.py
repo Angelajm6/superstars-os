@@ -155,7 +155,7 @@ def main() -> int:
                                                         "client_name": ORG, "building_address": "410 E 58th St, New York, NY"})
         assert r.status_code == 202, r.get_json()
         job = r.get_json()["data"]["job"]
-        assert len(r.get_json()["data"]["steps"]) == 5
+        assert len(r.get_json()["data"]["steps"]) == 6
         assert cs.get(f"/api/proposal-studio/jobs/{job}").status_code == 404, "another person's job"
         for _ in range(100):
             j = a.get(f"/api/proposal-studio/jobs/{job}").get_json()["data"]
@@ -219,7 +219,7 @@ def main() -> int:
         bad = dict(lines[-1], unit="bags")
         v = a.patch(f"/api/proposal-studio/{pid}", json={"content": {}, "lines": lines[:-1] + [bad]}).get_json()["data"]
         assert any(x["level"] == "block" and "unit" in x["text"] for x in v["checks"])
-        blocked = a.post(f"/api/proposal-studio/{pid}/send", json={"how": "new", "to": "x@y.example", "message": "x"})
+        blocked = a.post(f"/api/proposal-studio/{pid}/send", json={"how": "new", "to": "x@y.example", "message": "x", "confirm": True})
         assert blocked.status_code == 400 and "checklist" in blocked.get_json()["error"], "Send refuses a red checklist"
         v = a.patch(f"/api/proposal-studio/{pid}", json={"content": {}, "lines": lines}).get_json()["data"]
         assert not [x for x in v["checks"] if x["level"] == "block"]
@@ -263,9 +263,14 @@ def main() -> int:
         proposals.pdf_file = lambda conn, i: pdf
         try:
             assert a.post(f"/api/proposal-studio/{pid}/send", json={"how": "new", "to": "Dana <dana@rosen-pst.example>",
-                                                                    "subject": "Proposal", "message": ""}).status_code == 400
+                                                                    "subject": "Proposal", "message": "", "confirm": True}).status_code == 400
+            # 2026-10-22: nothing goes out without the person's confirmation after the review
+            nc = a.post(f"/api/proposal-studio/{pid}/send", json={"how": "new", "to": "Dana <dana@rosen-pst.example>",
+                                                                  "subject": "Proposal for 410 E 58th", "message": "Hi Dana, attached."})
+            assert nc.status_code == 400 and "confirm" in nc.get_json()["error"] and not list(MAIL.glob("gmail-*.eml"))
             r = a.post(f"/api/proposal-studio/{pid}/send", json={"how": "new", "to": "Dana <dana@rosen-pst.example>",
-                                                                 "subject": "Proposal for 410 E 58th", "message": "Hi Dana, attached."})
+                                                                 "subject": "Proposal for 410 E 58th", "message": "Hi Dana, attached.",
+                                                                 "confirm": True})
             assert r.status_code == 200, r.get_json()
             again = a.post(f"/api/proposal-studio/{pid}/send", json={"how": "new", "to": "x@y.example", "message": "x"})
             assert again.status_code == 400 and "new version" in again.get_json()["error"]
