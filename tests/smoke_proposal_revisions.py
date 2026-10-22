@@ -496,6 +496,10 @@ def main() -> int:
                        "if (S.asking) return;", "'/proposals/revisions/' + S.decide.id"):
             assert needle in html, needle
         assert "setInterval(() => { shown" not in html, "the draft steps follow the server, not a timer"
+        # a blocked Send says why (it was a greyed-out button with the reason below the fold)
+        for needle in ('id="e-notready"', "function sendState(v)", "toast('Not ready to send: ' + why[0], true); showChecklist();", ".rail.blocked #ck-card{order:-1"):
+            assert needle in html, needle
+        assert "$('e-send').disabled =" not in html, "Send is never a silent dead button"
         cp = (ROOT / "company_portal.html").read_text(encoding="utf-8")
         for needle in ('id="pr-rv-overlay"', "prExpiry(r)", "/proposal-studio#p/${p.id}/send", "canVersion = admin && revisable", "p.amounts.total"):
             assert needle in cp, needle
