@@ -21,6 +21,22 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Claude can change a job: details, status, access methods (Bookore, 2026-10-22)
+
+* Angela asked Claude to "delete access method suspended scaffold" on FR-BX-001 and it said it couldn't. New write tool
+  `update_job` (admin / C-suite, any page): name, address, city / ZIP, client, start date, target completion, contract
+  value, status (active / closed) and access methods (`add_access_methods` / `remove_access_methods`). It is an approval
+  card like every other change: the card shows each new value with "Now: …" (access methods as "old → new"), editable
+  fields are what get saved, and **Undo** puts the old values back (`result.before`). It writes through
+  `project_details.update` / `project_setup.update` (the Edit project form's own validation) and the same status write
+  as `/api/projects/<code>/status`. `job_summary` now returns `job_setup` (status, job type, access methods) so Claude
+  sees what is set.
+* Adding a tool changes the `tools` prefix of every live chat, and current models bind replayed thinking to that prefix
+  (a 400 on accounts the check enforces). The Claude window now sends `thinking.block_binding.prefix_mismatch_behavior
+  = "drop_block"` (beta `thinking-binding-controls-2026-08-01`, `ai_models.agent_kwargs`) so stale blocks are dropped
+  and old chats keep working; if the API ever refuses that control, `call_model` retries once without it (log line
+  "claude thinking-binding control refused"). New tools can now be added without breaking open conversations.
+
 ### Claude follows you: one conversation across pages, tabs and devices (Bookore, 2026-10-22)
 
 * Accepted prototype: https://claude.ai/artifact/7Z4s6fDgoiog8CHZb44tKE. Close Claude on the company dashboard, open it
