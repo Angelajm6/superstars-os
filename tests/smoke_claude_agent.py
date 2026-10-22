@@ -332,6 +332,83 @@ def main() -> int:
         assert assistant.spent_today_micro(_db()) >= ca.spent_today_micro(_db()) > 0
         passed += 1; print("  budget ok")
 
+        # ---- change a job: access methods, details, status (2026-10-22); a card, the same checks as Edit project, undo
+        import project_setup
+        JOB = "FR-CLAG-901"
+        _x("DELETE FROM projects WHERE project_code = ?", (JOB,))
+        _x("INSERT INTO projects (project_code, name, address, status) VALUES (?, 'Clag smoke job', '9 Clag Street', 'active')", (JOB,))
+        conn = _db()
+        try:
+            project_setup.ensure(conn)
+            project_setup.update(conn, JOB, {"access_methods": ["suspended_scaffold", "rope_access"]})
+        finally:
+            conn.close()
+        assert "update_job" in names("admin", "office") and "update_job" in names("c_suite", "field")
+        assert "update_job" not in names("pm", "office") and "update_job" not in names("super", "field")
+        jchat = a.post("/api/claude/chats", json={"surface": "field"}).get_json()["data"]["chat"]
+        _script([{"tools": [{"name": "job_summary", "input": {"project_code": JOB}}]},
+                 {"tools": [{"name": "update_job", "input": {"project_code": JOB, "remove_access_methods": ["suspended_scaffold"]}},
+                            {"name": "update_job", "input": {"project_code": JOB, "add_access_methods": ["rope_access"]}}]},
+                 {"text": "The card removes suspended scaffold."}])
+        r = a.post(f"/api/claude/chats/{jchat['id']}/messages", json={"text": f"@{JOB} delete access method suspended scaffold",
+                                                                          "page": {"surface": "field", "project_code": JOB}})
+        assert r.status_code == 202, r.get_json()
+        res = [b for m in ca._history(_db(), jchat["id"]) if m["role"] == "user" for b in m["content"] if b.get("type") == "tool_result"]
+        summ = json.loads(res[0]["content"])
+        assert summ["job_setup"]["access_methods"] == ["suspended_scaffold", "rope_access"] and summ["job_setup"]["status"] == "active"
+        assert res[2].get("is_error") and "not change anything" in res[2]["content"]   # already has rope access
+        v = a.get(f"/api/claude/chats/{jchat['id']}?surface=field").get_json()["data"]
+        acts = [x for m in v["messages"] for x in m.get("actions", [])]
+        assert len(acts) == 1 and acts[0]["tool"] == "update_job" and acts[0]["status"] == "pending"
+        hint = next(f["hint"] for f in acts[0]["card"]["fields"] if f["key"] == "access_methods")
+        assert hint == "Suspended scaffold, Rope access → Rope access", hint
+        conn = _db()
+        try:
+            assert project_setup.setup(conn, JOB)["access_methods"] == ["suspended_scaffold", "rope_access"]   # nothing yet
+        finally:
+            conn.close()
+        r = a.post(f"/api/claude/actions/{acts[0]['id']}/approve", json={"values": {}})
+        assert r.status_code == 200 and r.get_json()["data"]["status"] == "approved", r.get_json()
+        assert r.get_json()["data"]["can_undo"] is True
+        conn = _db()
+        try:
+            assert project_setup.setup(conn, JOB)["access_methods"] == ["rope_access"]
+        finally:
+            conn.close()
+        assert a.post(f"/api/claude/actions/{acts[0]['id']}/undo", json={}).status_code == 200
+        conn = _db()
+        try:
+            assert project_setup.setup(conn, JOB)["access_methods"] == ["suspended_scaffold", "rope_access"]
+        finally:
+            conn.close()
+        # details + status, with a value edited on the card before approving
+        _script([{"tools": [{"name": "update_job", "input": {"project_code": JOB, "name": "Clag smoke job renamed",
+                                                              "target_completion": "2026-12-15", "status": "closed"}}]},
+                 {"text": "Approve to rename and close it."}])
+        a.post(f"/api/claude/chats/{jchat['id']}/messages", json={"text": "rename and close it", "page": {"surface": "field"}})
+        v = a.get(f"/api/claude/chats/{jchat['id']}").get_json()["data"]
+        act = [x for m in v["messages"] for x in m.get("actions", []) if x["status"] == "pending"][-1]
+        keys = {f["key"]: f for f in act["card"]["fields"]}
+        assert keys["name"]["hint"] == "Now: Clag smoke job" and keys["status"]["type"] == "select" and keys["target_completion"]["type"] == "date"
+        r = a.post(f"/api/claude/actions/{act['id']}/approve", json={"values": {"name": "Clag smoke job final"}})
+        assert r.status_code == 200, r.get_json()
+        row = _q("SELECT name, status, target_completion FROM projects WHERE project_code = ?", (JOB,))[0]
+        assert row["name"] == "Clag smoke job final" and row["status"] == "closed" and str(row["target_completion"])[:10] == "2026-12-15"
+        assert a.post(f"/api/claude/actions/{act['id']}/undo", json={}).status_code == 200
+        row = _q("SELECT name, status FROM projects WHERE project_code = ?", (JOB,))[0]
+        assert row["name"] == "Clag smoke job" and row["status"] == "active"
+        # a bad value on the card is refused and changes nothing
+        _script([{"tools": [{"name": "update_job", "input": {"project_code": JOB, "start_date": "2026-12-20", "target_completion": "2026-12-01"}}]},
+                 {"text": "Here it is."}])
+        a.post(f"/api/claude/chats/{jchat['id']}/messages", json={"text": "dates", "page": {"surface": "field"}})
+        v = a.get(f"/api/claude/chats/{jchat['id']}").get_json()["data"]
+        act = [x for m in v["messages"] for x in m.get("actions", []) if x["status"] == "pending"][-1]
+        r = a.post(f"/api/claude/actions/{act['id']}/approve", json={"values": {}})
+        assert r.status_code == 400 and "before the start date" in r.get_json()["error"]
+        assert _q("SELECT start_date FROM projects WHERE project_code = ?", (JOB,))[0]["start_date"] in (None, "")
+        _x("DELETE FROM projects WHERE project_code = ?", (JOB,))
+        passed += 1; print("  change a job ok")
+
         # ---- one conversation follows the person; pay keeps it on office pages (2026-10-22)
         fchat = a.post("/api/claude/chats", json={"surface": "office"}).get_json()["data"]["chat"]
         _script([{"text": "Here is today."}])
@@ -427,6 +504,31 @@ def main() -> int:
             seen.clear()
             os.environ.update(SSC_CLAUDE_MODEL="claude-haiku-5-5", SSC_CLAUDE_EFFORT="medium")
             ca.call_model("sys", ca.tools_for("admin", "office"), [{"role": "user", "content": "hi"}])
+            haiku = dict(seen)
+            os.environ.pop("SSC_CLAUDE_MODEL"); os.environ.pop("SSC_CLAUDE_EFFORT")
+            # the binding control refused (a new beta): the request goes again without it, and still answers
+            calls = []
+
+            class _Refused(Exception):
+                pass
+
+            def _create(**kw):
+                calls.append(kw)
+                if "thinking" in kw:
+                    raise _Refused("thinking.block_binding: Extra inputs are not permitted")
+                return _Resp()
+
+            class _Client2:
+                def __init__(self, *a, **k):
+                    self.beta = type("B", (), {"messages": type("M", (), {"create": staticmethod(_create)})()})()
+
+            real_bad, anthropic.BadRequestError, anthropic.Anthropic = anthropic.BadRequestError, _Refused, _Client2
+            try:
+                assert ca.call_model("sys", ca.tools_for("admin", "office"), [{"role": "user", "content": "hi"}])["content"]
+            finally:
+                anthropic.BadRequestError = real_bad
+            assert len(calls) == 2 and "thinking" in calls[0] and "thinking" not in calls[1]
+            assert calls[1]["betas"] == ["server-side-fallback-2026-07-01"] and calls[1]["fallbacks"] == "default"
         finally:
             anthropic.Anthropic = real
             os.environ["SSC_ASSISTANT_FAKE"] = fake
@@ -434,11 +536,14 @@ def main() -> int:
             os.environ.pop("SSC_CLAUDE_EFFORT", None)
         # a cheaper model by env: no refusal fallback (Haiku has none; sending it would be a 400)
         assert seen["model"] == "claude-haiku-5-5" and seen["output_config"] == {"effort": "medium"}
-        assert "fallbacks" not in seen and "betas" not in seen
+        seen = haiku
+        assert "fallbacks" not in seen and seen["betas"] == ["thinking-binding-controls-2026-08-01"]
         seen = first
         assert out["content"] == [{"type": "text", "text": "ok"}], out["content"]
         assert seen["model"] == "claude-opus-5-5" and seen["output_config"] == {"effort": "low"} and seen["fallbacks"] == "default"
-        assert seen["betas"] == ["server-side-fallback-2026-07-01"] and "thinking" not in seen and "tool_choice" not in seen
+        assert seen["betas"] == ["server-side-fallback-2026-07-01", "thinking-binding-controls-2026-08-01"] and "tool_choice" not in seen
+        # adding a tool (update_job) must not break older chats: stale thinking is dropped, not a 400
+        assert seen["thinking"] == {"type": "adaptive", "block_binding": {"prefix_mismatch_behavior": "drop_block"}}
         assert seen["system"][0]["cache_control"] == {"type": "ephemeral"}
         assert {t["name"] for t in seen["tools"]} == set(names("admin", "office"))
         assert all("Needs approval" in t["description"] for t in seen["tools"] if t["name"].startswith(("create_", "update_", "mark_", "change_")))
@@ -463,8 +568,8 @@ def main() -> int:
         os.environ.pop("SSC_ASSISTANT_FAKE", None)
         _cleanup()
         shutil.rmtree(_TMP, ignore_errors=True)
-    print(f"smoke_claude_agent: {passed}/15 groups passed")
-    return 0 if passed == 15 else 1
+    print(f"smoke_claude_agent: {passed}/16 groups passed")
+    return 0 if passed == 16 else 1
 
 
 if __name__ == "__main__":

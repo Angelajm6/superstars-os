@@ -304,6 +304,14 @@ def _t_job(ctx, inp):
         raise LookupError("no job with that code that you can open")
     s = project_summary.summary(ctx.conn, code, ctx.role, uid=ctx.uid) or {}
     s.pop("photos", None)
+    try:   # the job's own settings (what update_job can change)
+        import project_setup
+        st = project_setup.setup(ctx.conn, code) or {}
+        s["job_setup"] = {"status": _one(ctx.conn, "SELECT COALESCE(status, 'active') AS s FROM projects WHERE project_code = ?",
+                                          (code,))["s"], "job_type": st.get("job_type_label"),
+                          "access_methods": st.get("access_methods") if st.get("access_applies") else None}
+    except Exception:
+        ctx.conn.rollback()
     return s
 
 
@@ -1050,6 +1058,129 @@ def _undo_issue(ctx, action, result):
     ctx.conn.commit()
 
 
+# ---- jobs (2026-10-22): a job's details, status and access methods, through the same code as Edit project
+_JOB_FIELDS = {"name": "Name", "address": "Address", "city_zip": "City / ZIP", "start_date": "Start date",
+               "target_completion": "Target completion", "contract_value": "Contract value"}
+_JOB_DATES = ("start_date", "target_completion")
+_JOB_STATUSES = ("active", "closed")
+
+
+def _access_names(keys) -> str:
+    import project_setup
+    return ", ".join(project_setup.ACCESS_LABELS.get(k, k) for k in keys or []) or "none"
+
+
+def _job_changes(ctx, inp) -> dict:
+    """What approving would change, checked against the job as it is now. Raises when nothing would."""
+    import pm_scoping
+    import project_details
+    import project_setup
+    code = str(inp.get("project_code") or "").strip()
+    if not code or not pm_scoping.pm_can_access_project(ctx.role, ctx.uid, code, ctx.conn):
+        raise LookupError("no job with that code that you can open")
+    now = project_details.details(ctx.conn, code)
+    if not now:
+        raise LookupError("no job with that code that you can open")
+    det = {}
+    for k in _JOB_FIELDS:
+        v = inp.get(k)
+        if v in (None, ""):
+            continue
+        det[k] = _d(v, _JOB_FIELDS[k].lower()) if k in _JOB_DATES else str(v).strip()
+    if inp.get("client_org_id") not in (None, ""):
+        det["client_org_id"] = inp["client_org_id"]
+    status = str(inp.get("status") or "").strip().lower() or None
+    if status and status not in _JOB_STATUSES:
+        raise ValueError("status is active or closed")
+    if status == (now.get("status") or "active"):
+        status = None
+    access = None
+    add, rm = inp.get("add_access_methods") or [], inp.get("remove_access_methods") or []
+    if add or rm:
+        bad = [k for k in list(add) + list(rm) if k not in project_setup.ACCESS_LABELS]
+        if bad:
+            raise ValueError("unknown access method: " + ", ".join(map(str, bad))[:80])
+        cur = list((project_setup.setup(ctx.conn, code) or {}).get("access_methods") or [])
+        keep = (set(cur) - set(rm)) | set(add)
+        after = [k for k, _ in project_setup.ACCESS_METHODS if k in keep]
+        if after != cur:
+            project_setup.validate({"access_methods": after}, project_setup.est_type_of(code))
+            access = (cur, after)
+    if not det and not status and not access:
+        raise ValueError("that would not change anything on the job")
+    return {"code": code, "now": now, "details": det, "status": status, "access": access}
+
+
+def _check_job(ctx, inp):
+    _job_changes(ctx, inp)
+
+
+def _job_card(ctx, inp):
+    c = _job_changes(ctx, inp)
+    now = c["now"]
+    fields = [{"key": "project_code", "label": "Job", "type": "readonly", "value": c["code"],
+               "hint": _job_label(ctx.conn, c["code"])}]
+    for k, v in c["details"].items():
+        if k == "client_org_id":
+            import crm
+            org = crm.get_org(ctx.conn, int(v)) if str(v).isdigit() else None
+            fields.append({"key": k, "label": "Client", "type": "readonly", "value": str(v),
+                           "hint": f"{(org or {}).get('name') or 'that client'} (now: {now.get('client_name') or 'none'})"})
+            continue
+        was = now.get(k)
+        fields.append({"key": k, "label": _JOB_FIELDS[k], "type": "date" if k in _JOB_DATES else "text", "value": str(v),
+                       "hint": "Now: " + (str(was)[:10] if k in _JOB_DATES and was else
+                                          f"${float(was):,.2f}" if k == "contract_value" and was is not None else str(was or "—"))})
+    if c["status"]:
+        fields.append({"key": "status", "label": "Status", "type": "select", "value": c["status"],
+                       "options": [{"value": v, "label": v.title()} for v in _JOB_STATUSES],
+                       "hint": "Now: " + (now.get("status") or "active").title()})
+    if c["access"]:
+        fields.append({"key": "access_methods", "label": "Access methods", "type": "readonly", "value": "",
+                       "hint": f"{_access_names(c['access'][0])} → {_access_names(c['access'][1])}"})
+    return {"title": "Change job details", "fields": fields}
+
+
+def _set_job_status(conn, code, status, actor):
+    conn.execute("UPDATE projects SET status = ? WHERE project_code = ?", (status, code))
+    conn.commit()
+    log.info("claude job status %s -> %s by user %s", code, status, actor)
+
+
+def _exec_job(ctx, inp):
+    import project_details
+    import project_setup
+    c = _job_changes(ctx, inp)
+    code, now, det = c["code"], c["now"], c["details"]
+    before = {k: now.get(k) for k in det}
+    if det:
+        project_details.update(ctx.conn, code, det, actor=ctx.uid)   # validates all of it before writing any
+    if c["access"]:
+        before["access_methods"] = c["access"][0]
+        project_setup.update(ctx.conn, code, {"access_methods": c["access"][1]}, actor=ctx.uid)
+    if c["status"]:
+        before["status"] = now.get("status") or "active"
+        _set_job_status(ctx.conn, code, c["status"], ctx.uid)
+    what = [("client" if k == "client_org_id" else _JOB_FIELDS[k].lower()) for k in det]
+    what += (["access methods"] if c["access"] else []) + (["status"] if c["status"] else [])
+    return {"id": code, "summary": f"{code} updated: {', '.join(what)}", "link": f"/projects/{code}", "undo": True,
+            "before": before}
+
+
+def _undo_job(ctx, action, result):
+    import project_details
+    import project_setup
+    code, b = result["id"], result.get("before") or {}
+    det = {k: ("" if b[k] is None else b[k]) for k in list(_JOB_FIELDS) + ["client_org_id"]
+           if k in b and k != "contract_value" or (k == "contract_value" and b.get(k) is not None)}
+    if det:
+        project_details.update(ctx.conn, code, det, actor=ctx.uid)
+    if "access_methods" in b:
+        project_setup.update(ctx.conn, code, {"access_methods": b["access_methods"]}, actor=ctx.uid)
+    if "status" in b:
+        _set_job_status(ctx.conn, code, b["status"], ctx.uid)
+
+
 # ---- inbox (2026-10-14): cards born from an email in the person's own mailbox
 def _mail(ctx, mid):
     import inbox
@@ -1340,6 +1471,9 @@ def _t_read_doc(ctx, inp):
 
 _S, _D, _T, _I, _B = ({"type": "string"}, {"type": "string", "description": "YYYY-MM-DD"},
                       {"type": "string", "description": "HH:MM, 24-hour"}, {"type": "integer"}, {"type": "boolean"})
+_ACCESS = {"type": "array", "items": {"type": "string", "enum": ["suspended_scaffold", "supported_scaffold", "rope_access",
+                                                            "boom_lift"]}}
+
 TOOLS = [
     Tool("find", "Search", "Search jobs, team members and (office roles) clients and estimates by name, code or address.",
          {"query": _S}, ["query"], run=_t_find),
@@ -1429,6 +1563,15 @@ TOOLS += [
          ["project_code", "description"], write=True, run=_check_issue, card=_issue_card, execute=_exec_issue, undo=_undo_issue),
 ]
 TOOLS += [
+    Tool("update_job", "Change job details", "Propose changing a job: name, address, city / ZIP, client (client_org_id "
+         "from find), start date, target completion, contract value, status (active or closed) and the access methods "
+         "of an Exterior Restoration job (add_access_methods / remove_access_methods: suspended_scaffold, "
+         "supported_scaffold, rope_access, boom_lift). Pass only what changes; look the job up first.",
+         {"project_code": _S, "name": _S, "address": _S, "city_zip": _S, "client_org_id": _I, "start_date": _D,
+          "target_completion": _D, "contract_value": {"type": "number"}, "status": {"type": "string", "enum": list(_JOB_STATUSES)},
+          "add_access_methods": _ACCESS, "remove_access_methods": _ACCESS},
+         ["project_code"], write=True, roles=OFFICE_ROLES, run=_check_job, card=_job_card, execute=_exec_job,
+         undo=_undo_job),
     Tool("search_email", "Email", "Search this person's own email (subject, sender, text) of the last 90 days.",
          {"query": _S}, ["query"], roles=OFFICE_ROLES, office_only=True, run=_t_search_email),
     Tool("email_detail", "Email", "One email from this person's inbox by mail_id: sender, subject, full text, attachment names.",
@@ -1536,11 +1679,19 @@ def call_model(system_text, tools, messages) -> dict:
     if assistant._fake():
         return _fake_call(messages)
     m = model()
-    resp = assistant.client().beta.messages.create(   # one shared client: no new connection per step
-        model=m, max_tokens=assistant.MAX_TOKENS,
-        system=[{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}],
-        tools=[t.api() for t in tools], messages=messages, output_config={"effort": effort()},
-        cache_control={"type": "ephemeral"}, **ai_models.fallback_kwargs(m))
+    import anthropic
+    client = assistant.client()   # one shared client: no new connection per step
+    req = dict(model=m, max_tokens=assistant.MAX_TOKENS,
+               system=[{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}],
+               tools=[t.api() for t in tools], messages=messages, output_config={"effort": effort()},
+               cache_control={"type": "ephemeral"})
+    try:
+        resp = client.beta.messages.create(**req, **ai_models.agent_kwargs(m))
+    except anthropic.BadRequestError as e:   # the binding control refused (new beta): the plain request still answers
+        if "binding" not in str(e).lower():
+            raise
+        log.warning("claude thinking-binding control refused; sent without it")
+        resp = client.beta.messages.create(**req, **ai_models.fallback_kwargs(m))
     u = resp.usage
     return {"content": _clean_content([b.model_dump(mode="json", exclude_none=True) for b in resp.content]),
             "stop_reason": resp.stop_reason, "model": getattr(resp, "model", None) or assistant.model(),
