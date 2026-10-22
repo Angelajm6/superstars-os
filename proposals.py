@@ -341,8 +341,10 @@ def list_proposals(conn, *, status=None, client_org_id=None, estimate_id=None, b
     if q:
         like = f"%{q.strip().lower()}%"
         where.append("(LOWER(p.number) LIKE ? OR LOWER(COALESCE(p.title,'')) LIKE ? OR LOWER(o.name) LIKE ? "
-                     "OR LOWER(COALESCE(e.building_address,'')) LIKE ? OR LOWER(COALESCE(b.address_line,'')) LIKE ?)")
-        params += [like] * 5
+                     "OR LOWER(COALESCE(e.building_address,'')) LIKE ? OR LOWER(COALESCE(b.address_line,'')) LIKE ? "
+                     "OR CAST(p.display_no AS TEXT) = ?)")   # 2026-10-22: "1045", the number people see
+        num = re.fullmatch(r"\s*(?:proposal\s*)?(?:no\.?\s*)?#?\s*(\d+)(?:-\d+)?\s*", q, re.I)   # "Proposal No. 1045", "1045-2"
+        params += [like] * 5 + [num.group(1) if num else "\x00"]
     return [public(r) for r in _rows(conn.execute(
         _JOIN + "WHERE " + " AND ".join(where) + " ORDER BY p.updated_at DESC, p.id DESC", params))]
 
@@ -1245,6 +1247,43 @@ def mark_signed_offline(conn, proposal_id: int, *, name: str, signed_on=None, ac
     return r
 
 
+def mark_sent_outside(conn, proposal_id: int, *, actor=None, sent_on=None, to_email=None, to_name=None,
+                      how: Optional[str] = None) -> dict:
+    """The proposal went out another way (an email from someone's own mailbox, by hand): record it as sent (2026-10-22).
+    No link is made for the client (there is no online accept); sent_at is the day given (noon) or now. Draft only; the
+    price stays the total of its lines; a revision supersedes the version it replaces, as a send does."""
+    r = get(conn, proposal_id)
+    if not r:
+        raise LookupError("proposal not found")
+    if r["status"] != "draft":
+        raise ValueError(f"This proposal is already {r['status']}.")
+    why = predecessor_problem(conn, r)
+    if why:
+        raise ValueError(why)
+    to_email = (to_email or "").strip().lower() or None
+    if to_email and ("@" not in to_email or "." not in to_email.split("@")[-1]):
+        raise ValueError("check the email address")
+    on = _valid_date(sent_on, "sent_on") or _today().isoformat()
+    if on > _today().isoformat():
+        raise ValueError("the date it was sent can't be in the future")
+    now = _now()
+    sent_at = now if on == _today().isoformat() else f"{on}T12:00:00"
+    sync_price(conn, proposal_id, layout=r.get("layout"))
+    import proposal_engine
+    proposal_engine.freeze_house(conn, proposal_id)
+    conn.execute("UPDATE proposal SET status = 'sent', sent_at = ?, sent_by = ?, recipient_email = COALESCE(?, recipient_email), "
+                 "recipient_name = COALESCE(?, recipient_name), updated_at = ? WHERE id = ? AND status = 'draft'",
+                 (sent_at, actor, to_email, (to_name or "").strip()[:120] or None, now, proposal_id))
+    _event(conn, proposal_id, "sent", actor=actor,
+           detail="marked as sent: it went out outside the app" + (f" ({str(how).strip()[:120]})" if how and str(how).strip() else ""))
+    conn.commit()
+    r = get(conn, proposal_id)
+    render_pdf(conn, proposal_id, actor=actor)   # best effort: the app's copy of what was sent
+    supersede_predecessor(conn, r, actor=actor)
+    _activity(conn, r, f"Proposal {_label(r)} marked as sent (outside the app)", actor=actor)
+    return get(conn, proposal_id)
+
+
 # ============================ revisions (2026-10-22) ============================
 # Anyone who works on proposals can ask for a revision of a SENT proposal (a scope change, or a price review a week
 # after sending). Only an ADMIN approves or rejects it — checked here, whatever the screen shows. Approval drafts the
@@ -1790,6 +1829,22 @@ def _api_mark_signed(proposal_id):
         conn.close()
 
 
+def _api_mark_sent(proposal_id):
+    body = request.get_json(silent=True) or {}
+    conn = _conn()
+    try:
+        try:
+            r = mark_sent_outside(conn, proposal_id, actor=_uid(), sent_on=body.get("sent_on"), to_email=body.get("to_email"),
+                                  to_name=body.get("to_name"), how=body.get("how"))
+        except LookupError as e:
+            return _err(str(e), 404)
+        except ValueError as e:
+            return _err(str(e), 409 if "already" in str(e) or "signed" in str(e) else 400)
+        return _wrap(_detail(conn, r))
+    finally:
+        conn.close()
+
+
 def _api_preview(proposal_id):
     conn = _conn()
     try:
@@ -1830,6 +1885,7 @@ def register(app) -> None:
     app.add_url_rule("/api/proposals/<int:proposal_id>", "proposals_delete", gate(_api_delete), methods=["DELETE"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/send", "proposals_send", gate(_api_send), methods=["POST"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/new-version", "proposals_new_version", gate(_api_new_version), methods=["POST"])
+    app.add_url_rule("/api/proposals/<int:proposal_id>/mark-sent", "proposals_mark_sent", gate(_api_mark_sent), methods=["POST"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/mark-signed", "proposals_mark_signed", gate(_api_mark_signed), methods=["POST"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/preview", "proposals_preview", gate(_api_preview), methods=["GET"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/pdf", "proposals_pdf", gate(_api_pdf), methods=["GET"])

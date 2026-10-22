@@ -65,6 +65,7 @@ grant, or elevation code.
   minute, a turn reads each attached file once, the drawer polls at 0.7 s then 1.5 s and reads /status once per answer,
   Studio's view no longer decrypts the inbox on every autosave, the clause library is read once per view, and the draft
   progress shows the server's real step (it was a 5-second timer).
+* **Mark as sent** (a draft that went out another way): `POST /api/proposals/<id>/mark-sent` {sent_on, to_email, to_name, how} (`proposals.mark_sent_outside`: no client link, sent_at = that day at noon, supersedes a revised version). Buttons: Proposal Studio (Send pop-up and the Not-ready banner) and the portal's proposal page. Claude's `log_proposal_sent` no longer needs a Gmail email, and the proposals search finds the number people see ("1045", "Proposal No. 1045").
 * Guard: `tests/smoke_proposal_revisions.py` (in the gate). `smoke_proposals_307` now expects the line total as the price.
   Not exercised locally: a real Gmail send and a real Chromium PDF (the suite fakes both).
 

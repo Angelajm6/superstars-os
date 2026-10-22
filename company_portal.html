@@ -1389,6 +1389,19 @@
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-rv-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-rv-go">Ask an admin</button></div>
   </form>
 </div>
+<div class="cp-overlay" id="pr-sent-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-sent-title">
+  <form class="cp-modal" id="pr-sent-form" novalidate>
+    <div class="cp-modal-head"><h2 id="pr-sent-title">Mark as sent</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">For a proposal that went out another way, like an email from your own mailbox. Nothing is sent from here and the client gets no online link; the proposal is locked as sent.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="pr-sent-date">Sent on</label><input id="pr-sent-date" type="date"></div>
+      <div class="cp-field"><label for="pr-sent-name">To (name)</label><input id="pr-sent-name" autocomplete="off"></div>
+      <div class="cp-field full"><label for="pr-sent-email">To (email)</label><input id="pr-sent-email" type="email" autocomplete="off"></div>
+      <div class="cp-field full"><label for="pr-sent-how">How it went out (optional)</label><input id="pr-sent-how" autocomplete="off" placeholder="e.g. emailed from my Outlook"></div>
+      <div class="cp-form-err" id="pr-sent-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-sent-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-sent-go">Mark as sent</button></div>
+  </form>
+</div>
 <div class="cp-overlay" id="pr-sign-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-sign-title">
   <form class="cp-modal" id="pr-sign-form" novalidate>
     <div class="cp-modal-head"><h2 id="pr-sign-title">Record a signature received outside the app</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Use this when the client signed on paper or replied by email. It fires the same follow-ups as an online acceptance: the estimate is approved and the COI + deposit tasks open.</p></div>
@@ -3729,6 +3742,7 @@
           ${canSend ? `<button class="btn-primary btn-sm" type="button" id="pr-send-btn">${p.status === 'draft' ? 'Send…' : 'Resend…'}</button>` : ''}
           ${canVersion ? `<button class="btn-ghost btn-sm" type="button" id="pr-version-btn">New version</button>` : ''}
           ${canAsk ? `<button class="btn-ghost btn-sm" type="button" id="pr-rq-btn">Request a revision…</button>` : ''}
+          ${p.status === 'draft' ? `<button class="btn-ghost btn-sm" type="button" id="pr-sent-btn">Mark as sent</button>` : ''}
           ${canSend ? `<button class="btn-ghost btn-sm" type="button" id="pr-sign-btn">Mark signed offline</button>` : ''}
           ${p.status === 'draft' ? `<button class="btn-ghost btn-sm" type="button" id="pr-del-btn" style="color:#A8382B">Delete draft</button>` : ''}</div>
         <div class="cp-card" style="padding:0;overflow:hidden;margin-bottom:14px"><div id="pr-pdf-pages" style="max-height:min(1100px,78vh)" aria-label="The proposal PDF"></div></div>
@@ -3829,6 +3843,10 @@
           $('pr-send-name').value = p.recipient_name || p.contact_name || ''; $('pr-send-email').value = p.recipient_email || p.contact_email || ''; $('pr-send-msg').value = '';
           $('pr-send-err').className = 'cp-form-err'; $('pr-send-overlay').classList.add('open'); setTimeout(() => $('pr-send-email').focus(), 30);
         });
+        if ($('pr-sent-btn')) $('pr-sent-btn').addEventListener('click', () => {
+          $('pr-sent-form').dataset.id = p.id; $('pr-sent-name').value = p.recipient_name || p.contact_name || ''; $('pr-sent-email').value = p.recipient_email || p.contact_email || '';
+          $('pr-sent-how').value = ''; dateSet($('pr-sent-date'), todayLocal()); $('pr-sent-err').className = 'cp-form-err'; $('pr-sent-overlay').classList.add('open');
+        });
         $('pr-sign-btn').addEventListener('click', () => {
           $('pr-sign-form').dataset.id = p.id; $('pr-sign-name').value = p.recipient_name || p.contact_name || ''; dateSet($('pr-sign-date'), todayLocal());
           $('pr-sign-err').className = 'cp-form-err'; $('pr-sign-overlay').classList.add('open');
@@ -3909,6 +3927,15 @@
     catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
     finally { $('pr-send-go').disabled = false; $('pr-send-go').textContent = 'Send'; }
   });
+  $('pr-sent-cancel').addEventListener('click', () => closeOverlay('pr-sent-overlay'));
+  $('pr-sent-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('pr-sent-err'); err.className = 'cp-form-err'; const id = $('pr-sent-form').dataset.id;
+    $('pr-sent-go').disabled = true;
+    try { await api('/proposals/' + id + '/mark-sent', { method: 'POST', body: JSON.stringify({ sent_on: dateGet($('pr-sent-date')) || null, to_name: $('pr-sent-name').value.trim(),
+        to_email: $('pr-sent-email').value.trim(), how: $('pr-sent-how').value.trim() }) }, true); closeOverlay('pr-sent-overlay'); toast('Marked as sent'); loadProposalDetail(id); }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('pr-sent-go').disabled = false; }
+  });
   $('pr-sign-cancel').addEventListener('click', () => closeOverlay('pr-sign-overlay'));
   $('pr-sign-form').addEventListener('submit', async (e) => {
     e.preventDefault(); const err = $('pr-sign-err'); err.className = 'cp-form-err'; const id = $('pr-sign-form').dataset.id;
@@ -3917,8 +3944,8 @@
     catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
     finally { $('pr-sign-go').disabled = false; }
   });
-  ['pr-new-overlay', 'pr-send-overlay', 'pr-sign-overlay', 'pr-rv-overlay'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target === $(id)) closeOverlay(id); }));
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ['pr-new-overlay', 'pr-send-overlay', 'pr-sign-overlay', 'pr-rv-overlay'].forEach(closeOverlay); });
+  ['pr-new-overlay', 'pr-send-overlay', 'pr-sign-overlay', 'pr-rv-overlay', 'pr-sent-overlay'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target === $(id)) closeOverlay(id); }));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ['pr-new-overlay', 'pr-send-overlay', 'pr-sign-overlay', 'pr-rv-overlay', 'pr-sent-overlay'].forEach(closeOverlay); });
 
   // ---------- FINANCE ----------
   async function loadFinance() {
