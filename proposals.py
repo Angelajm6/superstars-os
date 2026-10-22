@@ -340,11 +340,11 @@ def list_proposals(conn, *, status=None, client_org_id=None, estimate_id=None, b
         where.append("p.building_id = ?"); params.append(int(building_id))
     if q:
         like = f"%{q.strip().lower()}%"
-        where.append("(LOWER(p.number) LIKE ? OR LOWER(COALESCE(p.title,'')) LIKE ? OR LOWER(o.name) LIKE ? "
-                     "OR LOWER(COALESCE(e.building_address,'')) LIKE ? OR LOWER(COALESCE(b.address_line,'')) LIKE ? "
-                     "OR CAST(p.display_no AS TEXT) = ?)")   # 2026-10-22: "1045", the number people see
         num = re.fullmatch(r"\s*(?:proposal\s*)?(?:no\.?\s*)?#?\s*(\d+)(?:-\d+)?\s*", q, re.I)   # "Proposal No. 1045", "1045-2"
-        params += [like] * 5 + [num.group(1) if num else "\x00"]
+        where.append("(LOWER(p.number) LIKE ? OR LOWER(COALESCE(p.title,'')) LIKE ? OR LOWER(o.name) LIKE ? "
+                     "OR LOWER(COALESCE(e.building_address,'')) LIKE ? OR LOWER(COALESCE(b.address_line,'')) LIKE ?"
+                     + (" OR CAST(p.display_no AS TEXT) = ?" if num else "") + ")")   # 2026-10-22: "1045", the number people see
+        params += [like] * 5 + ([num.group(1)] if num else [])
     return [public(r) for r in _rows(conn.execute(
         _JOIN + "WHERE " + " AND ".join(where) + " ORDER BY p.updated_at DESC, p.id DESC", params))]
 
