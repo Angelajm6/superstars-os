@@ -141,19 +141,20 @@ def _usage(conn, uid, res, title) -> None:
         log.info("proposal studio usage not recorded: %s", type(e).__name__)
 
 
-def _claude_ready(conn) -> None:
+def _claude_ready(conn, uid=None) -> None:
     import assistant
     import claude_agent
     why = assistant.unavailable_reason()
     if why:
-        raise ValueError("Claude isn't switched on yet." if why == "no_api_key" else "Claude is switched off (daily limit set to zero).")
-    if claude_agent._over_budget(conn):
-        raise ValueError("Claude reached today's limit. Try again tomorrow, or edit by hand.")
+        raise ValueError("Claude isn't switched on yet." if why == "no_api_key" else "Claude is switched off (its budget is set to zero).")
+    limit = claude_agent._over_budget(conn, uid)
+    if limit:
+        raise ValueError(limit + " You can still edit by hand.")
 
 
 def _call(system: str, content: list) -> tuple:
     import assistant
-    res = assistant._call_model([{"type": "text", "text": system}], [{"role": "user", "content": content}])
+    res = assistant._call_model([{"type": "text", "text": system}], [{"role": "user", "content": content}], auto_cache=False)
     if res.get("refused"):
         raise ValueError("Claude couldn't write that one. Try describing the job another way.")
     return res["text"], res
@@ -233,7 +234,7 @@ def learn(conn, uid) -> dict:
                     "exclusions": rows[0]["exclusions_text"] if rows and rows[0].get("exclusions_text") else "",
                     "terms": rows[0]["terms_text"] if rows and rows[0].get("terms_text") else "", "words": "“Exterior”, not “facade”."}, None
     else:
-        _claude_ready(conn)
+        _claude_ready(conn, uid)
         text, res = _call("You describe a company's writing style precisely, in its own words.",
                           [{"type": "text", "text": f"<template>\n{_clip(_strip_html(tpl or ''), 8000)}\n</template>\n"
                                                     f"<sent_proposals>\n{_past_text(rows, True)}\n</sent_proposals>\n\n{LEARN_PROMPT}"}])
@@ -340,7 +341,7 @@ def start_draft(conn, uid, req: dict, *, background=True) -> str:
             raise ValueError("That email isn't in your inbox.")
     import assistant
     if not assistant._fake():
-        _claude_ready(conn)
+        _claude_ready(conn, uid)
     job = uuid.uuid4().hex[:12]
     with _LOCK:
         _JOBS[job] = {"state": "working", "step": 0, "uid": uid, "proposal_id": None, "error": None, "at": _now()}
@@ -434,7 +435,7 @@ def revise(conn, pid: int, instruction: str, uid) -> dict:
         elif "short" in (instruction or "").lower():
             out["scope_summary"] = (payload.get("scope_summary") or "").split("\n")[0]
     else:
-        _claude_ready(conn)
+        _claude_ready(conn, uid)
         st = house_style(conn)
         style = "\n".join(f"{i['label']}: {i['text']}" for i in st["items"] if i.get("text"))
         text, res = _call(REVISE_PROMPT, [{"type": "text", "text": f"<house_style>\n{style}\n</house_style>\n<proposal>\n"

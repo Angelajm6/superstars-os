@@ -45,7 +45,7 @@ if not (os.environ.get("SSC_DB_URL") or "").strip():
 DATA_ROOT = Path(_TMP) / "dataroot"
 DATA_ROOT.mkdir(parents=True, exist_ok=True)
 os.environ["SSC_DATA_ROOT"] = str(DATA_ROOT)
-for _k in ("ANTHROPIC_API_KEY", "SSC_ASSISTANT_FAKE", "SSC_ASSISTANT_MODEL", "SSC_ASSISTANT_DAILY_CAP_USD"):
+for _k in ("ANTHROPIC_API_KEY", "SSC_ASSISTANT_FAKE", "SSC_ASSISTANT_MODEL", "SSC_ASSISTANT_DAILY_CAP_USD", "SSC_ASSISTANT_MONTHLY_BUDGET_USD", "SSC_ASSISTANT_USER_DAILY_USD", "SSC_CLAUDE_MODEL", "SSC_CLAUDE_EFFORT"):
     os.environ.pop(_k, None)
 
 from flask import Flask  # noqa: E402
@@ -206,7 +206,7 @@ def main() -> int:
 
         # ---- no key: unavailable, refused, nothing stored
         st = a.get("/api/assistant/status").get_json()["data"]
-        assert st["available"] is False and st["reason"] == "no_api_key" and st["model"] == "claude-opus-5-5" and assistant.cap_usd() == 5.0
+        assert st["available"] is False and st["reason"] == "no_api_key" and st["model"] == "claude-opus-5-5" and assistant.cap_usd() is None and assistant.monthly_budget_usd() == 100.0
         assert "cap_usd" not in st and "spent_today_usd" not in st and st["limit_reached"] is False   # no dollar figure leaves the server
         r = a.post("/api/assistant/threads", json={"estimate_id": ids["bid"], "proposal_id": ids["prop"]})
         assert r.status_code == 201, r.get_json()
@@ -330,6 +330,65 @@ def main() -> int:
         os.environ.pop("SSC_ASSISTANT_DAILY_CAP_USD")
         passed += 1; print("  daily budget ok")
 
+        # ---- the monthly budget, the per-person daily guard, the admin alerts (2026-10-22)
+        row = _q("SELECT billed_user_id FROM assistant_message WHERE thread_id = ? AND role = 'assistant'", (tid,))[0]
+        assert row["billed_user_id"] == ids["admin"]
+        conn = _db()
+        try:
+            pm_id = conn.execute("SELECT id FROM users WHERE email = ?", (f"{TAG}.pm@example.com",)).fetchone()["id"]
+            assert assistant.limit_reason(conn, ids["admin"]) is None
+            os.environ["SSC_ASSISTANT_USER_DAILY_USD"] = "0.01"
+            assert assistant.limit_reason(conn, ids["admin"]) == assistant.USER_LIMIT_MSG
+            assert assistant.limit_reason(conn, pm_id) is None and assistant.limit_reason(conn) is None   # only the one who spent
+        finally:
+            conn.close()
+        r = a.post(f"/api/assistant/threads/{tid}/messages", json={"text": "One more?"})
+        assert r.status_code == 429 and r.get_json()["error"] == assistant.USER_LIMIT_MSG and "$" not in r.get_json()["error"]
+        st = a.get("/api/assistant/status").get_json()["data"]
+        assert st["limit_reached"] is True and st["limit_message"] == assistant.USER_LIMIT_MSG
+        os.environ.pop("SSC_ASSISTANT_USER_DAILY_USD")
+        os.environ["SSC_ASSISTANT_MONTHLY_BUDGET_USD"] = "0.01"
+        r = a.post(f"/api/assistant/threads/{tid}/messages", json={"text": "One more?"})
+        assert r.status_code == 429 and r.get_json()["error"] == assistant.MONTH_LIMIT_MSG and "$" not in r.get_json()["error"]
+        os.environ["SSC_ASSISTANT_MONTHLY_BUDGET_USD"] = "0"
+        assert assistant.unavailable_reason() is None and assistant.monthly_budget_usd() == 0   # the seam stays on in tests
+        conn = _db()
+        try:
+            spent = assistant.spent_month_micro(conn)
+            assert spent >= 10800
+            os.environ["SSC_ASSISTANT_MONTHLY_BUDGET_USD"] = str(spent * 1.6 / 1_000_000)   # ~62% used
+            alerts = lambda k: _q("SELECT id FROM notification_log WHERE kind = ? AND recipient_user_id = ?", (k, ids["admin"]))
+            assistant.check_budget_alerts(conn)
+            assistant.check_budget_alerts(conn)   # once per step per month
+            assert len(alerts("claude_budget_50")) == 1 and not alerts("claude_budget_80") and not alerts("claude_budget_100")
+            assert not _q("SELECT id FROM notification_log WHERE kind LIKE 'claude_budget_%' AND recipient_user_id = ?", (pm_id,))
+        finally:
+            conn.close()
+            os.environ.pop("SSC_ASSISTANT_MONTHLY_BUDGET_USD")
+        passed += 1; print("  monthly budget + per-person guard + alerts ok")
+
+        # ---- the conversation request: system + documents cached an hour, the record on the newest message
+        real, fake_seam = anthropic.Anthropic, os.environ.pop("SSC_ASSISTANT_FAKE")
+        anthropic.Anthropic, os.environ["ANTHROPIC_API_KEY"] = _Client, "test-not-a-real-key"
+        try:
+            seen.clear()
+            r = a.post(f"/api/assistant/threads/{tid}/messages", json={"text": "And the schedule?", "proposal_id": ids["prop"]})
+            assert r.status_code == 200, r.get_json()
+        finally:
+            anthropic.Anthropic = real
+            os.environ["SSC_ASSISTANT_FAKE"] = fake_seam
+            os.environ.pop("ANTHROPIC_API_KEY")
+        hour = {"type": "ephemeral", "ttl": "1h"}
+        assert "cache_control" not in seen and len(seen["system"]) == 1 and seen["system"][0]["cache_control"] == hour
+        msgs = seen["messages"]
+        assert msgs[0]["content"][0]["type"] == "document" and msgs[0]["content"][0]["cache_control"] == hour
+        assert msgs[-2]["role"] == "assistant" and msgs[-2]["content"][-1]["cache_control"] == {"type": "ephemeral"}
+        assert msgs[-1]["content"][0]["text"].startswith("[Platform note] The record") and f"PROPOSAL BEING EDITED: {ids['prop_number']}" in msgs[-1]["content"][0]["text"]
+        assert msgs[-1]["content"][-1]["text"] == "And the schedule?"
+        assert not any("PROPOSAL BEING EDITED" in b.get("text", "") for m in msgs[:-1] for b in m["content"])
+        assert sum(1 for m in msgs for b in m["content"] if "cache_control" in b) + 1 <= 4   # breakpoint slots
+        passed += 1; print("  conversation caching ok")
+
         # ---- logs: ids / counts / cost only
         logs = "\n".join(trap.lines)
         assert trap.lines and "Asst Smoke" not in logs and "lintels" not in logs and ORG not in logs and CONTACT_EMAIL not in logs
@@ -354,8 +413,8 @@ def main() -> int:
         os.environ.pop("SSC_ASSISTANT_FAKE", None)
         _cleanup()
         shutil.rmtree(_TMP, ignore_errors=True)
-    print(f"smoke_assistant_proposals: {passed}/11 groups passed")
-    return 0 if passed == 11 else 1
+    print(f"smoke_assistant_proposals: {passed}/13 groups passed")
+    return 0 if passed == 13 else 1
 
 
 if __name__ == "__main__":

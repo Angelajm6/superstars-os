@@ -470,7 +470,8 @@ def _model(system: str, blocks: list, schema: dict, conn, uid, title: str) -> di
     last = None
     for attempt in (1, 2):   # one more try when the reply is cut off or the call drops
         try:
-            res = assistant._call_model([{"type": "text", "text": system}], [{"role": "user", "content": blocks}], schema=schema)
+            res = assistant._call_model([{"type": "text", "text": system}], [{"role": "user", "content": blocks}], schema=schema,
+                                        auto_cache=False)
         except Exception as x:
             last = x
             log.info("proposal engine call failed (%s), attempt %s", type(x).__name__, attempt)
@@ -500,18 +501,20 @@ def context_blocks(conn, uid, req: dict) -> list:
         cs = proposal_studio._rows(conn, "SELECT full_name, title, email FROM crm_contact WHERE org_id = ? "
                                          "AND COALESCE(status,'active') <> 'inactive' LIMIT 8", (org["id"],))
         client += ("\nContacts: " + "; ".join(f"{c['full_name']}{' (' + c['title'] + ')' if c.get('title') else ''}" for c in cs)) if cs else ""
-    txt = (f"<fixed_wording_the_app_adds>\n{_house_text(h)}\n</fixed_wording_the_app_adds>\n"
-           f"<library>\n{_library_text(library(conn), jt)}\n</library>\n"
-           f"<closest_past_proposals>\n{json.dumps([_strip(e) for e in close], indent=1)[:60000] or '(none yet)'}\n</closest_past_proposals>\n"
-           f"<price_history>\n{_prices(exs) or '(none yet)'}\n</price_history>\n"
-           f"<client>\n{client}\nBuilding: {req.get('building_address') or '(not given)'}\nJob type: {jt or '(decide)'}\n"
+    # the company's own material is the same for every draft of a job type: cached (a retry or the next draft
+    # within 5 minutes reads it at a twentieth of the price); what is about this job follows it
+    style = (f"<fixed_wording_the_app_adds>\n{_house_text(h)}\n</fixed_wording_the_app_adds>\n"
+             f"<library>\n{_library_text(library(conn), jt)}\n</library>\n"
+             f"<closest_past_proposals>\n{json.dumps([_strip(e) for e in close], indent=1)[:60000] or '(none yet)'}\n</closest_past_proposals>\n"
+             f"<price_history>\n{_prices(exs) or '(none yet)'}\n</price_history>\n")
+    txt = (f"<client>\n{client}\nBuilding: {req.get('building_address') or '(not given)'}\nJob type: {jt or '(decide)'}\n"
            f"Heading: {req.get('heading') or 'ESTIMATE'}\n</client>\n")
     if req.get("mail_id"):
         import inbox
         m = inbox.message(conn, int(req["mail_id"]), uid)
         if m:
             txt += f"<email from=\"{m['from']}\" subject=\"{m['subject']}\">\n{proposal_studio._clip(m['body'], 8000)}\n</email>\n"
-    blocks = [{"type": "text", "text": txt}]
+    blocks = [{"type": "text", "text": style, "cache_control": {"type": "ephemeral"}}, {"type": "text", "text": txt}]
     if req.get("file_ids"):
         import claude_files
         for r in claude_files.owned(conn, uid, req["file_ids"]):
@@ -618,7 +621,7 @@ def revise(conn, pid: int, instruction: str, uid) -> dict:
                                             f"{m.group(1)}% contingency. Any additional work will be priced by change order."]
     else:
         import proposal_studio
-        proposal_studio._claude_ready(conn)
+        proposal_studio._claude_ready(conn, uid)
         txt = (f"<rules>\n{RULES}\n</rules>\n<proposal>\n{json.dumps(payload, indent=1)}\n</proposal>\n"
                f"<request>\n{instruction[:2000]}\n</request>")
         out = _model(REVISE_SYSTEM, [{"type": "text", "text": txt}], REVISE_SCHEMA, conn, uid, "Proposal Studio change")

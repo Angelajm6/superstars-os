@@ -21,6 +21,27 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Claude budget + cost: monthly budget, per-person guard, cheaper calls (Bookore, 2026-10-22)
+
+* The $5/day company-wide cap is gone (it stopped Proposal Studio testing on 2026-10-21). `assistant.limit_reason(conn,
+  uid)` is checked before every model call (Proposals panel, Claude window, Proposal Studio, Inbox): a **monthly** company
+  budget `SSC_ASSISTANT_MONTHLY_BUDGET_USD` (default $100), a **per-person daily** guard `SSC_ASSISTANT_USER_DAILY_USD`
+  (default $10; spend billed by `assistant_message.billed_user_id` / `claude_chat.user_id`), and the old
+  `SSC_ASSISTANT_DAILY_CAP_USD` only if set (unset = no company daily cap). Budget 0 = Claude off. No dollar figure on any page.
+* `assistant.check_budget_alerts` emails every active admin once per month at 50 / 80 / 100% (`notification_log` kinds
+  `claude_budget_50|80|100`); runs after each recorded cost, never raises.
+* Caching (Proposals panel threads): system + ticked documents cached 1 h; the record (estimate / proposal) rides on the
+  newest message, the previous reply is the 5-min read point; no top-level auto cache. Before, the record sat in the system
+  prompt ahead of the documents, so each proposal edit re-wrote every document at the cache-write price. Proposal Studio /
+  engine one-shot calls: no top-level auto cache (pure surcharge on unique content); the engine's company material
+  (house, library, closest past proposals, prices) has its own 5-min breakpoint.
+* Models: the Claude window runs `SSC_CLAUDE_MODEL` (default = `SSC_ASSISTANT_MODEL`, Opus 5.5) at `SSC_CLAUDE_EFFORT`
+  (default **low**, was medium). Document / expense / cert scanners Sonnet 4.6 → **Sonnet 5.5** (`CERT_EXTRACT_MODEL` is new);
+  Gmail suggestions Haiku 4.5 → **Haiku 5.5** (thinking off, effort low); drawing trace Opus 5 → **Opus 5.5**.
+  `ai_models.py` holds the per-model request options (refusal fallback only where offered; the right "thinking off").
+* Not done yet (verify first, costs real calls): Haiku 5.5 for the scanners / Claude window; Claude window context
+  clearing (must stay append-only: Opus 5.5 checks replayed thinking blocks against an unchanged history).
+
 ### Documents tab = one drop zone; Claude tags, the user approves (Bookore, 2026-10-21)
 
 * The job's Documents tab is now: a big drop area (the whole tab takes drops; Choose files; Scan with camera on
