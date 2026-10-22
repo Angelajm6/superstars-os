@@ -32,7 +32,7 @@ Least privilege + privacy
 Client: the same as Google Calendar (gcal_sync._client_pair: GOOGLE_APPS_CLIENT_ID/_SECRET, else
 the sign-in client). Redirect URI: GMAIL_REDIRECT_URI, else the SSO redirect's origin +
 /gmail/callback (register it on that OAuth client in Google Cloud). AI: ANTHROPIC_API_KEY; model GMAIL_SUGGEST_MODEL (default
-Haiku 4.5); cap GMAIL_AI_DAILY_CAP emails per day, company-wide (default 200).
+Haiku 5.5, thinking off); cap GMAIL_AI_DAILY_CAP emails per day, company-wide (default 200).
 """
 from __future__ import annotations
 
@@ -51,6 +51,7 @@ from typing import Optional
 
 from flask import jsonify, redirect, request
 
+import ai_models
 import db_layer
 import gcal_sync
 import secret_box
@@ -65,7 +66,7 @@ QUERY = "in:inbox category:primary -from:me newer_than:2d"
 MAX_PER_CHECK = 20
 POLL_SECONDS = 120   # every 2 minutes, no "Check now" needed (admin / C-suite mailboxes are synced live by inbox.py)
 STATE_COOKIE = "gmail_state"
-MODEL = os.environ.get("GMAIL_SUGGEST_MODEL", "claude-haiku-4-5-20251001")
+MODEL = os.environ.get("GMAIL_SUGGEST_MODEL", "claude-haiku-5-5")
 NOREPLY = re.compile(r"(no-?reply|do-?not-?reply|mailer-daemon|postmaster|notifications?@|bounce)", re.I)
 
 
@@ -256,8 +257,8 @@ def _ai(subject: str, sender: str, received: str, text: str, today: date) -> dic
         "time (HH:MM 24h, or ''); address (a street address it mentions, or ''); why (max 100 characters).\n\n"
         f"From: {sender}\nSubject: {subject}\n---\n{text[:1500]}\n---")
     client = anthropic.Anthropic()
-    resp = client.messages.create(model=MODEL, max_tokens=400,
-                                  output_config={"format": {"type": "json_schema", "schema": AI_SCHEMA}},
+    resp = client.messages.create(model=MODEL, max_tokens=400, **ai_models.thinking_off(MODEL),
+                                  output_config={"effort": "low", "format": {"type": "json_schema", "schema": AI_SCHEMA}},
                                   messages=[{"role": "user", "content": prompt}])
     raw = next((b.text for b in resp.content if getattr(b, "type", "") == "text"), "")
     m = re.search(r"\{.*\}", raw, re.S)

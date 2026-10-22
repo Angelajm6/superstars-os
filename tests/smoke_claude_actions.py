@@ -42,7 +42,7 @@ os.environ["SSC_DATA_ROOT"] = str(Path(_TMP) / "dataroot")
 MAIL = Path(_TMP) / "mail"
 os.environ["SSC_MAIL_FAKE_DIR"] = str(MAIL)
 os.environ["APP_BASE_URL"] = "http://test.local"
-for _k in ("ANTHROPIC_API_KEY", "SSC_ASSISTANT_FAKE", "SSC_ASSISTANT_MODEL", "SSC_ASSISTANT_DAILY_CAP_USD", "SENDGRID_API_KEY"):
+for _k in ("ANTHROPIC_API_KEY", "SSC_ASSISTANT_FAKE", "SSC_ASSISTANT_MODEL", "SSC_ASSISTANT_DAILY_CAP_USD", "SSC_ASSISTANT_MONTHLY_BUDGET_USD", "SSC_ASSISTANT_USER_DAILY_USD", "SSC_CLAUDE_MODEL", "SSC_CLAUDE_EFFORT", "SENDGRID_API_KEY"):
     os.environ.pop(_k, None)
 
 from flask import Flask  # noqa: E402

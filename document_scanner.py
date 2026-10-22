@@ -21,11 +21,13 @@ import os
 import re
 from pathlib import Path
 
+import ai_models
 import doc_types
 
 # Default vision model — env-overridable so the operator can pin a different
-# model without a code change (same key as receipts/certs).
-MODEL = os.environ.get("DOC_SCAN_MODEL", "claude-sonnet-4-6")
+# model without a code change (same key as receipts/certs). Sonnet 5.5 since 2026-10-22 (was Sonnet 4.6:
+# a third cheaper per token); Haiku 5.5 is the next step down once checked on real scans.
+MODEL = os.environ.get("DOC_SCAN_MODEL", "claude-sonnet-5-5")
 
 MAX_PAGES = 12                      # a permit/drawing set can run several pages
 MAX_FILE_BYTES = 16 * 1024 * 1024   # 16 MB / file
@@ -184,7 +186,7 @@ def call_vision_model(specs, categories, requirements):
     client = anthropic.Anthropic()
     try:
         resp = client.messages.create(
-            model=MODEL, max_tokens=8000, thinking={"type": "disabled"},
+            model=MODEL, max_tokens=8000, **ai_models.thinking_off(MODEL),
             output_config={"effort": "low",
                            "format": {"type": "json_schema", "schema": SCAN_SCHEMA}},
             messages=[{"role": "user", "content": content}],

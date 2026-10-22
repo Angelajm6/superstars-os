@@ -20,8 +20,10 @@ from pathlib import Path
 
 import anthropic
 
-# Latest Sonnet 4.x — bare model ID per Anthropic SDK convention.
-MODEL = "claude-sonnet-4-6"
+import ai_models
+
+# Sonnet 5.5 since 2026-10-22 (was Sonnet 4.6); env-overridable like the receipt / document scanners.
+MODEL = os.environ.get("CERT_EXTRACT_MODEL", "claude-sonnet-5-5")
 
 SCHEMA = {
     "type": "object",
@@ -160,7 +162,7 @@ def extract_cert_from_image(image_path, cert_types_library):
         response = client.messages.create(
             model=MODEL,
             max_tokens=4096,
-            thinking={"type": "disabled"},
+            **ai_models.thinking_off(MODEL),
             output_config={
                 "effort": "low",
                 "format": {"type": "json_schema", "schema": SCHEMA},

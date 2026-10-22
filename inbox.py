@@ -712,7 +712,7 @@ def process(conn, mid: int, force: bool = False, want_reply: bool = False) -> st
                      (t["kind"], _enc(t["summary"]), 1 if t["needs_action"] else 0, mid))
         conn.commit()
         return "triaged"
-    if claude_agent._over_budget(conn):
+    if claude_agent._over_budget(conn, u["id"]):
         conn.execute("UPDATE mail_message SET ai_state = 'paused' WHERE id = ?", (mid,))
         conn.commit()
         return "paused"

@@ -49,7 +49,7 @@ from _isolated_db import build_isolated_sqlite as _build_isolated_sqlite, purge_
 if not (os.environ.get("SSC_DB_URL") or "").strip():
     os.environ["SSC_DB_URL"] = _build_isolated_sqlite()
 os.environ["SSC_DATA_ROOT"] = str(Path(_TMP) / "dataroot")
-for _k in ("ANTHROPIC_API_KEY", "SSC_ASSISTANT_FAKE", "SSC_ASSISTANT_MODEL", "SSC_ASSISTANT_DAILY_CAP_USD"):
+for _k in ("ANTHROPIC_API_KEY", "SSC_ASSISTANT_FAKE", "SSC_ASSISTANT_MODEL", "SSC_ASSISTANT_DAILY_CAP_USD", "SSC_ASSISTANT_MONTHLY_BUDGET_USD", "SSC_ASSISTANT_USER_DAILY_USD", "SSC_CLAUDE_MODEL", "SSC_CLAUDE_EFFORT"):
     os.environ.pop(_k, None)
 
 from flask import Flask  # noqa: E402
@@ -358,11 +358,21 @@ def main() -> int:
         anthropic.Anthropic = _Client
         try:
             out = ca.call_model("sys", ca.tools_for("admin", "office"), [{"role": "user", "content": "hi"}])
+            first = dict(seen)
+            seen.clear()
+            os.environ.update(SSC_CLAUDE_MODEL="claude-haiku-5-5", SSC_CLAUDE_EFFORT="medium")
+            ca.call_model("sys", ca.tools_for("admin", "office"), [{"role": "user", "content": "hi"}])
         finally:
             anthropic.Anthropic = real
             os.environ["SSC_ASSISTANT_FAKE"] = fake
+            os.environ.pop("SSC_CLAUDE_MODEL", None)
+            os.environ.pop("SSC_CLAUDE_EFFORT", None)
+        # a cheaper model by env: no refusal fallback (Haiku has none; sending it would be a 400)
+        assert seen["model"] == "claude-haiku-5-5" and seen["output_config"] == {"effort": "medium"}
+        assert "fallbacks" not in seen and "betas" not in seen
+        seen = first
         assert out["content"] == [{"type": "text", "text": "ok"}], out["content"]
-        assert seen["model"] == "claude-opus-5-5" and seen["output_config"] == {"effort": "medium"} and seen["fallbacks"] == "default"
+        assert seen["model"] == "claude-opus-5-5" and seen["output_config"] == {"effort": "low"} and seen["fallbacks"] == "default"
         assert seen["betas"] == ["server-side-fallback-2026-07-01"] and "thinking" not in seen and "tool_choice" not in seen
         assert seen["system"][0]["cache_control"] == {"type": "ephemeral"}
         assert {t["name"] for t in seen["tools"]} == set(names("admin", "office"))

@@ -55,7 +55,7 @@ os.environ.update({"SSC_DATA_ROOT": str(Path(_TMP) / "dataroot"), "SSC_MAIL_FAKE
                    "GOOGLE_OAUTH_REDIRECT_URI": "https://app.example.test/auth/google/callback",
                    "SSC_FIELD_ENCRYPTION_KEY": secret_box.generate_key(), "GMAIL_PUSH_TOKEN": "push-token-for-tests",
                    "SSC_INBOX_ATTACHMENT_FAKE": "%PDF-1.4 smoke"})
-for _k in ("ANTHROPIC_API_KEY", "SSC_ASSISTANT_FAKE", "SSC_INBOX_TRIAGE_FAKE", "SSC_MAIL_FAKE_SENDAS", "SSC_ASSISTANT_DAILY_CAP_USD", "GMAIL_PUBSUB_TOPIC"):
+for _k in ("ANTHROPIC_API_KEY", "SSC_ASSISTANT_FAKE", "SSC_INBOX_TRIAGE_FAKE", "SSC_MAIL_FAKE_SENDAS", "SSC_ASSISTANT_DAILY_CAP_USD", "SSC_ASSISTANT_MONTHLY_BUDGET_USD", "SSC_ASSISTANT_USER_DAILY_USD", "SSC_CLAUDE_MODEL", "SSC_CLAUDE_EFFORT", "GMAIL_PUBSUB_TOPIC"):
     os.environ.pop(_k, None)
 
 from flask import Flask  # noqa: E402

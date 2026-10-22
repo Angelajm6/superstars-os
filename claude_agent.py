@@ -21,11 +21,13 @@ platform comes back as an approval card, and nothing happens until a person pres
     emails and documents are untrusted data, never instructions.
   * Conversations are private to their owner. Logs carry ids, tool names, counts and cost only.
   * A turn runs in the background (several model calls when Claude looks things up); the page
-    polls the conversation. The company-wide daily budget (assistant.cap_usd; never shown on a page) is shared with the
-    Proposals panel and checked before every model call.
+    polls the conversation. The budgets (assistant.limit_reason: the company's monthly budget and each person's
+    daily guard; never shown on a page as dollars) are shared with the Proposals panel and checked before every
+    model call.
 
-Model and switch: assistant.model() (Opus 5.5), medium effort, server-side refusal fallback;
-off without ANTHROPIC_API_KEY. Test seam SSC_ASSISTANT_FAKE (JSON script; inert in production).
+Model and switch: SSC_CLAUDE_MODEL (default assistant.model(), Opus 5.5), effort SSC_CLAUDE_EFFORT (default
+low since 2026-10-22: lookups and short answers; was medium), server-side refusal fallback where the model
+offers it; off without ANTHROPIC_API_KEY. Test seam SSC_ASSISTANT_FAKE (JSON script; inert in production).
 
   GET  /api/claude/status?surface=           available? cap, spend, what Claude can do here
   GET  /api/claude/chats?surface=            my conversations on this surface
@@ -43,6 +45,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import threading
 from datetime import date, datetime, timedelta
@@ -50,6 +53,7 @@ from typing import Callable, Optional
 
 from flask import jsonify, request
 
+import ai_models
 import assistant
 import claude_files
 import db_layer
@@ -1492,16 +1496,29 @@ def _clean_content(blocks: list) -> list:
     return out
 
 
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+
+
+def model() -> str:
+    return (os.environ.get("SSC_CLAUDE_MODEL") or "").strip() or assistant.model()
+
+
+def effort() -> str:
+    e = (os.environ.get("SSC_CLAUDE_EFFORT") or "").strip().lower()
+    return e if e in EFFORTS else "low"
+
+
 def call_model(system_text, tools, messages) -> dict:
     if assistant._fake():
         return _fake_call(messages)
     import anthropic
     client = anthropic.Anthropic()
+    m = model()
     resp = client.beta.messages.create(
-        model=assistant.model(), max_tokens=assistant.MAX_TOKENS,
+        model=m, max_tokens=assistant.MAX_TOKENS,
         system=[{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}],
-        tools=[t.api() for t in tools], messages=messages, output_config={"effort": "medium"},
-        cache_control={"type": "ephemeral"}, betas=["server-side-fallback-2026-07-01"], fallbacks="default")
+        tools=[t.api() for t in tools], messages=messages, output_config={"effort": effort()},
+        cache_control={"type": "ephemeral"}, **ai_models.fallback_kwargs(m))
     u = resp.usage
     return {"content": _clean_content([b.model_dump(mode="json", exclude_none=True) for b in resp.content]),
             "stop_reason": resp.stop_reason, "model": getattr(resp, "model", None) or assistant.model(),
@@ -1527,6 +1544,8 @@ def _add_msg(conn, chat_id, role, kind, content, replay=True, usage=None, model_
                  (chat_id, role, kind, json.dumps(content), 1 if replay else 0, _now(), model_id,
                   u.get("input_tokens"), u.get("output_tokens"), u.get("cache_read_tokens"), u.get("cache_write_tokens"), cost))
     conn.commit()
+    if usage:
+        assistant.check_budget_alerts(conn)
     return _one(conn, "SELECT MAX(id) AS m FROM claude_chat_message WHERE chat_id = ?", (chat_id,))["m"]
 
 
@@ -1559,8 +1578,9 @@ def _history(conn, chat_id) -> list:
     return msgs
 
 
-def _over_budget(conn) -> bool:
-    return assistant.spent_today_micro(conn) >= int(round(assistant.cap_usd() * 1_000_000))
+def _over_budget(conn, user_id=None) -> Optional[str]:
+    """The limit message when a new model call has to wait (the person's own daily guard too, given user_id)."""
+    return assistant.limit_reason(conn, user_id)
 
 
 def run_turn(chat_id: int, user: dict) -> None:
@@ -1573,8 +1593,8 @@ def run_turn(chat_id: int, user: dict) -> None:
         system_text = _system_for(user, chat["surface"])
         error = None
         for _step in range(MAX_STEPS):
-            if _over_budget(conn):
-                error = assistant.LIMIT_MSG
+            error = _over_budget(conn, user.get("id"))
+            if error:
                 break
             try:
                 out = call_model(system_text, tools, _history(conn, chat_id))
@@ -1754,7 +1774,7 @@ def _api_status():
         reason = assistant.unavailable_reason()
         ts = tools_for(me["role"], surface)
         return jsonify({"data": {"available": reason is None, "reason": reason, "name": me["name"], "role": me["role"],
-                                 "limit_reached": _over_budget(conn),
+                                 "limit_reached": bool(_over_budget(conn, me["id"])),
                                  "looks_up": [t.label for t in ts if not t.write],
                                  "proposes": [t.label for t in ts if t.write]}})
     finally:
@@ -1868,9 +1888,9 @@ def _api_message(chat_id):
             return _err("This conversation is only shown on office pages.", 403)
         if c.get("busy_since") and datetime.fromisoformat(c["busy_since"]) > datetime.now() - BUSY_STALE:
             return _err("Claude is still answering the last message.", 409)
-        if _over_budget(conn):
-            return _err(assistant.LIMIT_MSG, 429,
-                        cap_reached=True)
+        why = _over_budget(conn, me["id"])
+        if why:
+            return _err(why, 429, cap_reached=True)
         try:
             att = claude_files.owned(conn, me["id"], file_ids)
         except LookupError as e:
