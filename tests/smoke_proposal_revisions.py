@@ -454,6 +454,47 @@ def main() -> int:
         assert cs.post(f"/api/proposal-studio/{pid}/exclude", json={"text": "x"}).status_code == 400, "a sent proposal doesn't change"
         passed += 1; print("  paragraphs ok")
 
+        # ---------------- mark as sent: it went out another way (the app sends nothing)
+        ms = _draft(ids["cs"], "Masonry probes at the parapet, four locations.")
+        lbl = cs.get(f"/api/proposal-studio/{ms}").get_json()["data"]["label"]
+        for q in (lbl, f"Proposal No. {lbl}", f"#{lbl}"):   # the number people see finds it (Claude searched the code)
+            assert [r["id"] for r in cs.get("/api/proposals", query_string={"q": q}).get_json()["data"]] == [ms], q
+        assert len(cs.get("/api/proposals?q=proposal").get_json()["data"]) == 0, "a word is not a number"
+        before = len(list(MAIL.glob("*")))
+        assert pm.post(f"/api/proposals/{ms}/mark-sent", json={}).status_code == 403
+        assert cs.post(f"/api/proposals/{ms}/mark-sent", json={"sent_on": (TODAY + timedelta(days=1)).isoformat()}).status_code == 400
+        assert cs.post(f"/api/proposals/{ms}/mark-sent", json={"to_email": "not-an-email"}).status_code == 400
+        ago = (TODAY - timedelta(days=2)).isoformat()
+        r = cs.post(f"/api/proposals/{ms}/mark-sent", json={"sent_on": ago, "to_email": DANA, "to_name": "Dana Rosen", "how": "emailed from Outlook"})
+        assert r.status_code == 200, r.get_json()
+        d = r.get_json()["data"]
+        assert d["status"] == "sent" and d["sent_at"] == f"{ago}T12:00:00" and d["recipient_email"] == DANA and not d["link_expires_at"]
+        assert any(e["event"] == "sent" and "outside the app" in (e["detail"] or "") for e in d["events"])
+        assert len(list(MAIL.glob("*"))) == before, "marking as sent emails no one"
+        assert cs.post(f"/api/proposals/{ms}/mark-sent", json={}).status_code == 409
+        # Claude: "mark this proposal as sent" with no Gmail email to link
+        ms2 = _draft(ids["cs"], "Coating at the bulkhead, one location.")
+        tool = ca.BY_NAME["log_proposal_sent"]
+        conn = _db()
+        try:
+            ctx = ca.Ctx(conn, {"id": ids["cs"], "role": "c_suite", "name": "Prv Cs"}, "office")
+            tool.run(ctx, {"proposal_id": ms2})
+            card = tool.card(ctx, {"proposal_id": ms2})
+            assert card["title"] == "Mark the proposal as sent" and {"sent_on", "to_email"} <= {f["key"] for f in card["fields"]}
+            res = tool.execute(ctx, {"proposal_id": ms2, "sent_on": TODAY.isoformat(), "to_email": DANA})
+            assert "marked as sent" in res["summary"] and proposals.get(conn, ms2)["status"] == "sent"
+            try:
+                tool.run(ctx, {"proposal_id": ms2})
+                raise AssertionError("an already-sent proposal")
+            except ValueError:
+                pass
+        finally:
+            conn.close()
+        html = (ROOT / "proposal_studio.html").read_text(encoding="utf-8")
+        assert 'id="ms-m"' in html and "'/proposals/' + S.id + '/mark-sent'" in html and "data-marksent" in html
+        assert 'id="pr-sent-overlay"' in (ROOT / "company_portal.html").read_text(encoding="utf-8")
+        passed += 1; print("  mark as sent ok")
+
         # ---------------- responsiveness
         import anthropic
         os.environ["ANTHROPIC_API_KEY"] = "test-not-a-real-key"

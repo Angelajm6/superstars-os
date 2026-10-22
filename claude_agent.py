@@ -704,7 +704,7 @@ def _t_proposals(ctx, inp):
     import proposals
     rows = proposals.list_proposals(ctx.conn, status=(inp.get("status") or None),
                                     estimate_id=inp.get("estimate_id") or None, q=(inp.get("query") or None))
-    keep = ("id", "number", "status", "display_status", "title", "price", "client_name", "estimate_id", "estimate_code",
+    keep = ("id", "label", "number", "status", "display_status", "title", "price", "client_name", "estimate_id", "estimate_code",
             "building_address", "sent_at", "viewed_at", "signed_at", "valid_until", "updated_at")
     return {"proposals": [{k: r.get(k) for k in keep if k in r} for r in rows[:60]], "count": len(rows)}
 
@@ -718,6 +718,7 @@ def _t_proposal(ctx, inp):
             "terms_text", "price", "deposit_pct", "deposit_amount", "valid_until", "estimate_id", "client_org_id",
             "contact_id", "recipient_name", "sent_at", "viewed_at", "signed_at")
     out = {k: r.get(k) for k in keep}
+    out["label"] = proposals._label(r)   # the number people see: "Proposal No. 1045"
     out["lines"] = [{k: ln.get(k) for k in ("description", "qty", "unit", "unit_price", "amount")}
                     for ln in proposals.lines(ctx.conn, r["id"])]
     out["editable"] = r["status"] == "draft"
@@ -1341,15 +1342,23 @@ def _exec_save_files(ctx, inp):
 
 
 def _check_log_sent(ctx, inp):
+    """2026-10-22: mail_id is optional. With it, the proposal is linked to the email someone sent from Gmail; without it,
+    it is simply recorded as sent outside the app (a date and who it went to, when known)."""
     import proposals
-    m = _mail(ctx, inp.get("mail_id"))
-    if m["direction"] != "out":
-        raise ValueError("that email was not sent by this person")
+    if inp.get("mail_id"):
+        m = _mail(ctx, inp.get("mail_id"))
+        if m["direction"] != "out":
+            raise ValueError("that email was not sent by this person")
     p = proposals.get(ctx.conn, int(inp.get("proposal_id") or 0))
     if not p:
         raise LookupError("no proposal with that id")
     if p["status"] != "draft":
-        raise ValueError(f"{p['number']} is already {p['status']}")
+        raise ValueError(f"proposal {proposals._label(p)} is already {p['status']}")
+    why = proposals.predecessor_problem(ctx.conn, p)
+    if why:
+        raise ValueError(why)
+    if inp.get("sent_on"):
+        _d(inp["sent_on"], "sent on")
     if inp.get("price") not in (None, ""):
         float(str(inp["price"]).replace("$", "").replace(",", ""))
         why = proposals.logged_price_problem(ctx.conn, p, inp["price"])   # the record must match the document (2026-10-22)
@@ -1360,26 +1369,37 @@ def _check_log_sent(ctx, inp):
 def _log_sent_card(ctx, inp):
     import proposals
     p = proposals.get(ctx.conn, int(inp.get("proposal_id") or 0)) or {}
-    try:
-        m = _mail(ctx, inp.get("mail_id"))
-        sent = f"{(m['received_at'] or '')[:10]} to {m['to'].split('<')[0].strip()}"
-    except LookupError:
-        sent = ""
+    label = proposals._label(p) if p else str(inp.get("proposal_id") or "")
     f = [{"key": "proposal_id", "label": "Proposal", "type": "readonly", "value": str(inp.get("proposal_id") or ""),
-          "hint": f"{p.get('number')} · draft → sent"},
-         {"key": "mail_id", "label": "Sent", "type": "readonly", "value": str(inp.get("mail_id") or ""), "hint": sent + " (from Gmail)"},
-         {"key": "price", "label": "Price ($)", "type": "text",
-          "value": str(inp.get("price") if inp.get("price") not in (None, "") else (p.get("price") or ""))}]
-    return {"title": "Log the proposal as sent", "fields": f}
+          "hint": f"Proposal No. {label} · draft → sent"}]
+    if inp.get("mail_id"):
+        try:
+            m = _mail(ctx, inp.get("mail_id"))
+            sent = f"{(m['received_at'] or '')[:10]} to {m['to'].split('<')[0].strip()}"
+        except LookupError:
+            sent = ""
+        f.append({"key": "mail_id", "label": "Sent", "type": "readonly", "value": str(inp.get("mail_id") or ""), "hint": sent + " (from Gmail)"})
+    else:
+        f += [{"key": "sent_on", "label": "Sent on", "type": "date", "value": str(inp.get("sent_on") or date.today().isoformat())},
+              {"key": "to_email", "label": "Sent to (email)", "type": "text", "value": str(inp.get("to_email") or p.get("recipient_email") or "")},
+              {"key": "how", "label": "They get", "type": "readonly", "value": "x",
+               "hint": "nothing from the app: this only records that it went out another way (no online accept link)"}]
+    f.append({"key": "price", "label": "Price ($)", "type": "text",
+              "value": str(inp.get("price") if inp.get("price") not in (None, "") else (p.get("price") or ""))})
+    return {"title": "Mark the proposal as sent", "fields": f}
 
 
 def _exec_log_sent(ctx, inp):
     import inbox
     import proposals
-    m = _mail(ctx, inp["mail_id"])
     pid = int(inp["proposal_id"])
     if inp.get("price") not in (None, ""):
         proposals.log_price(ctx.conn, pid, inp["price"], actor=ctx.uid)
+    if not inp.get("mail_id"):
+        r = proposals.mark_sent_outside(ctx.conn, pid, actor=ctx.uid, sent_on=inp.get("sent_on"), to_email=inp.get("to_email"),
+                                        to_name=inp.get("to_name"), how="recorded by Claude on request")
+        return {"id": pid, "summary": f"Proposal No. {proposals._label(r)} marked as sent", "link": _proposal_link(r), "undo": False}
+    m = _mail(ctx, inp["mail_id"])
     from email.utils import parseaddr
     name, addr = parseaddr(m["to"])
     ctx.conn.execute("UPDATE proposal SET status = 'sent', sent_at = ?, sent_by = ?, recipient_email = COALESCE(?, recipient_email), "
@@ -1528,7 +1548,8 @@ TOOLS = [
 TOOLS += [
     Tool("client_detail", "Client", "One client: contacts (by contact_id, never emails), recent activity, estimates and jobs.",
          {"client_id": _I}, ["client_id"], roles=OFFICE_ROLES, run=_t_client),
-    Tool("proposals", "Proposals", "Proposals with status, price, client and estimate (filter by status, estimate or text).",
+    Tool("proposals", "Proposals", "Proposals with status, price, client and estimate (filter by status, estimate or text). "
+         "label is the number people use (\"Proposal No. 1045\"; query \"1045\" finds it); number is an internal code.",
          {"status": {"type": "string", "enum": ["draft", "sent", "viewed", "signed", "declined", "superseded"]},
           "estimate_id": _I, "query": _S}, [], roles=OFFICE_ROLES, run=_t_proposals),
     Tool("proposal_detail", "Proposal", "One proposal's full text: title, scope, schedule, exclusions, terms, price, lines.",
@@ -1589,10 +1610,13 @@ TOOLS += [
          "(ids from the [Attached: …] line) to an existing estimate or bid's documents.",
          {"file_ids": {"type": "array", "items": {"type": "integer"}}, "estimate_id": _I}, ["file_ids", "estimate_id"],
          write=True, roles=OFFICE_ROLES, run=_check_save_files, card=_save_files_card, execute=_exec_save_files),
-    Tool("log_proposal_sent", "Log the proposal as sent", "Propose marking a DRAFT proposal as sent because this person "
-         "emailed it from Gmail (mail_id of the sent email); optionally the price stated in that email.",
-         {"proposal_id": _I, "mail_id": _I, "price": {"type": "number"}}, ["proposal_id", "mail_id"], write=True,
-         roles=OFFICE_ROLES, office_only=True, run=_check_log_sent, card=_log_sent_card, execute=_exec_log_sent),
+    Tool("log_proposal_sent", "Mark the proposal as sent", "Propose marking a DRAFT proposal as sent because it went out "
+         "another way. If this person emailed it from Gmail, give mail_id (the sent email) so it is linked; otherwise leave "
+         "mail_id out and give sent_on (YYYY-MM-DD, default today) and to_email / to_name when known. Optionally the price "
+         "stated in that email. Find the proposal with the proposals tool (query the number people use, e.g. 1045).",
+         {"proposal_id": _I, "mail_id": _I, "sent_on": _S, "to_email": _S, "to_name": _S, "price": {"type": "number"}},
+         ["proposal_id"], write=True, roles=OFFICE_ROLES, office_only=True, run=_check_log_sent, card=_log_sent_card,
+         execute=_exec_log_sent),
     Tool("draft_proposal", "Write a proposal", "Propose writing a new proposal, from an email asking for a price "
          "(mail_id) or when the person asks for one. Give only the facts: the client (client_org_id of an existing client, "
          "else client_name), the building address, the job type, and `what`: the work, quantities, drawings or reports "

@@ -13,6 +13,7 @@
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1010" defer></script>
 <script src="/files/static/js/pdf_view.js?v=1" defer></script>
+<script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <title>Proposal Studio · Superstars Contracting</title>
 <!-- Proposal Studio, simpler (prototype accepted 2026-10-20: https://claude.ai/artifact/SPTSgJ8bv7N8ENWMbzrXrE):
      one box to start; the proposal itself, edited in place (a no-scripts frame the page edits) with one side panel;
@@ -271,7 +272,7 @@
       <div class="ed-acts"><button class="btn-ghost btn-sm" type="button" id="e-claude" aria-controls="chat-card" aria-expanded="false" aria-label="Ask Claude"><span class="lg">✦ Ask Claude</span><span class="sm">✦ Claude</span></button><button class="btn-ghost btn-sm" type="button" id="e-view">View PDF</button><a class="btn-ghost btn-sm" id="e-pdf" href="#" download aria-label="Download PDF"><span class="lg">Download PDF</span><span class="sm">Download</span></a><button class="btn-primary btn-sm" type="button" id="e-send">Send…</button></div>
     </div>
     <div class="banner bad" id="e-problem" hidden role="alert"></div>
-    <div class="banner bad" id="e-notready" hidden><span id="e-notready-t"></span><span class="sp"></span><button class="btn-ghost btn-sm" type="button" id="e-showck">Show the checklist</button></div>
+    <div class="banner bad" id="e-notready" hidden><span id="e-notready-t"></span><span class="sp"></span><button class="btn-ghost btn-sm" type="button" id="e-showck">Show the checklist</button><button class="btn-ghost btn-sm" type="button" data-marksent>Already sent it? Mark as sent…</button></div>
     <div class="banner" id="e-revises" hidden></div>
     <div class="banner warn" id="e-expiry" hidden><span id="e-expiry-t"></span><span class="sp"></span><button class="btn-ghost btn-sm" type="button" id="e-follow">Draft a follow-up</button></div>
     <div class="banner" id="e-locked" hidden><span id="e-locked-t"></span><span class="sp"></span><button class="btn-ghost btn-sm" type="button" id="e-review-rv" hidden>Review the request</button><button class="btn-ghost btn-sm" type="button" id="e-request">Request a revision…</button><button class="btn-ghost btn-sm" type="button" id="e-version">Make a new version</button></div>
@@ -384,8 +385,21 @@
       <div class="rev" id="s-rev"></div>
     </div>
     <div class="err" id="s-err" role="alert"></div>
-    <div class="mfoot"><button class="btn-ghost" type="button" id="s-cancel">Cancel</button><button class="btn-ghost" type="button" id="s-back" hidden>Back</button><button class="btn-primary" type="button" id="s-next">Review…</button><button class="btn-primary" type="button" id="s-send" hidden>Send now from my Gmail</button></div>
+    <div class="mfoot"><button class="btn-ghost btn-sm" type="button" data-marksent style="margin-right:auto">Sent it another way? Mark as sent…</button><button class="btn-ghost" type="button" id="s-cancel">Cancel</button><button class="btn-ghost" type="button" id="s-back" hidden>Back</button><button class="btn-primary" type="button" id="s-next">Review…</button><button class="btn-primary" type="button" id="s-send" hidden>Send now from my Gmail</button></div>
   </div>
+</div>
+<!-- 2026-10-22: it went out another way (someone's own email, by hand): record it as sent; the app sends nothing -->
+<div class="scrim" id="ms-m" hidden>
+  <form class="modal" id="ms-f" role="dialog" aria-modal="true" aria-labelledby="ms-h" autocomplete="off">
+    <h3 id="ms-h">Mark as sent</h3>
+    <div class="muted">For a proposal that went out another way, like an email from your own mailbox. Nothing is sent from here and the client gets no online link. The proposal is locked as sent, with the date and who it went to.</div>
+    <div class="row2"><div><label class="lbl" for="ms-date">Sent on</label><input class="fld" id="ms-date" type="date"></div>
+      <div><label class="lbl" for="ms-name">To (name)</label><input class="fld" id="ms-name" placeholder="optional"></div></div>
+    <div><label class="lbl" for="ms-email">To (email)</label><input class="fld" id="ms-email" type="email" placeholder="optional" list="s-people"></div>
+    <div><label class="lbl" for="ms-how">How it went out</label><input class="fld" id="ms-how" placeholder="e.g. emailed from my Outlook"></div>
+    <div class="err" id="ms-err" role="alert"></div>
+    <div class="mfoot"><button class="btn-ghost" type="button" id="ms-cancel">Cancel</button><button class="btn-primary" type="submit" id="ms-go">Mark as sent</button></div>
+  </form>
 </div>
 <!-- revisions (2026-10-22): ask for one; an admin decides -->
 <div class="scrim" id="rq-m" hidden>
@@ -438,7 +452,7 @@
   }
   async function route() {
     const h = location.hash.replace(/^#/, '');
-    ['send-m', 'rq-m', 'dc-m', 'arch-m'].forEach(id => { $(id).hidden = true; }); chatPanel(false);
+    ['send-m', 'rq-m', 'dc-m', 'arch-m', 'ms-m'].forEach(id => { $(id).hidden = true; }); chatPanel(false);
     const m = /^p\/(\d+)(\/send)?$/.exec(h);
     if (m) { await openProposal(+m[1]); show('edit'); if (m[2]) openSend(); return; }
     if (h === 'past' || h === 'style') { show('past'); loadPast(); return; }
@@ -989,6 +1003,28 @@
     c.querySelectorAll('.block').forEach(x => { x.classList.remove('flash'); void x.offsetWidth; x.classList.add('flash'); });
   }
   $('e-showck').addEventListener('click', showChecklist);
+  // mark as sent: the proposal went out another way; the app records it and sends nothing
+  const dp = () => window.SSCDatePicker;
+  const dateGet = el => { const p = dp(); if (p && typeof p.getISO === 'function') { const v = p.getISO(el); if (v) return v; } return el.value || ''; };
+  const dateSet = (el, iso) => { const p = dp(); if (p && typeof p.setISO === 'function') { try { p.setISO(el, iso || ''); return; } catch (e) {} } el.value = iso || ''; };
+  const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  document.addEventListener('click', async e => {
+    if (!e.target.closest('[data-marksent]') || !S.v || !S.v.editable) return;
+    await flush(true); $('send-m').hidden = true;
+    const p = S.v.proposal;
+    dateSet($('ms-date'), todayISO()); $('ms-name').value = p.recipient_name || ''; $('ms-email').value = p.recipient_email || ''; $('ms-how').value = '';
+    $('ms-err').textContent = ''; $('ms-m').hidden = false; setTimeout(() => $('ms-email').focus(), 30);
+  });
+  $('ms-cancel').addEventListener('click', () => { $('ms-m').hidden = true; });
+  $('ms-f').addEventListener('submit', async e => {
+    e.preventDefault(); const b = $('ms-go'); b.disabled = true; $('ms-err').textContent = '';
+    try {
+      await api('/proposals/' + S.id + '/mark-sent', { method: 'POST', body: JSON.stringify({ sent_on: dateGet($('ms-date')) || null,
+        to_email: $('ms-email').value, to_name: $('ms-name').value, how: $('ms-how').value }) });
+      $('ms-m').hidden = true; toast('Marked as sent'); S.v = null; await openProposal(S.id, false);
+    } catch (x) { $('ms-err').textContent = x.message; }
+    finally { b.disabled = false; }
+  });
   $('e-send').addEventListener('click', async () => {
     await flush(true);
     const why = sendState(S.v);
@@ -997,7 +1033,7 @@
   });
   $('s-cancel').addEventListener('click', () => { $('send-m').hidden = true; });
   $('send-m').addEventListener('click', e => { if (e.target === $('send-m')) $('send-m').hidden = true; });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { ['send-m', 'arch-m', 'rq-m', 'dc-m'].forEach(id => { $(id).hidden = true; }); chatPanel(false); closeMenu(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { ['send-m', 'arch-m', 'rq-m', 'dc-m', 'ms-m'].forEach(id => { $(id).hidden = true; }); chatPanel(false); closeMenu(); } });
   $('s-send').addEventListener('click', async () => {
     const b = $('s-send'); b.disabled = true; $('s-back').disabled = true; b.textContent = 'Making the PDF and sending…'; $('s-err').textContent = '';
     try {
