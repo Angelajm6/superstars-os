@@ -10,7 +10,10 @@ removing deletes the row and the file.
                         file_path is on-disk ONLY, never serialized.
                         status: 'ready' (Claude read it) | 'unread' (no AI / failed).
   project_documents   + type_key   (doc_types key — the approved tag)
-                      + ai_extract (JSON: summary, key_facts, fields, confidence, model)
+                      + ai_extract (JSON: summary, key_facts, fields, confidence, model, related)
+                      + party / party_name (whose record it is: our company, a
+                        subcontractor, the owner — several can share one checklist item)
+  project_doc_suggest_dismissed — suggestions someone marked "not needed" (doc_suggest).
 
 Idempotent, both backends (SQLite / Postgres via db_layer). The app ensures it at
 boot; apply_doc_intake.py runs it as a migration.
@@ -57,10 +60,41 @@ def ensure_schema(conn) -> None:
                                   "AND table_name='project_documents'").fetchone())
                 if db_layer.is_postgres() else
                 bool(conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_documents'").fetchone()))
-    for col in (("type_key", "ai_extract") if has_docs else ()):
+    conn.execute(
+        f"CREATE TABLE IF NOT EXISTS project_doc_suggest_dismissed ("
+        f"  {pk},"
+        f"  project_code     TEXT NOT NULL,"
+        f"  suggestion_key   TEXT NOT NULL,"
+        f"  dismissed_by_uid INTEGER,"
+        f"  dismissed_at     TEXT NOT NULL,"
+        f"  UNIQUE(project_code, suggestion_key)"
+        f")")
+    for col in (("type_key", "ai_extract", "party", "party_name") if has_docs else ()):
         if not _column_exists(conn, "project_documents", col):
             conn.execute(f"ALTER TABLE project_documents ADD COLUMN {col} TEXT")
     conn.commit()
+
+
+PARTIES = ("company", "subcontractor", "owner", "other")
+PARTY_NAME_MAX = 120
+
+
+def clean_party(party, name):
+    """(party, party_name) normalized. Unknown party -> (None, None); 'company' keeps no
+    name (it is always us); a name is only kept for subcontractor / owner / other."""
+    p = str(party or "").strip().lower()
+    if p not in PARTIES:
+        return None, None
+    n = " ".join(str(name or "").split())[:PARTY_NAME_MAX] or None
+    return p, (None if p == "company" else n)
+
+
+def same_party(a_party, a_name, b_party, b_name) -> bool:
+    """Two records belong to the same party (no party = our company)."""
+    ap, bp = a_party or "company", b_party or "company"
+    if ap != bp:
+        return False
+    return ap == "company" or (a_name or "").strip().lower() == (b_name or "").strip().lower()
 
 
 def intake_public(row) -> dict:
@@ -81,7 +115,8 @@ def extract_for_storage(suggestion, set_by: str) -> str | None:
     """What is kept on the filed document from Claude's read (JSON text, or None)."""
     if not suggestion:
         return None
-    keep = {k: suggestion.get(k) for k in ("summary", "key_facts", "fields", "confidence", "model", "type_key")}
+    keep = {k: suggestion.get(k) for k in ("summary", "key_facts", "fields", "confidence", "model", "type_key",
+                                           "related")}
     keep["ai_type_key"] = keep.pop("type_key")
     keep["set_by"] = set_by
     return json.dumps(keep, ensure_ascii=False)
@@ -97,7 +132,7 @@ def doc_ai_public(d) -> dict | None:
     except (TypeError, ValueError):
         return None
     return {"summary": a.get("summary"), "key_facts": a.get("key_facts") or [],
-            "fields": a.get("fields") or [], "set_by": a.get("set_by")}
+            "fields": a.get("fields") or [], "related": a.get("related") or [], "set_by": a.get("set_by")}
 
 
 def type_label(key) -> str | None:

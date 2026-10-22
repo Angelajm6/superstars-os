@@ -19,6 +19,13 @@ Proves:
   * newer version: approve with supersedes_id moves the old one to History and pulls
     its client share
   * remove: deletes the waiting row and its file; filed documents untouched
+  * several per item: our COI + each subcontractor's COI all stay current on one checklist
+    item (`docs`); party comes from Claude's read or the approver; PATCH edits it; nothing
+    filed goes missing from the payload
+  * suggestions: a subcontract suggests that sub's COI / lien waiver, words on the pages and
+    Claude's `related` add more; "Required" only for a missing checklist item; filing it or
+    "Not needed" removes it; gates on dismiss
+  * the Documents tab no longer carries the Specifications table or the permits & insurance card
 
 Run:  venv/bin/python tests/smoke_doc_dropzone.py
 """
@@ -53,6 +60,7 @@ os.environ.pop("DOC_SCAN_FAKE", None)
 import auth  # noqa: E402
 import db_layer  # noqa: E402
 import doc_intake  # noqa: E402
+import doc_suggest  # noqa: E402
 import doc_types  # noqa: E402
 import document_scanner as scanner  # noqa: E402
 import server  # noqa: E402  (boots the whole app)
@@ -100,6 +108,7 @@ def _cleanup():
             purge(conn, t, "item_id", doc_ids)
         purge(conn, "project_documents", "id", doc_ids)
         purge(conn, "project_doc_intake", "project_code", [PROJ])
+        purge(conn, "project_doc_suggest_dismissed", "project_code", [PROJ])
         conn.execute("DELETE FROM projects WHERE project_code = ?", (PROJ,))
         uids = [r["id"] for r in conn.execute("SELECT id FROM users WHERE email LIKE ?", (f"{TAG}.%",)).fetchall()]
         conn.commit()
@@ -140,6 +149,18 @@ def _data(r):
 def _checklist(c):
     d = _data(c.get(f"/api/projects/{PROJ}/documents"))
     return {it["requirement_key"]: it for cat in d["categories"] for it in cat["items"]}
+
+
+def _fake(**over):
+    base = {"title": "Doc", "doc_type": "x", "category": "CONTRACTS", "requirement_key": None,
+            "type_key": "contract_other", "effective_date": None, "expiry_date": None, "confidence": 0.95,
+            "warnings": [], "summary": "", "key_facts": [], "fields": []}
+    base.update(over)
+    FAKE.write_text(json.dumps(base), encoding="utf-8")
+
+
+def _payload(c):
+    return _data(c.get(f"/api/projects/{PROJ}/documents"))
 
 
 def main() -> int:
@@ -308,8 +329,130 @@ def main() -> int:
     assert admin.get(doc2["file_url"]).status_code == 200
     checks += 1
 
+    # ---- pure: party + related cleaned off Claude's read; party helpers
+    p = scanner.process_scan_result({"category": "CONTRACTS", "type_key": "coi", "confidence": 0.9,
+                                     "party": "Subcontractor", "party_name": "  ABC   Masonry ",
+                                     "related": [{"type_key": "lien_waiver", "reason": "Exhibit C"},
+                                                 {"type_key": "nope", "reason": "x"},
+                                                 {"type_key": "coi", "reason": "itself"},
+                                                 {"type_key": "lien_waiver", "reason": "dup"}, "junk"]}, CATS, rbc)
+    assert p["party"] == "subcontractor" and p["party_name"] == "ABC Masonry"
+    assert p["related"] == [{"type_key": "lien_waiver", "reason": "Exhibit C"}]
+    p = scanner.process_scan_result({"category": "CONTRACTS", "type_key": "coi", "confidence": 0.9,
+                                     "party": "company", "party_name": "Us"}, CATS, rbc)
+    assert p["party"] == "company" and p["party_name"] is None
+    assert scanner.process_scan_result({"category": "CONTRACTS", "confidence": 0.9, "party": "unknown"},
+                                       CATS, rbc)["party"] is None
+    assert {"party", "party_name", "related"} <= set(scanner.SCAN_SCHEMA["required"])
+    assert doc_intake.clean_party("OWNER", " Compass ") == ("owner", "Compass")
+    assert doc_intake.clean_party("company", "x") == ("company", None)
+    assert doc_intake.clean_party("boss", "x") == (None, None)
+    assert doc_intake.same_party(None, None, "company", "") and not doc_intake.same_party("subcontractor", "A", "subcontractor", "B")
+    assert doc_suggest.suggest([], set()) == []
+    # a legacy row (no type tag, only the checklist item) counts as filed
+    legacy = [{"id": 1, "title": "Pay App", "type_key": "aia_g702", "category": "CONTRACTS"},
+              {"id": 2, "title": "SOV", "type_key": None, "category": "CONTRACTS", "requirement_key": "sov"}]
+    assert "sov" not in {g["type_key"] for g in doc_suggest.suggest(legacy, set())}
+    checks += 1
+
+    # ---- several documents on one checklist item (ours + each subcontractor's COI)
+    _fake(title="COI — ABC Masonry", category="CONTRACTS", requirement_key="coi", type_key="coi",
+          expiry_date=D(200), party="subcontractor", party_name="ABC Masonry")
+    sub_card = _data(_drop(admin, name="abc coi.pdf"))
+    assert sub_card["suggestion"]["party"] == "subcontractor" and sub_card["suggestion"]["party_name"] == "ABC Masonry"
+    r = admin.post(f"/api/documents/intake/{sub_card['id']}/approve", json={"type_key": "coi"})   # party from the read
+    assert r.status_code == 201
+    sub_coi = _data(r)
+    assert sub_coi["party"] == "subcontractor" and sub_coi["party_name"] == "ABC Masonry"
+    _fake(title="COI", category="CONTRACTS", requirement_key="coi", type_key="coi", party="unknown")
+    xyz = _data(_drop(admin, name="xyz.pdf"))
+    r = admin.post(f"/api/documents/intake/{xyz['id']}/approve",
+                   json={"type_key": "coi", "party": "subcontractor", "party_name": "XYZ Steel"})   # the approver's pick wins
+    xyz_coi = _data(r)
+    assert xyz_coi["party_name"] == "XYZ Steel"
+    ck = _checklist(admin)["coi"]
+    held = {d["id"] for d in ck["docs"]}
+    assert held == {doc2["id"], sub_coi["id"], xyz_coi["id"]}, held   # all three current, none superseded
+    assert ck["doc"]["id"] in held and ck["status"] == "on_file"
+    assert all("shared_client" in d for d in ck["docs"])
+    _no_paths(ck, "checklist item")
+    # nothing current is missing from the payload (items + extras)
+    pay = _payload(admin)
+    shown = {d["id"] for c in pay["categories"] for it in c["items"] for d in it["docs"]} | \
+            {d["id"] for c in pay["categories"] for d in c["extras"]}
+    conn = _db()
+    try:
+        current = {r["id"] for r in conn.execute("SELECT id FROM project_documents WHERE project_code=? AND superseded=0",
+                                                 (PROJ,)).fetchall()}
+    finally:
+        conn.close()
+    assert current <= shown, current - shown
+    # a sub's renewal supersedes only that sub's COI
+    _fake(title="COI — ABC Masonry 2027", category="CONTRACTS", requirement_key="coi", type_key="coi",
+          party="subcontractor", party_name="ABC Masonry")
+    ren = _data(_drop(admin))
+    assert admin.post(f"/api/documents/intake/{ren['id']}/approve",
+                      json={"type_key": "coi", "supersedes_id": sub_coi["id"]}).status_code == 201
+    ck = _checklist(admin)["coi"]
+    assert sub_coi["id"] not in {d["id"] for d in ck["docs"]} and {doc2["id"], xyz_coi["id"]} <= {d["id"] for d in ck["docs"]}
+    # PATCH edits the party
+    r = admin.patch(f"/api/documents/{xyz_coi['id']}", json={"party": "owner", "party_name": "Compass Point"})
+    assert r.status_code == 200 and _data(r)["party"] == "owner" and _data(r)["party_name"] == "Compass Point"
+    checks += 1
+
+    # ---- suggestions read off what is filed
+    _fake(title="Subcontract — Delta Roofing", category="CONTRACTS", type_key="subcontract",
+          party="subcontractor", party_name="Delta Roofing",
+          summary="Roofing subcontract. Sub to furnish a performance bond; after-hours work allowed.",
+          related=[{"type_key": "sds", "reason": "Section 4 requires an SDS for every coating used."}])
+    sc = _data(_drop(admin, name="delta subcontract.pdf"))
+    assert admin.post(f"/api/documents/intake/{sc['id']}/approve", json={"type_key": "subcontract"}).status_code == 201
+    sugs = {g["key"]: g for g in _payload(admin)["suggestions"]}
+    _no_paths(list(sugs.values()), "suggestions")
+    coi_k = "coi|subcontractor|delta roofing"
+    assert coi_k in sugs and sugs[coi_k]["origin"] == "rule" and sugs[coi_k]["sources"][0]["title"].startswith("Subcontract")
+    assert sugs[coi_k]["on_checklist"] is False            # the COI item is already on file — so only "may be needed"
+    assert "lien_waiver|subcontractor|delta roofing" in sugs
+    bond = sugs["bond|subcontractor|delta roofing"]        # from the words on the page
+    assert bond["origin"] == "content" and bond["on_checklist"] is False   # the job's bond item is ours, not the sub's
+    ah = sugs["after_hours|company|"]
+    assert ah["origin"] == "content" and ah["on_checklist"] is True   # a missing checklist item: verified required
+    sds = sugs["sds|company|"]
+    assert sds["origin"] == "claude" and sds["on_checklist"] is True and "SDS" in sds["reason"]
+    assert "coi|company|" not in sugs                      # ours is on file
+    order = [g["on_checklist"] for g in _payload(admin)["suggestions"]]
+    assert order == sorted(order, reverse=True)            # required ones first
+    # filing the suggested document clears it
+    _fake(title="COI — Delta Roofing", category="CONTRACTS", requirement_key="coi", type_key="coi",
+          party="subcontractor", party_name="Delta Roofing")
+    dc = _data(_drop(admin))
+    assert admin.post(f"/api/documents/intake/{dc['id']}/approve", json={"type_key": "coi"}).status_code == 201
+    assert coi_k not in {g["key"] for g in _payload(admin)["suggestions"]}
+    # "Not needed"
+    url = f"/api/projects/{PROJ}/documents/suggestions/dismiss"
+    assert anon.post(url, json={"key": ah["key"]}).status_code == 401
+    assert client.post(url, json={"key": ah["key"]}).status_code == 403
+    assert pm.post(url, json={"key": ah["key"]}).status_code == 403
+    assert admin.post(url, json={"key": "nonsense|x|"}).status_code == 400
+    assert admin.post(url, json={}).status_code == 400
+    assert admin.post("/api/projects/NOPE-404/documents/suggestions/dismiss", json={"key": ah["key"]}).status_code == 404
+    assert admin.post(url, json={"key": ah["key"]}).status_code == 200
+    assert admin.post(url, json={"key": ah["key"]}).status_code == 200   # idempotent
+    keys = {g["key"] for g in _payload(admin)["suggestions"]}
+    assert ah["key"] not in keys and sds["key"] in keys
+    checks += 1
+
+    # ---- the tab: Specifications + permits & insurance sections are gone; suggestions + party are in
+    html = (ROOT / "dashboard-static.html").read_text(encoding="utf-8")
+    for gone in ("proj-specs-tbody", "PROJ_loadAttachedSpecs", 'id="pd-package"', 'id="pk-overlay"', "renderPackage"):
+        assert gone not in html, gone
+    for there in ('id="pd-sugg"', "renderSuggest", "data-dzparty", "suggestions/dismiss"):
+        assert there in html, there
+    checks += 1
+
     print(f"PASS: documents drop zone — schema + taxonomy, pure read, gates, unread wait, AI card, approve, "
-          f"newer version + share revoke, remove ({checks} groups)")
+          f"newer version + share revoke, remove, party read, several per item, suggestions + dismiss, "
+          f"tab sections ({checks} groups)")
     return 0
 
 
