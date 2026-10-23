@@ -398,8 +398,8 @@ def main() -> int:
         nav = (ROOT / "static/js/company_nav.js").read_text(encoding="utf-8")
         assert "'Pipeline'" not in nav and "['Estimates & proposals', '/company#proposals', COMPANY]" in nav
         cp = (ROOT / "company_portal.html").read_text(encoding="utf-8")
-        assert '<select class="cp-select pr-kind" id="pr-kind"' in cp
-        for opt in ('value="proposal">Proposals', 'value="estimate">Estimates', 'value="bid">Bids'):
+        assert 'class="prx-seg" role="tablist" aria-label="Show" id="pr-kind"' in cp   # 2026-10-23: a switch, not a dropdown
+        for opt in ('data-kind="proposal">Proposals', 'data-kind="estimate">Estimates', 'data-kind="bid">Bids'):
             assert opt in cp, opt
         assert "/#estimates\"" not in cp and "href=\"/#estimates\"" not in cp
         assert "function loadEstimateDetail(" in cp and "function openNewEstimate(" in cp and 'id="est-new-overlay"' in cp

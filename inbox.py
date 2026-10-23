@@ -299,7 +299,7 @@ def match(conn, addrs: list, text: str, own_domain: str = "") -> dict:
     if not out["proposal_id"]:   # "Proposal 1042" / "Proposal No. 1042-2": the numbers on the company layout (2026-10-21)
         for n, v in PROPOSAL_NO_RE.findall(text or ""):
             try:
-                p = _one(conn, "SELECT id, estimate_id, client_org_id FROM proposal WHERE display_no = ? AND version = ?",
+                p = _one(conn, "SELECT id, estimate_id, client_org_id FROM proposal WHERE display_no = ? AND version = ? AND status <> 'deleted'",
                          (int(n), int(v or 1)))
             except Exception:
                 conn.rollback()
