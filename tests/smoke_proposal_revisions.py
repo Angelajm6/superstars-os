@@ -495,6 +495,87 @@ def main() -> int:
         assert 'id="pr-sent-overlay"' in (ROOT / "company_portal.html").read_text(encoding="utf-8")
         passed += 1; print("  mark as sent ok")
 
+        # ---------------- keep only the latest: delete (hide) a sent proposal, restore it; edit the number and fields in place
+        k1 = _draft(ids["cs"], "Sidewalk shed removal and restoration, east side.")
+        cs.patch(f"/api/proposal-studio/{k1}", json={"content": {}, "lines": LINES})
+        assert cs.post(f"/api/proposals/{k1}/send", json={"to_email": DANA, "to_name": "Dana Rosen"}).status_code == 200
+        ktok = [w for w in sorted(MAIL.glob("proposal-*.eml"))[-1].read_text().split() if "/p/" in w][0].rsplit("/p/", 1)[1]
+        k2 = a.post(f"/api/proposal-studio/{k1}/new-version", json={}).get_json()["data"]["id"]
+        assert a.post(f"/api/proposals/{k2}/mark-sent", json={"to_email": DANA}).status_code == 200
+        assert cs.get(f"/api/proposals/{k1}").get_json()["data"]["status"] == "superseded"
+        # only admins delete a sent proposal; the server says so
+        assert cs.delete(f"/api/proposals/{k1}").status_code == 403 and pm.delete(f"/api/proposals/{k1}").status_code == 403
+        r = a.delete(f"/api/proposals/{k1}")
+        assert r.status_code == 200 and r.get_json()["data"]["hidden"], r.get_json()
+        listed = [x["id"] for x in cs.get("/api/proposals").get_json()["data"]]
+        assert k1 not in listed and k2 in listed, "gone from the list; the latest stays"
+        assert "deleted" not in cs.get("/api/proposals").get_json()["meta"]["counts"], "C-suite counts leave it out"
+        assert cs.get("/api/proposals?status=deleted").status_code == 403
+        gone = a.get("/api/proposals?status=deleted").get_json()["data"]
+        assert [x["id"] for x in gone] == [k1] and gone[0]["deleted_from"] == "superseded"
+        assert app.test_client().get(f"/p/{ktok}").status_code == 404, "the client's link stops"
+        conn = _db()
+        try:
+            assert proposals.get(conn, k1)["status"] == "deleted"
+            assert all(c.get("proposal_id") != k1 for c in today_feed.proposal_cards(conn, ids["admin"], TODAY))
+            assert k1 not in [x["id"] for x in proposals.list_proposals(conn)], "Claude's proposals tool leaves it out too"
+        finally:
+            conn.close()
+        ev = a.get(f"/api/proposals/{k1}").get_json()["data"]["events"]
+        assert ev[-1]["event"] == "deleted"
+        assert cs.post(f"/api/proposals/{k1}/restore").status_code == 403
+        r = a.post(f"/api/proposals/{k1}/restore")
+        assert r.status_code == 200 and r.get_json()["data"]["status"] == "superseded"
+        assert a.post(f"/api/proposals/{k1}/restore").status_code == 409
+        # a signed proposal is the contract; a draft is simply removed (by anyone on proposals)
+        signed = next(x["id"] for x in a.get("/api/proposals?status=signed").get_json()["data"])
+        assert a.delete(f"/api/proposals/{signed}").status_code == 409
+        kd = _draft(ids["cs"], "Draft that will be deleted, two drops.")
+        assert cs.delete(f"/api/proposals/{kd}").status_code == 200 and cs.get(f"/api/proposals/{kd}").status_code == 404
+        # the number: every version of the job changes together; another job's number is refused
+        other = cs.get(f"/api/proposals/{ms}").get_json()["data"]["label"]
+        r = cs.patch(f"/api/proposals/{k2}/record", json={"field": "number", "value": other})
+        assert r.status_code == 409 and "already exists" in r.get_json()["error"]
+        assert cs.patch(f"/api/proposals/{k2}/record", json={"field": "number", "value": "abc"}).status_code == 400
+        r = cs.patch(f"/api/proposals/{k2}/record", json={"field": "number", "value": "#7701-2"})
+        assert r.status_code == 200 and r.get_json()["data"]["label"] == "7701-2", r.get_json()
+        assert cs.get(f"/api/proposals/{k1}").get_json()["data"]["label"] == "7701"
+        assert any(e["event"] == "number_changed" and "→ 7701-2" in (e["detail"] or "") for e in r.get_json()["data"]["events"])
+        assert [x["id"] for x in cs.get("/api/proposals", query_string={"q": "7701"}).get_json()["data"]] in ([k2, k1], [k1, k2])
+        # title: drafts only (it is printed); recipient and valid-until on a sent one (extends the client's link)
+        assert cs.patch(f"/api/proposals/{k2}/record", json={"field": "title", "value": "x"}).status_code == 400
+        td = _draft(ids["cs"], "Title check draft, one drop.")
+        r = cs.patch(f"/api/proposals/{td}/record", json={"field": "title", "value": "Pencil Title 9"})
+        assert r.status_code == 200 and r.get_json()["data"]["title"] == "Pencil Title 9"
+        assert "Pencil Title 9" in cs.get(f"/api/proposal-studio/{td}").get_json()["data"]["html"], "the document shows it"
+        r = cs.patch(f"/api/proposals/{k2}/record", json={"field": "recipient", "value": "Mia Cho <mia@prv-rosen.example>"})
+        assert r.status_code == 200 and r.get_json()["data"]["recipient_email"] == "mia@prv-rosen.example"
+        assert cs.patch(f"/api/proposals/{k2}/record", json={"field": "recipient", "value": "nope"}).status_code == 400
+        later = (TODAY + timedelta(days=60)).isoformat()
+        assert cs.patch(f"/api/proposals/{signed}/record", json={"field": "valid_until", "value": later}).status_code == 400, "signed stays"
+        k3 = _draft(ids["cs"], "Valid-until check, one drop.")
+        cs.patch(f"/api/proposal-studio/{k3}", json={"content": {}, "lines": LINES})
+        cs.post(f"/api/proposals/{k3}/send", json={"to_email": DANA})
+        assert cs.patch(f"/api/proposals/{k3}/record", json={"field": "valid_until", "value": (TODAY - timedelta(days=1)).isoformat()}).status_code == 400
+        r = cs.patch(f"/api/proposals/{k3}/record", json={"field": "valid_until", "value": later})
+        assert r.status_code == 200 and r.get_json()["data"]["valid_until"] == later and r.get_json()["data"]["link_expires_at"] == f"{later}T23:59:59"
+        assert cs.patch(f"/api/proposals/{k3}/record", json={"field": "price", "value": 1}).status_code == 400, "the total comes from the lines"
+        conn = _db()
+        try:
+            import estimates as _est
+            e0 = _est.est_public(conn.execute("SELECT * FROM estimate WHERE status = 'scoping' LIMIT 1").fetchone() or
+                                 conn.execute("SELECT * FROM estimate LIMIT 1").fetchone())
+            assert isinstance(e0["next_statuses"], list) and e0["next_statuses"] == _est.allowed_transitions(e0["status"])
+        finally:
+            conn.close()
+        cp = (ROOT / "company_portal.html").read_text(encoding="utf-8")
+        for needle in ('id="pr-chips"', 'id="pr-list"', 'id="prx-drawer"', "api('/proposals/' + e.id + '/record'", "'/proposals/' + p.id, { method: 'DELETE' }",
+                       "'/proposals/' + r.id + '/restore'", ".prx-no.draft", ".prx-no.sent", "['latest', 'Latest of each job']", "['deleted', 'Deleted']",
+                       "openProposalPanel(arg)", "data-est-pen", "'/estimates/' + e.id + '/status'"):
+            assert needle in cp, needle
+        assert 'id="pr-new-overlay"' not in cp and "openNewProposal" not in cp, "proposals are made with Claude / in Proposal Studio only"
+        passed += 1; print("  keep only the latest + edit in place ok")
+
         # ---------------- responsiveness
         import anthropic
         os.environ["ANTHROPIC_API_KEY"] = "test-not-a-real-key"

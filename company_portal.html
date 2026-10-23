@@ -121,6 +121,94 @@
   /* Proposals tab: the Estimates / Bids / Proposals switch, and Claude next to each record (2026-10-14) */
   .cp-select.pr-kind { font-weight: 700; color: var(--ui, #24418C); background: var(--ui-soft, #E8EDF8); border-color: var(--ui, #24418C); }
   .cp-pill.claude { background: #FBEFE9; color: #A84E2C; }
+  /* ===== Estimates & proposals revamp (2026-10-23) ===== */
+  .prx-drawer[hidden], .prx-chips[hidden], .prx-scrim[hidden], .prx-list[hidden], #pr-new[hidden], #pr-status[hidden], #pr-table-wrap[hidden] { display: none; }   /* their display rules would beat [hidden] */
+  .prx-c-no .prx-inl { flex-wrap: wrap; } .prx-inl input { min-width: 72px; }
+  @media (max-width: 760px) { #pr-kpis { grid-template-columns: 1fr 1fr !important; gap: 8px; } #pr-kpis .cp-kpi { padding: 10px 12px; } #pr-kpis .cp-kpi-v { font-size: 20px; } }
+  .prx-seg { display: inline-flex; background: var(--fill, #f3f5f9); border-radius: 10px; padding: 3px; }
+  .prx-seg button { border: 0; background: none; border-radius: 8px; padding: 6px 12px; font: inherit; font-weight: 600; font-size: 13px; color: var(--muted, #8c92a0); cursor: pointer; }
+  .prx-seg button.on { background: #fff; color: var(--ink, #222633); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .prx-chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 16px 12px; }
+  .prx-chip { border: 1px solid var(--line, #eceef3); background: #fff; border-radius: 99px; padding: 4px 11px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-2, #4a5060); display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .prx-chip b { color: var(--muted, #8c92a0); }
+  .prx-chip.on { border-color: var(--accent, #4364dc); background: var(--accent-soft, #ebf0fe); color: var(--accent-ink, #3a5fd0); }
+  .prx-chip.on b { color: var(--accent-ink, #3a5fd0); }
+  .prx-chip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  /* the number carries the status: amber draft, blue sent / opened, green signed, grey declined / replaced / deleted */
+  .prx-no { display: inline-flex; align-items: center; font-weight: 700; font-variant-numeric: tabular-nums; border-radius: 8px; padding: 3px 9px; font-size: 13.5px; white-space: nowrap; }
+  .prx-no.draft { background: #FFF4E5; color: #9A5B00; }
+  .prx-no.sent, .prx-no.viewed, .prx-no.expired { background: var(--accent-soft, #ebf0fe); color: var(--accent-ink, #3a5fd0); }
+  .prx-no.signed { background: var(--status-complete-soft, #e7f6f0); color: var(--status-complete-deep, #0c7a5f); }
+  .prx-no.declined, .prx-no.superseded, .prx-no.archived, .prx-no.deleted { background: var(--fill, #f3f5f9); color: var(--muted, #8c92a0); }
+  .prx-no.deleted { text-decoration: line-through; }
+  .prx-st { font-size: 12px; font-weight: 600; color: var(--muted, #8c92a0); }
+  .prx-st.draft { color: #9A5B00; } .prx-st.sent, .prx-st.viewed { color: var(--accent-ink, #3a5fd0); } .prx-st.signed { color: var(--status-complete-deep, #0c7a5f); }
+  .prx-list { border-top: 1px solid var(--line, #eceef3); }
+  .prx-row { display: grid; grid-template-columns: 118px minmax(0,1.5fr) minmax(0,1.2fr) 118px 104px 112px 34px; gap: 12px; align-items: center; padding: 11px 16px; border-top: 1px solid var(--line, #eceef3); }
+  .prx-row:first-child { border-top: 0; }
+  .prx-row.head { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted, #8c92a0); font-weight: 600; padding-top: 9px; padding-bottom: 9px; background: var(--fill, #f3f5f9); }
+  .prx-row.item { cursor: pointer; } .prx-row.item:hover { background: var(--fill, #f6f7fa); } .prx-row.item.sel { background: var(--accent-soft, #ebf0fe); }
+  .prx-row.old { background: #fafbfd; } .prx-row.old .prx-who { padding-left: 14px; border-left: 2px solid var(--line, #eceef3); }
+  .prx-cell { min-width: 0; }
+  .prx-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .prx-sub { font-size: 12px; color: var(--muted, #8c92a0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .prx-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .prx-more { border: 0; background: none; color: var(--muted, #8c92a0); font-size: 18px; line-height: 1; border-radius: 8px; padding: 4px 6px; cursor: pointer; }
+  .prx-more:hover { background: #fff; color: var(--ink, #222633); }
+  .prx-older { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted, #8c92a0); display: flex; gap: 6px; align-items: center; }
+  .prx-older button { border: 0; background: none; color: var(--accent-ink, #3a5fd0); font: inherit; font-weight: 600; padding: 0; cursor: pointer; }
+  .prx-empty { padding: 28px 16px; text-align: center; color: var(--muted, #8c92a0); }
+  .prx-ed { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
+  .prx-pen { border: 0; background: none; color: var(--muted, #8c92a0); padding: 3px 4px; border-radius: 6px; opacity: 0; transition: opacity .12s; flex: none; display: inline-grid; place-items: center; cursor: pointer; }
+  .prx-row:hover .prx-pen, .prx-drawer .prx-pen, .cp-table tr:hover .prx-pen, .prx-pen:focus-visible { opacity: 1; }
+  .prx-pen:hover { color: var(--accent-ink, #3a5fd0); background: var(--accent-soft, #ebf0fe); }
+  .prx-pen svg { width: 14px; height: 14px; }
+  .prx-inl { display: inline-flex; gap: 4px; align-items: center; width: 100%; min-width: 0; }
+  .prx-inl input, .prx-inl select { border: 1px solid var(--accent, #4364dc); border-radius: 8px; padding: 4px 8px; min-width: 0; width: 100%; font: inherit; background: #fff; }
+  .prx-inl .ok { border: 0; background: var(--accent, #4364dc); color: #fff; border-radius: 7px; padding: 5px 9px; font: inherit; font-weight: 700; font-size: 12px; cursor: pointer; }
+  .prx-inl .x { border: 0; background: var(--fill, #f3f5f9); border-radius: 7px; padding: 5px 9px; font: inherit; font-size: 12px; cursor: pointer; }
+  .prx-ierr { font-size: 12px; color: #A8382B; margin-top: 3px; white-space: normal; }
+  .prx-menu { position: absolute; z-index: 9050; background: #fff; border: 1px solid var(--line, #eceef3); border-radius: 14px; box-shadow: 0 14px 40px rgba(20,24,36,.16); padding: 5px; min-width: 220px; display: flex; flex-direction: column; }
+  .prx-menu button { border: 0; background: none; text-align: left; padding: 8px 10px; border-radius: 8px; font: inherit; font-size: 13px; cursor: pointer; color: var(--ink, #222633); }
+  .prx-menu button:hover { background: var(--fill, #f3f5f9); } .prx-menu button.d { color: #A8382B; }
+  .prx-menu hr { border: 0; border-top: 1px solid var(--line, #eceef3); margin: 4px 0; }
+  .prx-scrim { position: fixed; inset: 0; background: rgba(20,24,36,.32); z-index: 9000; }
+  .prx-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(520px, 100%); background: #fff; z-index: 9001; box-shadow: 0 14px 40px rgba(20,24,36,.2); display: flex; flex-direction: column; animation: prx-in .2s ease;
+    padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  @keyframes prx-in { from { transform: translateX(30px); opacity: .4; } }
+  .prx-dh { padding: 16px 20px 12px; border-bottom: 1px solid var(--line, #eceef3); display: flex; flex-direction: column; gap: 8px; }
+  .prx-dh .r1 { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .prx-dh h2 { margin: 0; font-size: 17px; text-wrap: balance; }
+  .prx-close { border: 0; background: var(--fill, #f3f5f9); border-radius: 8px; width: 32px; height: 32px; font-size: 18px; color: var(--ink-2, #4a5060); cursor: pointer; flex: none; }
+  .prx-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .prx-db { flex: 1; overflow: auto; padding: 14px 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+  .prx-sec h3 { margin: 0 0 8px; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted, #8c92a0); }
+  .prx-fields { display: grid; grid-template-columns: 120px minmax(0,1fr); gap: 2px 12px; align-items: center; }
+  .prx-fields > span { font-size: 12.5px; color: var(--muted, #8c92a0); }
+  .prx-fields > div { min-height: 34px; display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+  .prx-ro { color: var(--muted, #8c92a0); font-size: 12px; }
+  .prx-total { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; background: var(--fill, #f3f5f9); border-radius: 10px; padding: 12px 14px; }
+  .prx-total b { font-size: 22px; font-variant-numeric: tabular-nums; }
+  .prx-ver { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 13px; padding: 8px 10px; border: 1px solid var(--line, #eceef3); border-radius: 10px; cursor: pointer; }
+  .prx-ver:hover { border-color: var(--accent-edge, rgba(67,100,220,.3)); }
+  .prx-tl { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+  .prx-tl li { display: grid; grid-template-columns: 96px minmax(0,1fr); gap: 8px; }
+  .prx-tl time { color: var(--muted, #8c92a0); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .prx-confirm { border: 1px solid #A8382B; background: #fdecea; border-radius: 10px; padding: 12px 14px; font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
+  .prx-confirm .b { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn-ghost.prx-danger { color: #A8382B; }
+  @media (min-width: 761px) { .prx-meta { display: none; } }
+  @media (max-width: 760px) {
+    .prx-row.head { display: none; }
+    .prx-row { grid-template-columns: minmax(0,1fr) auto 30px; grid-template-areas: "no price more" "who who who" "meta meta meta"; row-gap: 4px; padding: 12px; }
+    .prx-c-no { grid-area: no; } .prx-c-price { grid-area: price; } .prx-c-more { grid-area: more; } .prx-who { grid-area: who; }
+    .prx-meta { grid-area: meta; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .prx-c-addr, .prx-c-st, .prx-c-sent { display: none; }
+    .prx-pen { opacity: 1; }
+    .prx-row.old .prx-who { padding-left: 0; border-left: 0; }
+    .prx-fields { grid-template-columns: 100px minmax(0,1fr); }
+    .prx-chips { padding: 0 12px 12px; }
+  }
   /* Inbox (2026-10-15, inbox.py): the mailbox as in Gmail; Claude drafts only where a reply is needed */
   #view-inbox [hidden]{display:none !important}   /* Mail / Mine / All switch (.ib-wrap and .ib-conn set their own display) */
   .ib-conn { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 8px 14px; font-size: 13px; color: var(--muted); }
@@ -1040,15 +1128,20 @@
           <div class="ssc-subtabs" data-subtabs="proposals"></div>
           <div class="cp-kpis" id="pr-kpis"></div>
           <div class="cp-card">
+            <!-- 2026-10-23 revamp (accepted prototype https://claude.ai/artifact/8a8VUxBgrGSyRWXDMgzXvm): status in the number's
+                 color, the latest version of each job, pencils to edit in place, a panel on the right; proposals are made
+                 only with Claude / in Proposal Studio -->
             <div class="cp-toolbar">
-              <select class="cp-select pr-kind" id="pr-kind" aria-label="Show"><option value="proposal">Proposals</option><option value="estimate">Estimates</option><option value="bid">Bids</option></select>
+              <div class="prx-seg" role="tablist" aria-label="Show" id="pr-kind"><button type="button" role="tab" data-kind="proposal">Proposals</button><button type="button" role="tab" data-kind="estimate">Estimates</button><button type="button" role="tab" data-kind="bid">Bids</button></div>
               <input class="cp-input search" id="pr-search" placeholder="Search number, title, client or address…" autocomplete="off">
-              <select class="cp-select" id="pr-status"><option value="">All statuses</option><option value="draft">Draft</option><option value="sent">Sent</option><option value="viewed">Viewed</option><option value="signed">Signed</option><option value="declined">Declined</option><option value="superseded">Superseded</option><option value="archived">Before the app</option></select>
+              <select class="cp-select" id="pr-status" aria-label="Status"></select>
               <span style="flex:1"></span>
               <a class="btn-primary btn-sm" id="pr-studio" href="/proposal-studio#new">✦ New proposal with Claude</a>
-              <button class="btn-ghost btn-sm" id="pr-new" type="button">+ New proposal</button>
+              <button class="btn-ghost btn-sm" id="pr-new" type="button" hidden>+ New estimate</button>
             </div>
-            <div class="cp-table-wrap"><table class="cp-table" id="pr-table"></table></div>
+            <div class="prx-chips" id="pr-chips" role="group" aria-label="Filter proposals" hidden></div>
+            <div class="prx-list" id="pr-list" hidden></div>
+            <div class="cp-table-wrap" id="pr-table-wrap"><table class="cp-table" id="pr-table"></table></div>
           </div>
         </div>
         <div id="proposal-detail" hidden></div>
@@ -1332,6 +1425,8 @@
   </form>
 </div>
 <!-- proposal modals (#307) -->
+<div class="prx-scrim" id="prx-scrim" hidden></div>
+<aside class="prx-drawer" id="prx-drawer" hidden aria-label="Proposal"></aside>
 <!-- #360 — Client portal: manage one client login (project, sections, preset, preview, password) -->
 <div class="cp-overlay" id="pa-overlay" role="dialog" aria-modal="true" aria-labelledby="pa-title">
   <div class="cp-modal" style="max-width:640px">
@@ -1350,16 +1445,6 @@
       <div class="cp-form-err" id="pa-new-err" role="alert"></div>
     </div>
     <div class="cp-modal-foot" id="pa-new-foot"><button class="btn-ghost" type="button" id="pa-new-cancel">Cancel</button><button class="btn-primary" type="submit" id="pa-new-go">Create login</button></div>
-  </form>
-</div>
-<div class="cp-overlay" id="pr-new-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-new-title">
-  <form class="cp-modal" id="pr-new-form" novalidate>
-    <div class="cp-modal-head"><h2 id="pr-new-title">New proposal</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">A proposal is generated from an estimate: client, contact, address and price come across; you edit the scope and terms before sending.</p></div>
-    <div class="cp-modal-body">
-      <div class="cp-field full"><label for="pr-new-est">Estimate</label><select id="pr-new-est"><option value="">Loading…</option></select></div>
-      <div class="cp-form-err" id="pr-new-err" role="alert"></div>
-    </div>
-    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-new-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-new-go">Create draft</button></div>
   </form>
 </div>
 <div class="cp-overlay" id="est-new-overlay" role="dialog" aria-modal="true" aria-labelledby="est-new-title">
@@ -3492,39 +3577,271 @@
     try { const { data } = await api('/proposals', { method: 'POST', body: JSON.stringify({ estimate_id: estimateId }) }, true); toast(`Draft ${data.label || data.number} created`); if (data.layout === 'ssc') location.href = '/proposal-studio#p/' + data.id; else location.hash = '#proposals/' + data.id; }
     catch (e) { toast(e.message, true); }
   }
+  // ---------- the proposals list (2026-10-23 revamp, accepted prototype https://claude.ai/artifact/8a8VUxBgrGSyRWXDMgzXvm)
+  // The number carries the status in color; by default only the latest version of each job shows (older ones fold
+  // under it); pencils edit a field in place (PATCH /proposals/<id>/record); a row opens the proposal in a panel on the
+  // right. Deleting a sent proposal (admins) hides it; it comes back from the Deleted filter.
+  const PRX = { rows: [], deleted: [], f: 'latest', open: null, detail: null, openOld: new Set(), edit: null, err: '', confirm: null, admin: false, busy: false };
+  const PRX_PEN = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.2 2.3l2.5 2.5L5.4 13.1 2.4 13.6l.5-3z"/></svg>';
+  const PRX_WORD = { draft: 'Draft', sent: 'Sent', viewed: 'Opened', signed: 'Signed', declined: 'Declined', superseded: 'Replaced', deleted: 'Deleted', expired: 'Expired', archived: 'Before the app' };
+  const PRX_FILTERS = [['latest', 'Latest of each job'], ['draft', 'Drafts', '#9A5B00'], ['sent', 'Sent', 'var(--accent, #4364dc)'], ['signed', 'Signed', 'var(--status-complete, #15a07e)'],
+    ['declined', 'Declined'], ['all', 'Every version'], ['archived', 'Before the app'], ['deleted', 'Deleted']];
+  const prxSt = r => r.archived ? 'archived' : (r.display_status === 'expired' ? 'expired' : r.status);
+  const prxNo = r => r.label || r.number;
+  function prxLatest(r) { return r.archived || !PRX.rows.some(o => !o.archived && o.estimate_id === r.estimate_id && o.version > r.version); }
+  function prxOlder(r) { return r.archived ? [] : PRX.rows.filter(o => !o.archived && o.estimate_id === r.estimate_id && o.version < r.version).sort((a, b) => b.version - a.version); }
+  function prxVisible(f) {
+    f = f || PRX.f;
+    if (f === 'deleted') return PRX.deleted;
+    return PRX.rows.filter(r => {
+      if (f === 'archived') return r.archived;
+      if (f === 'all') return true;
+      if (f === 'latest') return prxLatest(r);   // a replaced version is never the latest, unless its replacement was deleted
+      if (f === 'sent') return !r.archived && (r.status === 'sent' || r.status === 'viewed');
+      return !r.archived && r.status === f;
+    });
+  }
+  function prxEditable(r, field, html, cls, inDrawer) {   // a value with its pencil, or the field being edited
+    const on = PRX.edit && PRX.edit.id === r.id && PRX.edit.field === field && !!PRX.edit.drawer === !!inDrawer;
+    if (on) {
+      const v = esc(PRX.edit.value);
+      const input = field === 'valid_until' ? `<input id="prx-inl" type="date" value="${v}" aria-label="Valid until">`
+        : `<input id="prx-inl" value="${v}" aria-label="${field === 'number' ? 'Proposal number' : esc(field)}" ${field === 'number' ? 'inputmode="numeric"' : ''}>`;
+      return `<span class="prx-inl" data-prx-stop>${input}<button type="button" class="ok" data-prx-save>Save</button><button type="button" class="x" data-prx-cancel aria-label="Cancel">Esc</button></span>${PRX.err ? `<div class="prx-ierr" role="alert">${esc(PRX.err)}</div>` : ''}`;
+    }
+    const can = !r.archived && r.status !== 'deleted' && (field === 'number' || field === 'recipient' && r.status !== 'signed' ||
+      field === 'title' && r.status === 'draft' || field === 'valid_until' && ['draft', 'sent', 'viewed'].includes(r.status));
+    return `<span class="prx-ed"><span class="${cls || 'prx-t'}">${html}</span>${can ? `<button type="button" class="prx-pen" data-prx-pen="${field}" data-id="${r.id}"${inDrawer ? ' data-drawer="1"' : ''} aria-label="Edit ${field === 'number' ? 'the proposal number' : field.replace('_', ' ')}" title="Edit">${PRX_PEN}</button>` : ''}</span>`;
+  }
+  function prxRow(r, old) {
+    const st = prxSt(r), older = PRX.f === 'latest' && !old ? prxOlder(r) : [], exp = prExpiry(r);
+    const sent = r.archived ? (r.sent_at ? fmtDate(r.sent_at) : '—') : r.sent_at ? 'Sent ' + fmtDate(r.sent_at) : 'Not sent';
+    return `<div class="prx-row item${old ? ' old' : ''}${PRX.open === r.id ? ' sel' : ''}" data-prx-open="${esc(String(r.id))}" role="row" tabindex="0">
+      <div class="prx-cell prx-c-no">${prxEditable(r, 'number', esc(prxNo(r)), 'prx-no ' + st)}</div>
+      <div class="prx-cell prx-who"><div class="prx-t">${r.status === 'draft' ? prxEditable(r, 'title', esc(r.title || 'Proposal')) : esc(r.title || '')}</div><div class="prx-sub">${esc(r.client_name || '—')}${r.version > 1 ? ` · version ${r.version}` : ''}</div></div>
+      <div class="prx-cell prx-c-addr"><div class="prx-t">${esc(r.building_name || r.building_address || '—')}</div><div class="prx-sub">${esc(r.archived ? 'from before the app' : r.estimate_code || '')}</div></div>
+      <div class="prx-cell prx-c-st"><span class="prx-st ${st}">${PRX_WORD[st] || esc(st)}</span>${exp}</div>
+      <div class="prx-cell prx-c-sent prx-sub">${sent}</div>
+      <div class="prx-cell prx-c-price prx-num">${r.price != null ? money2.format(r.price) : '—'}</div>
+      <div class="prx-cell prx-c-more"><button type="button" class="prx-more" data-prx-menu="${esc(String(r.id))}" aria-label="Actions for ${esc(prxNo(r))}" aria-haspopup="menu">⋯</button></div>
+      <div class="prx-cell prx-meta"><span class="prx-st ${st}">${PRX_WORD[st] || esc(st)}</span>${exp}<span class="prx-sub">${sent}</span></div>
+      ${older.length ? `<div class="prx-older" data-prx-stop>${PRX.openOld.has(r.estimate_id) ? '' : `${older.length} older version${older.length > 1 ? 's' : ''} hidden ·`} <button type="button" data-prx-older="${r.estimate_id}">${PRX.openOld.has(r.estimate_id) ? 'Hide older versions' : 'Show'}</button></div>` : ''}
+    </div>` + (older.length && PRX.openOld.has(r.estimate_id) ? older.map(o => prxRow(o, true)).join('') : '');
+  }
+  function prxDraw() {
+    $('pr-chips').innerHTML = PRX_FILTERS.filter(f => f[0] !== 'deleted' || PRX.admin).map(([k, l, dot]) =>
+      `<button type="button" class="prx-chip${PRX.f === k ? ' on' : ''}" data-prx-f="${k}" aria-pressed="${PRX.f === k}">${dot ? `<i style="background:${dot}"></i>` : ''}${esc(l)} <b>${prxVisible(k).length}</b></button>`).join('');
+    const rows = prxVisible().slice().sort((a, b) => (a.status === 'draft' ? 0 : 1) - (b.status === 'draft' ? 0 : 1) || String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+    $('pr-list').innerHTML = `<div class="prx-row head" role="row"><div>No.</div><div>Proposal · client</div><div>Address · estimate</div><div>Status</div><div>Sent</div><div class="prx-num">Total</div><div></div></div>` +
+      (rows.length ? rows.map(r => prxRow(r)).join('') : `<div class="prx-empty">${PRX.f === 'deleted' ? 'Nothing deleted. A deleted proposal lands here so an admin can bring it back.'
+        : PRX.f === 'latest' && !$('pr-search').value.trim() ? 'No proposals yet. Start one with “✦ New proposal with Claude”.' : 'No proposals match.'}</div>`);
+    prxFocus();
+  }
+  function prxFocus() {
+    const i = $('prx-inl'); if (!i) return;
+    if (PRX.edit && PRX.edit.field === 'valid_until') setTimeout(() => { dateSet(i, PRX.edit && PRX.edit.value); i.focus(); }, 0);   // the date picker wires it first
+    else { i.focus(); if (i.select) i.select(); }
+  }
   async function loadProposalList() {
     skeleton($('pr-kpis'), 4);
-    const q = new URLSearchParams({ include: 'archive' }); const s = $('pr-search').value.trim(); if (s) q.set('q', s); if ($('pr-status').value) q.set('status', $('pr-status').value);
+    const s = $('pr-search').value.trim();
+    const q = new URLSearchParams({ include: 'archive' }); if (s) q.set('q', s);
     try {
-      const [{ data: rows, meta }, cc] = await Promise.all([api('/proposals?' + q.toString(), null, true), claudeCounts()]);
+      PRX.admin = (await myRole()) === 'admin';
+      const [{ data: rows, meta }, del] = await Promise.all([api('/proposals?' + q.toString(), null, true),
+        PRX.admin ? api('/proposals?status=deleted' + (s ? '&q=' + encodeURIComponent(s) : ''), null, true).then(x => x.data) : Promise.resolve([])]);
       if (PRK.kind !== 'proposal') return;
+      PRX.rows = rows; PRX.deleted = del;
       const c = meta.counts || {};
       $('pr-kpis').innerHTML =
-        kpi('Awaiting the client', num.format(meta.awaiting.n), money.format(meta.awaiting.v) + ' sent or viewed') +
+        kpi('Awaiting the client', num.format(meta.awaiting.n), money.format(meta.awaiting.v) + ' sent or opened') +
         kpi('Signed this year', num.format(meta.signed_ytd.n), money.format(meta.signed_ytd.v), 'good') +
         kpi('Drafts', num.format(c.draft || 0), 'not sent yet') +
-        kpi('Declined', num.format(c.declined || 0), `${num.format(c.superseded || 0)} superseded`);
-      table($('pr-table'), [
-        { key: 'number', label: 'Proposal', render: r => r.archived ? `<span class="cp-id">${esc(r.label)}</span>` : `<a class="cp-link cp-id" href="#proposals/${r.id}">${esc(r.label || r.number)}</a>`, sortVal: r => r.label || r.number },
-        { key: 'client_name', label: 'Client', render: r => r.client_org_id ? `<a class="cp-link" href="#clients/${r.client_org_id}">${esc(r.client_name)}</a>` : esc(r.client_name || '—') },
-        { key: 'building_address', label: 'Address', render: r => esc(r.building_name || r.building_address || '—') },
-        { key: 'title', label: 'Title' },
-        { key: 'price', label: 'Price', num: true, render: r => r.price != null ? money.format(r.price) : '—' },
-        { key: 'status', label: 'Status', render: r => prPill(r) + prExpiry(r), sortVal: r => r.display_status },
-        { key: 'sent_at', label: 'Sent', render: r => fmtDate(r.sent_at), sortVal: r => r.sent_at || '' },
-        { key: 'updated_at', label: 'Updated', render: r => fmtDate(r.updated_at) },
-        { key: 'claude', label: '', render: r => r.archived ? '' : claudeChip(cc, r.estimate_id), sortVal: r => cc[r.estimate_id] || 0 },
-        { key: 'pdf', label: '', render: r => `<button class="btn-ghost btn-sm" type="button" data-pr-pdf="${esc(String(r.id))}">PDF</button>`, sortVal: () => 0 },
-      ], rows, { defaultSort: { key: 'updated_at', dir: 'desc' }, emptyTitle: 'No proposals yet', emptySub: 'Create one with Claude, or upload the ones from before the app in Proposal Studio › Archive.',
-        onRow: r => { if (r.archived) prPdf(r); else location.hash = '#proposals/' + r.id; } });
-      $('pr-table').onclick = e => { const b = e.target.closest('[data-pr-pdf]'); if (!b) return; e.stopPropagation(); const r = rows.find(x => String(x.id) === b.dataset.prPdf); if (r) prPdf(r); };
+        kpi('Declined', num.format(c.declined || 0), `${num.format(c.superseded || 0)} replaced by a newer version`);
+      prxDraw();
     } catch (e) { toast(e.message, true); }
   }
+  function prxFind(id) { return PRX.rows.concat(PRX.deleted).find(r => String(r.id) === String(id)); }
+
+  // ---------- the panel on the right: one proposal, edited in place
+  async function openProposalPanel(id, keepConfirm) {
+    if (PRK.kind !== 'proposal' || $('proposals-list').hidden || !PRX.rows.length) { setKind('proposal'); await loadProposals(); }
+    PRX.open = isNaN(+id) ? id : +id; if (!keepConfirm) PRX.confirm = null;
+    const row = prxFind(PRX.open);
+    if (row && row.archived) { PRX.open = null; prPdf(row); return; }
+    try { PRX.detail = (await api('/proposals/' + encodeURIComponent(id), null, true)).data; }
+    catch (e) { toast(e.message, true); PRX.open = null; return; }
+    prxDraw(); prxDrawer();
+  }
+  function prxClose() {
+    PRX.open = null; PRX.detail = null; PRX.confirm = null; if (PRX.edit && PRX.edit.drawer) { PRX.edit = null; PRX.err = ''; }
+    $('prx-drawer').hidden = $('prx-scrim').hidden = true;
+    if (/^#proposals\/\d+$/.test(location.hash)) history.replaceState(null, '', '#proposals');
+    prxDraw();
+  }
+  function prxDrawer() {
+    const p = PRX.detail; if (!p) return;
+    $('prx-drawer').hidden = $('prx-scrim').hidden = false;
+    const st = prxSt(p), studio = p.layout === 'ssc', revisable = ['sent', 'viewed', 'declined'].includes(p.status);
+    const pending = (p.revisions || []).find(r => r.status === 'pending' && r.proposal_id === p.id);
+    const canDel = p.status === 'draft' || (PRX.admin && !['signed', 'deleted'].includes(p.status));
+    const versions = PRX.rows.concat(PRX.deleted).filter(o => !o.archived && o.estimate_id === p.estimate_id).sort((a, b) => b.version - a.version);
+    const a = p.amounts || { total: p.price, deposit: p.deposit_amount, deposit_pct: p.deposit_pct };
+    const docHref = studio ? `/proposal-studio#p/${p.id}` : `#proposals/${p.id}/page`;
+    const acts = p.status === 'deleted' ? (PRX.admin ? `<button type="button" class="btn-primary btn-sm" data-prx-restore="${p.id}">Restore</button>` : '') :
+      `<a class="${p.status === 'draft' ? 'btn-primary' : 'btn-ghost'} btn-sm" href="${docHref}">${p.status === 'draft' ? 'Edit the document' : 'Open the document'}</a>` +
+      `<button type="button" class="btn-ghost btn-sm" data-prx-act="pdf">PDF</button>` +
+      (p.status === 'draft' ? `<a class="btn-ghost btn-sm" href="${studio ? `/proposal-studio#p/${p.id}/send` : `#proposals/${p.id}/page`}">Send…</a><button type="button" class="btn-ghost btn-sm" data-prx-act="marksent">Mark as sent</button>` : '') +
+      (revisable && !pending ? `<button type="button" class="btn-ghost btn-sm" data-prx-act="${PRX.admin ? 'version' : 'revise'}">${PRX.admin ? 'New version' : 'Request a revision'}</button>` : '') +
+      (canDel ? `<button type="button" class="btn-ghost btn-sm prx-danger" data-prx-askdel>Delete</button>` : '');
+    const conf = PRX.confirm === p.id ? `<div class="prx-confirm" role="alert"><b>Delete proposal ${esc(prxNo(p))}?</b>
+        <span>${p.status === 'draft' ? 'The draft is removed for good.' : 'It disappears from every list and count, the client portal and the client’s link, so only the latest proposal shows. An admin can bring it back from <b>Deleted</b>: the record and its PDF are kept.'}</span>
+        <span class="b"><button type="button" class="btn-primary btn-sm" style="background:#A8382B;border-color:#A8382B" data-prx-del>Delete ${esc(prxNo(p))}</button><button type="button" class="btn-ghost btn-sm" data-prx-noconf>Keep it</button></span></div>` : '';
+    const ev = (p.events || []).slice().reverse();
+    const rv = (p.revisions || []);
+    $('prx-drawer').innerHTML = `<div class="prx-dh">
+        <div class="r1"><div style="display:flex;gap:8px;align-items:center;min-width:0;flex-wrap:wrap">${prxEditable(p, 'number', esc(prxNo(p)), 'prx-no ' + st, true)}<span class="prx-st ${st}">${PRX_WORD[st] || esc(st)}${p.version > 1 ? ' · version ' + p.version : ''}</span>${prExpiry(p)}</div>
+          <button type="button" class="prx-close" data-prx-close aria-label="Close">×</button></div>
+        <h2>${prxEditable(p, 'title', esc(p.title || 'Proposal'), 'prx-t', true)}</h2>
+        <div class="prx-acts">${acts}</div>
+      </div>
+      <div class="prx-db">
+        ${conf}
+        ${p.status === 'deleted' ? `<div class="prx-confirm" style="border-color:var(--line,#eceef3);background:var(--fill,#f3f5f9)">Deleted ${fmtDate(p.deleted_at)}. It was ${esc(PRX_WORD[p.deleted_from] || p.deleted_from || 'sent')}. Hidden from every list, count and the client.</div>` : ''}
+        <div class="prx-total"><span class="prx-sub" style="font-size:13px;white-space:normal">Base bid total${a.deposit ? ` · deposit ${money2.format(a.deposit)} (${a.deposit_pct}%)` : ''}</span><b>${money2.format(a.total || 0)}</b></div>
+        <div class="prx-sec"><h3>Details</h3><div class="prx-fields">
+          <span>Client</span><div>${p.client_org_id ? `<a class="cp-link" href="#clients/${p.client_org_id}">${esc(p.client_name || '')}</a>` : esc(p.client_name || '')}</div>
+          <span>${p.sent_at ? 'Sent to' : 'Goes to'}</span><div>${prxEditable(p, 'recipient', p.recipient_email ? `${esc(p.recipient_name || '')} <span class="prx-sub" style="display:inline">${esc(p.recipient_email)}</span>` : '<span class="prx-ro">nobody yet</span>', 'prx-t', true)}</div>
+          <span>Address</span><div><span class="prx-t">${esc(p.building_name || p.building_address || '—')}</span></div>
+          <span>Valid until</span><div>${prxEditable(p, 'valid_until', fmtDate(p.valid_until), 'prx-t', true)}</div>
+          <span>Sent</span><div>${p.sent_at ? fmtDate(p.sent_at) : '<span class="prx-ro">not yet</span>'}</div>
+          <span>Total</span><div><span>${money2.format(a.total || 0)}</span><span class="prx-ro">from the price lines${p.status === 'draft' ? ' · change them in the document' : ''}</span></div>
+          <span>Estimate</span><div><a class="cp-link" href="#proposals/estimate/${p.estimate_id}">${esc(p.estimate_code || '')}</a><span class="prx-ro">${esc(p.estimate_status || '')}</span></div>
+        </div></div>
+        ${rv.length ? `<div class="prx-sec"><h3>Revisions</h3>${rv.map(r => `<div class="prx-ver" style="cursor:default;flex-direction:column;align-items:stretch;gap:4px">
+            <div style="display:flex;justify-content:space-between;gap:8px"><b>${r.price_review ? 'Price review' : 'Revision'}</b><span class="cp-pill ${RV_PILL[r.status] || ''}">${esc(RV_WORD[r.status] || r.status)}</span></div>
+            <div>${esc(r.reason)}${r.proposed_price ? ` · proposed <b>${money2.format(r.proposed_price)}</b>` : ''}</div>
+            <div class="prx-sub" style="white-space:normal">${esc(r.requested_by_name || '')} · ${fmtWhen(r.requested_at)}${r.decision_note ? ` · “${esc(r.decision_note)}”` : ''}</div>
+            ${r.status === 'pending' && r.proposal_id === p.id && PRX.admin ? `<div style="display:flex;gap:6px"><button class="btn-primary btn-sm" type="button" data-prx-rv="approve" data-id="${r.id}">Approve</button><button class="btn-ghost btn-sm" type="button" data-prx-rv="reject" data-id="${r.id}">Reject</button></div>` : ''}</div>`).join('')}</div>` : ''}
+        ${versions.length > 1 ? `<div class="prx-sec"><h3>Versions</h3><div style="display:flex;flex-direction:column;gap:6px">${versions.map(o => `<div class="prx-ver" data-prx-go="${o.id}" role="button" tabindex="0"><span><span class="prx-no ${prxSt(o)}">${esc(prxNo(o))}</span> <span class="prx-sub" style="display:inline">v${o.version} · ${PRX_WORD[prxSt(o)] || o.status}${o.sent_at ? ' ' + fmtDate(o.sent_at) : ''}</span></span><span class="prx-num">${o.price != null ? money2.format(o.price) : ''}</span></div>`).join('')}</div></div>` : ''}
+        <div class="prx-sec"><h3>Timeline</h3>${ev.length ? `<ul class="prx-tl">${ev.map(x => `<li><time>${fmtDate(x.at)}</time><span>${esc((x.event || '').replace(/_/g, ' '))}${x.detail ? ' · ' + esc(x.detail) : ''}</span></li>`).join('')}</ul>` : '<span class="prx-ro">Nothing yet</span>'}</div>
+        <a class="cp-link" href="#proposals/${p.id}/page" style="font-size:13px">Full page: Claude conversations and emails about this proposal →</a>
+      </div>`;
+    prxFocus();
+  }
+  // after a modal on the proposal changed it: the panel (or the full page) shows the new state
+  function prAfter(id) { if (PRX.open != null && String(PRX.open) === String(id)) prxRefresh(id); else loadProposalDetail(id); }
+  async function prxRefresh(id) { await loadProposalList(); if (id != null && prxFind(id)) await openProposalPanel(id, true); else prxClose(); }
+
+  // ---------- editing in place
+  function prxStartEdit(id, field, drawer) {
+    const r = drawer && PRX.detail && String(PRX.detail.id) === String(id) ? PRX.detail : prxFind(id); if (!r) return;
+    PRX.err = '';
+    PRX.edit = { id: r.id, field, drawer: !!drawer, value: field === 'number' ? (r.label || '').split('-')[0] : field === 'recipient'
+      ? (r.recipient_email ? `${r.recipient_name || ''} <${r.recipient_email}>`.trim() : '') : field === 'valid_until' ? (r.valid_until || '').slice(0, 10) : (r[field] || '') };
+    prxDraw(); if (PRX.detail) prxDrawer();
+  }
+  function prxCancel() { PRX.edit = null; PRX.err = ''; prxDraw(); if (PRX.detail) prxDrawer(); }
+  async function prxSave() {
+    if (!PRX.edit || PRX.busy) return;
+    const e = PRX.edit, inp = $('prx-inl'), value = e.field === 'valid_until' ? (dateGet(inp) || inp.value) : inp.value;
+    PRX.busy = true;
+    try {
+      await api('/proposals/' + e.id + '/record', { method: 'PATCH', body: JSON.stringify({ field: e.field, value }) }, true);
+      PRX.edit = null; PRX.err = '';
+      toast(e.field === 'number' ? 'Number changed' : 'Saved');
+      await prxRefresh(PRX.open);
+      if (PRX.open == null) prxDraw();
+    } catch (x) { PRX.err = x.message; PRX.edit.value = value; prxDraw(); if (PRX.detail) prxDrawer(); }
+    finally { PRX.busy = false; }
+  }
+
+  // ---------- actions (row menu + panel)
+  async function prxAct(id, act) {
+    const r = PRX.detail && String(PRX.detail.id) === String(id) ? PRX.detail : prxFind(id); if (!r) return;
+    if (act === 'pdf') { prPdf(r); return; }
+    if (act === 'open') { location.hash = '#proposals/' + id; return; }
+    if (act === 'marksent') {
+      $('pr-sent-form').dataset.id = r.id; $('pr-sent-name').value = r.recipient_name || r.contact_name || ''; $('pr-sent-email').value = r.recipient_email || r.contact_email || '';
+      $('pr-sent-how').value = ''; dateSet($('pr-sent-date'), todayLocal()); $('pr-sent-err').className = 'cp-form-err'; $('pr-sent-overlay').classList.add('open'); return;
+    }
+    if (act === 'revise') { prRevision('request', r.id); return; }
+    if (act === 'version') {
+      try { const { data } = await api('/proposal-studio/' + r.id + '/new-version', { method: 'POST', body: '{}' }, true);
+        toast(`Version ${data.number} is ready to edit. ${prxNo(r)} stays with the client until it is sent`); location.hash = '#proposals/' + data.id; }
+      catch (x) { toast(x.message, true); }
+      return;
+    }
+    if (act === 'delete') {
+      if (r.status === 'draft') { PRX.open = r.id; PRX.confirm = r.id; await openProposalPanel(r.id, true); return; }
+      PRX.confirm = r.id; await openProposalPanel(r.id, true); return;
+    }
+    if (act === 'restore') {
+      try { await api('/proposals/' + r.id + '/restore', { method: 'POST', body: '{}' }, true); toast(`${prxNo(r)} restored`); PRX.f = 'latest'; await prxRefresh(r.id); }
+      catch (x) { toast(x.message, true); }
+    }
+  }
+  async function prxDelete() {
+    const p = PRX.detail; if (!p) return;
+    try {
+      const { data } = await api('/proposals/' + p.id, { method: 'DELETE' }, true);
+      const was = prxNo(p); prxClose(); await loadProposalList();
+      toast(data.hidden ? `${was} deleted. An admin can restore it from Deleted` : `Draft ${was} deleted`);
+    } catch (x) { toast(x.message, true); }
+  }
+  function prxMenu(btn, id) {
+    prxCloseMenu(); const r = prxFind(id); if (!r) return;
+    const m = document.createElement('div'); m.className = 'prx-menu'; m.setAttribute('role', 'menu'); m.dataset.for = id;
+    const revisable = ['sent', 'viewed', 'declined'].includes(r.status);
+    const canDel = !r.archived && (r.status === 'draft' || (PRX.admin && !['signed', 'deleted'].includes(r.status)));
+    m.innerHTML = r.archived ? `<button type="button" role="menuitem" data-m="pdf">Open the PDF</button>` :
+      r.status === 'deleted' ? (PRX.admin ? `<button type="button" role="menuitem" data-m="restore">Restore</button>` : '') + `<button type="button" role="menuitem" data-m="open">Open</button>` :
+      `<button type="button" role="menuitem" data-m="open">Open</button><button type="button" role="menuitem" data-m="number">Edit the number</button>` +
+      `<button type="button" role="menuitem" data-m="pdf">View the PDF</button>` +
+      (r.status === 'draft' ? `<button type="button" role="menuitem" data-m="marksent">Mark as sent</button>` : '') +
+      (revisable ? `<button type="button" role="menuitem" data-m="${PRX.admin ? 'version' : 'revise'}">${PRX.admin ? 'New version' : 'Request a revision'}</button>` : '') +
+      (canDel ? `<hr><button type="button" role="menuitem" class="d" data-m="delete">Delete${r.status === 'draft' ? ' draft' : '…'}</button>` : '');
+    document.body.appendChild(m);
+    const b = btn.getBoundingClientRect();
+    m.style.top = (window.scrollY + b.bottom + 4) + 'px'; m.style.left = Math.max(8, window.scrollX + b.right - m.offsetWidth) + 'px';
+    const first = m.querySelector('button'); if (first) first.focus();
+  }
+  function prxCloseMenu() { const m = document.querySelector('.prx-menu'); if (m) m.remove(); }
+  document.addEventListener('click', async e => {
+    const t = e.target;
+    if (!t.closest('.prx-menu') && !t.closest('[data-prx-menu]')) prxCloseMenu();
+    const mi = t.closest('.prx-menu [data-m]');
+    if (mi) { const id = mi.parentNode.dataset.for, m = mi.dataset.m; prxCloseMenu(); if (m === 'number') prxStartEdit(id, 'number'); else prxAct(id, m); return; }
+    if (!t.closest('#pr-list, #pr-chips, #prx-drawer, #prx-scrim')) return;
+    const f = t.closest('[data-prx-f]'); if (f) { PRX.f = f.dataset.prxF; PRX.edit = null; prxDraw(); return; }
+    if (t.closest('[data-prx-save]')) { prxSave(); return; }
+    if (t.closest('[data-prx-cancel]')) { prxCancel(); return; }
+    const pen = t.closest('[data-prx-pen]'); if (pen) { prxStartEdit(pen.dataset.id, pen.dataset.prxPen, pen.dataset.drawer === '1'); return; }
+    const mb = t.closest('[data-prx-menu]'); if (mb) { prxMenu(mb, mb.dataset.prxMenu); return; }
+    const old = t.closest('[data-prx-older]'); if (old) { const k = +old.dataset.prxOlder; PRX.openOld.has(k) ? PRX.openOld.delete(k) : PRX.openOld.add(k); prxDraw(); return; }
+    if (t.closest('[data-prx-stop]')) return;
+    if (t.closest('[data-prx-close]') || t === $('prx-scrim')) { prxClose(); return; }
+    if (t.closest('[data-prx-askdel]')) { PRX.confirm = PRX.detail.id; prxDrawer(); return; }
+    if (t.closest('[data-prx-noconf]')) { PRX.confirm = null; prxDrawer(); return; }
+    if (t.closest('[data-prx-del]')) { prxDelete(); return; }
+    const rs = t.closest('[data-prx-restore]'); if (rs) { prxAct(rs.dataset.prxRestore, 'restore'); return; }
+    const rv = t.closest('[data-prx-rv]'); if (rv) { prRevision(rv.dataset.prxRv, +rv.dataset.id, PRX.detail.id); return; }
+    const ac = t.closest('[data-prx-act]'); if (ac) { prxAct(PRX.detail.id, ac.dataset.prxAct); return; }
+    const go = t.closest('[data-prx-go]'); if (go) { location.hash = '#proposals/' + go.dataset.prxGo; return; }
+    if (t.closest('a, button, input')) return;
+    const row = t.closest('[data-prx-open]');
+    if (row && !PRX.edit) { const r = prxFind(row.dataset.prxOpen); if (r && r.archived) prPdf(r); else location.hash = '#proposals/' + row.dataset.prxOpen; }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.target && e.target.id === 'prx-inl') { if (e.key === 'Enter') { e.preventDefault(); prxSave(); } if (e.key === 'Escape') { e.stopPropagation(); prxCancel(); } return; }
+    if (e.key === 'Escape') { prxCloseMenu(); if (PRX.open != null && !$('prx-drawer').hidden && !document.querySelector('.cp-overlay.open')) prxClose(); }
+    if (e.key === 'Enter' && e.target && e.target.matches && e.target.matches('[data-prx-open], [data-prx-go]')) { e.preventDefault(); e.target.click(); }
+  });
   // ---------- Estimates / Bids / Proposals: one list, a type dropdown (2026-10-14; the Pipeline sub-tab is gone) ----------
   // A bid is an estimate whose inquiry kind is 'bid'; "Estimates" lists every other estimate.
   const PRK = { kind: 'proposal', ui: null };
   const PRK_ALIAS = { estimates: 'estimate', bids: 'bid', proposals: 'proposal' };
-  const PRK_NEW = { proposal: '+ New proposal', estimate: '+ New estimate', bid: '+ New bid' };
+  const PRK_NEW = { proposal: '', estimate: '+ New estimate', bid: '+ New bid' };   // proposals: with Claude / in Proposal Studio only
   const PRK_STATUS = {
     proposal: [['', 'All, including before the app'], ['draft', 'Draft'], ['sent', 'Sent'], ['viewed', 'Viewed'], ['signed', 'Signed'], ['declined', 'Declined'], ['superseded', 'Superseded'], ['archived', 'Before the app']],
     estimate: [['', 'Open'], ['intake', 'Intake'], ['scoping', 'Estimating'], ['submitted', 'Submitted'], ['approved', 'Approved'], ['lost', 'Lost'], ['converted', 'Became a project'], ['all', 'All, including closed']],
@@ -3532,15 +3849,18 @@
   PRK_STATUS.bid = PRK_STATUS.estimate;
   const EST_LABEL = { intake: 'intake', scoping: 'estimating', submitted: 'submitted', approved: 'approved', lost: 'lost', converted: 'project' };
   const EST_PILL = { intake: '', scoping: 'active', submitted: 'warn', approved: 'ok', lost: 'bad', converted: 'ok' };
-  try { const k = localStorage.getItem('ssc.proposals.kind'); if (PRK_NEW[k]) PRK.kind = k; } catch (e) {}
+  try { const k = localStorage.getItem('ssc.proposals.kind'); if (k in PRK_NEW) PRK.kind = k; } catch (e) {}
   function setKind(k) {
-    if (!PRK_NEW[k]) return;
+    if (!(k in PRK_NEW)) return;
     PRK.kind = k;
     try { localStorage.setItem('ssc.proposals.kind', k); } catch (e) {}
   }
   function syncKindUi() {
-    $('pr-kind').value = PRK.kind;
-    $('pr-new').textContent = PRK_NEW[PRK.kind];
+    document.querySelectorAll('#pr-kind [data-kind]').forEach(b => { b.classList.toggle('on', b.dataset.kind === PRK.kind); b.setAttribute('aria-selected', String(b.dataset.kind === PRK.kind)); });
+    const prop = PRK.kind === 'proposal';
+    $('pr-new').hidden = prop; $('pr-new').textContent = PRK_NEW[PRK.kind];
+    $('pr-status').hidden = prop; $('pr-chips').hidden = $('pr-list').hidden = !prop; $('pr-table-wrap').hidden = prop;
+    if (!prop) { $('prx-drawer').hidden = $('prx-scrim').hidden = true; PRX.open = null; }
     $('pr-search').placeholder = PRK.kind === 'proposal' ? 'Search number, title, client or address…' : 'Search number, client or address…';
     if (PRK.ui !== PRK.kind) {
       $('pr-status').innerHTML = PRK_STATUS[PRK.kind].map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
@@ -3562,6 +3882,55 @@
     syncKindUi();
     return PRK.kind === 'proposal' ? loadProposalList() : loadEstimateList(PRK.kind);
   }
+  // ---------- pencils on the estimates / bids list (2026-10-23): address, amount, bid due date, status, saved in place
+  const EST = { rows: [], edit: null, err: '', draw: null, busy: false };
+  const EST_FIELD = { building_address: 'address', final_amount: 'amount', bid_due_date: 'bid due date', status: 'status' };
+  function estEditable(r, field, html) {
+    if (EST.edit && EST.edit.id === r.id && EST.edit.field === field) {
+      const v = esc(EST.edit.value);
+      const input = field === 'status'
+        ? `<select id="est-inl" aria-label="Status"><option value="">${esc(EST_LABEL[r.status] || r.status)} (now)</option>${(r.next_statuses || []).map(x => `<option value="${x}">${esc(EST_LABEL[x] || x)}</option>`).join('')}</select>`
+        : field === 'bid_due_date' ? `<input id="est-inl" type="date" value="${v}" aria-label="Bid due date">`
+        : `<input id="est-inl" value="${v}" aria-label="${EST_FIELD[field]}" ${field === 'final_amount' ? 'inputmode="decimal"' : ''}>`;
+      return `<span class="prx-inl">${input}<button type="button" class="ok" data-est-save>Save</button><button type="button" class="x" data-est-cancel aria-label="Cancel">Esc</button></span>${EST.err ? `<div class="prx-ierr" role="alert">${esc(EST.err)}</div>` : ''}`;
+    }
+    const can = r.status !== 'converted' && (field !== 'status' || (r.next_statuses || []).length);
+    return `<span class="prx-ed"><span>${html}</span>${can ? `<button type="button" class="prx-pen" data-est-pen="${field}" data-id="${r.id}" aria-label="Edit the ${EST_FIELD[field]}" title="Edit">${PRX_PEN}</button>` : ''}</span>`;
+  }
+  function estFocus() {
+    const i = $('est-inl'); if (!i) return;
+    if (EST.edit && EST.edit.field === 'bid_due_date') setTimeout(() => { dateSet(i, EST.edit && EST.edit.value); i.focus(); }, 0);
+    else { i.focus(); if (i.select) i.select(); }
+  }
+  async function estSave() {
+    if (!EST.edit || EST.busy) return;
+    const e = EST.edit, i = $('est-inl');
+    let v = e.field === 'bid_due_date' ? (dateGet(i) || i.value) : i.value;
+    if (e.field === 'status' && !v) { EST.edit = null; EST.err = ''; EST.draw(); return; }
+    EST.busy = true;
+    try {
+      if (e.field === 'status') await api('/estimates/' + e.id + '/status', { method: 'POST', body: JSON.stringify({ status: v }) }, true);
+      else {
+        if (e.field === 'final_amount') v = String(v).replace(/[$,\s]/g, '');
+        await api('/estimates/' + e.id, { method: 'PUT', body: JSON.stringify({ [e.field]: v === '' ? null : v }) }, true);
+      }
+      EST.edit = null; EST.err = ''; toast('Saved'); await loadEstimateList(EST.kind);
+    } catch (x) { EST.err = x.message; EST.edit.value = e.field === 'status' ? '' : v; EST.draw(); estFocus(); }
+    finally { EST.busy = false; }
+  }
+  $('pr-table').addEventListener('click', e => {
+    const t = e.target, pen = t.closest('[data-est-pen]');
+    if (pen) { e.stopPropagation(); const r = EST.rows.find(x => String(x.id) === pen.dataset.id); if (!r) return;
+      EST.err = ''; EST.edit = { id: r.id, field: pen.dataset.estPen, value: pen.dataset.estPen === 'status' ? '' : (r[pen.dataset.estPen] == null ? '' : String(r[pen.dataset.estPen])) };
+      EST.draw(); estFocus(); return; }
+    if (t.closest('[data-est-save]')) { e.stopPropagation(); estSave(); return; }
+    if (t.closest('[data-est-cancel]')) { e.stopPropagation(); EST.edit = null; EST.err = ''; EST.draw(); }
+  }, true);
+  $('pr-table').addEventListener('keydown', e => {
+    if (!e.target || e.target.id !== 'est-inl') return;
+    if (e.key === 'Enter') { e.preventDefault(); estSave(); }
+    if (e.key === 'Escape') { e.stopPropagation(); EST.edit = null; EST.err = ''; EST.draw(); }
+  });
   async function loadEstimateList(kind) {
     skeleton($('pr-kpis'), 4);
     try {
@@ -3591,19 +3960,21 @@
       const rows = mine.filter(e => st === 'all' ? true : st ? e.status === st : !['lost', 'converted'].includes(e.status))
         .filter(e => !q || [e.code, e.org_name, e.building_address, e.type_label].join(' ').toLowerCase().includes(q));
       const word = kind === 'bid' ? 'bid' : 'estimate';
-      table($('pr-table'), [
+      EST.rows = rows; EST.kind = kind; EST.cc = cc;
+      EST.draw = () => table($('pr-table'), [
         { key: 'code', label: kind === 'bid' ? 'Bid' : 'Estimate', render: r => `<a class="cp-link cp-id" href="#proposals/estimate/${r.id}">${esc(r.code)}</a>` },
         { key: 'org_name', label: 'Client', render: r => `<a class="cp-link" href="#clients/${r.client_org_id}">${esc(r.org_name || '')}</a>` },
-        { key: 'building_address', label: 'Address', render: r => esc(r.building_address || '—') },
+        { key: 'building_address', label: 'Address', render: r => estEditable(r, 'building_address', esc(r.building_address || '—')) },
         { key: 'type_label', label: 'Job type' },
-        { key: 'status', label: 'Status', render: estPill },
-        kind === 'bid' ? { key: 'bid_due_date', label: 'Bid due', render: dueCell, sortVal: r => r.bid_due_date || '9999-12-31' } : { key: 'age_days', label: 'In this stage', num: true, render: r => r.age_days != null ? `${num.format(r.age_days)} d` : '—' },
-        { key: 'final_amount', label: 'Amount', num: true, render: r => r.final_amount != null ? money.format(r.final_amount) : '—' },
+        { key: 'status', label: 'Status', render: r => estEditable(r, 'status', estPill(r)) },
+        kind === 'bid' ? { key: 'bid_due_date', label: 'Bid due', render: r => estEditable(r, 'bid_due_date', dueCell(r)), sortVal: r => r.bid_due_date || '9999-12-31' } : { key: 'age_days', label: 'In this stage', num: true, render: r => r.age_days != null ? `${num.format(r.age_days)} d` : '—' },
+        { key: 'final_amount', label: 'Amount', num: true, render: r => estEditable(r, 'final_amount', r.final_amount != null ? money.format(r.final_amount) : '—') },
         { key: 'updated_at', label: 'Updated', render: r => fmtDate(r.updated_at) },
         { key: 'claude', label: '', render: r => claudeChip(cc, r.id), sortVal: r => cc[r.id] || 0 },
       ], rows, { defaultSort: kind === 'bid' ? { key: 'bid_due_date', dir: 'asc' } : { key: 'updated_at', dir: 'desc' },
         emptyTitle: st || q ? `No ${word}s match` : `No open ${word}s`, emptySub: `Use "${PRK_NEW[kind]}" to add one.`,
-        onRow: r => { location.hash = '#proposals/estimate/' + r.id; } });
+        onRow: r => { if (!EST.edit) location.hash = '#proposals/estimate/' + r.id; } });
+      EST.draw(); estFocus();
     } catch (e) { toast(e.message, true); }
   }
   // one estimate or bid: its facts, documents and proposals, with Claude on the right
@@ -4009,44 +4380,25 @@
       if (mode === 'request') {
         await api('/proposals/' + f.dataset.id + '/revisions', { method: 'POST', body: JSON.stringify({ reason: $('pr-rv-text').value, price_review: $('pr-rv-price').checked,
           proposed_price: $('pr-rv-price').checked ? $('pr-rv-amount').value : null }) }, true);
-        closeOverlay('pr-rv-overlay'); toast('Sent to the admins for approval'); loadProposalDetail(f.dataset.back);
+        closeOverlay('pr-rv-overlay'); toast('Sent to the admins for approval'); prAfter(f.dataset.back);
       } else {
         const { data: r } = await api('/proposals/revisions/' + f.dataset.id + '/' + mode, { method: 'POST', body: JSON.stringify({ note: $('pr-rv-text').value }) }, true);
         closeOverlay('pr-rv-overlay'); toast(mode === 'approve' ? 'Approved. The new version is ready to edit' : 'Rejected');
-        if (mode === 'approve' && r.new_proposal_id) location.hash = '#proposals/' + r.new_proposal_id; else loadProposalDetail(f.dataset.back);
+        if (mode === 'approve' && r.new_proposal_id) location.hash = '#proposals/' + r.new_proposal_id; else prAfter(f.dataset.back);
       }
     } catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
     finally { $('pr-rv-go').disabled = false; }
   });
 
-  // new-proposal modal
-  async function openNewProposal() {
-    const sel = $('pr-new-est'); sel.innerHTML = '<option value="">Loading…</option>'; $('pr-new-err').className = 'cp-form-err';
-    $('pr-new-overlay').classList.add('open');
-    try {
-      const { data } = await api('/estimates', null, true);
-      const rows = ((data && data.estimates) || []).filter(e => !['lost', 'converted'].includes(e.status)).sort((a, b) => a.code.localeCompare(b.code));
-      sel.innerHTML = '<option value="">— choose an estimate —</option>' + rows.map(e => `<option value="${e.id}">${esc(e.code)} · ${esc(e.org_name || '')} · ${esc(e.building_address || 'no address')}${e.final_amount ? ' · ' + money.format(e.final_amount) : ''} (${esc(e.status)})</option>`).join('');
-      if (!rows.length) sel.innerHTML = '<option value="">No open estimates — open one in Estimating first</option>';
-    } catch (e) { sel.innerHTML = '<option value="">Could not load estimates</option>'; }
-  }
   function closeOverlay(id) { $(id).classList.remove('open'); }
-  $('pr-new').addEventListener('click', () => PRK.kind === 'proposal' ? openNewProposal() : openNewEstimate(PRK.kind));
-  $('pr-new-cancel').addEventListener('click', () => closeOverlay('pr-new-overlay'));
-  $('pr-new-form').addEventListener('submit', async (e) => {
-    e.preventDefault(); const v = $('pr-new-est').value; const err = $('pr-new-err'); err.className = 'cp-form-err';
-    if (!v) { err.textContent = 'Pick an estimate.'; err.className = 'cp-form-err show'; return; }
-    $('pr-new-go').disabled = true;
-    try { const { data } = await api('/proposals', { method: 'POST', body: JSON.stringify({ estimate_id: Number(v) }) }, true); closeOverlay('pr-new-overlay'); toast(`Draft ${data.label || data.number} created`); if (data.layout === 'ssc') location.href = '/proposal-studio#p/' + data.id; else location.hash = '#proposals/' + data.id; }
-    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
-    finally { $('pr-new-go').disabled = false; }
-  });
+  // proposals are made with Claude / in Proposal Studio (2026-10-23); + New is for estimates and bids
+  $('pr-new').addEventListener('click', () => openNewEstimate(PRK.kind));
   $('pr-send-cancel').addEventListener('click', () => closeOverlay('pr-send-overlay'));
   $('pr-send-form').addEventListener('submit', async (e) => {
     e.preventDefault(); const err = $('pr-send-err'); err.className = 'cp-form-err'; const id = $('pr-send-form').dataset.id;
     const email = $('pr-send-email').value.trim(); if (!email.includes('@')) { err.textContent = 'A valid recipient email is required.'; err.className = 'cp-form-err show'; return; }
     $('pr-send-go').disabled = true; $('pr-send-go').textContent = 'Sending…';
-    try { await api('/proposals/' + id + '/send', { method: 'POST', body: JSON.stringify({ to_email: email, to_name: $('pr-send-name').value.trim(), message: $('pr-send-msg').value }) }, true); closeOverlay('pr-send-overlay'); toast('Proposal sent'); loadProposalDetail(id); }
+    try { await api('/proposals/' + id + '/send', { method: 'POST', body: JSON.stringify({ to_email: email, to_name: $('pr-send-name').value.trim(), message: $('pr-send-msg').value }) }, true); closeOverlay('pr-send-overlay'); toast('Proposal sent'); prAfter(id); }
     catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
     finally { $('pr-send-go').disabled = false; $('pr-send-go').textContent = 'Send'; }
   });
@@ -4055,7 +4407,7 @@
     e.preventDefault(); const err = $('pr-sent-err'); err.className = 'cp-form-err'; const id = $('pr-sent-form').dataset.id;
     $('pr-sent-go').disabled = true;
     try { await api('/proposals/' + id + '/mark-sent', { method: 'POST', body: JSON.stringify({ sent_on: dateGet($('pr-sent-date')) || null, to_name: $('pr-sent-name').value.trim(),
-        to_email: $('pr-sent-email').value.trim(), how: $('pr-sent-how').value.trim() }) }, true); closeOverlay('pr-sent-overlay'); toast('Marked as sent'); loadProposalDetail(id); }
+        to_email: $('pr-sent-email').value.trim(), how: $('pr-sent-how').value.trim() }) }, true); closeOverlay('pr-sent-overlay'); toast('Marked as sent'); prAfter(id); }
     catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
     finally { $('pr-sent-go').disabled = false; }
   });
@@ -4063,12 +4415,12 @@
   $('pr-sign-form').addEventListener('submit', async (e) => {
     e.preventDefault(); const err = $('pr-sign-err'); err.className = 'cp-form-err'; const id = $('pr-sign-form').dataset.id;
     $('pr-sign-go').disabled = true;
-    try { await api('/proposals/' + id + '/mark-signed', { method: 'POST', body: JSON.stringify({ name: $('pr-sign-name').value.trim(), signed_on: dateGet($('pr-sign-date')) || null }) }, true); closeOverlay('pr-sign-overlay'); toast('Recorded as signed'); loadProposalDetail(id); }
+    try { await api('/proposals/' + id + '/mark-signed', { method: 'POST', body: JSON.stringify({ name: $('pr-sign-name').value.trim(), signed_on: dateGet($('pr-sign-date')) || null }) }, true); closeOverlay('pr-sign-overlay'); toast('Recorded as signed'); prAfter(id); }
     catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
     finally { $('pr-sign-go').disabled = false; }
   });
-  ['pr-new-overlay', 'pr-send-overlay', 'pr-sign-overlay', 'pr-rv-overlay', 'pr-sent-overlay'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target === $(id)) closeOverlay(id); }));
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ['pr-new-overlay', 'pr-send-overlay', 'pr-sign-overlay', 'pr-rv-overlay', 'pr-sent-overlay'].forEach(closeOverlay); });
+  ['pr-send-overlay', 'pr-sign-overlay', 'pr-rv-overlay', 'pr-sent-overlay'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target === $(id)) closeOverlay(id); }));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ['pr-send-overlay', 'pr-sign-overlay', 'pr-rv-overlay', 'pr-sent-overlay'].forEach(closeOverlay); });
 
   // ---------- FINANCE ----------
   async function loadFinance() {
@@ -5251,7 +5603,7 @@
     $('cp-title').textContent = TITLES[v];
     if (v === 'finance') $('inv-status').value = ['overdue', 'draft', 'issued', 'paid', 'void'].includes(arg) ? arg : '';
     if (v === 'calendar' && arg && /^\d{4}-\d{2}-\d{2}$/.test(arg)) { CAL.anchor = calParse(arg); loadCalendar(); }
-    if (v === 'inbox') loadInbox(arg); else if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'proposals' && arg === 'estimate' && h.split('/')[2]) loadEstimateDetail(h.split('/')[2]); else if (v === 'proposals' && PRK_ALIAS[arg]) { setKind(PRK_ALIAS[arg]); location.replace('#proposals'); } else if (v === 'proposals' && arg) loadProposalDetail(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
+    if (v === 'inbox') loadInbox(arg); else if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'proposals' && arg === 'estimate' && h.split('/')[2]) loadEstimateDetail(h.split('/')[2]); else if (v === 'proposals' && PRK_ALIAS[arg]) { setKind(PRK_ALIAS[arg]); location.replace('#proposals'); } else if (v === 'proposals' && arg && h.split('/')[2] === 'page') loadProposalDetail(arg); else if (v === 'proposals' && arg) openProposalPanel(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);
@@ -5274,7 +5626,7 @@
   $('pj-status').addEventListener('change', loadProjects);
   $('pr-search').addEventListener('input', () => debounce(loadProposals));
   $('pr-status').addEventListener('change', loadProposals);
-  $('pr-kind').addEventListener('change', () => { setKind($('pr-kind').value); loadProposals(); });
+  $('pr-kind').addEventListener('click', e => { const b = e.target.closest('[data-kind]'); if (!b) return; setKind(b.dataset.kind); loadProposals(); });
   $('cl-type').addEventListener('change', loadClients); $('cl-inactive').addEventListener('change', loadClients);
   $('fin-months').addEventListener('change', loadFinance);
   ['ex-project', 'ex-category', 'ex-month', 'ex-source', 'ex-status'].forEach(id => $(id).addEventListener('change', loadExpenses));

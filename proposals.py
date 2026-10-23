@@ -61,7 +61,7 @@ from auth import current_user, requires_role, requires_section
 log = logging.getLogger(__name__)
 
 SECTION = "estimates"
-STATUSES = ("draft", "sent", "viewed", "signed", "declined", "superseded")
+STATUSES = ("draft", "sent", "viewed", "signed", "declined", "superseded", "deleted")   # deleted: hidden, restorable (2026-10-23)
 OPEN_STATUSES = ("sent", "viewed")            # a client can still act
 REVISABLE = ("sent", "viewed", "declined")    # a sent proposal that can get a new version (signed is final)
 REVISION_STATUSES = ("pending", "approved", "rejected", "withdrawn")
@@ -276,6 +276,9 @@ def ensure_schema(conn) -> None:
     for col, typ in STUDIO_COLUMNS:   # Proposal Studio (2026-10-20): every part of the document is editable
         if not _has_column(conn, "proposal", col):
             conn.execute(f"ALTER TABLE proposal ADD COLUMN {col} {typ}")
+    for col, typ in (("deleted_from", "TEXT"), ("deleted_at", "TEXT"), ("deleted_by", "INTEGER")):   # 2026-10-23
+        if not _has_column(conn, "proposal", col):
+            conn.execute(f"ALTER TABLE proposal ADD COLUMN {col} {typ}")
     if not _has_column(conn, "proposal_line", "lead"):   # the bold part of a line (2026-10-21)
         conn.execute("ALTER TABLE proposal_line ADD COLUMN lead TEXT")
     conn.commit()
@@ -314,7 +317,7 @@ def get(conn, proposal_id: int) -> Optional[dict]:
 def _by_token(conn, token: str) -> Optional[dict]:
     if not token or len(token) < 20 or len(token) > 128:
         return None
-    return _one(conn.execute(_JOIN + "WHERE p.token_hash = ?", (_hash(token),)))
+    return _one(conn.execute(_JOIN + "WHERE p.token_hash = ? AND p.status <> 'deleted'", (_hash(token),)))
 
 
 def lines(conn, proposal_id: int) -> list:
@@ -332,6 +335,8 @@ def list_proposals(conn, *, status=None, client_org_id=None, estimate_id=None, b
     where, params = ["1=1"], []
     if status:
         where.append("p.status = ?"); params.append(status)
+    else:   # a deleted proposal shows only under its own filter (2026-10-23)
+        where.append("p.status <> 'deleted'")
     if client_org_id:
         where.append("p.client_org_id = ?"); params.append(int(client_org_id))
     if estimate_id:
@@ -390,6 +395,7 @@ def public(r: dict) -> dict:
         "has_pdf": bool(r.get("pdf_path")), "pdf_rendered_at": r.get("pdf_rendered_at"),
         "pdf_doc_id": r.get("pdf_doc_id"),
         "editable": r["status"] == "draft",
+        "deleted_from": r.get("deleted_from"), "deleted_at": r.get("deleted_at"),
         "expires_in_days": expires_in_days(r), "revision_of": r.get("revision_of"),
         "created_at": r["created_at"], "updated_at": r["updated_at"],
     }
@@ -1284,6 +1290,125 @@ def mark_sent_outside(conn, proposal_id: int, *, actor=None, sent_on=None, to_em
     return get(conn, proposal_id)
 
 
+# ============================ keeping only the latest (2026-10-23) ============================
+# The client asked for a change and a new version went out: the old one can be deleted so only the final proposal is
+# listed. A sent proposal is never erased: it is HIDDEN (status 'deleted', the status it had kept in deleted_from), so
+# every list, count, the client portal and the client's link leave it out by status, and an admin can restore it.
+# Only admins delete a sent proposal (checked here); a signed one is the contract and is never deleted.
+
+def hide(conn, proposal_id: int, *, actor=None, actor_role: Optional[str] = None) -> dict:
+    if actor_role != "admin":
+        raise PermissionError("Only an admin can delete a proposal that was sent.")
+    r = get(conn, proposal_id)
+    if not r:
+        raise LookupError("proposal not found")
+    if r["status"] == "signed":
+        raise ValueError("A signed proposal is the contract, so it can't be deleted.")
+    if r["status"] in ("draft", "deleted"):
+        raise ValueError("Only a sent proposal is deleted this way." if r["status"] == "draft" else "It is already deleted.")
+    now = _now()
+    conn.execute("UPDATE proposal SET deleted_from = status, status = 'deleted', deleted_at = ?, deleted_by = ?, updated_at = ? "
+                 "WHERE id = ? AND status NOT IN ('signed','draft','deleted')", (now, actor, now, proposal_id))
+    conn.execute("UPDATE proposal_revision SET status = 'withdrawn', decided_by = ?, decided_at = ? "
+                 "WHERE proposal_id = ? AND status = 'pending'", (actor, now, proposal_id))
+    _event(conn, proposal_id, "deleted", actor=actor, detail=f"hidden (was {r['status']}); an admin can restore it")
+    conn.commit()
+    _activity(conn, r, f"Proposal {_label(r)} deleted (hidden; it can be restored)", actor=actor)
+    return get(conn, proposal_id)
+
+
+def restore(conn, proposal_id: int, *, actor=None, actor_role: Optional[str] = None) -> dict:
+    if actor_role != "admin":
+        raise PermissionError("Only an admin can restore a deleted proposal.")
+    r = get(conn, proposal_id)
+    if not r:
+        raise LookupError("proposal not found")
+    if r["status"] != "deleted":
+        raise ValueError("That proposal isn't deleted.")
+    back = r.get("deleted_from") or "sent"
+    conn.execute("UPDATE proposal SET status = ?, deleted_from = NULL, deleted_at = NULL, deleted_by = NULL, updated_at = ? "
+                 "WHERE id = ?", (back, _now(), proposal_id))
+    _event(conn, proposal_id, "restored", actor=actor, detail=f"back as {back}")
+    conn.commit()
+    return get(conn, proposal_id)
+
+
+RECORD_FIELDS = ("number", "title", "recipient", "valid_until")
+
+
+def edit_record(conn, proposal_id: int, field: str, value, *, actor=None) -> dict:
+    """One field edited in place (the pencils on Estimates & proposals, 2026-10-23).
+      number       the number people see (1046). Every version of the job carries it (1046, 1046-2…), so it changes on
+                   all of them; refused when another job already has it. Drafts and sent proposals alike.
+      title        drafts only (it is printed on the document).
+      recipient    "Name <email>" — who it goes / went to (the record; nothing is sent).
+      valid_until  a draft's date, or a sent one's (extends the client's link; not in the past)."""
+    r = get(conn, proposal_id)
+    if not r:
+        raise LookupError("proposal not found")
+    if field not in RECORD_FIELDS:
+        raise ValueError("That can't be edited here.")
+    if r["status"] == "deleted":
+        raise ValueError("Restore the proposal first.")
+    v = str(value if value is not None else "").strip()
+    now = _now()
+    if field == "number":
+        m = re.fullmatch(r"#?\s*(\d{1,7})(?:-\d+)?", v)
+        if not m or int(m.group(1)) < 1:
+            raise ValueError("Use digits, like 1046.")
+        n = int(m.group(1))
+        other = _one(conn.execute("SELECT p.id, p.display_no, p.version, p.number, o.name AS client_name FROM proposal p "
+                                  "JOIN crm_organization o ON o.id = p.client_org_id WHERE p.display_no = ? AND p.estimate_id <> ? "
+                                  "ORDER BY p.id LIMIT 1", (n, r["estimate_id"])))
+        if other:
+            raise ValueError(f"Proposal {n} already exists ({other['client_name']}). Pick another number.")
+        old = _label(r)
+        ids = [x["id"] for x in _rows(conn.execute("SELECT id FROM proposal WHERE estimate_id = ?", (r["estimate_id"],)))]
+        for pid in ids:
+            conn.execute("UPDATE proposal SET display_no = ?, updated_at = ? WHERE id = ?", (n, now, pid))
+        conn.commit()
+        _event(conn, proposal_id, "number_changed", actor=actor, detail=f"{old} → {_label(get(conn, proposal_id))}")
+        conn.commit()
+        return get(conn, proposal_id)
+    if field == "title":
+        if r["status"] != "draft":
+            raise ValueError("The title is printed on the sent proposal. Make a new version to change it.")
+        if not v:
+            raise ValueError("The title can't be empty.")
+        if r.get("layout") == "ssc":
+            import proposal_engine
+            return proposal_engine.save(conn, proposal_id, {"title": v[:300]}, None, actor=actor)
+        return update(conn, proposal_id, {"title": v[:300]}, actor=actor)
+    if field == "recipient":
+        from email.utils import parseaddr
+        name, addr = parseaddr(v)
+        addr = (addr or "").strip().lower()
+        if "@" not in addr or "." not in addr.split("@")[-1]:
+            raise ValueError("Write it as Name <email@company.com>.")
+        if r["status"] == "signed":
+            raise ValueError("A signed proposal's record stays as it was.")
+        conn.execute("UPDATE proposal SET recipient_email = ?, recipient_name = ?, updated_at = ? WHERE id = ?",
+                     (addr, (name or "").strip()[:120] or None, now, proposal_id))
+        _event(conn, proposal_id, "recipient_changed", actor=actor, detail=f"to {addr}")
+        conn.commit()
+        return get(conn, proposal_id)
+    # valid_until
+    d = _valid_date(v, "valid until")
+    if not d:
+        raise ValueError("Pick a date.")
+    if r["status"] == "draft":
+        return update(conn, proposal_id, {"valid_until": d}, actor=actor)
+    if r["status"] not in OPEN_STATUSES:
+        raise ValueError(f"A {r['status']} proposal's date stays as it was.")
+    if d < _today().isoformat():
+        raise ValueError("Pick today or a later date.")
+    conn.execute("UPDATE proposal SET valid_until = ?, token_expires_at = CASE WHEN token_hash IS NULL THEN token_expires_at "
+                 "ELSE ? END, updated_at = ? WHERE id = ?", (d, f"{d}T23:59:59", now, proposal_id))
+    _event(conn, proposal_id, "valid_until_changed", actor=actor, detail=f"valid until {d}")
+    conn.commit()
+    return get(conn, proposal_id)
+
+
 # ============================ revisions (2026-10-22) ============================
 # Anyone who works on proposals can ask for a revision of a SENT proposal (a scope change, or a price review a week
 # after sending). Only an ADMIN approves or rejects it — checked here, whatever the screen shows. Approval drafts the
@@ -1630,9 +1755,13 @@ def _api_list():
                               estimate_id=request.args.get("estimate_id") or None,
                               building_id=request.args.get("building_id") or None,
                               q=request.args.get("q") or None)
+        if (request.args.get("status") or "").strip() == "deleted" and _role() != "admin":
+            return _err("Only an admin can see deleted proposals.", 403)
         counts = {s: 0 for s in STATUSES}
         for x in _rows(conn.execute("SELECT status, COUNT(*) AS n FROM proposal GROUP BY status")):
             counts[x["status"]] = x["n"]
+        if _role() != "admin":
+            counts.pop("deleted", None)
         st = (request.args.get("status") or "").strip()
         if request.args.get("include") == "archive" or st == "archived":   # proposals from before the app (2026-10-21)
             import proposal_template
@@ -1699,15 +1828,55 @@ def _api_update(proposal_id):
 
 
 def _api_delete(proposal_id):
+    """A draft is removed. A sent one (admin only, 2026-10-23) is hidden: gone from every list, count, the client
+    portal and the client's link; restorable from the admin's Deleted filter."""
     conn = _conn()
     try:
         try:
+            r = get(conn, proposal_id)
+            if r and r["status"] != "draft":
+                hide(conn, proposal_id, actor=_uid(), actor_role=_role())
+                return _wrap({"deleted": proposal_id, "hidden": True})
             delete_draft(conn, proposal_id)
+        except PermissionError as e:
+            return _err(str(e), 403)
         except LookupError as e:
             return _err(str(e), 404)
         except ValueError as e:
             return _err(str(e), 409)
         return _wrap({"deleted": proposal_id})
+    finally:
+        conn.close()
+
+
+def _api_restore(proposal_id):
+    conn = _conn()
+    try:
+        try:
+            r = restore(conn, proposal_id, actor=_uid(), actor_role=_role())
+        except PermissionError as e:
+            return _err(str(e), 403)
+        except LookupError as e:
+            return _err(str(e), 404)
+        except ValueError as e:
+            return _err(str(e), 409)
+        return _wrap(_detail(conn, r))
+    finally:
+        conn.close()
+
+
+def _api_record(proposal_id):
+    """PATCH {field: number | title | recipient | valid_until, value}: one field edited in place from the list."""
+    body = request.get_json(silent=True) or {}
+    conn = _conn()
+    try:
+        try:
+            r = edit_record(conn, proposal_id, str(body.get("field") or ""), body.get("value"), actor=_uid())
+        except LookupError as e:
+            return _err(str(e), 404)
+        except ValueError as e:
+            return _err(str(e), 409 if "already" in str(e) else 400)
+        return _wrap(_detail(conn, r))
     finally:
         conn.close()
 
@@ -1885,6 +2054,8 @@ def register(app) -> None:
     app.add_url_rule("/api/proposals/<int:proposal_id>", "proposals_delete", gate(_api_delete), methods=["DELETE"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/send", "proposals_send", gate(_api_send), methods=["POST"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/new-version", "proposals_new_version", gate(_api_new_version), methods=["POST"])
+    app.add_url_rule("/api/proposals/<int:proposal_id>/restore", "proposals_restore", gate(_api_restore), methods=["POST"])
+    app.add_url_rule("/api/proposals/<int:proposal_id>/record", "proposals_record", gate(_api_record), methods=["PATCH"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/mark-sent", "proposals_mark_sent", gate(_api_mark_sent), methods=["POST"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/mark-signed", "proposals_mark_signed", gate(_api_mark_signed), methods=["POST"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/preview", "proposals_preview", gate(_api_preview), methods=["GET"])

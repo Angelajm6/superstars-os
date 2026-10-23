@@ -369,6 +369,7 @@ def est_public(row, org_name=None, contact_name=None) -> dict:
         "id": row["id"], "code": row["code"], "est_type": row["est_type"],
         "type_label": EST_TYPES.get(row["est_type"], row["est_type"]),
         "borough": row["borough"], "seq": row["seq"], "status": row["status"],
+        "next_statuses": allowed_transitions(row["status"]),   # the status pencil on Estimates & proposals (2026-10-23)
         "client_org_id": row["client_org_id"], "org_name": org_name,
         "contact_id": row["contact_id"], "contact_name": contact_name,
         "building_address": row["building_address"],

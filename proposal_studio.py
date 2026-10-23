@@ -648,7 +648,7 @@ def register(app) -> None:
     def proposal_studio_list():
         rows = with_conn(lambda c: _rows(c, "SELECT p.id, p.number, p.display_no, p.version, p.title, p.status, p.price, p.sent_at, p.updated_at, "
                                             "o.name AS client_name FROM proposal p JOIN crm_organization o ON o.id = p.client_org_id "
-                                            "WHERE p.status <> 'superseded' ORDER BY p.updated_at DESC LIMIT 12"))
+                                            "WHERE p.status NOT IN ('superseded', 'deleted') ORDER BY p.updated_at DESC LIMIT 12"))
         import proposal_engine
         return jsonify({"data": [dict(r, number=proposal_engine.label(r)) for r in rows]})
 

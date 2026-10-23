@@ -413,7 +413,7 @@ def main() -> int:
     finally:
         conn.close()
     html = (ROOT / "company_portal.html").read_text(encoding="utf-8")
-    for needle in ("pdf_view.js", "'Before the app'", "include: 'archive'", "data-pr-pdf", 'id="pr-pdf-pages"', "'Proposal No. ' + p.label"):
+    for needle in ("pdf_view.js", "'Before the app'", "include: 'archive'", 'data-m="pdf">View the PDF', 'id="pr-pdf-pages"', "'Proposal No. ' + p.label"):
         assert needle in html, needle
     nav = (ROOT / "static/js/company_nav.js").read_text(encoding="utf-8")
     assert "Estimating queue" not in nav and "hrefFor: { estimator: '/estimating' }" in nav, "the sub-tab is gone; estimators keep their page"
