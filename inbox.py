@@ -1328,7 +1328,12 @@ def attachment_bytes(conn, uid: int, m: dict, att: dict) -> bytes:
     return data
 
 
-_SCRIPTY = re.compile(r"(?is)<(script|iframe|object|embed|form|base|meta[^>]+http-equiv)[^>]*>.*?(</\1>|$)|<(script|iframe|object|embed|base)\b[^>]*/?>")
+# what could run, with its contents (a paired block) ...
+_SCRIPTY = re.compile(r"(?is)<(script|iframe|object|embed|applet|frameset)\b[^>]*>.*?</\1\s*>")
+# ... then any tag of that kind left on its own, and the lone tags that are never paired: only the tag goes, never the rest of
+# the email (2026-10-23: an unclosed match ran to the end, so every Apple Mail / Outlook email, which starts with
+# <meta http-equiv>, opened blank)
+_LONE_TAG = re.compile(r"(?is)</?(script|iframe|object|embed|applet|frameset|frame|form|base)\b[^>]*>|<meta\b[^>]*http-equiv[^>]*>")
 _ON_ATTR = re.compile(r"""(?i)\s on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)""".replace(" ", ""))
 _JS_URL = re.compile(r"""(?i)(href|src)\s*=\s*(["']?)\s*javascript:[^"'>\s]*\2""")
 
@@ -1344,7 +1349,7 @@ def render_doc(conn, uid: int, m: dict) -> str:
     import html as _html
     body = m.get("html") or ""
     if body:
-        body = _SCRIPTY.sub("", body)
+        body = _LONE_TAG.sub("", _SCRIPTY.sub("", body))
         body = _ON_ATTR.sub("", body)
         body = _JS_URL.sub(r'\1=""', body)
         for n, a in enumerate(m.get("all_files") or []):
