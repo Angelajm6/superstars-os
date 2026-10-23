@@ -5271,7 +5271,8 @@ def api_project_documents(project_code):
                 prev = by_id[cur_id]
                 chain.append({'id': prev['id'], 'effective_date': prev['effective_date'],
                               'expiry_date': prev['expiry_date'], 'uploaded_at': prev['uploaded_at'],
-                              'doc_type': prev['doc_type'],
+                              'doc_type': prev['doc_type'], 'mime': prev['mime'],
+                              'file_name': prev['file_name'],
                               'file_url': f"/api/documents/{prev['id']}/file"})
                 in_history.add(cur_id)
                 cur_id = prev.get('supersedes_id')

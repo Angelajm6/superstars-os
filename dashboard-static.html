@@ -1774,6 +1774,12 @@
           .pd-btn-update:hover{background:var(--pd-accent-ink)}
           .pd-btn-replace{font-size:13px;font-weight:700;padding:6px 11px;border-radius:8px;border:1px solid var(--pd-line);background:#fff;color:var(--pd-muted);cursor:pointer}
           .pd-btn-replace:hover{border-color:var(--warn);color:var(--status-behind-deep, #A8382B)}
+          .pd-btn-view{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:6px 11px;border-radius:8px;border:1px solid var(--pd-line);background:#fff;color:var(--pd-ink);cursor:pointer}
+          .pd-btn-view svg{width:15px;height:15px;color:var(--pd-muted)}
+          .pd-btn-view:hover{border-color:var(--pd-accent-edge);background:var(--pd-accent-soft);color:var(--pd-accent-ink)}
+          .pd-btn-view:hover svg{color:inherit}
+          button.pd-thumb{cursor:pointer;font:inherit;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:0}
+          button.pd-thumb:hover{border-color:var(--pd-accent-edge);color:var(--pd-accent-ink);background:var(--pd-accent-soft)}
           .pd-vhist-toggle{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:700;color:var(--pd-accent-ink);cursor:pointer;margin-top:4px;user-select:none}
           .pd-vhist{margin:8px 0 2px 26px;border-left:2px solid var(--pd-line);padding-left:14px}
           .pd-vrow{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:13px;color:var(--pd-muted)}
@@ -8957,8 +8963,10 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   }
   var ICTRASH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>';
   var ICPEN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>';
+  var ICEYE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
   function pdActs(d){
     return '<div class="pd-acts">'
+      +'<button class="pd-btn-view" type="button" data-open="'+d.id+'" aria-label="Preview '+esc(d.title)+'">'+ICEYE+'Preview</button>'
       +'<button class="pd-btn-update" data-update="'+d.id+'">Update</button>'
       +'<button class="pd-btn-replace" data-replace="'+d.id+'" title="Wrong file? Swap this version\'s file — no history entry">Replace</button>'
       +'<button class="pd-ibtn del" type="button" data-del="'+d.id+'" title="Delete" aria-label="Delete '+esc(d.title)+'">'+ICTRASH+'</button>'
@@ -8966,7 +8974,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   }
   function pdTitle(d){
     if(PD.renaming===d.id)return '<input class="pd-rename" data-renin="'+d.id+'" value="'+esc(d.title)+'" aria-label="Document name" maxlength="300" autocomplete="off" enterkeyhint="done">';
-    return '<div class="pd-dtrow"><div class="pd-dtitle" data-open="'+d.id+'" title="Open to view">'+esc(d.title)+'</div>'
+    return '<div class="pd-dtrow"><div class="pd-dtitle" data-open="'+d.id+'" title="Preview">'+esc(d.title)+'</div>'
       +'<button class="pd-ibtn ren" type="button" data-ren="'+d.id+'" title="Rename" aria-label="Rename '+esc(d.title)+'">'+ICPEN+'</button></div>';
   }
   function pdDelAsk(d){
@@ -9215,7 +9223,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   function dzFromServer(it){
     var s=it.suggestion||null;
     return {id:it.id,name:it.file_name||'document',status:it.status,sug:s,error:it.error,file_url:it.file_url,
-            title:(s&&s.title)||dzStem(it.file_name),
+            title:(s&&s.title)||dzStem(it.file_name),mime:it.mime,file_size:it.file_size,
             type_key:(s&&s.type_key)||null,typeSet:'ai',asNewer:true,
             party:(s&&s.party)||'company',party_name:(s&&s.party_name)||''};
   }
@@ -9306,8 +9314,9 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   function dzCard(x){
     var isImg=/\.(jpe?g|png|heic|heif|webp)$/i.test(x.name);
     var ext=(x.name.split('.').pop()||'').toUpperCase().slice(0,4);
-    var thumb='<span class="pd-thumb">'+svg(isImg?DZI.img:DZI.doc)+esc(ext)+'</span>';
-    var name=x.file_url?'<a data-dzopen="'+esc(x.id)+'" title="Open the file">'+esc(x.name)+'</a>':esc(x.name);
+    var thumb=x.file_url?'<button class="pd-thumb" type="button" data-dzopen="'+esc(x.id)+'" title="Preview" aria-label="Preview '+esc(x.title||x.name)+'">'+svg(isImg?DZI.img:DZI.doc)+esc(ext)+'</button>'
+      :'<span class="pd-thumb">'+svg(isImg?DZI.img:DZI.doc)+esc(ext)+'</span>';
+    var name=x.file_url?'<a data-dzopen="'+esc(x.id)+'" title="Preview">'+esc(x.name)+'</a>':esc(x.name);
     var fromAi=!x.nameSet&&x.sug&&x.sug.title&&x.title===x.sug.title;
     var namebox='<label class="pd-namebox" title="Rename">'+'<input class="pd-name" data-dzname="'+esc(x.id)+'" value="'+esc(x.title||'')+'" aria-label="Document name" autocomplete="off" enterkeyhint="done" maxlength="300">'
       +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></label>'
@@ -9439,7 +9448,8 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       if((b=e.target.closest('[data-dztag]'))){dzOpenPicker(dzById(b.getAttribute('data-dztag')));return;}
       if((b=e.target.closest('[data-dzskip]'))){dzRemove(dzById(b.getAttribute('data-dzskip')));return;}
       if((b=e.target.closest('[data-dzmore]'))){var k='q'+b.getAttribute('data-dzmore');if(DZ.aiOpen.has(k))DZ.aiOpen.delete(k);else DZ.aiOpen.add(k);renderTray();return;}
-      if((b=e.target.closest('[data-dzopen]'))){var y=dzById(b.getAttribute('data-dzopen'));if(y&&y.file_url)window.open(y.file_url,'_blank');return;}
+      if((b=e.target.closest('[data-dzopen]'))){var y=dzById(b.getAttribute('data-dzopen'));
+        if(y&&y.file_url)pdPreview({title:y.title||y.name,sub:'Waiting for review · '+y.name+(y.file_size?' · '+fsize(y.file_size):''),url:y.file_url,mime:y.mime,name:y.name});return;}
     });
     $('pd-cards').addEventListener('change',function(e){
       var cb=e.target.closest('[data-dznewer]');if(cb){var x=dzById(cb.getAttribute('data-dznewer'));if(x)x.asNewer=cb.checked;return;}
@@ -9654,6 +9664,28 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       (c.extras||[]).forEach(function(d){if(d.id===id)hit=d;});
     });return hit;
   }
+  // preview in the shared side panel (static/js/pdf_view.js): PDFs page by page, pictures, else Download
+  function pdPreview(o){
+    var kind=window.SSC_PDF?SSC_PDF.kindOf(o.mime,o.name):'other';
+    if(!window.SSC_PDF){window.open(o.url,'_blank');return;}
+    SSC_PDF.panel({title:o.title,sub:o.sub,url:o.url,kind:kind,
+      links:[{label:'Open in new tab',href:o.url,newtab:true},{label:'Download',href:o.url,download:true}]});
+  }
+  function previewDoc(id){
+    var d=pdFindDoc(id),sub=[];
+    if(d){
+      if(d.type_label)sub.push(d.type_label);if(d.file_name)sub.push(d.file_name);if(d.file_size)sub.push(fsize(d.file_size));
+      pdPreview({title:d.title,sub:sub.join(' · '),url:d.file_url||('/api/documents/'+id+'/file'),mime:d.mime,name:d.file_name});return;
+    }
+    var hit=null;((PD.data&&PD.data.categories)||[]).forEach(function(c){
+      (c.items||[]).forEach(function(it){heldDocs(it).forEach(function(cur){(cur.history||[]).forEach(function(v,i){
+        if(v.id===id)hit={cur:cur,v:v,n:(cur.history_count||cur.history.length)-i};});});});
+      (c.extras||[]).forEach(function(cur){(cur.history||[]).forEach(function(v,i){if(v.id===id)hit={cur:cur,v:v,n:cur.history.length-i};});});
+    });
+    if(hit){pdPreview({title:hit.cur.title+' — v'+hit.n,sub:'Superseded'+(hit.v.expiry_date?' · expired '+mdy(hit.v.expiry_date):'')+(hit.v.file_name?' · '+hit.v.file_name:''),
+      url:hit.v.file_url,mime:hit.v.mime,name:hit.v.file_name});return;}
+    pdPreview({title:'Document',url:'/api/documents/'+id+'/file'});
+  }
   async function delDoc(id){
     var d=pdFindDoc(id);PD.delAsk=null;
     try{var r=await fetch('/api/documents/'+id,{method:'DELETE',credentials:'include'});
@@ -9717,7 +9749,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       if(e.target.closest('[data-renin]'))return;
       var pcl=e.target.closest('[data-pclose]');if(pcl){DZ.open=null;renderFolders();renderChecklist();return;}
       var dai=e.target.closest('[data-dai]');if(dai){var did=+dai.getAttribute('data-dai');if(DZ.aiOpen.has(did))DZ.aiOpen.delete(did);else DZ.aiOpen.add(did);renderChecklist();return;}
-      var op=e.target.closest('[data-open]');if(op){window.open('/api/documents/'+op.getAttribute('data-open')+'/file','_blank');return;}
+      var op=e.target.closest('[data-open]');if(op){previewDoc(+op.getAttribute('data-open'));return;}
     });
     if(cl){
       cl.addEventListener('keydown',function(e){
@@ -10635,5 +10667,6 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
 })();
 </script>
 <script src="/files/static/js/file_drop.js?v=1" defer></script>
+<script src="/files/static/js/pdf_view.js?v=2" defer></script>
 </body>
 </html>

@@ -21,6 +21,16 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Documents tab: preview any document in the app (Bookore, 2026-10-23)
+
+* Filed rows have a **Preview** button (the title and History's "View" do the same); review cards preview from the
+  file icon or the file name. It opens the shared side panel `static/js/pdf_view.js` (now v=2): PDFs drawn page by
+  page with the vendored pdf.js (same on phone / tablet / desktop), pictures shown inline, anything else (XLSX, HEIC
+  in Chrome) gets a message + Download. Header: name · type · file name · size, "Open in new tab", Download, ✕ / Esc.
+* No framing change: the file routes stay `X-Frame-Options: DENY`; pdf.js fetches the bytes, nothing is iframed.
+* History entries now carry `mime` + `file_name` so a previous version previews like the current one.
+* Guard: `tests/smoke_doc_dropzone.py`.
+
 ### Documents tab: no double uploads; rename + delete (Bookore, 2026-10-23)
 
 * **Double upload fixed.** A drop on the Documents tab was taken twice: the tab's own `window` drop listener AND
