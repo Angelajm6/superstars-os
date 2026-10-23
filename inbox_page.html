@@ -13,11 +13,11 @@
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1010" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
-<script src="/files/static/js/inbox_schedule.js?v=4" defer></script>
+<script src="/files/static/js/inbox_schedule.js?v=5" defer></script>
 <title>Inbox · Superstars Contracting</title>
-<!-- Inbox for PMs and supers (prototype accepted 2026-10-16): "Mine" only — their own Google
+<!-- Inbox for PMs and supers (prototype accepted 2026-10-16): "My calendar" only (was "Mine", renamed 2026-10-23) — their own Google
      Calendar (private to them) + the tasks, events and meetings they are on. Admins and C-suite
-     get Mail / Mine / All inside /company#inbox; /inbox redirects them there (inbox_schedule.py). -->
+     get Email / My calendar / Team inside /company#inbox; /inbox redirects them there (inbox_schedule.py). -->
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:var(--canvas);color:var(--ink);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;}
@@ -45,7 +45,7 @@
   <div class="ssc-top-right"><span id="who" hidden></span><div id="user-menu" aria-live="polite"></div></div>
 </header>
 <main class="ix-wrap" aria-label="Inbox">
-  <p class="ix-sub">Your calendar and everything assigned to you. Only you see your calendar.</p>
+  <p class="ix-sub"><b>My calendar</b>: your Google Calendar and everything assigned to you. Only you see your calendar.</p>
   <div id="ix-sched"></div>
 </main>
 </div><!-- /.ssc-main -->

@@ -363,7 +363,7 @@ def main() -> int:
     try:
         cp = (ROOT / "company_portal.html").read_text(encoding="utf-8")
         assert 'id="ib-refresh"' not in cp and "↻ Refresh" not in cp
-        for needle in ('data-ibtab="mail">Email<', 'data-ibtab="mine">My calendar<', 'data-ibtab="all">Team<',
+        for needle in ('data-ibtab="mail">Email<', 'data-ibtab="mine">My calendar<', 'Everyone\'s tasks, events and meetings">Team<',
                        'data-ibf="inbox"', ">Needs reply<", ">Filed<", 'id="ib-live"', "/inbox/changes?sync=1",
                        'id="ib-unread"', 'id="ib-done"', "visibilitychange"):
             assert needle in cp, needle
