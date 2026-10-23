@@ -30,7 +30,7 @@ _PAGE = """<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{title} · Superstars Contracting</title>
 <link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=1008">
 <style>
   *{{box-sizing:border-box;margin:0;padding:0;}}
   body{{min-height:100vh;display:grid;place-items:center;background:var(--canvas,#fafbfd);color:var(--ink,#222633);
