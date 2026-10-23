@@ -134,9 +134,19 @@
   .ib-filters button { border: 0; background: none; font: 600 12.5px Inter, sans-serif; color: var(--muted); padding: 5px 9px; border-radius: 999px; cursor: pointer; }
   .ib-filters button[aria-pressed="true"] { background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); }
   #ib-rows { overflow-y: auto; flex: 1; min-height: 0; }
+  /* Delete, as in Gmail (2026-10-22): a box on each row (phone: tap the picture), the trash on hover and in the open
+     conversation, "N selected" bar, # / Delete key, Undo. Deleted = Gmail's Trash. */
+  .ib-selbar { display: flex; align-items: center; gap: 4px; padding: 4px 8px; min-height: 49px; border-bottom: 1px solid var(--line); background: #E8EDF8; font-size: 14px; color: #1F1F1F; }
+  .ib-selbar[hidden] { display: none; } .ib-selbar .sp { flex: 1; } .ib-selbar b { font-weight: 600; margin-left: 2px; }
+  .ib-selbar .btn-sm { margin-right: 2px; }
+  .ib-ck { grid-area: ck; align-self: start; margin: 2px 0 0; width: 16px; height: 16px; accent-color: var(--ui, #24418C); cursor: pointer; }
+  .ib-wt { display: inline-flex; align-items: center; gap: 4px; }
+  .ib-row .ib-rdel { display: none; width: 28px; height: 28px; margin: -6px -4px -6px 0; }
+  @media (hover: hover) and (min-width: 901px) { .ib-row:hover .ib-rdel, .ib-row:focus-within .ib-rdel { display: inline-grid; } .ib-row:hover .ib-wt, .ib-row:focus-within .ib-wt { display: none; } }
+  .ib-row.sel { background: #C2DBFF; }
   /* Gmail parity (2026-10-21): every email of a conversation, Gmail's folding (first · "N older" · last two),
      quoted text behind •••, per-email Reply / Reply all / Forward, details under "to me", phone = list then email */
-  .ib-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "from when" "line line" "snip snip"; gap: 1px 8px; padding: 9px 14px; border-bottom: 1px solid #EEF0F3; cursor: pointer; font-size: 13px; color: #5F6368; background: #F6F8FC; }
+  .ib-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; grid-template-areas: "ck from when" "ck line line" "ck snip snip"; gap: 1px 8px; padding: 9px 14px; border-bottom: 1px solid #EEF0F3; cursor: pointer; font-size: 13px; color: #5F6368; background: #F6F8FC; }
   .ib-row.unread { background: #fff; color: #202124; }
   .ib-row:hover { box-shadow: inset 1px 0 0 #dadce0, inset -1px 0 0 #dadce0, 0 1px 2px rgba(60,64,67,.2); position: relative; }
   .ib-row.on { background: #E8EDF8; }
@@ -257,6 +267,7 @@
   @media (max-width: 900px) {
     .ib-row { grid-template-columns: 40px minmax(0, 1fr) auto; grid-template-areas: "av from when" "av line line" "av snip snip"; column-gap: 12px; padding: 10px 14px; font-size: 14px; }
     .ib-row .ib-av { display: grid; grid-area: av; align-self: start; margin-top: 2px; } .ib-from { font-size: 15px; }
+    .ib-ck { display: none; } .ib-row.sel .ib-av { background: var(--ui, #24418C) !important; font-size: 0; } .ib-row.sel .ib-av::after { content: "✓"; font-size: 20px; }
     .ib-head { padding: 12px 16px 6px; } #ib-sugg:not(:empty) { margin-left: 16px; margin-right: 16px; }
     .ib-mhead { grid-template-columns: 40px minmax(0, 1fr) auto; padding: 12px 8px 6px 16px; gap: 10px; }
     .ib-mbody, .ib-atts, .ib-replybar { padding-left: 16px; padding-right: 16px; } .ib-details { margin-left: 16px; max-width: calc(100% - 32px); }
@@ -437,6 +448,9 @@
   .cp-toast { position: fixed; right: 20px; bottom: 20px; background: var(--ink); color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 13px; box-shadow: 0 12px 32px rgba(0,0,0,.25); opacity: 0; transform: translateY(8px); transition: all .2s; pointer-events: none; z-index: 60; }
   .cp-toast.show { opacity: 1; transform: none; }
   .cp-toast.err { background: #A8382B; }
+  .cp-toast.show a, .cp-toast.show button { pointer-events: auto; }   /* Undo inside a toast */
+  @media (max-width: 900px) { .cp-toast { left: 16px; right: 16px; bottom: 92px; } }   /* above the Ask Claude button, so Undo can be tapped */
+  .cp-toast-act { border: 0; background: none; color: #A8C7FA; font: 600 13px Inter, sans-serif; cursor: pointer; padding: 0 2px; margin-left: 10px; }
 
   @media (max-width: 860px) {
     .cp-content { padding: 16px; }
@@ -1190,6 +1204,11 @@
               <button type="button" class="btn-primary btn-sm" id="ib-new">✎ Compose</button>
               <button type="button" class="btn-ghost btn-sm" id="ib-refresh" title="Check Gmail for new email right now">↻ Refresh</button>
               <div class="ib-filters" role="group" aria-label="Show"><button type="button" data-ibf="all" aria-pressed="true">All</button><button type="button" data-ibf="act" aria-pressed="false">Needs reply</button><button type="button" data-ibf="filed" aria-pressed="false">Filed</button></div>
+            </div>
+            <div class="ib-selbar" id="ib-selbar" hidden>
+              <button type="button" class="ib-ibtn" id="ib-sel-x" title="Clear selection" aria-label="Clear selection"></button><b id="ib-sel-n"></b><span class="sp"></span>
+              <button type="button" class="btn-ghost btn-sm" id="ib-sel-all">Select all</button>
+              <button type="button" class="ib-ibtn" id="ib-sel-del" title="Delete" aria-label="Delete selected"></button>
             </div>
             <div id="ib-rows"></div>
           </div>
@@ -2921,7 +2940,7 @@
   // Conversations as written (html in a locked-down frame), attachments, Reply / Reply all /
   // Compose from the person's own Gmail. Claude drafts a reply only where one is needed: it waits
   // in the reply box and goes out only when the person presses Send. Other suggestions are cards.
-  const IB = { filter: 'all', rows: [], open: null, cards: [], timer: null, thread: null, composer: null };
+  const IB = { filter: 'all', rows: [], open: null, cards: [], timer: null, thread: null, composer: null, sel: new Set() };
   const IB_COLORS = ['#24418C', '#0c7a5f', '#B11E2E', '#7A4FB3', '#C2603B', '#2C7A9B', '#8A6D1F'];
   function ibColor(s) { let h = 0; for (const c of String(s || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0; return IB_COLORS[h % IB_COLORS.length]; }
   function ibAgo(iso) {
@@ -2960,7 +2979,7 @@
     else if (st.status !== 'active') { line = `${dot('warn')}Your Gmail sign-in expired.`; acts = `<a class="btn-primary btn-sm" href="/gmail/connect?next=${next}">Reconnect Gmail</a>`; }
     else {
       line = `${dot('')}Connected as ${esc(st.google_email || '')}${st.last_sync_at ? ' · checked ' + ibAgo(st.last_sync_at) : ''}`;
-      if (!st.can_send) acts += `<a class="btn-ghost btn-sm" href="/gmail/connect?next=${next}" title="Lets you send replies from your Gmail">Reconnect to allow sending</a>`;
+      if (!st.can_send || !st.can_delete) acts += `<a class="btn-ghost btn-sm" href="/gmail/connect?next=${next}" title="Lets you send replies from your Gmail and delete email from here">${!st.can_send && !st.can_delete ? 'Reconnect to allow sending and deleting' : !st.can_send ? 'Reconnect to allow sending' : 'Reconnect to allow deleting'}</a>`;
     }
     if (st.calendar && st.calendar.connected && !st.calendar.reads) acts += `<a class="btn-ghost btn-sm" href="/google-calendar/connect?next=${next}" title="Brings your own Google events into your Inbox">Reconnect Calendar</a>`;
     if (st.problem) line += ` <span class="cp-muted">${esc(st.problem)}</span>`;
@@ -2968,7 +2987,7 @@
     await ibList();
     const want = arg && /^\d+$/.test(arg) ? +arg : IB.open;
     if (want) ibOpen(want, false);
-    else { $('ib-mail').classList.remove('reading'); $('ib-pane').innerHTML = `<div class="ib-empty">${empty(st.connected ? 'Pick an email' : 'Connect your Gmail', st.connected ? 'New email shows up by itself. Use Refresh to check right now.' : 'Your email then arrives here, as in Gmail.')}</div>`; }
+    else { $('ib-mail').classList.remove('reading'); ibEmptyPane(); }
     IB.timer = setTimeout(function tick() { if (state.view !== 'inbox' || IB.sub !== 'mail') return; ibList(); IB.timer = setTimeout(tick, 30000); }, 30000);
   }
   const IB_ICON = {   // Gmail's icons (Material, 24px grid)
@@ -2982,7 +3001,9 @@
     open: 'M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z',
     clip: 'M16.5 6v11.5a4 4 0 0 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6h-1.5z',
     done: 'M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
-    flag: 'M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6z'
+    flag: 'M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6z',
+    del: 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z',
+    x: 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'
   };
   const ibI = (k, small) => `<svg class="ib-ic${small ? ' s' : ''}" viewBox="0 0 24 24" aria-hidden="true"><path d="${IB_ICON[k]}"/></svg>`;
   const ibPhone = () => window.matchMedia('(max-width: 900px)').matches, ibSingle = () => window.matchMedia('(max-width: 1100px)').matches;
@@ -3004,13 +3025,53 @@
   async function ibList() {
     try { IB.rows = (await api('/inbox/messages?filter=' + IB.filter, null, true)).data; } catch (e) { $('ib-rows').innerHTML = empty('Could not load the inbox', e.message); return; }
     document.querySelectorAll('[data-ibf]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.ibf === IB.filter)));
-    $('ib-rows').innerHTML = IB.rows.length ? IB.rows.map(r => `<div class="ib-row${r.id === IB.open ? ' on' : ''}${r.unread ? ' unread' : ''}" data-ib="${r.id}" tabindex="0">
-      <span class="ib-av" style="background:${ibColor(r.who)}" aria-hidden="true">${ibInitial(r.who)}</span>
+    IB.sel = new Set(IB.rows.map(r => r.id).filter(i => IB.sel.has(i)));   // a refresh keeps what is still there selected
+    $('ib-rows').innerHTML = IB.rows.length ? IB.rows.map(r => `<div class="ib-row${r.id === IB.open ? ' on' : ''}${r.unread ? ' unread' : ''}${IB.sel.has(r.id) ? ' sel' : ''}" data-ib="${r.id}" tabindex="0">
+      <input type="checkbox" class="ib-ck" data-ibck aria-label="Select"${IB.sel.has(r.id) ? ' checked' : ''}>
+      <span class="ib-av" data-ibav style="background:${ibColor(r.who)}" aria-hidden="true">${ibInitial(r.who)}</span>
       <div class="ib-from">${esc(ibPeople(r))}${r.count > 1 ? `<span class="ib-n">${r.count}</span>` : ''}</div>
       <div class="ib-line">${r.pending_cards ? '<span class="ib-lbl cl" title="Claude has a reply or a suggestion ready">✦ Claude</span>' : ''}<span class="ib-sub">${esc(r.subject)}</span></div>
       <div class="ib-snip">${r.tags.slice(0, 1).map(t => `<span class="ib-lbl">${esc(t)}</span>`).join('')}${esc(r.snippet || '')}</div>
-      <div class="ib-when">${r.has_attachments ? `<span aria-label="has attachments">${ibI('clip', 1)}</span>` : ''}${ibAgo(r.received_at)}</div></div>`).join('')
+      <div class="ib-when"><span class="ib-wt">${r.has_attachments ? `<span aria-label="has attachments">${ibI('clip', 1)}</span>` : ''}${ibAgo(r.received_at)}</span><button type="button" class="ib-ibtn ib-rdel" data-ibdel title="Delete" aria-label="Delete">${ibI('del', 1)}</button></div></div>`).join('')
       : `<div class="ib-empty">${empty(IB.filter === 'act' ? 'Nothing needs a reply' : 'No email yet', IB.filter === 'act' ? 'Emails that need an answer or a change show here.' : '')}</div>`;
+    ibSelBar();
+  }
+  function ibSelBar() {
+    const n = IB.sel.size;
+    $('ib-selbar').hidden = !n; document.querySelector('#ib-mail .ib-lhead').hidden = !!n;
+    $('ib-sel-n').textContent = n + ' selected';
+    $('ib-sel-all').hidden = n >= IB.rows.length;
+  }
+  function ibSelect(id, on) {
+    if (on) IB.sel.add(id); else IB.sel.delete(id);
+    const row = document.querySelector(`.ib-row[data-ib="${id}"]`);
+    if (row) { row.classList.toggle('sel', on); row.querySelector('[data-ibck]').checked = on; }
+    ibSelBar();
+  }
+  function ibEmptyPane() {
+    const st = IB.status || {};
+    $('ib-pane').innerHTML = `<div class="ib-empty">${empty(st.connected ? 'Pick an email' : 'Connect your Gmail', st.connected ? 'New email shows up by itself. Use Refresh to check right now.' : 'Your email then arrives here, as in Gmail.')}</div>`;
+  }
+  async function ibTrash(ids) {   // Delete, as Gmail: to Gmail's Trash, with Undo
+    ids = ids.filter(Boolean);
+    if (!ids.length) return;
+    if (IB.status && IB.status.connected && !IB.status.can_delete) { toast('Reconnect Gmail once to allow deleting (the button is at the top of the Inbox)', true); return; }
+    let r;
+    try { r = (await api('/inbox/trash', { method: 'POST', body: JSON.stringify({ ids }) }, true)).data; } catch (e) { toast(e.message, true); return; }
+    ids.forEach(i => IB.sel.delete(i));
+    if (r.ids.includes(IB.open)) {
+      if (ibSingle()) ibBack();
+      else { IB.open = null; if (location.hash !== '#inbox') history.replaceState(null, '', '#inbox'); ibEmptyPane(); }
+    }
+    await ibList();
+    const n = r.ids.length, t = $('cp-toast');
+    t.innerHTML = esc((n === 1 ? 'Conversation' : n + ' conversations') + ' moved to Trash.' + (r.failed ? ` ${r.failed} did not go through; try again.` : '')) + '<button type="button" class="cp-toast-act" id="ib-undo">Undo</button>';
+    t.className = 'cp-toast show'; clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 8000);
+    $('ib-undo').addEventListener('click', async () => {
+      t.classList.remove('show');
+      try { await api('/inbox/trash', { method: 'POST', body: JSON.stringify({ ids: r.ids, restore: true }) }, true); toast(n === 1 ? 'Conversation restored' : n + ' conversations restored'); await ibList(); }
+      catch (e) { toast(e.message, true); }
+    });
   }
   function ibFrame(doc, ready) {
     const f = document.createElement('iframe');
@@ -3093,11 +3154,24 @@
     if (fromList) window.scrollTo(0, 0);
     const pane = $('ib-pane'); pane.innerHTML = '<div class="cp-skel"></div><div class="cp-skel"></div>';
     let v;
-    try { v = (await api('/inbox/threads/' + id, null, true)).data; } catch (e) { pane.innerHTML = empty('Could not open this email', e.message); return; }
+    for (let tries = 0; !v; tries++) {   // a dropped connection is tried once more before showing an error
+      try { v = (await api('/inbox/threads/' + id, null, true)).data; }
+      catch (e) {
+        if (IB.open !== id) return;
+        if (tries < 1 && !/not found/i.test(e.message)) { await new Promise(res => setTimeout(res, 1200)); continue; }
+        pane.innerHTML = `<div class="ib-tbar"><button type="button" class="ib-ibtn ib-back" id="ib-back" title="Back to Inbox" aria-label="Back to Inbox">${ibI('back')}</button></div>
+          <div class="ib-empty">${/not found/i.test(e.message) ? empty('This conversation is gone', 'It was deleted (it is in Gmail\'s Trash).') : empty('Could not open this email', e.message)}
+          ${/not found/i.test(e.message) ? '' : '<button type="button" class="btn-ghost btn-sm" id="ib-retry">Try again</button>'}</div>`;
+        $('ib-back').addEventListener('click', ibBack);
+        if ($('ib-retry')) $('ib-retry').addEventListener('click', () => ibOpen(id, false));
+        return;
+      }
+    }
     if (IB.open !== id) return;   // another email was picked meanwhile
     IB.thread = v;
     const n = v.messages.length;
     pane.innerHTML = `<div class="ib-tbar"><button type="button" class="ib-ibtn ib-back" id="ib-back" title="Back to Inbox" aria-label="Back to Inbox">${ibI('back')}</button><span class="sp"></span>
+        <button type="button" class="ib-ibtn" id="ib-del" title="Delete" aria-label="Delete">${ibI('del')}</button>
         <button type="button" class="ib-ibtn" id="ib-done" title="${v.needs_action ? 'Mark done' : 'Done. Mark as needing action'}" aria-label="${v.needs_action ? 'Mark done' : 'Mark as needing action'}">${ibI(v.needs_action ? 'done' : 'flag')}</button>
         ${n > 1 ? `<button type="button" class="ib-ibtn" id="ib-expand" title="Expand all" aria-label="Expand all">${ibI('unfold')}</button>` : ''}
         <a class="ib-ibtn" href="${esc(v.gmail_url)}" target="_blank" rel="noopener" title="Open in Gmail" aria-label="Open in Gmail">${ibI('open')}</a></div>
@@ -3147,6 +3221,7 @@
       new MutationObserver(sum).observe($('ib-sugg-cards'), { childList: true, subtree: true });
       $('ib-sugg-d').addEventListener('toggle', e => { sugg.querySelector('.ib-sugg-show').textContent = e.target.open ? 'Hide' : 'Show'; });
     }
+    $('ib-del').addEventListener('click', () => ibTrash([id]));
     $('ib-done').addEventListener('click', async () => { try { await api('/inbox/messages/' + v.last_id + '/done', { method: 'POST', body: JSON.stringify({ done: v.needs_action }) }, true); toast(v.needs_action ? 'Marked done' : 'Marked as needing action'); await ibList(); ibOpen(id, false); } catch (e) { toast(e.message, true); } });
     ibReplyBar(v);
     pane.scrollTop = 0;
@@ -3323,7 +3398,24 @@
     try { const r = (await api('/inbox/refresh', { method: 'POST' }, true)).data; await ibList(); toast(r.new ? r.new + ' new email' + (r.new > 1 ? 's' : '') : 'No new email'); }
     catch (e) { toast(e.message, true); } finally { b.disabled = false; b.textContent = '↻ Refresh'; }
   });
-  $('ib-rows').addEventListener('click', e => { const r = e.target.closest('[data-ib]'); if (r) ibOpen(+r.dataset.ib); });
+  $('ib-rows').addEventListener('click', e => {
+    const r = e.target.closest('[data-ib]'); if (!r) return;
+    const id = +r.dataset.ib;
+    if (e.target.closest('[data-ibck]')) { ibSelect(id, e.target.checked); return; }
+    if (e.target.closest('[data-ibdel]')) { ibTrash([id]); return; }
+    if (e.target.closest('[data-ibav]') && ibPhone() || IB.sel.size && ibPhone()) { ibSelect(id, !IB.sel.has(id)); return; }   // Gmail app: tap the picture to select
+    ibOpen(id);
+  });
+  $('ib-sel-x').innerHTML = ibI('x'); $('ib-sel-del').innerHTML = ibI('del');
+  $('ib-sel-x').addEventListener('click', () => { [...IB.sel].forEach(i => ibSelect(i, false)); });
+  $('ib-sel-all').addEventListener('click', () => IB.rows.forEach(r => ibSelect(r.id, true)));
+  $('ib-sel-del').addEventListener('click', () => ibTrash([...IB.sel]));
+  document.addEventListener('keydown', e => {   // Gmail's shortcut: # (or Delete) deletes the selected / open conversation
+    if ((e.key !== '#' && e.key !== 'Delete') || e.ctrlKey || e.metaKey || e.altKey || state.view !== 'inbox' || IB.sub !== 'mail') return;
+    if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable="true"], .cp-modal')) return;
+    const ids = IB.sel.size ? [...IB.sel] : IB.open ? [IB.open] : [];
+    if (ids.length) { e.preventDefault(); ibTrash(ids); }
+  });
   $('ib-rows').addEventListener('keydown', e => { if (e.key === 'Enter') { const r = e.target.closest('[data-ib]'); if (r) ibOpen(+r.dataset.ib); } });
   document.querySelectorAll('[data-ibf]').forEach(b => b.addEventListener('click', () => { IB.filter = b.dataset.ibf; ibList(); }));
   // a record's emails (client, estimate / bid, proposal): what someone filed from their Inbox

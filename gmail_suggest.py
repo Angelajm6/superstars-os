@@ -10,7 +10,8 @@ a team item ASSIGNED TO THEM (so it reaches the team calendar and their Google C
 "Dismiss" hides it (Undo). PMs and supers add only to their own to-do.
 
 Least privilege + privacy
-  * Google scopes: openid, email, gmail.readonly — the app cannot send, delete or change mail.
+  * Google scopes: openid, email, gmail.readonly — for PMs / supers the app cannot send, delete or change mail. Admin / C-suite
+    (the Inbox) also grant gmail.send (replies they press Send on) and gmail.modify (Delete = Gmail's Trash).
   * Kept per suggestion, ENCRYPTED (secret_box): sender, subject, a short excerpt, the proposed
     title / address / reason. The full email is never stored. For mail judged "not a to-do"
     only the Gmail message id is kept (so it is not read twice), pruned after 14 days.
@@ -480,8 +481,8 @@ def _connect():
         return ("Not Found", 404)
     u = current_user() or {}
     nonce = secrets.token_urlsafe(24)
-    import inbox   # admin / C-suite also allow sending replies from the Inbox (every send needs their approval)
-    scope = SCOPES + (" " + inbox.SEND_SCOPE if u.get("role") in inbox.OFFICE_ROLES else "")
+    import inbox   # admin / C-suite also allow sending replies (every send needs their approval) and Delete (to Gmail's Trash)
+    scope = SCOPES + (" " + inbox.SEND_SCOPE + " " + inbox.MODIFY_SCOPE if u.get("role") in inbox.OFFICE_ROLES else "")
     params = {"client_id": gcal_sync._client_id(), "redirect_uri": redirect_uri(), "response_type": "code", "scope": scope,
               "state": nonce + "." + urllib.parse.quote(_safe_next(request.args.get("next")), safe=""),
               "access_type": "offline", "prompt": "consent", "include_granted_scopes": "false",

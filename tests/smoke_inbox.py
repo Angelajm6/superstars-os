@@ -387,7 +387,8 @@ def main() -> int:
         doc = t["messages"][0]["doc"]
         assert "<b>drawings</b>" in doc and "Content-Security-Policy" in doc and '<base target="_blank">' in doc
         assert "<script" not in doc and "alert(1)" not in doc and "onclick" not in doc and "javascript:" not in doc and "<iframe" not in doc
-        assert "cid:logo123" not in doc and "data:image/png;base64," in doc                              # picture inside the email
+        assert "cid:logo123" not in doc and f"/api/inbox/messages/{i8}/attachments/0" in doc              # picture inside the email: loads as shown
+        assert "img-src 'self'" in doc and a.get(f"/api/inbox/messages/{i8}/attachments/0").status_code == 200
         assert [x["name"] for x in t["messages"][0]["attachments"]] == ["scaffold.pdf"]
         n = t["messages"][0]["attachments"][0]["n"]
         r = a.get(f"/api/inbox/messages/{i8}/attachments/{n}")

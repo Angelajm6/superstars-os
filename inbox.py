@@ -40,6 +40,7 @@ arrives and is matched; suggestions wait for the next day.
   POST /api/inbox/messages/<id>/reply    {body, subject?, reply_all?, draft_action_id?} the person pressed Send
   POST /api/inbox/compose                {to, cc?, subject, body} a new email from their Gmail
   POST /api/inbox/refresh                check Gmail now
+  POST /api/inbox/trash                  {ids, restore?} delete conversations as Gmail does (to Gmail's Trash); restore = Undo
   POST /gmail/push?token=                Google Pub/Sub push (public; token-checked)
 """
 from __future__ import annotations
@@ -70,6 +71,7 @@ log = logging.getLogger("ssc.inbox")
 
 OFFICE_ROLES = ("admin", "c_suite")
 SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
+MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify"   # Delete (move to Gmail's Trash) from the Inbox
 GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me"
 KEEP_DAYS = 90
 FIRST_QUERY = "newer_than:3d (in:inbox OR in:sent) -category:promotions -category:social -category:forums"
@@ -79,6 +81,8 @@ MAX_THREAD = 100             # emails kept per conversation
 THREAD_RECHECK_SECONDS = 60
 MAX_BODY = 20000
 SKIP_LABELS = {"SPAM", "TRASH", "DRAFT", "CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"}
+THREAD_SKIP = {"SPAM", "TRASH", "DRAFT"}   # inside a conversation Gmail shows every email, whatever its category
+RETRY_CODES = (429, 500, 502, 503, 504)
 NOREPLY = re.compile(r"(no-?reply|do-?not-?reply|mailer-daemon|postmaster|notifications?@|bounce|newsletter)", re.I)
 FREE_DOMAINS = {"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com", "icloud.com", "me.com", "live.com",
                 "msn.com", "verizon.net", "optonline.net", "comcast.net"}
@@ -134,7 +138,7 @@ def ensure(conn) -> None:
                  "last_sync_at TEXT, last_error TEXT)")
     conn.execute("CREATE TABLE IF NOT EXISTS mail_sendas (user_id INTEGER PRIMARY KEY, name_enc TEXT, signature_enc TEXT, "
                  "fetched_at TEXT)")   # the person's Gmail "send as" name + signature, as Gmail adds them
-    for col in ("body_html_enc", "body_full_enc"):   # the email as written (Gmail-like view, 2026-10-15)
+    for col in ("body_html_enc", "body_full_enc", "trashed_at"):   # the email as written (2026-10-15); deleted = in Gmail's Trash (2026-10-22)
         if not _has_column(conn, "mail_message", col):
             conn.execute(f"ALTER TABLE mail_message ADD COLUMN {col} TEXT")
     import gmail_suggest
@@ -184,6 +188,10 @@ def _role(conn, uid) -> Optional[str]:
 
 def can_send(link: Optional[dict]) -> bool:
     return bool(link) and SEND_SCOPE in (link.get("scopes") or "")
+
+
+def can_delete(link: Optional[dict]) -> bool:
+    return bool(link) and MODIFY_SCOPE in (link.get("scopes") or "")
 
 
 # ------------------------------------------------------------------ parsing a Gmail message
@@ -321,7 +329,7 @@ def ingest(conn, uid: int, msg: dict, own_email: str = "", quiet: bool = False) 
     if not msg.get("id") or _one(conn, "SELECT id FROM mail_message WHERE user_id = ? AND gmail_id = ?", (uid, msg["id"])):
         return None
     h = gmail_suggest._headers(msg.get("payload"))
-    if set(msg.get("labelIds") or []) & SKIP_LABELS or (is_noise(msg, h) and not quiet):
+    if set(msg.get("labelIds") or []) & (THREAD_SKIP if quiet else SKIP_LABELS) or (is_noise(msg, h) and not quiet):
         return None
     direction = "out" if "SENT" in (msg.get("labelIds") or []) else "in"
     text = (gmail_suggest._text_of(msg.get("payload")) or msg.get("snippet") or "")[:MAX_BODY]
@@ -361,7 +369,7 @@ def message(conn, mid: int, uid: Optional[int] = None) -> Optional[dict]:
         return None
     out = {k: r[k] for k in ("id", "user_id", "gmail_id", "thread_id", "direction", "received_at", "kind", "needs_action",
                              "status", "ai_state", "chat_id", "client_org_id", "contact_id", "estimate_id", "proposal_id",
-                             "project_code")}
+                             "project_code", "trashed_at")}
     out.update({"from": _dec(r["from_enc"]), "to": _dec(r["to_enc"]), "cc": _dec(r["cc_enc"]), "subject": _dec(r["subject_enc"]),
                 "body": _dec(r["body_enc"]), "snippet": _html_unescape(_dec(r["snippet_enc"]) or ""), "summary": _dec(r["summary_enc"]),
                 "rfc_id": _dec(r["rfc_id_enc"]), "html": _dec(r.get("body_html_enc")), "full": _dec(r.get("body_full_enc")),
@@ -377,10 +385,66 @@ def _link(conn, uid) -> Optional[dict]:
 
 
 def _gmail(conn, link, method, path, **kw) -> tuple:
+    """One Gmail call. A blip (dropped connection, timeout, 429 / 5xx) is tried again twice and an access token Google
+    stopped taking early (401) is renewed once, so one hiccup no longer leaves a conversation half loaded. Only reads
+    and trash / untrash are repeated: a send is never sent twice."""
     import gcal_sync
     import gmail_suggest
-    token = gmail_suggest._access_token(conn, link)
-    return gcal_sync._http(method, GMAIL + path, token=token, **kw)
+    import requests
+    again = method == "GET" or path.endswith(("/trash", "/untrash"))
+    for attempt in range(3):
+        token = gmail_suggest._access_token(conn, link)
+        try:
+            code, body = gcal_sync._http(method, GMAIL + path, token=token, **kw)
+        except requests.RequestException:
+            if not again or attempt == 2:
+                raise
+            time.sleep(0.5 * (attempt + 1))
+            continue
+        if code == 401 and attempt == 0:
+            gmail_suggest._TOKENS.pop(link["user_id"], None)
+            continue
+        if again and code in RETRY_CODES and attempt < 2:
+            time.sleep(0.5 * (attempt + 1))
+            continue
+        return code, body
+    return code, body
+
+
+def _hydrate(conn, link, msg: dict) -> dict:
+    """Gmail hands a long email's text as a separate download (body.attachmentId, no data): fetch it, so the email
+    shows in full instead of as its one-line preview."""
+    def walk(p):
+        b = p.get("body") or {}
+        if ((p.get("mimeType") or "").lower() in ("text/html", "text/plain") and not p.get("filename")
+                and b.get("attachmentId") and not b.get("data")):
+            try:
+                code, got = _gmail(conn, link, "GET", f"/messages/{_q(msg['id'])}/attachments/{_q(b['attachmentId'])}")
+                if code == 200 and got.get("data"):
+                    b["data"] = got["data"]
+            except Exception as e:
+                log.info("inbox long body skipped (%s)", type(e).__name__)
+        for c in p.get("parts") or []:
+            walk(c)
+    if link and msg.get("id"):
+        walk(msg.get("payload") or {})
+    return msg
+
+
+def _mark_trashed(conn, uid: int, gmail_ids, trashed: bool) -> int:
+    """Mirror Gmail's Trash here (deleted from the Inbox, or in Gmail itself; restored = back)."""
+    gmail_ids = [g for g in gmail_ids if g]
+    if not gmail_ids:
+        return 0
+    ph = ",".join("?" * len(gmail_ids))
+    if trashed:
+        cur = conn.execute(f"UPDATE mail_message SET trashed_at = ? WHERE user_id = ? AND trashed_at IS NULL AND gmail_id IN ({ph})",
+                           [_now(), uid] + gmail_ids)
+    else:
+        cur = conn.execute(f"UPDATE mail_message SET trashed_at = NULL WHERE user_id = ? AND trashed_at IS NOT NULL AND gmail_id IN ({ph})",
+                           [uid] + gmail_ids)
+    conn.commit()
+    return cur.rowcount or 0
 
 
 def sync_user(conn, uid) -> dict:
@@ -392,11 +456,12 @@ def sync_user(conn, uid) -> dict:
         return {"skipped": True}
     st = _one(conn, "SELECT * FROM mail_sync WHERE user_id = ?", (uid,))
     try:
-        ids, new_hist = [], None
+        ids, new_hist, trash = [], None, {}   # trash: gmail id -> in Gmail's Trash now (deleted / restored in Gmail itself)
         if st and st.get("history_id"):
             page = None
             while True:
-                q = f"/history?startHistoryId={st['history_id']}&historyTypes=messageAdded&maxResults=100"
+                q = (f"/history?startHistoryId={st['history_id']}&historyTypes=messageAdded&historyTypes=labelAdded"
+                     f"&historyTypes=labelRemoved&historyTypes=messageDeleted&maxResults=100")
                 code, body = _gmail(conn, link, "GET", q + (f"&pageToken={page}" if page else ""))
                 if code == 404:   # history too old: start over from the last 3 days
                     st = None
@@ -409,6 +474,14 @@ def sync_user(conn, uid) -> dict:
                         labels = set(m.get("labelIds") or [])
                         if m.get("id") and labels & {"INBOX", "SENT"} and not labels & SKIP_LABELS and m["id"] not in ids:
                             ids.append(m["id"])
+                    for la in h.get("labelsAdded") or []:
+                        if "TRASH" in (la.get("labelIds") or []):
+                            trash[(la.get("message") or {}).get("id")] = True
+                    for lr in h.get("labelsRemoved") or []:
+                        if "TRASH" in (lr.get("labelIds") or []):
+                            trash[(lr.get("message") or {}).get("id")] = False
+                    for md in h.get("messagesDeleted") or []:
+                        trash[(md.get("message") or {}).get("id")] = True
                 new_hist = body.get("historyId") or new_hist
                 page = body.get("nextPageToken")
                 if not page:
@@ -427,12 +500,14 @@ def sync_user(conn, uid) -> dict:
             if _one(conn, "SELECT id FROM mail_message WHERE user_id = ? AND gmail_id = ?", (uid, gid)):
                 continue
             code, msg = _gmail(conn, link, "GET", f"/messages/{gid}?format=full")
-            if code == 200 and ingest(conn, uid, msg, link.get("google_email") or ""):
+            if code == 200 and ingest(conn, uid, _hydrate(conn, link, msg), link.get("google_email") or ""):
                 stored += 1
                 if msg.get("threadId") and msg["threadId"] not in threads:
                     threads.append(msg["threadId"])
         for tid in threads[:MAX_THREADS_PER_ROUND]:   # the earlier emails of those conversations, so the count is Gmail's
             sync_thread(conn, uid, tid, link)
+        for flag in (True, False):
+            _mark_trashed(conn, uid, [g for g, t in trash.items() if t is flag], flag)
         now = _now()
         if _one(conn, "SELECT user_id FROM mail_sync WHERE user_id = ?", (uid,)):
             conn.execute("UPDATE mail_sync SET history_id = COALESCE(?, history_id), last_sync_at = ?, last_error = NULL "
@@ -466,7 +541,9 @@ def sync_thread(conn, uid: int, thread_id: str, link: Optional[dict] = None, for
     """Every email of this conversation as Gmail has it. The mailbox sync only brings the last 3 days of the inbox and
     Sent, without automated mail, so a long thread was missing its earlier emails, archived ones and robot replies:
     those are fetched here (quietly: not sorted by Claude, not "needs action"). Trash, spam and drafts stay out, as in
-    Gmail. Returns how many were added; never raises (the thread still opens with what is stored)."""
+    Gmail; an email of any category (Promotions, Social...) stays in, as in Gmail. Gmail is asked for the light list
+    first (ids + labels) and only the missing emails are read in full; one that did not come through is asked for
+    again on the next open (no minute's wait). Returns how many were added; never raises."""
     if not thread_id:
         return 0
     key = (uid, thread_id)
@@ -475,26 +552,36 @@ def sync_thread(conn, uid: int, thread_id: str, link: Optional[dict] = None, for
     link = link or _link(conn, uid)
     if not link:
         return 0
-    _THREAD_SEEN[key] = time.time()
     try:
         import gmail_suggest
-        code, body = _gmail(conn, link, "GET", f"/threads/{_q(thread_id)}?format=full")
+        code, body = _gmail(conn, link, "GET", f"/threads/{_q(thread_id)}?format=minimal")
         if code != 200:
+            log.info("inbox thread for user %s: Gmail answered %s", uid, code)
             return 0
-        added = 0
+        added, missed = 0, 0
         recent = (datetime.now() - timedelta(days=3)).isoformat(timespec="seconds")
-        for msg in (body.get("messages") or [])[:MAX_THREAD]:
-            labels = set(msg.get("labelIds") or [])
-            if not msg.get("id") or labels & SKIP_LABELS:
+        have = {r["gmail_id"] for r in _rows(conn, "SELECT gmail_id FROM mail_message WHERE user_id = ? AND thread_id = ?",
+                                              (uid, thread_id))}
+        stubs = [m for m in (body.get("messages") or []) if m.get("id")][-MAX_THREAD:]
+        for flag in (True, False):   # deleted / restored in Gmail itself
+            _mark_trashed(conn, uid, [m["id"] for m in stubs if m["id"] in have and ("TRASH" in (m.get("labelIds") or [])) is flag], flag)
+        for stub in stubs:
+            if stub["id"] in have or set(stub.get("labelIds") or []) & THREAD_SKIP:
                 continue
-            if not _one(conn, "SELECT id FROM mail_message WHERE user_id = ? AND gmail_id = ?", (uid, msg["id"])):
-                h = gmail_suggest._headers(msg.get("payload"))
-                # new business mail that the mailbox sync has not reached yet keeps the normal path (Claude sorts it)
-                quiet = not (labels & {"INBOX", "SENT"}) or is_noise(msg, h) or _when(msg, h) < recent
-                if ingest(conn, uid, msg, link.get("google_email") or "", quiet=quiet):
-                    added += 1
-        if added:
-            log.info("inbox thread completed for user %s (+%s)", uid, added)
+            code, msg = _gmail(conn, link, "GET", f"/messages/{_q(stub['id'])}?format=full")
+            if code != 200:
+                missed += 1
+                continue
+            labels = set(msg.get("labelIds") or [])
+            h = gmail_suggest._headers(msg.get("payload"))
+            # new business mail that the mailbox sync has not reached yet keeps the normal path (Claude sorts it)
+            quiet = not (labels & {"INBOX", "SENT"}) or is_noise(msg, h) or _when(msg, h) < recent
+            if ingest(conn, uid, _hydrate(conn, link, msg), link.get("google_email") or "", quiet=quiet):
+                added += 1
+        if not missed:
+            _THREAD_SEEN[key] = time.time()
+        if added or missed:
+            log.info("inbox thread completed for user %s (+%s, %s to retry)", uid, added, missed)
         return added
     except Exception as e:
         try:
@@ -638,7 +725,7 @@ def today_cards(conn, uid: int) -> list:
     out = []
     for a in rows:
         m = message(conn, a["mail_id"], uid) if a.get("mail_id") else None
-        if not m:
+        if not m or m["trashed_at"]:
             continue
         try:
             inp = json.loads(a["input"] or "{}")
@@ -1115,21 +1202,17 @@ _QUOTE_START = re.compile(r"^(?:On [^\n]{4,300}?wrote:\s*$|-{2,} ?Original Messa
 
 def render_doc(conn, uid: int, m: dict) -> str:
     """The email as written, as a stand-alone document for a locked-down frame (no scripts run;
-    links open in a new tab; pictures inside the email shown as Gmail shows them)."""
+    links open in a new tab; pictures inside the email shown as Gmail shows them). The pictures load from the
+    attachment route as the frame shows them, not one Gmail download after another before the thread can open."""
     import html as _html
     body = m.get("html") or ""
     if body:
         body = _SCRIPTY.sub("", body)
         body = _ON_ATTR.sub("", body)
         body = _JS_URL.sub(r'\1=""', body)
-        for a in m.get("inline_images") or []:
-            if a.get("cid") and ("cid:" + a["cid"]) in body:
-                try:
-                    data = attachment_bytes(conn, uid, m, a)
-                    uri = f"data:{a['mime'] or 'image/png'};base64," + base64.b64encode(data).decode("ascii")
-                except Exception:
-                    uri = ""
-                body = body.replace("cid:" + a["cid"], uri)
+        for n, a in enumerate(m.get("all_files") or []):
+            if a.get("inline") and a.get("cid") and ("cid:" + a["cid"]) in body:
+                body = body.replace("cid:" + a["cid"], f"/api/inbox/messages/{int(m['id'])}/attachments/{n}")
     else:
         text = m.get("full") or m.get("body") or m.get("snippet") or ""
         cut = _QUOTE_START.search(text)   # the earlier email quoted under a plain-text reply: folded, as Gmail does
@@ -1138,7 +1221,7 @@ def render_doc(conn, uid: int, m: dict) -> str:
         if cut and cut.start():
             body += '<div class="gmail_quote" style="white-space:pre-wrap">' + link(text[cut.start():]) + "</div>"
     head = ('<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
-            'img-src https: data:; style-src \'unsafe-inline\' https:; font-src https: data:">'
+            'img-src \'self\' https: data:; style-src \'unsafe-inline\' https:; font-src https: data:">'
             '<base target="_blank"><style>html,body{margin:0;padding:0;background:#fff;color:#222}'
             'body{font:14px/1.5 Arial,Helvetica,sans-serif;overflow-wrap:anywhere}img{max-width:100%;height:auto}'
             'blockquote{margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex}table{max-width:100%}</style>')
@@ -1157,8 +1240,10 @@ def thread_view(conn, uid: int, mid: int) -> Optional[dict]:
         return None
     if m["thread_id"] and not runtime_seams.seam("SSC_INBOX_ATTACHMENT_FAKE"):   # the test mailbox never asks Google
         sync_thread(conn, uid, m["thread_id"])
-    ids = [r["id"] for r in _rows(conn, "SELECT id FROM mail_message WHERE user_id = ? AND thread_id = ? ORDER BY received_at, id",
-                                     (uid, m["thread_id"]))] if m["thread_id"] else [mid]
+    ids = [r["id"] for r in _rows(conn, "SELECT id FROM mail_message WHERE user_id = ? AND thread_id = ? AND trashed_at IS NULL "
+                                        "ORDER BY received_at, id", (uid, m["thread_id"]))] if m["thread_id"] else [mid]
+    if not ids or not m["thread_id"] and m["trashed_at"]:   # the whole conversation is in Gmail's Trash
+        return None
     out = []
     for i in ids:
         x = message(conn, i, uid)
@@ -1187,7 +1272,7 @@ def _backfill(conn, uid: int, m: dict) -> None:
     try:
         code, msg = _gmail(conn, link, "GET", f"/messages/{m['gmail_id']}?format=full")
         if code == 200:
-            store_view(conn, m["id"], msg.get("payload"))
+            store_view(conn, m["id"], _hydrate(conn, link, msg).get("payload"))
     except Exception as e:
         log.info("inbox backfill %s skipped (%s)", m["id"], type(e).__name__)
 
@@ -1229,8 +1314,8 @@ def run_round() -> None:
                         watch(conn, uid)
                     except Exception as e:
                         log.info("inbox watch user=%s skipped (%s)", uid, type(e).__name__)
-            pending = _rows(conn, "SELECT id FROM mail_message WHERE ai_state = 'pending' OR "
-                                  "(ai_state = 'paused' AND received_at >= ?) ORDER BY received_at LIMIT 20",
+            pending = _rows(conn, "SELECT id FROM mail_message WHERE trashed_at IS NULL AND (ai_state = 'pending' OR "
+                                  "(ai_state = 'paused' AND received_at >= ?)) ORDER BY received_at LIMIT 20",
                             (date.today().isoformat(),))
             for r in pending:
                 try:
@@ -1328,12 +1413,13 @@ def _api_status():
         except Exception:
             conn.rollback()
             cal = {}
-        n = conn.execute("SELECT COUNT(*) FROM mail_message WHERE user_id = ? AND needs_action = 1 AND status <> 'done'",
+        n = conn.execute("SELECT COUNT(*) FROM mail_message WHERE user_id = ? AND needs_action = 1 AND status <> 'done' "
+                         "AND trashed_at IS NULL",
                          (me["id"],)).fetchone()[0]
         return jsonify({"data": {
             "available": not reason, "reason": reason, "connected": bool(link), "status": (link or {}).get("status"),
             "google_email": (link or {}).get("google_email"), "can_send": can_send(link),
-            "live": push_configured(), "every_seconds": sync_seconds(), "last_sync_at": st.get("last_sync_at"),
+            "can_delete": can_delete(link), "live": push_configured(), "every_seconds": sync_seconds(), "last_sync_at": st.get("last_sync_at"),
             "problem": st.get("last_error") or (link or {}).get("last_error"), "needs_action": n,
             "sender": _sender_view(conn, me["id"]) if link else None,
             "calendar": {"connected": bool(cal.get("connected")), "status": cal.get("status"), "reads": bool(cal.get("reads_calendar"))},
@@ -1387,7 +1473,7 @@ def _api_messages():
         import claude_agent
         claude_agent.purge_expired(conn)   # unanswered cards older than 48 h leave the counts too
         rows = _rows(conn, "SELECT id, COALESCE(thread_id, gmail_id) AS t, needs_action, status, received_at FROM mail_message "
-                           "WHERE user_id = ? ORDER BY received_at DESC, id DESC LIMIT 600", (me["id"],))
+                           "WHERE user_id = ? AND trashed_at IS NULL ORDER BY received_at DESC, id DESC LIMIT 600", (me["id"],))
         filed = {r["message_id"] for r in _rows(conn, "SELECT l.message_id FROM mail_link l JOIN mail_message m ON m.id = l.message_id "
                                                       "WHERE m.user_id = ?", (me["id"],))}
         threads, order = {}, []
@@ -1578,6 +1664,56 @@ def _api_attachment(mid, n):
         conn.close()
 
 
+@requires_role(*OFFICE_ROLES)
+def _api_trash():
+    """Delete, as Gmail does: each conversation moves to Gmail's Trash (Gmail empties it after 30 days) and leaves the
+    Inbox. ids: any email of each conversation. restore: Undo (back out of the Trash). An email already filed on a
+    record stays on that record."""
+    import gcal_sync
+    me = _me()
+    data = request.get_json(silent=True) or {}
+    ids = [int(x) for x in (data.get("ids") or []) if str(x).isdigit()][:100]
+    restore = bool(data.get("restore"))
+    if not ids:
+        return _err("Pick an email first.")
+    conn = _conn()
+    try:
+        link = _link(conn, me["id"])
+        if not link:
+            return _err("Connect your Gmail first.", 409)
+        if not can_delete(link):
+            return _err("Reconnect Gmail once to allow deleting from here.", 409)
+        done, failed, seen = [], 0, set()
+        for mid in ids:
+            m = _one(conn, "SELECT id, gmail_id, thread_id FROM mail_message WHERE id = ? AND user_id = ?", (mid, me["id"]))
+            if not m or (m["thread_id"] or m["gmail_id"]) in seen:
+                continue
+            seen.add(m["thread_id"] or m["gmail_id"])
+            what = f"/threads/{_q(m['thread_id'])}" if m["thread_id"] else f"/messages/{_q(m['gmail_id'])}"
+            try:
+                code, _b = _gmail(conn, link, "POST", what + ("/untrash" if restore else "/trash"))
+            except gcal_sync.NeedsReconnect:
+                return _err("Your Google sign-in expired. Reconnect Gmail.", 409)
+            except Exception as e:
+                log.info("inbox trash %s failed (%s)", mid, type(e).__name__)
+                code = 0
+            if code == 403:
+                return _err("Reconnect Gmail once to allow deleting from here.", 409)
+            if code not in (200, 404):   # 404: already gone from Gmail
+                failed += 1
+                continue
+            gids = ([r["gmail_id"] for r in _rows(conn, "SELECT gmail_id FROM mail_message WHERE user_id = ? AND thread_id = ?",
+                                                   (me["id"], m["thread_id"]))] if m["thread_id"] else [m["gmail_id"]])
+            _mark_trashed(conn, me["id"], gids, not restore)
+            done.append(mid)
+        if failed and not done:
+            return _err("Gmail did not answer. Nothing was " + ("restored" if restore else "deleted") + "; try again.", 502)
+        log.info("inbox %s user=%s conversations=%s failed=%s", "restore" if restore else "trash", me["id"], len(done), failed)
+        return jsonify({"data": {"ids": done, "failed": failed}})
+    finally:
+        conn.close()
+
+
 def _decline_draft(conn, uid, ids):
     d = pending_reply(conn, uid, ids)
     if d:
@@ -1735,6 +1871,7 @@ def register(app) -> None:
     app.add_url_rule("/api/inbox/people", "inbox_people", _api_people, methods=["GET"])
     app.add_url_rule("/api/inbox/compose", "inbox_compose", _api_compose, methods=["POST"])
     app.add_url_rule("/api/inbox/refresh", "inbox_refresh", _api_refresh, methods=["POST"])
+    app.add_url_rule("/api/inbox/trash", "inbox_trash", _api_trash, methods=["POST"])
     app.add_url_rule("/gmail/push", "gmail_push", _api_push, methods=["POST"])
     import gmail_suggest
     if not gmail_suggest.unavailable_reason():

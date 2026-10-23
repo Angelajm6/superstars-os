@@ -1196,7 +1196,7 @@ def _t_search_email(ctx, inp):
     q = str(inp.get("query") or "").strip().lower()
     if len(q) < 2:
         raise ValueError("search for at least 2 characters")
-    rows = _rows(ctx.conn, "SELECT id FROM mail_message WHERE user_id = ? ORDER BY received_at DESC LIMIT 400", (ctx.uid,))
+    rows = _rows(ctx.conn, "SELECT id FROM mail_message WHERE user_id = ? AND trashed_at IS NULL ORDER BY received_at DESC LIMIT 400", (ctx.uid,))
     out = []
     for r in rows:
         m = inbox.message(ctx.conn, r["id"])
