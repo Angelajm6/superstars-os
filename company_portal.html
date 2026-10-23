@@ -2829,14 +2829,15 @@
     if (CAL.view === 'month') return MONTHS[a.getMonth()] + ' ' + a.getFullYear();
     const f = days[0], l = days[days.length - 1];
     const fm = MONTHS[f.getMonth()].slice(0, 3), lm = MONTHS[l.getMonth()].slice(0, 3);
-    return fm + ' ' + f.getDate() + (fm === lm ? '' : ' ' + fm) + ' – ' + (fm === lm ? '' : lm + ' ') + l.getDate() + ', ' + l.getFullYear();
+    return fm + ' ' + f.getDate() + ' – ' + (fm === lm ? '' : lm + ' ') + l.getDate() + ', ' + l.getFullYear();
   }
-  // in place of "Today": the period that holds today, e.g. "Oct 19 – 25 · Mon – Sun" (clicking it comes back there)
-  function calNowLabel() {
-    const t = new Date();
-    if (CAL.view === 'month') return MONTHS[t.getMonth()] + ' <small>· this month</small>';
-    if (CAL.view === 'week') { const m = calMonday(t); return weekRangeLabel(m, calAdd(m, 6), 'Mon – Sun'); }
-    const e = calAdd(t, 2); return weekRangeLabel(t, e, DOW[(t.getDay() + 6) % 7] + ' – ' + DOW[(e.getDay() + 6) % 7]);
+  // in place of "Today": the period in view, e.g. "Oct 19 – 25 · Mon – Sun" or "December · 2026" (clicking it comes back to today)
+  function calNowLabel(days) {
+    const a = CAL.anchor || new Date(), t = new Date();
+    if (CAL.view === 'month') return MONTHS[a.getMonth()] + ' <small>· ' + (a.getMonth() === t.getMonth() && a.getFullYear() === t.getFullYear() ? 'this month' : a.getFullYear()) + '</small>';
+    const f = days[0], l = days[days.length - 1];
+    if (CAL.view === 'week') return weekRangeLabel(f, l, 'Mon – Sun');
+    return weekRangeLabel(f, l, DOW[(f.getDay() + 6) % 7] + ' – ' + DOW[(l.getDay() + 6) % 7]);
   }
   async function loadCalendar() {
     if (!CAL.anchor) CAL.anchor = new Date();
@@ -2844,7 +2845,7 @@
     $('cal').className = 'cal v' + CAL.view;
     const days = calDays(); const from = calISO(days[0]), to = calISO(days[days.length - 1]);
     $('cal-range').textContent = calLabel(days);
-    $('cal-today').innerHTML = calNowLabel(); $('cal-today').title = 'Back to ' + (CAL.view === 'month' ? 'this month' : CAL.view === 'week' ? 'this week' : 'today');
+    $('cal-today').innerHTML = calNowLabel(days); $('cal-today').title = 'Back to ' + (CAL.view === 'month' ? 'this month' : CAL.view === 'week' ? 'this week' : 'today');
     try {
       const key = from + '|' + to; const { data: d } = CAL.cache[key] ? { data: CAL.cache[key] } : await api('/calendar?from=' + from + '&to=' + to);
       CAL.cache[key] = d; CAL.data = d; renderCalendar(days, d);

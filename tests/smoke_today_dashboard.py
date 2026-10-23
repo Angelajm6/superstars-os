@@ -327,7 +327,7 @@ def main() -> int:
         html = (ROOT / "company_portal.html").read_text(encoding="utf-8")
         for needle in ('id="td-needs"', 'id="td-day"', "a.type === 'studio'",
                        "api('/today')", "api('/today/weather')", "setInterval(", 'id="cc-week-range"',
-                       "calNowLabel()", "'Mon – Sun'", "window.SSC_CLAUDE.ask(",
+                       "calNowLabel(days)", "'Mon – Sun'", "window.SSC_CLAUDE.ask(",
                        'id="wx-modal"', "if (e.target.closest('[data-td-wx]')) { e.preventDefault(); wxOpen(); }", "Next 7 days"):
             assert needle in html, needle
         assert '>Today</button>' not in html, "the calendar shows the week, not 'Today'"
