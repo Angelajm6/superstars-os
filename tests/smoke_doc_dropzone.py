@@ -300,6 +300,8 @@ def main() -> int:
     doc2 = _data(r)
     ck = _checklist(admin)["coi"]
     assert ck["doc"]["id"] == doc2["id"] and ck["doc"]["history_count"] == 1
+    prev = ck["doc"]["history"][0]   # a previous version previews like the current one: type + name, no path
+    assert prev["id"] == doc["id"] and prev["mime"] and prev["file_name"] and admin.get(prev["file_url"]).status_code == 200
     conn = _db()
     try:
         assert not visibility.audiences_for(conn, "document", doc["id"])
@@ -498,11 +500,16 @@ def main() -> int:
     for gone in ("proj-specs-tbody", "PROJ_loadAttachedSpecs", 'id="pd-package"', 'id="pk-overlay"', "renderPackage"):
         assert gone not in html, gone
     for there in ('id="pd-sugg"', "renderSuggest", "data-dzparty", "suggestions/dismiss",
-                  "data-dzname", "data-ren=", "data-delyes", "duplicate_of"):
+                  "data-dzname", "data-ren=", "data-delyes", "duplicate_of",
+                  "pdf_view.js?v=2", "previewDoc(", "pd-btn-view"):
         assert there in html, there
     # one drop = one upload: the tab takes the drop in the capture phase so file_drop.js
     # (document, bubble) sees it handled and does not also feed #pd-cv-input
     assert "window.addEventListener('drop'" not in html
+    # every filed / waiting file previews in the panel, not a new tab
+    assert "window.open('/api/documents/'+op.getAttribute('data-open')" not in html
+    js = (ROOT / "static/js/pdf_view.js").read_text(encoding="utf-8")
+    assert "kindOf" in js and "kind === 'image'" in js
     assert "dzAdd(e.dataTransfer.files);\n    },true);" in html
     checks += 1
 
