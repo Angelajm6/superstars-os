@@ -416,7 +416,7 @@
   /* client page: per-contact Edit + Remove */
   .ct-right { display: flex; align-items: center; gap: 12px; }
   .ct-edit { background: none; border: 0; padding: 0; font: inherit; font-size:13px; font-weight: 600; cursor: pointer; }
-  .ct-remove { color: var(--status-behind-deep, #A8382B); }
+  .ct-remove, body .cp-modal .cp-modal-foot .btn-ghost.ct-remove { color: var(--status-behind-deep, #A8382B); }   /* beats unify.css dialog ghost color */
   /* #355 — vehicle fleet panel */
   .cp-modal.vf { max-width: 980px; }
   .vf-tabs { display: flex; gap: 6px; padding: 12px 20px 0; flex-wrap: wrap; }
@@ -1586,10 +1586,17 @@
       <div class="cp-field full"><label for="ce-name">Organization</label><input id="ce-name" class="ssc-field" required maxlength="200"></div>
       <div class="cp-field"><label for="ce-rel">Relationship</label><select id="ce-rel" class="ssc-field"></select></div>
       <div class="cp-field"><label for="ce-status">Status</label><select id="ce-status" class="ssc-field"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+      <div class="cp-field"><label for="ce-email">Email</label><input id="ce-email" class="ssc-field" type="email" autocomplete="off" maxlength="200" placeholder="office@example.com"></div>
+      <div class="cp-field"><label for="ce-phone">Phone</label><input id="ce-phone" class="ssc-field" inputmode="tel" maxlength="40"></div>
+      <div class="cp-field full"><label for="ce-website">Website</label><input id="ce-website" class="ssc-field" inputmode="url" autocomplete="off" maxlength="200" placeholder="example.com"></div>
+      <div class="cp-field full"><label for="ce-address">Street address</label><input id="ce-address" class="ssc-field" autocomplete="off" maxlength="200" placeholder="e.g. 890 E 135th St, Suite 2"></div>
+      <div class="cp-field full"><label for="ce-city">City</label><input id="ce-city" class="ssc-field" autocomplete="off" maxlength="100"></div>
+      <div class="cp-field"><label for="ce-state">State</label><input id="ce-state" class="ssc-field" autocomplete="off" maxlength="40" placeholder="NY"></div>
+      <div class="cp-field"><label for="ce-zip">ZIP</label><input id="ce-zip" class="ssc-field" inputmode="numeric" autocomplete="off" maxlength="10"></div>
       <div class="cp-field full"><label for="ce-notes">Notes</label><textarea id="ce-notes" class="ssc-field"></textarea></div>
       <div class="cp-form-err" id="ce-err" role="alert"></div>
     </div>
-    <div class="cp-modal-foot"><button class="btn-ghost" type="button" data-cancel>Cancel</button><button class="btn-primary" type="submit" id="ce-save">Save</button></div>
+    <div class="cp-modal-foot"><button class="btn-ghost ct-remove" type="button" id="ce-delete">Delete client</button><span style="flex:1"></span><button class="btn-ghost" type="button" data-cancel>Cancel</button><button class="btn-primary" type="submit" id="ce-save">Save</button></div>
   </form>
 </div>
 <div class="cp-overlay" id="nt-overlay" role="dialog" aria-modal="true" aria-labelledby="nt-title">
@@ -2477,6 +2484,7 @@
             </div>
           </div>
           <div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Details</h2></div>${clientDetailsHtml(o)}</div>
             <div class="cp-card"><div class="cp-card-head"><h2>Contacts</h2></div>
               ${d.contacts.length ? `<ul class="cp-list">${d.contacts.map(c => `<li><div><strong>${esc(c.full_name)}</strong>${c.title ? `<div class="cp-muted" style="font-size:13px">${esc(c.title)}</div>` : ''}</div><div class="ct-right"><div style="text-align:right;font-size:13px">${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a><br>` : ''}${esc(c.phone || '')}</div><button type="button" class="cp-link ct-edit" data-ct-edit="${c.id}">Edit</button></div></li>`).join('')}</ul>` : empty('No contacts yet')}
             </div>
@@ -2554,23 +2562,49 @@
     catch (ex) { formErr('ct-err', ex.message); }
     finally { $('ct-remove').disabled = false; }
   });
-  // edit the client itself (name, type, active / inactive, notes)
+  // the client's own email / phone / website / address (only what's filled in)
+  const CE_FIELDS = { email: 'ce-email', phone: 'ce-phone', website: 'ce-website', address_line: 'ce-address', city: 'ce-city', state: 'ce-state', zip: 'ce-zip' };
+  function clientDetailsHtml(o) {
+    const web = o.website ? (/^https?:\/\//i.test(o.website) ? o.website : 'https://' + o.website) : '';
+    const place = [o.city, [o.state, o.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    const addr = [o.address_line, place].filter(Boolean).join(', ');
+    const rows = [
+      o.email ? ['Email', `<a href="mailto:${esc(o.email)}">${esc(o.email)}</a>`] : null,
+      o.phone ? ['Phone', `<a href="tel:${esc(o.phone.replace(/[^0-9+]/g, ''))}">${esc(o.phone)}</a>`] : null,
+      web ? ['Website', `<a href="${esc(web)}" target="_blank" rel="noopener noreferrer">${esc(o.website)}</a>`] : null,
+      addr ? ['Address', `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}" target="_blank" rel="noopener noreferrer">${esc(addr)}</a>`] : null,
+    ].filter(Boolean);
+    return rows.length ? `<ul class="cp-list">${rows.map(r => `<li><span class="cp-muted">${r[0]}</span><span style="text-align:right;overflow-wrap:anywhere">${r[1]}</span></li>`).join('')}</ul>` : empty('No details yet', 'Add an email, phone or address with Edit client.');
+  }
+  // edit the client itself (name, type, active / inactive, details, notes) — or delete it
   function openClientEdit(o) {
     openClientModal('ce', o.id);
     $('ce-rel').innerHTML = $('cl-rel').innerHTML;
     if (o.relationship_type && ![...$('ce-rel').options].some(x => x.value === o.relationship_type)) $('ce-rel').insertAdjacentHTML('afterbegin', `<option value="${esc(o.relationship_type)}">${esc(o.relationship_type)}</option>`);
     $('ce-name').value = o.name || ''; $('ce-rel').value = o.relationship_type || 'client';
     $('ce-status').value = o.status === 'inactive' ? 'inactive' : 'active'; $('ce-notes').value = o.notes || '';
+    Object.keys(CE_FIELDS).forEach(k => { $(CE_FIELDS[k]).value = o[k] || ''; });
   }
   $('ce-form').addEventListener('submit', async (e) => {
     e.preventDefault(); const org = $('ce-form').dataset.org; const name = $('ce-name').value.trim();
     if (!name) { formErr('ce-err', 'Enter the client name.'); return; }
     $('ce-save').disabled = true;
     try {
-      await api('/crm/organizations/' + encodeURIComponent(org), { method: 'PUT', body: JSON.stringify({ name, relationship_type: $('ce-rel').value, status: $('ce-status').value, notes: $('ce-notes').value.trim() || null }) }, true);
+      const body = { name, relationship_type: $('ce-rel').value, status: $('ce-status').value, notes: $('ce-notes').value.trim() || null };
+      Object.keys(CE_FIELDS).forEach(k => { body[k] = $(CE_FIELDS[k]).value.trim() || null; });
+      await api('/crm/organizations/' + encodeURIComponent(org), { method: 'PUT', body: JSON.stringify(body) }, true);
       toast('Client saved'); closeClientModal('ce'); loadClientDetail(org);
     } catch (ex) { formErr('ce-err', ex.message); }
     finally { $('ce-save').disabled = false; }
+  });
+  // delete for good — the server refuses a client with jobs, estimates, proposals or invoices (mark it inactive)
+  $('ce-delete').addEventListener('click', async () => {
+    const org = $('ce-form').dataset.org; if (!org) return;
+    if (!confirm('Permanently delete ' + ($('ce-name').value.trim() || 'this client') + '? Its contacts, notes and follow-ups are deleted too. This can\'t be undone.')) return;
+    $('ce-delete').disabled = true;
+    try { await api('/crm/organizations/' + encodeURIComponent(org), { method: 'DELETE' }, true); toast('Client deleted'); closeClientModal('ce'); location.hash = '#clients'; }
+    catch (ex) { formErr('ce-err', ex.message); }
+    finally { $('ce-delete').disabled = false; }
   });
   $('nt-form').addEventListener('submit', async (e) => {
     e.preventDefault(); const org = $('nt-form').dataset.org; const summary = $('nt-summary').value.trim();
