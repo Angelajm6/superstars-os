@@ -442,12 +442,68 @@ def main() -> int:
     assert ah["key"] not in keys and sds["key"] in keys
     checks += 1
 
+    # ---- the same file dropped twice waits once (the double-upload fix's server half)
+    dup_body = b"%PDF-1.4 dropped twice %%EOF"
+    first = _data(_drop(admin, name="twice.pdf", body=dup_body))
+    r = _drop(admin, name="twice (1).pdf", body=dup_body)
+    assert r.status_code == 200 and _data(r)["duplicate_of"] == first["id"] and _data(r)["id"] == first["id"]
+    conn = _db()
+    try:
+        n = conn.execute("SELECT COUNT(*) AS n FROM project_doc_intake WHERE project_code=? AND file_name LIKE 'twice%'",
+                         (PROJ,)).fetchone()["n"]
+    finally:
+        conn.close()
+    assert n == 1
+    # the name typed on the card wins over Claude's title
+    r = admin.post(f"/api/documents/intake/{first['id']}/approve",
+                   json={"type_key": "contract_other", "title": "  Delta scope letter "})
+    assert r.status_code == 201
+    named = _data(r)
+    assert named["title"] == "Delta scope letter"
+    checks += 1
+
+    # ---- rename + delete a filed document
+    url = f"/api/documents/{named['id']}"
+    assert pm.patch(url, json={"title": "x"}).status_code == 403          # not on this job
+    assert admin.patch(url, json={"title": "   "}).status_code == 400
+    r = admin.patch(url, json={"title": "  Scope   letter — Delta "})
+    assert r.status_code == 200 and _data(r)["title"] == "Scope letter — Delta"
+    assert pm.delete(url).status_code == 403
+    assert admin.delete(url).status_code == 200 and admin.delete(url).status_code == 404
+    # deleting the current COI brings the previous version back as current (still internal)
+    ours = [d for d in _checklist(admin)["coi"]["docs"] if (d.get("party") or "company") == "company"][0]
+    assert ours["id"] == doc2["id"] and ours["history_count"] == 1
+    conn = _db()
+    try:
+        assert visibility.share(conn, "document", doc2["id"], "client", None).get("ok")
+        conn.commit()
+    finally:
+        conn.close()
+    r = admin.delete(f"/api/documents/{doc2['id']}")
+    assert r.status_code == 200 and _data(r)["restored"] == doc["id"]
+    ours = [d for d in _checklist(admin)["coi"]["docs"] if (d.get("party") or "company") == "company"][0]
+    assert ours["id"] == doc["id"] and ours["history_count"] == 0
+    assert admin.get(doc2["file_url"]).status_code == 404
+    conn = _db()
+    try:
+        assert not conn.execute("SELECT 1 FROM item_visibility WHERE item_type='document' AND item_id=?",
+                                (doc2["id"],)).fetchone()
+        assert not visibility.audiences_for(conn, "document", doc["id"])
+    finally:
+        conn.close()
+    checks += 1
+
     # ---- the tab: Specifications + permits & insurance sections are gone; suggestions + party are in
     html = (ROOT / "dashboard-static.html").read_text(encoding="utf-8")
     for gone in ("proj-specs-tbody", "PROJ_loadAttachedSpecs", 'id="pd-package"', 'id="pk-overlay"', "renderPackage"):
         assert gone not in html, gone
-    for there in ('id="pd-sugg"', "renderSuggest", "data-dzparty", "suggestions/dismiss"):
+    for there in ('id="pd-sugg"', "renderSuggest", "data-dzparty", "suggestions/dismiss",
+                  "data-dzname", "data-ren=", "data-delyes", "duplicate_of"):
         assert there in html, there
+    # one drop = one upload: the tab takes the drop in the capture phase so file_drop.js
+    # (document, bubble) sees it handled and does not also feed #pd-cv-input
+    assert "window.addEventListener('drop'" not in html
+    assert "dzAdd(e.dataTransfer.files);\n    },true);" in html
     checks += 1
 
     print(f"PASS: documents drop zone — schema + taxonomy, pure read, gates, unread wait, AI card, approve, "

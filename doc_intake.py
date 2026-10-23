@@ -9,6 +9,7 @@ removing deletes the row and the file.
   project_doc_intake  — one row per dropped file awaiting approval.
                         file_path is on-disk ONLY, never serialized.
                         status: 'ready' (Claude read it) | 'unread' (no AI / failed).
+                        content_sha256: the same file dropped twice waits once.
   project_documents   + type_key   (doc_types key — the approved tag)
                       + ai_extract (JSON: summary, key_facts, fields, confidence, model, related)
                       + party / party_name (whose record it is: our company, a
@@ -54,6 +55,9 @@ def ensure_schema(conn) -> None:
         f"  created_at       TEXT NOT NULL"
         f")")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_projdoc_intake_project ON project_doc_intake(project_code)")
+    # the same file dropped twice (a double drop, a second tab) waits once
+    if not _column_exists(conn, "project_doc_intake", "content_sha256"):
+        conn.execute("ALTER TABLE project_doc_intake ADD COLUMN content_sha256 TEXT")
     # project_documents comes from the #229 schema; on a DB without it (bare test
     # fixtures) the columns arrive when that migration runs and this one re-runs.
     has_docs = (bool(conn.execute("SELECT 1 FROM information_schema.tables WHERE table_schema='public' "
