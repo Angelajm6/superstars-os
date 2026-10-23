@@ -410,7 +410,7 @@ def threads_for(conn, uid, r: dict, q: Optional[str] = None, limit: int = 10) ->
     ql = (q or "").strip().lower()
     threads, order = {}, []
     for m in _rows(conn, "SELECT id, thread_id, gmail_id, direction, received_at, client_org_id, from_enc, to_enc, cc_enc, "
-                         "subject_enc FROM mail_message WHERE user_id = ? ORDER BY received_at DESC, id DESC LIMIT ?",
+                         "subject_enc FROM mail_message WHERE user_id = ? AND trashed_at IS NULL ORDER BY received_at DESC, id DESC LIMIT ?",
                    (uid, THREADS_SCANNED)):
         t = m["thread_id"] or m["gmail_id"]
         frm, to, cc, subj = (inbox._dec(m["from_enc"]), inbox._dec(m["to_enc"]), inbox._dec(m["cc_enc"]), inbox._dec(m["subject_enc"]))
