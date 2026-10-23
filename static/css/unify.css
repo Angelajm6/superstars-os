@@ -157,7 +157,6 @@ body .ssc-main button.primary:hover { background: var(--accent-ink); color: #fff
 /* ---- Secondary ---- */
 body .ssc-main .btn-ghost,
 body .ssc-main .btn-back,
-body .ssc-main .pj-edit,
 body .ssc-main .btn-sm:not(.btn-primary),
 body .ssc-main .cc-week-link:not(.primary) {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
@@ -168,12 +167,11 @@ body .ssc-main .cc-week-link:not(.primary) {
 body .ssc-main .btn-ghost:hover,
 body .ssc-main .btn-sm:not(.btn-primary):hover,
 body .ssc-main .btn-back:hover,
-body .ssc-main .pj-edit:hover,
 body .ssc-main .cc-week-link:not(.primary):hover { background: var(--accent-soft); border-color: var(--accent-edge); color: var(--accent-ink); }
 
 /* ---- Small row buttons (inside tables and lists) ---- */
 body .ssc-main td .btn-sm, body .ssc-main td .btn-primary, body .ssc-main td .btn-ghost,
-body .ssc-main li .btn-sm, body .ssc-main .pj-edit {
+body .ssc-main li .btn-sm {
   min-height: var(--ctl-h-sm); padding: 0 12px; border-radius: var(--ctl-r); font-size: 13px; font-weight: 600;
 }
 body .ssc-main .iconbtn { width: var(--ctl-h-sm); height: var(--ctl-h-sm); min-height: 0; padding: 0; border-radius: var(--ctl-r); }
