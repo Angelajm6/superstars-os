@@ -46,6 +46,8 @@
   a.cp-kpi-link:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(36,65,140,.12); border-color: var(--accent); }
   a.cp-kpi-link:focus-visible, .cp-list li.has-link > a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .cp-list li.has-link { padding: 0; }
+  .pj-site-acts { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+  body .ssc-main .pj-site-acts .btn-ghost.ct-remove { color: var(--status-behind-deep, #A8382B); }
   .cp-list li.has-link > a { display: flex; justify-content: space-between; gap: 12px; width: 100%; padding: 8px 10px; color: inherit; text-decoration: none; border-radius: 6px; }
   .cp-list li.has-link > a:hover { background: var(--ui-soft, #E8EDF8); }
   .cp-list li.has-link > a:hover strong, .cp-list li.has-link > a:hover .cp-link { color: var(--ui); }
@@ -86,8 +88,6 @@
   .pj-job .cp-id, .pj-no { white-space: nowrap; }
   #pj-table td:nth-child(3) { min-width: 140px; }
   .pj-sw { width: 12px; height: 12px; border-radius: 4px; flex: none; margin-top: 3px; }
-  .pj-acc { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
-  .pj-acc span { font-size:13px; font-weight: 600; border-radius: 999px; padding: 1px 8px; background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); white-space: nowrap; }
   .pj-edit { font: inherit; font-size:13px; font-weight: 600; border: 1px solid var(--line); background: #fff; border-radius: 7px; padding: 4px 10px; cursor: pointer; }
   .pj-edit:hover { border-color: var(--accent); }
   .cp-muted { color: var(--muted); }
@@ -2987,10 +2987,10 @@
     try {
       const { data: rows, meta } = await api('/projects?' + q.toString());
       const sites = (meta && meta.sites_without_project) || [];   // #337
-      $('pj-notice').innerHTML = sites.length ? `<div class="cp-note" style="margin-bottom:12px"><strong>${sites.length} address${sites.length > 1 ? 'es were' : ' was'} added without a project.</strong> Create the project so it gets a dashboard, crew, calendar bar and daily reports.<ul class="cp-list" style="margin-top:8px">${sites.map(s => `<li><span>${esc(s.name || s.address_line)}${s.client_name ? ' <span class="cp-muted">· ' + esc(s.client_name) + '</span>' : ''}</span><a class="btn-primary btn-sm" style="text-decoration:none" href="${newProjectHref(s)}" data-newproj="${esc(JSON.stringify({ address: s.address_line || s.address || '', borough: s.borough || '', name: s.name || '', client_org_id: s.client_org_id || '' }))}">Create project</a></li>`).join('')}</ul></div>` : '';
+      $('pj-notice').innerHTML = sites.length ? `<div class="cp-note" style="margin-bottom:12px"><strong>${sites.length} address${sites.length > 1 ? 'es were' : ' was'} added without a project.</strong> Create the project so it gets a dashboard, crew, calendar bar and daily reports.<ul class="cp-list" style="margin-top:8px">${sites.map(s => `<li><span>${esc(s.name || s.address_line)}${s.client_name ? ' <span class="cp-muted">· ' + esc(s.client_name) + '</span>' : ''}</span><span class="pj-site-acts"><a class="btn-primary btn-sm" style="text-decoration:none" href="${newProjectHref(s)}" data-newproj="${esc(JSON.stringify({ address: s.address_line || s.address || '', borough: s.borough || '', name: s.name || '', client_org_id: s.client_org_id || '' }))}">Create project</a><button type="button" class="btn-ghost btn-sm ct-remove" data-site-del="${s.id}" data-site-name="${esc(s.name || s.address_line || '')}">Delete</button></span></li>`).join('')}</ul></div>` : '';
       table($('pj-table'), [
         { key: 'job_number', label: '#', num: true, render: r => r.job_number != null ? `<span class="pj-no">#${r.job_number}</span>` : '—' },
-        { key: 'project_code', label: 'Job', render: r => `<div class="pj-job"><span class="pj-sw" style="background:${esc(r.color || '#475569')}" title="Calendar color"></span><div><span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:13px">${esc(r.name || '')}</div>${(r.access_labels || []).length ? `<div class="pj-acc">${r.access_labels.map(a => `<span>${esc(a)}</span>`).join('')}</div>` : ''}</div><button type="button" class="pj-edit" data-pj-edit="${esc(r.project_code)}" title="Edit project">Edit</button></div>` },
+        { key: 'project_code', label: 'Job', render: r => `<div class="pj-job"><span class="pj-sw" style="background:${esc(r.color || '#475569')}" title="Calendar color"></span><div><span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:13px">${esc(r.name || '')}</div></div><button type="button" class="pj-edit" data-pj-edit="${esc(r.project_code)}" title="Edit project">Edit</button></div>` },
         { key: 'address', label: 'Address', render: r => `${esc(r.address || '—')}<div class="cp-muted" style="font-size:13px">${esc(r.city_zip || '')}</div>` },
         { key: 'client_name', label: 'Client', render: r => esc(r.client_name || '—') },
         { key: 'billing_short', label: 'Billing', render: r => r.billing_type ? `<span class="cp-pill ${r.billing_type === 'aia_sov' ? 'active' : ''}" title="${esc(r.billing_label)}">${esc(r.billing_short)}</span>` : '<span class="cp-muted" title="How this job is billed is not set — pick it in the project Settings">not set</span>' },   // #356
@@ -3009,6 +3009,14 @@
     const q = new URLSearchParams({ new: '1', address: s.address_line || s.address || '', borough: s.borough || '', name: s.name || '' });
     if (s.client_org_id) q.set('client_org_id', s.client_org_id);
     return '/admin/projects?' + q.toString();
+  }
+  // a suggested address nobody wants a project for: archive the building (hidden here and on the client; estimates
+  // and proposals that name it keep their link)
+  async function deleteSite(btn) {
+    if (!confirm('Delete ' + (btn.dataset.siteName || 'this address') + ' from the suggestions? It is removed from the client\'s addresses too.')) return;
+    btn.disabled = true;
+    try { await api('/buildings/' + encodeURIComponent(btn.dataset.siteDel) + '/archive', { method: 'POST' }, true); toast('Address deleted'); loadProjects(); }
+    catch (ex) { toast(ex.message, true); btn.disabled = false; }
   }
   // ---------- BUILDINGS (#304) ----------
   async function clientOptions(selectEl, keepValue) {
@@ -5616,11 +5624,14 @@
   // "+ New project" opens the form right here (static/js/new_project_modal.js)
   $('pj-new').addEventListener('click', () => window.SSCNewProject.open());
   $('pj-notice').addEventListener('click', e => {
+    const d = e.target.closest('[data-site-del]');
+    if (d) { deleteSite(d); return; }
     const a = e.target.closest('[data-newproj]'); if (!a) return;
     e.preventDefault(); try { window.SSCNewProject.open(JSON.parse(a.dataset.newproj)); } catch (x) { location.href = a.href; }
   });
   $('pj-table').addEventListener('click', e => { const b = e.target.closest('[data-pj-edit]'); if (b) window.SSCNewProject.edit(b.dataset.pjEdit); });
   document.addEventListener('ssc:project-updated', e => { toast('Project ' + ((e.detail || {}).project_code || '') + ' saved'); if (state.view === 'projects') loadProjects(); });
+  document.addEventListener('ssc:project-deleted', e => { e.preventDefault(); toast('Project ' + ((e.detail || {}).project_code || '') + ' deleted'); if (state.view === 'projects') loadProjects(); else location.hash = '#projects'; });
   document.addEventListener('ssc:project-created', e => { const d = e.detail || {}; toast('Project ' + d.project_code + ' created'); if (state.view === 'projects') loadProjects(); else location.hash = '#projects'; });
   $('pj-search').addEventListener('input', () => debounce(loadProjects));
   $('pj-status').addEventListener('change', loadProjects);

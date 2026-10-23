@@ -227,6 +227,8 @@ import project_summary  # noqa: E402
 project_summary.register(app)   # #358 — the job dashboard summary (bootstrap part + /summary)
 import project_details  # noqa: E402
 project_details.register(app)   # edit a job's name, address, client, dates, contract value
+import project_delete  # noqa: E402
+project_delete.register(app)    # delete a job that has nothing filed under it yet
 import team_items  # noqa: E402
 team_items.register(app)   # team tasks & events: the dashboard to-do list, synced onto the calendar
 import gcal_sync  # noqa: E402
