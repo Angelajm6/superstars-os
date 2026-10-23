@@ -19,7 +19,7 @@
 <script src="/files/static/js/new_project_modal.js?v=1016" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1010" defer></script>
 <script src="/files/static/js/gcal_connect.js?v=1017" defer></script>
-<script src="/files/static/js/inbox_schedule.js?v=4" defer></script>
+<script src="/files/static/js/inbox_schedule.js?v=5" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
 <script src="/files/static/js/pdf_view.js?v=2" defer></script>
@@ -247,11 +247,19 @@
     .prx-chips { padding: 0 12px 12px; }
   }
   /* Inbox (2026-10-15, inbox.py): the mailbox as in Gmail; Claude drafts only where a reply is needed */
-  #view-inbox [hidden]{display:none !important}   /* Mail / Mine / All switch (.ib-wrap and .ib-conn set their own display) */
+  #view-inbox [hidden]{display:none !important}   /* Email / My calendar / Team switch (.ib-wrap and .ib-conn set their own display) */
   .ib-conn { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 8px 14px; font-size: 13px; color: var(--muted); }
   .ib-conn-t { display: inline-flex; gap: 8px; align-items: center; }
   .ib-dot { width: 8px; height: 8px; border-radius: 50%; background: #0c7a5f; display: inline-block; flex: none; }
   .ib-dot.off { background: #B4B9C4; } .ib-dot.warn { background: #D9822B; }
+  .ib-live { border: 0; background: none; padding: 6px 2px; min-height: 36px; font: inherit; color: inherit; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; border-radius: 6px; }
+  .ib-live:hover { color: var(--ink); } .ib-live:focus-visible { outline: 2px solid var(--accent, #4364dc); }
+  .ib-live.busy .ib-dot { animation: ib-pulse 1s infinite; }
+  @keyframes ib-pulse { 50% { opacity: .25; } }
+  @media (prefers-reduced-motion: reduce) { .ib-live.busy .ib-dot { animation: none; } }
+  .ib-live { white-space: nowrap; }
+  .ib-acct { color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 600px) { .ib-acct { display: none; } }
   .ib-wrap { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); grid-template-rows: 100%; padding: 0; height: max(520px, calc(100vh - 176px)); overflow: hidden; }
   .ib-list { border-right: 1px solid var(--line); min-width: 0; display: flex; flex-direction: column; }
   .ib-lhead { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
@@ -1325,11 +1333,11 @@
 
       <!-- job page redesign step 1: which views get opened (counts only) + which tools each job uses -->
       <section class="cp-view" id="view-inbox" hidden>
-        <!-- 2026-10-16: Mail (Gmail, as before) | Mine (own calendar, private + assigned work) | All (team, server-checked) -->
+        <!-- 2026-10-23: Email (your Gmail, synced both ways) | My calendar (own calendar, private + assigned work) | Team (server-checked) -->
         <div class="ssc-subtabs" role="tablist" aria-label="Inbox" id="ib-tabs">
-          <a class="ssc-subtab" role="tab" href="#inbox" data-ibtab="mail">Mail</a>
-          <a class="ssc-subtab" role="tab" href="#inbox/mine" data-ibtab="mine">Mine</a>
-          <a class="ssc-subtab" role="tab" href="#inbox/all" data-ibtab="all">All</a>
+          <a class="ssc-subtab" role="tab" href="#inbox" data-ibtab="mail">Email</a>
+          <a class="ssc-subtab" role="tab" href="#inbox/mine" data-ibtab="mine">My calendar</a>
+          <a class="ssc-subtab" role="tab" href="#inbox/all" data-ibtab="all" title="Everyone's tasks, events and meetings">Team</a>
         </div>
         <div id="ib-sched" hidden></div>
         <div class="cp-card ib-conn" id="ib-conn"></div>
@@ -1337,8 +1345,7 @@
           <div class="ib-list">
             <div class="ib-lhead">
               <button type="button" class="btn-primary btn-sm" id="ib-new">✎ Compose</button>
-              <button type="button" class="btn-ghost btn-sm" id="ib-refresh" title="Check Gmail for new email right now">↻ Refresh</button>
-              <div class="ib-filters" role="group" aria-label="Show"><button type="button" data-ibf="all" aria-pressed="true">All</button><button type="button" data-ibf="act" aria-pressed="false">Needs reply</button><button type="button" data-ibf="filed" aria-pressed="false">Filed</button></div>
+              <div class="ib-filters" role="group" aria-label="Show"><button type="button" data-ibf="inbox" aria-pressed="true">Inbox</button><button type="button" data-ibf="act" aria-pressed="false">Needs reply</button><button type="button" data-ibf="filed" aria-pressed="false">Filed</button></div>
             </div>
             <div class="ib-selbar" id="ib-selbar" hidden>
               <button type="button" class="ib-ibtn" id="ib-sel-x" title="Clear selection" aria-label="Clear selection"></button><b id="ib-sel-n"></b><span class="sp"></span>
@@ -3128,7 +3135,7 @@
   // Conversations as written (html in a locked-down frame), attachments, Reply / Reply all /
   // Compose from the person's own Gmail. Claude drafts a reply only where one is needed: it waits
   // in the reply box and goes out only when the person presses Send. Other suggestions are cards.
-  const IB = { filter: 'all', rows: [], open: null, cards: [], timer: null, thread: null, composer: null, sel: new Set() };
+  const IB = { filter: 'inbox', rows: [], open: null, cards: [], timer: null, thread: null, composer: null, sel: new Set() };
   const IB_COLORS = ['#24418C', '#0c7a5f', '#B11E2E', '#7A4FB3', '#C2603B', '#2C7A9B', '#8A6D1F'];
   function ibColor(s) { let h = 0; for (const c of String(s || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0; return IB_COLORS[h % IB_COLORS.length]; }
   function ibAgo(iso) {
@@ -3165,18 +3172,78 @@
     if (!st.available) line = `<span title="${esc(st.reason ? 'Technical detail: ' + st.reason : '')}">${dot('off')}Email isn't connected yet. It needs a one-time Google setup on the server.</span>`;
     else if (!st.connected) { line = `${dot('off')}Connect your Gmail to see your email here.`; acts = `<a class="btn-primary btn-sm" href="/gmail/connect?next=${next}">Connect your Gmail</a>`; }
     else if (st.status !== 'active') { line = `${dot('warn')}Your Gmail sign-in expired.`; acts = `<a class="btn-primary btn-sm" href="/gmail/connect?next=${next}">Reconnect Gmail</a>`; }
-    else {
-      line = `${dot('')}Connected as ${esc(st.google_email || '')}${st.last_sync_at ? ' · checked ' + ibAgo(st.last_sync_at) : ''}`;
-      if (!st.can_send || !st.can_delete) acts += `<a class="btn-ghost btn-sm" href="/gmail/connect?next=${next}" title="Lets you send replies from your Gmail and delete email from here">${!st.can_send && !st.can_delete ? 'Reconnect to allow sending and deleting' : !st.can_send ? 'Reconnect to allow sending' : 'Reconnect to allow deleting'}</a>`;
+    else {   // live: syncs by itself (every few seconds while open); tapping the line syncs now
+      line = `<button type="button" class="ib-live" id="ib-live" title="Sync with Gmail now">${dot('')}<span id="ib-live-t">Up to date</span></button><span class="ib-acct">${esc(st.google_email || '')}</span>`;
+      IB.synced = st.last_sync_at;
+      if (!st.can_send || !st.can_delete) acts += `<a class="btn-ghost btn-sm" href="/gmail/connect?next=${next}" title="Lets you send replies, and keeps read, Done and Delete the same in Gmail">${!st.can_send ? 'Reconnect Gmail to allow sending' : 'Reconnect Gmail to keep both in sync'}</a>`;
     }
     if (st.calendar && st.calendar.connected && !st.calendar.reads) acts += `<a class="btn-ghost btn-sm" href="/google-calendar/connect?next=${next}" title="Brings your own Google events into your Inbox">Reconnect Calendar</a>`;
     if (st.problem) line += ` <span class="cp-muted">${esc(st.problem)}</span>`;
     $('ib-conn').innerHTML = `<span class="ib-conn-t">${line}</span>${acts}`;
+    if ($('ib-live')) { $('ib-live').addEventListener('click', () => ibTick(true)); ibLiveText(); }
     await ibList();
     const want = arg && /^\d+$/.test(arg) ? +arg : IB.open;
     if (want) ibOpen(want, false);
     else { $('ib-mail').classList.remove('reading'); ibEmptyPane(); }
-    IB.timer = setTimeout(function tick() { if (state.view !== 'inbox' || IB.sub !== 'mail') return; ibList(); IB.timer = setTimeout(tick, 30000); }, 30000);
+    IB.sig = null; ibTick(false);
+  }
+  // Live, both ways (2026-10-23): every 10 s while the Email tab is open (and on coming back to the tab), ask whether
+  // anything changed (the server also syncs Gmail, at most every 15 s); reload only when it did. No Refresh button.
+  function ibLiveText(busy) {
+    const b = $('ib-live'), t = $('ib-live-t');
+    if (!b || !t) return;
+    b.classList.toggle('busy', !!busy);
+    if (busy) { t.textContent = 'Syncing with Gmail…'; return; }
+    const s = IB.synced ? Math.max(0, Math.round((Date.now() - new Date(IB.synced)) / 1000)) : null;
+    t.textContent = s === null ? 'Up to date' : 'Up to date · synced ' + (s < 10 ? 'just now' : s < 60 ? s + ' s ago' : s < 3600 ? Math.round(s / 60) + ' min ago' : ibAgo(IB.synced));
+  }
+  async function ibTick(now) {
+    clearTimeout(IB.timer);
+    if (state.view !== 'inbox' || IB.sub !== 'mail' || document.hidden) return;
+    if (now) ibLiveText(true);
+    try {
+      let c = (await api('/inbox/changes?sync=1', null, true)).data;
+      if (now) { await new Promise(res => setTimeout(res, 1500)); c = (await api('/inbox/changes', null, true)).data; }
+      IB.synced = c.last_sync_at || IB.synced;
+      if (IB.sig !== null && c.sig !== IB.sig) await ibChanged();
+      IB.sig = c.sig;
+    } catch (e) { /* offline for a moment: the next tick tries again */ }
+    ibLiveText(false);
+    IB.timer = setTimeout(() => ibTick(false), 10000);
+  }
+  async function ibChanged() {   // something changed (here, in Gmail, or Claude finished): the list, and the open email if it moved
+    // (a reply box open = someone is writing: the open email stays as it is)
+    await ibList();
+    if (!IB.open || !IB.thread) return;
+    const pane = $('ib-pane'), busy = $('ib-body') || (pane && pane.contains(document.activeElement) && /^(TEXTAREA|INPUT)$/.test(document.activeElement.tagName));
+    if (busy) return;   // never pull a half-written reply out from under someone
+    try {
+      const v = (await api('/inbox/threads/' + IB.open, null, true)).data;
+      if (v.messages.length !== IB.thread.messages.length || !!v.draft !== !!IB.thread.draft || v.needs_action !== IB.thread.needs_action) ibOpen(IB.open, false);
+    } catch (e) { /* gone (deleted in Gmail): the list already says so */ }
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && state.view === 'inbox' && IB.sub === 'mail') ibTick(false); });
+  async function ibDone(id, v) {   // Done = Gmail's Archive: leaves the Inbox (here and in Gmail), with Undo
+    let r;
+    try { r = (await api('/inbox/messages/' + v.last_id + '/done', { method: 'POST', body: JSON.stringify({ done: true }) }, true)).data; } catch (e) { toast(e.message, true); return; }
+    if (ibSingle()) ibBack();
+    else { IB.open = null; if (location.hash !== '#inbox') history.replaceState(null, '', '#inbox'); ibEmptyPane(); }
+    await ibList();
+    const t = $('cp-toast');
+    t.innerHTML = esc(r.gmail ? 'Done. Archived in Gmail too.' : IB.status && IB.status.can_delete ? 'Done here. Gmail did not answer, so it is still in your Gmail inbox.' : 'Done. Reconnect Gmail to archive it there too.') + '<button type="button" class="cp-toast-act" id="ib-undo-done">Undo</button>';
+    t.className = 'cp-toast show'; clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 8000);
+    $('ib-undo-done').addEventListener('click', async () => {
+      t.classList.remove('show');
+      try { await api('/inbox/messages/' + v.last_id + '/done', { method: 'POST', body: JSON.stringify({ done: false }) }, true); toast('Back in your Inbox'); await ibList(); }
+      catch (e) { toast(e.message, true); }
+    });
+  }
+  async function ibUnread(id, v) {   // Mark unread, here and in Gmail; back to the list, as Gmail does
+    try { const r = (await api('/inbox/messages/' + v.last_id + '/unread', { method: 'POST', body: '{}' }, true)).data; toast(r.gmail ? 'Marked unread in Gmail too' : 'Marked unread'); }
+    catch (e) { toast(e.message, true); return; }
+    if (ibSingle()) ibBack();
+    else { IB.open = null; if (location.hash !== '#inbox') history.replaceState(null, '', '#inbox'); ibEmptyPane(); }
+    await ibList();
   }
   const IB_ICON = {   // Gmail's icons (Material, 24px grid)
     back: 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z',
@@ -3191,6 +3258,7 @@
     done: 'M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
     flag: 'M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6z',
     del: 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z',
+    unread: 'M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z',
     x: 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'
   };
   const ibI = (k, small) => `<svg class="ib-ic${small ? ' s' : ''}" viewBox="0 0 24 24" aria-hidden="true"><path d="${IB_ICON[k]}"/></svg>`;
@@ -3238,7 +3306,7 @@
   }
   function ibEmptyPane() {
     const st = IB.status || {};
-    $('ib-pane').innerHTML = `<div class="ib-empty">${empty(st.connected ? 'Pick an email' : 'Connect your Gmail', st.connected ? 'New email shows up by itself. Use Refresh to check right now.' : 'Your email then arrives here, as in Gmail.')}</div>`;
+    $('ib-pane').innerHTML = `<div class="ib-empty">${empty(st.connected ? 'Pick an email' : 'Connect your Gmail', st.connected ? 'New email shows up by itself, and what you do in Gmail shows here too.' : 'Your email then arrives here, as in Gmail.')}</div>`;
   }
   async function ibTrash(ids) {   // Delete, as Gmail: to Gmail's Trash, with Undo
     ids = ids.filter(Boolean);
@@ -3359,8 +3427,9 @@
     IB.thread = v;
     const n = v.messages.length;
     pane.innerHTML = `<div class="ib-tbar"><button type="button" class="ib-ibtn ib-back" id="ib-back" title="Back to Inbox" aria-label="Back to Inbox">${ibI('back')}</button><span class="sp"></span>
+        <button type="button" class="ib-ibtn" id="ib-done" title="Done (archives it in Gmail too)" aria-label="Done">${ibI('done')}</button>
         <button type="button" class="ib-ibtn" id="ib-del" title="Delete" aria-label="Delete">${ibI('del')}</button>
-        <button type="button" class="ib-ibtn" id="ib-done" title="${v.needs_action ? 'Mark done' : 'Done. Mark as needing action'}" aria-label="${v.needs_action ? 'Mark done' : 'Mark as needing action'}">${ibI(v.needs_action ? 'done' : 'flag')}</button>
+        <button type="button" class="ib-ibtn" id="ib-unread" title="Mark unread" aria-label="Mark unread">${ibI('unread')}</button>
         ${n > 1 ? `<button type="button" class="ib-ibtn" id="ib-expand" title="Expand all" aria-label="Expand all">${ibI('unfold')}</button>` : ''}
         <a class="ib-ibtn" href="${esc(v.gmail_url)}" target="_blank" rel="noopener" title="Open in Gmail" aria-label="Open in Gmail">${ibI('open')}</a></div>
       <div class="ib-head"><h2>${esc(v.subject || '(no subject)')}</h2>${v.tags.map(t => `<span class="ib-lbl">${esc(t)}</span>`).join('')}</div>
@@ -3410,7 +3479,8 @@
       $('ib-sugg-d').addEventListener('toggle', e => { sugg.querySelector('.ib-sugg-show').textContent = e.target.open ? 'Hide' : 'Show'; });
     }
     $('ib-del').addEventListener('click', () => ibTrash([id]));
-    $('ib-done').addEventListener('click', async () => { try { await api('/inbox/messages/' + v.last_id + '/done', { method: 'POST', body: JSON.stringify({ done: v.needs_action }) }, true); toast(v.needs_action ? 'Marked done' : 'Marked as needing action'); await ibList(); ibOpen(id, false); } catch (e) { toast(e.message, true); } });
+    $('ib-done').addEventListener('click', () => ibDone(id, v));
+    $('ib-unread').addEventListener('click', () => ibUnread(id, v));
     ibReplyBar(v);
     pane.scrollTop = 0;
   }
@@ -3581,11 +3651,6 @@
   });
   $('ib-cmp-cancel').addEventListener('click', () => $('ib-compose').classList.remove('open'));
   $('ib-new').addEventListener('click', ibCompose);
-  $('ib-refresh').addEventListener('click', async () => {
-    const b = $('ib-refresh'); b.disabled = true; b.textContent = '↻ Checking…';
-    try { const r = (await api('/inbox/refresh', { method: 'POST' }, true)).data; await ibList(); toast(r.new ? r.new + ' new email' + (r.new > 1 ? 's' : '') : 'No new email'); }
-    catch (e) { toast(e.message, true); } finally { b.disabled = false; b.textContent = '↻ Refresh'; }
-  });
   $('ib-rows').addEventListener('click', e => {
     const r = e.target.closest('[data-ib]'); if (!r) return;
     const id = +r.dataset.ib;

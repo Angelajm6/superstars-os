@@ -20,7 +20,7 @@ Proves, through a Flask test client against an ISOLATED database (no Google, no 
   * the record pages list filed emails; another person never sees someone else's mail
   * the Gmail-like view: the email as written (html, scripts stripped, inline pictures), one row per
     conversation, attachments, Reply / Reply all, Claude's reply draft sent only by the person's Send,
-    Compose, and Refresh
+    Compose, and the live sync line (Refresh retired 2026-10-23; the route stays)
   * logs carry ids / counts only; the pages carry the Inbox and no "Check now"
 
 Database: honors SSC_DB_URL like every gate suite; otherwise a throwaway SQLite snapshot.
@@ -104,7 +104,7 @@ def _b64(s: str) -> str:
     return base64.urlsafe_b64encode(s.encode("utf-8")).decode("ascii")
 
 
-def gmsg(gid, *, frm, to, subject, text, labels=("INBOX",), headers=(), atts=(), when="1792000000000"):
+def gmsg(gid, *, frm, to, subject, text, labels=("INBOX", "UNREAD"), headers=(), atts=(), when="1792000000000"):
     parts = [{"mimeType": "text/plain", "body": {"data": _b64(text)}}]
     parts += [{"mimeType": "application/pdf" if n.endswith(".pdf") else "application/zip", "filename": n,
                "body": {"attachmentId": "att-" + n, "size": 2048}} for n in atts]
@@ -215,7 +215,7 @@ def main() -> int:
         a, cs, pm = login("admin"), login("c_suite"), login("pm")
         assert pm.get("/api/inbox/status").status_code == 403 and pm.get("/api/inbox/messages").status_code == 403
         st = a.get("/api/inbox/status").get_json()["data"]
-        assert st["connected"] is True and st["can_send"] is False and st["live"] is False and st["every_seconds"] == 60
+        assert st["connected"] is True and st["can_send"] is False and st["live"] is False and st["every_seconds"] == 30
         assert anon.post("/gmail/push", json={}).status_code == 404
         assert anon.post("/gmail/push?token=wrong", json={}).status_code == 404
         data = base64.b64encode(json.dumps({"emailAddress": "x@y.z", "historyId": "5"}).encode()).decode()
@@ -526,7 +526,7 @@ def main() -> int:
         assert "data-check>" not in gm and "Check now" not in gm and "/company#inbox" in gm
         assert "mountCards: mountCards" in (ROOT / "static/js/claude_drawer.js").read_text(encoding="utf-8")
         ib = cp[cp.index("// ---------- INBOX (inbox.py)"):cp.index("// a record's emails")]
-        assert 'id="ib-refresh"' in cp and 'id="ib-new"' in cp and 'id="ib-compose"' in cp and "Draft with Claude" in ib
+        assert 'id="ib-live"' in cp and 'id="ib-new"' in cp and 'id="ib-compose"' in cp and "Draft with Claude" in ib
         assert 'data-mrep="one"' in ib and "bar.classList.add('btns')" in ib and ".ib-replybar.btns { position: sticky; bottom: 0;" in cp   # Reply always in reach
         assert "f.srcdoc = doc" in ib and "allow-scripts" not in ib and "skip: ['reply_email']" in ib and "r.summary" not in ib and "m.summary" not in ib
         passed += 1; print("  logs + pages ok")

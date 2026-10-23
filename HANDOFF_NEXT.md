@@ -37,6 +37,25 @@ grant, or elevation code.
   `from_proposal_id`: the job reuses the proposal's estimate (its code, type, region and client; no second estimate) and the
   deposit invoice moves onto the job. Guard: `tests/smoke_projects_ready.py` (in the gate).
 
+### Inbox synced both ways with Gmail; one Claude draft per conversation (Bookore, 2026-10-23)
+
+* A reply sent from Gmail itself (or from the Inbox) closes the conversation: `inbox.close_thread` (called from `ingest` for every
+  outbound email) marks the earlier emails done and `withdraw_drafts` declines Claude's pending `reply_email` cards (decided_by NULL,
+  reason in `result`). An email already answered when Claude reaches it is sorted only; a sent email never gets a reply draft.
+  The newest draft replaces older ones in the thread (`_one_draft`); `suggest_prompt` lists what is already waiting; `today_cards`
+  shows one card per (thread, tool).
+* Gmail -> here: history also maps UNREAD and INBOX label changes (`apply_labels`); thread re-reads reconcile read / archived
+  (only with gmail.modify). Arrival keeps Gmail's state: `status='new'` only with UNREAD; `mail_message.archived_at` (new column,
+  idempotent in `ensure`) = out of Gmail's Inbox. List filter `inbox` (default; `all` is an alias) hides archived conversations.
+* Here -> Gmail (`gmail_modify`, `/messages/batchModify`, best effort, needs `MODIFY_SCOPE`): opening = read; **Done = Archive**
+  (whole thread; `done:false` = Move to Inbox); `POST /api/inbox/messages/<id>/unread`.
+* Live: no Refresh button. The page calls `GET /api/inbox/changes?sync=1` every 10 s and on tab focus (fingerprint + `kick`, a
+  background `sync_user` at most every 15 s per person); default `SSC_INBOX_SYNC_SECONDS` 30. Claude's passes run on their own
+  thread (`claude_round` / `_ai_loop`) so a slow pass never holds up sync. Google push (`GMAIL_PUBSUB_TOPIC`) still unverified on Render.
+* UI: tabs Email · My calendar · Team (same hashes), filters Inbox / Needs reply / Filed, live line "Up to date · synced …",
+  conversation bar Done / Delete / Mark unread / Open in Gmail. Prototype: `../docs/review-2026-10-23-inbox/`.
+* Guard: `tests/smoke_inbox_sync.py` (in the gate).
+
 ### Documents tab: preview any document in the app (Bookore, 2026-10-23)
 
 * Filed rows have a **Preview** button (the title and History's "View" do the same); review cards preview from the

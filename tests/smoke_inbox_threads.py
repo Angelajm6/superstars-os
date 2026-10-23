@@ -60,7 +60,7 @@ def _b64(s: str) -> str:
     return base64.urlsafe_b64encode(s.encode("utf-8")).decode("ascii")
 
 
-def gmsg(gid, thread, days, frm, to, text, cc="", labels=("INBOX",)):
+def gmsg(gid, thread, days, frm, to, text, cc="", labels=("INBOX", "UNREAD")):
     hs = [{"name": "From", "value": frm}, {"name": "To", "value": to}, {"name": "Subject", "value": "Re: 1 Thr Smoke Pl facade"},
           {"name": "Message-ID", "value": f"<{gid}@thr.example>"}] + ([{"name": "Cc", "value": cc}] if cc else [])
     return {"id": gid, "threadId": thread, "labelIds": list(labels), "internalDate": str(int((NOW - days * 86400) * 1000)),
