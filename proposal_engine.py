@@ -154,7 +154,7 @@ def examples(conn) -> list:
             out.append(dict(t["example"], _from=t.get("name") or "past proposal"))
     try:
         rows = conn.execute("SELECT id, content FROM proposal WHERE layout = 'ssc' AND sent_at IS NOT NULL "
-                            "AND status <> 'superseded' ORDER BY sent_at DESC LIMIT 12").fetchall()
+                            "AND status NOT IN ('superseded', 'deleted') ORDER BY sent_at DESC LIMIT 12").fetchall()
     except Exception:
         conn.rollback()
         rows = []

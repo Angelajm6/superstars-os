@@ -37,6 +37,23 @@ grant, or elevation code.
   and old chats keep working; if the API ever refuses that control, `call_model` retries once without it (log line
   "claude thinking-binding control refused"). New tools can now be added without breaking open conversations.
 
+### Estimates & proposals revamp: latest only, delete / restore, pencils (Bookore, 2026-10-23)
+
+* Accepted prototype: https://claude.ai/artifact/8a8VUxBgrGSyRWXDMgzXvm. `company_portal.html` Proposals: a Proposals / Estimates /
+  Bids switch; status chips with counts; the number carries the status in color (amber draft, blue sent/opened, green signed,
+  grey declined/replaced/deleted); "Latest of each job" by default (older versions fold under the newest); a row opens a panel on
+  the right (`#proposals/<id>`; the old full page is `#proposals/<id>/page`). "+ New proposal" is gone: proposals start with
+  "✦ New proposal with Claude" / Proposal Studio (Estimates and Bids keep their + New).
+* **Delete** = `DELETE /api/proposals/<id>`: a draft is removed; a sent one is admin-only and HIDDEN (`status='deleted'`,
+  `deleted_from` / `deleted_at` / `deleted_by`), so every status filter (lists, counts, client portal, the client's link, Today
+  cards, Claude's tools, Studio's examples) leaves it out; pending revisions on it are withdrawn. Signed can't be deleted.
+  `POST /api/proposals/<id>/restore` (admin) puts it back; `?status=deleted` lists them (admin).
+* **Pencils** = `PATCH /api/proposals/<id>/record {field, value}`: number (every version of the job changes together; refused when
+  another job has it; editing it higher moves the next automatic number after it), title (drafts), recipient, valid-until
+  (drafts; sent/opened ones extend the client's link). Estimates / Bids list: address, amount, bid due, status (the allowed next
+  statuses, `est_public.next_statuses`).
+* Guard: `tests/smoke_proposal_revisions.py` group "keep only the latest + edit in place".
+
 ### Proposals: one amount everywhere, admin-approved revisions, expiry follow-ups, reply in a thread (Bookore, 2026-10-22)
 
 * **One amount.** A Superstars-layout proposal's stored `price` is always its lines' total as the document prints it
