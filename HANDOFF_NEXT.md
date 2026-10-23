@@ -21,6 +21,21 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Documents tab: no double uploads; rename + delete (Bookore, 2026-10-23)
+
+* **Double upload fixed.** A drop on the Documents tab was taken twice: the tab's own `window` drop listener AND
+  `static/js/file_drop.js` (document, bubble — fires first) which fed the same files into `#pd-cv-input`. The tab now
+  listens on `document` in the capture phase and `preventDefault()`s, so file_drop.js sees it handled. Server half:
+  `project_doc_intake.content_sha256`; the same file already waiting returns `200 {…, duplicate_of}` instead of a
+  second card (checked after insert, so racing drops end as one).
+* **Rename.** Each review card shows an editable name (Claude's title, else the file name); it is sent as `title` on
+  approve. Filed rows show the document's own title (no longer the checklist label) with a pencil: rename in place,
+  Enter saves, Esc cancels → `PATCH /api/documents/<id> {title}` (blank → 400).
+* **Delete.** Every filed row has a trash button with an inline confirm. `DELETE /api/documents/<id>` brings the
+  previous version back as current (still internal) and relinks History; clears shares/flags. PATCH and DELETE now
+  check the job scope (`_doc_actor_can_admin`) — before, any docs role could edit/delete any job's document.
+* Guard: `tests/smoke_doc_dropzone.py` (dedupe, rename, delete + restore, scope, capture-phase drop).
+
 ### Claude can change a job: details, status, access methods (Bookore, 2026-10-22)
 
 * Angela asked Claude to "delete access method suspended scaffold" on FR-BX-001 and it said it couldn't. New write tool

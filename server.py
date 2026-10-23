@@ -5640,17 +5640,31 @@ def api_projdoc_intake_add(project_code):
             return jsonify({"error": str(ve)}), 400
         file_name = Path(fs.filename).name
         uid = (current_user() or {}).get('id')
+        sha = hashlib.sha256(fpath.read_bytes()).hexdigest()
         try:
             cur = conn.execute(
                 "INSERT INTO project_doc_intake (project_code, file_path, file_name, file_size, mime, "
-                "doc_type, status, uploaded_by_uid, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                "doc_type, status, uploaded_by_uid, created_at, content_sha256) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (project_code, str(fpath), file_name, size, mime, ftype, 'unread', uid,
-                 datetime.now().isoformat(timespec='seconds')))
+                 datetime.now().isoformat(timespec='seconds'), sha))
             intake_id = cur.lastrowid
             conn.commit()
         except Exception:
             _projdoc_unlink(str(fpath))
             raise
+        # The same file already waiting (a double drop, a second tab): keep the first, drop
+        # this copy. Checked after the insert so two drops racing each other still end as one.
+        first = conn.execute("SELECT * FROM project_doc_intake WHERE project_code=? AND content_sha256=? "
+                             "ORDER BY id LIMIT 1", (project_code, sha)).fetchone()
+        if first and first['id'] != intake_id:
+            conn.execute("DELETE FROM project_doc_intake WHERE id=?", (intake_id,))
+            conn.commit()
+            _projdoc_unlink(str(fpath))
+            out = doc_intake.intake_public(first)
+            out['duplicate_of'] = first['id']
+            resp = response_wrapper(out)
+            resp.headers['Cache-Control'] = 'no-store'
+            return resp, 200
     finally:
         conn.close()
     status, sug, read_err = _intake_read(db, project_code, fpath.read_bytes(), file_name)
@@ -5896,16 +5910,22 @@ def api_projdoc_replace_file(doc_id):
 @app.route('/api/documents/<int:doc_id>', methods=['PATCH'])
 @requires_role(*_PROJDOC_ROLES)
 def api_projdoc_patch(doc_id):
-    """#229 — edit metadata / mark superseded. Whitelisted fields only; never the path."""
+    """#229 — edit metadata / mark superseded. Whitelisted fields only; never the path.
+    title = rename (the name shown on the row; the stored file name is unchanged)."""
     conn = db()
     try:
-        if not conn.execute("SELECT 1 FROM project_documents WHERE id=?", (doc_id,)).fetchone():
-            return jsonify({"error": "not found"}), 404
+        _code, err = _doc_actor_can_admin(conn, doc_id)
+        if err:
+            return err
         body = request.get_json(silent=True) or {}
         fields = {}
         for k in ('category', 'requirement_key', 'title', 'effective_date', 'expiry_date', 'version', 'notes', 'superseded'):
             if k in body:
                 fields[k] = body[k]
+        if 'title' in fields:
+            fields['title'] = " ".join(str(fields['title'] or '').split())[:300]
+            if not fields['title']:
+                return jsonify({"error": "the name can't be empty"}), 400
         if 'party' in body:
             fields['party'], fields['party_name'] = doc_intake.clean_party(body.get('party'), body.get('party_name'))
         if 'category' in fields and fields['category'] not in _PROJDOC_CATEGORIES:
@@ -5933,22 +5953,31 @@ def api_projdoc_patch(doc_id):
 @app.route('/api/documents/<int:doc_id>', methods=['DELETE'])
 @requires_role(*_PROJDOC_ROLES)
 def api_projdoc_delete(doc_id):
-    """#229 — remove the row + its on-disk file (confined to data_room/project_docs/)."""
+    """#229 — remove the row + its on-disk file (confined to data_room/project_docs/).
+    Deleting the current version brings the previous one back as current (it stays
+    internal; its shares were pulled when it was superseded). A newer version that
+    pointed at the deleted row now points at the one before it, so History stays whole."""
     conn = db()
     try:
-        row = conn.execute("SELECT file_path FROM project_documents WHERE id=?", (doc_id,)).fetchone()
-        if not row:
-            return jsonify({"error": "not found"}), 404
+        _code, err = _doc_actor_can_admin(conn, doc_id)
+        if err:
+            return err
+        row = conn.execute("SELECT file_path, superseded, supersedes_id FROM project_documents WHERE id=?",
+                           (doc_id,)).fetchone()
+        prev_id = row['supersedes_id']
+        restored = None
+        if not row['superseded'] and prev_id and conn.execute(
+                "SELECT 1 FROM project_documents WHERE id=? AND superseded=1", (prev_id,)).fetchone():
+            conn.execute("UPDATE project_documents SET superseded=0 WHERE id=?", (prev_id,))
+            restored = prev_id
+        conn.execute("UPDATE project_documents SET supersedes_id=? WHERE supersedes_id=?", (prev_id, doc_id))
+        conn.execute("DELETE FROM item_visibility WHERE item_type='document' AND item_id=?", (doc_id,))
+        conn.execute("DELETE FROM item_redflag WHERE item_type='document' AND item_id=?", (doc_id,))
         conn.execute("DELETE FROM project_documents WHERE id=?", (doc_id,))
         conn.commit()
-        try:
-            p = Path(row['file_path'])
-            base = (ssc_paths.under_root('data_room', 'project_docs')).resolve()
-            if p.resolve().is_relative_to(base):
-                p.unlink(missing_ok=True)
-        except Exception as e:
-            logging.warning(f"projdoc delete file unlink failed for {doc_id}: {e}")
-        return response_wrapper({"deleted": doc_id})
+        if row['file_path']:
+            _projdoc_unlink(row['file_path'])
+        return response_wrapper({"deleted": doc_id, "restored": restored})
     finally:
         conn.close()
 

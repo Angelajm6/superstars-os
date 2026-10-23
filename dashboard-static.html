@@ -1952,6 +1952,30 @@
           .pd-party select,.pd-party input{font:inherit;font-size:13px;height:32px;border:1px solid var(--pd-line);border-radius:8px;padding:0 8px;background:#fff;color:var(--pd-ink)}
           .pd-party input{flex:1;min-width:140px;max-width:280px}
           .pd-party select:focus,.pd-party input:focus{outline:none;border-color:var(--pd-accent);box-shadow:0 0 0 3px var(--pd-accent-soft)}
+          /* name: Claude's suggestion, editable in place (review card + filed row) */
+          .pd-namebox{display:flex;align-items:center;gap:6px;border:1px solid transparent;border-radius:9px;margin:-3px 0 0 -8px;padding:0 8px;transition:border-color .12s,background .12s}
+          .pd-namebox:hover{border-color:var(--pd-line);background:#fff}
+          .pd-namebox:focus-within{border-color:var(--pd-accent);background:#fff;box-shadow:0 0 0 3px var(--pd-accent-soft)}
+          .pd-namebox svg{width:14px;height:14px;color:var(--pd-muted);flex:none}
+          .pd-name{flex:1;min-width:0;font:inherit;font-size:15.5px;font-weight:700;color:var(--pd-ink);border:none;background:none;padding:5px 0;outline:none;text-overflow:ellipsis}
+          .pd-namehint{font-size:12px;color:var(--pd-muted);margin-top:1px}
+          .pd-namehint a{color:inherit;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+          .pd-dtrow{display:flex;align-items:center;gap:4px;min-width:0}
+          .pd-dtrow .pd-dtitle{min-width:0}
+          .pd-ibtn{flex:none;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--pd-line);border-radius:8px;background:#fff;color:var(--pd-muted);cursor:pointer;padding:0}
+          .pd-ibtn svg{width:15px;height:15px}
+          .pd-ibtn:hover{background:var(--fill,#f4f5f8);color:var(--pd-ink)}
+          .pd-ibtn.del:hover{border-color:var(--warn-ink);color:var(--status-behind-deep,#a8382b);background:var(--warn-soft)}
+          .pd-ibtn.ren{width:26px;height:26px;border-color:transparent;background:none}
+          .pd-ibtn.ren:hover{border-color:var(--pd-line);background:#fff}
+          .pd-rename{width:100%;max-width:420px;font:inherit;font-size:14px;font-weight:700;height:34px;border:1px solid var(--pd-accent);border-radius:8px;padding:0 9px;color:var(--pd-ink);background:#fff;box-shadow:0 0 0 3px var(--pd-accent-soft);outline:none}
+          .pd-delask{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:10px 15px;background:var(--warn-soft);border-bottom:1px solid var(--line,#eceef3);font-size:13px;color:var(--pd-ink)}
+          .pd-delask span{flex:1 1 220px;min-width:0}
+          .pd-delask button{font:inherit;font-size:13px;font-weight:700;border-radius:8px;padding:6px 12px;cursor:pointer}
+          .pd-delask .yes{border:none;background:var(--status-behind-deep,#a8382b);color:#fff}
+          .pd-delask .no{border:1px solid var(--pd-line);background:#fff;color:var(--pd-ink)}
+          @media (max-width:640px){.pd-name,.pd-rename{font-size:16px}.pd-ibtn{width:36px;height:36px}.pd-ibtn.ren{width:32px;height:32px}
+            .pd-delask span{flex-basis:100%}.pd-delask button{flex:1;padding:9px 12px}}
           .pd-note.add{background:var(--fill,#f4f5f8);color:var(--ink-2,#4a4f59)}
           .pd-who{display:inline;font-size:12px;font-weight:700;color:var(--pd-accent-ink);background:var(--pd-accent-soft);border-radius:6px;padding:0 6px;margin-right:2px}
           /* suggested documents */
@@ -8931,12 +8955,26 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     return line+'<div class="pd-vhist">'+rows
       +'<div class="pd-vnote">Previous versions are internal-only — clients only ever see the current shared version.</div></div>';
   }
-  function pdActs(d, withRemove){
+  var ICTRASH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>';
+  var ICPEN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>';
+  function pdActs(d){
     return '<div class="pd-acts">'
       +'<button class="pd-btn-update" data-update="'+d.id+'">Update</button>'
       +'<button class="pd-btn-replace" data-replace="'+d.id+'" title="Wrong file? Swap this version\'s file — no history entry">Replace</button>'
-      +(withRemove?'<button class="pd-mini2" data-del="'+d.id+'">Remove</button>':'')
+      +'<button class="pd-ibtn del" type="button" data-del="'+d.id+'" title="Delete" aria-label="Delete '+esc(d.title)+'">'+ICTRASH+'</button>'
       +'</div>';
+  }
+  function pdTitle(d){
+    if(PD.renaming===d.id)return '<input class="pd-rename" data-renin="'+d.id+'" value="'+esc(d.title)+'" aria-label="Document name" maxlength="300" autocomplete="off" enterkeyhint="done">';
+    return '<div class="pd-dtrow"><div class="pd-dtitle" data-open="'+d.id+'" title="Open to view">'+esc(d.title)+'</div>'
+      +'<button class="pd-ibtn ren" type="button" data-ren="'+d.id+'" title="Rename" aria-label="Rename '+esc(d.title)+'">'+ICPEN+'</button></div>';
+  }
+  function pdDelAsk(d){
+    if(PD.delAsk!==d.id)return '';
+    var n=d.history_count||0;
+    return '<div class="pd-delask" role="alert"><span>Delete <b>'+esc(d.title)+'</b> and its file? '
+      +(n?'The previous version becomes current again.':'This can’t be undone.')+'</span>'
+      +'<button class="yes" type="button" data-delyes="'+d.id+'">Delete</button><button class="no" type="button" data-delno="1">Cancel</button></div>';
   }
   function pdSelBox(d){
     if(d.superseded)return '';
@@ -9074,23 +9112,23 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     return line+'<div class="pd-dai-body">'+(a.summary?'<p class="pd-summ">'+esc(a.summary)+'</p>':'')
       +'<dl class="pd-kv">'+(a.fields||[]).map(function(f){return '<dt>'+esc(f.label)+'</dt><dd>'+esc(f.value)+'</dd>';}).join('')+'</dl></div>';
   }
-  function filedRow(d,label,isExtra,removable){
+  function filedRow(d,label,isExtra){
     if(d.superseded){
       // legacy superseded leftovers (no version chain) — quiet row
       return '<div class="pd-extra"><span class="pd-cdoc link pd-xtitle" data-open="'+d.id+'">'+esc(d.title)+'</span>'
         +'<span class="pd-flag miss">Superseded</span>'
         +'<span class="pd-xtype">'+esc(d.type_label||d.doc_type||'')+'</span>'
-        +'<button class="pd-mini2" data-del="'+d.id+'">Remove</button></div>';
+        +'<button class="pd-ibtn del" type="button" data-del="'+d.id+'" title="Delete" aria-label="Delete '+esc(d.title)+'">'+ICTRASH+'</button></div>'+pdDelAsk(d);
     }
     // #271 anatomy: title+dates+history · pill · boxed share group · Update / Replace. Title click = VIEW.
     return '<div class="pd-crow'+(isExtra?' pd-xrow':'')+(d.id===DZ.lastFiled?' new':'')+'">'+pdSelBox(d)
       +'<div class="pd-dmain">'
-      +'<div class="pd-dtitle" data-open="'+d.id+'" title="Open to view">'+esc(label||d.title)+'</div>'
+      +pdTitle(d)
       +'<div class="pd-dsub">'+pdDocSub(d)+'</div>'
       +pdHistLine(d)+pdAiLine(d)
       +'</div>'
-      +pdStatusPill(d)+pdShareCol(d)+pdActs(d,isExtra||removable)
-      +'</div>';
+      +pdStatusPill(d)+pdShareCol(d)+pdActs(d)
+      +'</div>'+pdDelAsk(d);
   }
   function missingRow(c,it){
     return '<div class="pd-crow"><span class="pd-ck miss"></span>'
@@ -9103,7 +9141,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     (c.items||[]).forEach(function(it){
       var hd=heldDocs(it);
       // several on one item (ours + each sub's COI): each shows its own title + party
-      hd.forEach(function(d){ var lab=hd.length>1?d.title:it.label; if(!match||match(d,lab))rows.push(filedRow(d,lab,false,hd.length>1)); });
+      hd.forEach(function(d){ if(!match||match(d,it.label))rows.push(filedRow(d,d.title,false)); });
       if(!hd.length&&!match)rows.push(missingRow(c,it));
     });
     (c.extras||[]).forEach(function(d){ if(!match||match(d,d.title))rows.push(filedRow(d,d.title,true)); });
@@ -9173,9 +9211,11 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     try{var j=await jget('/api/documents/types');DZ.types=(j&&j.data&&j.data.types)||[];
       DZ.byKey={};DZ.types.forEach(function(t){DZ.byKey[t.key]=t;});}catch(e){console.warn('[dropzone] types failed',e);}
   }
+  function dzStem(n){return String(n||'').replace(/\.[a-z0-9]{1,5}$/i,'').replace(/[_]+/g,' ').trim()||'Document';}
   function dzFromServer(it){
     var s=it.suggestion||null;
     return {id:it.id,name:it.file_name||'document',status:it.status,sug:s,error:it.error,file_url:it.file_url,
+            title:(s&&s.title)||dzStem(it.file_name),
             type_key:(s&&s.type_key)||null,typeSet:'ai',asNewer:true,
             party:(s&&s.party)||'company',party_name:(s&&s.party_name)||''};
   }
@@ -9190,7 +9230,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   function dzAdd(files,preset){   // preset (from a suggestion): {type_key, party, party_name}
     files=Array.prototype.slice.call(files||[]);if(!files.length)return;
     files.forEach(function(f){
-      var x={id:'tmp-'+(++DZ.tmp),name:f.name,status:'reading',file:f,typeSet:'ai',asNewer:true,party:'company',party_name:''};
+      var x={id:'tmp-'+(++DZ.tmp),name:f.name,title:dzStem(f.name),status:'reading',file:f,typeSet:'ai',asNewer:true,party:'company',party_name:''};
       if(preset){x.type_key=preset.type_key;x.typeSet='you';x.party=preset.party||'company';x.party_name=preset.party_name||'';x.partySet=true;}
       DZ.queue.push(x);DZ.waiting.push(x);
     });
@@ -9209,8 +9249,16 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       var r=await fetch(dzUrl('intake'),{method:'POST',credentials:'include',body:fd});
       var j=await r.json().catch(function(){return {};});
       if(!r.ok){x.status='error';x.error=(j&&j.error)||('Upload failed ('+r.status+')');}
-      else{var y=dzFromServer(j.data||j);if(x.typeSet==='you'){y.type_key=x.type_key;y.typeSet='you';}
-        if(x.partySet){y.party=x.party;y.party_name=x.party_name;y.partySet=true;}Object.assign(x,y);}
+      else{var d=j.data||j,y=dzFromServer(d);
+        if(d.duplicate_of&&DZ.queue.some(function(q){return q!==x&&String(q.id)===String(d.duplicate_of);})){
+          // the same file is already on a card: one card, not two
+          DZ.queue=DZ.queue.filter(function(q){return q!==x;});dzToast('“'+x.name+'” is already in the list.');
+          delete x.file;renderTray();renderStats();return;
+        }
+        if(x.typeSet==='you'){y.type_key=x.type_key;y.typeSet='you';}
+        if(x.partySet){y.party=x.party;y.party_name=x.party_name;y.partySet=true;}
+        if(x.nameSet){y.title=x.title;y.nameSet=true;}
+        DZ.queue=DZ.queue.filter(function(q){return q===x||String(q.id)!==String(y.id);});Object.assign(x,y);}
     }catch(e){x.status='error';x.error='Network error — try again.';}
     delete x.file;renderTray();renderStats();
   }
@@ -9250,15 +9298,20 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     $('pd-tray-s').textContent=reading?('Claude is reading '+reading+'…'):'Check each tag, then approve to file it.';
     var ab=$('pd-approve-all');ab.hidden=sure.length<2;
     ab.innerHTML=svg(DZI.check,'pd-ic')+'Approve '+sure.length+' that look right';
-    var ae=document.activeElement,keep=ae&&ae.getAttribute&&ae.getAttribute('data-dzpname'),caret=keep?ae.selectionStart:0;
+    var ae=document.activeElement,attr=ae&&ae.getAttribute&&(ae.hasAttribute('data-dzpname')?'data-dzpname':ae.hasAttribute('data-dzname')?'data-dzname':null);
+    var keep=attr&&ae.getAttribute(attr),caret=keep?ae.selectionStart:0;
     $('pd-cards').innerHTML=DZ.queue.map(dzCard).join('');
-    if(keep){var el=document.querySelector('[data-dzpname="'+keep+'"]');if(el){el.focus();try{el.setSelectionRange(caret,caret);}catch(e){}}}
+    if(keep){var el=document.querySelector('['+attr+'="'+keep+'"]');if(el){el.focus();try{el.setSelectionRange(caret,caret);}catch(e){}}}
   }
   function dzCard(x){
     var isImg=/\.(jpe?g|png|heic|heif|webp)$/i.test(x.name);
     var ext=(x.name.split('.').pop()||'').toUpperCase().slice(0,4);
     var thumb='<span class="pd-thumb">'+svg(isImg?DZI.img:DZI.doc)+esc(ext)+'</span>';
     var name=x.file_url?'<a data-dzopen="'+esc(x.id)+'" title="Open the file">'+esc(x.name)+'</a>':esc(x.name);
+    var fromAi=!x.nameSet&&x.sug&&x.sug.title&&x.title===x.sug.title;
+    var namebox='<label class="pd-namebox" title="Rename">'+'<input class="pd-name" data-dzname="'+esc(x.id)+'" value="'+esc(x.title||'')+'" aria-label="Document name" autocomplete="off" enterkeyhint="done" maxlength="300">'
+      +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></label>'
+      +'<div class="pd-namehint">'+(fromAi?'Name suggested by Claude · tap to change · ':'')+'File: '+name+'</div>';
     if(x.status==='reading'){
       return '<article class="pd-card"><div class="pd-c-top">'+thumb+'<div class="pd-c-main"><div class="pd-fname">'+esc(x.name)+'</div>'
         +'<div class="pd-reading"><span class="pd-spin"></span>Claude is reading it…</div><div class="pd-shim"></div><div class="pd-shim short"></div></div></div></article>';
@@ -9298,7 +9351,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     var body=open?'<div class="pd-all">'+(s.summary?'<p class="pd-summ">'+esc(s.summary)+'</p>':'')
       +'<dl class="pd-kv">'+all.map(function(f){return '<dt>'+esc(f.label)+'</dt><dd>'+esc(f.value)+'</dd>';}).join('')+'</dl></div>':'';
     return '<article class="pd-card"><div class="pd-c-top">'+thumb+'<div class="pd-c-main">'
-      +'<div class="pd-fname">'+name+'</div>'
+      +namebox
       +'<div class="pd-tagrow">'+tag+conf+'</div>'+dest+party
       +(facts?'<div class="pd-facts">'+facts+'</div>':'')+notes+more+'</div>'
       +'<div class="pd-c-acts"><button class="btn-primary" type="button" data-dzok="'+esc(x.id)+'"'+(t&&!x.busy?'':' disabled')+'>'+svg(DZI.check,'pd-ic')+'Approve</button>'
@@ -9306,7 +9359,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   }
   async function dzApprove(x,quiet){
     if(!x||x.busy||!DZ.byKey[x.type_key]||typeof x.id!=='number')return false;
-    var t=DZ.byKey[x.type_key],cur=dzCurrentFor(t,x),body={type_key:t.key,party:x.party||'company',party_name:x.party_name||''};
+    var t=DZ.byKey[x.type_key],cur=dzCurrentFor(t,x),body={type_key:t.key,party:x.party||'company',party_name:x.party_name||'',title:(x.title||'').trim()};
     if(cur&&x.asNewer)body.supersedes_id=cur.id;
     x.busy=true;
     try{
@@ -9395,6 +9448,12 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     });
     $('pd-cards').addEventListener('input',function(e){
       var pn=e.target.closest('[data-dzpname]');if(pn){var x=dzById(pn.getAttribute('data-dzpname'));if(x){x.party_name=pn.value;x.partySet=true;}}
+      var nm=e.target.closest('[data-dzname]');if(nm){var y=dzById(nm.getAttribute('data-dzname'));if(y){y.title=nm.value;y.nameSet=true;}}
+    });
+    $('pd-cards').addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target.closest('[data-dzname]')){e.preventDefault();e.target.blur();}});
+    $('pd-cards').addEventListener('focusout',function(e){   // an emptied name falls back to the file's
+      var nm=e.target.closest('[data-dzname]');if(!nm)return;var y=dzById(nm.getAttribute('data-dzname'));
+      if(y&&!y.title.trim()){y.title=(y.sug&&y.sug.title)||dzStem(y.name);y.nameSet=false;nm.value=y.title;}
     });
     $('pd-sugg-list').addEventListener('click',function(e){
       var b;
@@ -9432,10 +9491,12 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     window.addEventListener('dragenter',function(e){if(!hasFiles(e)||!dzDocsActive()||modalOpen())return;e.preventDefault();DZ.depth++;veil(true);});
     window.addEventListener('dragover',function(e){if(hasFiles(e)&&dzDocsActive()&&!modalOpen())e.preventDefault();});
     window.addEventListener('dragleave',function(){if(DZ.depth&&--DZ.depth<=0){DZ.depth=0;veil(false);}});
-    window.addEventListener('drop',function(e){
+    // capture phase on document: runs first, and its preventDefault tells file_drop.js the drop
+    // is taken, so the files are not also handed to #pd-cv-input (that was the double upload)
+    document.addEventListener('drop',function(e){
       if(!hasFiles(e)||!dzDocsActive()||modalOpen())return;
       e.preventDefault();DZ.depth=0;veil(false);dzAdd(e.dataTransfer.files);
-    });
+    },true);
   }
 
   // ---------- upload modal ----------
@@ -9587,9 +9648,36 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     }catch(e){err.textContent='Network error';}
     finally{$('pd-save-bulk').disabled=false;}
   }
+  function pdFindDoc(id){
+    var hit=null;((PD.data&&PD.data.categories)||[]).forEach(function(c){
+      (c.items||[]).forEach(function(it){heldDocs(it).forEach(function(d){if(d.id===id)hit=d;});});
+      (c.extras||[]).forEach(function(d){if(d.id===id)hit=d;});
+    });return hit;
+  }
   async function delDoc(id){
-    if(!confirm('Remove this document and its file?'))return;
-    try{await fetch('/api/documents/'+id,{method:'DELETE',credentials:'include'});await loadDocs();}catch(e){}
+    var d=pdFindDoc(id);PD.delAsk=null;
+    try{var r=await fetch('/api/documents/'+id,{method:'DELETE',credentials:'include'});
+      var j=await r.json().catch(function(){return {};});
+      if(!r.ok){dzToast((j&&j.error)||('Could not delete it ('+r.status+')'));renderChecklist();return;}
+      PD.sel.delete(id);
+      dzToast('Deleted'+(d?' “'+d.title+'”':'')+((j.data||j).restored?' — the previous version is current again.':'.'));
+      await loadDocs();
+    }catch(e){dzToast('Network error — try again.');renderChecklist();}
+  }
+  function startRename(id){
+    PD.renaming=id;PD.delAsk=null;renderChecklist();
+    var el=document.querySelector('[data-renin="'+id+'"]');if(el){el.focus();el.select();}
+  }
+  async function saveRename(el){
+    var id=+el.getAttribute('data-renin'),d=pdFindDoc(id),v=el.value.replace(/\s+/g,' ').trim();
+    el.removeAttribute('data-renin');PD.renaming=null;   // once: Enter saves, the blur that follows doesn't
+    if(!d||!v||v===d.title){renderChecklist();return;}
+    var old=d.title;d.title=v;renderChecklist();
+    try{var r=await fetch('/api/documents/'+id,{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:v})});
+      var j=await r.json().catch(function(){return {};});
+      if(!r.ok){d.title=old;renderChecklist();dzToast((j&&j.error)||('Could not rename it ('+r.status+')'));return;}
+      d.title=(j.data||j).title||v;renderChecklist();dzToast('Renamed');
+    }catch(e){d.title=old;renderChecklist();dzToast('Network error — try again.');}
   }
 
   function pdWire(){
@@ -9622,11 +9710,23 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       var up1=e.target.closest('[data-update]');if(up1){updateDoc(+up1.getAttribute('data-update'));return;}
       var rp=e.target.closest('[data-replace]');if(rp){replaceDoc(+rp.getAttribute('data-replace'));return;}
       var up=e.target.closest('[data-upcat]');if(up){var cat=up.getAttribute('data-upcat'),req=up.getAttribute('data-upreq');var c=((PD.data&&PD.data.categories)||[]).filter(function(x){return x.category===cat;})[0];var it=c?(c.items||[]).filter(function(x){return x.requirement_key===req;})[0]:null;openModal({cat:cat,req:req,reqLabel:it?it.label:''});return;}
-      var del=e.target.closest('[data-del]');if(del){delDoc(+del.getAttribute('data-del'));return;}
+      var del=e.target.closest('[data-del]');if(del){var did0=+del.getAttribute('data-del');PD.delAsk=PD.delAsk===did0?null:did0;PD.renaming=null;renderChecklist();return;}
+      var dy=e.target.closest('[data-delyes]');if(dy){dy.disabled=true;delDoc(+dy.getAttribute('data-delyes'));return;}
+      if(e.target.closest('[data-delno]')){PD.delAsk=null;renderChecklist();return;}
+      var rn=e.target.closest('[data-ren]');if(rn){startRename(+rn.getAttribute('data-ren'));return;}
+      if(e.target.closest('[data-renin]'))return;
       var pcl=e.target.closest('[data-pclose]');if(pcl){DZ.open=null;renderFolders();renderChecklist();return;}
       var dai=e.target.closest('[data-dai]');if(dai){var did=+dai.getAttribute('data-dai');if(DZ.aiOpen.has(did))DZ.aiOpen.delete(did);else DZ.aiOpen.add(did);renderChecklist();return;}
       var op=e.target.closest('[data-open]');if(op){window.open('/api/documents/'+op.getAttribute('data-open')+'/file','_blank');return;}
     });
+    if(cl){
+      cl.addEventListener('keydown',function(e){
+        var el=e.target.closest('[data-renin]');if(!el)return;
+        if(e.key==='Enter'){e.preventDefault();saveRename(el);}
+        else if(e.key==='Escape'){PD.renaming=null;el.removeAttribute('data-renin');renderChecklist();}
+      });
+      cl.addEventListener('focusout',function(e){var el=e.target.closest('[data-renin]');if(el)saveRename(el);});
+    }
     // #270 — bulk action bar (one-time actions; NO standing auto-share rules)
     var bbs=$('pd-bb-share');if(bbs)bbs.addEventListener('click',function(){dBulk(true);});
     var bbu=$('pd-bb-unshare');if(bbu)bbu.addEventListener('click',function(){dBulk(false);});
