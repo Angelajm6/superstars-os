@@ -7,6 +7,7 @@ Boots the real app on an ISOLATED database. Proves:
     row; the estimate made for it goes too
   * a job with a daily report is refused (409, "1 daily report"), nothing changes
   * a job converted from a real bid sends that estimate back to approved, unconverted
+  * a suggested address (job site with no project) can be deleted: it leaves the suggestions
   * the Projects tab no longer renders access-method chips; the Edit window offers Delete
 Run:  venv/bin/python tests/smoke_project_delete.py
 """
@@ -41,6 +42,7 @@ PW = "ProjectDelete2026"
 T = date.today().isoformat()
 CODES: list = []
 ORGS: list = []
+SITES: list = []
 
 
 def _db():
@@ -79,6 +81,7 @@ def _cleanup():
         purge(conn, "ira_job", "project_code", CODES)
         purge(conn, "estimate", "converted_project_code", CODES)
         purge(conn, "projects", "project_code", CODES)
+        purge(conn, "building", "id", SITES)
         purge(conn, "estimate", "client_org_id", ORGS)
         purge(conn, "crm_activity", "entity_id", ORGS)
         purge(conn, "crm_organization", "id", ORGS)
@@ -167,11 +170,24 @@ def main() -> int:
     assert row == {"status": "approved", "converted_project_code": None}, row
     passed += 1; print("  real bid reverts ok")
 
+    # ---- a suggested address (job site with no project) can be deleted from the Projects tab
+    r = cs.post("/api/buildings", json={"address_line": "77 Pdel Orphan Street", "client_org_id": ORGS[0]})
+    assert r.status_code in (200, 201), r.get_json()
+    bid = r.get_json()["data"]["id"]
+    SITES.append(bid)
+    offered = lambda: {s["id"] for s in cs.get("/api/company/portal/projects?status=all").get_json()["meta"]["sites_without_project"]}   # noqa: E731
+    assert bid in offered()
+    assert pm.post(f"/api/buildings/{bid}/archive").status_code == 403
+    assert cs.post(f"/api/buildings/{bid}/archive").status_code == 200
+    assert bid not in offered()
+    passed += 1; print("  suggested address delete ok")
+
     # ---- UI: no access chips on the Projects tab; Delete in the Edit window
     html = (ROOT / "company_portal.html").read_text(encoding="utf-8")
     assert "pj-acc" not in html and "access_labels" not in html
     assert "ssc:project-deleted" in html
     js = (ROOT / "static" / "js" / "new_project_modal.js").read_text(encoding="utf-8")
+    assert "data-site-del" in html and "/archive'" in html
     assert 'id="np-del"' in js and "'DELETE', '/api/admin/projects/'" in js
     passed += 1; print("  ui ok")
 
