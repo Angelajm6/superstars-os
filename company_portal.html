@@ -16,7 +16,7 @@
 <script src="/files/static/js/company_nav.js?v=1021"></script>
 <script src="/files/static/js/claude_drawer.js?v=15" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
-<script src="/files/static/js/new_project_modal.js?v=1015" defer></script>
+<script src="/files/static/js/new_project_modal.js?v=1016" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1010" defer></script>
 <script src="/files/static/js/gcal_connect.js?v=1017" defer></script>
 <script src="/files/static/js/inbox_schedule.js?v=5" defer></script>
@@ -49,8 +49,6 @@
   a.cp-kpi-link:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(36,65,140,.12); border-color: var(--accent); }
   a.cp-kpi-link:focus-visible, .cp-list li.has-link > a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .cp-list li.has-link { padding: 0; }
-  .pj-site-acts { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
-  body .ssc-main .pj-site-acts .btn-ghost.ct-remove { color: var(--status-behind-deep, #A8382B); }
   .cp-list li.has-link > a { display: flex; justify-content: space-between; gap: 12px; width: 100%; padding: 8px 10px; color: inherit; text-decoration: none; border-radius: 6px; }
   .cp-list li.has-link > a:hover { background: var(--ui-soft, #E8EDF8); }
   .cp-list li.has-link > a:hover strong, .cp-list li.has-link > a:hover .cp-link { color: var(--ui); }
@@ -89,7 +87,43 @@
   .pj-job { display: flex; gap: 10px; align-items: flex-start; min-width: 230px; }
   .pj-job .pj-edit { margin-left: auto; }
   .pj-job .cp-id, .pj-no { white-space: nowrap; }
-  #pj-table td:nth-child(3) { min-width: 140px; }
+  /* Projects tab (2026-10-23, accepted prototype https://claude.ai/artifact/Sz6pFAL3nSVCav97gmPsDE): active jobs first,
+     signed proposals wait behind "Ready to start", one "Needs you" note per job, cards on phones */
+  .pj-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .pj-sum { margin: 0; font-size: 14px; }
+  .pj-acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .pj-ready { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 1px solid #c9d4f7; background: #f4f7ff; color: var(--accent-ink, #3a5fd0); border-radius: 10px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .pj-ready[hidden], .pj-cards[hidden], #pj-table-wrap[hidden] { display: none; }
+  .pj-ready .n { min-width: 20px; height: 20px; border-radius: 10px; background: var(--accent, #4364dc); color: #fff; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; box-sizing: border-box; }
+  .prx-seg button .c { font-weight: 500; opacity: .75; margin-left: 2px; }
+  .pj-name { font-weight: 600; }
+  .pj-sub { font-size: 13px; color: var(--muted); }
+  .pj-need { display: inline-block; font-size: 12.5px; font-weight: 600; border-radius: 6px; padding: 3px 8px; white-space: nowrap; }
+  .pj-need.warn { background: #FFF4E5; color: #8a5a00; } .pj-need.bad { background: var(--status-behind-soft, #fceeec); color: #A8382B; }
+  .pj-need.info { background: var(--accent-soft, #ebf0fe); color: var(--accent-ink, #3a5fd0); } .pj-need.ok { background: none; padding: 3px 0; color: var(--status-complete-deep, #0c7a5f); }
+  .pj-cards { display: none; flex-direction: column; gap: 10px; }
+  .pj-cardi { display: flex; gap: 12px; text-decoration: none; color: inherit; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+  .pj-cardi .bar { width: 4px; border-radius: 2px; flex: none; }
+  .pj-cardi .b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .pj-cardi .r1 { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .pj-cardi .meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2, #4a5060); }
+  .pj-cardi .pj-need { align-self: flex-start; }
+  .pj-rd { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .pj-rd .r1 { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .pj-rd h3 { margin: 0; font-size: 15px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--ink); }
+  .pj-rd .facts { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2, #4a5060); }
+  .pj-rd .go { display: flex; gap: 8px; } .pj-rd .go .btn-primary { flex: 1; }
+  .pj-rd .go button { min-height: 40px; }
+  .pj-wait { display: flex; justify-content: space-between; gap: 10px; align-items: center; font-size: 13px; background: var(--fill, #f3f5f9); border-radius: 10px; padding: 12px 14px; }
+  @media (max-width: 860px) {
+    #pj-table-wrap { display: none; } .pj-cards { display: flex; }
+    .pj-card { background: none; border: 0; padding: 0; }
+    .pj-card .cp-toolbar { flex-wrap: wrap; } .pj-card .prx-seg { flex: 1 1 100%; } .pj-card .prx-seg button { flex: 1; min-height: 36px; }
+    .pj-acts { flex: 1 1 100%; flex-wrap: nowrap; } .pj-ready { flex: 1 1 auto; min-height: 44px; } .pj-acts .btn-primary { min-height: 44px; white-space: nowrap; }
+    .pj-card .cp-input.search { flex: 1 1 100%; }
+    .prx-drawer.pj-drawer { top: auto; width: 100%; max-height: 85vh; border-radius: 14px 14px 0 0; animation: pj-up .2s ease; }
+  }
+  @keyframes pj-up { from { transform: translateY(40px); opacity: .4; } }
   .pj-sw { width: 12px; height: 12px; border-radius: 4px; flex: none; margin-top: 3px; }
   .pj-edit { font: inherit; font-size:13px; font-weight: 600; border: 1px solid var(--line); background: #fff; border-radius: 7px; padding: 4px 10px; cursor: pointer; }
   .pj-edit:hover { border-color: var(--accent); }
@@ -1122,15 +1156,20 @@
            on the dashboard's Project Health. ================= -->
       <section class="cp-view" id="view-projects" hidden>
         <div class="ssc-subtabs" data-subtabs="projects"></div>
-        <div id="pj-notice"></div>
-        <div class="cp-card">
-          <div class="cp-toolbar">
-            <input class="cp-input search" id="pj-search" placeholder="Search code, name, address or client…" autocomplete="off">
-            <select class="cp-select" id="pj-status"><option value="active">Active jobs</option><option value="closed">Closed</option><option value="all">All</option></select>
-            <span style="flex:1"></span>
+        <div class="pj-head">
+          <p class="cp-muted pj-sum" id="pj-sum"></p>
+          <div class="pj-acts">
+            <button class="pj-ready" type="button" id="pj-ready" hidden aria-haspopup="dialog"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Ready to start <span class="n" id="pj-ready-n"></span></button>
             <button class="btn-primary btn-sm" type="button" id="pj-new">+ New project</button>
           </div>
-          <div class="cp-table-wrap"><table class="cp-table" id="pj-table"></table></div>
+        </div>
+        <div class="cp-card pj-card">
+          <div class="cp-toolbar">
+            <div class="prx-seg" role="tablist" aria-label="Show" id="pj-seg"><button type="button" role="tab" data-status="active" class="on" aria-selected="true">Active <span class="c"></span></button><button type="button" role="tab" data-status="closed" aria-selected="false">Closed <span class="c"></span></button><button type="button" role="tab" data-status="all" aria-selected="false">All <span class="c"></span></button></div>
+            <input class="cp-input search" id="pj-search" placeholder="Search job, address, client or PM…" autocomplete="off" aria-label="Search projects">
+          </div>
+          <div class="cp-table-wrap" id="pj-table-wrap"><table class="cp-table" id="pj-table"></table></div>
+          <div class="pj-cards" id="pj-cards"></div>
         </div>
       </section>
 
@@ -1437,6 +1476,9 @@
 <!-- proposal modals (#307) -->
 <div class="prx-scrim" id="prx-scrim" hidden></div>
 <aside class="prx-drawer" id="prx-drawer" hidden aria-label="Proposal"></aside>
+<!-- Projects → Ready to start: signed proposals not yet a project (a sheet from the bottom on phones) -->
+<div class="prx-scrim" id="pj-scrim" hidden></div>
+<aside class="prx-drawer pj-drawer" id="pj-drawer" hidden role="dialog" aria-modal="true" aria-label="Ready to start"></aside>
 <!-- #360 — Client portal: manage one client login (project, sections, preset, preview, password) -->
 <div class="cp-overlay" id="pa-overlay" role="dialog" aria-modal="true" aria-labelledby="pa-title">
   <div class="cp-modal" style="max-width:640px">
@@ -2992,42 +3034,91 @@
   wireCalendar();
 
   // ---------- PROJECTS (#330) — jobs, one page each ----------
+  // 2026-10-23: the list is the first thing on the tab. Signed proposals that are not a job yet wait behind
+  // "Ready to start" (only here, not on the Dashboard); each active job carries one "Needs you" note.
+  const PJ = { rows: [], ready: [], waiting: 0, status: 'active' };
   async function loadProjects() {
-    skeleton($('pj-table'), 5);
-    const q = new URLSearchParams(); q.set('status', $('pj-status').value); if ($('pj-search').value.trim()) q.set('search', $('pj-search').value.trim());
+    if (!PJ.rows.length) skeleton($('pj-table'), 5);
     try {
-      const { data: rows, meta } = await api('/projects?' + q.toString());
-      const sites = (meta && meta.sites_without_project) || [];   // #337
-      $('pj-notice').innerHTML = sites.length ? `<div class="cp-note" style="margin-bottom:12px"><strong>${sites.length} address${sites.length > 1 ? 'es were' : ' was'} added without a project.</strong> Create the project so it gets a dashboard, crew, calendar bar and daily reports.<ul class="cp-list" style="margin-top:8px">${sites.map(s => `<li><span>${esc(s.name || s.address_line)}${s.client_name ? ' <span class="cp-muted">· ' + esc(s.client_name) + '</span>' : ''}</span><span class="pj-site-acts"><a class="btn-primary btn-sm" style="text-decoration:none" href="${newProjectHref(s)}" data-newproj="${esc(JSON.stringify({ address: s.address_line || s.address || '', borough: s.borough || '', name: s.name || '', client_org_id: s.client_org_id || '' }))}">Create project</a><button type="button" class="btn-ghost btn-sm ct-remove" data-site-del="${s.id}" data-site-name="${esc(s.name || s.address_line || '')}">Delete</button></span></li>`).join('')}</ul></div>` : '';
-      table($('pj-table'), [
-        { key: 'job_number', label: '#', num: true, render: r => r.job_number != null ? `<span class="pj-no">#${r.job_number}</span>` : '—' },
-        { key: 'project_code', label: 'Job', render: r => `<div class="pj-job"><span class="pj-sw" style="background:${esc(r.color || '#475569')}" title="Calendar color"></span><div><span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:13px">${esc(r.name || '')}</div></div><button type="button" class="pj-edit" data-pj-edit="${esc(r.project_code)}" title="Edit project">Edit</button></div>` },
-        { key: 'address', label: 'Address', render: r => `${esc(r.address || '—')}<div class="cp-muted" style="font-size:13px">${esc(r.city_zip || '')}</div>` },
-        { key: 'client_name', label: 'Client', render: r => esc(r.client_name || '—') },
-        { key: 'billing_short', label: 'Billing', render: r => r.billing_type ? `<span class="cp-pill ${r.billing_type === 'aia_sov' ? 'active' : ''}" title="${esc(r.billing_label)}">${esc(r.billing_short)}</span>` : '<span class="cp-muted" title="How this job is billed is not set — pick it in the project Settings">not set</span>' },   // #356
-        { key: 'pms', label: 'PM', render: r => r.pms.length ? esc(r.pms.map(x => x.name).join(', ')) : '<span class="cp-muted">unassigned</span>' },
-        { key: 'crew_count', label: 'Crew', num: true },
-        { key: 'contract', label: 'Contract', num: true, render: r => r.contract.value != null ? money.format(r.contract.value) : '—' },
-        { key: 'open_value', label: 'Open invoices', num: true, render: r => r.open_value ? `${money.format(r.open_value)}${r.overdue_value ? ' <span class="cp-pill bad">overdue</span>' : ''}` : '—' },
-        { key: 'last_report_date', label: 'Last report', render: r => r.last_report_date ? fmtDate(r.last_report_date) : '<span class="cp-muted">none</span>' },
-        { key: 'status', label: 'Status', render: r => `<span class="cp-pill ${r.status === 'active' ? 'ok' : ''}">${esc(r.status)}</span>` },
-      ], rows, { defaultSort: { key: 'job_number', dir: 'asc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.href = '/projects/' + encodeURIComponent(r.project_code); },
-        emptyTitle: 'No jobs here', emptySub: 'Add one with "+ New project" — the daily report and the worker portal work for it right away.' });
-    } catch (e) { toast(e.message, true); $('pj-table').innerHTML = empty('Could not load projects', e.message); }
+      const { data: rows, meta } = await api('/projects?status=all');
+      PJ.rows = rows; PJ.ready = (meta && meta.ready_to_start) || []; PJ.waiting = (meta && meta.waiting_signature) || 0;
+      drawProjects(); drawReady();
+    } catch (e) { toast(e.message, true); $('pj-table').innerHTML = empty('Could not load projects', e.message); $('pj-cards').innerHTML = ''; }
   }
-  // #337 — hand an address to "+ New project" with the street, borough and client filled in
-  function newProjectHref(s) {
-    const q = new URLSearchParams({ new: '1', address: s.address_line || s.address || '', borough: s.borough || '', name: s.name || '' });
-    if (s.client_org_id) q.set('client_org_id', s.client_org_id);
-    return '/admin/projects?' + q.toString();
+  function pjDays(iso) { if (!iso) return null; const [y, m, d] = iso.slice(0, 10).split('-').map(Number); const t = todayLocal().split('-').map(Number); return Math.round((new Date(t[0], t[1] - 1, t[2]) - new Date(y, m - 1, d)) / 864e5); }
+  function pjWorkdaysMissed(iso) {   // weekdays after the last report and before today (today's may still come)
+    const t = todayLocal().split('-').map(Number); const today = new Date(t[0], t[1] - 1, t[2]);
+    const [y, m, d] = iso.slice(0, 10).split('-').map(Number); const x = new Date(y, m - 1, d); let n = 0;
+    for (x.setDate(x.getDate() + 1); x < today && n < 30; x.setDate(x.getDate() + 1)) if (x.getDay() % 6) n++;
+    return n;
   }
-  // a suggested address nobody wants a project for: archive the building (hidden here and on the client; estimates
-  // and proposals that name it keep their link)
-  async function deleteSite(btn) {
-    if (!confirm('Delete ' + (btn.dataset.siteName || 'this address') + ' from the suggestions? It is removed from the client\'s addresses too.')) return;
-    btn.disabled = true;
-    try { await api('/buildings/' + encodeURIComponent(btn.dataset.siteDel) + '/archive', { method: 'POST' }, true); toast('Address deleted'); loadProjects(); }
-    catch (ex) { toast(ex.message, true); btn.disabled = false; }
+  function pjNeed(r) {   // the one thing this job needs next, worst first
+    if (r.status !== 'active') return null;
+    if (r.overdue_value) return { cls: 'bad', t: money.format(r.overdue_value) + ' overdue' };
+    if (r.target_completion && pjDays(r.target_completion) > 0) return { cls: 'warn', t: 'Past its end date (' + fmtDate(r.target_completion).slice(0, 5) + ')' };
+    if (r.crew_count) {
+      if (!r.last_report_date) return { cls: 'warn', t: 'No daily report yet' };
+      const n = pjWorkdaysMissed(r.last_report_date); if (n >= 2) return { cls: 'warn', t: 'No daily report for ' + n + ' workdays' };
+    }
+    if (!r.pms.length) return { cls: 'info', t: 'Assign a PM' };
+    if (!r.crew_count) return { cls: 'info', t: 'Add the crew' };
+    if (!r.billing_type) return { cls: 'info', t: 'Pick how it is billed' };
+    return null;
+  }
+  function pjNeedHtml(r) { const n = pjNeed(r); return n ? `<span class="pj-need ${n.cls}">${esc(n.t)}</span>` : (r.status === 'active' ? '<span class="pj-need ok">On track</span>' : `<span class="cp-pill">${esc(r.status)}</span>`); }
+  function pjLast(iso) { if (!iso) return '<span class="cp-muted">none</span>'; const d = pjDays(iso); return d === 0 ? 'Today' : d === 1 ? 'Yesterday' : fmtDate(iso); }
+  function drawProjects() {
+    const all = PJ.rows, q = $('pj-search').value.trim().toLowerCase();
+    const count = st => all.filter(r => st === 'all' || r.status === st).length;
+    $('pj-seg').querySelectorAll('[data-status]').forEach(b => { const on = b.dataset.status === PJ.status; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); b.querySelector('.c').textContent = count(b.dataset.status); });
+    const act = all.filter(r => r.status === 'active');
+    const crew = act.reduce((a, r) => a + (r.crew_count || 0), 0), value = act.reduce((a, r) => a + ((r.contract && r.contract.value) || 0), 0);
+    $('pj-sum').textContent = `${act.length} active · ${crew} crew on site` + (value ? ` · ${money.format(value)} under contract` : '');
+    const rows = all.filter(r => (PJ.status === 'all' || r.status === PJ.status) &&
+      (!q || [r.project_code, r.name, r.address, r.client_name, r.pms.map(x => x.name).join(' ')].join(' ').toLowerCase().includes(q)));
+    table($('pj-table'), [
+      { key: 'job_number', label: '#', num: true, render: r => r.job_number != null ? `<span class="pj-no">#${r.job_number}</span>` : '—' },
+      { key: 'name', label: 'Job', render: r => `<div class="pj-job"><span class="pj-sw" style="background:${esc(r.color || '#475569')}" title="Calendar color"></span><div><div class="pj-name">${esc(r.name || r.project_code)}</div><div class="pj-sub">${esc(r.project_code)}${r.address ? ' · ' + esc(r.address) : ''} · ${r.billing_type ? esc(r.billing_short) : 'billing not set'}</div></div><button type="button" class="pj-edit" data-pj-edit="${esc(r.project_code)}" title="Edit project">Edit</button></div>` },
+      { key: 'client_name', label: 'Client', render: r => esc(r.client_name || '—') },
+      { key: 'pms', label: 'PM', sortVal: r => r.pms.map(x => x.name).join(', '), render: r => r.pms.length ? esc(r.pms.map(x => x.name).join(', ')) : '<span class="cp-muted">unassigned</span>' },
+      { key: 'crew_count', label: 'Crew', num: true },
+      { key: 'contract', label: 'Contract', num: true, sortVal: r => r.contract.value || 0, render: r => r.contract.value != null ? money.format(r.contract.value) : '—' },
+      { key: 'open_value', label: 'Open invoices', num: true, render: r => r.open_value ? money.format(r.open_value) : '—' },
+      { key: 'last_report_date', label: 'Last report', render: r => pjLast(r.last_report_date) },
+      { key: 'need', label: 'Needs you', sortVal: r => { const n = pjNeed(r); return n ? ({ bad: 0, warn: 1, info: 2 })[n.cls] : 3; }, render: pjNeedHtml },
+    ], rows, { defaultSort: { key: 'job_number', dir: 'asc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.href = '/projects/' + encodeURIComponent(r.project_code); },
+      emptyTitle: q ? 'No projects match' : 'No jobs here', emptySub: q ? 'Try a different search.' : 'Add one with "+ New project" — the daily report and the worker portal work for it right away.' });
+    $('pj-cards').innerHTML = rows.length ? rows.slice().sort((a, b) => (a.job_number || 0) - (b.job_number || 0)).map(r => `<a class="pj-cardi" href="/projects/${encodeURIComponent(r.project_code)}"><span class="bar" style="background:${esc(r.color || '#475569')}" aria-hidden="true"></span><span class="b"><span class="r1"><span class="pj-name">${esc(r.name || r.project_code)}</span><span class="pj-sub">${r.job_number != null ? '#' + r.job_number : esc(r.project_code)}</span></span><span class="pj-sub">${esc(r.address || '')}</span><span class="meta"><span>${esc(r.client_name || '—')}</span><span>${r.crew_count} crew</span><span>Report: ${pjLast(r.last_report_date)}</span></span>${pjNeed(r) || r.status !== 'active' ? pjNeedHtml(r) : ''}</span></a>`).join('')
+      : empty(q ? 'No projects match' : 'No jobs here', q ? 'Try a different search.' : 'Add one with "+ New project".');
+  }
+  function drawReady() {
+    const n = PJ.ready.length;
+    $('pj-ready').hidden = !n; $('pj-ready-n').textContent = n;
+    if (!$('pj-drawer').hidden) drawReadyPanel();
+  }
+  function drawReadyPanel() {
+    const cards = PJ.ready.map((r, i) => `<div class="pj-rd"><div class="r1"><span class="cp-pill ok">Signed ${esc(fmtDate(r.signed_at))}</span><span class="pj-sub">Proposal ${esc(r.label)}</span></div>
+      <h3>${esc(r.title || r.address || 'Signed proposal')}</h3><div class="pj-sub">${esc(r.client_name || '')}${r.address ? ' · ' + esc(r.address) : ''}</div>
+      <div class="facts">${r.price != null ? `<span><b>${money.format(r.price)}</b> contract</span>` : ''}<span>${r.deposit_invoice ? 'Deposit invoice ' + esc(r.deposit_invoice) + ' drafted' : (r.deposit_amount ? 'Deposit ' + money.format(r.deposit_amount) : 'No deposit')}</span></div>
+      <div class="go"><button type="button" class="btn-primary btn-sm" data-pj-start="${i}">Create project</button><button type="button" class="btn-ghost btn-sm" data-pj-dismiss="${r.proposal_id}">Not a project</button></div></div>`).join('');
+    $('pj-drawer').innerHTML = `<div class="prx-dh"><div class="r1"><div><h2>Ready to start</h2><div class="pj-sub">Signed proposals that are not a project yet</div></div><button type="button" class="prx-close" data-pj-close aria-label="Close">×</button></div></div>
+      <div class="prx-db">${cards || empty('Nothing waiting', 'A signed proposal shows up here.')}${PJ.waiting ? `<div class="pj-wait"><span>${PJ.waiting} proposal${PJ.waiting > 1 ? 's are' : ' is'} out waiting on a signature.</span><a class="cp-link" href="#proposals" data-pj-close>See in Proposals</a></div>` : ''}</div>`;
+  }
+  function openReady() { drawReadyPanel(); $('pj-scrim').hidden = false; $('pj-drawer').hidden = false; const c = $('pj-drawer').querySelector('[data-pj-close]'); if (c) c.focus(); }
+  function closeReady() { $('pj-scrim').hidden = true; $('pj-drawer').hidden = true; }
+  async function pjReadyClick(e) {
+    if (e.target.closest('[data-pj-close]')) { closeReady(); return; }
+    const s = e.target.closest('[data-pj-start]');
+    if (s) {
+      const r = PJ.ready[+s.dataset.pjStart]; if (!r) return; closeReady();
+      window.SSCNewProject.open({ from_proposal_id: r.proposal_id, proposal_label: r.label, name: r.title || '', address: r.address || '',
+        client_org_id: r.client_org_id || '', borough: r.borough || '', est_type: r.est_type || '', contract_value: r.price });
+      return;
+    }
+    const d = e.target.closest('[data-pj-dismiss]'); if (!d) return;
+    d.disabled = true;
+    try { await api('/projects/ready/' + encodeURIComponent(d.dataset.pjDismiss) + '/dismiss', { method: 'POST' }); toast('Removed. It stays signed in Proposals.'); PJ.ready = PJ.ready.filter(r => String(r.proposal_id) !== d.dataset.pjDismiss); drawReady(); if (!PJ.ready.length && !PJ.waiting) closeReady(); }
+    catch (ex) { toast(ex.message, true); d.disabled = false; }
   }
   // ---------- BUILDINGS (#304) ----------
   async function clientOptions(selectEl, keepValue) {
@@ -5692,18 +5783,16 @@
   $('cl-search').addEventListener('input', () => debounce(loadClients));
   // "+ New project" opens the form right here (static/js/new_project_modal.js)
   $('pj-new').addEventListener('click', () => window.SSCNewProject.open());
-  $('pj-notice').addEventListener('click', e => {
-    const d = e.target.closest('[data-site-del]');
-    if (d) { deleteSite(d); return; }
-    const a = e.target.closest('[data-newproj]'); if (!a) return;
-    e.preventDefault(); try { window.SSCNewProject.open(JSON.parse(a.dataset.newproj)); } catch (x) { location.href = a.href; }
-  });
+  $('pj-ready').addEventListener('click', openReady);
+  $('pj-drawer').addEventListener('click', pjReadyClick);
+  $('pj-scrim').addEventListener('click', closeReady);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('pj-drawer').hidden) closeReady(); });
+  $('pj-seg').addEventListener('click', e => { const b = e.target.closest('[data-status]'); if (!b) return; PJ.status = b.dataset.status; drawProjects(); });
   $('pj-table').addEventListener('click', e => { const b = e.target.closest('[data-pj-edit]'); if (b) window.SSCNewProject.edit(b.dataset.pjEdit); });
   document.addEventListener('ssc:project-updated', e => { toast('Project ' + ((e.detail || {}).project_code || '') + ' saved'); if (state.view === 'projects') loadProjects(); });
   document.addEventListener('ssc:project-deleted', e => { e.preventDefault(); toast('Project ' + ((e.detail || {}).project_code || '') + ' deleted'); if (state.view === 'projects') loadProjects(); else location.hash = '#projects'; });
   document.addEventListener('ssc:project-created', e => { const d = e.detail || {}; toast('Project ' + d.project_code + ' created'); if (state.view === 'projects') loadProjects(); else location.hash = '#projects'; });
-  $('pj-search').addEventListener('input', () => debounce(loadProjects));
-  $('pj-status').addEventListener('change', loadProjects);
+  $('pj-search').addEventListener('input', () => debounce(drawProjects));
   $('pr-search').addEventListener('input', () => debounce(loadProposals));
   $('pr-status').addEventListener('change', loadProposals);
   $('pr-kind').addEventListener('click', e => { const b = e.target.closest('[data-kind]'); if (!b) return; setKind(b.dataset.kind); loadProposals(); });

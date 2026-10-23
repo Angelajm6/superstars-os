@@ -21,6 +21,22 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Projects tab: active jobs first, "Ready to start" for signed proposals (Bookore, 2026-10-23)
+
+* Accepted prototype: https://claude.ai/artifact/Sz6pFAL3nSVCav97gmPsDE. The #337 "addresses added without a project" banner is
+  gone (every proposal adds an address, so it grew with every bid). The list is now the first thing on the tab: a one-line
+  summary, Active / Closed / All with counts, client-side search, and a "Needs you" column (worst first: overdue invoice,
+  past end date, no daily report for 2+ workdays while crew is on, no PM, no crew, billing not set; else "On track").
+  At ≤860px the table becomes cards.
+* **Ready to start** (Projects only, not the Dashboard): `meta.ready_to_start` on `GET /api/company/portal/projects` =
+  signed proposals whose estimate is not converted, not marked "Not a project", and with no job made at that address on or
+  after the signing day. `meta.waiting_signature` = proposals sent/viewed. Panel (sheet on phones): Create project /
+  Not a project (`POST /api/company/portal/projects/ready/<proposal_id>/dismiss` → `proposal.project_dismissed_at/_by`,
+  ensured by `proposals.ensure_schema`).
+* Create project opens the shared form (`new_project_modal.js?v=1016`) filled from the proposal; `onboard()` takes
+  `from_proposal_id`: the job reuses the proposal's estimate (its code, type, region and client; no second estimate) and the
+  deposit invoice moves onto the job. Guard: `tests/smoke_projects_ready.py` (in the gate).
+
 ### Inbox synced both ways with Gmail; one Claude draft per conversation (Bookore, 2026-10-23)
 
 * A reply sent from Gmail itself (or from the Inbox) closes the conversation: `inbox.close_thread` (called from `ingest` for every

@@ -2,10 +2,9 @@
 """#337 — job sites become projects in one click; the ledger records boot-ensured migrations.
 
 Boots the real app (`import server`) on an ISOLATED database. Proves:
-  * the Projects list carries `meta.sites_without_project` (job sites with no project);
-    creating a project linked to the site removes it; archived sites are not offered
-  * the served portal has the notice container, the "Create project here" button logic
-    and the prefill link builder; the admin page opens "+ New project" from
+  * 2026-10-23: a job site with no project is NOT offered on the Projects list any more (only signed proposals are,
+    under Ready to start — tests/smoke_projects_ready.py)
+  * the served portal has "+ New project" and Ready to start; the admin page opens "+ New project" from
     ?new=1&address=… (handler present, borough matched by label or code)
   * migrations: a pending script whose boot-ensured objects exist is recorded as applied
     with note "boot-ensured"; one whose objects are missing stays pending; the object
@@ -95,21 +94,13 @@ def main() -> int:
     c = server.app.test_client()
     assert c.post("/api/auth/login", json={"email": f"{TAG}.c_suite@example.com", "password": PW}).status_code == 200
     r = c.get("/api/company/portal/projects?status=all").get_json()
-    sites = {s["id"]: s for s in r["meta"]["sites_without_project"]}
-    assert ids["site"] in sites and ids["archived"] not in sites, sites.keys()
-    assert sites[ids["site"]]["address_line"] == "12 Js337 Way" and sites[ids["site"]]["client_name"] == "Js337 Owners" and sites[ids["site"]]["borough"] == "Bronx"
-    conn = _db()
-    try:
-        conn.execute("INSERT INTO projects (project_code, name, address, status, client_org_id, building_id) VALUES ('JS337-A', 'Js337 job', '12 Js337 Way', 'active', ?, ?)", (ids["org"], ids["site"]))
-        conn.commit()
-    finally:
-        conn.close()
-    r = c.get("/api/company/portal/projects?status=all").get_json()
-    assert ids["site"] not in {s["id"] for s in r["meta"]["sites_without_project"]}, "a site with a project is no longer offered"
-    passed += 1; print("  sites without project ok")
+    assert "sites_without_project" not in r["meta"] and "ready_to_start" in r["meta"], r["meta"].keys()
+    assert all(s.get("address") != "12 Js337 Way" for s in r["meta"]["ready_to_start"]), "an address alone is not a suggestion"
+    passed += 1; print("  addresses are not suggested ok")
 
     html = c.get("/company").get_data(as_text=True)
-    for needle in ('id="pj-notice"', ">Create project</a>", "function newProjectHref", "sites_without_project", 'id="pj-new"'):   # the console "+ New project" opens the shared form in place
+    assert 'id="pj-notice"' not in html and "sites_without_project" not in html, "the address banner is gone"
+    for needle in ('id="pj-ready"', "ready_to_start", 'id="pj-new"'):   # the console "+ New project" opens the shared form in place
         assert needle in html, needle
     assert "← All job sites" not in html and 'id="view-buildings"' not in html   # #339: no job-sites page
     ap = c.get("/admin/projects").get_data(as_text=True)
@@ -118,7 +109,6 @@ def main() -> int:
         assert needle in ap, needle
     mod = c.get("/files/static/js/new_project_modal.js").get_data(as_text=True)
     assert "np-borough" in mod and "pre.borough" in mod, "the shared form matches the borough from the prefill"
-    assert 'data-newproj=' in html and "window.SSCNewProject.open(JSON.parse(a.dataset.newproj))" in html, "console notice opens the form in place"
     passed += 1; print("  pages ok")
 
     # ---- ledger reconciliation

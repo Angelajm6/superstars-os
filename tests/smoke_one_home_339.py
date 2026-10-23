@@ -159,7 +159,7 @@ def main() -> int:
                  'id="cl-add"', 'id="cl-overlay"', 'id="ct-overlay"', 'id="nt-overlay"', 'id="fu-overlay"', "data-task-done",
                  'id="view-company"', "const ALIASES = { buildings: 'projects', compliance: 'company' };",
                  'data-subtabs="projects"', 'data-subtabs="finance"', 'data-subtabs="workforce"', 'data-subtabs="company"', 'data-subtabs="proposals"',
-                 "sites_without_project", "function newProjectHref"):
+                 "ready_to_start", "function drawReady"):
         assert kept in po, kept
     assert po.index('id="ov-kpis"') < po.index('id="cc-week"') < po.index('id="td-needs"'), "cards, then the week, then Needs you"
     assert po.count('data-subtabs="projects"') == 2, "list and calendar both carry the Projects sub-tabs"

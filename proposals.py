@@ -276,7 +276,8 @@ def ensure_schema(conn) -> None:
     for col, typ in STUDIO_COLUMNS:   # Proposal Studio (2026-10-20): every part of the document is editable
         if not _has_column(conn, "proposal", col):
             conn.execute(f"ALTER TABLE proposal ADD COLUMN {col} {typ}")
-    for col, typ in (("deleted_from", "TEXT"), ("deleted_at", "TEXT"), ("deleted_by", "INTEGER")):   # 2026-10-23
+    for col, typ in (("deleted_from", "TEXT"), ("deleted_at", "TEXT"), ("deleted_by", "INTEGER"),   # 2026-10-23
+                     ("project_dismissed_at", "TEXT"), ("project_dismissed_by", "INTEGER")):   # "Not a project" on Ready to start
         if not _has_column(conn, "proposal", col):
             conn.execute(f"ALTER TABLE proposal ADD COLUMN {col} {typ}")
     if not _has_column(conn, "proposal_line", "lead"):   # the bold part of a line (2026-10-21)

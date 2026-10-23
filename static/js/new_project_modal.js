@@ -3,7 +3,9 @@
  * a bigger window in sections, the job's number and calendar color, the access method of an
  * Exterior Restoration job, what the job's workers see in the worker app, and the drawing set.
  *
- *   SSCNewProject.open([prefill])   create; prefill: {address, name, borough, client_org_id}
+ *   SSCNewProject.open([prefill])   create; prefill: {address, name, borough, client_org_id}; from Projects → Ready to
+ *                                   start also {from_proposal_id, proposal_label, est_type, contract_value}: the job takes the
+ *                                   signed proposal's estimate (its code, type, region and client)
  *   SSCNewProject.edit(code)        edit an existing job (number, type and code never change)
  *   document event 'ssc:project-created'  detail = the onboard response data
  *   document event 'ssc:project-updated'  detail = {project_code}
@@ -244,7 +246,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
   function fieldError(k, msg) { var e = $('np-ferr-' + k); e.textContent = msg; e.classList.add('show'); e.closest('.np-field').classList.add('invalid'); }
   function validate(payload) {
     var bad = [];
-    if (!payload.client_org_id && !payload.new_org_name) { if ($('np-client').value === '__new') bad.push(['neworg', 'Type the new client name.']); else bad.push(['client', 'Choose a client or add a new one.']); }
+    if (!payload.client_org_id && !payload.new_org_name && !NP.fromProposal) { if ($('np-client').value === '__new') bad.push(['neworg', 'Type the new client name.']); else bad.push(['client', 'Choose a client or add a new one.']); }
     if (NP.mode === 'new' && !payload.est_type) bad.push(['type', 'Choose the job type.']);
     if (otherApplies() && !payload.job_type_other) bad.push(['other', 'Describe the job, for example Basement excavation.']);
     if (NP.mode === 'new' && !payload.borough) bad.push(['borough', 'Choose the borough or region.']);
@@ -301,7 +303,8 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
       pm_user_id: $('np-pm').value || null, notes: $('np-notes').value.trim(), billing_type: $('np-billing').value || null,
       site_lat: $('np-lat').value.trim() || null, site_lng: $('np-lng').value.trim() || null, geofence_m: $('np-radius').value.trim() || null, crew: crewChecked($('np-crew')),
       color_index: NP.color, access_methods: accessApplies() ? accessChosen() : null, worker_access: workChosen(),
-      job_type_other: otherApplies() ? $('np-other').value.trim().replace(/\s+/g, ' ') : null, modules: tabsChosen() };
+      job_type_other: otherApplies() ? $('np-other').value.trim().replace(/\s+/g, ' ') : null, modules: tabsChosen(),
+      from_proposal_id: NP.mode === 'new' ? NP.fromProposal : null };
   }
 
   async function submit(e) {
@@ -385,14 +388,14 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
     $('np-other-wrap').hidden = true; drawTabs([]);
     $('np-neworg-wrap').hidden = true; npDateSet($('np-start'), ''); npDateSet($('np-end'), '');
     NP.files = []; drawFiles(); $('np-dwg-note').textContent = ''; $('np-contract').readOnly = false; $('np-contract-note').textContent = '';
-    $('np-type').disabled = false; $('np-borough').disabled = false; $('np-pm-wrap').hidden = false; $('np-pm-note').hidden = true;
+    $('np-type').disabled = false; $('np-borough').disabled = false; $('np-client').disabled = false; $('np-pm-wrap').hidden = false; $('np-pm-note').hidden = true;
     $('np-notes').closest('.np-field').hidden = false;
   }
 
   // open the form (optionally filled in: {address, name, borough, client_org_id})
   async function open(pre) {
     pre = pre || {};
-    mount(); NP.mode = 'new'; NP.code = null; NP.cur = null;
+    mount(); NP.mode = 'new'; NP.code = null; NP.cur = null; NP.fromProposal = pre.from_proposal_id || null;
     $('np-overlay').classList.add('open');
     $('np-title').textContent = 'New project'; $('np-go').textContent = 'Create project'; $('np-del').hidden = true;
     $('np-sub').textContent = 'For a job that is already won. It gets the next job number, a code in its series, a back-dated approved estimate so Finance stays truthful, the building link and its PM. New bids still start in Estimates.';
@@ -406,6 +409,12 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
       if (pre.name) $('np-name').value = pre.name;
       if (pre.client_org_id && $('np-client').querySelector('option[value="' + pre.client_org_id + '"]')) $('np-client').value = String(pre.client_org_id);
       if (pre.borough) { var want = String(pre.borough).trim().toLowerCase(); var opt = Array.prototype.slice.call($('np-borough').options).find(function (o) { return o.value.toLowerCase() === want || o.textContent.toLowerCase().indexOf(want) === 0; }); if (opt) $('np-borough').value = opt.value; }
+      if (pre.contract_value != null && pre.contract_value !== '') $('np-contract').value = pre.contract_value;
+      if (pre.est_type && $('np-type').querySelector('option[value="' + pre.est_type + '"]')) { $('np-type').value = pre.est_type; $('np-type').dispatchEvent(new Event('change')); }
+      if (NP.fromProposal) {   // the code, type, region and client come from the signed proposal's estimate
+        $('np-sub').textContent = 'Filled in from signed proposal ' + (pre.proposal_label || '') + '. Check it and create: the job keeps the proposal\'s estimate, its client and the deposit invoice.';
+        $('np-type').disabled = !!$('np-type').value; $('np-borough').disabled = !!$('np-borough').value; $('np-client').disabled = !!$('np-client').value;
+      }
       drawPhone(); setTimeout(function () { $('np-type').focus(); }, 30);
     } catch (e) { showFormError('Could not load the form: ' + e.message); }
   }
@@ -413,7 +422,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
   // edit an existing job; keepFiles = stay on the drawings that failed during a create
   async function edit(code, keepFiles) {
     mount(); var kept = keepFiles ? NP.files : [];
-    NP.mode = 'edit'; NP.code = code;
+    NP.mode = 'edit'; NP.code = code; NP.fromProposal = null;
     $('np-overlay').classList.add('open');
     $('np-title').textContent = 'Edit project'; $('np-go').textContent = 'Save changes'; $('np-no').textContent = ''; $('np-del').hidden = false;
     $('np-sub').textContent = 'The job number, type and code never change: they are on every report and document.';
