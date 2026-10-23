@@ -238,8 +238,9 @@ def _signed_proposal(conn, proposal_id) -> dict:
 def onboard(conn, payload: dict, *, actor=None) -> dict:
     p = dict(payload or {})
     prop = _signed_proposal(conn, p["from_proposal_id"]) if p.get("from_proposal_id") not in (None, "") else None
-    if prop:   # the job's code, type and region are the proposal's estimate's; its client too
-        p.update(est_type=prop["est_type"], borough=prop["borough"], client_org_id=prop["client_org_id"], new_org_name="")
+    if prop:   # the client is the proposal's; type and region default to its estimate's and stay editable
+        p.update(est_type=p.get("est_type") or prop["est_type"], borough=p.get("borough") or prop["borough"],
+                 client_org_id=prop["client_org_id"], new_org_name="")
     est_type = (p.get("est_type") or "").strip().upper()
     borough = (p.get("borough") or "").strip().upper()
     if est_type not in estimates.EST_TYPES:
@@ -323,6 +324,13 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     now = _now()
     if prop:   # Ready to start: the signed proposal's own estimate becomes the job (no second estimate)
         est = estimates.get_estimate(conn, prop["estimate_id"])
+        if (est["est_type"], est["borough"]) != (est_type, borough):   # a changed type / region moves it to that series
+            seq = estimates.next_seq(conn, est_type, borough)
+            conn.execute("UPDATE estimate SET est_type = ?, borough = ?, seq = ?, code = ? WHERE id = ?",
+                         (est_type, borough, seq, estimates.make_code(est_type, borough, seq), est["id"]))
+            if estimates._has_276(conn):
+                conn.execute("UPDATE estimate SET division = ? WHERE id = ?", (estimates.DIVISION_OF_TYPE.get(est_type), est["id"]))
+            est = estimates.get_estimate(conn, est["id"])
         conn.execute("UPDATE estimate SET status = 'approved', final_amount = COALESCE(?, final_amount), "
                      "building_address = COALESCE(building_address, ?), status_changed_at = ?, updated_at = ? WHERE id = ?",
                      (contract, address, now, now, est["id"]))

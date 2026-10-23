@@ -6,8 +6,8 @@ Boots the real app (`import server`) on an ISOLATED database. Proves:
     `meta.waiting_signature` = proposals out with the client; a sent (unsigned) proposal is never a suggestion
   * a signed proposal whose address got a project on/after the signing day (made by hand) is not offered
   * "Not a project": PM -> 403; C-suite -> 200 and it leaves the list; an unknown proposal -> 404
-  * onboard with `from_proposal_id`: the job takes the proposal's estimate (its code; no second estimate), the
-    proposal's client wins over the payload, the deposit invoice moves onto the job, and it leaves the list;
+  * onboard with `from_proposal_id`: the job takes the proposal's estimate (no second estimate); a changed type /
+    region moves that estimate to its series (new code, same estimate), the proposal's client wins over the payload, the deposit invoice moves onto the job, and it leaves the list;
     a second create from it, or one from an unsigned proposal -> 400
   * the served page has Ready to start (button, panel, Create / Not a project) and the form sends from_proposal_id
 Run:  venv/bin/python tests/smoke_projects_ready.py
@@ -162,18 +162,19 @@ def main() -> int:
         n_est = conn.execute("SELECT COUNT(1) AS n FROM estimate WHERE client_org_id = ?", (ids["org"],)).fetchone()["n"]
     finally:
         conn.close()
-    body = {"from_proposal_id": ids["A"], "est_type": "IRA", "borough": "MN", "client_org_id": ids["org2"],
+    body = {"from_proposal_id": ids["A"], "est_type": "FR", "borough": "QN", "client_org_id": ids["org2"],
             "address": "1 Rdy Alpha Ave", "name": "Rdy Alpha facade", "contract_value": "212400", "billing_type": "lump_sum"}
     r = cs.post("/api/admin/projects/onboard", json=body)
     assert r.status_code == 201, r.get_json()
     d = r.get_json()["data"]
-    assert d["project_code"] == ids["estA"]["code"] and d["estimate_id"] == ids["estA"]["id"] and d["from_proposal_id"] == ids["A"], d
+    assert d["project_code"].startswith("FR-QN-") and d["project_code"] != ids["estA"]["code"], "the borough picked in the form wins"
+    assert d["estimate_code"] == d["project_code"] and d["estimate_id"] == ids["estA"]["id"] and d["from_proposal_id"] == ids["A"], d
     assert d["client_org_id"] == ids["org"], "the proposal's client wins"
     conn = _db()
     try:
         assert conn.execute("SELECT COUNT(1) AS n FROM estimate WHERE client_org_id = ?", (ids["org"],)).fetchone()["n"] == n_est, "no second estimate"
-        e = dict(conn.execute("SELECT status, converted_project_code FROM estimate WHERE id = ?", (ids["estA"]["id"],)).fetchone())
-        assert e == {"status": "converted", "converted_project_code": d["project_code"]}, e
+        e = dict(conn.execute("SELECT status, converted_project_code, est_type, borough FROM estimate WHERE id = ?", (ids["estA"]["id"],)).fetchone())
+        assert e == {"status": "converted", "converted_project_code": d["project_code"], "est_type": "FR", "borough": "QN"}, e
         inv = conn.execute("SELECT project_code FROM invoice WHERE proposal_id = ?", (ids["A"],)).fetchall()
         assert inv and all(x["project_code"] == d["project_code"] for x in inv), [dict(x) for x in inv]
         pj = dict(conn.execute("SELECT name, billing_type FROM projects WHERE project_code = ?", (d["project_code"],)).fetchone())
@@ -195,6 +196,7 @@ def main() -> int:
     js = cs.get("/files/static/js/new_project_modal.js").get_data(as_text=True)
     assert "NP.fromProposal = pre.from_proposal_id" in js and "from_proposal_id: NP.mode === 'new' ? NP.fromProposal : null" in js
     assert "!NP.fromProposal" in js, "the client check trusts the proposal's client"
+    assert "$('np-type').disabled = !!" not in js and "$('np-borough').disabled = !!" not in js, "type and region stay editable"
     passed += 1; print("  page ok")
 
     print(f"OK smoke_projects_ready: {passed} checks")

@@ -5,7 +5,7 @@
  *
  *   SSCNewProject.open([prefill])   create; prefill: {address, name, borough, client_org_id}; from Projects → Ready to
  *                                   start also {from_proposal_id, proposal_label, est_type, contract_value}: the job takes the
- *                                   signed proposal's estimate (its code, type, region and client)
+ *                                   signed proposal's estimate and client; type and region stay editable
  *   SSCNewProject.edit(code)        edit an existing job (number, type and code never change)
  *   document event 'ssc:project-created'  detail = the onboard response data
  *   document event 'ssc:project-updated'  detail = {project_code}
@@ -411,9 +411,9 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
       if (pre.borough) { var want = String(pre.borough).trim().toLowerCase(); var opt = Array.prototype.slice.call($('np-borough').options).find(function (o) { return o.value.toLowerCase() === want || o.textContent.toLowerCase().indexOf(want) === 0; }); if (opt) $('np-borough').value = opt.value; }
       if (pre.contract_value != null && pre.contract_value !== '') $('np-contract').value = pre.contract_value;
       if (pre.est_type && $('np-type').querySelector('option[value="' + pre.est_type + '"]')) { $('np-type').value = pre.est_type; $('np-type').dispatchEvent(new Event('change')); }
-      if (NP.fromProposal) {   // the code, type, region and client come from the signed proposal's estimate
+      if (NP.fromProposal) {   // type and region come from the signed proposal's estimate and stay editable; the client is the proposal's
         $('np-sub').textContent = 'Filled in from signed proposal ' + (pre.proposal_label || '') + '. Check it and create: the job keeps the proposal\'s estimate, its client and the deposit invoice.';
-        $('np-type').disabled = !!$('np-type').value; $('np-borough').disabled = !!$('np-borough').value; $('np-client').disabled = !!$('np-client').value;
+        $('np-client').disabled = !!$('np-client').value;
       }
       drawPhone(); setTimeout(function () { $('np-type').focus(); }, 30);
     } catch (e) { showFormError('Could not load the form: ' + e.message); }
