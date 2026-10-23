@@ -104,6 +104,7 @@ _PUBLIC_EXACT = {
     "/api/worker-sign-in",
     "/worker-app-manifest.json",  # PWA shell (#248) — code/config, no data
     "/worker-app-sw.js",          # PWA shell (#248)
+    "/favicon.ico",               # brand star for the browser tab — no data
 }
 
 

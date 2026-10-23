@@ -19,3 +19,7 @@ The company NAME/wordmark text is brand.py COMPANY_NAME.
 logo-full.png — the full printed logo (star + SUPERSTARS / CONTRACTING INC), exactly as
   supplied. It is the top-left brand in every app sidebar/top bar (.brand-full, widgets.css);
   the star (mark.svg) stays for the collapsed icon rail, favicons and reports.
+
+favicon-32.png / apple-touch-icon.png — PNG renders of mark.svg for the
+  browser tab (Safari has no SVG favicons) and iPhone home screen (cream background, since iOS
+  fills transparency with black). /favicon.ico serves favicon-32.png. Re-render these if mark.svg changes.

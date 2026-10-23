@@ -11638,6 +11638,17 @@ def worker_app_manifest():
     return resp
 
 
+@app.route('/favicon.ico')
+def favicon():
+    """Browser-tab icon fallback — the star mark as PNG. Browsers request
+    /favicon.ico on any page without a <link rel="icon"> (generated reports,
+    Python-rendered pages), so this keeps the grey globe off every tab.
+    Public-exact in auth.py: brand asset, no data."""
+    resp = send_file(str(SCRIPT_DIR / 'static' / 'brand' / 'favicon-32.png'), mimetype='image/png')
+    resp.headers['Cache-Control'] = 'public, max-age=86400'
+    return resp
+
+
 @app.route('/worker-app-sw.js')
 def worker_app_sw():
     """Worker-app service worker — public shell file. Explicit route for the
