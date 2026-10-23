@@ -505,6 +505,19 @@ tbody tr { transition: background var(--ssc-t-fast) ease; }
   .hv-edge:hover::before, .cp-list li:has(a):hover::before, .doc-row:hover::before { height: 0; }
 }
 
+/* ===== The full company logo (static/brand/logo-full.png, the printed logo exactly as supplied)
+   is the top-left brand: it replaces the star + name. Its white background multiplies away on the
+   light sidebar. The collapsed icon rail shows the star alone (the full logo can't fit 68 px). ===== */
+.brand-full { display: block; width: 150px; height: auto; mix-blend-mode: multiply; flex: 0 0 auto; }
+:is(.brand, .sidebar-header):has(.brand-full) > .brand-mark { display: none; }
+@media (min-width: 861px) {
+  :is(.ssc-side .brand, .sidebar .sidebar-header):has(.brand-full) { position: relative; justify-content: center; }
+  :is(.brand, .sidebar-header):has(.brand-full) > .ssc-rail-btn { position: absolute; top: 8px; right: 8px; }
+  html.side-rail:not(.side-peek) .brand-full { display: none; }
+  html.side-rail:not(.side-peek) :is(.brand, .sidebar-header):has(.brand-full) > .brand-mark { display: block; }
+}
+@media (max-width: 860px) { .brand-full { width: auto; height: 44px; } }
+
 /* ===== #359 — collapsible icon rail (above 860 px). shell.js adds the pin (.ssc-rail-btn) to
    the brand row and toggles html.side-rail (unpinned) + html.side-peek (rail slid open on hover/focus); labels stay in the markup (font-size 0)
    and become tooltips. Below 860 px none of this applies — the #312 Menu drawer rules. ===== */

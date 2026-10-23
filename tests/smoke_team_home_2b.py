@@ -170,7 +170,7 @@ def main() -> int:
     page = pm.get("/projects").get_data(as_text=True)
     for needle in ("'/api/team/items?status=open&mine=1'", "'/api/team/calendar?from='", "Get directions in Google Maps",
                    "Only admin and C-suite can change it.", "it.kind === 'task' && it.can_complete", "data-day=", "data-view=\"month\"",
-                   '<img class="brand-mark" src="/files/static/brand/mark.svg"', "auth_menu.js?v=", "j.can_open ?", "'/api/projects'"):
+                   '<img class="brand-full" src="/files/static/brand/logo-full.png"', "auth_menu.js?v=", "j.can_open ?", "'/api/projects'"):
         assert needle in page, needle
     assert "toISOString" not in page, "LOCAL dates only"
     assert "<title>Superstars Contracting · Home</title>" in page

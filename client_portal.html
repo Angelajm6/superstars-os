@@ -92,6 +92,8 @@
   .lb .cap{position:absolute;bottom:18px;left:0;right:0;text-align:center;color:#fff;font-size:14px;padding:0 20px;text-shadow:0 1px 4px rgba(0,0,0,.6);}
   .lb .x{position:absolute;top:16px;right:18px;color:#fff;font-size:30px;line-height:1;cursor:pointer;opacity:.85;background:none;border:none;}
   .brand-mark,.mark{object-fit:contain;}  /* #265 swap-safe logo */
+  .brand-full{display:block;height:44px;width:auto;mix-blend-mode:multiply;}  /* the full company logo, as in widgets.css */
+  .brand:has(.brand-full)>.brand-mark{display:none;}
 </style>
 </head>
 <body>
@@ -99,7 +101,7 @@
     <div class="brand">
       <!-- #265 — canonical filled-star lockup (single source: brand.py) -->
       <img class="brand-mark" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
-      <div><div class="brand-name">Superstars Contracting</div><div class="brand-sub">Project Portal</div></div>
+      <img class="brand-full" src="/files/static/brand/logo-full.png" width="320" height="189" alt="Superstars Contracting Inc">
     </div>
     <div class="chip"><span id="who">—</span><button id="signout">Sign out</button></div>
   </div>
