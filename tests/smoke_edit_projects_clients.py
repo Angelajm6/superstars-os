@@ -13,6 +13,10 @@ Boots the real app on an ISOLATED database. Proves:
   * every saved edit lands on the client timelines (old and new client), with no values logged
   * clients: a name can't be blanked; a client edit is logged on its timeline; contacts can be
     edited and removed (removed = inactive, hidden from the client page and its contact count)
+  * client details: email / phone / website / address save, show on the client page, are logged
+    as "email, phone, website, address"; a bad email is refused
+  * delete client: admin / c_suite only; a client with a job is refused (409, says why); a client
+    with only contacts / notes / follow-ups / a building goes for good — its rows go, the building stays
   * the pages carry the edit UI (Settings → Project details; client page Edit client / contact)
 Run:  venv/bin/python tests/smoke_edit_projects_clients.py
 """
@@ -243,11 +247,54 @@ def main() -> int:
     assert rows[org]["contacts"] == 0, "and its contact count"
     passed += 1; print("  clients + contacts ok")
 
+    # ---- client details (email / phone / website / address)
+    r = cs.put(f"/api/crm/organizations/{org}", json={"email": "not-an-email"})
+    assert r.status_code == 400 and "email" in r.get_json()["error"], r.get_json()
+    info = {"email": "office@example.com", "phone": "(212) 555-0100", "website": "example.com",
+            "address_line": "1 Editpc Way", "city": "Bronx", "state": "NY", "zip": "10454"}
+    assert cs.put(f"/api/crm/organizations/{org}", json=info).status_code == 200
+    det = cs.get(f"/api/company/portal/clients/{org}").get_json()["data"]
+    assert all(det["organization"][k] == v for k, v in info.items()), det["organization"]
+    assert any(x.get("summary") == "Client details updated: email, phone, website, address" for x in det["activity"]), det["activity"]
+    assert cs.put(f"/api/crm/organizations/{org}", json={"phone": ""}).status_code == 200
+    assert _row("SELECT phone FROM crm_organization WHERE id = ?", org)["phone"] is None, "a cleared field is empty"
+    passed += 1; print("  client details ok")
+
+    # ---- delete client
+    busy = _row("SELECT client_org_id AS o FROM projects WHERE client_org_id IN (?, ?) LIMIT 1", ids["org_a"], org)["o"]
+    r = cs.delete(f"/api/crm/organizations/{busy}")
+    assert r.status_code == 409 and "job" in r.get_json()["error"] and "inactive" in r.get_json()["error"], r.get_json()
+    assert _row("SELECT id FROM crm_organization WHERE id = ?", busy), "a refused delete leaves the client"
+    tid = cs.post("/api/crm/organizations", json={"name": f"{TAG} Test Client", "relationship_type": "client"}).get_json()["data"]["id"]
+    tc = cs.post("/api/crm/contacts", json={"full_name": f"{TAG} Test Contact", "org_id": tid}).get_json()["data"]
+    tcid = (tc.get("contact") or tc)["id"]
+    assert cs.post("/api/crm/activity", json={"entity_type": "organization", "entity_id": tid, "activity_type": "note", "summary": "hello"}).status_code == 200
+    assert cs.post("/api/crm/tasks", json={"entity_type": "organization", "entity_id": tid, "title": f"{TAG} call back"}).status_code == 200
+    conn = _db()
+    try:
+        conn.execute("INSERT INTO building (client_org_id, address_line, address_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                     (tid, "2 Editpc Way", "2 editpc way", "2026-10-22T09:00:00", "2026-10-22T09:00:00"))
+        conn.commit()
+    finally:
+        conn.close()
+    assert pm.delete(f"/api/crm/organizations/{tid}").status_code == 403
+    r = cs.delete(f"/api/crm/organizations/{tid}")
+    assert r.status_code == 200 and r.get_json()["data"]["deleted"] is True, r.get_json()
+    assert not _row("SELECT id FROM crm_organization WHERE id = ?", tid)
+    assert not _row("SELECT id FROM crm_contact WHERE id = ?", tcid)
+    assert not _row("SELECT id FROM crm_activity WHERE entity_type = 'organization' AND entity_id = ?", tid)
+    assert not _row("SELECT id FROM crm_task WHERE entity_type = 'organization' AND entity_id = ?", tid)
+    b = _row("SELECT client_org_id FROM building WHERE address_key = ?", "2 editpc way")
+    assert b and b["client_org_id"] is None, "the building stays, unlinked"
+    assert cs.delete(f"/api/crm/organizations/{tid}").status_code == 404
+    passed += 1; print("  delete client ok")
+
     # ---- the pages
     dash = cs.get(f"/projects/{A}").get_data(as_text=True)
     assert 'id="ps-det-form"' in dash and "/details'" in dash and 'id="ps-det-edit"' in dash
     cp = cs.get("/company").get_data(as_text=True)
-    for needle in ('id="ce-form"', 'id="cl-edit"', 'id="ct-remove"', "data-ct-edit", "openContactModal"):
+    for needle in ('id="ce-form"', 'id="cl-edit"', 'id="ct-remove"', "data-ct-edit", "openContactModal",
+                   'id="ce-delete"', 'id="ce-email"', 'id="ce-address"', "clientDetailsHtml"):
         assert needle in cp, needle
     passed += 1; print("  pages ok")
 

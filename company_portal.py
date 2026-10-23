@@ -417,7 +417,8 @@ def list_clients(conn, *, search: Optional[str] = None, relationship_type: str =
 
 def client_detail(conn, org_id: int, today: Optional[date] = None) -> Optional[dict]:
     org = _one(conn.execute(
-        "SELECT id, name, relationship_type, status, stage, function_tags, notes, created_at "
+        "SELECT id, name, relationship_type, status, stage, function_tags, notes, created_at, "
+        "email, phone, website, address_line, city, state, zip "
         "FROM crm_organization WHERE id = ?", (org_id,)))
     if not org:
         return None

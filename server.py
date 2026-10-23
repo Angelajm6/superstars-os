@@ -7558,6 +7558,16 @@ def api_company_summary():
 # dates rule). Activity/task entities are organization|contact this build; 'project' stays
 # in the vocabulary (scale-ready) — the project<->client relationship is client_org_id.
 
+try:   # the client's email / phone / website / address columns; apply_crm_org_details.py is the migration
+    _cod_conn = db()
+    try:
+        crm.ensure_org_details(_cod_conn)
+    finally:
+        _cod_conn.close()
+except Exception as _cod_e:   # never blocks boot
+    logging.warning(f"crm org details ensure skipped: {_cod_e}")
+
+
 def _crm_uid():
     return (current_user() or {}).get("id")
 
@@ -7631,7 +7641,8 @@ def api_crm_org_update(org_id):
         d = request.get_json(silent=True) or {}
         conn = db()
         ok = crm.update_org(conn, org_id, actor_user_id=_crm_uid(),
-                            **_crm_pick(d, ('name', 'relationship_type', 'status', 'stage', 'notes', 'function_tags')))
+                            **_crm_pick(d, ('name', 'relationship_type', 'status', 'stage', 'notes', 'function_tags',
+                                            *crm.ORG_DETAIL_FIELDS)))
         if not ok:
             conn.close()
             return jsonify({"error": "not found"}), 404
@@ -7640,6 +7651,28 @@ def api_crm_org_update(org_id):
         return response_wrapper({"organization": org})
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route('/api/crm/organizations/<int:org_id>', methods=['DELETE'])
+@requires_section('crm')
+def api_crm_org_delete(org_id):
+    """Permanently delete a client nothing real points at (no jobs, estimates, proposals, invoices,
+    bills, document packages). Anything else is refused with what still points at it."""
+    try:
+        conn = db()
+        out = crm.delete_org(conn, org_id)
+        conn.close()
+        if out is None:
+            return jsonify({"error": "not found"}), 404
+        if out.get("blockers"):
+            return jsonify({"error": "This client has " + ", ".join(out["blockers"])
+                            + " — mark it inactive instead.", "blockers": out["blockers"]}), 409
+        if out["user_ids"]:
+            team_items._sync_google(*out["user_ids"])
+        logging.info("crm org deleted id=%s by user=%s", org_id, _crm_uid())
+        return response_wrapper({"deleted": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
