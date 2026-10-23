@@ -170,24 +170,20 @@ def main() -> int:
     assert row == {"status": "approved", "converted_project_code": None}, row
     passed += 1; print("  real bid reverts ok")
 
-    # ---- a suggested address (job site with no project) can be deleted from the Projects tab
+    # ---- an address with no project can be archived (C-suite only); 2026-10-23: the Projects tab no longer lists them
     r = cs.post("/api/buildings", json={"address_line": "77 Pdel Orphan Street", "client_org_id": ORGS[0]})
     assert r.status_code in (200, 201), r.get_json()
     bid = r.get_json()["data"]["id"]
     SITES.append(bid)
-    offered = lambda: {s["id"] for s in cs.get("/api/company/portal/projects?status=all").get_json()["meta"]["sites_without_project"]}   # noqa: E731
-    assert bid in offered()
     assert pm.post(f"/api/buildings/{bid}/archive").status_code == 403
     assert cs.post(f"/api/buildings/{bid}/archive").status_code == 200
-    assert bid not in offered()
-    passed += 1; print("  suggested address delete ok")
+    passed += 1; print("  address archive ok")
 
     # ---- UI: no access chips on the Projects tab; Delete in the Edit window
     html = (ROOT / "company_portal.html").read_text(encoding="utf-8")
     assert "pj-acc" not in html and "access_labels" not in html
     assert "ssc:project-deleted" in html
     js = (ROOT / "static" / "js" / "new_project_modal.js").read_text(encoding="utf-8")
-    assert "data-site-del" in html and "/archive'" in html
     assert 'id="np-del"' in js and "'DELETE', '/api/admin/projects/'" in js
     passed += 1; print("  ui ok")
 
