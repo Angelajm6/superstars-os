@@ -12,6 +12,7 @@ Proves against an ISOLATED database with a fake Gmail (fictional people only):
   * here -> Gmail: opening marks read, Done archives (Undo moves back), Mark unread; without Gmail's modify permission
     only this side changes
   * the open Inbox asks /api/inbox/changes: the fingerprint moves when anything changes; sync=1 syncs at most every 15 s
+  * an email that starts with <meta http-equiv> (Apple Mail, Outlook) opens with its text (it opened blank)
   * the page: no Refresh button, Email / My calendar / Team, Inbox / Needs reply / Filed, the live line, the actions
 """
 from __future__ import annotations
@@ -361,6 +362,23 @@ def main() -> int:
         inbox._gmail = real
 
     try:
+        # ---- an email that starts with <meta http-equiv> (Apple Mail, Outlook) opens with its text, not blank
+        conn = _db()
+        try:
+            apple = gmsg("k1", "isyn-k", 1, "plain")
+            apple["payload"]["parts"][1]["body"]["data"] = _b64(
+                '<html><head><meta http-equiv="content-type" content="text/html; charset=utf-8"><base href="https://x.example/"></head>'
+                '<body dir="auto">Isyn: make the proposal out to the building.<script>alert(1)</script>'
+                '<iframe src="https://x.example"></iframe><form action="https://x.example"><p>Still here.</p></form><script src="x.js"></body></html>')
+            k1 = inbox.ingest(conn, uid, apple, ME)
+            doc = inbox.render_doc(conn, uid, inbox.message(conn, k1, uid))
+        finally:
+            conn.close()
+        assert "make the proposal out to the building." in doc and "Still here." in doc, doc
+        assert "alert(1)" not in doc and "<script" not in doc and "<iframe" not in doc and "<form" not in doc
+        assert 'href="https://x.example/"' not in doc and "content-type" not in doc
+        passed += 1; print("  Apple Mail / Outlook emails open with their text ok")
+
         cp = (ROOT / "company_portal.html").read_text(encoding="utf-8")
         assert 'id="ib-refresh"' not in cp and "↻ Refresh" not in cp
         for needle in ('data-ibtab="mail">Email<', 'data-ibtab="mine">My calendar<', 'Everyone\'s tasks, events and meetings">Team<',
