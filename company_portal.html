@@ -86,8 +86,6 @@
   .pj-job .cp-id, .pj-no { white-space: nowrap; }
   #pj-table td:nth-child(3) { min-width: 140px; }
   .pj-sw { width: 12px; height: 12px; border-radius: 4px; flex: none; margin-top: 3px; }
-  .pj-acc { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
-  .pj-acc span { font-size:13px; font-weight: 600; border-radius: 999px; padding: 1px 8px; background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); white-space: nowrap; }
   .pj-edit { font: inherit; font-size:13px; font-weight: 600; border: 1px solid var(--line); background: #fff; border-radius: 7px; padding: 4px 10px; cursor: pointer; }
   .pj-edit:hover { border-color: var(--accent); }
   .cp-muted { color: var(--muted); }
@@ -2905,7 +2903,7 @@
       $('pj-notice').innerHTML = sites.length ? `<div class="cp-note" style="margin-bottom:12px"><strong>${sites.length} address${sites.length > 1 ? 'es were' : ' was'} added without a project.</strong> Create the project so it gets a dashboard, crew, calendar bar and daily reports.<ul class="cp-list" style="margin-top:8px">${sites.map(s => `<li><span>${esc(s.name || s.address_line)}${s.client_name ? ' <span class="cp-muted">· ' + esc(s.client_name) + '</span>' : ''}</span><a class="btn-primary btn-sm" style="text-decoration:none" href="${newProjectHref(s)}" data-newproj="${esc(JSON.stringify({ address: s.address_line || s.address || '', borough: s.borough || '', name: s.name || '', client_org_id: s.client_org_id || '' }))}">Create project</a></li>`).join('')}</ul></div>` : '';
       table($('pj-table'), [
         { key: 'job_number', label: '#', num: true, render: r => r.job_number != null ? `<span class="pj-no">#${r.job_number}</span>` : '—' },
-        { key: 'project_code', label: 'Job', render: r => `<div class="pj-job"><span class="pj-sw" style="background:${esc(r.color || '#475569')}" title="Calendar color"></span><div><span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:13px">${esc(r.name || '')}</div>${(r.access_labels || []).length ? `<div class="pj-acc">${r.access_labels.map(a => `<span>${esc(a)}</span>`).join('')}</div>` : ''}</div><button type="button" class="pj-edit" data-pj-edit="${esc(r.project_code)}" title="Edit project">Edit</button></div>` },
+        { key: 'project_code', label: 'Job', render: r => `<div class="pj-job"><span class="pj-sw" style="background:${esc(r.color || '#475569')}" title="Calendar color"></span><div><span class="cp-id">${esc(r.project_code)}</span><div class="cp-muted" style="font-size:13px">${esc(r.name || '')}</div></div><button type="button" class="pj-edit" data-pj-edit="${esc(r.project_code)}" title="Edit project">Edit</button></div>` },
         { key: 'address', label: 'Address', render: r => `${esc(r.address || '—')}<div class="cp-muted" style="font-size:13px">${esc(r.city_zip || '')}</div>` },
         { key: 'client_name', label: 'Client', render: r => esc(r.client_name || '—') },
         { key: 'billing_short', label: 'Billing', render: r => r.billing_type ? `<span class="cp-pill ${r.billing_type === 'aia_sov' ? 'active' : ''}" title="${esc(r.billing_label)}">${esc(r.billing_short)}</span>` : '<span class="cp-muted" title="How this job is billed is not set — pick it in the project Settings">not set</span>' },   // #356
@@ -5269,6 +5267,7 @@
   });
   $('pj-table').addEventListener('click', e => { const b = e.target.closest('[data-pj-edit]'); if (b) window.SSCNewProject.edit(b.dataset.pjEdit); });
   document.addEventListener('ssc:project-updated', e => { toast('Project ' + ((e.detail || {}).project_code || '') + ' saved'); if (state.view === 'projects') loadProjects(); });
+  document.addEventListener('ssc:project-deleted', e => { e.preventDefault(); toast('Project ' + ((e.detail || {}).project_code || '') + ' deleted'); if (state.view === 'projects') loadProjects(); else location.hash = '#projects'; });
   document.addEventListener('ssc:project-created', e => { const d = e.detail || {}; toast('Project ' + d.project_code + ' created'); if (state.view === 'projects') loadProjects(); else location.hash = '#projects'; });
   $('pj-search').addEventListener('input', () => debounce(loadProjects));
   $('pj-status').addEventListener('change', loadProjects);

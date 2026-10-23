@@ -7,9 +7,11 @@
  *   SSCNewProject.edit(code)        edit an existing job (number, type and code never change)
  *   document event 'ssc:project-created'  detail = the onboard response data
  *   document event 'ssc:project-updated'  detail = {project_code}
+ *   document event 'ssc:project-deleted'  detail = {project_code}; cancelable — not cancelled, it goes to /company#projects
  *
  * Create  -> POST /api/admin/projects/onboard (project_onboard.py, which calls project_setup)
  * Edit    -> PUT …/details, …/billing-type (when changed), …/crew, …/setup
+ * Delete  -> DELETE /api/admin/projects/<code> (project_delete.py; refused while the job has records)
  * Drawings-> POST /api/projects/<code>/drawing-sets, one PDF at a time, after the job exists.
  * Per-field errors show together; nothing silently defaults. Dates go through SSCDatePicker. */
 (function () {
@@ -37,6 +39,7 @@
 .np-err{color:#A8382B;background:var(--status-behind-soft,#fceeec);border-radius:8px;padding:8px 10px;font-size:13px;display:none;margin:0 22px 10px;} .np-err.show{display:block;}
 .np-ok{color:#0c7a5f;font-size:13px;margin-right:auto;}
 .np-foot{padding:12px 22px 16px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap;}
+body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-behind-deep,#A8382B);}
 .np-site{display:flex;gap:8px;flex-wrap:wrap;align-items:center;} .np-site input{flex:1;min-width:110px;}
 .np-hint{font-size:12px;color:var(--muted);margin-top:6px;}
 .np-crew{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 12px;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:10px;}
@@ -89,7 +92,7 @@
         </section>
         <section class="np-sec" id="np-s-access"><h3>Access method <small>Exterior Restoration jobs</small></h3>
           <div class="np-checks full" id="np-access"></div>
-          <div class="np-hint full">Pick every method the job uses. It shows as a chip on the job and in the projects list.</div>
+          <div class="np-hint full">Pick every method the job uses. It shows as a chip on the job page.</div>
         </section>
         <section class="np-sec" id="np-s-tabs"><h3>Tabs for this job <small>suggested by the job type: untick what this job won't use</small></h3>
           <div class="np-field full"><span class="np-lab">Always on</span><div class="np-core" id="np-core"></div></div>
@@ -130,7 +133,7 @@
         <div class="np-hint">What a worker on this job sees after signing in.</div></aside>
     </div>
     <div class="np-err" id="np-err" role="alert"></div>
-    <div class="np-foot"><span class="np-ok" id="np-ok"></span><button type="button" class="btn-ghost" id="np-cancel">Cancel</button><button type="submit" class="btn-primary" id="np-go">Create project</button></div>
+    <div class="np-foot"><button type="button" class="btn-ghost np-del" id="np-del" hidden>Delete project</button><span class="np-ok" id="np-ok"></span><button type="button" class="btn-ghost" id="np-cancel">Cancel</button><button type="submit" class="btn-primary" id="np-go">Create project</button></div>
   </form>
 </div>`;
 
@@ -254,6 +257,7 @@
     if (NP.mounted) return; NP.mounted = true;
     var host = document.createElement('div'); host.innerHTML = HTML; document.body.appendChild(host.firstElementChild);
     $('np-cancel').addEventListener('click', close);
+    $('np-del').addEventListener('click', remove);
     $('np-overlay').addEventListener('click', function (e) { if (e.target === $('np-overlay')) close(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('np-overlay').classList.contains('open')) close(); });
     $('np-geo').addEventListener('click', function () { useMyLocation($('np-geo')); });
@@ -349,6 +353,20 @@
     document.dispatchEvent(new CustomEvent('ssc:project-updated', { detail: { project_code: code } }));
   }
 
+  // delete for good — the server refuses a job that has anything filed under it (close it instead)
+  async function remove() {
+    var code = NP.code; if (!code) return;
+    if (!confirm('Permanently delete ' + code + '? Its crew and PM assignments go with it. This can\'t be undone.')) return;
+    $('np-del').disabled = true; $('np-err').className = 'np-err';
+    try {
+      await send('DELETE', '/api/admin/projects/' + encodeURIComponent(code));
+      close();
+      var ev = new CustomEvent('ssc:project-deleted', { detail: { project_code: code }, cancelable: true });
+      if (document.dispatchEvent(ev)) location.href = '/company#projects';   // no page took it: leave the deleted job's page
+    } catch (ex) { showFormError(ex.message); }
+    finally { $('np-del').disabled = false; }
+  }
+
   async function loadMeta(code) {
     var res = await Promise.all([NP.meta ? Promise.resolve(NP.meta) : getJSON('/api/admin/projects/onboard-meta'),
       getJSON('/api/admin/projects/setup-meta' + (code ? '?project=' + encodeURIComponent(code) : ''))]);
@@ -376,7 +394,7 @@
     pre = pre || {};
     mount(); NP.mode = 'new'; NP.code = null; NP.cur = null;
     $('np-overlay').classList.add('open');
-    $('np-title').textContent = 'New project'; $('np-go').textContent = 'Create project';
+    $('np-title').textContent = 'New project'; $('np-go').textContent = 'Create project'; $('np-del').hidden = true;
     $('np-sub').textContent = 'For a job that is already won. It gets the next job number, a code in its series, a back-dated approved estimate so Finance stays truthful, the building link and its PM. New bids still start in Estimates.';
     try {
       await loadMeta(null); resetForm();
@@ -397,7 +415,7 @@
     mount(); var kept = keepFiles ? NP.files : [];
     NP.mode = 'edit'; NP.code = code;
     $('np-overlay').classList.add('open');
-    $('np-title').textContent = 'Edit project'; $('np-go').textContent = 'Save changes'; $('np-no').textContent = '';
+    $('np-title').textContent = 'Edit project'; $('np-go').textContent = 'Save changes'; $('np-no').textContent = ''; $('np-del').hidden = false;
     $('np-sub').textContent = 'The job number, type and code never change: they are on every report and document.';
     try {
       await loadMeta(code); resetForm(); NP.files = kept; drawFiles();
