@@ -104,7 +104,7 @@ def _b64(s: str) -> str:
     return base64.urlsafe_b64encode(s.encode("utf-8")).decode("ascii")
 
 
-def gmsg(gid, *, frm, to, subject, text, labels=("INBOX",), headers=(), atts=(), when="1792000000000"):
+def gmsg(gid, *, frm, to, subject, text, labels=("INBOX", "UNREAD"), headers=(), atts=(), when="1792000000000"):
     parts = [{"mimeType": "text/plain", "body": {"data": _b64(text)}}]
     parts += [{"mimeType": "application/pdf" if n.endswith(".pdf") else "application/zip", "filename": n,
                "body": {"attachmentId": "att-" + n, "size": 2048}} for n in atts]
@@ -215,7 +215,7 @@ def main() -> int:
         a, cs, pm = login("admin"), login("c_suite"), login("pm")
         assert pm.get("/api/inbox/status").status_code == 403 and pm.get("/api/inbox/messages").status_code == 403
         st = a.get("/api/inbox/status").get_json()["data"]
-        assert st["connected"] is True and st["can_send"] is False and st["live"] is False and st["every_seconds"] == 60
+        assert st["connected"] is True and st["can_send"] is False and st["live"] is False and st["every_seconds"] == 30
         assert anon.post("/gmail/push", json={}).status_code == 404
         assert anon.post("/gmail/push?token=wrong", json={}).status_code == 404
         data = base64.b64encode(json.dumps({"emailAddress": "x@y.z", "historyId": "5"}).encode()).decode()

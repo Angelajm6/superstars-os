@@ -5,7 +5,7 @@ connection as Gmail suggestions, plus permission to send). From then on:
 
   * New mail AND the Sent folder arrive by themselves: Google pushes a notice the moment mail
     lands (Pub/Sub, when GMAIL_PUBSUB_TOPIC + GMAIL_PUSH_TOKEN are set) and a background sync
-    reads Gmail's change history every SSC_INBOX_SYNC_SECONDS (default 60) either way. No
+    reads Gmail's change history every SSC_INBOX_SYNC_SECONDS (default 30) either way, and an open Inbox asks for one every 15 s. No
     "Check now".
   * Each email is matched to a client (contact email or company domain), an estimate / bid or
     proposal (its number in the subject or text) and a job (its code). Matching is automatic and
@@ -15,6 +15,9 @@ connection as Gmail suggestions, plus permission to send). From then on:
     platform tools (claude_agent, the main model): what it proposes are APPROVAL CARDS: a new bid
     from an invitation (with its attachments), logging a proposal sent from Gmail, an event, a
     client note, and a reply draft. Nothing changes and nothing is sent until the person approves.
+  * Both ways with Gmail (2026-10-23): read, archived (= Done), deleted or answered in Gmail shows here within
+    seconds, and the same actions here change Gmail (gmail.modify). An answer from either side closes the
+    conversation: it leaves "Needs reply" and Claude's reply draft is withdrawn. One draft per conversation.
   * Replies go out from the person's own Gmail, in the same thread (gmail.send scope; a person
     connected before this release reconnects once). Approving any card for an email also files
     the email on the records it matched, which is when others who can open that record see it.
@@ -30,9 +33,11 @@ The daily Claude limit (assistant.cap_usd, never shown on a page) applies: over 
 arrives and is matched; suggestions wait for the next day.
 
   GET  /api/inbox/status                 connection + live state for this person
-  GET  /api/inbox/messages?filter=       act | all | filed  (newest first)
+  GET  /api/inbox/messages?filter=       inbox (as Gmail's Inbox: archived conversations leave it) | act | filed
   GET  /api/inbox/messages/<id>          the email, its matches, Claude's summary + cards (chat id)
-  POST /api/inbox/messages/<id>/done     {done} mark handled / back to needs action
+  POST /api/inbox/messages/<id>/done     {done} Done = archive the conversation (here and in Gmail) / back to the Inbox
+  POST /api/inbox/messages/<id>/unread   mark unread (here and in Gmail)
+  GET  /api/inbox/changes?sync=1         fingerprint of the Inbox (the page reloads when it changes); sync=1 also syncs now
   POST /api/inbox/messages/<id>/suggest  ask Claude again for this email
   GET  /api/inbox/linked?type=&id=       emails filed on a record (record pages)
   GET  /api/inbox/threads/<id>           the conversation as Gmail shows it (html in a locked-down frame), Claude's draft
@@ -100,9 +105,9 @@ def triage_model() -> str:
 
 def sync_seconds() -> int:
     try:
-        return max(20, int(os.environ.get("SSC_INBOX_SYNC_SECONDS") or 60))
+        return max(15, int(os.environ.get("SSC_INBOX_SYNC_SECONDS") or 30))
     except ValueError:
-        return 60
+        return 30
 
 
 def push_configured() -> bool:
@@ -138,7 +143,8 @@ def ensure(conn) -> None:
                  "last_sync_at TEXT, last_error TEXT)")
     conn.execute("CREATE TABLE IF NOT EXISTS mail_sendas (user_id INTEGER PRIMARY KEY, name_enc TEXT, signature_enc TEXT, "
                  "fetched_at TEXT)")   # the person's Gmail "send as" name + signature, as Gmail adds them
-    for col in ("body_html_enc", "body_full_enc", "trashed_at"):   # the email as written (2026-10-15); deleted = in Gmail's Trash (2026-10-22)
+    # the email as written (2026-10-15); deleted = in Gmail's Trash (2026-10-22); archived = out of Gmail's Inbox (2026-10-23)
+    for col in ("body_html_enc", "body_full_enc", "trashed_at", "archived_at"):
         if not _has_column(conn, "mail_message", col):
             conn.execute(f"ALTER TABLE mail_message ADD COLUMN {col} TEXT")
     import gmail_suggest
@@ -329,9 +335,14 @@ def ingest(conn, uid: int, msg: dict, own_email: str = "", quiet: bool = False) 
     if not msg.get("id") or _one(conn, "SELECT id FROM mail_message WHERE user_id = ? AND gmail_id = ?", (uid, msg["id"])):
         return None
     h = gmail_suggest._headers(msg.get("payload"))
-    if set(msg.get("labelIds") or []) & (THREAD_SKIP if quiet else SKIP_LABELS) or (is_noise(msg, h) and not quiet):
+    labels = set(msg.get("labelIds") or [])
+    if labels & (THREAD_SKIP if quiet else SKIP_LABELS) or (is_noise(msg, h) and not quiet):
         return None
-    direction = "out" if "SENT" in (msg.get("labelIds") or []) else "in"
+    direction = "out" if "SENT" in labels else "in"
+    when = _when(msg, h)
+    # as Gmail has it right now: read there already = read here; an email out of Gmail's Inbox = archived here
+    status = "new" if direction == "in" and not quiet and "UNREAD" in labels else "seen"
+    archived = _now() if direction == "in" and "INBOX" not in labels else None
     text = (gmail_suggest._text_of(msg.get("payload")) or msg.get("snippet") or "")[:MAX_BODY]
     atts = _attachments(msg.get("payload"))
     own_domain = own_email.split("@")[-1].lower() if "@" in own_email else ""
@@ -339,15 +350,17 @@ def ingest(conn, uid: int, msg: dict, own_email: str = "", quiet: bool = False) 
     conn.execute(
         "INSERT INTO mail_message (user_id, gmail_id, thread_id, rfc_id_enc, direction, received_at, from_enc, to_enc, cc_enc, "
         "subject_enc, body_enc, snippet_enc, attachments_enc, needs_action, status, ai_state, client_org_id, contact_id, "
-        "estimate_id, proposal_id, project_code, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (uid, msg["id"], msg.get("threadId"), _enc(h.get("message-id")), direction, _when(msg, h), _enc(h.get("from")),
+        "estimate_id, proposal_id, project_code, archived_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (uid, msg["id"], msg.get("threadId"), _enc(h.get("message-id")), direction, when, _enc(h.get("from")),
          _enc(h.get("to")), _enc(h.get("cc")), _enc((h.get("subject") or "")[:300]), _enc(text),
-         _enc((msg.get("snippet") or "")[:300]), _enc(json.dumps(atts)) if atts else None, 0, "seen" if quiet else "new",
+         _enc((msg.get("snippet") or "")[:300]), _enc(json.dumps(atts)) if atts else None, 0, status,
          "triaged" if quiet else "pending",
-         m["client_org_id"], m["contact_id"], m["estimate_id"], m["proposal_id"], m["project_code"], _now()))
+         m["client_org_id"], m["contact_id"], m["estimate_id"], m["proposal_id"], m["project_code"], archived, _now()))
     conn.commit()
     mid = _one(conn, "SELECT id FROM mail_message WHERE user_id = ? AND gmail_id = ?", (uid, msg["id"]))["id"]
     store_view(conn, mid, msg.get("payload"))
+    if direction == "out":   # answered, from here or from Gmail: what came before is handled
+        close_thread(conn, uid, msg.get("threadId"), when)
     log.info("inbox stored message %s for user %s (%s, matched=%s)", mid, uid, direction,
              sum(1 for v in m.values() if v))
     return mid
@@ -362,6 +375,46 @@ def store_view(conn, mid: int, payload) -> None:
     conn.commit()
 
 
+def withdraw_drafts(conn, uid: int, mail_ids: list, why: str, keep_chat: Optional[int] = None) -> int:
+    """Claude's pending reply drafts on these emails leave (declined by nobody: the approvals log shows why)."""
+    if not mail_ids:
+        return 0
+    ph = ",".join("?" * len(mail_ids))
+    ids = [r["id"] for r in _rows(conn, f"SELECT a.id FROM claude_action a JOIN claude_chat c ON c.id = a.chat_id WHERE a.user_id = ? "
+                                        f"AND a.tool = 'reply_email' AND a.status = 'pending' AND c.mail_id IN ({ph})"
+                                        + (" AND c.id <> ?" if keep_chat else ""),
+                                  [uid] + list(mail_ids) + ([keep_chat] if keep_chat else []))]
+    if ids:
+        conn.execute(f"UPDATE claude_action SET status = 'declined', decided_at = ?, result = ? WHERE id IN ({','.join('?' * len(ids))})",
+                     [_now(), json.dumps({"summary": why, "undo": False})] + ids)
+        conn.commit()
+    return len(ids)
+
+
+def close_thread(conn, uid: int, thread_id: Optional[str], upto: str) -> int:
+    """The person answered this conversation at `upto` (from the Inbox or from Gmail itself): the emails before the
+    answer no longer need a reply, and Claude's reply drafts for them are withdrawn, so nothing asks twice."""
+    if not thread_id:
+        return 0
+    ids = [r["id"] for r in _rows(conn, "SELECT id FROM mail_message WHERE user_id = ? AND thread_id = ? AND direction = 'in' "
+                                        "AND received_at <= ?", (uid, thread_id, upto))]
+    if not ids:
+        return 0
+    conn.execute(f"UPDATE mail_message SET status = 'done' WHERE status <> 'done' AND id IN ({','.join('?' * len(ids))})", ids)
+    conn.commit()
+    n = withdraw_drafts(conn, uid, ids, "You replied, so this draft was withdrawn")
+    if n:
+        log.info("inbox thread answered for user %s (%s draft(s) withdrawn)", uid, n)
+    return len(ids)
+
+
+def answered(conn, m: dict) -> bool:
+    """A reply from the person is already in this conversation, after this email."""
+    return bool(m["direction"] == "in" and m["thread_id"] and _one(
+        conn, "SELECT id FROM mail_message WHERE user_id = ? AND thread_id = ? AND direction = 'out' AND received_at >= ? LIMIT 1",
+        (m["user_id"], m["thread_id"], m["received_at"] or "")))
+
+
 def message(conn, mid: int, uid: Optional[int] = None) -> Optional[dict]:
     r = _one(conn, "SELECT * FROM mail_message WHERE id = ?" + (" AND user_id = ?" if uid else ""),
              (mid, uid) if uid else (mid,))
@@ -369,7 +422,7 @@ def message(conn, mid: int, uid: Optional[int] = None) -> Optional[dict]:
         return None
     out = {k: r[k] for k in ("id", "user_id", "gmail_id", "thread_id", "direction", "received_at", "kind", "needs_action",
                              "status", "ai_state", "chat_id", "client_org_id", "contact_id", "estimate_id", "proposal_id",
-                             "project_code", "trashed_at")}
+                             "project_code", "trashed_at", "archived_at")}
     out.update({"from": _dec(r["from_enc"]), "to": _dec(r["to_enc"]), "cc": _dec(r["cc_enc"]), "subject": _dec(r["subject_enc"]),
                 "body": _dec(r["body_enc"]), "snippet": _html_unescape(_dec(r["snippet_enc"]) or ""), "summary": _dec(r["summary_enc"]),
                 "rfc_id": _dec(r["rfc_id_enc"]), "html": _dec(r.get("body_html_enc")), "full": _dec(r.get("body_full_enc")),
@@ -386,12 +439,12 @@ def _link(conn, uid) -> Optional[dict]:
 
 def _gmail(conn, link, method, path, **kw) -> tuple:
     """One Gmail call. A blip (dropped connection, timeout, 429 / 5xx) is tried again twice and an access token Google
-    stopped taking early (401) is renewed once, so one hiccup no longer leaves a conversation half loaded. Only reads
-    and trash / untrash are repeated: a send is never sent twice."""
+    stopped taking early (401) is renewed once, so one hiccup no longer leaves a conversation half loaded. Only reads,
+    trash / untrash and label changes are repeated: a send is never sent twice."""
     import gcal_sync
     import gmail_suggest
     import requests
-    again = method == "GET" or path.endswith(("/trash", "/untrash"))
+    again = method == "GET" or path.endswith(("/trash", "/untrash", "/batchModify"))
     for attempt in range(3):
         token = gmail_suggest._access_token(conn, link)
         try:
@@ -447,6 +500,45 @@ def _mark_trashed(conn, uid: int, gmail_ids, trashed: bool) -> int:
     return cur.rowcount or 0
 
 
+def gmail_modify(conn, uid: int, gmail_ids, add=(), remove=()) -> bool:
+    """The same change in Gmail (read / unread, archive / back to Inbox). Best effort: without Gmail's modify permission
+    or when Gmail does not answer, only this side changes and the next sync settles it. Never raises."""
+    gmail_ids = [g for g in gmail_ids if g][:1000]
+    link = _link(conn, uid)
+    if not gmail_ids or not can_delete(link):
+        return False
+    try:
+        code, _b = _gmail(conn, link, "POST", "/messages/batchModify",
+                          json_body={"ids": gmail_ids, "addLabelIds": list(add), "removeLabelIds": list(remove)})
+    except Exception as e:
+        log.info("inbox gmail labels for user %s skipped (%s)", uid, type(e).__name__)
+        return False
+    if code not in (200, 204):
+        log.info("inbox gmail labels for user %s: Gmail answered %s", uid, code)
+    return code in (200, 204)
+
+
+def apply_labels(conn, uid: int, read: dict, inbox_: dict, undone: bool = True) -> None:
+    """Mirror what the person did in Gmail itself. read: gmail id -> read now; inbox_: gmail id -> in Gmail's Inbox now.
+    Archived in Gmail = handled here too; moved back to the Inbox = needs attention again (undone=False when only
+    reconciling a re-read conversation, so a Done pressed here without Gmail's permission is not undone)."""
+    def ids(d, flag):
+        return [g for g, v in d.items() if g and v is flag]
+
+    def run(sql, gids, extra=()):
+        if gids:
+            conn.execute(sql.format(ph=",".join("?" * len(gids))), list(extra) + [uid] + gids)
+    run("UPDATE mail_message SET status = 'seen' WHERE status = 'new' AND user_id = ? AND gmail_id IN ({ph})", ids(read, True))
+    run("UPDATE mail_message SET status = 'new' WHERE status = 'seen' AND direction = 'in' AND user_id = ? AND gmail_id IN ({ph})",
+        ids(read, False))
+    run("UPDATE mail_message SET archived_at = ?, status = 'done' WHERE archived_at IS NULL AND direction = 'in' AND user_id = ? "
+        "AND gmail_id IN ({ph})", ids(inbox_, False), (_now(),))
+    if undone:
+        run("UPDATE mail_message SET archived_at = NULL, status = CASE WHEN status = 'done' THEN 'seen' ELSE status END "
+            "WHERE archived_at IS NOT NULL AND user_id = ? AND gmail_id IN ({ph})", ids(inbox_, True))
+    conn.commit()
+
+
 def sync_user(conn, uid) -> dict:
     """Pull what changed in this mailbox since the last sync (Gmail history), or the last 3 days the first time."""
     import gcal_sync
@@ -457,6 +549,7 @@ def sync_user(conn, uid) -> dict:
     st = _one(conn, "SELECT * FROM mail_sync WHERE user_id = ?", (uid,))
     try:
         ids, new_hist, trash = [], None, {}   # trash: gmail id -> in Gmail's Trash now (deleted / restored in Gmail itself)
+        read, in_box = {}, {}                 # read / archived in Gmail itself (gmail id -> read now / in the Inbox now)
         if st and st.get("history_id"):
             page = None
             while True:
@@ -475,11 +568,21 @@ def sync_user(conn, uid) -> dict:
                         if m.get("id") and labels & {"INBOX", "SENT"} and not labels & SKIP_LABELS and m["id"] not in ids:
                             ids.append(m["id"])
                     for la in h.get("labelsAdded") or []:
-                        if "TRASH" in (la.get("labelIds") or []):
-                            trash[(la.get("message") or {}).get("id")] = True
+                        gid, lab = (la.get("message") or {}).get("id"), set(la.get("labelIds") or [])
+                        if "TRASH" in lab:
+                            trash[gid] = True
+                        if "UNREAD" in lab:
+                            read[gid] = False
+                        if "INBOX" in lab:
+                            in_box[gid] = True
                     for lr in h.get("labelsRemoved") or []:
-                        if "TRASH" in (lr.get("labelIds") or []):
-                            trash[(lr.get("message") or {}).get("id")] = False
+                        gid, lab = (lr.get("message") or {}).get("id"), set(lr.get("labelIds") or [])
+                        if "TRASH" in lab:
+                            trash[gid] = False
+                        if "UNREAD" in lab:
+                            read[gid] = True
+                        if "INBOX" in lab:
+                            in_box[gid] = False
                     for md in h.get("messagesDeleted") or []:
                         trash[(md.get("message") or {}).get("id")] = True
                 new_hist = body.get("historyId") or new_hist
@@ -508,6 +611,7 @@ def sync_user(conn, uid) -> dict:
             sync_thread(conn, uid, tid, link)
         for flag in (True, False):
             _mark_trashed(conn, uid, [g for g, t in trash.items() if t is flag], flag)
+        apply_labels(conn, uid, read, in_box)
         now = _now()
         if _one(conn, "SELECT user_id FROM mail_sync WHERE user_id = ?", (uid,)):
             conn.execute("UPDATE mail_sync SET history_id = COALESCE(?, history_id), last_sync_at = ?, last_error = NULL "
@@ -565,6 +669,11 @@ def sync_thread(conn, uid: int, thread_id: str, link: Optional[dict] = None, for
         stubs = [m for m in (body.get("messages") or []) if m.get("id")][-MAX_THREAD:]
         for flag in (True, False):   # deleted / restored in Gmail itself
             _mark_trashed(conn, uid, [m["id"] for m in stubs if m["id"] in have and ("TRASH" in (m.get("labelIds") or [])) is flag], flag)
+        if can_delete(link):   # read / archived in Gmail itself (only when both sides stay in step: Gmail's modify permission)
+            known = [m for m in stubs if m["id"] in have]
+            apply_labels(conn, uid, {m["id"]: "UNREAD" not in (m.get("labelIds") or []) for m in known},
+                         {m["id"]: False for m in known if "INBOX" not in (m.get("labelIds") or []) and "SENT" not in (m.get("labelIds") or [])},
+                         undone=False)
         for stub in stubs:
             if stub["id"] in have or set(stub.get("labelIds") or []) & THREAD_SKIP:
                 continue
@@ -722,11 +831,15 @@ def today_cards(conn, uid: int) -> list:
     rows = _rows(conn, "SELECT a.id, a.tool, a.input, a.summary, a.created_at, c.mail_id FROM claude_action a "
                        "JOIN claude_chat c ON c.id = a.chat_id WHERE a.user_id = ? AND a.status = 'pending' "
                        "AND c.source = 'mail' AND a.created_at >= ? ORDER BY a.created_at DESC LIMIT 40", (uid, since))
-    out = []
+    out, seen = [], set()
     for a in rows:
         m = message(conn, a["mail_id"], uid) if a.get("mail_id") else None
         if not m or m["trashed_at"]:
             continue
+        key = (m["thread_id"] or m["gmail_id"], a["tool"])   # newest first: one card of each kind per conversation
+        if key in seen:
+            continue
+        seen.add(key)
         try:
             inp = json.loads(a["input"] or "{}")
         except ValueError:
@@ -763,6 +876,10 @@ def suggest_prompt(conn, m: dict, user_name: str) -> str:
             "signature with name, title, company and address is added under it automatically)") if sig else \
         f"signed as {user_name}"
     atts = ", ".join(f"{a['name']} ({a['mime'] or 'file'}, {round(a['size'] / 1024)} KB)" for a in m["attachments"]) or "none"
+    waiting = [f"{r['tool']}: {(r['summary'] or '')[:120]}" for r in _rows(
+        conn, "SELECT a.tool, a.summary FROM claude_action a JOIN claude_chat c ON c.id = a.chat_id JOIN mail_message x ON x.id = c.mail_id "
+              "WHERE a.status = 'pending' AND x.user_id = ? AND x.thread_id = ? AND x.id <> ? ORDER BY a.id",
+        (m["user_id"], m["thread_id"], m["id"]))] if m.get("thread_id") else []
     return (
         "[Inbox] An email just came in (or was sent) in this person's mailbox. Look up what you need, then propose what the "
         "platform should do with it, as approval cards. Typical cards:\n"
@@ -778,7 +895,10 @@ def suggest_prompt(conn, m: dict, user_name: str) -> str:
         "Write a reply as a normal email in plain text (greeting, the answer, sign-off), never a summary. "
         "Propose nothing when nothing is needed. Never propose replying to automatic notices or to email the person sent "
         "themselves. Finish with one or two plain sentences: what the email is and what you propose.\n\n"
-        f"mail_id: {m['id']}\nDirection: {'SENT by this person' if m['direction'] == 'out' else 'received'}\n"
+        + (("Already waiting for this person's approval in this conversation (do not propose these again): "
+            + "; ".join(waiting) + "\n") if waiting else "")
+        + (("This person SENT this email: never propose reply_email for it.\n") if m["direction"] == "out" else "")
+        + f"mail_id: {m['id']}\nDirection: {'SENT by this person' if m['direction'] == 'out' else 'received'}\n"
         f"Matched in the platform: {_labels(conn, m)}\n"
         f"From: {m['from']}\nTo: {m['to']}\nCc: {m['cc']}\nDate: {m['received_at']}\nSubject: {m['subject']}\n"
         f"Attachments: {atts}\n<email>\n{m['body'][:8000]}\n</email>")
@@ -814,6 +934,8 @@ def process(conn, mid: int, force: bool = False, want_reply: bool = False) -> st
         t = _rules_triage(m)
     kind = t.get("kind") if t.get("kind") in KINDS else "other"
     business, needs = bool(t.get("business")), bool(t.get("needs_action"))
+    if not want_reply and answered(conn, m):   # the person replied (in Gmail, say) before Claude got to it
+        needs, business = False, False
     go_on = want_reply or (business and (needs or m["direction"] == "out" or bool(m["attachments"])) and kind != "internal")
     conn.execute("UPDATE mail_message SET kind = ?, summary_enc = ?, needs_action = ?, ai_state = ? WHERE id = ?",
                  (kind, _enc(str(t.get("summary") or "")[:200]), 1 if needs else 0,
@@ -832,8 +954,23 @@ def process(conn, mid: int, force: bool = False, want_reply: bool = False) -> st
     claude_agent.run_turn(chat_id, {"id": u["id"], "role": u["role"], "name": name})
     conn.execute("UPDATE mail_message SET ai_state = 'suggested' WHERE id = ?", (mid,))
     conn.commit()
+    _one_draft(conn, m, chat_id)
     log.info("inbox suggestions ready for message %s", mid)
     return "suggested"
+
+
+def _one_draft(conn, m: dict, chat_id: int) -> None:
+    """After Claude's pass: one reply draft per conversation, and none once it is answered or for an email sent."""
+    uid = m["user_id"]
+    if m["direction"] == "out" or answered(conn, m):   # also: the person replied in Gmail while Claude was writing
+        withdraw_drafts(conn, uid, [m["id"]], "You replied, so this draft was withdrawn" if m["direction"] == "in"
+                        else "Not needed: you sent this email")
+        return
+    mine = _one(conn, "SELECT id FROM claude_action WHERE chat_id = ? AND tool = 'reply_email' AND status = 'pending' LIMIT 1", (chat_id,))
+    if mine and m["thread_id"]:   # the newest draft answers the whole conversation; older ones leave
+        others = [r["id"] for r in _rows(conn, "SELECT id FROM mail_message WHERE user_id = ? AND thread_id = ? AND id <> ?",
+                                         (uid, m["thread_id"], m["id"]))]
+        withdraw_drafts(conn, uid, others, "Replaced by a newer draft for this conversation", keep_chat=chat_id)
 
 
 def file_message(conn, mid: int, uid: int) -> int:
@@ -1244,7 +1381,7 @@ def thread_view(conn, uid: int, mid: int) -> Optional[dict]:
                                         "ORDER BY received_at, id", (uid, m["thread_id"]))] if m["thread_id"] else [mid]
     if not ids or not m["thread_id"] and m["trashed_at"]:   # the whole conversation is in Gmail's Trash
         return None
-    out = []
+    out, opened = [], []
     for i in ids:
         x = message(conn, i, uid)
         if not (x["html"] or x["full"]):
@@ -1260,7 +1397,10 @@ def thread_view(conn, uid: int, mid: int) -> Optional[dict]:
                     "chat_id": x["chat_id"]})
         if x["status"] == "new":
             conn.execute("UPDATE mail_message SET status = 'seen' WHERE id = ?", (x["id"],))
+            opened.append(x["gmail_id"])
     conn.commit()
+    if opened and not runtime_seams.seam("SSC_INBOX_ATTACHMENT_FAKE"):   # read here = read in Gmail
+        gmail_modify(conn, uid, opened, remove=["UNREAD"])
     return {"messages": out, "subject": m["subject"]}
 
 
@@ -1292,11 +1432,12 @@ def pending_reply(conn, uid: int, thread_ids: list) -> Optional[dict]:
 
 
 # ------------------------------------------------------------------ the background loop
-_LOOP = {"started": False, "wake": threading.Event(), "lock": threading.Lock(), "last_watch": 0.0, "last_prune": 0.0}
+_LOOP = {"started": False, "wake": threading.Event(), "lock": threading.Lock(), "last_watch": 0.0, "last_prune": 0.0,
+         "ai_wake": threading.Event(), "ai_lock": threading.Lock()}
 
 
-def run_round() -> None:
-    """One pass: sync every office mailbox, then sort / suggest what is pending."""
+def sync_round() -> None:
+    """Sync every office mailbox (quick: one Gmail history call each when nothing changed)."""
     import gmail_suggest
     if gmail_suggest.unavailable_reason():
         return
@@ -1314,17 +1455,6 @@ def run_round() -> None:
                         watch(conn, uid)
                     except Exception as e:
                         log.info("inbox watch user=%s skipped (%s)", uid, type(e).__name__)
-            pending = _rows(conn, "SELECT id FROM mail_message WHERE trashed_at IS NULL AND (ai_state = 'pending' OR "
-                                  "(ai_state = 'paused' AND received_at >= ?)) ORDER BY received_at LIMIT 20",
-                            (date.today().isoformat(),))
-            for r in pending:
-                try:
-                    process(conn, r["id"])
-                except Exception as e:
-                    conn.rollback()
-                    conn.execute("UPDATE mail_message SET ai_state = 'triaged' WHERE id = ?", (r["id"],))
-                    conn.commit()
-                    log.warning("inbox process %s failed: %s", r["id"], type(e).__name__)
             if time.time() - _LOOP["last_prune"] > 6 * 3600:
                 _LOOP["last_prune"] = time.time()
                 import claude_agent
@@ -1337,15 +1467,56 @@ def run_round() -> None:
             conn.close()
 
 
+def claude_round() -> None:
+    """Sort / suggest what is pending. Runs on its own thread, so a slow Claude pass never holds up new mail."""
+    import gmail_suggest
+    if gmail_suggest.unavailable_reason():
+        return
+    with _LOOP["ai_lock"]:
+        conn = _conn()
+        try:
+            pending = _rows(conn, "SELECT id FROM mail_message WHERE trashed_at IS NULL AND (ai_state = 'pending' OR "
+                                  "(ai_state = 'paused' AND received_at >= ?)) ORDER BY received_at LIMIT 20",
+                            (date.today().isoformat(),))
+            for r in pending:
+                try:
+                    process(conn, r["id"])
+                except Exception as e:
+                    conn.rollback()
+                    conn.execute("UPDATE mail_message SET ai_state = 'triaged' WHERE id = ?", (r["id"],))
+                    conn.commit()
+                    log.warning("inbox process %s failed: %s", r["id"], type(e).__name__)
+        finally:
+            conn.close()
+
+
+def run_round() -> None:
+    """One full pass: sync every office mailbox, then sort / suggest what is pending."""
+    sync_round()
+    claude_round()
+
+
 def _loop() -> None:
     time.sleep(20)
     while True:
         try:
-            run_round()
+            sync_round()
         except Exception as e:
             log.warning("inbox round failed: %s", type(e).__name__)
+        _LOOP["ai_wake"].set()
         _LOOP["wake"].wait(sync_seconds())
         _LOOP["wake"].clear()
+
+
+def _ai_loop() -> None:
+    time.sleep(25)
+    while True:
+        _LOOP["ai_wake"].wait(sync_seconds())
+        _LOOP["ai_wake"].clear()
+        try:
+            claude_round()
+        except Exception as e:
+            log.warning("inbox claude round failed: %s", type(e).__name__)
 
 
 def start() -> None:
@@ -1361,6 +1532,7 @@ def start() -> None:
     finally:
         conn.close()
     threading.Thread(target=_loop, name="inbox-sync", daemon=True).start()
+    threading.Thread(target=_ai_loop, name="inbox-claude", daemon=True).start()
 
 
 # ------------------------------------------------------------------ routes
@@ -1467,12 +1639,13 @@ def _people_of(conn, msgs: list) -> list:
 def _api_messages():
     """One row per conversation (the latest email), like Gmail."""
     me = _me()
-    f = request.args.get("filter") or "all"
+    f = request.args.get("filter") or "inbox"
     conn = _conn()
     try:
         import claude_agent
         claude_agent.purge_expired(conn)   # unanswered cards older than 48 h leave the counts too
-        rows = _rows(conn, "SELECT id, COALESCE(thread_id, gmail_id) AS t, needs_action, status, received_at FROM mail_message "
+        rows = _rows(conn, "SELECT id, COALESCE(thread_id, gmail_id) AS t, needs_action, status, received_at, direction, "
+                           "archived_at FROM mail_message "
                            "WHERE user_id = ? AND trashed_at IS NULL ORDER BY received_at DESC, id DESC LIMIT 600", (me["id"],))
         filed = {r["message_id"] for r in _rows(conn, "SELECT l.message_id FROM mail_link l JOIN mail_message m ON m.id = l.message_id "
                                                       "WHERE m.user_id = ?", (me["id"],))}
@@ -1486,10 +1659,13 @@ def _api_messages():
         for t in order:
             msgs = threads[t]
             act = any(x["needs_action"] and x["status"] != "done" for x in msgs)
-            if (f == "act" and not act) or (f == "filed" and not any(x["id"] in filed for x in msgs)):
+            ins = [x for x in msgs if x["direction"] == "in"]
+            in_box = not ins or any(not x["archived_at"] for x in ins)   # archived here or in Gmail: out of the Inbox
+            if (f == "act" and not act) or (f == "filed" and not any(x["id"] in filed for x in msgs)) or \
+                    (f in ("inbox", "all") and not in_box):
                 continue
             row = _public_row(conn, msgs[0])
-            row.update(count=len(msgs), unread=any(x["status"] == "new" for x in msgs), needs_action=act,
+            row.update(count=len(msgs), unread=any(x["status"] == "new" for x in msgs), needs_action=act, archived=not in_box,
                        filed=any(x["id"] in filed for x in msgs), people=_people_of(conn, msgs))
             if len(msgs) > 1:
                 row["pending_cards"] = sum(_public_row(conn, x)["pending_cards"] for x in msgs[1:]) + row["pending_cards"]
@@ -1524,17 +1700,111 @@ def _api_message(mid):
         conn.close()
 
 
+def _thread_rows(conn, uid: int, m: dict) -> list:
+    return (_rows(conn, "SELECT id, gmail_id, direction FROM mail_message WHERE user_id = ? AND thread_id = ? AND trashed_at IS NULL",
+                  (uid, m["thread_id"])) if m["thread_id"] else [{"id": m["id"], "gmail_id": m["gmail_id"], "direction": m["direction"]}])
+
+
 @requires_role(*OFFICE_ROLES)
 def _api_done(mid):
+    """Done = Gmail's Archive: the conversation leaves the Inbox and "Needs reply", here and in Gmail. done=false (Undo /
+    "needs action") puts it back in both. Without Gmail's modify permission only this side changes (gmail: false)."""
     me = _me()
     done = (request.get_json(silent=True) or {}).get("done", True) not in (False, "false", 0)
     conn = _conn()
     try:
-        if not message(conn, mid, me["id"]):
+        m = message(conn, mid, me["id"])
+        if not m:
             return _err("not found", 404)
-        conn.execute("UPDATE mail_message SET status = ? WHERE id = ?", ("done" if done else "seen", mid))
+        rows = _thread_rows(conn, me["id"], m)
+        ids = [r["id"] for r in rows]
+        ph = ",".join("?" * len(ids))
+        if done:
+            conn.execute(f"UPDATE mail_message SET status = 'done', archived_at = COALESCE(archived_at, ?) WHERE id IN ({ph})", [_now()] + ids)
+            conn.execute(f"UPDATE mail_message SET archived_at = NULL WHERE direction = 'out' AND id IN ({ph})", ids)
+        else:
+            conn.execute(f"UPDATE mail_message SET status = 'seen', archived_at = NULL WHERE id IN ({ph})", ids)
         conn.commit()
-        return jsonify({"data": _public_row(conn, {"id": mid})})
+        ins = [r["gmail_id"] for r in rows if r["direction"] == "in"]
+        synced = gmail_modify(conn, me["id"], ins, remove=["INBOX"]) if done else \
+            gmail_modify(conn, me["id"], ins[-1:], add=["INBOX"])   # Gmail's "Move to Inbox" labels the latest email
+        row = _public_row(conn, {"id": mid})
+        row["gmail"] = synced
+        return jsonify({"data": row})
+    finally:
+        conn.close()
+
+
+@requires_role(*OFFICE_ROLES)
+def _api_unread(mid):
+    """Mark unread, here and in Gmail (the latest email received in the conversation)."""
+    me = _me()
+    conn = _conn()
+    try:
+        m = message(conn, mid, me["id"])
+        if not m:
+            return _err("not found", 404)
+        last = ([r for r in _thread_rows(conn, me["id"], m) if r["direction"] == "in"] or [None])[-1]
+        if not last:
+            return _err("there is no received email in this conversation to mark unread")
+        conn.execute("UPDATE mail_message SET status = 'new' WHERE id = ? AND status <> 'done'", (last["id"],))
+        conn.commit()
+        synced = gmail_modify(conn, me["id"], [last["gmail_id"]], add=["UNREAD"])
+        return jsonify({"data": {"id": mid, "gmail": synced}})
+    finally:
+        conn.close()
+
+
+_KICKED: dict = {}   # user -> when an open Inbox last asked for a sync
+KICK_SECONDS = 15
+
+
+def kick(uid: int) -> bool:
+    """An open Inbox wants the newest: sync this person's mailbox now, in the background (at most every 15 s), instead
+    of waiting for the loop. Returns whether a sync was started."""
+    if time.time() - _KICKED.get(uid, 0) < KICK_SECONDS:
+        return False
+    _KICKED[uid] = time.time()
+
+    def run():
+        if not _LOOP["lock"].acquire(blocking=False):   # the loop is syncing everyone right now
+            return
+        conn = _conn()
+        try:
+            if sync_user(conn, uid).get("new"):
+                _LOOP["ai_wake"].set()   # Claude reads anything new right away
+        except Exception as e:
+            log.info("inbox kick user=%s skipped (%s)", uid, type(e).__name__)
+        finally:
+            conn.close()
+            _LOOP["lock"].release()
+    threading.Thread(target=run, name="inbox-kick", daemon=True).start()
+    return True
+
+
+def changes_sig(conn, uid: int) -> str:
+    """A short fingerprint of this person's Inbox: it changes whenever anything the list shows changes."""
+    r = conn.execute(
+        "SELECT COUNT(*), COALESCE(MAX(id), 0), SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END), "
+        "SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END), COUNT(trashed_at), COUNT(archived_at), "
+        "SUM(CASE WHEN needs_action = 1 THEN 1 ELSE 0 END), SUM(CASE WHEN ai_state IN ('pending', 'asked') THEN 1 ELSE 0 END) "
+        "FROM mail_message WHERE user_id = ?", (uid,)).fetchone()
+    c = conn.execute("SELECT COUNT(*), COALESCE(MAX(a.id), 0) FROM claude_action a JOIN claude_chat ch ON ch.id = a.chat_id "
+                     "WHERE a.user_id = ? AND a.status = 'pending' AND ch.source = 'mail'", (uid,)).fetchone()
+    return ".".join(str(v or 0) for v in tuple(r) + tuple(c))
+
+
+@requires_role(*OFFICE_ROLES)
+def _api_changes():
+    """The open Inbox asks every few seconds: has anything changed? (cheap; also starts a sync, at most every 15 s)."""
+    me = _me()
+    conn = _conn()
+    try:
+        if request.args.get("sync") == "1":
+            kick(me["id"])
+        st = _one(conn, "SELECT last_sync_at, last_error FROM mail_sync WHERE user_id = ?", (me["id"],)) or {}
+        return jsonify({"data": {"sig": changes_sig(conn, me["id"]), "last_sync_at": st.get("last_sync_at"),
+                                 "problem": st.get("last_error"), "syncing": _LOOP["lock"].locked()}})
     finally:
         conn.close()
 
@@ -1816,14 +2086,17 @@ def _api_compose():
 
 @requires_role(*OFFICE_ROLES)
 def _api_refresh():
-    """Check Gmail now (the Refresh button) instead of waiting for the next minute."""
+    """Check Gmail now instead of waiting for the loop (the page now syncs by itself through /api/inbox/changes)."""
     me = _me()
+    if not _LOOP["lock"].acquire(timeout=20):
+        return jsonify({"data": {"new": 0}})   # the loop is syncing right now
     conn = _conn()
     try:
         r = sync_user(conn, me["id"])
     finally:
         conn.close()
-    _LOOP["wake"].set()   # Claude reads anything new right away
+        _LOOP["lock"].release()
+    _LOOP["ai_wake"].set()   # Claude reads anything new right away
     if r.get("error"):
         return _err("Gmail did not answer. It retries by itself.", 502)
     if r.get("needs_reconnect"):
@@ -1863,6 +2136,8 @@ def register(app) -> None:
     app.add_url_rule("/api/inbox/messages", "inbox_messages", _api_messages, methods=["GET"])
     app.add_url_rule("/api/inbox/messages/<int:mid>", "inbox_message", _api_message, methods=["GET"])
     app.add_url_rule("/api/inbox/messages/<int:mid>/done", "inbox_done", _api_done, methods=["POST"])
+    app.add_url_rule("/api/inbox/messages/<int:mid>/unread", "inbox_unread", _api_unread, methods=["POST"])
+    app.add_url_rule("/api/inbox/changes", "inbox_changes", _api_changes, methods=["GET"])
     app.add_url_rule("/api/inbox/messages/<int:mid>/suggest", "inbox_suggest", _api_suggest, methods=["POST"])
     app.add_url_rule("/api/inbox/linked", "inbox_linked", _api_linked, methods=["GET"])
     app.add_url_rule("/api/inbox/threads/<int:mid>", "inbox_thread", _api_thread, methods=["GET"])
