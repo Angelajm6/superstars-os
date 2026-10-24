@@ -32,7 +32,7 @@ REQUIREMENTS = [
     ("CONTRACTS", "owner_contract", "Executed Owner Contract / AIA", 1),
     ("CONTRACTS", "sov", "Schedule of Values (SOV)", 2),
     ("CONTRACTS", "coi", "Certificate of Insurance (COI)", 3),
-    ("CONTRACTS", "bond", "Payment / Performance Bond", 4),
+    ("CONTRACTS", "pay_app", "Payment Application", 4),
     ("INSPECTIONS", "fisp_report", "FISP / LL11 Inspection Report (QEWI)", 1),
     ("INSPECTIONS", "probe_report", "Probe / Condition Report", 2),
     ("INSPECTIONS", "tr1", "TR1 Special-Inspection Reports", 3),

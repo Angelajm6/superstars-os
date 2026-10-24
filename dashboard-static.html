@@ -1989,6 +1989,22 @@
           .pd-who{display:inline;font-size:12px;font-weight:700;color:var(--pd-accent-ink);background:var(--pd-accent-soft);border-radius:6px;padding:0 6px;margin-right:2px}
           /* suggested documents */
           .pd-sugg{margin-top:22px}
+          .pd-sugg-not{font-size:12px;color:var(--pd-muted);margin:8px 2px 0}
+          /* 2026-10-23 — Additional documents: subcontractors' and other companies' papers, apart from ours */
+          .pd-addl{margin-top:22px;display:flex;flex-direction:column;gap:10px}
+          .pd-addl-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+          .pd-addl-h b{font-size:15px}.pd-addl-h span{font-size:13px;color:var(--pd-muted);flex:1;min-width:200px}
+          .pd-addl-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+          .pd-addl-co{background:#fff;border:1px solid var(--pd-line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;min-width:0}
+          .pd-addl-coh{display:flex;align-items:center;gap:8px;padding-bottom:6px;border-bottom:1px solid var(--pd-line)}
+          .pd-addl-coh b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+          .pd-addl-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 0;border-top:1px solid var(--pd-line)}
+          .pd-addl-coh+.pd-addl-row{border-top:0}
+          .pd-addl-row .m{flex:1 1 180px;min-width:0}
+          .pd-addl-row .r{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+          .pd-addl-more{align-self:flex-start;font:inherit;font-size:12px;font-weight:600;border:0;background:none;color:var(--accent-ink,#3a5fd0);padding:6px 0;cursor:pointer}
+          .pd-addl-empty{font-size:13px;color:var(--pd-muted);background:#fff;border:1px dashed var(--pd-line);border-radius:14px;padding:14px 16px}
+          @media (max-width:860px){ .pd-addl-grid{grid-template-columns:minmax(0,1fr)} .pd-addl-more{min-height:44px} }
           .pd-sugg-h{display:flex;flex-direction:column;gap:2px;margin:0 2px 10px}
           .pd-sugg-h b{font-size:15px}.pd-sugg-h span{font-size:13px;color:var(--pd-muted)}
           .pd-sugg-list{background:#fff;border:1px solid var(--pd-line);border-radius:14px;box-shadow:0 1px 4px rgba(0,0,0,.04);overflow:hidden}
@@ -2064,9 +2080,10 @@
             <div class="pd-cards" id="pd-cards"></div>
           </section>
           <section class="pd-sugg" id="pd-sugg" hidden aria-labelledby="pd-sugg-t">
-            <div class="pd-sugg-h"><b id="pd-sugg-t">Suggested for this job</b>
-              <span>Based on what Claude read in your filed documents. Only items marked “Required” are on this job’s checklist; the rest may or may not apply.</span></div>
+            <div class="pd-sugg-h"><b id="pd-sugg-t">Still needed for this job</b>
+              <span id="pd-sugg-fit">Tailored to the job’s type, access methods and billing. “Required” items are on this job’s checklist; the rest may or may not apply.</span></div>
             <div class="pd-sugg-list" id="pd-sugg-list"></div>
+            <div class="pd-sugg-not" id="pd-sugg-not" hidden></div>
             <input type="file" id="pd-sugg-input" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.xlsx" hidden>
           </section>
           <div class="pd-sec"><b>Filed</b>
@@ -9041,6 +9058,10 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
         if(c.extras[k].id===id)return {doc:c.extras[k],cat:c.category,req:c.extras[k].requirement_key,label:c.extras[k].title};
       }
     }
+    var gs=(PD.data&&PD.data.additional)||[];
+    for(var g=0;g<gs.length;g++){
+      for(var a=0;a<gs[g].docs.length;a++){ var x=gs[g].docs[a]; if(x.id===id)return {doc:x,cat:x.category,req:x.requirement_key,label:x.title}; }
+    }
     return null;
   }
   function updateDoc(id){
@@ -9098,20 +9119,18 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     el.innerHTML='<span class="pd-stat"><i class="on"></i>'+filed+' filed</span>'
       +(wait?'<span class="pd-stat"><i class="wait"></i>'+wait+' to review</span>':'')
       +(attn?'<span class="pd-stat"><i class="exp"></i>'+attn+' expiring or expired</span>':'')
-      +'<span class="pd-stat"><i class="miss"></i>'+miss+' required missing</span>';
+      +'<span class="pd-stat"><i class="miss"></i>'+miss+' still needed</span>';
   }
   function renderFolders(){
     var host=$('pd-folders');if(!host)return;
     var cats=(PD.data&&PD.data.categories)||[];
     host.innerHTML=cats.map(function(c){
       var i=folderInfo(c),pills=[];
-      if(i.attn)pills.push('<span class="pd-pill exp">'+i.attn+' expiring</span>');
-      if(i.missing.length)pills.push('<span class="pd-pill miss">'+i.missing.length+' missing</span>');
-      if(!i.attn&&!i.missing.length)pills.push('<span class="pd-pill ok">Complete</span>');
+      if(i.attn)pills.push('<span class="pd-pill exp">'+i.attn+' expiring</span>');   // Filed shows what is filed; what is missing is under Still needed
       var on=DZ.open===c.category;
       return '<button class="pd-folder'+(on?' on':'')+'" type="button" data-folder="'+esc(c.category)+'" aria-expanded="'+on+'">'
         +'<span class="pd-fic pd-cat-'+esc(c.category)+'">'+svg(CATICON[c.category]||CATICON.CONTRACTS)+'</span>'
-        +'<span class="pd-fb"><span class="pd-fn">'+esc(c.name)+'</span><span class="pd-fc">'+i.docs.length+' document'+(i.docs.length===1?'':'s')+'</span>'
+        +'<span class="pd-fb"><span class="pd-fn">'+esc(c.name)+'</span><span class="pd-fc">'+(i.docs.length?i.docs.length+' filed':'Nothing filed yet')+'</span>'
         +'<span class="pd-fpills">'+pills.join('')+'</span></span></button>';
     }).join('')||'<div class="pd-empty">No folders.</div>';
   }
@@ -9141,19 +9160,12 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       +pdStatusPill(d)+pdShareCol(d)+pdActs(d)
       +'</div>'+pdDelAsk(d);
   }
-  function missingRow(c,it){
-    return '<div class="pd-crow"><span class="pd-ck miss"></span>'
-      +'<div class="pd-dmain"><span class="pd-cdoc misstxt">'+esc(it.label)+'</span></div>'
-      +'<div class="pd-acts"><button class="pd-upmini" data-upcat="'+esc(c.category)+'" data-upreq="'+esc(it.requirement_key)+'">Upload</button></div>'
-      +'</div>';
-  }
   function catRows(c,match){
     var rows=[];
     (c.items||[]).forEach(function(it){
       var hd=heldDocs(it);
       // several on one item (ours + each sub's COI): each shows its own title + party
-      hd.forEach(function(d){ if(!match||match(d,it.label))rows.push(filedRow(d,d.title,false)); });
-      if(!hd.length&&!match)rows.push(missingRow(c,it));
+      hd.forEach(function(d){ if(!match||match(d,it.label))rows.push(filedRow(d,d.title,false)); });   // only what is filed
     });
     (c.extras||[]).forEach(function(d){ if(!match||match(d,d.title))rows.push(filedRow(d,d.title,true)); });
     return rows;
@@ -9166,15 +9178,39 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     if(q){
       var match=function(d,label){return [label,d.title,d.type_label,d.file_name,d.party_name,partyText(d.party,''),(d.ai&&d.ai.summary)||''].join(' ').toLowerCase().indexOf(q)>=0;};
       var rows=[];cats.forEach(function(c){rows=rows.concat(catRows(c,match));});
+      addlGroups().forEach(function(g){g.docs.forEach(function(d){if(match(d,g.party_name||''))rows.push(filedRow(d,d.title,true));});});
       host.innerHTML='<div class="pd-clist"><div class="pd-phead"><b>'+rows.length+' match'+(rows.length===1?'':'es')+'</b></div>'
         +(rows.join('')||'<div class="pd-empty">No filed documents match.</div>')+'</div>';
       return;
     }
     var c=cats.filter(function(x){return x.category===DZ.open;})[0];
-    if(!c){host.innerHTML='';return;}
-    host.innerHTML='<div class="pd-clist"><div class="pd-phead"><span class="pd-fdot pd-cat-'+esc(c.category)+'"></span><b>'+esc(c.name)+'</b>'
+    host.innerHTML=(c?'<div class="pd-clist"><div class="pd-phead"><span class="pd-fdot pd-cat-'+esc(c.category)+'"></span><b>'+esc(c.name)+'</b>'
       +'<button class="pd-px" type="button" data-pclose="1" aria-label="Close folder">&times;</button></div>'
-      +(catRows(c,null).join('')||'<div class="pd-empty">Nothing filed here yet.</div>')+'</div>';
+      +(catRows(c,null).join('')||'<div class="pd-empty">Nothing filed here yet.</div>')+'</div>':'')+addlHtml();
+  }
+  // a compact row for a company card (the company is the card's header, so it is not repeated)
+  function addlRow(d){
+    var sub=[];if(d.type_label)sub.push(esc(d.type_label));if(d.expiry_date)sub.push('expires '+mdy(d.expiry_date));
+    return '<div class="pd-addl-row'+(d.id===DZ.lastFiled?' new':'')+'"><div class="m">'+pdTitle(d)+'<div class="pd-dsub">'+sub.join(' · ')+'</div>'+pdHistLine(d)+'</div>'
+      +'<div class="r">'+pdStatusPill(d)
+      +'<button class="pd-btn-view" type="button" data-open="'+d.id+'" aria-label="Preview '+esc(d.title)+'">'+ICEYE+'Preview</button>'
+      +'<button class="pd-btn-update" data-update="'+d.id+'">Update</button>'
+      +'<button class="pd-ibtn del" type="button" data-del="'+d.id+'" title="Delete" aria-label="Delete '+esc(d.title)+'">'+ICTRASH+'</button></div></div>'+pdDelAsk(d);
+  }
+  // Additional documents: other companies' papers on this job (party subcontractor / other), one card each
+  function addlGroups(){return (PD.data&&PD.data.additional)||[];}
+  function addlHtml(){
+    var gs=addlGroups();
+    var head='<section class="pd-addl" aria-labelledby="pd-addl-t"><div class="pd-addl-h"><b id="pd-addl-t">Additional documents</b>'
+      +'<span>Subcontractors and other companies on this job: what they owe us before work starts</span>'
+      +'<button class="btn-ghost" type="button" data-addl-add="subcontractor|">+ Add for another company</button></div>';
+    if(!gs.length)return head+'<div class="pd-addl-empty">Nothing yet. A subcontractor’s COI, SST cards or subcontract go here, kept apart from ours.</div></section>';
+    return head+'<div class="pd-addl-grid">'+gs.map(function(g){
+      var nm=g.party_name||(g.party==='subcontractor'?'Subcontractor':'Other company');
+      return '<article class="pd-addl-co"><div class="pd-addl-coh"><b title="'+esc(nm)+'">'+esc(nm)+'</b><span class="pd-pill miss">'+esc(PARTY_LABEL[g.party]||'Other')+'</span></div>'
+        +g.docs.map(addlRow).join('')
+        +'<button class="pd-addl-more" type="button" data-addl-add="'+esc(g.party+'|'+(g.party_name||''))+'">+ Add a document for '+esc(nm)+'</button></article>';
+    }).join('')+'</div></section>';
   }
 
   // ---------- Suggested documents: read off what is filed; "Required" only when it's on the checklist ----------
@@ -9182,7 +9218,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   function sgByKey(k){return (((PD.data&&PD.data.suggestions)||[]).filter(function(g){return g.key===k;})[0])||null;}
   function sgRow(g){
     var who=g.party==='subcontractor'?(' — '+(g.party_name||'subcontractor')):'';
-    var badge=g.on_checklist?'<span class="pd-sg-badge req">Required · missing</span>':'<span class="pd-sg-badge may">May be needed</span>';
+    var badge=g.on_checklist?'<span class="pd-sg-badge req">Required</span>':'<span class="pd-sg-badge may">May be needed</span>';
     var src=(g.sources||[]).map(function(x){return x.title;}).filter(Boolean);
     return '<div class="pd-sg"><span class="pd-fdot pd-cat-'+esc(g.category)+'"></span>'
       +'<div class="pd-sg-main"><div class="pd-sg-t">'+esc(g.label+who)+badge+'</div>'
@@ -9193,13 +9229,22 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   }
   function renderSuggest(){
     var host=$('pd-sugg'),list=$('pd-sugg-list');if(!host||!list)return;
-    var all=(PD.data&&PD.data.suggestions)||[];
-    host.hidden=!all.length;
-    if(!all.length){list.innerHTML='';return;}
-    $('pd-sugg-t').textContent='Suggested for this job ('+all.length+')';
-    var shown=DZ.sgAll?all:all.slice(0,SG_SHOW);
+    var all=(PD.data&&PD.data.suggestions)||[],job=(PD.data&&PD.data.job)||{};
+    var fit=[],TYPES={facade:'Facade',garage:'Garage',interiors:'Interiors',ira:'IRA',generic:'General'};
+    if(TYPES[job.project_type])fit.push(TYPES[job.project_type]);
+    if(job.has_drops)fit.push('drops on the Drop Plan');
+    if(job.billing_type==='aia_sov')fit.push('AIA billing');else if(job.billing_type)fit.push('not billed AIA');
+    $('pd-sugg-fit').textContent=(fit.length?'Tailored to: '+fit.join(' · ')+'. ':'')+(job.access_applies&&!job.access_set?'Set the access methods (Edit project) to tailor this list further. ':'')
+      +'“Required” items are on this job’s checklist; the rest may or may not apply.';
+    var na=job.not_asked||[],not=$('pd-sugg-not');
+    not.hidden=!na.length;
+    not.textContent=na.length?'Not asked on this job: '+na.map(function(x){return x.label+' ('+x.why+')';}).join(', ')+'.':'';
+    host.hidden=!all.length&&!na.length;
+    $('pd-sugg-t').textContent=all.length?'Still needed for this job ('+all.length+')':'Nothing else needed for this job';
+    var req=all.filter(function(g){return g.on_checklist;}).length,cap=Math.max(SG_SHOW,req);
+    var shown=DZ.sgAll?all:all.slice(0,cap);
     list.innerHTML=shown.map(sgRow).join('')
-      +(all.length>SG_SHOW?'<button class="pd-sg-more" type="button" data-sgmore="1">'+(DZ.sgAll?'Show fewer':'Show '+(all.length-SG_SHOW)+' more')+'</button>':'');
+      +(all.length>cap?'<button class="pd-sg-more" type="button" data-sgmore="1">'+(DZ.sgAll?'Show fewer':'Show '+(all.length-cap)+' more')+'</button>':'');
   }
   async function sgDismiss(g){
     try{
@@ -9227,7 +9272,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     var s=it.suggestion||null;
     return {id:it.id,name:it.file_name||'document',status:it.status,sug:s,error:it.error,file_url:it.file_url,
             title:(s&&s.title)||dzStem(it.file_name),mime:it.mime,file_size:it.file_size,
-            type_key:(s&&s.type_key)||null,typeSet:'ai',asNewer:true,
+            type_key:(s&&s.type_key)||null,typeSet:'ai',asNewer:false,
             party:(s&&s.party)||'company',party_name:(s&&s.party_name)||''};
   }
   async function dzLoadIntake(){
@@ -9241,8 +9286,8 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   function dzAdd(files,preset){   // preset (from a suggestion): {type_key, party, party_name}
     files=Array.prototype.slice.call(files||[]);if(!files.length)return;
     files.forEach(function(f){
-      var x={id:'tmp-'+(++DZ.tmp),name:f.name,title:dzStem(f.name),status:'reading',file:f,typeSet:'ai',asNewer:true,party:'company',party_name:''};
-      if(preset){x.type_key=preset.type_key;x.typeSet='you';x.party=preset.party||'company';x.party_name=preset.party_name||'';x.partySet=true;}
+      var x={id:'tmp-'+(++DZ.tmp),name:f.name,title:dzStem(f.name),status:'reading',file:f,typeSet:'ai',asNewer:false,party:'company',party_name:''};
+      if(preset){if(preset.type_key){x.type_key=preset.type_key;x.typeSet='you';}x.party=preset.party||'company';x.party_name=preset.party_name||'';x.partySet=true;}
       DZ.queue.push(x);DZ.waiting.push(x);
     });
     renderTray();renderStats();dzPump();
@@ -9343,9 +9388,11 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     var facts=(s.key_facts||[]).map(function(f){return '<span class="pd-fact"><b>'+esc(f.label)+':</b> '+esc(f.value)+'</span>';}).join('');
     if(!facts&&s.expiry_date)facts='<span class="pd-fact"><b>Expires:</b> '+mdy(s.expiry_date)+'</span>';
     var cur=dzCurrentFor(t,x),notes='';
-    if(cur)notes+='<div class="pd-note ver"><label>'+'<input type="checkbox" data-dznewer="'+esc(x.id)+'"'+(x.asNewer?' checked':'')+'>'
-      +'<span>Newer version of <b>'+esc(cur.title)+'</b>'+(cur.expiry_date?' (expires '+mdy(cur.expiry_date)+')':'')
-      +'. Approving files this as current and moves the old one to History. Untick to keep both.</span></label></div>';
+    // a second certificate / pay application files ALONGSIDE by default; replacing is a deliberate tick
+    if(cur)notes+=(x.asNewer?'':'<div class="pd-note add">'+svg(DZI.check)+'<span>Files alongside <b>'+esc(cur.title)+'</b>. Both stay on file.</span></div>')
+      +'<div class="pd-note ver"><label>'+'<input type="checkbox" data-dznewer="'+esc(x.id)+'"'+(x.asNewer?' checked':'')+'>'
+      +'<span>This replaces <b>'+esc(cur.title)+'</b>'+(cur.expiry_date?' (expires '+mdy(cur.expiry_date)+')':'')
+      +'. Tick only if it is a newer copy of the same document: the old one moves to History.</span></label></div>';
     else{
       var others=dzHeldFor(t);
       if(others.length)notes+='<div class="pd-note add">'+svg(DZI.check)+'<span>Files alongside '+others.length+' other'+(others.length===1?'':'s')
@@ -9440,7 +9487,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       var cats=[],n=0;
       for(var i=0;i<ids.length;i++){
         var c=await dzApprove(ids[i],true);
-        if(c){n++;if(cats.indexOf(c)<0)cats.push(c);await dzRefreshData();}   // the next 'newer version of' must see this one
+        if(c){n++;if(cats.indexOf(c)<0)cats.push(c);await dzRefreshData();}   // only a card ticked "This replaces …" supersedes
       }
       if(n)dzToast('Filed '+n+' document'+(n===1?'':'s'));
       await dzAfterFile(cats);
@@ -9455,7 +9502,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
         if(y&&y.file_url)pdPreview({title:y.title||y.name,sub:'Waiting for review · '+y.name+(y.file_size?' · '+fsize(y.file_size):''),url:y.file_url,mime:y.mime,name:y.name});return;}
     });
     $('pd-cards').addEventListener('change',function(e){
-      var cb=e.target.closest('[data-dznewer]');if(cb){var x=dzById(cb.getAttribute('data-dznewer'));if(x)x.asNewer=cb.checked;return;}
+      var cb=e.target.closest('[data-dznewer]');if(cb){var x=dzById(cb.getAttribute('data-dznewer'));if(x){x.asNewer=cb.checked;renderTray();}return;}
       var ps=e.target.closest('[data-dzparty]');if(ps){var y=dzById(ps.getAttribute('data-dzparty'));if(y){y.party=ps.value;y.partySet=true;if(ps.value==='company')y.party_name='';renderTray();}return;}
       var pn=e.target.closest('[data-dzpname]');if(pn){renderTray();}   // re-check "newer version of" for the new name
     });
@@ -9665,7 +9712,9 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     var hit=null;((PD.data&&PD.data.categories)||[]).forEach(function(c){
       (c.items||[]).forEach(function(it){heldDocs(it).forEach(function(d){if(d.id===id)hit=d;});});
       (c.extras||[]).forEach(function(d){if(d.id===id)hit=d;});
-    });return hit;
+    });
+    ((PD.data&&PD.data.additional)||[]).forEach(function(g){g.docs.forEach(function(d){if(d.id===id)hit=d;});});
+    return hit;
   }
   // preview in the shared side panel (static/js/pdf_view.js): PDFs page by page, pictures, else Download
   function pdPreview(o){
@@ -9685,6 +9734,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
         if(v.id===id)hit={cur:cur,v:v,n:(cur.history_count||cur.history.length)-i};});});});
       (c.extras||[]).forEach(function(cur){(cur.history||[]).forEach(function(v,i){if(v.id===id)hit={cur:cur,v:v,n:cur.history.length-i};});});
     });
+    ((PD.data&&PD.data.additional)||[]).forEach(function(g){g.docs.forEach(function(cur){(cur.history||[]).forEach(function(v,i){if(v.id===id)hit={cur:cur,v:v,n:cur.history.length-i};});});});
     if(hit){pdPreview({title:hit.cur.title+' — v'+hit.n,sub:'Superseded'+(hit.v.expiry_date?' · expired '+mdy(hit.v.expiry_date):'')+(hit.v.file_name?' · '+hit.v.file_name:''),
       url:hit.v.file_url,mime:hit.v.mime,name:hit.v.file_name});return;}
     pdPreview({title:'Document',url:'/api/documents/'+id+'/file'});
@@ -9751,6 +9801,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       var rn=e.target.closest('[data-ren]');if(rn){startRename(+rn.getAttribute('data-ren'));return;}
       if(e.target.closest('[data-renin]'))return;
       var pcl=e.target.closest('[data-pclose]');if(pcl){DZ.open=null;renderFolders();renderChecklist();return;}
+      var ad=e.target.closest('[data-addl-add]');if(ad){var pp=ad.getAttribute('data-addl-add').split('|');DZ.sgFor={type_key:null,party:pp[0]||'subcontractor',party_name:pp.slice(1).join('|')};$('pd-sugg-input').click();return;}
       var dai=e.target.closest('[data-dai]');if(dai){var did=+dai.getAttribute('data-dai');if(DZ.aiOpen.has(did))DZ.aiOpen.delete(did);else DZ.aiOpen.add(did);renderChecklist();return;}
       var op=e.target.closest('[data-open]');if(op){previewDoc(+op.getAttribute('data-open'));return;}
     });

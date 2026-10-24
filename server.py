@@ -5125,7 +5125,7 @@ _PROJDOC_EXT_TYPE = {
 def _projdoc_suggest_category(filename):
     """Filename heuristic for the bulk tray's category auto-suggest (overridable)."""
     f = (filename or '').lower()
-    if any(k in f for k in ('coi', 'insurance', 'contract', 'aia', 'sov', 'bond')):
+    if any(k in f for k in ('coi', 'insurance', 'contract', 'aia', 'sov', 'pay app', 'payapp', 'pay_app', 'g702')):
         return 'CONTRACTS'
     if any(k in f for k in ('rope', 'sds', 'safety', 'sst', 'toolbox')):
         return 'SAFETY'
@@ -5231,6 +5231,46 @@ def _projdoc_insert(conn, project_code, fs, form, supersedes_id=None):
         raise
 
 
+_PROJDOC_OTHER_PARTIES = ('subcontractor', 'other')
+
+
+def _projdoc_other_company(d):
+    """A subcontractor's or another company's record: filed under Additional documents,
+    never counted toward the job's own checklist."""
+    return (d.get('party') or 'company') in _PROJDOC_OTHER_PARTIES
+
+
+def _projdoc_job_ctx(conn, project_code):
+    """What decides which documents fit the job (doc_suggest.SCOPE): its type, access
+    methods (None = never set), billing type and whether the Drop Plan has drops."""
+    import project_setup
+    ctx = {'project_type': None, 'access': None, 'access_applies': False, 'billing_type': None, 'has_drops': False}
+    try:
+        su = project_setup.setup(conn, project_code) or {}
+        et = su.get('est_type') or project_setup.est_type_of(project_code)
+        ctx['access'] = su.get('access_methods')
+        ctx['access_applies'] = bool(su.get('access_applies'))
+        ctx['project_type'] = project_setup.PROJECT_TYPE_FOR.get(et)
+    except Exception:
+        conn.rollback()
+    try:   # a type set on the project wins over the job-code prefix ('generic' is the column default)
+        row = conn.execute("SELECT project_type FROM projects WHERE project_code=?", (project_code,)).fetchone()
+        if row and row['project_type'] and (row['project_type'] != 'generic' or not ctx['project_type']):
+            ctx['project_type'] = row['project_type']
+    except Exception:   # a database without the #project-type column
+        conn.rollback()
+    try:
+        ctx['billing_type'] = billing_type.get(conn, project_code)
+    except Exception:
+        conn.rollback()
+    try:
+        ctx['has_drops'] = conn.execute("SELECT 1 FROM drops WHERE project_code=? LIMIT 1",
+                                        (project_code,)).fetchone() is not None
+    except Exception:   # no Drop Plan tables on this database
+        conn.rollback()
+    return ctx
+
+
 @app.route('/api/projects/<project_code>/documents', methods=['GET'])
 @requires_role(*_PROJDOC_ROLES)
 def api_project_documents(project_code):
@@ -5239,9 +5279,14 @@ def api_project_documents(project_code):
     rollup (on_file/missing/attention + % of required on file). NO *_path. no-store.
     An item can hold several current documents (ours + each subcontractor's COI, say):
     `docs` lists them all; `doc` is the one that decides the item's status (the best
-    standing, newest first). `suggestions` = doc_suggest over what is filed."""
+    standing, newest first). `suggestions` = doc_suggest over what is filed.
+    Only the checklist items that fit the job count (doc_suggest.applies: its type, access
+    methods, billing, drops); a missing item is returned as a suggestion, never as an empty
+    row. Another company's documents (party subcontractor / other) are not ours: they never
+    fill the job's checklist and come back grouped in `additional`."""
     conn = db()
     try:
+        ctx = _projdoc_job_ctx(conn, project_code)
         today = date.today()
         today_iso = today.isoformat()
         d30_iso = (today + timedelta(days=30)).isoformat()
@@ -5251,10 +5296,13 @@ def api_project_documents(project_code):
         docs = [dict(d) for d in conn.execute(
             "SELECT * FROM project_documents WHERE project_code=? ORDER BY uploaded_at DESC, id DESC",
             (project_code,)).fetchall()]
-        by_req = {}   # every non-superseded doc fulfilling each requirement, newest first
+        if ctx.get('access') is None and any(d.get('type_key') == 'best_permit' and not d['superseded']
+                                             for d in docs):
+            ctx['has_drops'] = True   # access never set, but a BEST permit is filed: suspended scaffold
+        by_req = {}   # every non-superseded doc of OURS fulfilling each requirement, newest first
         for d in docs:
             rk = d['requirement_key']
-            if rk and not d['superseded']:
+            if rk and not d['superseded'] and not _projdoc_other_company(d):
                 by_req.setdefault((d['category'], rk), []).append(d)
         _rank = {'on_file': 0, 'expiring': 1, 'expired': 2}
         # #271 — version chains: history = walk supersedes_id from each CURRENT doc.
@@ -5285,26 +5333,37 @@ def api_project_documents(project_code):
         for r in reqs:
             cat_reqs.setdefault(r['category'], []).append(r)
         agg = {'required_total': 0, 'on_file': 0, 'missing': 0, 'attention': 0}
+        missing_labels = {}
+        not_asked = []
         out_cats = []
         for code in _PROJDOC_CATEGORIES:
             items = []
             for r in cat_reqs.get(code, []):
                 held = [_projdoc_public(d, today_iso, d30_iso)
                         for d in by_req.get((code, r['requirement_key']), [])]
-                agg['required_total'] += 1
+                required = doc_suggest.applies(r['requirement_key'], ctx)
+                if not required and not held:   # doesn't fit this job and nothing filed: not shown, not counted
+                    if r['requirement_key'] in doc_suggest.WHY_NOT:
+                        not_asked.append({'requirement_key': r['requirement_key'], 'label': r['label'],
+                                          'why': doc_suggest.WHY_NOT[r['requirement_key']]})
+                    continue
+                if required:
+                    agg['required_total'] += 1
                 if held:
                     best = min(held, key=lambda x: _rank.get(x['status'], 9))   # stable: newest wins ties
                     st = best['status']
-                    agg['attention' if st in ('expiring', 'expired') else 'on_file'] += 1
+                    if required:
+                        agg['attention' if st in ('expiring', 'expired') else 'on_file'] += 1
                     items.append({'requirement_key': r['requirement_key'], 'label': r['label'],
-                                  'status': st, 'doc': best, 'docs': held})
+                                  'status': st, 'doc': best, 'docs': held, 'required': required})
                 else:
                     agg['missing'] += 1
+                    missing_labels[(code, r['requirement_key'])] = r['label']
                     items.append({'requirement_key': r['requirement_key'], 'label': r['label'],
-                                  'status': 'missing', 'doc': None, 'docs': []})
+                                  'status': 'missing', 'doc': None, 'docs': [], 'required': True})
             req_keys = {r['requirement_key'] for r in cat_reqs.get(code, [])}
             extras = [_projdoc_public(d, today_iso, d30_iso) for d in docs
-                      if d['category'] == code and d['id'] not in in_history
+                      if d['category'] == code and d['id'] not in in_history and not _projdoc_other_company(d)
                       and (not d['requirement_key']
                            or d['requirement_key'] not in req_keys or d['superseded'])]
             filed = sum(1 for it in items if it['status'] != 'missing')
@@ -5315,20 +5374,32 @@ def api_project_documents(project_code):
         # #270 — annotate every doc payload with its client-visibility state (one batched
         # query pair via visibility.document_states; default internal-only/not-flagged).
         states = visibility.document_states(conn, project_code)
-        for c in out_cats:
-            for d in [x for it in c['items'] for x in it['docs']] + c['extras']:   # `doc` is one of `docs`
-                st = states.get(d['id'], {})
-                d['shared_client'] = bool(st.get('shared_client'))
-                d['flagged'] = bool(st.get('flagged'))
+        additional = {}   # other companies' documents, one group per (party, company name)
+        for d in docs:
+            if _projdoc_other_company(d) and d['id'] not in in_history and not d['superseded']:
+                g = additional.setdefault((d['party'], (d.get('party_name') or '').strip().lower()),
+                                          {'party': d['party'], 'party_name': d.get('party_name') or None, 'docs': []})
+                g['docs'].append(_projdoc_public(d, today_iso, d30_iso))
+        additional = sorted(additional.values(), key=lambda g: ((g['party_name'] or '~').lower(), g['party']))
+        for d in [x for c in out_cats for it in c['items'] for x in it['docs']] + \
+                 [x for c in out_cats for x in c['extras']] + [x for g in additional for x in g['docs']]:
+            st = states.get(d['id'], {})   # `doc` is one of `docs`
+            d['shared_client'] = bool(st.get('shared_client'))
+            d['flagged'] = bool(st.get('flagged'))
         missing_reqs = {(c['category'], it['requirement_key']) for c in out_cats
                         for it in c['items'] if it['status'] == 'missing'}
         current = [{**d, 'ai': doc_intake.doc_ai_public(d)} for d in docs if not d['superseded']]
         dismissed = {r['suggestion_key'] for r in conn.execute(
             "SELECT suggestion_key FROM project_doc_suggest_dismissed WHERE project_code=?",
             (project_code,)).fetchall()}
-        suggestions = doc_suggest.suggest(current, missing_reqs, dismissed)
+        suggestions = doc_suggest.suggest(current, missing_reqs, dismissed, ctx=ctx, missing_labels=missing_labels)
         resp = response_wrapper({'categories': out_cats, 'readiness': {**agg, 'pct': pct},
-                                 'suggestions': suggestions})
+                                 'suggestions': suggestions, 'additional': additional,
+                                 'job': {'project_type': ctx.get('project_type'),
+                                         'access_applies': bool(ctx.get('access_applies')),
+                                         'access_set': ctx.get('access') is not None,
+                                         'billing_type': ctx.get('billing_type'),
+                                         'has_drops': bool(ctx.get('has_drops')), 'not_asked': not_asked}})
         resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         return resp
     finally:

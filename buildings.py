@@ -33,7 +33,7 @@ from typing import Optional
 from flask import jsonify, request
 
 import db_layer
-from auth import current_user, requires_section
+from auth import current_user, requires_role, requires_section
 
 log = logging.getLogger(__name__)
 
@@ -563,6 +563,84 @@ def _api_backfill():
         conn.close()
 
 
+# ============================ address lookup ============================
+# The project form's address field: pick an NYC address and the borough, city / ZIP and
+# site coordinates fill themselves. NYC Planning GeoSearch (free, no key) — the same
+# service team_items.suggest, building_3d.geocode and nyc_compliance.lookup_bin call.
+
+GEO_AUTOCOMPLETE = "https://geosearch.planninglabs.nyc/v2/autocomplete"
+_GEO_UA = "SuperstarsOS/1.0 (+facade restoration dashboard)"
+_ADDR_CACHE: dict = {}
+_GEO_BOROUGH = {"manhattan": "MN", "new york": "MN", "bronx": "BX", "the bronx": "BX",
+                "brooklyn": "BK", "queens": "QN", "staten island": "SI"}
+ADDRESS_ROLES = ("admin", "c_suite", "pm", "super")
+
+
+def _geo_features(q: str) -> list:
+    """Raw GeoSearch features for a partial address. Tests swap this out (no network in CI)."""
+    import requests
+    r = requests.get(GEO_AUTOCOMPLETE, params={"text": q, "size": 6}, timeout=4,
+                     headers={"User-Agent": _GEO_UA, "Accept": "application/json"})
+    r.raise_for_status()
+    return r.json().get("features") or []
+
+
+def _street_case(s: str) -> str:
+    """'890 EAST 135 STREET' -> '890 East 135 Street' (GeoSearch shouts)."""
+    s = (s or "").strip()
+    if not s.isupper():
+        return s
+    return " ".join(w if any(ch.isdigit() for ch in w) else w.capitalize() for w in s.split())
+
+
+def _feature(f: dict) -> Optional[dict]:
+    p = f.get("properties") or {}
+    coords = ((f.get("geometry") or {}).get("coordinates") or [None, None]) + [None, None]
+    house, street = (p.get("housenumber") or "").strip(), (p.get("street") or "").strip()
+    line = _street_case(" ".join(x for x in (house, street) if x) or p.get("name") or "")
+    if not line:
+        return None
+    borough = (p.get("borough") or "").strip()
+    code = _GEO_BOROUGH.get(borough.lower())
+    city = regions.label(code) if code else (p.get("locality") or borough or None)
+    zip_ = (p.get("postalcode") or "").strip() or None
+    city_zip = ", ".join(x for x in (city, " ".join(y for y in ("NY", zip_) if y)) if x) if city else None
+    pad = (p.get("addendum") or {}).get("pad") or {}
+    return {"label": ", ".join(x for x in (line, city_zip) if x), "address_line": line,
+            "borough_code": code, "city": city, "zip": zip_, "city_zip": city_zip,
+            "lat": coords[1], "lng": coords[0], "bin": pad.get("bin")}
+
+
+def address_suggest(q: str, fetch=None) -> list:
+    """Up to 6 NYC addresses with their parts. Best-effort: slow or down -> []."""
+    q = re.sub(r"\s+", " ", (q or "").strip())[:120]
+    if len(q) < 3:
+        return []
+    key = q.lower()
+    hit = _ADDR_CACHE.get(key)
+    if hit is not None:
+        return hit
+    try:
+        out, seen = [], set()
+        for f in (fetch or _geo_features)(q):
+            row = _feature(f or {})
+            if row and row["label"].lower() not in seen:
+                seen.add(row["label"].lower())
+                out.append(row)
+    except Exception as e:   # never block typing on the outside lookup
+        log.info("address lookup skipped: %s", type(e).__name__)
+        return []
+    if len(_ADDR_CACHE) > 500:
+        _ADDR_CACHE.clear()
+    _ADDR_CACHE[key] = out[:6]
+    return out[:6]
+
+
+@requires_role(*ADDRESS_ROLES)
+def _api_address_suggest():
+    return jsonify({"data": address_suggest(request.args.get("q", ""))})
+
+
 def register(app) -> None:
     conn = _conn()
     try:
@@ -575,6 +653,7 @@ def register(app) -> None:
             log.warning("#304 buildings backfill skipped: %s", e)
     finally:
         conn.close()
+    app.add_url_rule("/api/address/suggest", "address_suggest", _api_address_suggest, methods=["GET"])
     gate = requires_section(SECTION)
     app.add_url_rule("/api/buildings", "buildings_list", gate(_api_list), methods=["GET"])
     app.add_url_rule("/api/buildings", "buildings_create", gate(_api_create), methods=["POST"])

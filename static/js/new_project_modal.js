@@ -72,6 +72,18 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
 .np-tile{border-radius:11px;padding:10px 12px;font-weight:600;font-size:12.5px;background:var(--accent-soft);color:var(--accent-ink,#24418C);}
 .np-tile.out{background:#F1F3F7;color:var(--ink);}
 .np-foot .btn-ghost,.np-site .btn-ghost{font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
+/* 2026-10-23 — address autofill (NYC GeoSearch via /api/address/suggest) */
+.np-addr{position:relative;}
+.np-alist{list-style:none;margin:4px 0 0;padding:6px;position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 28px rgba(34,38,51,.16);z-index:5;display:flex;flex-direction:column;gap:2px;max-height:300px;overflow:auto;}
+.np-alist[hidden]{display:none;}
+.np-alist li{padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px;line-height:1.3;}
+.np-alist li small{display:block;font-size:12px;color:var(--ink-2,#4A4F59);}
+.np-alist li[aria-selected="true"],.np-alist li:hover{background:var(--accent-soft);}
+.np-alist .foot{cursor:default;font-size:11px;color:var(--muted);padding:6px 10px 2px;}
+.np-alist .foot:hover{background:none;}
+.np-filled{font-size:12px;color:var(--status-complete-deep,#0c7a5f);background:var(--status-complete-soft,#e7f6f0);border-radius:8px;padding:8px 10px;margin-top:6px;}
+.np-filled[hidden]{display:none;}
+@media (max-width:600px){ .np-alist li[data-k]{min-height:44px;} .np-field input,.np-field select{font-size:16px;} }
 @media (max-width:980px){ .np-main{grid-template-columns:minmax(0,1fr);} .np-rail,.np-prev{display:none;} }
 @media (max-width:600px){ .np-sec{grid-template-columns:1fr;} .np-overlay{padding:0;} .np-modal{border-radius:0;max-height:100vh;} }`;
   var st = document.createElement('style'); st.id = 'np-style'; st.textContent = CSS; document.head.appendChild(st);
@@ -86,7 +98,8 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
           <div class="np-field"><label for="np-type">Job type</label><select id="np-type" aria-describedby="np-ferr-type"></select><div class="np-ferr" id="np-ferr-type" role="alert"></div></div>
           <div class="np-field" id="np-other-wrap" hidden><label for="np-other">What kind of job?</label><input id="np-other" maxlength="80" placeholder="e.g. Basement excavation" autocomplete="off" aria-describedby="np-ferr-other"><div class="np-ferr" id="np-ferr-other" role="alert"></div></div>
           <div class="np-field"><label for="np-borough">Borough / region</label><select id="np-borough" aria-describedby="np-ferr-borough"></select><div class="np-ferr" id="np-ferr-borough" role="alert"></div></div>
-          <div class="np-field full"><label for="np-address">Building address</label><input id="np-address" placeholder="890 E 135th St, Bronx" autocomplete="off" aria-describedby="np-ferr-address"><div class="np-ferr" id="np-ferr-address" role="alert"></div></div>
+          <div class="np-field full np-addr"><label for="np-address">Building address</label><input id="np-address" placeholder="Start typing, e.g. 890 East 135th Street" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="np-alist" aria-describedby="np-ferr-address"><ul class="np-alist" id="np-alist" role="listbox" aria-label="Address suggestions" hidden></ul><div class="np-ferr" id="np-ferr-address" role="alert"></div><div class="np-filled" id="np-filled" role="status" hidden></div></div>
+          <div class="np-field"><label for="np-cityzip">City / ZIP</label><input id="np-cityzip" placeholder="Bronx, NY 10454" maxlength="120" autocomplete="off"></div>
           <div class="np-field"><label for="np-name">Project name</label><input id="np-name" placeholder="defaults to the address" autocomplete="off"></div>
           <div class="np-field"><label for="np-code">Job code</label><input id="np-code" readonly></div>
           <div class="np-field full"><span class="np-lab">Calendar color</span><div class="np-sw" id="np-sw" role="radiogroup" aria-label="Calendar color"></div><div class="np-hint" id="np-sw-hint"></div></div>
@@ -111,7 +124,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
           <div class="np-field"><label for="np-start">Start date</label><input id="np-start" type="date" class="ssc-date"></div>
           <div class="np-field"><label for="np-end">Target completion</label><input id="np-end" type="date" class="ssc-date" title="Optional — the job shows on the calendar from start to this date"></div>
           <div class="np-field" id="np-pm-wrap"><label for="np-pm">Project manager</label><select id="np-pm"></select></div>
-          <div class="np-hint full" id="np-pm-note" hidden>The project manager is changed under Projects → Assignments &amp; onboarding.</div>
+          <div class="np-hint full" id="np-pm-note" hidden>Change the project managers from the PM column on the Projects list.</div>
         </section>
         <section class="np-sec" id="np-s-crew"><h3>Crew &amp; site <small>who can check in, and from where</small></h3>
           <div class="np-field full"><span class="np-lab">Crew</span><div class="np-crew" id="np-crew"></div></div>
@@ -277,7 +290,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
       markChecks($('np-access'));
     });
     $('np-work').addEventListener('change', function () { markChecks($('np-work')); drawPhone(); });
-    $('np-name').addEventListener('input', drawPhone); $('np-address').addEventListener('input', drawPhone);
+    $('np-name').addEventListener('input', drawPhone); $('np-address').addEventListener('input', drawPhone); wireAddress();
     $('np-files').addEventListener('change', function () {
       Array.prototype.forEach.call(this.files, function (f) { NP.files.push({ file: f, state: 'ready' }); });
       this.value = ''; drawFiles();
@@ -298,7 +311,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
   function payloadFromForm() {
     var isNew = $('np-client').value === '__new';
     return { client_org_id: isNew ? null : ($('np-client').value || null), new_org_name: isNew ? $('np-neworg').value.trim() : '',
-      est_type: $('np-type').value, borough: $('np-borough').value, address: $('np-address').value.trim(), name: $('np-name').value.trim(),
+      est_type: $('np-type').value, borough: $('np-borough').value, address: $('np-address').value.trim(), city_zip: $('np-cityzip').value.trim() || null, name: $('np-name').value.trim(),
       contract_value: $('np-contract').value.trim() || null, start_date: npDateGet($('np-start')) || null, target_completion: npDateGet($('np-end')) || null,
       pm_user_id: $('np-pm').value || null, notes: $('np-notes').value.trim(), billing_type: $('np-billing').value || null,
       site_lat: $('np-lat').value.trim() || null, site_lng: $('np-lng').value.trim() || null, geofence_m: $('np-radius').value.trim() || null, crew: crewChecked($('np-crew')),
@@ -336,7 +349,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
 
   async function saveJob(p) {
     var code = NP.code, cur = NP.cur || {}, steps = [];
-    var det = { name: p.name || p.address, address: p.address, start_date: p.start_date, target_completion: p.target_completion };
+    var det = { name: p.name || p.address, address: p.address, city_zip: p.city_zip || '', start_date: p.start_date, target_completion: p.target_completion };
     if (p.client_org_id) det.client_org_id = p.client_org_id; else if (p.new_org_name) det.new_org_name = p.new_org_name;
     if (cur.contract_editable && p.contract_value) det.contract_value = p.contract_value;
     steps.push(['details', function () { return send('PUT', '/api/admin/projects/' + encodeURIComponent(code) + '/details', det); }]);
@@ -384,12 +397,65 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
   }
   function resetForm() {
     clearFieldErrors(); $('np-err').className = 'np-err'; $('np-ok').textContent = '';
-    ['np-address', 'np-name', 'np-contract', 'np-notes', 'np-lat', 'np-lng', 'np-radius', 'np-neworg', 'np-other'].forEach(function (id) { $(id).value = ''; });
+    ['np-address', 'np-cityzip', 'np-name', 'np-contract', 'np-notes', 'np-lat', 'np-lng', 'np-radius', 'np-neworg', 'np-other'].forEach(function (id) { $(id).value = ''; });
+    addrClose(); $('np-filled').hidden = true;
     $('np-other-wrap').hidden = true; drawTabs([]);
     $('np-neworg-wrap').hidden = true; npDateSet($('np-start'), ''); npDateSet($('np-end'), '');
     NP.files = []; drawFiles(); $('np-dwg-note').textContent = ''; $('np-contract').readOnly = false; $('np-contract-note').textContent = '';
     $('np-type').disabled = false; $('np-borough').disabled = false; $('np-client').disabled = false; $('np-pm-wrap').hidden = false; $('np-pm-note').hidden = true;
     $('np-notes').closest('.np-field').hidden = false;
+  }
+
+  // ---- address: NYC suggestions while typing; a pick fills the borough, City / ZIP and site pin.
+  // Outside NYC (Long Island, NJ) there are no suggestions and the fields are typed as before.
+  var ADDR = { t: null, items: [], i: -1, seq: 0 };
+  function addrClose() { var l = $('np-alist'); if (!l) return; l.hidden = true; l.innerHTML = ''; $('np-address').setAttribute('aria-expanded', 'false'); $('np-address').removeAttribute('aria-activedescendant'); ADDR.items = []; ADDR.i = -1; }
+  function addrRender() {
+    var l = $('np-alist');
+    if (!ADDR.items.length) { addrClose(); return; }
+    l.innerHTML = ADDR.items.map(function (it, k) {
+      return '<li role="option" id="np-ao-' + k + '" data-k="' + k + '" aria-selected="' + (k === ADDR.i) + '">' + esc(it.address_line) + (it.city_zip ? '<small>' + esc(it.city_zip) + '</small>' : '') + '</li>';
+    }).join('') + '<li class="foot" aria-hidden="true">NYC addresses · Long Island and NJ: type it in</li>';
+    l.hidden = false; $('np-address').setAttribute('aria-expanded', 'true');
+    if (ADDR.i >= 0) $('np-address').setAttribute('aria-activedescendant', 'np-ao-' + ADDR.i); else $('np-address').removeAttribute('aria-activedescendant');
+  }
+  function addrLookup() {
+    var q = $('np-address').value.trim(); clearTimeout(ADDR.t);
+    if (q.length < 3) { addrClose(); return; }
+    ADDR.t = setTimeout(async function () {
+      var seq = ++ADDR.seq;
+      try { var rows = await getJSON('/api/address/suggest?q=' + encodeURIComponent(q)); if (seq !== ADDR.seq) return; ADDR.items = rows || []; ADDR.i = -1; addrRender(); }
+      catch (e) { addrClose(); }   // the lookup is a convenience: typing always works
+    }, 250);
+  }
+  function addrPick(k) {
+    var it = ADDR.items[k]; if (!it) return;
+    var filled = [];
+    $('np-address').value = it.address_line;
+    if (it.city_zip) { $('np-cityzip').value = it.city_zip; filled.push('ZIP'); }
+    var b = $('np-borough');
+    if (it.borough_code && b.querySelector('option[value="' + it.borough_code + '"]')) {
+      if (!b.disabled) { if (b.value !== it.borough_code) { b.value = it.borough_code; b.dispatchEvent(new Event('change')); } filled.unshift('borough'); }
+      else if (b.value && b.value !== it.borough_code) filled.push('note: this address is in ' + (it.city || it.borough_code) + ', the job code stays ' + b.value);
+    }
+    if (it.lat != null && it.lng != null && !$('np-lat').value.trim() && !$('np-lng').value.trim()) { $('np-lat').value = Number(it.lat).toFixed(6); $('np-lng').value = Number(it.lng).toFixed(6); filled.push('site pin'); }
+    addrClose(); drawPhone();
+    var note = filled.filter(function (x) { return x.indexOf('note:') !== 0; }), warn = filled.filter(function (x) { return x.indexOf('note:') === 0; });
+    var f = $('np-filled');
+    f.textContent = (note.length ? 'Filled from the address: ' + note.join(', ') + '. Change any of them.' : '') + (warn.length ? ' ' + warn[0].slice(6).replace(/^./, function (c) { return c.toUpperCase(); }) + '.' : '');
+    f.hidden = !f.textContent.trim();
+  }
+  function addrKeys(e) {
+    if ($('np-alist').hidden || !ADDR.items.length) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); var n = ADDR.items.length; ADDR.i = e.key === 'ArrowDown' ? (ADDR.i + 1) % n : (ADDR.i <= 0 ? n - 1 : ADDR.i - 1); addrRender(); }
+    else if (e.key === 'Enter' && ADDR.i >= 0) { e.preventDefault(); addrPick(ADDR.i); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); addrClose(); }
+  }
+  function wireAddress() {
+    $('np-address').addEventListener('input', function () { $('np-filled').hidden = true; addrLookup(); });
+    $('np-address').addEventListener('keydown', addrKeys);
+    $('np-address').addEventListener('blur', function () { setTimeout(addrClose, 150); });
+    $('np-alist').addEventListener('mousedown', function (e) { var li = e.target.closest('li[data-k]'); if (li) { e.preventDefault(); addrPick(+li.dataset.k); } });
   }
 
   // open the form (optionally filled in: {address, name, borough, client_org_id})
@@ -438,7 +504,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
       var parts = code.split('-');
       $('np-type').value = parts[0]; $('np-type').disabled = true;
       $('np-borough').value = parts[1] || ''; $('np-borough').disabled = true;
-      $('np-code').value = code; $('np-address').value = d.address || ''; $('np-name').value = d.name || '';
+      $('np-code').value = code; $('np-address').value = d.address || ''; $('np-cityzip').value = d.city_zip || ''; $('np-name').value = d.name || '';
       if (d.client_org_id && $('np-client').querySelector('option[value="' + d.client_org_id + '"]')) $('np-client').value = String(d.client_org_id);
       $('np-billing').value = prof.billing_type || '';
       $('np-contract').value = d.contract_value != null ? d.contract_value : ''; $('np-contract').readOnly = !d.contract_editable; $('np-contract-note').textContent = d.contract_note || '';

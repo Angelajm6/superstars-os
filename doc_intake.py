@@ -77,6 +77,33 @@ def ensure_schema(conn) -> None:
         if not _column_exists(conn, "project_documents", col):
             conn.execute(f"ALTER TABLE project_documents ADD COLUMN {col} TEXT")
     conn.commit()
+    _bond_to_pay_app(conn)
+
+
+def _bond_to_pay_app(conn) -> None:
+    """2026-10-23 — the Contracts checklist asks for a Payment Application, not a Payment /
+    Performance Bond. Renames the checklist row (or adds it); idempotent. Filed bond
+    documents are never touched: they stay filed under Contracts with their own name."""
+    has_reqs = (bool(conn.execute("SELECT 1 FROM information_schema.tables WHERE table_schema='public' "
+                                  "AND table_name='document_requirements'").fetchone())
+                if db_layer.is_postgres() else
+                bool(conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='document_requirements'").fetchone()))
+    if not has_reqs:
+        return
+    have = {r["requirement_key"] for r in conn.execute(
+        "SELECT requirement_key FROM document_requirements WHERE category = 'CONTRACTS'").fetchall()}
+    if "bond" in have and "pay_app" in have:
+        conn.execute("DELETE FROM document_requirements WHERE category = 'CONTRACTS' AND requirement_key = 'bond'")
+    elif "bond" in have:
+        conn.execute("UPDATE document_requirements SET requirement_key = 'pay_app', label = ? "
+                     "WHERE category = 'CONTRACTS' AND requirement_key = 'bond'", (PAY_APP_LABEL,))
+    elif "pay_app" not in have:
+        conn.execute("INSERT INTO document_requirements (category, requirement_key, label, sort_order) "
+                     "VALUES ('CONTRACTS', 'pay_app', ?, 4)", (PAY_APP_LABEL,))
+    conn.commit()
+
+
+PAY_APP_LABEL = "Payment Application"
 
 
 PARTIES = ("company", "subcontractor", "owner", "other")
@@ -140,5 +167,4 @@ def doc_ai_public(d) -> dict | None:
 
 
 def type_label(key) -> str | None:
-    t = doc_types.get(key)
-    return t["label"] if t else None
+    return doc_types.label(key)
