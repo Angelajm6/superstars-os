@@ -458,6 +458,20 @@ def needs(conn, uid, today: date, now: datetime, pay_rows: list, crew_info: dict
                          pill=("Late" if n < 0 else "Due " + _days_word(n)), icon="bill",
                          actions=[{"type": "open", "label": "Pay or mark paid", "primary": True}]))
 
+    # 3b. #316 1b: clients created from QuickBooks, waiting for an admin to review (admins only)
+    try:
+        import qbo
+        if qbo.show_imported() and qbo.is_connected(conn):
+            link = qbo.connection(conn)
+            n = qbo.review_count(conn, link["realm_id"])
+            if n:
+                out.append(_card("qbo:review", "money", "today", f"{n} new client{'s' if n != 1 else ''} from QuickBooks to review",
+                                 "Created automatically when their invoices came in from QuickBooks. Approve each one, or merge it into a client you already have.",
+                                 href="#finance/qb-review", source="Finance › QuickBooks", pill="To review", icon="doc",
+                                 actions=[{"type": "open", "label": "Review", "primary": True}]))
+    except Exception as e:
+        log.info("today_feed quickbooks review: %s", e)
+
     # 4. invoices overdue (money owed to us)
     try:
         import invoices
