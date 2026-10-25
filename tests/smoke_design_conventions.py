@@ -790,7 +790,7 @@ def main():
         if not fs or float(fs.group(1)) != want:
             bad_t.append(sel)
     ok("density_title_scale", not bad_t, f"off the 20/18/15 scale: {bad_t}")
-    modals = [".dr-sheet", ".pd-modal", ".la-modal", ".dcrg-panel", ".mt-modal", ".pay-modal", ".aia-modal", ".fp-modal", ".pc-modal"]
+    modals = [".dr-sheet", ".pd-modal", ".sc-sheet", ".dcrg-panel", ".mt-modal", ".pay-modal", ".aia-modal", ".fp-modal", ".pc-modal"]
     bad_m = [sel for sel in modals if not re.search(r"(?:^|[\s}])" + re.escape(sel) + r"\s*\{[^{}]*max-width:\s*var\(--modal-(sm|md|lg|xl)\)", inline)]
     ok("density_modal_sizes", not bad_m and "--modal-md: 640px" in inline, f"dialogs off the four sizes: {bad_m}")
     bad_p = [sel for sel in (".dcr-primary", ".pay-btn.primary")
@@ -806,7 +806,7 @@ def main():
     n_inline = len(re.findall(r'style=\\?["\']', src))
     INLINE_CEILING = 393   # #362: 531 -> 393. Lower it as tabs are cleaned; never raise it.
     ok("tabs_inline_ceiling", n_inline <= INLINE_CEILING, f"{n_inline} inline styles (ceiling {INLINE_CEILING})")
-    heads = ("tab-head", "jx-head", "dcr-head", "exp-head", "pd-head", "pay-head", "fp-head", "dp-head", "mt-head", "ec-head", "pc-head", "la-top")
+    heads = ("tab-head", "jx-head", "dcr-head", "exp-head", "pd-head", "pay-head", "fp-head", "dp-head", "mt-head", "ec-head", "pc-head", "sc-top")
     sections = list(re.finditer(r'<section class="view(?: active)?" data-view="([^"]+)"', html))
     no_head = []
     for i, m in enumerate(sections):

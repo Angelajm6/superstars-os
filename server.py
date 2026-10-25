@@ -10208,6 +10208,7 @@ def api_compliance_pulse():
 # requires_role. Money writes (expenses) are admin/c_suite only.
 import dropplan_rollups as _rollups
 import lookahead as _lookahead  # #255 — Two-Week Look-Ahead (auto-draft + editable)
+import project_schedule as _project_schedule  # the Schedule window's one payload
 
 _DROPPLAN_ROLES = ('admin', 'c_suite', 'pm', 'super')
 _DROPPLAN_COST_ROLES = ('admin', 'c_suite')
@@ -10282,8 +10283,8 @@ def api_dropplan_rollup(project_code):
 
 # ============= TWO-WEEK LOOK-AHEAD (#255) — auto-draft + editable =============
 # Gated as the project Drop-Plan views are. AUTO-DRAFTS planned activity bars
-# from the Drop Plan; the super adjusts by dragging. A re-draft (?refresh=1)
-# re-projects ONLY the untouched source='auto' rows — manual/custom rows survive.
+# from the Drop Plan; the super adjusts by dragging. Every load re-projects ONLY the
+# untouched source='auto' rows (project_schedule.redraft) — manual/custom rows survive.
 
 def _lookahead_default_start():
     """This week's Monday, LOCAL — the natural window start."""
@@ -10291,24 +10292,42 @@ def _lookahead_default_start():
     return (t - timedelta(days=t.weekday())).isoformat()
 
 
-@app.route('/api/projects/<project_code>/lookahead', methods=['GET'])
+@app.route('/api/projects/<project_code>/schedule', methods=['GET'])
 @requires_role(*_DROPPLAN_ROLES)
-def api_lookahead_get(project_code):
-    """Window load. Auto-drafts on first open (no rows yet) or when ?refresh=1
-    (re-projects auto rows, keeps manual/custom). LOCAL dates; no-store."""
+def api_project_schedule(project_code):
+    """The Schedule window in one call: job dates + pace, the two-week board, the
+    job's tasks / events / meetings in the window, and the site pin for weather."""
     start = (request.args.get('start') or '').strip() or _lookahead_default_start()
     try:
         date.fromisoformat(start)
     except ValueError:
         return jsonify({"error": "start must be YYYY-MM-DD"}), 400
-    refresh = request.args.get('refresh') in ('1', 'true', 'yes')
     conn = db()
     try:
-        have = conn.execute("SELECT COUNT(*) FROM lookahead_activity WHERE project_code=?",
-                            (project_code,)).fetchone()[0]
-        if refresh or have == 0:
-            _lookahead.draft_lookahead(conn, project_code, start)
-            conn.commit()
+        if not validate_project_exists(conn, project_code):
+            return jsonify({"error": "project not found"}), 404
+        data = _project_schedule.payload(conn, project_code, start)
+    finally:
+        conn.close()
+    resp = response_wrapper(data)
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return resp
+
+
+@app.route('/api/projects/<project_code>/lookahead', methods=['GET'])
+@requires_role(*_DROPPLAN_ROLES)
+def api_lookahead_get(project_code):
+    """Window load. Auto rows are re-projected from this week's Drop Plan progress
+    through the window on every load (manual/custom rows kept). LOCAL dates; no-store."""
+    start = (request.args.get('start') or '').strip() or _lookahead_default_start()
+    try:
+        date.fromisoformat(start)
+    except ValueError:
+        return jsonify({"error": "start must be YYYY-MM-DD"}), 400
+    conn = db()
+    try:
+        _project_schedule.redraft(conn, project_code, start)
+        conn.commit()
         data = _lookahead.load_window(conn, project_code, start)
     finally:
         conn.close()
@@ -10369,6 +10388,9 @@ def api_lookahead_patch(aid):
         if not row:
             return jsonify({"error": "not found"}), 404
         row = dict(row)
+        err = _projdoc_scope_err(conn, row['project_code'])   # the id carries no project in the path
+        if err:
+            return err
         sets, args = [], []
         if 'planned_start' in body or 'planned_finish' in body:
             ps = (body.get('planned_start') or row['planned_start'])
@@ -10403,9 +10425,15 @@ def api_lookahead_patch(aid):
 @app.route('/api/lookahead/activities/<int:aid>', methods=['DELETE'])
 @requires_role(*_DROPPLAN_ROLES)
 def api_lookahead_delete(aid):
-    """Remove an activity row."""
+    """Remove an activity row (only on a job the caller can open)."""
     conn = db()
     try:
+        row = conn.execute("SELECT project_code FROM lookahead_activity WHERE id=?", (aid,)).fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+        err = _projdoc_scope_err(conn, row[0])
+        if err:
+            return err
         conn.execute("DELETE FROM lookahead_activity WHERE id=?", (aid,))
         conn.commit()
         return response_wrapper({"deleted": aid})
