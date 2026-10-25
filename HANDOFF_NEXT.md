@@ -21,6 +21,21 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Schedule window rebuilt (Bookore, 2026-10-24)
+
+* Accepted prototype: https://claude.ai/artifact/HSKLWGfpYbD5YES2Jm9ook (row 2). One call: `GET /api/projects/<code>/schedule?start=`
+  (`project_schedule.py`) = job dates + days left + time used vs drops complete + pace, the two-week board (`lookahead.load_window`),
+  the job's tasks / events / meetings (`team_items`), site pin (weather flags from `/api/weather/week`), `has_drops`.
+* Desktop / tablet: timeline strip, ‹ two weeks ›, board grouped by drop with a **Blocks** pill (open schedule-impact RFIs), a
+  Job-wide group; tap a bar = edit sheet (page root, SSCDatePicker dates, Remove with a second tap); drag = move / right edge resize
+  with Undo. ≤860px: a day-by-day agenda. Jobs without drops: an empty state + Add activity / Set up Drop Plan.
+* **Drafting:** auto rows are re-projected on every load from THIS week's Monday through the viewed window, and RECONCILED (a still-
+  projected stage keeps its row id; a hand-edited stage is never drafted twice and later stages follow its finish). Past windows get
+  no invented bars. The old `?refresh=1` and Start field are gone.
+* **Security fix:** PATCH / DELETE `/api/lookahead/activities/<id>` now check the activity's job (`_projdoc_scope_err`); before, any
+  PM / super could edit or delete any job's activity by id.
+* Guard: `tests/smoke_project_schedule.py` (new, in the gate).
+
 ### Projects tab: active jobs first, "Ready to start" for signed proposals (Bookore, 2026-10-23)
 
 * Accepted prototype: https://claude.ai/artifact/Sz6pFAL3nSVCav97gmPsDE. The #337 "addresses added without a project" banner is

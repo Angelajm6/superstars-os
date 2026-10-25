@@ -66,18 +66,40 @@ def _drop_label(drop_id: str, elevation: Optional[str]) -> str:
 
 # ---------- AUTO-DRAFT ----------
 
-def draft_lookahead(conn: sqlite3.Connection, project_code: str, window_start_iso: str) -> int:
+def draft_lookahead(conn: sqlite3.Connection, project_code: str, window_start_iso: str,
+                    until_iso: Optional[str] = None) -> int:
     """(Re)project source='auto' rows from the Drop Plan for the 10-working-day
-    window. Manual + custom rows are NEVER touched. Runs in the caller's
-    transaction (no commit). Returns the number of auto rows drafted."""
+    window — or, with `until_iso`, from the window start through that day (so a
+    window viewed weeks ahead is still projected from THIS week's progress).
+    Manual + custom rows are NEVER touched. Runs in the caller's transaction (no
+    commit). Returns the number of auto rows drafted."""
     conn.row_factory = sqlite3.Row
     window = working_days_window(date.fromisoformat(window_start_iso), 10)
+    if until_iso:
+        until = date.fromisoformat(until_iso)
+        while window[-1] < until:
+            window += working_days_window(window[-1] + timedelta(days=1), 1)
     win_start, win_end = window[0], window[-1]
     win_start_iso, win_end_iso = _iso(win_start), _iso(win_end)
 
-    # Wipe existing AUTO rows for this project (a re-draft replaces them); manual stays.
-    conn.execute("DELETE FROM lookahead_activity WHERE project_code=? AND source='auto'",
-                 (project_code,))
+    # A re-draft RECONCILES the auto rows: a stage still projected keeps its row (and id,
+    # so an open edit never points at a vanished row), moved to its new dates; rows no
+    # longer projected go. A stage someone edited (source='manual') is never re-projected:
+    # it holds its place and the drop's later stages follow its finish.
+    existing = {}
+    for r in conn.execute(
+        "SELECT id, drop_id, name, activity_type, source_step, planned_start, planned_finish, sort_order "
+        "FROM lookahead_activity WHERE project_code=? AND source='auto' ORDER BY id", (project_code,)
+    ).fetchall():
+        existing.setdefault(_draft_key(r["drop_id"], r["activity_type"], r["source_step"], r["name"], r["planned_start"]),
+                            []).append(dict(r))
+    manual = {}
+    for r in conn.execute(
+        "SELECT drop_id, source_step, activity_type, name, planned_start, planned_finish FROM lookahead_activity "
+        "WHERE project_code=? AND source='manual'", (project_code,)
+    ).fetchall():
+        manual[_draft_key(r["drop_id"], r["activity_type"], r["source_step"], r["name"], r["planned_start"])] = dict(r)
+    kept = set()
 
     # Project stage-template steps (name + target duration + signoff gate).
     trow = conn.execute("SELECT template_id FROM stage_templates WHERE project_code=? LIMIT 1",
@@ -109,11 +131,22 @@ def draft_lookahead(conn: sqlite3.Connection, project_code: str, window_start_is
 
     def _ins(drop_id, name, atype, ps, pf, source_step):
         nonlocal sort, drafted
-        conn.execute(
-            "INSERT INTO lookahead_activity "
-            "(project_code, drop_id, name, activity_type, planned_start, planned_finish, "
-            " source, source_step, sort_order) VALUES (?,?,?,?,?,?, 'auto', ?, ?)",
-            (project_code, drop_id, name, atype, ps, pf, source_step, sort))
+        key = _draft_key(drop_id, atype, source_step, name, ps)
+        if key in manual:
+            return
+        mine = existing.get(key) or []
+        if mine:
+            row = mine.pop(0)
+            kept.add(row["id"])
+            if (row["planned_start"], row["planned_finish"], row["sort_order"]) != (ps, pf, sort):
+                conn.execute("UPDATE lookahead_activity SET planned_start=?, planned_finish=?, sort_order=?, "
+                             "updated_at=CURRENT_TIMESTAMP WHERE id=?", (ps, pf, sort, row["id"]))
+        else:
+            conn.execute(
+                "INSERT INTO lookahead_activity "
+                "(project_code, drop_id, name, activity_type, planned_start, planned_finish, "
+                " source, source_step, sort_order) VALUES (?,?,?,?,?,?, 'auto', ?, ?)",
+                (project_code, drop_id, name, atype, ps, pf, source_step, sort))
         sort += 1
         drafted += 1
 
@@ -153,6 +186,13 @@ def draft_lookahead(conn: sqlite3.Connection, project_code: str, window_start_is
             pstart = proj
             if pstart > win_end:
                 break  # remaining stages fall beyond the window
+            held = manual.get(_draft_key(drop_id, "stage", sn, tmpl["name"], None))
+            if held:   # edited by hand: keep it where it was put, follow on from its finish
+                try:
+                    proj = _add_working_days(date.fromisoformat(held["planned_finish"]), 1)
+                except ValueError:
+                    proj = _add_working_days(pstart, dur)
+                continue
             pfinish = _add_working_days(pstart, dur - 1)
             _ins(drop_id, tmpl["name"], "stage", _iso(pstart), _iso(pfinish), sn)
             # an inspection milestone on the signoff gate's finish day
@@ -178,7 +218,19 @@ def draft_lookahead(conn: sqlite3.Connection, project_code: str, window_start_is
         name = (r["type"] or r["agency"] or "Inspection")
         _ins(None, f"{name} inspection", "inspection", r["date"], r["date"], None)
 
+    stale = [row["id"] for rows in existing.values() for row in rows if row["id"] not in kept]
+    for i in range(0, len(stale), 200):
+        part = stale[i:i + 200]
+        conn.execute(f"DELETE FROM lookahead_activity WHERE id IN ({','.join('?' * len(part))})", part)
     return drafted
+
+
+def _draft_key(drop_id, atype, source_step, name, planned_start):
+    """What makes two drafted rows "the same activity": a drop's stage (or its sign-off
+    inspection) by step; a job-wide delivery / inspection by name and day."""
+    if source_step is not None:
+        return (drop_id, atype, int(source_step))
+    return (drop_id, atype, None, name, planned_start)
 
 
 # ---------- WINDOW LOAD (grouped, with grid positions for the UI) ----------
