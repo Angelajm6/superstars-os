@@ -34,8 +34,7 @@ TYPES = (
     ("owner_contract", "Owner Contract (AIA A101 / A401)", "CONTRACTS", "owner_contract"),
     ("sov", "Schedule of Values", "CONTRACTS", "sov"),
     ("coi", "Certificate of Insurance (COI)", "CONTRACTS", "coi"),
-    ("bond", "Payment / Performance Bond", "CONTRACTS", "bond"),
-    ("aia_g702", "AIA G702/G703 Pay Application", "CONTRACTS", None),
+    ("aia_g702", "Payment Application (AIA G702/G703)", "CONTRACTS", "pay_app"),
     ("change_order", "Change Order", "CONTRACTS", None),
     ("subcontract", "Subcontract Agreement", "CONTRACTS", None),
     ("proposal", "Proposal / Estimate", "CONTRACTS", None),
@@ -66,6 +65,10 @@ TYPES = (
 BY_KEY = {t[0]: {"key": t[0], "label": t[1], "category": t[2], "requirement_key": t[3]} for t in TYPES}
 KEYS = tuple(BY_KEY)
 
+# Types no longer offered in the picker, kept so documents filed under them keep their name.
+# 2026-10-23: the Payment / Performance Bond item gave way to Payment Application.
+LEGACY_LABELS = {"bond": "Payment / Performance Bond"}
+
 # The catch-all per category, used when only the category is known.
 FALLBACK_BY_CATEGORY = {
     "PERMITS": "permit_other", "DRAWINGS": "drawing_other", "CONTRACTS": "contract_other",
@@ -76,6 +79,12 @@ FALLBACK_BY_CATEGORY = {
 def get(key):
     """The type dict for a key, or None."""
     return BY_KEY.get((key or "").strip())
+
+
+def label(key):
+    """Display name for a type key, including retired ones; None when unknown."""
+    t = get(key)
+    return t["label"] if t else LEGACY_LABELS.get((key or "").strip())
 
 
 def for_requirement(category, requirement_key):

@@ -84,9 +84,11 @@ def window(conn, start: date, end: date) -> dict:
     if codes:
         try:
             for r in _rows(conn.execute(
-                    f"SELECT a.project_code, u.full_name FROM pm_project_assignment a JOIN users u ON u.id = a.user_id "
-                    f"WHERE a.project_code IN ({marks}) ORDER BY u.full_name", codes)):
-                pms.setdefault(r["project_code"], []).append(r["full_name"])
+                    f"SELECT a.project_code, COALESCE(u.display_name, u.full_name, u.email) AS name FROM pm_project_assignment a "
+                    f"JOIN users u ON u.id = a.user_id WHERE a.project_code IN ({marks}) AND u.role = 'pm' "
+                    f"AND COALESCE(u.is_active, 1) = 1 AND COALESCE(u.status, 'active') = 'active' "
+                    f"ORDER BY LOWER(COALESCE(u.display_name, u.full_name, u.email))", codes)):
+                pms.setdefault(r["project_code"], []).append(r["name"])
         except Exception as ex:
             log.info("#332 pm lookup skipped: %s", ex)
     crew: dict = {}

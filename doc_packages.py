@@ -6,7 +6,7 @@ Project Documents (#229 / #271) already stores the paper with a required-docs
 checklist and per-document client sharing. This module adds the two missing pieces:
 
   * the PACKAGE — the subset that secures a job (every PERMITS requirement + the
-    COI and the bond from CONTRACTS), with its own readiness on the Documents view;
+    COI from CONTRACTS), with its own readiness on the Documents view;
   * SEND TO CLIENT — one email with a private link (`/d/<token>`, 90 days) where the
     client sees the package and downloads each file; the office sees sent / opened.
     Optionally the same documents are shared into the client portal (the #270
@@ -50,7 +50,7 @@ LINK_DAYS = 90
 ROLES_READ = ("admin", "c_suite", "pm", "super")
 ROLES_SEND = ("admin", "c_suite", "pm")
 # (category, requirement_key) — the paper that secures a job, in display order
-PACKAGE_KEYS = (("CONTRACTS", "coi"), ("CONTRACTS", "bond"), ("PERMITS", "pw2"), ("PERMITS", "sidewalk_shed"),
+PACKAGE_KEYS = (("CONTRACTS", "coi"), ("PERMITS", "pw2"), ("PERMITS", "sidewalk_shed"),
                 ("PERMITS", "best_permit"), ("PERMITS", "fisp_ack"), ("PERMITS", "after_hours"))
 EXTRA_CATEGORIES = ("PERMITS",)          # un-keyed documents in these categories ride along as extras
 EMAIL_SUBJECT = "Permits and insurance for {project} — " + COMPANY_NAME

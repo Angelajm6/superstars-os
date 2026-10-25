@@ -35,6 +35,28 @@ grant, or elevation code.
 * **Security fix:** PATCH / DELETE `/api/lookahead/activities/<id>` now check the activity's job (`_projdoc_scope_err`); before, any
   PM / super could edit or delete any job's activity by id.
 * Guard: `tests/smoke_project_schedule.py` (new, in the gate).
+### Projects table, PMs, addresses, Documents (Bookore, 2026-10-24)
+
+* Accepted prototype: https://claude.ai/artifact/HSKLWGfpYbD5YES2Jm9ook. **Open invoices** column removed from the Projects table
+  (the API keeps `open_value` / `overdue_value`: Claude and the "$ overdue" badge use them; no invoice data touched).
+* **PM column = PMs only.** `pm_project_assignment` also holds clients' / architects' / supers' / estimators' project ACCESS; the
+  column listed all of them (and inactive or ex-PMs), which is why #1's PM list looked wrong. `portal_projects._pms` and
+  `portal_calendar` now list active `role='pm'` users. Editor: pencil in the PM cell (bottom sheet on a phone) →
+  `GET/PUT /api/company/portal/projects/<code>/pms` (admin / C-suite). PUT sets the job's PMs; "outdated" rows (inactive account,
+  or role no longer scoped) stay unless removed; an active client / architect / super / estimator row is never touched (counts
+  only in the editor). **Project 1 cleanup is a click for Angela**: open #1's PM cell, Remove the outdated names, Save.
+* **Address autofill** in the New / Edit project form: `GET /api/address/suggest?q=` (`buildings.address_suggest`, NYC Planning
+  GeoSearch — the free, keyless service the app already used for Team addresses / 3D / compliance; no new dependency). A pick fills
+  borough (new jobs), a new **City / ZIP** field and the site pin when blank. Onboard stores `projects.city_zip` (+ the building's
+  city / state / ZIP). Outside NYC: no suggestions, typed as before.
+* **Documents:** the CONTRACTS checklist item `bond` became `pay_app` "Payment Application" (idempotent, `doc_intake._bond_to_pay_app`,
+  runs at boot); type `aia_g702` = "Payment Application (AIA G702/G703)" fills it; `bond` left the picker (legacy label kept, filed
+  bonds untouched). **Filed** shows only filed documents (no missing rows; tiles show "N filed"); what is missing is under
+  **Still needed for this job** (`suggestions`, origin `checklist`). Required items fit the job (`doc_suggest.applies` / `SCOPE`:
+  type, access methods, billing, drops) — no drop / rigging layout without suspended scaffold or drops; `job.not_asked` explains
+  what was left out. A second COI / pay app **files alongside** by default ("This replaces …" is an explicit tick).
+  **Additional documents**: `party` subcontractor / other → `additional` groups (one card per company), never filling our checklist.
+* Guards: `tests/smoke_project_pms.py` (new, in the gate), `smoke_doc_dropzone.py`, `smoke_doc_package_327.py` (bond left the package).
 
 ### Projects tab: active jobs first, "Ready to start" for signed proposals (Bookore, 2026-10-23)
 

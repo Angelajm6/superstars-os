@@ -18,12 +18,14 @@ GET /api/admin/projects/onboard-meta feeds the modal's selects.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date, datetime
 from typing import Optional
 
 from flask import jsonify, request
 
 import billing_type
+import buildings
 import project_modules
 import crm
 import db_layer
@@ -253,6 +255,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     if len(address) < 4:
         raise ValueError("the building address is required")
     name = (p.get("name") or "").strip()[:200] or address
+    city_zip = re.sub(r"\s+", " ", str(p.get("city_zip") or "")).strip()[:120] or None   # "Bronx, NY 10454"
     contract = p.get("contract_value")
     if contract in (None, ""):
         contract = None
@@ -371,6 +374,13 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
         sets = ", ".join(f"{k} = ?" for k in site)
         conn.execute(f"UPDATE projects SET {sets} WHERE project_code = ?", (*site.values(), code))
         conn.commit()
+    if city_zip:   # from the address lookup (or typed); the job site gets its city / ZIP too
+        conn.execute("UPDATE projects SET city_zip = ? WHERE project_code = ?", (city_zip, code))
+        city, state, zip_ = buildings._split_city_zip(city_zip)
+        conn.execute("UPDATE building SET city = COALESCE(NULLIF(city, ''), ?), state = COALESCE(NULLIF(state, ''), ?), "
+                     "zip = COALESCE(NULLIF(zip, ''), ?) WHERE id = (SELECT building_id FROM projects WHERE project_code = ?)",
+                     (city, state, zip_, code))
+        conn.commit()
     try:
         project_modules.set_modules(conn, code, modules, actor=actor)   # always a list now: a new job is lean
     except Exception as e:   # a job without the setting just shows every tab, as before
@@ -424,7 +434,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
         conn.commit()
     except Exception as e:
         log.info("#331 region label not stamped on the job site: %s", e)
-    project = _one(conn.execute("SELECT project_code, name, address, status, client_org_id, building_id, "
+    project = _one(conn.execute("SELECT project_code, name, address, city_zip, status, client_org_id, building_id, "
                                 "site_lat, site_lng, geofence_m FROM projects WHERE project_code = ?", (code,)))
     return {"project_code": code, "project": project, "estimate_id": est["id"], "estimate_code": est["code"],
             "from_proposal_id": prop["id"] if prop else None,
