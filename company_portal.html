@@ -85,7 +85,7 @@
   /* Oct 7 notes batch C — job number, color square, access chips, Edit */
   .pj-no { font-weight: 600; color: var(--brand-red, #B11E2E); font-variant-numeric: tabular-nums; }
   .pj-job { display: flex; gap: 10px; align-items: flex-start; min-width: 230px; }
-  .pj-job .pj-edit { margin-left: auto; }
+  .pj-job .prx-pen { margin-left: auto; }
   .pj-job .cp-id, .pj-no { white-space: nowrap; }
   /* Projects tab (2026-10-23, accepted prototype https://claude.ai/artifact/Sz6pFAL3nSVCav97gmPsDE): active jobs first,
      signed proposals wait behind "Ready to start", one "Needs you" note per job, cards on phones */
@@ -155,8 +155,6 @@
     .pj-pm .ft button { min-height: 46px; flex: 1; } .pj-pm .old button { min-height: 44px; flex: none; }
     .pj-pmscrim { background: rgba(34,38,51,.38); }
   }
-  .pj-edit { font: inherit; font-size:13px; font-weight: 600; border: 1px solid var(--line); background: #fff; border-radius: 7px; padding: 4px 10px; cursor: pointer; }
-  .pj-edit:hover { border-color: var(--accent); }
   .cp-muted { color: var(--muted); }
   .cp-pill { display: inline-block; font-size:13px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--status-oat-soft, #f3f0e9); color: #6b6455; white-space: nowrap; }
   .cp-pill.ok { background: var(--status-complete-soft, #e7f6f0); color: var(--status-complete-deep, #0c7a5f); }
@@ -3110,7 +3108,7 @@
       (!q || [r.project_code, r.name, r.address, r.client_name, r.pms.map(x => x.name).join(' ')].join(' ').toLowerCase().includes(q)));
     table($('pj-table'), [
       { key: 'job_number', label: '#', num: true, render: r => r.job_number != null ? `<span class="pj-no">#${r.job_number}</span>` : '—' },
-      { key: 'name', label: 'Job', render: r => `<div class="pj-job"><span class="pj-sw" style="background:${esc(r.color || '#475569')}" title="Calendar color"></span><div><div class="pj-name">${esc(r.name || r.project_code)}</div><div class="pj-sub">${esc(r.project_code)}${r.address ? ' · ' + esc(r.address) : ''} · ${r.billing_type ? esc(r.billing_short) : 'billing not set'}</div></div><button type="button" class="pj-edit" data-pj-edit="${esc(r.project_code)}" title="Edit project">Edit</button></div>` },
+      { key: 'name', label: 'Job', render: r => `<div class="pj-job"><span class="pj-sw" style="background:${esc(r.color || '#475569')}" title="Calendar color"></span><div><div class="pj-name">${esc(r.name || r.project_code)}</div><div class="pj-sub">${esc(r.project_code)}${r.address ? ' · ' + esc(r.address) : ''} · ${r.billing_type ? esc(r.billing_short) : 'billing not set'}</div></div><button type="button" class="prx-pen" data-pj-edit="${esc(r.project_code)}" aria-label="Edit project" title="Edit project">${PRX_PEN}</button></div>` },
       { key: 'client_name', label: 'Client', render: r => esc(r.client_name || '—') },
       { key: 'pms', label: 'PM', sortVal: r => r.pms.map(x => x.name).join(', '), render: r => `<span class="pj-pmc">${r.pms.length ? esc(r.pms.map(x => x.name).join(', ')) : '<span class="cp-muted">unassigned</span>'}${`<button type="button" class="pj-pmb" data-pj-pm="${esc(r.project_code)}" aria-label="${r.pms.length ? 'Edit' : 'Assign'} project managers">${r.pms.length ? PRX_PEN : '+'}</button>`}</span>` },
       { key: 'crew_count', label: 'Crew', num: true },
