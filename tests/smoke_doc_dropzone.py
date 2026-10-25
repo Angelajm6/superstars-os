@@ -26,6 +26,13 @@ Proves:
     Claude's `related` add more; "Required" only for a missing checklist item; filing it or
     "Not needed" removes it; gates on dismiss
   * the Documents tab no longer carries the Specifications table or the permits & insurance card
+  * Payment Application replaces the Payment / Performance Bond item (migration idempotent; a bond
+    filed before stays filed under Contracts with its name); a second pay app or COI files
+    alongside the first, nothing superseded
+  * another company's documents (subcontractor / other) never fill the job's checklist and come
+    back in `additional`, one group per company
+  * what fits the job: type, access methods, billing and drops decide the required items; no
+    drop / rigging layout without drops; every missing required item is a suggestion
 
 Run:  venv/bin/python tests/smoke_doc_dropzone.py
 """
@@ -191,7 +198,7 @@ def main() -> int:
         rbc.setdefault(cat, set()).add(key)
     p = scanner.process_scan_result({"category": "CONTRACTS", "requirement_key": "sov", "type_key": "aia_g702",
                                      "confidence": 0.9}, CATS, rbc)
-    assert p["type_key"] == "aia_g702" and p["requirement_key"] is None   # a pay app never ticks the SOV
+    assert p["type_key"] == "aia_g702" and p["requirement_key"] == "pay_app"   # a pay app fills its own item, never the SOV
     p = scanner.process_scan_result({"category": "PERMITS", "requirement_key": None, "type_key": "coi",
                                      "confidence": 0.9}, CATS, rbc)
     assert p["type_key"] == "permit_other" and "type_key" in p["fields_to_check"]
@@ -281,8 +288,9 @@ def main() -> int:
                    json={"type_key": "aia_g702", "title": "Pay App #5", "effective_date": D(-1)})
     assert r.status_code == 201
     pay = _data(r)
-    assert pay["requirement_key"] is None and pay["category"] == "CONTRACTS" and pay["effective_date"] == D(-1)
+    assert pay["requirement_key"] == "pay_app" and pay["category"] == "CONTRACTS" and pay["effective_date"] == D(-1)
     assert pay["title"] == "Pay App #5" and pay["ai"] is None
+    pay_app1 = pay["id"]
     checks += 1
 
     # ---- newer version: supersedes the COI, pulls its client share
@@ -312,8 +320,9 @@ def main() -> int:
     assert admin.post(f"/api/documents/intake/{card3['id']}/approve",
                       json={"type_key": "coi", "supersedes_id": doc["id"]}).status_code == 409
     # a changed tag is recorded as the user's
-    r = admin.post(f"/api/documents/intake/{card3['id']}/approve", json={"type_key": "bond"})
-    assert _data(r)["ai"]["set_by"] == "user" and _data(r)["requirement_key"] == "bond"
+    assert admin.post(f"/api/documents/intake/{card3['id']}/approve", json={"type_key": "bond"}).status_code == 400   # retired
+    r = admin.post(f"/api/documents/intake/{card3['id']}/approve", json={"type_key": "warranty"})
+    assert _data(r)["ai"]["set_by"] == "user" and _data(r)["requirement_key"] == "warranties"
     checks += 1
 
     # ---- remove a waiting file
@@ -374,14 +383,20 @@ def main() -> int:
     assert xyz_coi["party_name"] == "XYZ Steel"
     ck = _checklist(admin)["coi"]
     held = {d["id"] for d in ck["docs"]}
-    assert held == {doc2["id"], sub_coi["id"], xyz_coi["id"]}, held   # all three current, none superseded
-    assert ck["doc"]["id"] in held and ck["status"] == "on_file"
+    assert held == {doc2["id"]}, held   # the job's own COI item holds OUR certificate only
+    assert ck["doc"]["id"] == doc2["id"] and ck["status"] == "on_file"
     assert all("shared_client" in d for d in ck["docs"])
     _no_paths(ck, "checklist item")
-    # nothing current is missing from the payload (items + extras)
+    # the subs' certificates are all current, under Additional documents, one group per company
     pay = _payload(admin)
+    groups = {(g["party"], g["party_name"]): {d["id"] for d in g["docs"]} for g in pay["additional"]}
+    assert groups == {("subcontractor", "ABC Masonry"): {sub_coi["id"]}, ("subcontractor", "XYZ Steel"): {xyz_coi["id"]}}, groups
+    assert all("shared_client" in d for g in pay["additional"] for d in g["docs"])
+    _no_paths(pay["additional"], "additional")
+    # nothing current is missing from the payload (items + extras + additional)
     shown = {d["id"] for c in pay["categories"] for it in c["items"] for d in it["docs"]} | \
-            {d["id"] for c in pay["categories"] for d in c["extras"]}
+            {d["id"] for c in pay["categories"] for d in c["extras"]} | \
+            {d["id"] for g in pay["additional"] for d in g["docs"]}
     conn = _db()
     try:
         current = {r["id"] for r in conn.execute("SELECT id FROM project_documents WHERE project_code=? AND superseded=0",
@@ -395,11 +410,14 @@ def main() -> int:
     ren = _data(_drop(admin))
     assert admin.post(f"/api/documents/intake/{ren['id']}/approve",
                       json={"type_key": "coi", "supersedes_id": sub_coi["id"]}).status_code == 201
-    ck = _checklist(admin)["coi"]
-    assert sub_coi["id"] not in {d["id"] for d in ck["docs"]} and {doc2["id"], xyz_coi["id"]} <= {d["id"] for d in ck["docs"]}
-    # PATCH edits the party
+    abc = [g for g in _payload(admin)["additional"] if g["party_name"] == "ABC Masonry"][0]
+    assert sub_coi["id"] not in {d["id"] for d in abc["docs"]} and len(abc["docs"]) == 1
+    assert _checklist(admin)["coi"]["doc"]["id"] == doc2["id"]   # ours untouched
+    # PATCH edits the party: an owner's record is not "another company's" — it moves to the folders
     r = admin.patch(f"/api/documents/{xyz_coi['id']}", json={"party": "owner", "party_name": "Compass Point"})
     assert r.status_code == 200 and _data(r)["party"] == "owner" and _data(r)["party_name"] == "Compass Point"
+    assert xyz_coi["id"] in {d["id"] for d in _checklist(admin)["coi"]["docs"]}
+    assert all(g["party_name"] != "XYZ Steel" for g in _payload(admin)["additional"])
     checks += 1
 
     # ---- suggestions read off what is filed
@@ -415,10 +433,9 @@ def main() -> int:
     assert coi_k in sugs and sugs[coi_k]["origin"] == "rule" and sugs[coi_k]["sources"][0]["title"].startswith("Subcontract")
     assert sugs[coi_k]["on_checklist"] is False            # the COI item is already on file — so only "may be needed"
     assert "lien_waiver|subcontractor|delta roofing" in sugs
-    bond = sugs["bond|subcontractor|delta roofing"]        # from the words on the page
-    assert bond["origin"] == "content" and bond["on_checklist"] is False   # the job's bond item is ours, not the sub's
+    assert not any(k.startswith("bond|") for k in sugs)     # bonds are no longer suggested
     ah = sugs["after_hours|company|"]
-    assert ah["origin"] == "content" and ah["on_checklist"] is True   # a missing checklist item: verified required
+    assert ah["origin"] == "content" and ah["on_checklist"] is False   # never required: only "may be needed"
     sds = sugs["sds|company|"]
     assert sds["origin"] == "claude" and sds["on_checklist"] is True and "SDS" in sds["reason"]
     assert "coi|company|" not in sugs                      # ours is on file
@@ -495,14 +512,140 @@ def main() -> int:
         conn.close()
     checks += 1
 
+    # ---- Payment Application replaces the bond; bonds filed before stay filed
+    conn = _db()
+    try:
+        conn.execute("DELETE FROM document_requirements WHERE category='CONTRACTS' AND requirement_key='pay_app'")
+        conn.execute("INSERT INTO document_requirements (category, requirement_key, label, sort_order) "
+                     "VALUES ('CONTRACTS', 'bond', 'Payment / Performance Bond', 4)")
+        conn.commit()
+        doc_intake.ensure_schema(conn)
+        doc_intake.ensure_schema(conn)   # idempotent
+        rows = [(r["requirement_key"], r["label"]) for r in conn.execute(
+            "SELECT requirement_key, label FROM document_requirements WHERE category='CONTRACTS'").fetchall()]
+        assert ("pay_app", "Payment Application") in rows and not any(k == "bond" for k, _ in rows)
+        conn.execute("INSERT INTO document_requirements (category, requirement_key, label, sort_order) "
+                     "VALUES ('CONTRACTS', 'bond', 'Payment / Performance Bond', 4)")   # both present: bond goes
+        conn.commit()
+        doc_intake.ensure_schema(conn)
+        keys = [r["requirement_key"] for r in conn.execute(
+            "SELECT requirement_key FROM document_requirements WHERE category='CONTRACTS'").fetchall()]
+        assert keys.count("pay_app") == 1 and "bond" not in keys
+        cur = conn.execute(
+            "INSERT INTO project_documents (project_code, category, requirement_key, title, doc_type, file_path, "
+            "file_name, superseded, uploaded_at, type_key) VALUES (?, 'CONTRACTS', 'bond', 'Performance bond', 'PDF', ?, "
+            "'bond.pdf', 0, ?, 'bond')", (PROJ, str(DATA_ROOT / "legacy-bond.pdf"), TODAY.isoformat()))
+        bond_id = cur.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+    pay = _payload(admin)
+    contracts = [c for c in pay["categories"] if c["category"] == "CONTRACTS"][0]
+    assert "bond" not in {it["requirement_key"] for it in contracts["items"]}
+    legacy_bond = [d for d in contracts["extras"] if d["id"] == bond_id]
+    assert legacy_bond and legacy_bond[0]["type_label"] == "Payment / Performance Bond"   # kept, named, filed
+    assert all(t["key"] != "bond" for t in _data(admin.get("/api/documents/types"))["types"])
+    assert doc_types.label("bond") == "Payment / Performance Bond" and doc_types.get("bond") is None
+    assert doc_types.get("aia_g702")["label"] == "Payment Application (AIA G702/G703)"
+    checks += 1
+
+    # ---- several of one type: a new pay app or certificate files alongside, nothing hidden
+    _fake(title="Pay App #6", category="CONTRACTS", requirement_key="pay_app", type_key="aia_g702")
+    pa = _data(_drop(admin, name="pay app 6.pdf", body=b"%PDF-1.4 pay app six %%EOF"))
+    r = admin.post(f"/api/documents/intake/{pa['id']}/approve", json={"type_key": "aia_g702"})
+    assert r.status_code == 201
+    pay_app2 = _data(r)["id"]
+    _fake(title="COI — Umbrella", category="CONTRACTS", requirement_key="coi", type_key="coi", expiry_date=D(300))
+    cu = _data(_drop(admin, name="umbrella coi.pdf", body=b"%PDF-1.4 umbrella %%EOF"))
+    r = admin.post(f"/api/documents/intake/{cu['id']}/approve", json={"type_key": "coi"})
+    assert r.status_code == 201
+    umb = _data(r)["id"]
+    ck = _checklist(admin)
+    assert {pay_app1, pay_app2} <= {d["id"] for d in ck["pay_app"]["docs"]} and ck["pay_app"]["status"] == "on_file"
+    assert ck["pay_app"]["label"] == "Payment Application"
+    assert {doc["id"], umb} <= {d["id"] for d in ck["coi"]["docs"]}
+    conn = _db()
+    try:
+        assert all(not r["superseded"] for r in conn.execute(
+            f"SELECT superseded FROM project_documents WHERE id IN (?, ?, ?, ?)",
+            (pay_app1, pay_app2, doc["id"], umb)).fetchall())
+    finally:
+        conn.close()
+    checks += 1
+
+    # ---- what fits the job: its type, access methods, billing and drops
+    assert not doc_suggest.applies("drop_layout", {"project_type": "facade", "access": None, "has_drops": False})
+    assert doc_suggest.applies("drop_layout", {"project_type": "facade", "access": ["suspended_scaffold"]})
+    assert doc_suggest.applies("drop_layout", {"project_type": "facade", "access": [], "has_drops": True})
+    assert not doc_suggest.applies("rope_access_plan", {"access": ["suspended_scaffold"]})
+    assert doc_suggest.applies("rope_access_plan", {"access": ["rope_access"]})
+    assert not doc_suggest.applies("fisp_ack", {"project_type": "garage"}) and doc_suggest.applies("fisp_ack", {"project_type": "facade"})
+    assert not doc_suggest.applies("pay_app", {"billing_type": "lump_sum"}) and doc_suggest.applies("pay_app", {"billing_type": None})
+    assert not doc_suggest.applies("after_hours", {}) and doc_suggest.suggestable("after_hours", {})
+    assert doc_suggest.applies("coi", {"project_type": "garage", "access": []}) and doc_suggest.applies("drop_layout", None)
+
+    def _job(**cols):
+        conn = _db()
+        try:
+            for k, v in cols.items():
+                conn.execute(f"UPDATE projects SET {k} = ? WHERE project_code = ?", (v, PROJ))
+            conn.commit()
+        finally:
+            conn.close()
+
+    _job(project_type="facade", access_methods=None, billing_type=None)
+    pay = _payload(admin)
+    keys = {it["requirement_key"] for c in pay["categories"] for it in c["items"]}
+    assert pay["job"]["project_type"] == "facade" and pay["job"]["access_set"] is False
+    assert not keys & {"drop_layout", "best_permit", "scaffold_eng", "rope_access_plan"}, keys   # no drops, no access set
+    assert {"fisp_ack", "sidewalk_shed", "pay_app", "sov"} <= keys
+    assert "drop_layout" not in {g["type_key"] for g in pay["suggestions"]}
+    why = {x["requirement_key"]: x["why"] for x in pay["job"]["not_asked"]}   # "Not asked on this job: …"
+    assert why.get("drop_layout") == "no suspended scaffold or drops" and why.get("rope_access_plan") == "no rope access", why
+    assert "after_hours" not in why and "coi" not in why
+    # every missing required item is listed in the suggestions ("Still needed"), not only as an empty row
+    missing = {(c["category"], it["requirement_key"]) for c in pay["categories"] for it in c["items"] if it["status"] == "missing"}
+    listed = {(g["category"], doc_types.get(g["type_key"])["requirement_key"]) for g in pay["suggestions"] if g["on_checklist"]}
+    assert missing and missing <= listed, missing - listed
+    assert any(g["origin"] == "checklist" for g in pay["suggestions"])
+    req = [it for c in pay["categories"] for it in c["items"] if it["required"]]
+    assert pay["readiness"]["required_total"] == len(req)
+    _job(access_methods='["suspended_scaffold"]')
+    keys = {it["requirement_key"] for c in _payload(admin)["categories"] for it in c["items"]}
+    assert {"drop_layout", "best_permit", "scaffold_eng"} <= keys and "rope_access_plan" not in keys
+    # a BEST permit filed on a rope-access job no longer drags a drop layout / rigging engineering in
+    _job(access_methods='["rope_access"]')
+    _fake(title="BEST permit", category="PERMITS", requirement_key="best_permit", type_key="best_permit")
+    bp = _data(_drop(admin, name="best.pdf", body=b"%PDF-1.4 best permit %%EOF"))
+    assert admin.post(f"/api/documents/intake/{bp['id']}/approve", json={"type_key": "best_permit"}).status_code == 201
+    pay = _payload(admin)
+    sk = {g["type_key"] for g in pay["suggestions"]}
+    assert not sk & {"drop_layout", "scaffold_eng"}, sk
+    items = {it["requirement_key"]: it for c in pay["categories"] for it in c["items"]}
+    assert items["best_permit"]["required"] is False and items["best_permit"]["status"] == "on_file"   # filed: still shown
+    assert "rope_access_plan" in items
+    # a garage job: no FISP paperwork; lump sum: no Schedule of Values / pay app required
+    _job(project_type="garage", access_methods=None, billing_type="lump_sum")
+    pay = _payload(admin)
+    items = {it["requirement_key"]: it for c in pay["categories"] for it in c["items"]}
+    assert not set(items) & {"fisp_ack", "fisp_report", "final_fisp", "sov"}
+    assert items["pay_app"]["required"] is False   # two pay apps are filed: still shown, not counted
+    _job(project_type="generic", access_methods=None, billing_type=None)
+    checks += 1
+
     # ---- the tab: Specifications + permits & insurance sections are gone; suggestions + party are in
     html = (ROOT / "dashboard-static.html").read_text(encoding="utf-8")
     for gone in ("proj-specs-tbody", "PROJ_loadAttachedSpecs", 'id="pd-package"', 'id="pk-overlay"', "renderPackage"):
         assert gone not in html, gone
     for there in ('id="pd-sugg"', "renderSuggest", "data-dzparty", "suggestions/dismiss",
                   "data-dzname", "data-ren=", "data-delyes", "duplicate_of",
-                  "pdf_view.js?v=2", "previewDoc(", "pd-btn-view"):
+                  "pdf_view.js?v=2", "previewDoc(", "pd-btn-view",
+                  # 2026-10-23: Filed = filed only; Still needed; Additional documents; a second one files alongside
+                  "Still needed for this job", 'id="pd-sugg-not"', "Not asked on this job: ", "function addlHtml()",
+                  "data-addl-add=", "Additional documents", "asNewer:false", "This replaces <b>"):
         assert there in html, there
+    for gone in ("function missingRow(", "rows.push(missingRow(", "' missing</span>'", "asNewer:true", "Untick to keep both"):
+        assert gone not in html, gone
     # one drop = one upload: the tab takes the drop in the capture phase so file_drop.js
     # (document, bubble) sees it handled and does not also feed #pd-cv-input
     assert "window.addEventListener('drop'" not in html

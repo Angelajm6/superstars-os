@@ -16,7 +16,7 @@
 <script src="/files/static/js/company_nav.js?v=1021"></script>
 <script src="/files/static/js/claude_drawer.js?v=15" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
-<script src="/files/static/js/new_project_modal.js?v=1016" defer></script>
+<script src="/files/static/js/new_project_modal.js?v=1024" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1010" defer></script>
 <script src="/files/static/js/gcal_connect.js?v=1017" defer></script>
 <script src="/files/static/js/inbox_schedule.js?v=5" defer></script>
@@ -125,6 +125,36 @@
   }
   @keyframes pj-up { from { transform: translateY(40px); opacity: .4; } }
   .pj-sw { width: 12px; height: 12px; border-radius: 4px; flex: none; margin-top: 3px; }
+  /* 2026-10-23 — the job's PMs, edited from the Projects table (popover; a bottom sheet on a phone) */
+  .pj-pmc { display: inline-flex; align-items: center; gap: 6px; }
+  .pj-pmb { width: 28px; height: 28px; flex: none; border: 1px solid var(--line); background: #fff; border-radius: 7px; display: inline-grid; place-items: center; cursor: pointer; color: var(--muted); font: inherit; font-size: 16px; line-height: 1; padding: 0; }
+  .pj-pmb:hover, .pj-pmb[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+  .pj-pmb svg { width: 14px; height: 14px; }
+  .pj-cardl { display: flex; flex-direction: column; gap: 5px; text-decoration: none; color: inherit; }
+  .pj-cpm { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .pj-cpm .n { flex: 1; min-width: 0; }
+  .pj-cpm .btn-sm { min-height: 44px; }
+  .pj-pm { position: absolute; z-index: 9050; width: 340px; background: #fff; border: 1px solid var(--line); border-radius: var(--r-card, 14px); box-shadow: 0 12px 32px rgba(34,38,51,.14); padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; }
+  .pj-pm[hidden], .pj-pmscrim[hidden] { display: none; }
+  .pj-pm h3 { margin: 0; font-size: 15px; }
+  .pj-pm .lst { display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow: auto; }
+  .pj-pm label { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; font-size: 14px; cursor: pointer; }
+  .pj-pm label.on { background: var(--accent-soft); }
+  .pj-pm input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+  .pj-pm .old { border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .pj-pm .old h4 { margin: 0; font-size: 12px; font-weight: 700; color: var(--status-behind-deep, #A8382B); text-transform: uppercase; letter-spacing: .4px; }
+  .pj-pm .old div { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .pj-pm .old div > span { flex: 1; min-width: 0; }
+  .pj-pm .old div.gone > span { text-decoration: line-through; color: var(--muted); }
+  .pj-pm .note { font-size: 12px; color: var(--ink-2); background: var(--canvas); border-radius: 8px; padding: 8px 10px; }
+  .pj-pm .ft { display: flex; justify-content: flex-end; gap: 8px; }
+  .pj-pmscrim { position: fixed; inset: 0; z-index: 9040; background: transparent; }
+  @media (max-width: 860px) {
+    .pj-pm { position: fixed; left: 0 !important; right: 0; bottom: 0; top: auto !important; width: auto; border-radius: 14px 14px 0 0; padding: 14px 18px calc(20px + env(safe-area-inset-bottom, 0px)); animation: pj-up .2s ease; }
+    .pj-pm label { min-height: 48px; padding: 0 10px; font-size: 15px; }
+    .pj-pm .ft button { min-height: 46px; flex: 1; } .pj-pm .old button { min-height: 44px; flex: none; }
+    .pj-pmscrim { background: rgba(34,38,51,.38); }
+  }
   .cp-muted { color: var(--muted); }
   .cp-pill { display: inline-block; font-size:13px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--status-oat-soft, #f3f0e9); color: #6b6455; white-space: nowrap; }
   .cp-pill.ok { background: var(--status-complete-soft, #e7f6f0); color: var(--status-complete-deep, #0c7a5f); }
@@ -1476,6 +1506,8 @@
 <aside class="prx-drawer" id="prx-drawer" hidden aria-label="Proposal"></aside>
 <!-- Projects → Ready to start: signed proposals not yet a project (a sheet from the bottom on phones) -->
 <div class="prx-scrim" id="pj-scrim" hidden></div>
+<div class="pj-pmscrim" id="pj-pmscrim" hidden></div>
+<section class="pj-pm" id="pj-pm" hidden role="dialog" aria-modal="true" aria-labelledby="pj-pm-h"></section>
 <aside class="prx-drawer pj-drawer" id="pj-drawer" hidden role="dialog" aria-modal="true" aria-label="Ready to start"></aside>
 <!-- #360 — Client portal: manage one client login (project, sections, preset, preview, password) -->
 <div class="cp-overlay" id="pa-overlay" role="dialog" aria-modal="true" aria-labelledby="pa-title">
@@ -3034,7 +3066,7 @@
   // ---------- PROJECTS (#330) — jobs, one page each ----------
   // 2026-10-23: the list is the first thing on the tab. Signed proposals that are not a job yet wait behind
   // "Ready to start" (only here, not on the Dashboard); each active job carries one "Needs you" note.
-  const PJ = { rows: [], ready: [], waiting: 0, status: 'active' };
+  const PJ = { rows: [], ready: [], waiting: 0, status: 'active' };   // the portal is admin / C-suite only: both may edit a job's PMs
   async function loadProjects() {
     if (!PJ.rows.length) skeleton($('pj-table'), 5);
     try {
@@ -3078,15 +3110,14 @@
       { key: 'job_number', label: '#', num: true, render: r => r.job_number != null ? `<span class="pj-no">#${r.job_number}</span>` : '—' },
       { key: 'name', label: 'Job', render: r => `<div class="pj-job"><span class="pj-sw" style="background:${esc(r.color || '#475569')}" title="Calendar color"></span><div><div class="pj-name">${esc(r.name || r.project_code)}</div><div class="pj-sub">${esc(r.project_code)}${r.address ? ' · ' + esc(r.address) : ''} · ${r.billing_type ? esc(r.billing_short) : 'billing not set'}</div></div><button type="button" class="prx-pen" data-pj-edit="${esc(r.project_code)}" aria-label="Edit project" title="Edit project">${PRX_PEN}</button></div>` },
       { key: 'client_name', label: 'Client', render: r => esc(r.client_name || '—') },
-      { key: 'pms', label: 'PM', sortVal: r => r.pms.map(x => x.name).join(', '), render: r => r.pms.length ? esc(r.pms.map(x => x.name).join(', ')) : '<span class="cp-muted">unassigned</span>' },
+      { key: 'pms', label: 'PM', sortVal: r => r.pms.map(x => x.name).join(', '), render: r => `<span class="pj-pmc">${r.pms.length ? esc(r.pms.map(x => x.name).join(', ')) : '<span class="cp-muted">unassigned</span>'}${`<button type="button" class="pj-pmb" data-pj-pm="${esc(r.project_code)}" aria-label="${r.pms.length ? 'Edit' : 'Assign'} project managers">${r.pms.length ? PRX_PEN : '+'}</button>`}</span>` },
       { key: 'crew_count', label: 'Crew', num: true },
       { key: 'contract', label: 'Contract', num: true, sortVal: r => r.contract.value || 0, render: r => r.contract.value != null ? money.format(r.contract.value) : '—' },
-      { key: 'open_value', label: 'Open invoices', num: true, render: r => r.open_value ? money.format(r.open_value) : '—' },
       { key: 'last_report_date', label: 'Last report', render: r => pjLast(r.last_report_date) },
       { key: 'need', label: 'Needs you', sortVal: r => { const n = pjNeed(r); return n ? ({ bad: 0, warn: 1, info: 2 })[n.cls] : 3; }, render: pjNeedHtml },
     ], rows, { defaultSort: { key: 'job_number', dir: 'asc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.href = '/projects/' + encodeURIComponent(r.project_code); },
       emptyTitle: q ? 'No projects match' : 'No jobs here', emptySub: q ? 'Try a different search.' : 'Add one with "+ New project" — the daily report and the worker portal work for it right away.' });
-    $('pj-cards').innerHTML = rows.length ? rows.slice().sort((a, b) => (a.job_number || 0) - (b.job_number || 0)).map(r => `<a class="pj-cardi" href="/projects/${encodeURIComponent(r.project_code)}"><span class="bar" style="background:${esc(r.color || '#475569')}" aria-hidden="true"></span><span class="b"><span class="r1"><span class="pj-name">${esc(r.name || r.project_code)}</span><span class="pj-sub">${r.job_number != null ? '#' + r.job_number : esc(r.project_code)}</span></span><span class="pj-sub">${esc(r.address || '')}</span><span class="meta"><span>${esc(r.client_name || '—')}</span><span>${r.crew_count} crew</span><span>Report: ${pjLast(r.last_report_date)}</span></span>${pjNeed(r) || r.status !== 'active' ? pjNeedHtml(r) : ''}</span></a>`).join('')
+    $('pj-cards').innerHTML = rows.length ? rows.slice().sort((a, b) => (a.job_number || 0) - (b.job_number || 0)).map(r => `<div class="pj-cardi"><span class="bar" style="background:${esc(r.color || '#475569')}" aria-hidden="true"></span><span class="b"><a class="pj-cardl" href="/projects/${encodeURIComponent(r.project_code)}"><span class="r1"><span class="pj-name">${esc(r.name || r.project_code)}</span><span class="pj-sub">${r.job_number != null ? '#' + r.job_number : esc(r.project_code)}</span></span><span class="pj-sub">${esc(r.address || '')}</span><span class="meta"><span>${esc(r.client_name || '—')}</span><span>${r.crew_count} crew</span><span>Report: ${pjLast(r.last_report_date)}</span></span></a><span class="pj-cpm"><span class="cp-muted">PM</span><span class="n">${r.pms.length ? esc(r.pms.map(x => x.name).join(', ')) : 'unassigned'}</span>${`<button type="button" class="btn-ghost btn-sm" data-pj-pm="${esc(r.project_code)}">${r.pms.length ? 'Edit PMs' : 'Assign PM'}</button>`}</span>${pjNeed(r) || r.status !== 'active' ? pjNeedHtml(r) : ''}</span></div>`).join('')
       : empty(q ? 'No projects match' : 'No jobs here', q ? 'Try a different search.' : 'Add one with "+ New project".');
   }
   function drawReady() {
@@ -3117,6 +3148,70 @@
     d.disabled = true;
     try { await api('/projects/ready/' + encodeURIComponent(d.dataset.pjDismiss) + '/dismiss', { method: 'POST' }); toast('Removed. It stays signed in Proposals.'); PJ.ready = PJ.ready.filter(r => String(r.proposal_id) !== d.dataset.pjDismiss); drawReady(); if (!PJ.ready.length && !PJ.waiting) closeReady(); }
     catch (ex) { toast(ex.message, true); d.disabled = false; }
+  }
+  // ---------- a job's PMs (2026-10-23): GET / PUT /api/company/portal/projects/<code>/pms ----------
+  // Only PM rows (and outdated ones: an inactive account, or someone who is no longer a PM) are
+  // edited here; the job's clients / architects keep their access (shown as counts only).
+  const PM = { code: null, data: null, pick: new Set(), drop: new Set(), btn: null };
+  const PM_ROLE = { client: 'client', architect: 'architect', estimator: 'estimator', super: 'superintendent' };
+  async function openPms(code, btn) {
+    PM.code = code; PM.btn = btn; PM.data = null;
+    const box = $('pj-pm'); box.innerHTML = '<div class="cp-muted">Loading…</div>'; box.hidden = false; $('pj-pmscrim').hidden = false;
+    placePms(); if (btn) btn.setAttribute('aria-expanded', 'true');
+    try { PM.data = (await api('/projects/' + encodeURIComponent(code) + '/pms')).data; }
+    catch (e) { toast(e.message, true); closePms(); return; }
+    PM.pick = new Set(PM.data.assigned.filter(u => !u.outdated).map(u => u.user_id)); PM.drop = new Set();
+    drawPms(); placePms();
+    const f = box.querySelector('input,button'); if (f) f.focus();
+  }
+  function placePms() {
+    const box = $('pj-pm'), b = PM.btn;
+    if (!b || window.matchMedia('(max-width: 860px)').matches) return;
+    const r = b.getBoundingClientRect();
+    box.style.top = (window.scrollY + r.bottom + 6) + 'px';
+    box.style.left = Math.max(12, Math.min(window.scrollX + r.left - 150, window.scrollX + document.documentElement.clientWidth - 352)) + 'px';
+  }
+  function drawPms() {
+    const d = PM.data, row = PJ.rows.find(r => r.project_code === PM.code) || {};
+    const names = new Map(d.available.map(u => [u.user_id, u.name || u.email]));
+    d.assigned.filter(u => !u.outdated).forEach(u => names.set(u.user_id, u.name || u.email));
+    const opts = [...names].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
+    const old = d.assigned.filter(u => u.outdated);
+    const why = u => u.role === 'pm' ? 'account inactive' : ('now ' + (u.role === 'c_suite' ? 'C-suite' : u.role.charAt(0).toUpperCase() + u.role.slice(1)) + ', not a PM');
+    const others = Object.entries(d.others || {}).map(([k, n]) => n + ' ' + (PM_ROLE[k] || k) + (n > 1 ? 's' : ''));
+    $('pj-pm').innerHTML = `<div><h3 id="pj-pm-h">Project managers</h3><div class="cp-muted" style="font-size:12px">${row.job_number != null ? '#' + row.job_number + ' · ' : ''}${esc(PM.code)} · pick one or more</div></div>
+      <div class="lst">${opts.length ? opts.map(([id, n]) => `<label class="${PM.pick.has(id) ? 'on' : ''}"><input type="checkbox" data-pm-u="${id}"${PM.pick.has(id) ? ' checked' : ''}>${esc(n)}</label>`).join('') : '<div class="cp-muted">No active PM accounts yet. Add one under Company › Users.</div>'}</div>
+      ${old.length ? `<div class="old"><h4>Outdated · ${old.length}</h4>${old.map(u => `<div class="${PM.drop.has(u.user_id) ? 'gone' : ''}"><span>${esc(u.name || u.email)} <span class="cp-muted" style="font-size:12px">· ${esc(why(u))}</span></span><button type="button" class="btn-ghost btn-sm" data-pm-drop="${u.user_id}">${PM.drop.has(u.user_id) ? 'Keep' : 'Remove'}</button></div>`).join('')}</div>` : ''}
+      ${others.length ? `<div class="note">Also on this job: ${esc(others.join(' · '))}. Their access is managed under Clients › Portal access and is not changed here.</div>` : ''}
+      <div class="ft"><button type="button" class="btn-ghost" data-pm-cancel>Cancel</button><button type="button" class="btn-primary" data-pm-save>Save</button></div>`;
+  }
+  function closePms() {
+    $('pj-pm').hidden = true; $('pj-pmscrim').hidden = true;
+    if (PM.btn) { PM.btn.setAttribute('aria-expanded', 'false'); if (document.body.contains(PM.btn)) PM.btn.focus(); }
+    PM.code = null; PM.btn = null;
+  }
+  async function savePms(btn) {
+    const keep = PM.data.assigned.filter(u => u.outdated && !PM.drop.has(u.user_id)).map(u => u.user_id);   // outdated stay unless Removed
+    btn.disabled = true;
+    try {
+      const { data } = await api('/projects/' + encodeURIComponent(PM.code) + '/pms', { method: 'PUT', body: JSON.stringify({ user_ids: [...PM.pick, ...keep] }) });
+      const r = PJ.rows.find(x => x.project_code === PM.code);
+      if (r) r.pms = data.assigned.filter(u => !u.outdated).map(u => ({ user_id: u.user_id, name: u.name || u.email, email: u.email }));
+      const n = (data.added || []).length + (data.removed || []).length;
+      toast(n ? 'Project managers saved' : 'No change'); closePms(); drawProjects();
+    } catch (e) { toast(e.message, true); btn.disabled = false; }
+  }
+  function pmsClick(e) {
+    const t = e.target;
+    if (t.closest('[data-pm-cancel]')) { closePms(); return; }
+    const s = t.closest('[data-pm-save]'); if (s) { savePms(s); return; }
+    const d = t.closest('[data-pm-drop]');
+    if (d) { const id = +d.dataset.pmDrop; PM.drop.has(id) ? PM.drop.delete(id) : PM.drop.add(id); drawPms(); return; }
+  }
+  function pmsChange(e) {
+    const c = e.target.closest('[data-pm-u]'); if (!c) return;
+    const id = +c.dataset.pmU; c.checked ? PM.pick.add(id) : PM.pick.delete(id);
+    c.closest('label').classList.toggle('on', c.checked);
   }
   // ---------- BUILDINGS (#304) ----------
   async function clientOptions(selectEl, keepValue) {
@@ -5787,6 +5882,12 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('pj-drawer').hidden) closeReady(); });
   $('pj-seg').addEventListener('click', e => { const b = e.target.closest('[data-status]'); if (!b) return; PJ.status = b.dataset.status; drawProjects(); });
   $('pj-table').addEventListener('click', e => { const b = e.target.closest('[data-pj-edit]'); if (b) window.SSCNewProject.edit(b.dataset.pjEdit); });
+  ['pj-table', 'pj-cards'].forEach(id => $(id).addEventListener('click', e => { const b = e.target.closest('[data-pj-pm]'); if (b) { e.preventDefault(); openPms(b.dataset.pjPm, b); } }));
+  $('pj-pm').addEventListener('click', pmsClick);
+  $('pj-pm').addEventListener('change', pmsChange);
+  $('pj-pm').addEventListener('keydown', e => { if (e.key === 'Escape') closePms(); });
+  $('pj-pmscrim').addEventListener('click', closePms);
+  window.addEventListener('resize', () => { if (!$('pj-pm').hidden) placePms(); });
   document.addEventListener('ssc:project-updated', e => { toast('Project ' + ((e.detail || {}).project_code || '') + ' saved'); if (state.view === 'projects') loadProjects(); });
   document.addEventListener('ssc:project-deleted', e => { e.preventDefault(); toast('Project ' + ((e.detail || {}).project_code || '') + ' deleted'); if (state.view === 'projects') loadProjects(); else location.hash = '#projects'; });
   document.addEventListener('ssc:project-created', e => { const d = e.detail || {}; toast('Project ' + d.project_code + ' created'); if (state.view === 'projects') loadProjects(); else location.hash = '#projects'; });
