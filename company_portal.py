@@ -201,6 +201,8 @@ def ensure_schema(conn) -> None:
     # #318 — the vault: vehicles, per-document files, and the two link columns
     import company_vault
     company_vault.ensure_schema(conn)
+    import company_templates   # 2026-10-26 — the company's template library
+    company_templates.ensure_schema(conn)
 
 
 # ============================ buildings (#304: the table) ============================
@@ -1132,5 +1134,7 @@ def register(app) -> None:
 
     import company_vault
     company_vault.register_routes(app, gate)   # #318 — vehicles + document files
+    import company_templates
+    company_templates.register_routes(app, gate)   # 2026-10-26 — template library, sorted by Claude
     import worker_history
     worker_history.register_routes(app, gate)   # #320 — worker job history + payroll view

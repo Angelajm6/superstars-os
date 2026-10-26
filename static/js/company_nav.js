@@ -62,8 +62,9 @@
       at: [['/company', 'workforce'], ['/', 'workforce'], ['/', 'hours'], ['/', 'cert-library'], ['/', 'cert-health']],
       sub: [['Workers', '/company#workforce'], ['Onboarding & directory', '/#workforce'], ['Certifications', '/#cert-library'], ['Sign-ins', '/#hours']] },
     { key: 'company', label: 'Company', href: '/company#company', roles: COMPANY,
-      at: [['/company', 'company'], ['/company', 'compliance'], ['/', 'compliance'], ['/', 'specs']],
-      sub: [['Documents & vehicles', '/company#company'], ['Compliance documents', '/#compliance'], ['Specs', '/#specs']] },
+      at: [['/company', 'company'], ['/company', 'templates'], ['/company', 'compliance'], ['/', 'compliance'], ['/', 'specs']],
+      // Templates (2026-10-26): the company's blank forms, letters and plans, sorted by Claude (company_templates.py)
+      sub: [['Documents & vehicles', '/company#company'], ['Templates', '/company#templates'], ['Compliance documents', '/#compliance'], ['Specs', '/#specs']] },
     // Claude (2026-10-15): the full page of the "Ask Claude" window, for everyone Claude is offered to; last tab (2026-10-16)
     { key: 'claude', label: 'Claude', href: '/claude', roles: ['admin', 'c_suite', 'pm', 'super'], at: [['/claude', null]] }
   ];

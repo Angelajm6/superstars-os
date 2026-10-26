@@ -44,6 +44,23 @@ grant, or elevation code.
   name or path. The Task subagent has no Bash (hands back a PROVENANCE block). `smoke_construction_agent.py` (throwaway DB) is in
   the gate. Still open: `db_layer.py` falls back to `superstars.db` when `SSC_DB_URL` is unset (app-wide).
 
+### Company templates, step 1: the library (Bookore, 2026-10-26)
+
+* Accepted prototype: https://claude.ai/artifact/JxTQdUZxuX2JMCcHEa2pDx (three steps: library → a new job picks templates up →
+  redesign + house style). This PR is step 1. Steps 2 and 3 are next, in that order.
+* **Company → Templates** (`/company#templates`, admin / C-suite): drop or pick many files (PDF, Word, Excel, CSV, photo) →
+  one review card per file → **Approve** files it. Folders = the six project folders + Letters & notices, Field forms (+ Other).
+  Rows: Preview (shared `pdf_view.js` panel), Edit, Delete (second tap).
+* `company_templates.py`: table `company_template` (boot-ensured from `company_portal.ensure_schema`; migration
+  `apply_company_templates.py` on the ledger + `BOOT_ENSURED`). Files in `data_room/company_templates/`, read only through
+  `GET /api/company/portal/templates/<id>/file`. Same file twice = one card (`content_sha256`).
+* **Claude's read** (`call_model`, `DOC_SCAN_MODEL` / `TEMPLATE_READ_MODEL`, structured output): name, folder, `type_key`
+  (only a type in that folder: it decides the job's checklist slot in step 2), `offer` (job types / access methods / billing
+  types / regions, empty = every job), `fields` (each blank tagged with the job fact that fills it, for step 2) and a design
+  verdict `ok | dated` with reasons (for step 3). Word goes as its text. No key → the file waits as `unread`.
+  Test seam `TEMPLATE_READ_FAKE`. The live model read was NOT run locally (no key).
+* Guard: `tests/smoke_company_templates.py` (45 checks).
+
 ### Schedule window rebuilt (Bookore, 2026-10-24)
 
 * Accepted prototype: https://claude.ai/artifact/HSKLWGfpYbD5YES2Jm9ook (row 2). One call: `GET /api/projects/<code>/schedule?start=`
