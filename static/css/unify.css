@@ -80,7 +80,7 @@ body .views-container .pay-acts .pay-btn {
 body .views-container .exp-iconbtn { width: var(--ctl-h-sm); height: var(--ctl-h-sm); min-height: 0; padding: 0; border-radius: var(--ctl-r); }
 
 /* ---- Fields ---- */
-body .views-container input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+body .views-container input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not(.ssc-tp-num),
 body .views-container select,
 body .views-container textarea {
   box-sizing: border-box; min-height: var(--ctl-h); padding: 0 12px;
@@ -88,7 +88,7 @@ body .views-container textarea {
   font: inherit; font-size: 14px;
 }
 body .views-container textarea { padding: 10px 12px; min-height: 88px; }
-body .views-container input:focus,
+body .views-container input:not(.ssc-tp-num):focus,
 body .views-container select:focus,
 body .views-container textarea:focus { outline: 2px solid var(--accent-edge); outline-offset: 1px; border-color: var(--accent); }
 
@@ -192,8 +192,8 @@ body .ssc-main input:not(.ssc-tp-num):focus, body .ssc-main select:focus, body .
   outline: 2px solid var(--accent-edge); outline-offset: 1px; border-color: var(--accent);
 }
 /* Typed time picker (timepicker.js): the wrapper is the field; its HH/MM boxes stay bare so the digits fit */
-body .ssc-main .ssc-tp { min-height: var(--ctl-h); padding: 0 8px; border: 1px solid var(--line); border-radius: var(--ctl-r); font-size: 14px; }
-body .ssc-main .ssc-tp:focus-within { outline: 2px solid var(--accent-edge); outline-offset: 1px; border-color: var(--accent); }
+body .ssc-tp { min-height: var(--ctl-h); padding: 0 8px; border: 1px solid var(--line); border-radius: var(--ctl-r); font-size: 14px; }
+body .ssc-tp:focus-within { outline: 2px solid var(--accent-edge); outline-offset: 1px; border-color: var(--accent); }
 
 /* ---- Sub-tabs: ONE pill everywhere ---- */
 body .ssc-subtabs { gap: 8px; }
@@ -313,7 +313,7 @@ body :is(.pd-modal, .fp-modal, .mt-modal, .pay-modal, .pk-modal, .jx-modal, .pc-
 /* ---- Fields and labels inside a dialog ---- */
 body :is(.pd-modal, .fp-modal, .mt-modal, .pay-modal, .pk-modal, .jx-modal, .pc-modal, .la-modal, .aia-modal,
          .cp-modal, .modal, .crm-modal, .est-modal, .np-modal)
-  :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]), select, textarea) {
+  :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not(.ssc-tp-num), select, textarea) {
   box-sizing: border-box; min-height: var(--ctl-h); padding: 0 12px; border: 1px solid var(--line);
   border-radius: var(--ctl-r); background: #fff; color: var(--ink); font: inherit; font-size: 14px;
 }
@@ -325,7 +325,7 @@ body :is(.pd-modal, .fp-modal, .mt-modal, .pay-modal, .pk-modal, .jx-modal, .pc-
   :is(.ps-money, .np-money) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]) { padding-left: 24px; }
 body :is(.pd-modal, .fp-modal, .mt-modal, .pay-modal, .pk-modal, .jx-modal, .pc-modal, .la-modal, .aia-modal,
          .cp-modal, .modal, .crm-modal, .est-modal, .np-modal)
-  :is(input, select, textarea):focus { outline: 2px solid var(--accent-edge); outline-offset: 1px; border-color: var(--accent); }
+  :is(input:not(.ssc-tp-num), select, textarea):focus { outline: 2px solid var(--accent-edge); outline-offset: 1px; border-color: var(--accent); }
 body :is(.pd-modal, .fp-modal, .mt-modal, .pay-modal, .pk-modal, .jx-modal, .pc-modal, .la-modal, .aia-modal,
          .cp-modal, .modal, .crm-modal, .est-modal, .np-modal) label {
   font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-2, #4A4F59);
