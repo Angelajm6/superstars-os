@@ -8,13 +8,16 @@ job, the access method of an exterior job, and what the job's workers see in the
   projects.access_methods  JSON list of ACCESS_METHODS keys; [] = none; NULL = never set.
                            Exterior Restoration (FR) jobs only
   projects.worker_access   JSON list of WORKER_FEATURES keys; NULL = the default (photos)
+  projects.rope_access_scope  inspection | repair — Rope Access (IRA) jobs only; NULL = inspection
+                           (the jobs made before it was asked). Decides the job's document list.
 
 Existing jobs are numbered by creation date at boot (idempotent: only rows without a number),
 and every active job without a color gets one (its old hashed color when still free).
 
   GET /api/admin/projects/setup-meta          palette, options, colors in use, the next number
   GET /api/admin/projects/<code>/setup        this job's number, color, access, worker access
-  PUT /api/admin/projects/<code>/setup        {color_index?, access_methods?, worker_access?, job_type_other? (Other jobs)}
+  PUT /api/admin/projects/<code>/setup        {color_index?, access_methods?, worker_access?, job_type_other? (Other jobs),
+                                               rope_access_scope? (Rope Access jobs)}
 """
 from __future__ import annotations
 
@@ -54,7 +57,14 @@ WORKER_KEYS = tuple(k for k, _, _ in WORKER_FEATURES)
 WORKER_DEFAULT = ("photos",)
 PROJECT_TYPE_FOR = {"FR": "facade", "PG": "garage", "IR": "interiors", "IRA": "ira", "OTH": "generic"}
 COLUMNS = (("job_number", "INTEGER"), ("color_index", "INTEGER"), ("access_methods", "TEXT"), ("worker_access", "TEXT"),
-           ("job_type_other", "TEXT"))   # what an "Other" job is (e.g. Basement excavation)
+           ("job_type_other", "TEXT"),   # what an "Other" job is (e.g. Basement excavation)
+           ("rope_access_scope", "TEXT"))   # a Rope Access job: inspection or repair work
+RA_TYPES = ("IRA",)                        # Rope Access: the job code starts IRA-
+RA_SCOPES = (("repair", "Repair work", "Facade or structure repairs done from rope"),
+             ("inspection", "Inspection", "Close-up inspection or condition survey, no repairs"))
+RA_KEYS = tuple(k for k, _, _ in RA_SCOPES)
+RA_DEFAULT = "inspection"
+RA_SUBTYPE = {"repair": "work", "inspection": "inspection"}   # the estimate's own word for it (#276)
 OTHER_TYPES = ("OTH",)                     # job types described in words instead of picked from the list
 OTHER_MAX = 80
 
@@ -207,7 +217,26 @@ def validate(payload: dict, est_type: Optional[str]) -> dict:
         if len(text) > OTHER_MAX:
             raise ValueError(f"keep the job type under {OTHER_MAX} characters")
         out["job_type_other"] = text
+    if p.get("rope_access_scope") not in (None, ""):
+        v = str(p.get("rope_access_scope")).strip().lower()
+        if v not in RA_KEYS:
+            raise ValueError("pick repair work or inspection")
+        if (est_type or "").upper() not in RA_TYPES:
+            raise ValueError("repair work or inspection is only set on a Rope Access job")
+        out["rope_access_scope"] = v
     return out
+
+
+def _sync_estimate(conn, code: str, scope: Optional[str]) -> None:
+    """Keep the job's estimate saying the same (estimate.ra_subtype inspection | work)."""
+    if not scope:
+        return
+    try:
+        conn.execute("UPDATE estimate SET ra_subtype = ? WHERE converted_project_code = ? AND division = 'rope_access'",
+                     (RA_SUBTYPE[scope], code))
+        conn.commit()
+    except Exception:   # a database without the #276 lead columns
+        conn.rollback()
 
 
 def est_type_of(code: str) -> str:
@@ -217,17 +246,25 @@ def est_type_of(code: str) -> str:
 def assign_new(conn, code: str, est_type: str, payload: Optional[dict] = None) -> dict:
     """A job just created through onboarding: its number, its color (the chosen one, else a free
     one), its type, access methods and worker access."""
-    if not _has_column(conn, "projects", "job_number") or not _has_column(conn, "projects", "job_type_other"):
+    if not _has_column(conn, "projects", "job_number") or not _has_column(conn, "projects", "rope_access_scope"):
         ensure(conn)   # a database created after boot
     vals = validate(payload or {}, est_type)
     vals.setdefault("color_index", pick_color(conn, exclude_code=code))
     vals.setdefault("worker_access", json.dumps(list(WORKER_DEFAULT)))
     if est_type.upper() in ACCESS_TYPES:
         vals.setdefault("access_methods", json.dumps([]))
+    if est_type.upper() in RA_TYPES and "rope_access_scope" not in vals:   # not picked: what its estimate says
+        try:
+            r = conn.execute("SELECT ra_subtype FROM estimate WHERE converted_project_code = ?", (code,)).fetchone()
+        except Exception:   # a database without the #276 lead columns
+            conn.rollback()
+            r = None
+        vals["rope_access_scope"] = "repair" if r and r[0] == "work" else RA_DEFAULT
     pt = PROJECT_TYPE_FOR.get(est_type.upper())
     sets = ", ".join(f"{k} = ?" for k in vals)
     conn.execute(f"UPDATE projects SET {sets} WHERE project_code = ?", (*vals.values(), code))
     conn.commit()
+    _sync_estimate(conn, code, vals.get("rope_access_scope"))
     if pt:
         try:   # project_type has a CHECK constraint on older databases: never fail a create over it
             conn.execute("UPDATE projects SET project_type = ? WHERE project_code = ?", (pt, code))
@@ -248,8 +285,8 @@ def assign_new(conn, code: str, est_type: str, payload: Optional[dict] = None) -
 
 def setup(conn, code: str) -> Optional[dict]:
     try:
-        r = conn.execute("SELECT project_code, name, status, job_number, color_index, access_methods, worker_access, job_type_other "
-                         "FROM projects WHERE project_code = ?", (code,)).fetchone()
+        r = conn.execute("SELECT project_code, name, status, job_number, color_index, access_methods, worker_access, job_type_other, "
+                         "rope_access_scope FROM projects WHERE project_code = ?", (code,)).fetchone()
     except Exception:   # a database from before the job_type_other column
         conn.rollback()
         r = conn.execute("SELECT project_code, name, status, job_number, color_index, access_methods, worker_access "
@@ -260,10 +297,14 @@ def setup(conn, code: str) -> Optional[dict]:
     et = est_type_of(code)
     import estimates
     other = (r.get("job_type_other") or "").strip() if et in OTHER_TYPES else ""
+    ra = ((r.get("rope_access_scope") or RA_DEFAULT) if et in RA_TYPES else None)
+    ra = ra if ra in RA_KEYS or ra is None else RA_DEFAULT
     return {"project_code": code, "job_number": r.get("job_number"), "color_index": color_of(r), "color": color_hex(r),
             "est_type": et, "job_type_other": other or None,
             "job_type_label": other or estimates.EST_TYPES.get(et, et), "other_applies": et in OTHER_TYPES,
             "access_applies": et in ACCESS_TYPES,
+            "rope_access_applies": et in RA_TYPES, "rope_access_scope": ra,
+            "rope_access_label": next((l for k, l, _ in RA_SCOPES if k == ra), None),
             "access_methods": access_methods(r), "access_labels": access_labels(r), "worker_access": worker_access(r)}
 
 
@@ -275,6 +316,7 @@ def update(conn, code: str, payload: dict, *, actor=None) -> dict:
         sets = ", ".join(f"{k} = ?" for k in vals)
         conn.execute(f"UPDATE projects SET {sets}, updated_at = CURRENT_TIMESTAMP WHERE project_code = ?", (*vals.values(), code))
         conn.commit()
+        _sync_estimate(conn, code, vals.get("rope_access_scope"))
         log.info("job setup updated %s fields=%s by=%s", code, ",".join(sorted(vals)), actor)
     return setup(conn, code)
 
@@ -285,6 +327,8 @@ def meta(conn, exclude_code: Optional[str] = None) -> dict:
             "suggested_color": pick_color(conn, exclude_code=exclude_code), "next_job_number": next_job_number(conn),
             "access_methods": [{"key": k, "label": l} for k, l in ACCESS_METHODS], "access_types": list(ACCESS_TYPES),
             "other_types": list(OTHER_TYPES), "other_max": OTHER_MAX,
+            "rope_access_types": list(RA_TYPES), "rope_access_default": RA_DEFAULT,
+            "rope_access_scopes": [{"key": k, "label": l, "hint": h} for k, l, h in RA_SCOPES],
             "worker_features": [{"key": k, "label": l, "hint": h} for k, l, h in WORKER_FEATURES],
             "worker_default": list(WORKER_DEFAULT)}
 

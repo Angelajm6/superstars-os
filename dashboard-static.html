@@ -1440,7 +1440,7 @@
               const code = decodeURIComponent((location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || '');
               const go = () => window.SSCNewProject.edit(code);
               if (window.SSCNewProject) return go();
-              const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1016'; sc.onload = go; document.head.appendChild(sc);
+              const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1026'; sc.onload = go; document.head.appendChild(sc);
             };
             document.addEventListener('click', e => { if (e.target.closest('#jx-edit')) window.SSC_editProject(); });
             const jxWx = $j('jx-wx');   // the weather block (filled by the weather loader), re-attached after each render
@@ -2008,18 +2008,17 @@
           .pd-sugg-h{display:flex;flex-direction:column;gap:2px;margin:0 2px 10px}
           .pd-sugg-h b{font-size:15px}.pd-sugg-h span{font-size:13px;color:var(--pd-muted)}
           .pd-sugg-list{background:#fff;border:1px solid var(--pd-line);border-radius:14px;box-shadow:0 1px 4px rgba(0,0,0,.04);overflow:hidden}
-          .pd-sg{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--pd-line)}
+          .pd-sg{display:flex;align-items:center;gap:12px;padding:8px 16px;min-height:48px;border-top:1px solid var(--pd-line)}
+          .pd-sg-grp{padding:10px 16px 4px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--pd-muted);border-top:1px solid var(--pd-line)}
+          .pd-sg-grp:first-child{border-top:none}
+          .pd-sg-grp+.pd-sg{border-top:none}
           .pd-sg:first-child{border-top:none}
-          .pd-sg .pd-fdot{align-self:flex-start;margin-top:6px}
+          .pd-sg .pd-fdot{align-self:center}
           .pd-sg-main{flex:1;min-width:0}
           .pd-sg-t{font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-          .pd-sg-why{font-size:13px;color:var(--ink-2,#4a4f59);margin-top:2px}
-          .pd-sg-src{font-size:12.5px;color:var(--pd-muted);margin-top:2px;overflow-wrap:anywhere}
-          .pd-sg-badge{font-size:12px;font-weight:700;border-radius:999px;padding:2px 8px;white-space:nowrap}
-          .pd-sg-badge.req{color:var(--status-behind-deep,#a8382b);background:var(--status-behind-soft,#fceeec)}
-          .pd-sg-badge.may{color:var(--pd-accent-ink);background:var(--pd-accent-soft)}
+          .pd-sg-why{font-size:12.5px;color:var(--pd-muted);margin-top:1px}
           .pd-sg-acts{display:flex;gap:6px;flex:none;align-items:center}
-          .pd-sg-more{display:block;width:100%;font:inherit;font-size:13px;font-weight:600;color:var(--pd-accent-ink);background:var(--canvas,#fafbfd);border:none;border-top:1px solid var(--pd-line);padding:10px;cursor:pointer}
+          .pd-sg-more{display:block;width:100%;font:inherit;font-size:13px;font-weight:600;color:var(--pd-accent-ink);background:var(--canvas,#fafbfd);border:none;border-top:1px solid var(--pd-line);padding:11px 16px;min-height:44px;text-align:left;cursor:pointer}
           @media (max-width:860px){
             .pd-folders{grid-template-columns:repeat(2,minmax(0,1fr))}
             /* filed rows: title + dates on their own line, status / sharing / actions wrap below */
@@ -2049,8 +2048,8 @@
             .pd-fic{width:32px;height:32px;border-radius:9px}
             .pd-sec{flex-wrap:wrap}.pd-search{width:100%}
             .pd-party select,.pd-party input{font-size:16px;height:40px}.pd-party input{max-width:none}
-            .pd-sg{flex-wrap:wrap;padding:12px 14px}
-            .pd-sg-acts{width:100%;padding-left:21px}.pd-sg-acts .pd-upmini{flex:1;padding:10px}
+            .pd-sg{padding:8px 12px;gap:10px}
+            .pd-sg-acts{gap:2px}.pd-sg-acts .pd-upmini{min-height:40px;padding:8px 12px}.pd-sg-acts .pd-skip{min-height:40px;padding:4px 6px}
             .pd-tagov{align-items:flex-end;padding:0}
             .pd-tagsheet{border-radius:14px 14px 0 0;max-width:none;max-height:88vh}
           }
@@ -2080,8 +2079,8 @@
             <div class="pd-cards" id="pd-cards"></div>
           </section>
           <section class="pd-sugg" id="pd-sugg" hidden aria-labelledby="pd-sugg-t">
-            <div class="pd-sugg-h"><b id="pd-sugg-t">Still needed for this job</b>
-              <span id="pd-sugg-fit">Tailored to the job’s type, access methods and billing. “Required” items are on this job’s checklist; the rest may or may not apply.</span></div>
+            <div class="pd-sugg-h"><b id="pd-sugg-t">Still needed now</b>
+              <span id="pd-sugg-fit"></span></div>
             <div class="pd-sugg-list" id="pd-sugg-list"></div>
             <div class="pd-sugg-not" id="pd-sugg-not" hidden></div>
             <input type="file" id="pd-sugg-input" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.xlsx,.xlsm,.xls,.csv" hidden>
@@ -6622,7 +6621,7 @@
         $s('ps-proj-edit').addEventListener('click', function () {
           const go = () => window.SSCNewProject.edit(decodeURIComponent((location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || ''));
           if (window.SSCNewProject) return go();
-          const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1016'; sc.onload = go; document.head.appendChild(sc);
+          const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1026'; sc.onload = go; document.head.appendChild(sc);
         });
         document.addEventListener('ssc:project-updated', () => location.reload());
         $s('ps-det-cancel').addEventListener('click', closeDetailsForm);
@@ -9424,37 +9423,41 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   }
 
   // ---------- Suggested documents: read off what is filed; "Required" only when it's on the checklist ----------
-  var SG_SHOW=4;
+  // Grouped by why each item is there (the job's scope, an access method, a filed permit); one line per row.
+  // Closeout and "Might also apply" fold; closeout opens itself once the job is near its end date.
   function sgByKey(k){return (((PD.data&&PD.data.suggestions)||[]).filter(function(g){return g.key===k;})[0])||null;}
   function sgRow(g){
     var who=g.party==='subcontractor'?(' — '+(g.party_name||'subcontractor')):'';
-    var badge=g.on_checklist?'<span class="pd-sg-badge req">Required</span>':'<span class="pd-sg-badge may">May be needed</span>';
-    var src=(g.sources||[]).map(function(x){return x.title;}).filter(Boolean);
+    var sub=g.cond||(g.origin==='claude'?'Claude noticed: '+g.reason:'');
     return '<div class="pd-sg"><span class="pd-fdot pd-cat-'+esc(g.category)+'"></span>'
-      +'<div class="pd-sg-main"><div class="pd-sg-t">'+esc(g.label+who)+badge+'</div>'
-      +'<div class="pd-sg-why">'+(g.origin==='claude'?'Claude noticed: ':'')+esc(g.reason)+'</div>'
-      +'<div class="pd-sg-src">'+(src.length?'Because of '+esc(src.slice(0,2).join(', '))+(src.length>2?' +'+(src.length-2):'')+' · ':'')+'files to '+esc(catNameOf(g.category))+'</div></div>'
+      +'<div class="pd-sg-main"><div class="pd-sg-t">'+esc(g.label+who)+'</div>'+(sub?'<div class="pd-sg-why">'+esc(sub)+'</div>':'')+'</div>'
       +'<div class="pd-sg-acts"><button class="pd-upmini" type="button" data-sgup="'+esc(g.key)+'">Upload</button>'
       +'<button class="pd-skip" type="button" data-sgno="'+esc(g.key)+'">Not needed</button></div></div>';
+  }
+  function sgFold(k,label,rows,open){
+    if(!rows.length)return '';
+    return '<button class="pd-sg-more" type="button" data-sgfold="'+k+'" aria-expanded="'+open+'">'+(open?'▾ ':'▸ ')+esc(label)+' ('+rows.length+')</button>'
+      +(open?rows.map(sgRow).join(''):'');
   }
   function renderSuggest(){
     var host=$('pd-sugg'),list=$('pd-sugg-list');if(!host||!list)return;
     var all=(PD.data&&PD.data.suggestions)||[],job=(PD.data&&PD.data.job)||{};
-    var fit=[],TYPES={facade:'Facade',garage:'Garage',interiors:'Interiors',ira:'IRA',generic:'General'};
-    if(TYPES[job.project_type])fit.push(TYPES[job.project_type]);
+    var now=all.filter(function(g){return g.phase==='now';}),later=all.filter(function(g){return g.phase==='later';}),
+      maybe=all.filter(function(g){return g.phase!=='now'&&g.phase!=='later';});
+    var fit=[];if(job.scope_label)fit.push(job.scope_label);
     if(job.has_drops)fit.push('drops on the Drop Plan');
     if(job.billing_type==='aia_sov')fit.push('AIA billing');else if(job.billing_type)fit.push('not billed AIA');
-    $('pd-sugg-fit').textContent=(fit.length?'Tailored to: '+fit.join(' · ')+'. ':'')+(job.access_applies&&!job.access_set?'Set the access methods (Edit project) to tailor this list further. ':'')
-      +'“Required” items are on this job’s checklist; the rest may or may not apply.';
+    $('pd-sugg-fit').textContent=fit.join(' · ')+(job.access_applies&&!job.access_set?(fit.length?'. ':'')+'Set the access methods (Edit project) to tailor this list.':'');
     var na=job.not_asked||[],not=$('pd-sugg-not');
     not.hidden=!na.length;
-    not.textContent=na.length?'Not asked on this job: '+na.map(function(x){return x.label+' ('+x.why+')';}).join(', ')+'.':'';
+    not.textContent=na.length?'Not asked on this job ('+na.length+'): '+na.map(function(x){return x.label;}).join(', ')+'.':'';
     host.hidden=!all.length&&!na.length;
-    $('pd-sugg-t').textContent=all.length?'Still needed for this job ('+all.length+')':'Nothing else needed for this job';
-    var req=all.filter(function(g){return g.on_checklist;}).length,cap=Math.max(SG_SHOW,req);
-    var shown=DZ.sgAll?all:all.slice(0,cap);
-    list.innerHTML=shown.map(sgRow).join('')
-      +(all.length>cap?'<button class="pd-sg-more" type="button" data-sgmore="1">'+(DZ.sgAll?'Show fewer':'Show '+(all.length-cap)+' more')+'</button>':'');
+    $('pd-sugg-t').textContent=now.length?'Still needed now ('+now.length+')':'Everything this job needs right now is filed';
+    var h='',grp=null;
+    now.forEach(function(g){if(g.group!==grp){grp=g.group;h+='<div class="pd-sg-grp">'+esc(grp||'')+'</div>';}h+=sgRow(g);});
+    var laterOpen=DZ.sgLater===null?!!job.near_end:DZ.sgLater;
+    list.innerHTML=h+sgFold('later','At closeout',later,laterOpen)+sgFold('maybe','Might also apply',maybe,DZ.sgMaybe);
+    list.hidden=!all.length;
   }
   async function sgDismiss(g){
     try{
@@ -9466,7 +9469,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   }
 
   // ---------- Drop zone: files -> Claude reads (server keeps them) -> review cards -> approve ----------
-  var DZ={types:[],byKey:{},queue:[],wired:false,open:null,lastFiled:null,aiOpen:new Set(),pickFor:null,depth:0,active:0,waiting:[],tmp:0,sgFor:null,sgAll:false};
+  var DZ={types:[],byKey:{},queue:[],wired:false,open:null,lastFiled:null,aiOpen:new Set(),pickFor:null,depth:0,active:0,waiting:[],tmp:0,sgFor:null,sgLater:null,sgMaybe:false};
   var DZI={chev:'<path d="m6 9 6 6 6-6"/>',check:'<path d="M20 6 9 17l-5-5"/>',alert:'<path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/>',
     swap:'<path d="M7 7h11l-3-3M17 17H6l3 3"/>',doc:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>',
     img:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-9 8"/>'};
@@ -9729,7 +9732,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       var b;
       if((b=e.target.closest('[data-sgup]'))){DZ.sgFor=sgByKey(b.getAttribute('data-sgup'));if(DZ.sgFor)$('pd-sugg-input').click();return;}
       if((b=e.target.closest('[data-sgno]'))){var g=sgByKey(b.getAttribute('data-sgno'));if(g)sgDismiss(g);return;}
-      if(e.target.closest('[data-sgmore]')){DZ.sgAll=!DZ.sgAll;renderSuggest();}
+      if((b=e.target.closest('[data-sgfold]'))){var fk=b.getAttribute('data-sgfold');if(fk==='later')DZ.sgLater=b.getAttribute('aria-expanded')!=='true';else DZ.sgMaybe=!DZ.sgMaybe;renderSuggest();}
     });
     $('pd-sugg-input').addEventListener('change',function(){
       var g=DZ.sgFor,inp=$('pd-sugg-input');

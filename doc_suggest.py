@@ -17,11 +17,12 @@ our company's (a subcontractor's record never fills the job's own checklist). Ev
 "may be needed". Already-filed documents (same type, same party) and suggestions
 someone dismissed are left out.
 
-The job decides what fits (`applies` / `suggestable`): its type (facade, garage, …), its
-access methods, how it is billed and whether the Drop Plan has drops. A drop / rigging
-layout is never asked for on a job with no drops. The checklist items the job still
-misses come back as suggestions too (origin 'checklist'), so the Filed list only shows
-documents that were actually filed.
+The job decides what it needs (`plan`): its scope (exterior, rope access inspection or
+repair, garage, interior, other), its access methods, how it is billed, whether the Drop
+Plan has drops, and what is already filed (a PW2 brings in SST cards and the DOB sign-off;
+a BEST permit the rigging engineering and drop layout). Each item is needed NOW, LATER (at
+closeout) or MAYBE (with its condition). The items the job still misses come back as
+suggestions (origin 'checklist'), so the Filed list only shows documents actually filed.
 
 Pure — no DB, no API. server.py feeds it and serves the result with the documents.
 """
@@ -73,48 +74,164 @@ KEYWORDS = tuple((re.compile(p, re.I), k) for p, k in (
 # Types that belong to one party: a sub's COI is not ours, and ours is not theirs.
 PARTY_TYPES = {"coi", "lien_waiver", "warranty", "subcontract"}
 
-# ---- what fits the job: checklist item -> test on the job's context ----
-# ctx = {project_type: facade|garage|interiors|ira|generic, access: [..] | None (never set),
-#        billing_type: aia_sov|lump_sum|time_materials|unit_price|None, has_drops: bool}
+# ---- what the job needs (2026-10-26): its scope, access methods, billing and what is filed ----
+# ctx = {project_type: facade|garage|interiors|ira|generic, ra_scope: inspection|repair (rope access jobs),
+#        access: [..] | None (never set), billing_type: aia_sov|lump_sum|…|None, has_drops: bool,
+#        filed: {requirement keys of OUR current documents}, near_end: bool (closeout is due)}
+# Each scope lists what it needs NOW (before / during the work), LATER (closeout) and MAYBE (depends on
+# something the app can't know, shown with its condition). Reviewed against NYC BC Ch. 33 (2026-10-26):
+# whether a job needs a PW2, TR1 or Site Safety Plan is still the filing architect's / expediter's call.
+SCOPE_LABELS = {"facade": "Exterior Restoration", "ra_inspection": "Rope access · Inspection",
+                "ra_repair": "Rope access · Repair work", "garage": "Parking Garage",
+                "interiors": "Interior Repair", "generic": "Other"}
+CORE_NOW = ("owner_contract", "coi", "toolbox_log")   # toolbox: daily pre-shift sign-in (BC 3301.12)
+CORE_LATER = ("completion_letter",)
+SCOPES = {
+    "facade": {"now": ("pw2", "approved_arch", "shop_drawings", "sds"),
+               "later": ("dob_signoff", "warranties", "lien_waivers"),
+               "maybe": (("tr1", "If the permit lists special inspections"),
+                         ("site_safety_plan", "Buildings 10+ stories or 125+ ft"),
+                         ("fisp_report", "If this is a FISP / Local Law 11 job"),
+                         ("probe_report", "If probes are in the scope"))},
+    "ra_inspection": {"now": ("rope_access_plan", "drop_layout", "fisp_report"), "later": (),
+                      "maybe": (("scaffold_eng", "Anchor certification, if the owner has none on file"),),
+                      "note": {"fisp_report": "or a Probe / Condition Report"}},
+    "ra_repair": {"now": ("rope_access_plan", "drop_layout", "shop_drawings", "sds"),
+                  "later": ("warranties", "lien_waivers"),
+                  "maybe": (("pw2", "If the repair is filed with DOB"),
+                            ("scaffold_eng", "Anchor certification, if the owner has none on file"))},
+    "garage": {"now": ("pw2", "approved_struct", "tr1", "shop_drawings", "sds"),
+               "later": ("dob_signoff", "warranties", "lien_waivers"),
+               "maybe": (("probe_report", "The Local Law 126 condition report"), ("scaffold_eng", "If shoring is needed"))},
+    "interiors": {"now": ("sds",), "later": ("warranties", "lien_waivers"),
+                  "maybe": (("pw2", "Unless it is an ordinary repair"), ("approved_arch", "If the job is filed with plans"))},
+    "generic": {"now": ("pw2", "approved_struct", "tr1", "sds"), "later": ("dob_signoff", "lien_waivers"),
+                "maybe": (("scaffold_eng", "Shoring / underpinning by a PE"),)},
+}
+# never suggested on that scope, even when a document mentions it (a filed one still shows in Filed)
+NEVER = {
+    "ra_inspection": {"pw2", "best_permit", "approved_arch", "approved_struct", "shop_drawings", "tr1", "dob_signoff",
+                      "site_safety_plan", "sds", "warranties", "final_fisp"},
+    "ra_repair": {"best_permit"},
+    "garage": {"best_permit", "rope_access_plan", "drop_layout", "fisp_ack", "fisp_report", "final_fisp"},
+    "interiors": {"sidewalk_shed", "best_permit", "rope_access_plan", "drop_layout", "scaffold_eng",
+                  "fisp_ack", "fisp_report", "final_fisp"},
+    "generic": {"best_permit", "rope_access_plan", "drop_layout", "fisp_ack", "fisp_report", "final_fisp"},
+}
+ACCESS_NEEDS = {"suspended_scaffold": ("best_permit", "scaffold_eng", "drop_layout"),
+                "supported_scaffold": ("sidewalk_shed", "scaffold_eng"),
+                "rope_access": ("rope_access_plan", "drop_layout"), "boom_lift": ()}
+ACCESS_GROUP = {"suspended_scaffold": "Suspended scaffold", "supported_scaffold": "Supported scaffold",
+                "rope_access": "Rope access", "boom_lift": "Boom lift"}
+# a filed document (its checklist item) -> what it brings in
+TRIGGERS = {
+    "pw2": {"label": "PW2 work permit", "now": ("sst_records",), "later": ("dob_signoff",)},   # LL196 SST follows the permit
+    "tr1": {"label": "TR1", "later": ("dob_signoff",)},
+    "best_permit": {"label": "BEST permit", "now": ("scaffold_eng", "drop_layout")},
+    "sidewalk_shed": {"label": "sidewalk-shed permit", "now": ("scaffold_eng",)},
+    "site_safety_plan": {"label": "Site Safety Plan", "now": ("sst_records",)},
+    "fisp_report": {"label": "FISP report", "now": ("fisp_ack",),
+                    "maybe": (("final_fisp", "If the report rates the facade Unsafe"),
+                              ("sidewalk_shed", "If rated Unsafe: right away"))},
+    "pay_app": {"label": "payment application", "later": ("lien_waivers",)},
+}
 DROP_ITEMS = ("best_permit", "scaffold_eng", "drop_layout")
-FACADE_ITEMS = ("fisp_ack", "fisp_report", "final_fisp", "probe_report")
+BILLING_ITEMS = ("sov", "pay_app")
+# On the checklist but never required: suggested only when a document points at it.
+NOT_REQUIRED = {"after_hours"}
 
 
 def _access(ctx) -> list:
     return list(ctx.get("access") or [])
 
 
-SCOPE = {
-    **{k: (lambda c: "suspended_scaffold" in _access(c) or bool(c.get("has_drops"))) for k in DROP_ITEMS},
-    "rope_access_plan": lambda c: "rope_access" in _access(c),
-    "sidewalk_shed": lambda c: c.get("project_type") == "facade" or "supported_scaffold" in _access(c),
-    **{k: (lambda c: c.get("project_type") == "facade") for k in FACADE_ITEMS},
-    "sov": lambda c: c.get("billing_type") in (None, "", "aia_sov"),
-    "pay_app": lambda c: c.get("billing_type") in (None, "", "aia_sov"),
-}
-# On the checklist but never required: suggested only when a document points at it.
-NOT_REQUIRED = {"after_hours"}
-# Why an item is left off this job's list (shown as "Not asked on this job: …").
-WHY_NOT = {**{k: "no suspended scaffold or drops" for k in DROP_ITEMS},
-           "rope_access_plan": "no rope access", "sidewalk_shed": "no supported scaffold",
-           **{k: "not a facade job" for k in FACADE_ITEMS},
-           "sov": "not billed AIA / schedule of values", "pay_app": "not billed AIA / schedule of values"}
+def _aia(ctx) -> bool:
+    return ctx.get("billing_type") in (None, "", "aia_sov")
+
+
+def scope_of(ctx) -> str:
+    pt = (ctx or {}).get("project_type")
+    if pt == "ira":
+        return "ra_repair" if ctx.get("ra_scope") == "repair" else "ra_inspection"
+    return pt if pt in SCOPES else "generic"
+
+
+def plan(ctx) -> dict:
+    """What this job needs: {"items": {requirement_key: {"phase": now|later, "group": why}},
+    "maybe": {requirement_key: condition}, "note": {requirement_key: hint}, "scope": key}.
+    A key appears once, under the first reason that brings it in."""
+    sc_key = scope_of(ctx)
+    sc, filed, items, maybe = SCOPES[sc_key], set(ctx.get("filed") or ()), {}, {}
+
+    def need(keys, phase, group):
+        for k in keys:
+            if k not in items:
+                items[k] = {"phase": phase, "group": group}
+    need(CORE_NOW + (BILLING_ITEMS if _aia(ctx) else ()), "now", "Every job")
+    need(sc["now"], "now", SCOPE_LABELS[sc_key])
+    acc = _access(ctx)
+    for a in acc:
+        need(ACCESS_NEEDS.get(a, ()), "now", ACCESS_GROUP.get(a, a))
+    if ctx.get("has_drops") and "suspended_scaffold" not in acc:
+        need(DROP_ITEMS, "now", "Drops on the Drop Plan")
+    later = list(CORE_LATER) + list(sc["later"]) + (["lien_waivers"] if _aia(ctx) else [])
+    for rk in sorted(filed):
+        t = TRIGGERS.get(rk)
+        # a BEST permit on a job set up without suspended scaffold does not drag the rigging in (2026-10-24)
+        if not t or (rk == "best_permit" and ctx.get("access") is not None and "suspended_scaffold" not in acc):
+            continue
+        need(t.get("now", ()), "now", f"Because the {t['label']} is filed")
+        later += list(t.get("later", ()))
+        for k, cond in t.get("maybe", ()):
+            maybe.setdefault(k, cond)
+    need(later, "later", "At closeout")
+    for k, cond in sc["maybe"]:
+        maybe.setdefault(k, cond)
+    return {"scope": sc_key, "items": items, "note": dict(sc.get("note", {})),
+            "maybe": {k: c for k, c in maybe.items() if k not in items}}
+
+
+def phase(requirement_key, ctx):
+    """now | later | maybe | None (not asked on this job)."""
+    p = plan(ctx)
+    if requirement_key in p["items"]:
+        return p["items"][requirement_key]["phase"]
+    return "maybe" if requirement_key in p["maybe"] else None
+
+
+def why_not(requirement_key, ctx) -> str:
+    if requirement_key in DROP_ITEMS:
+        return "no suspended scaffold or drops"
+    if requirement_key in BILLING_ITEMS:
+        return "not billed AIA / schedule of values"
+    return f"not needed on {SCOPE_LABELS[scope_of(ctx)]}"
 
 
 def suggestable(requirement_key, ctx) -> bool:
-    """Whether a document filling this checklist item fits the job at all. No context or
-    an item with no rule -> yes."""
+    """Whether a document filling this checklist item fits the job at all (a filed document's
+    rule or words may suggest it). No context or an item with no checklist key -> yes."""
     if ctx is None or not requirement_key:
         return True
-    test = SCOPE.get(requirement_key)
-    return True if test is None else bool(test(ctx))
+    if phase(requirement_key, ctx):
+        return True
+    if requirement_key in NEVER.get(scope_of(ctx), ()):
+        return False
+    if requirement_key in BILLING_ITEMS:
+        return _aia(ctx)
+    if requirement_key in DROP_ITEMS or requirement_key == "rope_access_plan":
+        return False   # access / drops decide these, never a mention
+    return True
 
 
 def applies(requirement_key, ctx) -> bool:
-    """Whether this checklist item is REQUIRED on this job (counts toward readiness)."""
-    if ctx is not None and requirement_key in NOT_REQUIRED:
+    """Whether this checklist item is REQUIRED on this job right now (counts toward readiness):
+    what it needs now, plus closeout once the job is near its end."""
+    if ctx is None:
+        return True
+    if requirement_key in NOT_REQUIRED:
         return False
-    return suggestable(requirement_key, ctx)
+    ph = phase(requirement_key, ctx)
+    return ph == "now" or (ph == "later" and bool(ctx.get("near_end")))
 
 
 def _read_text(d) -> str:
@@ -159,13 +276,17 @@ def suggest(docs, missing_reqs, dismissed=(), ctx=None, missing_labels=None):
     """docs: current filed docs (dicts: id, title, type_key, category, requirement_key,
     party, party_name, ai). missing_reqs: {(category, requirement_key)} still missing
     on the checklist (only the items that apply to this job). dismissed: suggestion keys
-    marked not needed. ctx: the job (see SCOPE) — None skips the fit filter.
-    missing_labels: {(category, requirement_key): checklist label}. Returns a list; every
-    missing item comes back as a suggestion (origin 'checklist', on_checklist True)."""
+    marked not needed. ctx: the job (see plan) — None skips the fit filter.
+    missing_labels: {(category, requirement_key): checklist label}. Returns a list.
+    Each suggestion carries `phase` (now | later | maybe) and `group` (why it is there:
+    "Every job", the scope, an access method, "Because the PW2 is filed", "At closeout",
+    "Might also apply"); `cond` is the one-line condition of a maybe. With a ctx, everything
+    the job's plan needs and is not filed comes back (origin 'checklist')."""
     dismissed = set(dismissed or ())
     out = {}
+    pl = plan(ctx) if ctx is not None else None
 
-    def add(trigger, key, reason, origin, label=None):
+    def add(trigger, key, reason, origin, label=None, ph="maybe", group="Might also apply", cond=None):
         t = doc_types.get(key)
         if not t or not suggestable(t["requirement_key"], ctx):
             return
@@ -180,22 +301,39 @@ def suggest(docs, missing_reqs, dismissed=(), ctx=None, missing_labels=None):
             if src.get("id") and src not in out[k]["sources"]:
                 out[k]["sources"].append(src)
             return
+        on_list = (party == "company" and bool(t["requirement_key"])
+                   and (t["category"], t["requirement_key"]) in missing_reqs)
+        if pl is not None and party == "company" and t["requirement_key"] in pl["items"]:
+            on_list = True   # on this job's list (now, or at closeout)
         out[k] = {
             "key": k, "type_key": key, "label": label or t["label"], "category": t["category"],
             "party": party, "party_name": name, "reason": reason, "origin": origin,
             # the checklist is the job's own: a sub's document never fills it, so never "required"
-            "on_checklist": (party == "company" and bool(t["requirement_key"])
-                             and (t["category"], t["requirement_key"]) in missing_reqs),
-            "sources": [src] if src.get("id") else [],
+            "on_checklist": on_list, "phase": ph if party == "company" else "maybe",
+            "group": group if party == "company" else "Might also apply", "cond": cond,
+            "sources": [src] if src.get("id") else [], "_n": len(out),
         }
+
+    labels = missing_labels or {}
+    if pl is not None:   # the job's own list first, so its phase / group win over a document's mention
+        for rk, it in pl["items"].items():
+            t = next((x for x in doc_types.TYPES if x[3] == rk), None)
+            if t:
+                add({}, t[0], "On this job's list and not filed yet.", "checklist",
+                    label=labels.get((t[2], rk)), ph=it["phase"], group=it["group"], cond=pl["note"].get(rk))
+        for rk, cond in pl["maybe"].items():
+            t = next((x for x in doc_types.TYPES if x[3] == rk), None)
+            if t:
+                add({}, t[0], cond, "scope", label=labels.get((t[2], rk)), cond=cond)
 
     for d in docs:
         tk = d.get("type_key")
         for trig, key, why in RULES:
             if tk == trig:
-                add(d, key, why, "rule")
+                add(d, key, why, "rule", cond=why)
         for r in ((d.get("ai") or {}).get("related") or []):
-            add(d, r.get("type_key"), str(r.get("reason") or "")[:200] or "Referenced in this document.", "claude")
+            why = str(r.get("reason") or "")[:200] or "Referenced in this document."
+            add(d, r.get("type_key"), why, "claude", cond=why)
         text = _read_text(d)
         if text.strip():
             for rx, key in KEYWORDS:
@@ -203,14 +341,18 @@ def suggest(docs, missing_reqs, dismissed=(), ctx=None, missing_labels=None):
                     continue
                 m = rx.search(text)
                 if m:
-                    add(d, key, f"“{m.group(0)}” appears in {d.get('title') or 'a filed document'}.", "content")
+                    add(d, key, f"“{m.group(0)}” appears in {d.get('title') or 'a filed document'}.", "content",
+                        cond=f"“{m.group(0)}” is in {d.get('title') or 'a filed document'}")
 
-    # what the checklist still misses, so it is listed here instead of as an empty row in Filed
+    # without a job context: what the checklist still misses (legacy callers)
     for cat, rk in sorted(missing_reqs, key=lambda x: (CATEGORY_ORDER.index(x[0]) if x[0] in CATEGORY_ORDER else 99, x[1])):
         t = doc_types.for_requirement(cat, rk)
         if t:
             add({}, t["key"], "On this job's checklist and not filed yet.", "checklist",
-                label=(missing_labels or {}).get((cat, rk)))
+                label=labels.get((cat, rk)), ph="now", group="Every job")
 
-    return sorted(out.values(), key=lambda s: (not s["on_checklist"], CATEGORY_ORDER.index(s["category"])
-                                               if s["category"] in CATEGORY_ORDER else 99, s["label"]))
+    rank = {"now": 0, "later": 1, "maybe": 2}   # within a phase: the plan's order (its groups stay together)
+    res = sorted(out.values(), key=lambda s: (rank.get(s["phase"], 2), not s["on_checklist"], s["_n"]))
+    for s in res:
+        del s["_n"]
+    return res

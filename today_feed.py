@@ -36,7 +36,7 @@ LATER_HOURS = 4                # "Later" hides a card for 4 hours
 CREW_CHECK_HOUR = 8            # missing sign-ins are flagged from 8 AM on weekdays
 NYC = (40.7128, -74.0060)      # weather fallback when no active job has a site pin
 
-TYPE_LABELS = {"FR": "Exterior Restoration", "IRA": "Rope Access Inspection", "IR": "Interior Repair",
+TYPE_LABELS = {"FR": "Exterior Restoration", "IRA": "Rope Access", "IR": "Interior Repair",
                "PG": "Parking Garage", "OTH": "Other"}
 
 

@@ -234,6 +234,31 @@ def main() -> int:
     su = cs.get(f"/api/admin/projects/{oth}/setup").get_json()["data"]
     assert su["job_type_other"] == "Basement excavation" and su["job_type_label"] == "Basement excavation" and su["other_applies"] is True
     assert cs.get(f"/api/admin/projects/{fr}/setup").get_json()["data"]["job_type_label"] == "Exterior Restoration"
+    # Rope Access (2026-10-26): no "Inspection" in the type name; repair work or inspection is asked per job
+    assert any(t["code"] == "IRA" and t["label"] == "Rope Access" for t in om["types"]), om["types"]
+    assert meta["rope_access_types"] == ["IRA"] and [o["key"] for o in meta["rope_access_scopes"]] == ["repair", "inspection"]
+    assert cs.post("/api/admin/projects/onboard", json={**base, "est_type": "IRA", "rope_access_scope": "demolition",
+                                                        "address": "4 Batch C Ave"}).status_code == 400
+    assert cs.post("/api/admin/projects/onboard", json={**base, "est_type": "FR", "rope_access_scope": "repair",
+                                                        "address": "4 Batch C Ave"}).status_code == 400, "rope access jobs only"
+    r = cs.post("/api/admin/projects/onboard", json={**base, "est_type": "IRA", "rope_access_scope": "repair",
+                                                     "name": f"{TAG} Rope job", "address": "4 Batch C Ave"})
+    assert r.status_code == 201, r.get_data(as_text=True)[:300]
+    ra = r.get_json()["data"]["project_code"]
+    assert _row(ra)["rope_access_scope"] == "repair"
+    su = cs.get(f"/api/admin/projects/{ra}/setup").get_json()["data"]
+    assert su["rope_access_applies"] is True and su["rope_access_scope"] == "repair" and su["rope_access_label"] == "Repair work"
+    assert su["job_type_label"] == "Rope Access"
+    conn = _db()
+    try:
+        sub = conn.execute("SELECT ra_subtype FROM estimate WHERE converted_project_code = ?", (ra,)).fetchone()
+    finally:
+        conn.close()
+    assert sub is None or sub[0] == "work", "the estimate says the same"
+    s = cs.put(f"/api/admin/projects/{ra}/setup", json={"rope_access_scope": "inspection"}).get_json()["data"]
+    assert s["rope_access_scope"] == "inspection" and s["rope_access_label"] == "Inspection"
+    assert cs.put(f"/api/admin/projects/{fr}/setup", json={"rope_access_scope": "repair"}).status_code == 400
+    assert cs.get(f"/api/admin/projects/{fr}/setup").get_json()["data"]["rope_access_scope"] is None
     passed += 1; print("  onboarding ok")
 
     # ---- the setup API
@@ -301,7 +326,7 @@ def main() -> int:
     assert 'id="np-other"' in js and "function otherApplies()" in js and "job_type_other: otherApplies()" in js
     assert "max-width:1060px" in js and "edit: edit" in js and "/setup" in js and "/drawing-sets" in js and "np-s-work" in js and "np-s-access" in js
     portal = cs.get("/company").get_data(as_text=True)
-    assert "{ key: 'job_number', label: '#'" in portal and "data-pj-edit" in portal and "new_project_modal.js?v=1024" in portal
+    assert "{ key: 'job_number', label: '#'" in portal and "data-pj-edit" in portal and "new_project_modal.js?v=1026" in portal
     assert "defaultSort: { key: 'job_number', dir: 'asc' }" in portal, "#1 at the top, the newest job at the bottom"
     assert '<div class="np-money"><span aria-hidden="true">$</span><input id="np-contract"' in js, "contract value: the $ is already there"
     assert "`${num.format(d.clients.active)} active clients`" not in portal, "Active projects card shows just the number"

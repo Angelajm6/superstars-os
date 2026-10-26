@@ -16,7 +16,7 @@
 <script src="/files/static/js/company_nav.js?v=1021"></script>
 <script src="/files/static/js/claude_drawer.js?v=16" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
-<script src="/files/static/js/new_project_modal.js?v=1024" defer></script>
+<script src="/files/static/js/new_project_modal.js?v=1026" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1010" defer></script>
 <script src="/files/static/js/gcal_connect.js?v=1017" defer></script>
 <script src="/files/static/js/inbox_schedule.js?v=5" defer></script>
@@ -2261,7 +2261,7 @@
   }
   // ---- the tabs each job type starts with (lean jobs, A + B)
   const TT = { modules: [], types: {} };
-  const TT_TYPES = [['FR', 'Exterior Restoration'], ['IRA', 'Rope Access Inspection'], ['IR', 'Interior Repair'], ['PG', 'Parking Garage'], ['OTH', 'Other']];
+  const TT_TYPES = [['FR', 'Exterior Restoration'], ['IRA', 'Rope Access'], ['IR', 'Interior Repair'], ['PG', 'Parking Garage'], ['OTH', 'Other']];
   async function loadTypeTabs() {
     try {
       const { data: d } = await api('/admin/job-type-tabs', null, true);
