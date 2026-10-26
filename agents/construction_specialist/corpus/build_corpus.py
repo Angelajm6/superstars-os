@@ -26,7 +26,8 @@ PII-safe: toolbox + spec data carry no worker PII. The script prints
 counts only.
 
 Run:
-  python agents/construction_specialist/corpus/build_corpus.py
+  python agents/construction_specialist/corpus/build_corpus.py --db <isolated.db>
+  (an isolated database with the spec_products seed; the real superstars.db is refused)
 """
 from __future__ import annotations
 
@@ -41,7 +42,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent                 # .../corpus
 AGENT_DIR = HERE.parent                                  # .../construction_specialist
 REPO_ROOT = AGENT_DIR.parent.parent                      # dashboard/
-DB_PATH = REPO_ROOT / "superstars.db"
+sys.path.insert(0, str(HERE.parent))
+import db_guard  # noqa: E402 — no default database: an isolated one only (CLAUDE.md)
+DB_PATH = None   # set in main() from --db / SSC_AGENT_DB through db_guard
 TALKS_PY = REPO_ROOT / "toolbox_talks_data.py"
 
 CH33_DIR = HERE / "chapter33"
@@ -130,7 +133,7 @@ def build_sika_index() -> dict:
     Product data, not PII. Each row keeps its manufacturer-published TDS
     URL so the agent points the operator at the controlling data sheet.
     """
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = db_guard.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
         "SELECT manufacturer, category, product_line, product_name, "
@@ -282,11 +285,17 @@ def write_manifest_and_stamp(ch33: dict, sika: dict) -> str:
 
 
 def main() -> int:
+    global DB_PATH
+    import argparse
+    ap = argparse.ArgumentParser(description="Rebuild the Construction Specialist corpus indexes.")
+    ap.add_argument("--db", default=None, help=f"Isolated database (or set {db_guard.ENV_VAR}).")
+    try:
+        DB_PATH = db_guard.resolve(ap.parse_args().db)
+    except db_guard.RefusedDB as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
     if not TALKS_PY.exists():
         print(f"ERROR: {TALKS_PY} not found", file=sys.stderr)
-        return 1
-    if not DB_PATH.exists():
-        print(f"ERROR: {DB_PATH} not found", file=sys.stderr)
         return 1
     ch33 = build_ch33_index()
     sika = build_sika_index()

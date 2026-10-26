@@ -145,12 +145,16 @@ After composing each substantive answer, write **exactly one** audit row by
 running the PII-safe helper — never zero, never twice:
 
 ```
-./venv/Scripts/python.exe agents/construction_specialist/provenance.py \
+./venv/bin/python agents/construction_specialist/provenance.py --db "$SSC_AGENT_DB" \
   --question "<the question, PII-safe: W-#### only, no names/PINs/rates>" \
   --sources  "<sources you cited, or 'general-knowledge-unverified'>" \
-  --summary  "<one-line PII-safe summary of your answer / the routing decision>" \
+  --summary  "<one-line PII-safe summary of your answer / routing decision>" \
   --disposition pending
 ```
+(`./venv/Scripts/python.exe` on Windows.) `--db` / `SSC_AGENT_DB` must point at an
+ISOLATED database; there is no default and the real `superstars.db` is refused
+(CLAUDE.md). If none is set the helper exits 2 with "provenance not logged": say so
+at the end of the reply and do not retry against any other database.
 
 The helper stamps `asked_at` (local time), the current `CORPUS_VERSION`, and a
 `CAP-…` interaction id, and defensively scrubs phone/rate/PIN/SSN shapes. It
