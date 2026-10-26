@@ -140,6 +140,8 @@ npm-debug.log*
 *.pptx
 # Specific templates to ship (uncomment if needed):
 # !template-*.xlsx
+# Synthetic test workbook (no real data; see tests/fixtures/README.md):
+!tests/fixtures/takeoff_sample.xls
 
 # ===== DATA ROOM — project documents =====
 # data_room/ holds DOB filings, drawings, permits, specs.
