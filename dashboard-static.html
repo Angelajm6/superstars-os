@@ -847,7 +847,7 @@
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
-<script src="/files/static/js/claude_drawer.js?v=15" defer></script>
+<script src="/files/static/js/claude_drawer.js?v=16" defer></script>
 <script src="/files/static/js/dcr_steps.js?v=2" defer></script>
 <style>
   /* #356 — billing type per job: AIA-only pieces hide on jobs billed another way */
@@ -2071,7 +2071,7 @@
               <button class="btn-primary" id="pd-cv-pick" type="button"><svg class="pd-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>Choose files</button>
               <button class="btn-ghost pd-only-touch" id="pd-cv-cam" type="button"><svg class="pd-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Scan with camera</button>
             </div>
-            <input type="file" id="pd-cv-input" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.xlsx" hidden>
+            <input type="file" id="pd-cv-input" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.xlsx,.xlsm,.xls,.csv" hidden>
             <input type="file" id="pd-cv-caminput" accept="image/*" capture="environment" hidden>
           </section>
           <section class="pd-tray" id="pd-tray" hidden aria-live="polite">
@@ -2084,7 +2084,7 @@
               <span id="pd-sugg-fit">Tailored to the job’s type, access methods and billing. “Required” items are on this job’s checklist; the rest may or may not apply.</span></div>
             <div class="pd-sugg-list" id="pd-sugg-list"></div>
             <div class="pd-sugg-not" id="pd-sugg-not" hidden></div>
-            <input type="file" id="pd-sugg-input" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.xlsx" hidden>
+            <input type="file" id="pd-sugg-input" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.xlsx,.xlsm,.xls,.csv" hidden>
           </section>
           <div class="pd-sec"><b>Filed</b>
             <label class="pd-search"><svg class="pd-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="pd-q" placeholder="Search filed documents" aria-label="Search filed documents" autocomplete="off"></label>
@@ -2111,9 +2111,9 @@
           <div class="pd-modal">
             <div class="pd-mhead"><h3 id="pd-modal-title">Upload document</h3><button class="pd-mx" id="pd-modal-close">&times;</button></div>
             <div class="pd-msub" id="pd-modal-sub">Add a project document</div>
-            <input type="file" id="pd-file-input" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.xlsx" style="display:none">
+            <input type="file" id="pd-file-input" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.xlsx,.xlsm,.xls,.csv" style="display:none">
             <div class="pd-modetog" id="pd-modetog"><button data-mode="single" class="on" type="button">Single</button><button data-mode="bulk" type="button">Bulk</button></div>
-            <div class="dropzone" id="pd-drop"><svg class="bi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 20h16"/></svg><div><b id="pd-drop-label">Drag a file here or browse</b></div><div class="dz-sub">PDF, JPG, PNG, HEIC, XLSX · drop several for bulk</div></div>
+            <div class="dropzone" id="pd-drop"><svg class="bi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 20h16"/></svg><div><b id="pd-drop-label">Drag a file here or browse</b></div><div class="dz-sub">PDF, photos, Excel, CSV · drop several for bulk</div></div>
             <div id="pd-single">
               <div class="pd-aistub" id="pd-aistub"><svg class="pd-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span id="pd-aistub-txt"><b>AI auto-read</b> — drop a file and the type, category &amp; dates auto-fill.</span></div>
               <div class="pd-two">
@@ -9287,7 +9287,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   function replaceDoc(id){
     if(!confirm('Replace the file on this version? Use this only if the wrong file was uploaded.'))return;
     var inp=document.createElement('input');
-    inp.type='file';inp.accept='.pdf,.jpg,.jpeg,.png,.heic,.heif';
+    inp.type='file';inp.accept='.pdf,.jpg,.jpeg,.png,.heic,.heif,.xlsx,.xlsm,.xls,.csv';
     inp.onchange=async function(){
       if(!inp.files||!inp.files.length)return;
       var fd=new FormData();fd.append('file',inp.files[0]);
@@ -9926,11 +9926,12 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     ((PD.data&&PD.data.additional)||[]).forEach(function(g){g.docs.forEach(function(d){if(d.id===id)hit=d;});});
     return hit;
   }
-  // preview in the shared side panel (static/js/pdf_view.js): PDFs page by page, pictures, else Download
+  // preview in the shared side panel (static/js/pdf_view.js): PDFs page by page, pictures, spreadsheets, else Download
   function pdPreview(o){
     var kind=window.SSC_PDF?SSC_PDF.kindOf(o.mime,o.name):'other';
     if(!window.SSC_PDF){window.open(o.url,'_blank');return;}
-    SSC_PDF.panel({title:o.title,sub:o.sub,url:o.url,kind:kind,
+    // a spreadsheet's cells come from the sibling /sheet route (filed docs and the review tray alike)
+    SSC_PDF.panel({title:o.title,sub:o.sub,url:o.url,kind:kind,sheetUrl:kind==='sheet'?String(o.url).replace(/\/file$/,'/sheet'):null,
       links:[{label:'Open in new tab',href:o.url,newtab:true},{label:'Download',href:o.url,download:true}]});
   }
   function previewDoc(id){
@@ -10931,6 +10932,6 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
 })();
 </script>
 <script src="/files/static/js/file_drop.js?v=1" defer></script>
-<script src="/files/static/js/pdf_view.js?v=2" defer></script>
+<script src="/files/static/js/pdf_view.js?v=3" defer></script>
 </body>
 </html>

@@ -24,6 +24,7 @@ from pathlib import Path
 import ai_models
 import brand
 import doc_types
+import sheet_read
 
 # Default vision model — env-overridable so the operator can pin a different
 # model without a code change (same key as receipts/certs). Sonnet 5.5 since 2026-10-22 (was Sonnet 4.6:
@@ -132,6 +133,8 @@ def build_prompt(categories, requirements):
 
 You may be given MULTIPLE pages (a multi-page PDF and/or several images). Read ALL of them as ONE document — do not treat each page as a separate document.
 
+A spreadsheet (Excel or CSV) arrives as text: one "## Sheet: <name>" block per sheet, each row on its own line with cells separated by tabs. Read every sheet; totals, line items and dates in the cells are the document's fields.
+
 Pick the CATEGORY — exactly one of these codes:
 {cat_lines}
 
@@ -158,8 +161,17 @@ Return ONLY the structured JSON. No prose."""
 
 
 def spec_from_bytes(data_bytes, filename):
-    """Build a content-block spec for one uploaded page (in-memory — no disk)."""
+    """Build a content-block spec for one uploaded page (in-memory — no disk).
+    A spreadsheet (.xlsx/.xlsm/.xls/.csv) goes as its text, one block per sheet
+    (sheet_read); it is never sent as a picture. Raises ScanError if it won't open."""
     ext = Path(filename or "").suffix.lower()
+    if ext in sheet_read.EXTS:
+        try:
+            body = sheet_read.text(data_bytes, ext)
+        except Exception as e:
+            raise ScanError(f"spreadsheet could not be opened: {type(e).__name__}")
+        return {"text": body or "(the workbook is empty)", "title": Path(filename).name,
+                "is_pdf": False, "is_text": True}
     is_pdf = ext == ".pdf"
     return {
         "data_b64": base64.standard_b64encode(data_bytes).decode("ascii"),
@@ -197,7 +209,10 @@ def call_vision_model(specs, categories, requirements):
     import anthropic
     content = []
     for spec in specs:
-        if spec["is_pdf"]:
+        if spec.get("is_text"):
+            content.append({"type": "document", "title": spec["title"], "source": {
+                "type": "text", "media_type": "text/plain", "data": spec["text"]}})
+        elif spec["is_pdf"]:
             content.append({"type": "document", "source": {
                 "type": "base64", "media_type": "application/pdf", "data": spec["data_b64"]}})
         else:

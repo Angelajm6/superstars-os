@@ -5119,6 +5119,9 @@ _PROJDOC_EXT_TYPE = {
     '.png': ('PNG', 'image/png'),
     '.heic': ('HEIC', 'image/heic'), '.heif': ('HEIC', 'image/heif'),
     '.xlsx': ('XLSX', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+    '.xlsm': ('XLSM', 'application/vnd.ms-excel.sheet.macroEnabled.12'),
+    '.xls': ('XLS', 'application/vnd.ms-excel'),
+    '.csv': ('CSV', 'text/csv'),
 }
 
 
@@ -5525,7 +5528,7 @@ def api_project_documents_scan(project_code):
         return jsonify({"error": f"Too many pages — max {scanner.MAX_PAGES}"}), 400
     for f in files:
         if Path(f.filename or '').suffix.lower() not in _PROJDOC_EXT_TYPE:
-            return jsonify({"error": "unsupported file type — use PDF, JPG, PNG, or HEIC"}), 400
+            return jsonify({"error": "unsupported file type — use PDF, JPG, PNG, HEIC, Excel or CSV"}), 400
     # DOC_SCAN_FAKE (test-only, NEVER set in prod) bypasses the live model so the
     # pipeline can be proven deterministically when the API key is absent.
     fake_path = runtime_seams.seam('DOC_SCAN_FAKE')
@@ -5555,7 +5558,10 @@ def api_project_documents_scan(project_code):
         f.seek(0)
         if size > scanner.MAX_FILE_BYTES:
             return jsonify({"error": "a page is too large (max 16 MB)"}), 400
-        specs.append(scanner.spec_from_bytes(f.read(), f.filename))
+        try:
+            specs.append(scanner.spec_from_bytes(f.read(), f.filename))
+        except scanner.ScanError:
+            return jsonify({"error": "That spreadsheet couldn't be opened. Check the file and try again."}), 400
     try:
         if fake_path:
             with open(fake_path, encoding='utf-8') as fh:
@@ -5926,6 +5932,65 @@ def api_projdoc_file(doc_id):
         return resp
     finally:
         conn.close()
+
+
+_SHEET_PREVIEW_MAX_BYTES = 32 * 1024 * 1024
+
+
+def _projdoc_sheet_resp(path_text, file_name):
+    """The cells of a stored spreadsheet for the in-app preview (sheet_read.grid). Confined to
+    data_room/project_docs/; values as Excel last saved them (no formulas run, no macros)."""
+    import sheet_read
+    ext = Path(file_name or '').suffix.lower()
+    if ext not in sheet_read.EXTS:
+        return jsonify({"error": "not a spreadsheet"}), 400
+    p = ssc_paths.resolve_data_path(path_text)
+    base = (ssc_paths.under_root('data_room', 'project_docs')).resolve()
+    if not (p.resolve().is_relative_to(base) and p.exists()):
+        return jsonify({"error": "file missing"}), 404
+    if p.stat().st_size > _SHEET_PREVIEW_MAX_BYTES:
+        return jsonify({"error": "This spreadsheet is too large to show here. Use Download to open it."}), 413
+    try:
+        out = sheet_read.grid(p.read_bytes(), ext)
+    except Exception as e:   # never log cell content
+        logging.info(f"sheet preview failed: {type(e).__name__}")
+        return jsonify({"error": "This spreadsheet couldn't be opened here. Use Download to open it."}), 422
+    out['preview_rows'] = sheet_read.PREVIEW_ROWS
+    resp = response_wrapper(out)
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+@app.route('/api/documents/<int:doc_id>/sheet', methods=['GET'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_sheet(doc_id):
+    """Preview a filed spreadsheet (any version) as cells, on the job's own scope."""
+    conn = db()
+    try:
+        row = conn.execute("SELECT project_code, file_path, file_name FROM project_documents WHERE id=?",
+                           (doc_id,)).fetchone()
+        if not row or not row['file_path']:
+            return jsonify({"error": "not found"}), 404
+        err = _projdoc_scope_err(conn, row['project_code'])
+        if err:
+            return err
+    finally:
+        conn.close()
+    return _projdoc_sheet_resp(row['file_path'], row['file_name'])
+
+
+@app.route('/api/documents/intake/<int:intake_id>/sheet', methods=['GET'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_intake_sheet(intake_id):
+    """Preview a spreadsheet still waiting in the drop-zone tray."""
+    conn = db()
+    try:
+        row, err = _intake_row(conn, intake_id)
+        if err:
+            return err
+    finally:
+        conn.close()
+    return _projdoc_sheet_resp(row['file_path'], row['file_name'])
 
 
 @app.route('/api/documents/<int:doc_id>/replace-file', methods=['POST'])

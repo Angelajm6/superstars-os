@@ -24,6 +24,9 @@ weasyprint>=60.0
 
 # Spreadsheet read/write (used by report generators)
 openpyxl>=3.1
+# Old Excel 97-2003 .xls files on the Documents tab (sheet_read.py). 2.x reads ONLY .xls;
+# pure Python, no dependencies, BSD. Vetted 2026-10-26.
+xlrd==2.0.2
 
 # Data manipulation (used by lookahead/meeting generators)
 pandas>=2.0
