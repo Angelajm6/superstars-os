@@ -28,7 +28,7 @@
   var S = { status: null, chat: null, chats: [], poll: null, open: false, sending: false, files: [], fk: 0,
             quote: '', refs: [], ctxOff: false, locked: null, ment: null };
   var HOST = document.getElementById('clx-page'), PAGE = !!HOST;   // the full Claude page
-  var ACCEPT = '.pdf,.png,.jpg,.jpeg,.heic,.heif,.webp,.gif,.docx,.xlsx,.xlsm,.csv,.txt,.eml,.md';
+  var ACCEPT = '.pdf,.png,.jpg,.jpeg,.heic,.heif,.webp,.gif,.docx,.xlsx,.xlsm,.xls,.csv,.txt,.eml,.md';
   var MAXF = 5, MAXB = 20 * 1024 * 1024, DEFAULT_TEXT = 'Here are the attached files.';
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -304,7 +304,7 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
   function fileKind(n) {
     n = String(n || '').toLowerCase();
     return /\.pdf$/.test(n) ? ['pdf', 'PDF'] : /\.(png|jpe?g|heic|heif|webp|gif)$/.test(n) ? ['image', 'IMG']
-      : /\.(xlsx|xlsm)$/.test(n) ? ['excel', 'XLS'] : /\.csv$/.test(n) ? ['excel', 'CSV'] : /\.docx$/.test(n) ? ['word', 'DOC'] : ['text', 'TXT'];
+      : /\.(xlsx|xlsm|xls)$/.test(n) ? ['excel', 'XLS'] : /\.csv$/.test(n) ? ['excel', 'CSV'] : /\.docx$/.test(n) ? ['word', 'DOC'] : ['text', 'TXT'];
   }
   function sizeOf(b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; }
   function chip(f, opts) {

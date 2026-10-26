@@ -639,7 +639,7 @@ def main() -> int:
         assert gone not in html, gone
     for there in ('id="pd-sugg"', "renderSuggest", "data-dzparty", "suggestions/dismiss",
                   "data-dzname", "data-ren=", "data-delyes", "duplicate_of",
-                  "pdf_view.js?v=2", "previewDoc(", "pd-btn-view",
+                  "pdf_view.js?v=3", "previewDoc(", "pd-btn-view",
                   # 2026-10-23: Filed = filed only; Still needed; Additional documents; a second one files alongside
                   "Still needed for this job", 'id="pd-sugg-not"', "Not asked on this job: ", "function addlHtml()",
                   "data-addl-add=", "Additional documents", "asNewer:false", "This replaces <b>"):

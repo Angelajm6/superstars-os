@@ -38,13 +38,13 @@ IMG_MAX_EDGE = 2000
 API_TTL = 30 * 24 * 3600          # the Anthropic copy expires by itself; re-sent if needed
 ORPHAN_AGE = timedelta(days=1)    # attached but never sent: removed
 EXT = {".pdf": "pdf", ".png": "image", ".jpg": "image", ".jpeg": "image", ".heic": "image", ".heif": "image",
-       ".webp": "image", ".gif": "image", ".docx": "word", ".xlsx": "excel", ".xlsm": "excel",
+       ".webp": "image", ".gif": "image", ".docx": "word", ".xlsx": "excel", ".xlsm": "excel", ".xls": "excel",
        ".csv": "text", ".txt": "text", ".eml": "text", ".md": "text"}
 MIME = {".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
         ".heic": "image/heic", ".heif": "image/heif", ".webp": "image/webp", ".gif": "image/gif",
         ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        ".xlsm": "application/vnd.ms-excel.sheet.macroEnabled.12", ".csv": "text/csv", ".txt": "text/plain",
+        ".xlsm": "application/vnd.ms-excel.sheet.macroEnabled.12", ".xls": "application/vnd.ms-excel", ".csv": "text/csv", ".txt": "text/plain",
         ".eml": "message/rfc822", ".md": "text/markdown"}
 ACCEPT = ", ".join(sorted(EXT))
 
@@ -204,6 +204,9 @@ def store(conn, uid: int, filename: str, data: bytes) -> dict:
             _image_for_model(data)   # proves it opens
         elif kind == "word":
             text = _docx_text(data)
+        elif kind == "excel" and ext == ".xls":
+            import sheet_read   # Excel 97-2003 (xlrd)
+            text = sheet_read.text(data, ext, max_chars=MAX_TEXT_CHARS)
         elif kind == "excel":
             text = _xlsx_text(data)
         else:
