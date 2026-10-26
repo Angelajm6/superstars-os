@@ -59,6 +59,9 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
 .np-ck small{display:block;color:var(--muted);font-size:12px;margin-top:2px;}
 .np-ck.on{border-color:var(--accent);background:var(--accent-soft);}
 .np-ck.lock{background:#F4F5F8;cursor:default;}
+.np-ra{grid-template-columns:repeat(2,minmax(0,1fr));}
+.np-field .np-ra label.np-ck{display:flex;margin:0;padding:11px 12px;font-size:14px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink);}
+.np-field .np-ra label.np-ck small{font-weight:400;}
 .np-core{display:flex;flex-wrap:wrap;gap:6px;}
 .np-core span{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink,#2A47B8);}
 .np-drop{display:block;border:2px dashed var(--line);border-radius:12px;padding:18px;text-align:center;font-size:13px;cursor:pointer;}
@@ -83,7 +86,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
 .np-alist .foot:hover{background:none;}
 .np-filled{font-size:12px;color:var(--status-complete-deep,#0c7a5f);background:var(--status-complete-soft,#e7f6f0);border-radius:8px;padding:8px 10px;margin-top:6px;}
 .np-filled[hidden]{display:none;}
-@media (max-width:600px){ .np-alist li[data-k]{min-height:44px;} .np-field input,.np-field select{font-size:16px;} }
+@media (max-width:600px){ .np-ra{grid-template-columns:1fr;} .np-ra .np-ck{min-height:56px;} .np-alist li[data-k]{min-height:44px;} .np-field input,.np-field select{font-size:16px;} }
 @media (max-width:980px){ .np-main{grid-template-columns:minmax(0,1fr);} .np-rail,.np-prev{display:none;} }
 @media (max-width:600px){ .np-sec{grid-template-columns:1fr;} .np-overlay{padding:0;} .np-modal{border-radius:0;max-height:100vh;} }`;
   var st = document.createElement('style'); st.id = 'np-style'; st.textContent = CSS; document.head.appendChild(st);
@@ -97,6 +100,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
         <section class="np-sec" id="np-s-job"><h3>Job</h3>
           <div class="np-field"><label for="np-type">Job type</label><select id="np-type" aria-describedby="np-ferr-type"></select><div class="np-ferr" id="np-ferr-type" role="alert"></div></div>
           <div class="np-field" id="np-other-wrap" hidden><label for="np-other">What kind of job?</label><input id="np-other" maxlength="80" placeholder="e.g. Basement excavation" autocomplete="off" aria-describedby="np-ferr-other"><div class="np-ferr" id="np-ferr-other" role="alert"></div></div>
+          <div class="np-field full" id="np-ra-wrap" hidden><span class="np-lab" id="np-ra-lab">What kind of rope access job?</span><div class="np-checks np-ra" id="np-ra" role="radiogroup" aria-labelledby="np-ra-lab" aria-describedby="np-ferr-ra"></div><div class="np-hint">Sets the job’s document list. You can change it later in Edit project.</div><div class="np-ferr" id="np-ferr-ra" role="alert"></div></div>
           <div class="np-field"><label for="np-borough">Borough / region</label><select id="np-borough" aria-describedby="np-ferr-borough"></select><div class="np-ferr" id="np-ferr-borough" role="alert"></div></div>
           <div class="np-field full np-addr"><label for="np-address">Building address</label><input id="np-address" placeholder="Start typing, e.g. 890 East 135th Street" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="np-alist" aria-describedby="np-ferr-address"><ul class="np-alist" id="np-alist" role="listbox" aria-label="Address suggestions" hidden></ul><div class="np-ferr" id="np-ferr-address" role="alert"></div><div class="np-filled" id="np-filled" role="status" hidden></div></div>
           <div class="np-field"><label for="np-cityzip">City / ZIP</label><input id="np-cityzip" placeholder="Bronx, NY 10454" maxlength="120" autocomplete="off"></div>
@@ -190,6 +194,16 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
   // "Other" job type: described in words (e.g. Basement excavation); the description stands in for the type name
   function otherApplies() { var t = NP.mode === 'edit' ? (NP.code || '').split('-')[0] : $('np-type').value; return ((NP.setup && NP.setup.other_types) || ['OTH']).indexOf((t || '').toUpperCase()) !== -1; }
   function drawOther() { $('np-other-wrap').hidden = !otherApplies(); }
+  // Rope access: repair work or inspection (decides the job's document list)
+  function raApplies() { return ((NP.setup && NP.setup.rope_access_types) || ['IRA']).indexOf(typeOf()) !== -1; }
+  function drawRa(selected) {
+    $('np-ra-wrap').hidden = !raApplies();
+    if (selected !== undefined) {
+      $('np-ra').innerHTML = ((NP.setup && NP.setup.rope_access_scopes) || []).map(function (o) { return '<label class="np-ck"><input type="radio" name="np-ra" value="' + esc(o.key) + '"' + (o.key === selected ? ' checked' : '') + '>' + esc(o.label) + '<small>' + esc(o.hint) + '</small></label>'; }).join('');
+    }
+    markChecks($('np-ra'));
+  }
+  function raChosen() { if (!raApplies()) return null; var i = $('np-ra').querySelector('input:checked'); return i ? i.value : null; }
   function accessApplies() { var t = NP.mode === 'edit' ? (NP.code || '').split('-')[0] : $('np-type').value; return (NP.setup.access_types || ['FR']).indexOf((t || '').toUpperCase()) !== -1; }
   function drawAccess(selected) {
     var on = accessApplies(); $('np-s-access').hidden = !on; $('np-rail-access').hidden = !on;
@@ -262,6 +276,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
     if (!payload.client_org_id && !payload.new_org_name && !NP.fromProposal) { if ($('np-client').value === '__new') bad.push(['neworg', 'Type the new client name.']); else bad.push(['client', 'Choose a client or add a new one.']); }
     if (NP.mode === 'new' && !payload.est_type) bad.push(['type', 'Choose the job type.']);
     if (otherApplies() && !payload.job_type_other) bad.push(['other', 'Describe the job, for example Basement excavation.']);
+    if (raApplies() && !payload.rope_access_scope) bad.push(['ra', 'Pick repair work or inspection.']);
     if (NP.mode === 'new' && !payload.borough) bad.push(['borough', 'Choose the borough or region.']);
     if (payload.address.length < 4) bad.push(['address', 'Enter the building address.']);
     if (!payload.billing_type) bad.push(['billing', 'Choose how the job is billed.']);   // #356
@@ -278,7 +293,8 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
     $('np-geo').addEventListener('click', function () { useMyLocation($('np-geo')); });
     $('np-client').addEventListener('change', function () { var isNew = $('np-client').value === '__new'; $('np-neworg-wrap').hidden = !isNew; if (isNew) setTimeout(function () { $('np-neworg').focus(); }, 30); });
     ['np-client', 'np-neworg', 'np-type', 'np-borough', 'np-address', 'np-billing'].forEach(function (id) { var el = $(id); var ev = el.tagName === 'SELECT' ? 'change' : 'input'; el.addEventListener(ev, function () { var f = el.closest('.np-field'); if (f) { f.classList.remove('invalid'); var m = f.querySelector('.np-ferr'); if (m) { m.classList.remove('show'); m.textContent = ''; } } }); });
-    $('np-type').addEventListener('change', function () { drawAccess(); drawOther(); drawTabs(tabsForType()); codePreview(); if (otherApplies()) $('np-other').focus(); });
+    $('np-ra').addEventListener('change', function () { markChecks($('np-ra')); var f = $('np-ra-wrap'); f.classList.remove('invalid'); $('np-ferr-ra').classList.remove('show'); $('np-ferr-ra').textContent = ''; });
+    $('np-type').addEventListener('change', function () { drawAccess(); drawOther(); drawRa(); drawTabs(tabsForType()); codePreview(); if (otherApplies()) $('np-other').focus(); });
     $('np-tabs').addEventListener('change', function () { markChecks($('np-tabs')); });
     $('np-other').addEventListener('input', function () { var e = $('np-ferr-other'); e.textContent = ''; e.classList.remove('show'); $('np-other-wrap').classList.remove('invalid'); });
     $('np-borough').addEventListener('change', codePreview);
@@ -316,7 +332,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
       pm_user_id: $('np-pm').value || null, notes: $('np-notes').value.trim(), billing_type: $('np-billing').value || null,
       site_lat: $('np-lat').value.trim() || null, site_lng: $('np-lng').value.trim() || null, geofence_m: $('np-radius').value.trim() || null, crew: crewChecked($('np-crew')),
       color_index: NP.color, access_methods: accessApplies() ? accessChosen() : null, worker_access: workChosen(),
-      job_type_other: otherApplies() ? $('np-other').value.trim().replace(/\s+/g, ' ') : null, modules: tabsChosen(),
+      job_type_other: otherApplies() ? $('np-other').value.trim().replace(/\s+/g, ' ') : null, rope_access_scope: raChosen(), modules: tabsChosen(),
       from_proposal_id: NP.mode === 'new' ? NP.fromProposal : null };
   }
 
@@ -358,6 +374,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
     var setup = { color_index: p.color_index, worker_access: p.worker_access };
     if (p.access_methods !== null) setup.access_methods = p.access_methods;
     if (p.job_type_other) setup.job_type_other = p.job_type_other;
+    if (p.rope_access_scope) setup.rope_access_scope = p.rope_access_scope;
     steps.push(['color and access', function () { return send('PUT', '/api/admin/projects/' + encodeURIComponent(code) + '/setup', setup); }]);
     steps.push(['tabs', function () { return send('PUT', '/api/admin/projects/' + encodeURIComponent(code) + '/modules', { modules: p.modules }); }]);
     for (var i = 0; i < steps.length; i++) {
@@ -468,7 +485,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
     try {
       await loadMeta(null); resetForm();
       $('np-no').textContent = '#' + NP.setup.next_job_number;
-      NP.color = NP.setup.suggested_color; drawColors(); drawAccess(null); drawWork(null);
+      NP.color = NP.setup.suggested_color; drawColors(); drawAccess(null); drawRa((NP.setup.rope_access_scopes || [{ key: 'repair' }])[0].key); drawWork(null);
       renderCrewBoxes($('np-crew'), NP.meta.workers); codePreview();
       // #337 — prefill (a job site's address, borough and client)
       if (pre.address) $('np-address').value = pre.address;
@@ -515,7 +532,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
       var site = crew.site || {};
       $('np-lat').value = site.site_lat != null ? site.site_lat : ''; $('np-lng').value = site.site_lng != null ? site.site_lng : ''; $('np-radius').value = site.geofence_m || '';
       NP.color = su.color_index; drawColors(); drawAccess(su.access_methods); drawWork(su.worker_access);
-      $('np-other').value = su.job_type_other || ''; drawOther();
+      $('np-other').value = su.job_type_other || ''; drawOther(); drawRa(su.rope_access_scope || NP.setup.rope_access_default || 'inspection');
       try { var mj = await getJSON('/api/projects/' + encodeURIComponent(code) + '/modules'); drawTabs(mj.modules.filter(function (x) { return x.enabled; }).map(function (x) { return x.key; })); } catch (e) { drawTabs([]); }
       var n = sets ? (Array.isArray(sets) ? sets.length : (sets.sets || []).length) : 0;
       $('np-dwg-note').innerHTML = n ? esc(n + (n === 1 ? ' drawing set' : ' drawing sets') + ' on file.') + ' <a href="/drawing-author">Set up elevations →</a>' : 'No drawing set on file yet.';

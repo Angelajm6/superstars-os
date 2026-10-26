@@ -5244,13 +5244,17 @@ def _projdoc_other_company(d):
 
 
 def _projdoc_job_ctx(conn, project_code):
-    """What decides which documents fit the job (doc_suggest.SCOPE): its type, access
-    methods (None = never set), billing type and whether the Drop Plan has drops."""
+    """What decides which documents the job needs (doc_suggest.plan): its type (and, for rope
+    access, inspection or repair), access methods (None = never set), billing type, whether the
+    Drop Plan has drops and whether closeout is near (target completion within 30 days, or closed).
+    The caller adds `filed` (what is on file)."""
     import project_setup
-    ctx = {'project_type': None, 'access': None, 'access_applies': False, 'billing_type': None, 'has_drops': False}
+    ctx = {'project_type': None, 'ra_scope': None, 'access': None, 'access_applies': False, 'billing_type': None,
+           'has_drops': False, 'near_end': False}
     try:
         su = project_setup.setup(conn, project_code) or {}
         et = su.get('est_type') or project_setup.est_type_of(project_code)
+        ctx['ra_scope'] = su.get('rope_access_scope')
         ctx['access'] = su.get('access_methods')
         ctx['access_applies'] = bool(su.get('access_applies'))
         ctx['project_type'] = project_setup.PROJECT_TYPE_FOR.get(et)
@@ -5271,6 +5275,14 @@ def _projdoc_job_ctx(conn, project_code):
                                         (project_code,)).fetchone() is not None
     except Exception:   # no Drop Plan tables on this database
         conn.rollback()
+    try:
+        row = conn.execute("SELECT status, target_completion FROM projects WHERE project_code=?", (project_code,)).fetchone()
+        if row:
+            end = str(row['target_completion'] or '')[:10]
+            ctx['near_end'] = (row['status'] or 'active') != 'active' or bool(
+                end and end <= (date.today() + timedelta(days=30)).isoformat())
+    except Exception:   # a database without target_completion
+        conn.rollback()
     return ctx
 
 
@@ -5283,8 +5295,8 @@ def api_project_documents(project_code):
     An item can hold several current documents (ours + each subcontractor's COI, say):
     `docs` lists them all; `doc` is the one that decides the item's status (the best
     standing, newest first). `suggestions` = doc_suggest over what is filed.
-    Only the checklist items that fit the job count (doc_suggest.applies: its type, access
-    methods, billing, drops); a missing item is returned as a suggestion, never as an empty
+    Only what the job needs now counts (doc_suggest.applies: its scope, access methods, billing,
+    drops, what is filed; closeout once the end is near); a missing item is returned as a suggestion, never as an empty
     row. Another company's documents (party subcontractor / other) are not ours: they never
     fill the job's checklist and come back grouped in `additional`."""
     conn = db()
@@ -5307,6 +5319,7 @@ def api_project_documents(project_code):
             rk = d['requirement_key']
             if rk and not d['superseded'] and not _projdoc_other_company(d):
                 by_req.setdefault((d['category'], rk), []).append(d)
+        ctx['filed'] = {rk for (_c, rk) in by_req}   # what is on file brings more in (a PW2 -> SST cards, …)
         _rank = {'on_file': 0, 'expiring': 1, 'expired': 2}
         # #271 — version chains: history = walk supersedes_id from each CURRENT doc.
         # A superseded row that is REFERENCED by a newer version lives in History (not
@@ -5345,10 +5358,11 @@ def api_project_documents(project_code):
                 held = [_projdoc_public(d, today_iso, d30_iso)
                         for d in by_req.get((code, r['requirement_key']), [])]
                 required = doc_suggest.applies(r['requirement_key'], ctx)
-                if not required and not held:   # doesn't fit this job and nothing filed: not shown, not counted
-                    if r['requirement_key'] in doc_suggest.WHY_NOT:
+                missing_labels[(code, r['requirement_key'])] = r['label']
+                if not required and not held:   # not needed now and nothing filed: not shown, not counted
+                    if doc_suggest.phase(r['requirement_key'], ctx) is None and r['requirement_key'] not in doc_suggest.NOT_REQUIRED:
                         not_asked.append({'requirement_key': r['requirement_key'], 'label': r['label'],
-                                          'why': doc_suggest.WHY_NOT[r['requirement_key']]})
+                                          'why': doc_suggest.why_not(r['requirement_key'], ctx)})
                     continue
                 if required:
                     agg['required_total'] += 1
@@ -5361,7 +5375,6 @@ def api_project_documents(project_code):
                                   'status': st, 'doc': best, 'docs': held, 'required': required})
                 else:
                     agg['missing'] += 1
-                    missing_labels[(code, r['requirement_key'])] = r['label']
                     items.append({'requirement_key': r['requirement_key'], 'label': r['label'],
                                   'status': 'missing', 'doc': None, 'docs': [], 'required': True})
             req_keys = {r['requirement_key'] for r in cat_reqs.get(code, [])}
@@ -5399,6 +5412,9 @@ def api_project_documents(project_code):
         resp = response_wrapper({'categories': out_cats, 'readiness': {**agg, 'pct': pct},
                                  'suggestions': suggestions, 'additional': additional,
                                  'job': {'project_type': ctx.get('project_type'),
+                                         'scope': doc_suggest.scope_of(ctx),
+                                         'scope_label': doc_suggest.SCOPE_LABELS[doc_suggest.scope_of(ctx)],
+                                         'near_end': bool(ctx.get('near_end')),
                                          'access_applies': bool(ctx.get('access_applies')),
                                          'access_set': ctx.get('access') is not None,
                                          'billing_type': ctx.get('billing_type'),

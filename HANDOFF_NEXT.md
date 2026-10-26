@@ -21,6 +21,29 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Documents "Still needed" by job scope; Rope Access repair / inspection (Bookore, 2026-10-26)
+
+* Accepted prototype: https://claude.ai/artifact/BEtxo5bKX4ozW1y6Lkp5WH. `doc_suggest.plan(ctx)` decides what a job needs: its
+  scope (`facade`, `ra_inspection`, `ra_repair`, `garage`, `interiors`, `generic`), access methods, billing, drops, and what is
+  FILED (`TRIGGERS`: a PW2 brings in SST cards now + the DOB sign-off at closeout; a BEST permit the rigging engineering + drop
+  layout; a FISP report the acknowledgment, with the final filing / shed as "maybe, if Unsafe"). Each item is `now`, `later`
+  (closeout) or `maybe` (with a one-line condition: TR1 "if the permit lists special inspections", Site Safety Plan "10+ stories").
+  Rules reviewed against NYC BC Ch. 33; whether a job needs a PW2 / TR1 / SSP stays the expediter's call (Not needed on every row).
+* Readiness counts `now` items, plus closeout once `near_end` (target completion within 30 days, or the job is closed). Every
+  suggestion carries `phase` / `group` / `cond`; the panel groups rows by why (one line each), folds "At closeout" (opens itself
+  near the end) and "Might also apply". `NEVER` keeps a document's mention from suggesting what a scope never needs.
+* **Job type:** `EST_TYPES['IRA']` = "Rope Access" (the word Inspection is gone). New `projects.rope_access_scope` (`repair` |
+  `inspection`; NULL reads as inspection, the jobs made before), asked on New / Edit project for IRA jobs, synced to
+  `estimate.ra_subtype` (work | inspection); an unpicked new job takes its estimate's subtype. `new_project_modal.js?v=1026`.
+* Guards: `smoke_doc_dropzone.py` (scope rules, phases, groups), `smoke_projects_batch_c.py` (rope access scope API + onboarding).
+
+### Construction specialist can't open the real DB (Bookore, 2026-10-26, PR #163)
+
+* A subagent call connected to the real `superstars.db` through `provenance.py`'s default (insert failed, file unchanged).
+  `agents/construction_specialist/db_guard.py`: no default, `--db` / `SSC_AGENT_DB` only, file must exist, the real DB refused by
+  name or path. The Task subagent has no Bash (hands back a PROVENANCE block). `smoke_construction_agent.py` (throwaway DB) is in
+  the gate. Still open: `db_layer.py` falls back to `superstars.db` when `SSC_DB_URL` is unset (app-wide).
+
 ### Schedule window rebuilt (Bookore, 2026-10-24)
 
 * Accepted prototype: https://claude.ai/artifact/HSKLWGfpYbD5YES2Jm9ook (row 2). One call: `GET /api/projects/<code>/schedule?start=`

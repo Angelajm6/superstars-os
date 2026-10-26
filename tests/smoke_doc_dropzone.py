@@ -437,7 +437,10 @@ def main() -> int:
     ah = sugs["after_hours|company|"]
     assert ah["origin"] == "content" and ah["on_checklist"] is False   # never required: only "may be needed"
     sds = sugs["sds|company|"]
-    assert sds["origin"] == "claude" and sds["on_checklist"] is True and "SDS" in sds["reason"]
+    # 2026-10-26: an SDS is on this job's own list (its scope), so it comes as a checklist row; the
+    # subcontract that called for it is still named as a source
+    assert sds["origin"] == "checklist" and sds["on_checklist"] is True and sds["phase"] == "now"
+    assert any((x.get("title") or "").startswith("Subcontract") for x in sds["sources"]), sds["sources"]
     assert "coi|company|" not in sugs                      # ours is on file
     order = [g["on_checklist"] for g in _payload(admin)["suggestions"]]
     assert order == sorted(order, reverse=True)            # required ones first
@@ -579,7 +582,28 @@ def main() -> int:
     assert doc_suggest.applies("drop_layout", {"project_type": "facade", "access": [], "has_drops": True})
     assert not doc_suggest.applies("rope_access_plan", {"access": ["suspended_scaffold"]})
     assert doc_suggest.applies("rope_access_plan", {"access": ["rope_access"]})
-    assert not doc_suggest.applies("fisp_ack", {"project_type": "garage"}) and doc_suggest.applies("fisp_ack", {"project_type": "facade"})
+    assert not doc_suggest.applies("fisp_ack", {"project_type": "garage"}) and not doc_suggest.applies("fisp_ack", {"project_type": "facade"})
+    assert doc_suggest.applies("fisp_ack", {"project_type": "facade", "filed": {"fisp_report"}})   # a FISP report brings it in
+    assert doc_suggest.phase("final_fisp", {"project_type": "facade", "filed": {"fisp_report"}}) == "maybe"   # only if Unsafe
+    # 2026-10-26: by scope. Rope access inspection: no permits or drawings; repair work: submittals + SDS
+    ra_i = {"project_type": "ira", "ra_scope": "inspection", "billing_type": "lump_sum"}
+    ra_r = {"project_type": "ira", "ra_scope": "repair", "billing_type": "lump_sum"}
+    need_i = {k for k, v in doc_suggest.plan(ra_i)["items"].items() if v["phase"] == "now"}
+    assert need_i == {"owner_contract", "coi", "toolbox_log", "rope_access_plan", "drop_layout", "fisp_report"}, need_i
+    assert not any(doc_suggest.suggestable(k, ra_i) for k in ("pw2", "approved_arch", "tr1", "best_permit", "warranties"))
+    assert doc_suggest.applies("shop_drawings", ra_r) and doc_suggest.applies("sds", ra_r) and not doc_suggest.applies("pw2", ra_r)
+    assert doc_suggest.phase("pw2", ra_r) == "maybe" and doc_suggest.phase("warranties", ra_r) == "later"
+    assert doc_suggest.scope_of({"project_type": "ira"}) == "ra_inspection"   # jobs made before the question
+    # a filed PW2 brings in SST cards now and the DOB sign-off at closeout; TR1 stays a maybe (not every permit has one)
+    pw = dict(ra_r, filed={"pw2"})
+    assert doc_suggest.applies("sst_records", pw) and doc_suggest.phase("dob_signoff", pw) == "later"
+    fac = {"project_type": "facade", "access": [], "filed": {"pw2"}}
+    assert doc_suggest.phase("tr1", fac) == "maybe" and not doc_suggest.applies("tr1", fac)
+    # closeout counts once the job is near its end
+    assert not doc_suggest.applies("warranties", ra_r) and doc_suggest.applies("warranties", dict(ra_r, near_end=True))
+    rows = doc_suggest.suggest([], set(), ctx=pw)
+    assert [r["phase"] for r in rows] == sorted((r["phase"] for r in rows), key=["now", "later", "maybe"].index)
+    assert {r["group"] for r in rows if r["phase"] == "now"} == {"Every job", "Rope access · Repair work", "Because the PW2 work permit is filed"}
     assert not doc_suggest.applies("pay_app", {"billing_type": "lump_sum"}) and doc_suggest.applies("pay_app", {"billing_type": None})
     assert not doc_suggest.applies("after_hours", {}) and doc_suggest.suggestable("after_hours", {})
     assert doc_suggest.applies("coi", {"project_type": "garage", "access": []}) and doc_suggest.applies("drop_layout", None)
@@ -598,10 +622,12 @@ def main() -> int:
     keys = {it["requirement_key"] for c in pay["categories"] for it in c["items"]}
     assert pay["job"]["project_type"] == "facade" and pay["job"]["access_set"] is False
     assert not keys & {"drop_layout", "best_permit", "scaffold_eng", "rope_access_plan"}, keys   # no drops, no access set
-    assert {"fisp_ack", "sidewalk_shed", "pay_app", "sov"} <= keys
+    assert {"pay_app", "sov", "pw2", "approved_arch"} <= keys and not keys & {"fisp_ack", "sidewalk_shed"}, keys   # 2026-10-26
     assert "drop_layout" not in {g["type_key"] for g in pay["suggestions"]}
     why = {x["requirement_key"]: x["why"] for x in pay["job"]["not_asked"]}   # "Not asked on this job: …"
-    assert why.get("drop_layout") == "no suspended scaffold or drops" and why.get("rope_access_plan") == "no rope access", why
+    assert why.get("drop_layout") == "no suspended scaffold or drops" and why.get("rope_access_plan") == "not needed on Exterior Restoration", why
+    assert "tr1" not in why and "fisp_report" not in why and "warranties" not in why   # maybe / closeout: not "not asked"
+    assert pay["job"]["scope"] == "facade" and pay["job"]["scope_label"] == "Exterior Restoration"
     assert "after_hours" not in why and "coi" not in why
     # every missing required item is listed in the suggestions ("Still needed"), not only as an empty row
     missing = {(c["category"], it["requirement_key"]) for c in pay["categories"] for it in c["items"] if it["status"] == "missing"}
@@ -620,7 +646,9 @@ def main() -> int:
     assert admin.post(f"/api/documents/intake/{bp['id']}/approve", json={"type_key": "best_permit"}).status_code == 201
     pay = _payload(admin)
     sk = {g["type_key"] for g in pay["suggestions"]}
-    assert not sk & {"drop_layout", "scaffold_eng"}, sk
+    assert "scaffold_eng" not in sk, sk
+    dl = next(g for g in pay["suggestions"] if g["type_key"] == "drop_layout")   # 2026-10-26: rope access needs one
+    assert dl["group"] == "Rope access" and dl["phase"] == "now", dl
     items = {it["requirement_key"]: it for c in pay["categories"] for it in c["items"]}
     assert items["best_permit"]["required"] is False and items["best_permit"]["status"] == "on_file"   # filed: still shown
     assert "rope_access_plan" in items
@@ -641,7 +669,8 @@ def main() -> int:
                   "data-dzname", "data-ren=", "data-delyes", "duplicate_of",
                   "pdf_view.js?v=3", "previewDoc(", "pd-btn-view",
                   # 2026-10-23: Filed = filed only; Still needed; Additional documents; a second one files alongside
-                  "Still needed for this job", 'id="pd-sugg-not"', "Not asked on this job: ", "function addlHtml()",
+                  "Still needed now", 'id="pd-sugg-not"', "Not asked on this job (", "function addlHtml()",
+                  "data-sgfold=", "'At closeout'", "'Might also apply'", "pd-sg-grp",
                   "data-addl-add=", "Additional documents", "asNewer:false", "This replaces <b>"):
         assert there in html, there
     for gone in ("function missingRow(", "rows.push(missingRow(", "' missing</span>'", "asNewer:true", "Untick to keep both"):
