@@ -3829,6 +3829,7 @@
     $('ib-cmp-from').textContent = snd && snd.from ? 'From ' + snd.from : 'Sent from your Gmail when you press Send.';
     ibSig($('ib-cmp-sig'), snd);
     ['ib-cmp-to', 'ib-cmp-cc', 'ib-cmp-subject', 'ib-cmp-body'].forEach(i => { $(i).value = ''; });
+    if (window.SSCMailSuggest) ['ib-cmp-to', 'ib-cmp-cc'].forEach(i => SSCMailSuggest.attach($(i), { group: [$('ib-cmp-to'), $('ib-cmp-cc')] }));   // same people as the reply box
     $('ib-compose').classList.add('open'); setTimeout(() => $('ib-cmp-to').focus(), 30);
   }
   $('ib-cmp-form').addEventListener('submit', async (e) => {
@@ -6151,5 +6152,6 @@
 </script>
 <link rel="stylesheet" href="/files/static/css/unify.css?v=16">
 <script src="/files/static/js/file_drop.js?v=1" defer></script>
+<script src="/files/static/js/mail_suggest.js?v=1" defer></script>
 </body>
 </html>
