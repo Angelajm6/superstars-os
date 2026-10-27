@@ -3945,6 +3945,7 @@
     ['declined', 'Declined'], ['all', 'Every version'], ['archived', 'Before the app'], ['deleted', 'Deleted']];
   const prxSt = r => r.archived ? 'archived' : (r.display_status === 'expired' ? 'expired' : r.status);
   const prxNo = r => r.label || r.number;
+  function prxSignable(r) { return !r.archived && (['draft', 'sent', 'viewed'].includes(r.status) || r.status === 'declined' && prxLatest(r)); }
   function prxLatest(r) { return r.archived || !PRX.rows.some(o => !o.archived && o.estimate_id === r.estimate_id && o.version > r.version); }
   function prxOlder(r) { return r.archived ? [] : PRX.rows.filter(o => !o.archived && o.estimate_id === r.estimate_id && o.version < r.version).sort((a, b) => b.version - a.version); }
   function prxVisible(f) {
@@ -4050,6 +4051,7 @@
       `<a class="${p.status === 'draft' ? 'btn-primary' : 'btn-ghost'} btn-sm" href="${docHref}">${p.status === 'draft' ? 'Edit the document' : 'Open the document'}</a>` +
       `<button type="button" class="btn-ghost btn-sm" data-prx-act="pdf">PDF</button>`) +
       (p.status === 'draft' ? `<a class="btn-ghost btn-sm" href="${studio ? `/proposal-studio#p/${p.id}/send` : `#proposals/${p.id}/page`}">Send…</a><button type="button" class="btn-ghost btn-sm" data-prx-act="marksent">Mark as sent</button>` : '') +
+      (prxSignable(p) ? `<button type="button" class="btn-ghost btn-sm" data-prx-act="marksigned">Mark signed…</button>` : '') +
       (revisable && !pending ? `<button type="button" class="btn-ghost btn-sm" data-prx-act="${PRX.admin ? 'version' : 'revise'}">${PRX.admin ? 'New version' : 'Request a revision'}</button>` : '') +
       (canDel ? `<button type="button" class="btn-ghost btn-sm prx-danger" data-prx-askdel>Delete</button>` : '');
     const conf = PRX.confirm === p.id ? `<div class="prx-confirm" role="alert"><b>Delete proposal ${esc(prxNo(p))}?</b>
@@ -4120,7 +4122,12 @@
     if (act === 'pdf') { prPdf(r); return; }
     if (act === 'open') { location.hash = '#proposals/' + id; return; }
     if (act === 'close') return;
-    if (act === 'archsent') { prArchOpen(r); return; }
+    if (act === 'archsent' || act === 'archsigned') { prArchOpen(r, act === 'archsigned'); return; }
+    if (act === 'marksigned') {
+      const f = $('pr-sign-form'); f.dataset.id = r.id; f.dataset.from = 'list';
+      $('pr-sign-name').value = r.signed_name || r.recipient_name || r.contact_name || ''; dateSet($('pr-sign-date'), todayLocal());
+      $('pr-sign-err').className = 'cp-form-err'; $('pr-sign-overlay').classList.add('open'); $('pr-sign-name').focus(); return;
+    }
     if (act === 'archdelgo' || act === 'archrestore') {
       const del = act === 'archdelgo';
       try { await api('/proposals/archived/' + r.archive_id + (del ? '' : '/restore'), { method: del ? 'DELETE' : 'POST', body: del ? undefined : '{}' }, true);
@@ -4162,12 +4169,13 @@
     const revisable = ['sent', 'viewed', 'declined'].includes(r.status);
     const canDel = !r.archived && (r.status === 'draft' || (PRX.admin && !['signed', 'deleted'].includes(r.status)));
     m.innerHTML = r.archived && r.hidden ? `<button type="button" role="menuitem" data-m="pdf">Open the PDF</button>` + (PRX.admin ? `<button type="button" role="menuitem" data-m="archrestore">Restore</button>` : '') :
-      r.archived ? `<button type="button" role="menuitem" data-m="pdf">Open the PDF</button><button type="button" role="menuitem" data-m="archsent">Mark as sent…</button>` +
+      r.archived ? `<button type="button" role="menuitem" data-m="pdf">Open the PDF</button><button type="button" role="menuitem" data-m="archsent">Mark as sent…</button><button type="button" role="menuitem" data-m="archsigned">Mark signed…</button>` +
         (PRX.admin ? `<hr><button type="button" role="menuitem" class="d" data-m="archdel">Delete…</button>` : '') :
       r.status === 'deleted' ? (PRX.admin ? `<button type="button" role="menuitem" data-m="restore">Restore</button>` : '') + `<button type="button" role="menuitem" data-m="open">Open</button>` :
       `<button type="button" role="menuitem" data-m="open">Open</button><button type="button" role="menuitem" data-m="number">Edit the number</button>` +
       `<button type="button" role="menuitem" data-m="pdf">View the PDF</button>` +
       (r.status === 'draft' ? `<button type="button" role="menuitem" data-m="marksent">Mark as sent</button>` : '') +
+      (prxSignable(r) ? `<button type="button" role="menuitem" data-m="marksigned">Mark signed…</button>` : '') +
       (revisable ? `<button type="button" role="menuitem" data-m="${PRX.admin ? 'version' : 'revise'}">${PRX.admin ? 'New version' : 'Request a revision'}</button>` : '') +
       (canDel ? `<hr><button type="button" role="menuitem" class="d" data-m="delete">Delete${r.status === 'draft' ? ' draft' : '…'}</button>` : '');
     document.body.appendChild(m);
@@ -4720,7 +4728,7 @@
           $('pr-sent-how').value = ''; dateSet($('pr-sent-date'), todayLocal()); $('pr-sent-err').className = 'cp-form-err'; $('pr-sent-overlay').classList.add('open');
         });
         $('pr-sign-btn').addEventListener('click', () => {
-          $('pr-sign-form').dataset.id = p.id; $('pr-sign-name').value = p.recipient_name || p.contact_name || ''; dateSet($('pr-sign-date'), todayLocal());
+          $('pr-sign-form').dataset.id = p.id; $('pr-sign-form').dataset.from = ''; $('pr-sign-name').value = p.recipient_name || p.contact_name || ''; dateSet($('pr-sign-date'), todayLocal());
           $('pr-sign-err').className = 'cp-form-err'; $('pr-sign-overlay').classList.add('open');
         });
       }
@@ -4794,14 +4802,15 @@
     h.className = 'prx-hint ' + (hit ? 'ok' : v ? 'new' : '');
     h.textContent = hit ? 'Existing client' : v ? `New client: “${v}” is added to Clients` : '';
   }
-  async function prArchOpen(r) {
+  async function prArchOpen(r, signed) {
     const f = $('pr-arch-form'); f.dataset.id = r.archive_id;
     $('pr-arch-no').value = String(r.number || '').replace(/^\D+/, '');
     dateSet($('pr-arch-date'), /^\d{4}-\d{2}-\d{2}$/.test(r.sent_at || '') ? r.sent_at : '');
     $('pr-arch-client').value = r.client_name || ''; $('pr-arch-addr').value = r.building_address || '';
     $('pr-arch-total').value = r.price != null ? Number(r.price).toFixed(2) : '';
-    $('pr-arch-ok').checked = false; $('pr-arch-apf').hidden = true; $('pr-arch-ap').classList.remove('on');
-    $('pr-arch-by').value = ''; dateSet($('pr-arch-on'), todayLocal()); $('pr-arch-go').textContent = 'Mark as sent';
+    $('pr-arch-ok').checked = !!signed; $('pr-arch-apf').hidden = !signed; $('pr-arch-ap').classList.toggle('on', !!signed);
+    $('pr-arch-by').value = ''; dateSet($('pr-arch-on'), todayLocal()); $('pr-arch-go').textContent = signed ? 'Mark sent and approved' : 'Mark as sent';
+    $('pr-arch-title').textContent = signed ? 'Mark signed' : 'Mark as sent';
     $('pr-arch-err').className = 'cp-form-err'; $('pr-arch-overlay').classList.add('open');
     try {
       if (!ESTNEW.meta) ESTNEW.meta = (await api('/estimates/meta', null, true)).data;
@@ -4820,7 +4829,7 @@
   $('pr-arch-boro').addEventListener('change', () => { $('pr-arch-boro-h').textContent = ''; });
   $('pr-arch-ok').addEventListener('change', () => {
     const on = $('pr-arch-ok').checked; $('pr-arch-apf').hidden = !on; $('pr-arch-ap').classList.toggle('on', on);
-    $('pr-arch-go').textContent = on ? 'Mark sent and approved' : 'Mark as sent'; if (on) $('pr-arch-by').focus();
+    $('pr-arch-go').textContent = on ? 'Mark sent and approved' : 'Mark as sent'; $('pr-arch-title').textContent = on ? 'Mark signed' : 'Mark as sent'; if (on) $('pr-arch-by').focus();
   });
   $('pr-arch-cancel').addEventListener('click', () => closeOverlay('pr-arch-overlay'));
   $('pr-arch-form').addEventListener('submit', async (e) => {
@@ -4851,7 +4860,8 @@
   $('pr-sign-form').addEventListener('submit', async (e) => {
     e.preventDefault(); const err = $('pr-sign-err'); err.className = 'cp-form-err'; const id = $('pr-sign-form').dataset.id;
     $('pr-sign-go').disabled = true;
-    try { await api('/proposals/' + id + '/mark-signed', { method: 'POST', body: JSON.stringify({ name: $('pr-sign-name').value.trim(), signed_on: dateGet($('pr-sign-date')) || null }) }, true); closeOverlay('pr-sign-overlay'); toast('Recorded as signed'); prAfter(id); }
+    try { await api('/proposals/' + id + '/mark-signed', { method: 'POST', body: JSON.stringify({ name: $('pr-sign-name').value.trim(), signed_on: dateGet($('pr-sign-date')) || null }) }, true); closeOverlay('pr-sign-overlay'); toast('Recorded as signed. Create the job from Projects → Ready to start');
+        if ($('pr-sign-form').dataset.from === 'list') { if (PRX.open != null && String(PRX.open) === String(id)) prxRefresh(id); else loadProposalList(); } else prAfter(id); }
     catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
     finally { $('pr-sign-go').disabled = false; }
   });

@@ -11,6 +11,8 @@ Boots the real app (`import server`) on an ISOLATED database. Proves:
   * with approved_by it is signed offline and Projects → Ready to start offers it
   * Delete in the ⋯ menu (2026-10-27): only an admin (C-suite -> 403); the upload leaves Before the app, is listed under
     Deleted, is still one of Claude's examples, and Restore brings it back; a second delete / restore -> 409
+  * Mark signed from the list (2026-10-27): a draft (its sent date becomes the signing day) and a declined latest version
+    can be signed; a future day or a day before it was sent -> 400; a declined version with a newer one -> 409
   * the served page has the modal, the menu items and the calls, and no button under each row
 Run:  venv/bin/python tests/smoke_old_proposal_sent.py
 """
@@ -38,6 +40,7 @@ os.environ.setdefault("SSC_STRICT_ROUTES", "0")
 
 import auth  # noqa: E402
 import crm  # noqa: E402
+import estimates  # noqa: E402
 import db_layer  # noqa: E402
 import proposal_template  # noqa: E402
 import proposals  # noqa: E402
@@ -191,16 +194,44 @@ def main() -> int:
         assert adm.delete(f"/api/proposals/archived/{ids['a']}").status_code == 404, "one marked as sent is a proposal now"
         passed += 1
 
+        conn = _db()
+        try:
+            org = conn.execute("SELECT id FROM crm_organization WHERE name = ?", (KNOWN,)).fetchone()["id"]
+            uid = conn.execute("SELECT id FROM users WHERE email = ?", (f"{TAG}.admin@example.com",)).fetchone()["id"]
+            made = []
+            for addr in ("1 Olds Sign St", "2 Olds Sign St", "3 Olds Sign St"):
+                est = estimates.create_estimate(conn, est_type="FR", borough="BX", client_org_id=org, building_address=addr, created_by=uid)
+                estimates.change_status(conn, est["id"], "scoping", actor_user_id=uid)
+                estimates.change_status(conn, est["id"], "submitted", final_amount=10000, actor_user_id=uid)
+                made.append(proposals.create_from_estimate(conn, est["id"], created_by=uid))
+            draft, dec, old = made
+            conn.execute("UPDATE proposal SET status = 'declined', sent_at = '2026-10-01T12:00:00' WHERE id IN (?, ?)", (dec["id"], old["id"]))
+            conn.commit()
+            v2 = proposals.create_from_estimate(conn, old["estimate_id"], created_by=uid)   # old now has a newer version
+        finally:
+            conn.close()
+        sign = lambda pid, **kw: c.post(f"/api/proposals/{pid}/mark-signed", json=dict({"name": "Pat Signer"}, **kw))   # noqa: E731
+        assert sign(draft["id"], signed_on="2099-01-01").status_code == 400
+        assert sign(dec["id"], signed_on="2026-09-30").status_code == 400, "signed before it was sent"
+        assert sign(old["id"]).status_code == 409, "a declined version with a newer one"
+        r = sign(draft["id"], signed_on="2026-10-21")
+        assert r.status_code == 200 and r.get_json()["data"]["status"] == "signed", r.get_json()
+        assert r.get_json()["data"]["sent_at"] == "2026-10-21T12:00:00", r.get_json()["data"]["sent_at"]
+        r = sign(dec["id"])
+        assert r.status_code == 200 and r.get_json()["data"]["status"] == "signed", r.get_json()
+        assert v2["status"] == "draft"
+        passed += 1
+
         page = c.get("/company").get_data(as_text=True)
         for needle in ('id="pr-arch-form"', "/proposals/archived/", 'id="pr-arch-ok"', "original_pdf", 'data-m="archdel"',
-                       'data-m="archrestore"', "prxArchConfirm"):
+                       'data-m="archrestore"', "prxArchConfirm", 'data-m="marksigned"', 'data-m="archsigned"', "prxSignable"):
             assert needle in page, needle
         assert "data-prx-arch" not in page, "no Mark as sent button under each row"
         passed += 1
     finally:
         _cleanup(ids)
-    print(f"smoke_old_proposal_sent: {passed}/7 checks passed")
-    return 0 if passed == 7 else 1
+    print(f"smoke_old_proposal_sent: {passed}/8 checks passed")
+    return 0 if passed == 8 else 1
 
 
 if __name__ == "__main__":

@@ -1244,16 +1244,26 @@ def mark_signed_offline(conn, proposal_id: int, *, name: str, signed_on=None, ac
     r = get(conn, proposal_id)
     if not r:
         raise LookupError("proposal not found")
-    if r["status"] not in ("draft", "sent", "viewed"):
+    # 2026-10-27: any proposal the client can still say yes to, from the list: a draft (it went out another way), sent,
+    # opened, or declined and then accepted after all (only the latest version: a newer one replaced it otherwise)
+    if r["status"] not in ("draft", "sent", "viewed", "declined"):
         raise ValueError(f"a {r['status']} proposal cannot be marked signed")
+    if r["status"] == "declined" and _one(conn.execute(
+            "SELECT id FROM proposal WHERE estimate_id = ? AND version > ? AND status NOT IN ('deleted') LIMIT 1",
+            (r["estimate_id"], r["version"]))):
+        raise ValueError("a newer version of this proposal exists, so this one cannot be marked signed")
     name = (name or "").strip()
     if len(name) < 2:
         raise ValueError("the signer's name is required")
     on = _valid_date(signed_on, "signed_on") or _today().isoformat()
+    if on > _today().isoformat():
+        raise ValueError("the day it was signed can't be in the future")
+    if r.get("sent_at") and on < str(r["sent_at"])[:10]:
+        raise ValueError("it was signed before it was sent: check the dates")
     now = _now()
     signed_at = now if on == _today().isoformat() else f"{on}T12:00:00"
     conn.execute("UPDATE proposal SET status = 'signed', signed_at = ?, signed_name = ?, signed_title = 'signed offline', "
-                 "updated_at = ? WHERE id = ?", (signed_at, name, now, proposal_id))
+                 "sent_at = COALESCE(sent_at, ?), updated_at = ? WHERE id = ?", (signed_at, name, signed_at, now, proposal_id))
     _event(conn, proposal_id, "signed", actor=actor, detail=f"{name} (recorded offline)")
     conn.commit()
     r = get(conn, proposal_id)

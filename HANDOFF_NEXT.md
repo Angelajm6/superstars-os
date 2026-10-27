@@ -38,6 +38,10 @@ grant, or elevation code.
   (admins; asks first inside the menu) → `DELETE /api/proposals/archived/<id>` sets `hidden` on the upload: it leaves Before the
   app and is listed under **Deleted** (`?status=deleted`), where ⋯ → **Restore** (`POST …/<id>/restore`) brings it back. The upload
   and file stay, so Claude keeps learning from it (Angela's choice: hide, not delete for good).
+* **Mark signed… on any proposal** (same day): ⋯ menu + side panel for a draft, sent, opened, or declined latest version
+  (`prxSignable`); opens the existing signature form. `mark_signed_offline` now also takes a declined latest version (a newer
+  version -> refused), refuses a future day or a day before it was sent, and gives a draft its sent date = the signing day.
+  Before the app rows: ⋯ → Mark signed… opens the Mark as sent form with the approval ticked.
 
 ### Documents "Still needed" by job scope; Rope Access repair / inspection (Bookore, 2026-10-26)
 
