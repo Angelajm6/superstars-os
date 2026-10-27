@@ -1889,6 +1889,11 @@ def _api_list():
                 arch = [a for a in arch if str(a["client_org_id"]) == str(request.args["client_org_id"])]
             counts["archived"] = len(proposal_template.archive_rows(conn))
             rows = arch if st == "archived" else (rows + arch if not st else rows)
+        if st == "deleted":   # proposals from before the app that an admin deleted from the list (2026-10-27)
+            import proposal_template
+            q = (request.args.get("q") or "").strip().lower()
+            rows = rows + [a for a in proposal_template.archive_rows(conn, hidden=True) if not q or q in " ".join(
+                str(a.get(k) or "") for k in ("label", "client_name", "building_address", "title")).lower()]
         signed_ytd = _one(conn.execute("SELECT COALESCE(SUM(price),0) AS v, COUNT(*) AS n FROM proposal "
                                        "WHERE status = 'signed' AND signed_at >= ?", (f"{_today().year}-01-01",)))
         awaiting = _one(conn.execute("SELECT COALESCE(SUM(price),0) AS v, COUNT(*) AS n FROM proposal "
@@ -2148,6 +2153,27 @@ def _api_adopt_archived(archive_id):
         conn.close()
 
 
+def _api_hide_archived(archive_id, hidden=True):
+    if _role() != "admin":
+        return _err("Only an admin can delete a proposal from before the app." if hidden else "Only an admin can restore it.", 403)
+    import proposal_template
+    conn = _conn()
+    try:
+        try:
+            proposal_template.hide_archive(conn, archive_id, hidden, actor=_uid())
+        except LookupError:
+            return _err("That proposal from before the app isn't there any more.", 404)
+        except ValueError as e:
+            return _err(str(e), 409)
+        return _wrap({"archive_id": archive_id, "hidden": hidden})
+    finally:
+        conn.close()
+
+
+def _api_restore_archived(archive_id):
+    return _api_hide_archived(archive_id, hidden=False)
+
+
 def _api_preview(proposal_id):
     conn = _conn()
     try:
@@ -2193,6 +2219,10 @@ def register(app) -> None:
     app.add_url_rule("/api/proposals/<int:proposal_id>/mark-sent", "proposals_mark_sent", gate(_api_mark_sent), methods=["POST"])
     app.add_url_rule("/api/proposals/archived/<int:archive_id>/mark-sent", "proposals_adopt_archived",
                      gate(_api_adopt_archived), methods=["POST"])
+    app.add_url_rule("/api/proposals/archived/<int:archive_id>", "proposals_hide_archived",
+                     gate(_api_hide_archived), methods=["DELETE"])
+    app.add_url_rule("/api/proposals/archived/<int:archive_id>/restore", "proposals_restore_archived",
+                     gate(_api_restore_archived), methods=["POST"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/mark-signed", "proposals_mark_signed", gate(_api_mark_signed), methods=["POST"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/preview", "proposals_preview", gate(_api_preview), methods=["GET"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/pdf", "proposals_pdf", gate(_api_pdf), methods=["GET"])

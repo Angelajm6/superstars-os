@@ -9,7 +9,9 @@ Boots the real app (`import server`) on an ISOLATED database. Proves:
     name the app doesn't know is added to Clients; the estimate is submitted at that total
   * the proposal's PDF is the uploaded PDF, byte for byte (never redrawn); `original_pdf` is true; a second try -> 409
   * with approved_by it is signed offline and Projects → Ready to start offers it
-  * the served page has the modal, the row button and the call
+  * Delete in the ⋯ menu (2026-10-27): only an admin (C-suite -> 403); the upload leaves Before the app, is listed under
+    Deleted, is still one of Claude's examples, and Restore brings it back; a second delete / restore -> 409
+  * the served page has the modal, the menu items and the calls, and no button under each row
 Run:  venv/bin/python tests/smoke_old_proposal_sent.py
 """
 from __future__ import annotations
@@ -55,10 +57,11 @@ def _db():
 def _seed() -> dict:
     conn = _db()
     try:
-        email = f"{TAG}.c_suite@example.com"
-        conn.execute("DELETE FROM users WHERE email = ?", (email,))
-        conn.execute("INSERT INTO users (email, password_hash, role, full_name, is_active, status, must_reset_password, is_system) "
-                     "VALUES (?, ?, 'c_suite', 'Smoke Olds', 1, 'active', 0, 1)", (email, auth.hash_password(PW)))
+        for role in ("c_suite", "admin"):
+            email = f"{TAG}.{role}@example.com"
+            conn.execute("DELETE FROM users WHERE email = ?", (email,))
+            conn.execute("INSERT INTO users (email, password_hash, role, full_name, is_active, status, must_reset_password, is_system) "
+                         "VALUES (?, ?, ?, 'Smoke Olds', 1, 'active', 0, 1)", (email, auth.hash_password(PW), role))
         conn.execute("DELETE FROM crm_organization WHERE name LIKE 'Olds %'")
         crm.create_org(conn, name=KNOWN, relationship_type="client")
         conn.commit()
@@ -66,20 +69,22 @@ def _seed() -> dict:
         d.mkdir(parents=True, exist_ok=True)
         (d / "olds-a.pdf").write_bytes(PDF)
         (d / "olds-b.pdf").write_bytes(PDF + b"% b\n")
+        (d / "olds-c.pdf").write_bytes(PDF + b"% c\n")
         before = proposal_template._get_raw(conn)
         st = proposal_template._store(conn)
         base = st["next_id"]
         for i, (f, no, client, addr, total, day) in enumerate((
                 ("olds-a.pdf", "0961", UNKNOWN, "155 E 31st St, New York", 78400, "2026-03-03"),
-                ("olds-b.pdf", "0987", KNOWN, "3530 Olds Hudson Pkwy, Bronx", 212750, "2026-05-12"))):
+                ("olds-b.pdf", "0987", KNOWN, "3530 Olds Hudson Pkwy, Bronx", 212750, "2026-05-12"),
+                ("olds-c.pdf", "0950", KNOWN, "9 Olds Duplicate St, Bronx", 5000, "2026-02-02"))):
             st["templates"].append({"id": base + i, "name": f, "path": ssc_paths.store_rel(d / f), "ext": ".pdf", "state": "ready",
                                     "uploaded_at": "2026-10-21T09:00:00", "example": {"title": f"Olds repairs {i}"},
                                     "archive": {"number": no, "date": day, "client": client, "building": addr, "total": total}})
-        st["next_id"] = base + 2
+        st["next_id"] = base + 3
         proposal_template._put(conn, st)
     finally:
         conn.close()
-    return {"a": base, "b": base + 1, "before": before}
+    return {"a": base, "b": base + 1, "c": base + 2, "before": before}
 
 
 def _cleanup(ids):
@@ -113,8 +118,9 @@ def _cleanup(ids):
 def main() -> int:
     ids = _seed()
     passed = 0
-    c = server.app.test_client()
+    c, adm = server.app.test_client(), server.app.test_client()
     assert c.post("/api/auth/login", json={"email": f"{TAG}.c_suite@example.com", "password": PW}).status_code == 200
+    assert adm.post("/api/auth/login", json={"email": f"{TAG}.admin@example.com", "password": PW}).status_code == 200
     arch = lambda: {r["archive_id"] for r in c.get("/api/proposals?status=archived").get_json()["data"]}   # noqa: E731
     post = lambda tid, **kw: c.post(f"/api/proposals/archived/{tid}/mark-sent", json=kw)   # noqa: E731
     good = dict(number="0961", sent_on="2026-03-03", client=UNKNOWN, building="155 E 31st St, New York", total="78,400.00",
@@ -167,14 +173,34 @@ def main() -> int:
         assert q["id"] in ready and p["id"] not in ready, "only the approved one is ready to start"
         passed += 1
 
+        cid = ids["c"]
+        assert c.delete(f"/api/proposals/archived/{cid}").status_code == 403, "only an admin deletes"
+        assert adm.delete(f"/api/proposals/archived/{cid}").status_code == 200
+        assert cid not in arch() and adm.delete(f"/api/proposals/archived/{cid}").status_code == 409
+        gone = [r for r in adm.get("/api/proposals?status=deleted").get_json()["data"] if r.get("archive_id") == cid]
+        assert len(gone) == 1 and gone[0]["hidden"] is True and gone[0]["archived"] is True, gone
+        import proposal_engine
+        conn = _db()
+        try:
+            assert any(e.get("_from") == "olds-c.pdf" for e in proposal_engine.examples(conn)), "Claude still learns from it"
+        finally:
+            conn.close()
+        assert c.post(f"/api/proposals/archived/{cid}/restore", json={}).status_code == 403
+        assert adm.post(f"/api/proposals/archived/{cid}/restore", json={}).status_code == 200 and cid in arch()
+        assert adm.post(f"/api/proposals/archived/{cid}/restore", json={}).status_code == 409
+        assert adm.delete(f"/api/proposals/archived/{ids['a']}").status_code == 404, "one marked as sent is a proposal now"
+        passed += 1
+
         page = c.get("/company").get_data(as_text=True)
-        for needle in ('id="pr-arch-form"', "data-prx-arch", "/proposals/archived/", 'id="pr-arch-ok"', "original_pdf"):
+        for needle in ('id="pr-arch-form"', "/proposals/archived/", 'id="pr-arch-ok"', "original_pdf", 'data-m="archdel"',
+                       'data-m="archrestore"', "prxArchConfirm"):
             assert needle in page, needle
+        assert "data-prx-arch" not in page, "no Mark as sent button under each row"
         passed += 1
     finally:
         _cleanup(ids)
-    print(f"smoke_old_proposal_sent: {passed}/6 checks passed")
-    return 0 if passed == 6 else 1
+    print(f"smoke_old_proposal_sent: {passed}/7 checks passed")
+    return 0 if passed == 7 else 1
 
 
 if __name__ == "__main__":

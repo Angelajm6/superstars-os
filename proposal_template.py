@@ -191,20 +191,39 @@ def _archive(conn, t: dict) -> Optional[dict]:
     return dict({k: a.get(k) for k in ARCHIVE_FIELDS}, edited=bool(a.get("edited")), client_org_id=_client_id(conn, a.get("client") or ""))
 
 
-def archive_rows(conn) -> list:
-    """The archived proposals, shaped like proposals.public rows for the Estimates & proposals list."""
+def archive_rows(conn, hidden: bool = False) -> list:
+    """The archived proposals, shaped like proposals.public rows for the Estimates & proposals list. hidden=True: the
+    ones an admin deleted from the list (the Deleted filter), which Claude still learns from."""
     out = []
     for t in _store(conn)["templates"]:
         a = _archive(conn, t) if t.get("state") == "ready" and not t.get("proposal_id") else None
-        if not a:   # marked as sent: it is a proposal in the list now (proposals.adopt_archived)
+        if not a or bool(t.get("hidden")) != hidden:   # marked as sent: it is a proposal in the list now (proposals.adopt_archived)
             continue
         out.append({"id": f"a{t['id']}", "archive_id": t["id"], "archived": True, "number": a["number"] or t.get("name"),
                     "label": a["number"] or t.get("name"), "client_name": a["client"], "client_org_id": a["client_org_id"],
                     "building_address": a["building"], "title": (t.get("example") or {}).get("title") or t.get("name"),
                     "price": a["total"] or None, "status": "archived", "display_status": "archived", "sent_at": a["date"] or None,
                     "updated_at": a["date"] or (t.get("uploaded_at") or "")[:10], "pdf_url": f"/api/proposal-template/{t['id']}/file",
-                    "is_pdf": t.get("ext") == ".pdf"})
+                    "is_pdf": t.get("ext") == ".pdf", "hidden": bool(t.get("hidden"))})
     return out
+
+
+def hide_archive(conn, tid: int, hidden: bool, *, actor=None) -> None:
+    """Delete one from the Before the app list, or bring it back (2026-10-27). The upload and its file stay: Claude keeps
+    learning wording and pricing from it, and an admin restores it from Deleted. Admins only (checked by the route)."""
+    with _LOCK:
+        st = _store(conn)
+        t = _item(st, tid)
+        if not t or t.get("proposal_id") or not isinstance(t.get("archive"), dict):
+            raise LookupError("not found")
+        if bool(t.get("hidden")) == hidden:
+            raise ValueError("It is already deleted." if hidden else "It is already in the list.")
+        if hidden:
+            t.update(hidden=True, hidden_at=_now(), hidden_by=actor)
+        else:
+            for k in ("hidden", "hidden_at", "hidden_by"):
+                t.pop(k, None)
+        _put(conn, st)
 
 
 def edit_archive(conn, tid: int, given: dict) -> dict:
