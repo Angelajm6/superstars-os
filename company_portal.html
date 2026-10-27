@@ -13,7 +13,7 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1021"></script>
+<script src="/files/static/js/company_nav.js?v=1022"></script>
 <script src="/files/static/js/claude_drawer.js?v=16" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1026" defer></script>
@@ -23,6 +23,7 @@
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
 <script src="/files/static/js/pdf_view.js?v=3" defer></script>
+<script src="/files/static/js/company_templates.js?v=1"></script>
 <style>
   /* #302 Company Portal — tokens come from widgets.css :root (accent, ink, muted, line,
      canvas, brand-red, status-*). This block only lays out the shell + portal components. */
@@ -616,6 +617,51 @@
   @media (max-width: 860px) {
     .cp-content { padding: 16px; }
     .cp-modal-body { grid-template-columns: 1fr; }
+  }
+  /* ---- Company → Templates (2026-10-26, static/js/company_templates.js) ---- */
+  .tp-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .tp-head .hint { margin: 0; color: var(--muted); font-size: 13px; }
+  .tp-drop { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; border: 1.5px dashed var(--accent-edge, rgba(67,100,220,.3)); border-radius: 14px; background: #fff; padding: 20px 16px; margin-bottom: 16px; cursor: pointer; }
+  .tp-drop b { font-size: 14px; } .tp-drop span { color: var(--muted); font-size: 13px; } .tp-drop svg { color: var(--accent, #4364dc); }
+  .tp-cap { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 4px 0 0; }
+  #tp-waiting { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+  #tp-waiting:empty { display: none; }
+  .tp-review { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 14px; align-items: start; background: #fff; border: 1px solid var(--accent-edge, rgba(67,100,220,.3)); border-radius: 14px; padding: 14px; }
+  .tp-reading { align-items: center; opacity: .8; }
+  .tp-thumb { width: 52px; height: 66px; border: 1px solid var(--line); border-radius: 4px; background: #fff; display: flex; flex-direction: column; gap: 5px; padding: 8px 6px; }
+  .tp-thumb i { display: block; height: 3px; border-radius: 2px; background: #d5d7de; } .tp-thumb i:first-child { width: 60%; background: #9a9ea9; }
+  .tp-form { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .tp-title { font: inherit; font-weight: 600; font-size: 14px; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; width: 100%; max-width: 420px; color: var(--ink); background: #fff; }
+  .tp-facts { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 13px; color: var(--muted); }
+  .tp-facts label { display: inline-flex; gap: 6px; align-items: center; min-width: 0; } .tp-facts b { color: var(--ink); font-weight: 600; }
+  .tp-facts .cp-select { max-width: 240px; }
+  .tp-link { border: 0; background: none; color: var(--accent-ink, #3a5fd0); font: 600 13px Inter, sans-serif; cursor: pointer; padding: 0 2px; }
+  .tp-offer { display: flex; flex-wrap: wrap; gap: 10px 18px; background: var(--canvas, #fafbfd); border-radius: 8px; padding: 10px 12px; }
+  .tp-offer fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; min-width: 0; }
+  .tp-offer legend { font-size: 12px; font-weight: 700; color: var(--muted); padding: 0; margin-bottom: 4px; width: 100%; }
+  .tp-check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+  .tp-check input { accent-color: var(--accent, #4364dc); }
+  .tp-offer .tp-small { width: 100%; margin: 0; }
+  .tp-small { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; } .tp-small b { color: var(--ink); font-weight: 600; }
+  .tp-warn-text { color: #9A5B00; }
+  .tp-tags, .tp-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .tp-folders { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .tp-tile { display: flex; flex-direction: column; gap: 4px; text-align: left; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; font: inherit; color: var(--ink); cursor: pointer; min-width: 0; }
+  .tp-tile:hover { border-color: var(--accent-edge, rgba(67,100,220,.3)); }
+  .tp-tile.on { border-color: var(--accent, #4364dc); box-shadow: 0 0 0 3px var(--accent-soft, #ebf0fe); }
+  .tp-n { font-size: 24px; font-weight: 500; font-variant-numeric: tabular-nums; } .tp-fl { font-weight: 600; overflow-wrap: anywhere; }
+  .tp-list { display: flex; flex-direction: column; }
+  .tp-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; padding: 11px 0; border-top: 1px solid var(--line); }
+  .tp-row:first-child { border-top: 0; }
+  .tp-row-main { min-width: 0; flex: 1 1 260px; }
+  .tp-row-title { border: 0; background: none; padding: 0; font: 600 14px Inter, sans-serif; color: var(--ink); cursor: pointer; text-align: left; overflow-wrap: anywhere; }
+  .tp-row-title:hover { color: var(--accent-ink, #3a5fd0); }
+  .tp-row-side { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .tp-row-edit { display: block; }
+  .tp-danger { color: #A8382B !important; border-color: #A8382B !important; }
+  @media (max-width: 860px) {
+    .tp-folders { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tp-review { grid-template-columns: minmax(0, 1fr); } .tp-review .tp-thumb { display: none; }
   }
 </style>
 </head>
@@ -1357,6 +1403,21 @@
           <div class="cp-toolbar" id="co-chips"></div>
           <div class="cp-table-wrap"><table class="cp-table" id="co-table"></table></div>
         </div>
+      </section>
+
+      <!-- ================= TEMPLATES (2026-10-26, static/js/company_templates.js) ================= -->
+      <section class="cp-view" id="view-templates" hidden>
+        <div class="ssc-subtabs" data-subtabs="company"></div>
+        <div class="tp-head"><p class="hint">Your company's blank forms, letters and plans. Claude files each one in a folder and offers it to new projects.</p>
+          <button class="btn-primary btn-sm" id="tp-upload" type="button">Upload templates</button></div>
+        <label class="tp-drop" id="tp-drop">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+          <b>Drop templates here</b><span>PDF, Word, Excel or a photo. Drop many at once and Claude sorts them.</span>
+          <input type="file" id="tp-file" multiple accept=".pdf,.docx,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.heic,.heif" hidden>
+        </label>
+        <div id="tp-waiting"></div>
+        <div class="tp-folders" id="tp-folders"></div>
+        <div class="cp-card" id="tp-folder"></div>
       </section>
 
       <!-- job page redesign step 1: which views get opened (counts only) + which tools each job uses -->
@@ -2226,7 +2287,7 @@
       compliance: 'Compliance & Permits', sov: 'Schedule of Values', payments: 'Payments', expenses: 'Expenses', 'product-usage': 'Product Usage',
       templates: 'Templates', settings: 'Settings' },
     company: { overview: 'Dashboard', clients: 'Clients', portal: 'Client portal', calendar: 'Calendar', projects: 'Projects', proposals: 'Proposals',
-      finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce', company: 'Company', usage: 'Usage & job tools' },
+      finance: 'Finance', expenses: 'Expenses', workforce: 'Workforce', company: 'Company', templates: 'Templates', usage: 'Usage & job tools' },
     home: { home: 'Home', 'home-week': 'Home · week view', 'home-month': 'Home · month view' }
   };
   const US_WHERE = { job: 'Job page', company: 'Company', home: 'PM / super home' };
@@ -5847,8 +5908,8 @@
 
   // ---------- router ----------
   // the sidebar section only; the sub-tab row names the page (no title said twice)
-  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients', calendar: 'Projects', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance', workforce: 'Workforce', company: 'Company', usage: 'Settings', claude: 'Settings', brand: 'Settings', inbox: 'Inbox' };
-  const LOADERS = { overview: loadOverview, clients: loadClients, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance, usage: loadUsage, claude: loadClaudeLog, brand: loadBrand, inbox: loadInbox };
+  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients', calendar: 'Projects', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance', workforce: 'Workforce', company: 'Company', templates: 'Company', usage: 'Settings', claude: 'Settings', brand: 'Settings', inbox: 'Inbox' };
+  const LOADERS = { overview: loadOverview, clients: loadClients, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance, templates: () => window.SSCTemplates.load(), usage: loadUsage, claude: loadClaudeLog, brand: loadBrand, inbox: loadInbox };
   const ALIASES = { buildings: 'projects', compliance: 'company' };   // #339 — old bookmarks and links keep working
   function route() {
     const h = (location.hash || '#overview').slice(1);

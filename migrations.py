@@ -187,6 +187,7 @@ BOOT_ENSURED = {
     "apply_doc_packages_327.py": ("document_package", "document_package_item"),
     "apply_buildings_304.py": ("building",),
     "apply_proposals_307.py": ("proposal",),
+    "apply_company_templates.py": ("company_template",),
 }
 
 

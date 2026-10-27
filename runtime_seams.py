@@ -13,6 +13,7 @@ The app has deterministic test seams that replace real behaviour with planted da
   SSC_INBOX_ATTACHMENT_FAKE  replace Gmail attachment downloads with planted bytes
   SSC_CALENDAR_SORT_FAKE     replace the calendar work / personal sorting call with planted JSON
   SSC_MAIL_FAKE_SENDAS       planted Gmail "send as" name + signature (JSON) for the test mail folder
+  TEMPLATE_READ_FAKE         replace Claude's read of a company template with planted JSON
 
 Previously each was honored whenever its env var was set, guarded only by a comment saying
 "never set in production". Per CLAUDE.md secrets/security rules that is not enough: one
@@ -45,6 +46,7 @@ SEAM_VARS = (
     "SSC_INBOX_ATTACHMENT_FAKE",
     "SSC_CALENDAR_SORT_FAKE",
     "SSC_MAIL_FAKE_SENDAS",
+    "TEMPLATE_READ_FAKE",
 )
 
 
