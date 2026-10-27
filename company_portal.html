@@ -4802,6 +4802,12 @@
     h.className = 'prx-hint ' + (hit ? 'ok' : v ? 'new' : '');
     h.textContent = hit ? 'Existing client' : v ? `New client: “${v}” is added to Clients` : '';
   }
+  // Proposal Studio → Archive → Mark as sent / Mark signed links here: #proposals/before/<upload id>/sent|signed
+  async function prArchFromLink(tid, signed) {
+    history.replaceState(null, '', '#proposals'); setKind('proposal'); await loadProposals();
+    const r = PRX.rows.find(x => x.archived && String(x.archive_id) === String(tid));
+    if (r) prArchOpen(r, signed); else toast('That proposal from before the app is already in the list, or was deleted from it.', true);
+  }
   async function prArchOpen(r, signed) {
     const f = $('pr-arch-form'); f.dataset.id = r.archive_id;
     $('pr-arch-no').value = String(r.number || '').replace(/^\D+/, '');
@@ -6049,7 +6055,7 @@
     $('cp-title').textContent = TITLES[v];
     if (v === 'finance') $('inv-status').value = ['overdue', 'draft', 'issued', 'paid', 'void'].includes(arg) ? arg : '';
     if (v === 'calendar' && arg && /^\d{4}-\d{2}-\d{2}$/.test(arg)) { CAL.anchor = calParse(arg); loadCalendar(); }
-    if (v === 'inbox') loadInbox(arg); else if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'proposals' && arg === 'estimate' && h.split('/')[2]) loadEstimateDetail(h.split('/')[2]); else if (v === 'proposals' && PRK_ALIAS[arg]) { setKind(PRK_ALIAS[arg]); location.replace('#proposals'); } else if (v === 'proposals' && arg && h.split('/')[2] === 'page') loadProposalDetail(arg); else if (v === 'proposals' && arg) openProposalPanel(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
+    if (v === 'inbox') loadInbox(arg); else if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'proposals' && arg === 'estimate' && h.split('/')[2]) loadEstimateDetail(h.split('/')[2]); else if (v === 'proposals' && arg === 'before' && h.split('/')[2]) prArchFromLink(h.split('/')[2], h.split('/')[3] === 'signed'); else if (v === 'proposals' && PRK_ALIAS[arg]) { setKind(PRK_ALIAS[arg]); location.replace('#proposals'); } else if (v === 'proposals' && arg && h.split('/')[2] === 'page') loadProposalDetail(arg); else if (v === 'proposals' && arg) openProposalPanel(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);

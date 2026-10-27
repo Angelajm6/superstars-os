@@ -153,7 +153,8 @@ def public(conn) -> dict:
            "templates": [{"id": t["id"], "name": t.get("name"), "ext": t.get("ext"), "state": t.get("state"), "error": t.get("error"),
                           "learned": _learned(t), "archive": _archive(conn, t),
                           "uploaded_at": t.get("uploaded_at"), "uploaded_by_name": who.get(t.get("uploaded_by")),
-                          "in_use": bool(act and t["id"] == act["id"])} for t in reversed(st["templates"])]}
+                          "in_use": bool(act and t["id"] == act["id"]), "proposal_id": t.get("proposal_id"),
+                          "hidden": bool(t.get("hidden"))} for t in reversed(st["templates"])]}
     return out
 
 

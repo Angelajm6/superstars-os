@@ -42,6 +42,9 @@ grant, or elevation code.
   (`prxSignable`); opens the existing signature form. `mark_signed_offline` now also takes a declined latest version (a newer
   version -> refused), refuses a future day or a day before it was sent, and gives a draft its sent date = the signing day.
   Before the app rows: ⋯ → Mark signed… opens the Mark as sent form with the approval ticked.
+* **Proposal Studio → Archive** (same uploads): ⋯ → Mark as sent… / Mark signed… link to `/company#proposals/before/<id>/sent|signed`
+  (`prArchFromLink` opens the same form); a marked upload shows "in Proposals" and its ⋯ has Open in Proposals (`proposal_id`
+  is in `/api/proposal-template` templates).
 
 ### Documents "Still needed" by job scope; Rope Access repair / inspection (Bookore, 2026-10-26)
 

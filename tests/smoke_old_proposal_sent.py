@@ -13,6 +13,8 @@ Boots the real app (`import server`) on an ISOLATED database. Proves:
     Deleted, is still one of Claude's examples, and Restore brings it back; a second delete / restore -> 409
   * Mark signed from the list (2026-10-27): a draft (its sent date becomes the signing day) and a declined latest version
     can be signed; a future day or a day before it was sent -> 400; a declined version with a newer one -> 409
+  * Proposal Studio → Archive: the uploads carry proposal_id once marked; the ⋯ menu links to the portal's form
+    (#proposals/before/<id>/sent|signed), which the portal opens
   * the served page has the modal, the menu items and the calls, and no button under each row
 Run:  venv/bin/python tests/smoke_old_proposal_sent.py
 """
@@ -222,9 +224,15 @@ def main() -> int:
         assert v2["status"] == "draft"
         passed += 1
 
+        tpl = {t["id"]: t for t in c.get("/api/proposal-template").get_json()["data"]["templates"]}
+        assert tpl[ids["a"]]["proposal_id"] == p["id"] and not tpl[ids["c"]]["proposal_id"], "Studio knows which are in the list"
+        studio = c.get("/proposal-studio").get_data(as_text=True)
+        for needle in ("/company#proposals/before/", 'data-act="sent"', 'data-act="signed"', "Open in Proposals"):
+            assert needle in studio, needle
+
         page = c.get("/company").get_data(as_text=True)
         for needle in ('id="pr-arch-form"', "/proposals/archived/", 'id="pr-arch-ok"', "original_pdf", 'data-m="archdel"',
-                       'data-m="archrestore"', "prxArchConfirm", 'data-m="marksigned"', 'data-m="archsigned"', "prxSignable"):
+                       'data-m="archrestore"', "prxArchConfirm", 'data-m="marksigned"', 'data-m="archsigned"', "prxSignable", "prArchFromLink"):
             assert needle in page, needle
         assert "data-prx-arch" not in page, "no Mark as sent button under each row"
         passed += 1

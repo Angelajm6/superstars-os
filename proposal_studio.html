@@ -186,6 +186,7 @@
   .arch-row .r{text-align:right;font-variant-numeric:tabular-nums}.arch-row .m{color:var(--muted)}
   .arch-row .more{border:0;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;border-radius:8px;padding:4px 6px}
   .arch-row .more:hover{background:#fff;color:var(--ink)}
+  .arch-row .inl{font-size:10.5px;font-weight:600;color:var(--accent-ink,#3a5fd0);background:var(--accent-soft,#ebf0fe);border-radius:99px;padding:1px 7px;margin-left:6px}
   .arch-row .chk{font-size:10.5px;font-weight:600;color:var(--status-warn,#9A5B00);background:var(--status-warn-soft,#FFF4E5);border-radius:99px;padding:1px 7px;margin-left:6px}
   .arch-menu{position:absolute;z-index:9050;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(20,24,36,.12);padding:4px;display:flex;flex-direction:column;min-width:150px}
   .arch-menu button{border:0;background:none;text-align:left;padding:8px 10px;font:inherit;font-size:13px;border-radius:8px;cursor:pointer;color:var(--ink)}
@@ -1075,7 +1076,7 @@
     $('pp-grid').hidden = !list.length;
     const row = x => { const a = x.archive, miss = !a.number || !a.date || !a.total;
       return `<div class="arch-row" data-ppdf="${x.id}" role="button" tabindex="0" aria-label="Open proposal ${esc(a.number || x.name)}">` +
-        `<span class="no">${esc(a.number || '—')}${miss ? '<span class="chk" title="Claude couldn’t read everything">check</span>' : ''}</span>` +
+        `<span class="no">${esc(a.number || '—')}${miss ? '<span class="chk" title="Claude couldn’t read everything">check</span>' : ''}${x.proposal_id ? '<span class="inl" title="Marked as sent: it is in Estimates &amp; proposals">in Proposals</span>' : ''}</span>` +
         `<span class="t c-cl">${esc(a.client || '—')}</span><span class="t c-ad m">${esc(a.building || '—')}</span>` +
         `<span class="c-dt m">${a.date ? fmtDate(a.date) : '—'}</span><span class="r tot">${a.total ? money(a.total) : '—'}</span>` +
         `<button class="more" type="button" data-amenu="${x.id}" aria-label="More for proposal ${esc(a.number || x.name)}">⋯</button>` +
@@ -1112,13 +1113,17 @@
       e.stopPropagation(); const had = document.querySelector('.arch-menu'); closeMenu(); if (had && had.dataset.for === m.dataset.amenu) return;
       const x = archItem(m.dataset.amenu), r = m.getBoundingClientRect(), menu = document.createElement('div');
       menu.className = 'arch-menu'; menu.dataset.for = m.dataset.amenu;
-      menu.innerHTML = (x && x.archive ? '<button type="button" data-act="pdf">Open the PDF</button><button type="button" data-act="edit">Edit details</button>' : '') +
+      menu.innerHTML = (x && x.archive ? '<button type="button" data-act="pdf">Open the PDF</button><button type="button" data-act="edit">Edit details</button>' +
+          (x.proposal_id ? '<button type="button" data-act="list">Open in Proposals</button>'   // marked as sent: a proposal in the list now
+            : '<button type="button" data-act="sent">Mark as sent…</button><button type="button" data-act="signed">Mark signed…</button>') : '') +
         '<button type="button" class="del" data-act="rm">Remove from the archive</button>';
       document.body.appendChild(menu);
       menu.style.top = (window.scrollY + r.bottom + 4) + 'px'; menu.style.left = Math.max(8, window.scrollX + r.right - menu.offsetWidth) + 'px';
       menu.addEventListener('click', async ev => {
         const b = ev.target.closest('[data-act]'); if (!b) return; const id = menu.dataset.for; closeMenu();
         if (b.dataset.act === 'pdf') openArchPdf(id);
+        else if (b.dataset.act === 'sent' || b.dataset.act === 'signed') location.href = '/company#proposals/before/' + id + '/' + b.dataset.act;
+        else if (b.dataset.act === 'list') location.href = '/company#proposals/' + archItem(id).proposal_id;
         else if (b.dataset.act === 'edit') openArchEdit(id);
         else if (confirm('Remove this proposal from the archive? Its PDF is deleted.')) {
           try { drawPast(await api('/proposal-template/' + id, { method: 'DELETE' })); toast('Removed'); } catch (x2) { toast(x2.message, true); }
