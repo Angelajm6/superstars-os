@@ -34,6 +34,17 @@ grant, or elevation code.
 * "The client already approved it" → `mark_signed_offline` (same follow-ups: estimate approved, COI + deposit tasks, deposit
   invoice draft) → Projects → Ready to start. The upload stays in the wording library; `proposal_id` on it hides it from Before the app.
 * Guard: `tests/smoke_old_proposal_sent.py` (new, in the gate).
+* Follow-up (same day): the Mark as sent button under each row is gone (the ⋯ menu has it). The ⋯ menu also has **Delete…**
+  (admins; asks first inside the menu) → `DELETE /api/proposals/archived/<id>` sets `hidden` on the upload: it leaves Before the
+  app and is listed under **Deleted** (`?status=deleted`), where ⋯ → **Restore** (`POST …/<id>/restore`) brings it back. The upload
+  and file stay, so Claude keeps learning from it (Angela's choice: hide, not delete for good).
+* **Mark signed… on any proposal** (same day): ⋯ menu + side panel for a draft, sent, opened, or declined latest version
+  (`prxSignable`); opens the existing signature form. `mark_signed_offline` now also takes a declined latest version (a newer
+  version -> refused), refuses a future day or a day before it was sent, and gives a draft its sent date = the signing day.
+  Before the app rows: ⋯ → Mark signed… opens the Mark as sent form with the approval ticked.
+* **Proposal Studio → Archive** (same uploads): ⋯ → Mark as sent… / Mark signed… link to `/company#proposals/before/<id>/sent|signed`
+  (`prArchFromLink` opens the same form); a marked upload shows "in Proposals" and its ⋯ has Open in Proposals (`proposal_id`
+  is in `/api/proposal-template` templates).
 
 ### Documents "Still needed" by job scope; Rope Access repair / inspection (Bookore, 2026-10-26)
 

@@ -1244,16 +1244,26 @@ def mark_signed_offline(conn, proposal_id: int, *, name: str, signed_on=None, ac
     r = get(conn, proposal_id)
     if not r:
         raise LookupError("proposal not found")
-    if r["status"] not in ("draft", "sent", "viewed"):
+    # 2026-10-27: any proposal the client can still say yes to, from the list: a draft (it went out another way), sent,
+    # opened, or declined and then accepted after all (only the latest version: a newer one replaced it otherwise)
+    if r["status"] not in ("draft", "sent", "viewed", "declined"):
         raise ValueError(f"a {r['status']} proposal cannot be marked signed")
+    if r["status"] == "declined" and _one(conn.execute(
+            "SELECT id FROM proposal WHERE estimate_id = ? AND version > ? AND status NOT IN ('deleted') LIMIT 1",
+            (r["estimate_id"], r["version"]))):
+        raise ValueError("a newer version of this proposal exists, so this one cannot be marked signed")
     name = (name or "").strip()
     if len(name) < 2:
         raise ValueError("the signer's name is required")
     on = _valid_date(signed_on, "signed_on") or _today().isoformat()
+    if on > _today().isoformat():
+        raise ValueError("the day it was signed can't be in the future")
+    if r.get("sent_at") and on < str(r["sent_at"])[:10]:
+        raise ValueError("it was signed before it was sent: check the dates")
     now = _now()
     signed_at = now if on == _today().isoformat() else f"{on}T12:00:00"
     conn.execute("UPDATE proposal SET status = 'signed', signed_at = ?, signed_name = ?, signed_title = 'signed offline', "
-                 "updated_at = ? WHERE id = ?", (signed_at, name, now, proposal_id))
+                 "sent_at = COALESCE(sent_at, ?), updated_at = ? WHERE id = ?", (signed_at, name, signed_at, now, proposal_id))
     _event(conn, proposal_id, "signed", actor=actor, detail=f"{name} (recorded offline)")
     conn.commit()
     r = get(conn, proposal_id)
@@ -1889,6 +1899,11 @@ def _api_list():
                 arch = [a for a in arch if str(a["client_org_id"]) == str(request.args["client_org_id"])]
             counts["archived"] = len(proposal_template.archive_rows(conn))
             rows = arch if st == "archived" else (rows + arch if not st else rows)
+        if st == "deleted":   # proposals from before the app that an admin deleted from the list (2026-10-27)
+            import proposal_template
+            q = (request.args.get("q") or "").strip().lower()
+            rows = rows + [a for a in proposal_template.archive_rows(conn, hidden=True) if not q or q in " ".join(
+                str(a.get(k) or "") for k in ("label", "client_name", "building_address", "title")).lower()]
         signed_ytd = _one(conn.execute("SELECT COALESCE(SUM(price),0) AS v, COUNT(*) AS n FROM proposal "
                                        "WHERE status = 'signed' AND signed_at >= ?", (f"{_today().year}-01-01",)))
         awaiting = _one(conn.execute("SELECT COALESCE(SUM(price),0) AS v, COUNT(*) AS n FROM proposal "
@@ -2148,6 +2163,27 @@ def _api_adopt_archived(archive_id):
         conn.close()
 
 
+def _api_hide_archived(archive_id, hidden=True):
+    if _role() != "admin":
+        return _err("Only an admin can delete a proposal from before the app." if hidden else "Only an admin can restore it.", 403)
+    import proposal_template
+    conn = _conn()
+    try:
+        try:
+            proposal_template.hide_archive(conn, archive_id, hidden, actor=_uid())
+        except LookupError:
+            return _err("That proposal from before the app isn't there any more.", 404)
+        except ValueError as e:
+            return _err(str(e), 409)
+        return _wrap({"archive_id": archive_id, "hidden": hidden})
+    finally:
+        conn.close()
+
+
+def _api_restore_archived(archive_id):
+    return _api_hide_archived(archive_id, hidden=False)
+
+
 def _api_preview(proposal_id):
     conn = _conn()
     try:
@@ -2193,6 +2229,10 @@ def register(app) -> None:
     app.add_url_rule("/api/proposals/<int:proposal_id>/mark-sent", "proposals_mark_sent", gate(_api_mark_sent), methods=["POST"])
     app.add_url_rule("/api/proposals/archived/<int:archive_id>/mark-sent", "proposals_adopt_archived",
                      gate(_api_adopt_archived), methods=["POST"])
+    app.add_url_rule("/api/proposals/archived/<int:archive_id>", "proposals_hide_archived",
+                     gate(_api_hide_archived), methods=["DELETE"])
+    app.add_url_rule("/api/proposals/archived/<int:archive_id>/restore", "proposals_restore_archived",
+                     gate(_api_restore_archived), methods=["POST"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/mark-signed", "proposals_mark_signed", gate(_api_mark_signed), methods=["POST"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/preview", "proposals_preview", gate(_api_preview), methods=["GET"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/pdf", "proposals_pdf", gate(_api_pdf), methods=["GET"])

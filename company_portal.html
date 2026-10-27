@@ -205,7 +205,8 @@
   .prx-no.draft { background: #FFF4E5; color: #9A5B00; }
   .prx-no.sent, .prx-no.viewed, .prx-no.expired { background: var(--accent-soft, #ebf0fe); color: var(--accent-ink, #3a5fd0); }
   .prx-no.signed { background: var(--status-complete-soft, #e7f6f0); color: var(--status-complete-deep, #0c7a5f); }
-  .prx-arch-act { margin-top: 6px; }
+  .prx-mconf { display: grid; gap: 4px; padding: 8px 10px 6px; max-width: 260px; font-size: 13px; }
+  .prx-mconf span { color: var(--muted); font-size: 12.5px; line-height: 1.4; }
   .prx-hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .prx-hint.ok { color: var(--status-complete, #15a07e); } .prx-hint.new { color: var(--accent-ink); }
   .prx-approve { grid-column: 1 / -1; border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 12px; }
@@ -3944,6 +3945,7 @@
     ['declined', 'Declined'], ['all', 'Every version'], ['archived', 'Before the app'], ['deleted', 'Deleted']];
   const prxSt = r => r.archived ? 'archived' : (r.display_status === 'expired' ? 'expired' : r.status);
   const prxNo = r => r.label || r.number;
+  function prxSignable(r) { return !r.archived && (['draft', 'sent', 'viewed'].includes(r.status) || r.status === 'declined' && prxLatest(r)); }
   function prxLatest(r) { return r.archived || !PRX.rows.some(o => !o.archived && o.estimate_id === r.estimate_id && o.version > r.version); }
   function prxOlder(r) { return r.archived ? [] : PRX.rows.filter(o => !o.archived && o.estimate_id === r.estimate_id && o.version < r.version).sort((a, b) => b.version - a.version); }
   function prxVisible(f) {
@@ -3974,7 +3976,7 @@
     const sent = r.archived ? (r.sent_at ? fmtDate(r.sent_at) : '—') : r.sent_at ? 'Sent ' + fmtDate(r.sent_at) : 'Not sent';
     return `<div class="prx-row item${old ? ' old' : ''}${PRX.open === r.id ? ' sel' : ''}" data-prx-open="${esc(String(r.id))}" role="row" tabindex="0">
       <div class="prx-cell prx-c-no">${prxEditable(r, 'number', esc(prxNo(r)), 'prx-no ' + st)}</div>
-      <div class="prx-cell prx-who"><div class="prx-t">${r.status === 'draft' ? prxEditable(r, 'title', esc(r.title || 'Proposal')) : esc(r.title || '')}</div><div class="prx-sub">${esc(r.client_name || '—')}${r.version > 1 ? ` · version ${r.version}` : ''}</div>${r.archived ? `<div class="prx-arch-act"><button type="button" class="btn-ghost btn-sm" data-prx-arch="${esc(String(r.id))}">Mark as sent…</button></div>` : ''}</div>
+      <div class="prx-cell prx-who"><div class="prx-t">${r.status === 'draft' ? prxEditable(r, 'title', esc(r.title || 'Proposal')) : esc(r.title || '')}</div><div class="prx-sub">${esc(r.client_name || '—')}${r.version > 1 ? ` · version ${r.version}` : ''}</div></div>
       <div class="prx-cell prx-c-addr"><div class="prx-t">${esc(r.building_name || r.building_address || '—')}</div><div class="prx-sub">${esc(r.archived ? 'from before the app' : r.estimate_code || '')}</div></div>
       <div class="prx-cell prx-c-st"><span class="prx-st ${st}">${PRX_WORD[st] || esc(st)}</span>${exp}</div>
       <div class="prx-cell prx-c-sent prx-sub">${sent}</div>
@@ -4049,6 +4051,7 @@
       `<a class="${p.status === 'draft' ? 'btn-primary' : 'btn-ghost'} btn-sm" href="${docHref}">${p.status === 'draft' ? 'Edit the document' : 'Open the document'}</a>` +
       `<button type="button" class="btn-ghost btn-sm" data-prx-act="pdf">PDF</button>`) +
       (p.status === 'draft' ? `<a class="btn-ghost btn-sm" href="${studio ? `/proposal-studio#p/${p.id}/send` : `#proposals/${p.id}/page`}">Send…</a><button type="button" class="btn-ghost btn-sm" data-prx-act="marksent">Mark as sent</button>` : '') +
+      (prxSignable(p) ? `<button type="button" class="btn-ghost btn-sm" data-prx-act="marksigned">Mark signed…</button>` : '') +
       (revisable && !pending ? `<button type="button" class="btn-ghost btn-sm" data-prx-act="${PRX.admin ? 'version' : 'revise'}">${PRX.admin ? 'New version' : 'Request a revision'}</button>` : '') +
       (canDel ? `<button type="button" class="btn-ghost btn-sm prx-danger" data-prx-askdel>Delete</button>` : '');
     const conf = PRX.confirm === p.id ? `<div class="prx-confirm" role="alert"><b>Delete proposal ${esc(prxNo(p))}?</b>
@@ -4118,7 +4121,20 @@
     const r = PRX.detail && String(PRX.detail.id) === String(id) ? PRX.detail : prxFind(id); if (!r) return;
     if (act === 'pdf') { prPdf(r); return; }
     if (act === 'open') { location.hash = '#proposals/' + id; return; }
-    if (act === 'archsent') { prArchOpen(r); return; }
+    if (act === 'close') return;
+    if (act === 'archsent' || act === 'archsigned') { prArchOpen(r, act === 'archsigned'); return; }
+    if (act === 'marksigned') {
+      const f = $('pr-sign-form'); f.dataset.id = r.id; f.dataset.from = 'list';
+      $('pr-sign-name').value = r.signed_name || r.recipient_name || r.contact_name || ''; dateSet($('pr-sign-date'), todayLocal());
+      $('pr-sign-err').className = 'cp-form-err'; $('pr-sign-overlay').classList.add('open'); $('pr-sign-name').focus(); return;
+    }
+    if (act === 'archdelgo' || act === 'archrestore') {
+      const del = act === 'archdelgo';
+      try { await api('/proposals/archived/' + r.archive_id + (del ? '' : '/restore'), { method: del ? 'DELETE' : 'POST', body: del ? undefined : '{}' }, true);
+        toast(del ? `${prxNo(r)} deleted. An admin can restore it from Deleted` : `${prxNo(r)} restored`); await loadProposalList(); }
+      catch (x) { toast(x.message, true); }
+      return;
+    }
     if (act === 'marksent') {
       $('pr-sent-form').dataset.id = r.id; $('pr-sent-name').value = r.recipient_name || r.contact_name || ''; $('pr-sent-email').value = r.recipient_email || r.contact_email || '';
       $('pr-sent-how').value = ''; dateSet($('pr-sent-date'), todayLocal()); $('pr-sent-err').className = 'cp-form-err'; $('pr-sent-overlay').classList.add('open'); return;
@@ -4152,11 +4168,14 @@
     const m = document.createElement('div'); m.className = 'prx-menu'; m.setAttribute('role', 'menu'); m.dataset.for = id;
     const revisable = ['sent', 'viewed', 'declined'].includes(r.status);
     const canDel = !r.archived && (r.status === 'draft' || (PRX.admin && !['signed', 'deleted'].includes(r.status)));
-    m.innerHTML = r.archived ? `<button type="button" role="menuitem" data-m="pdf">Open the PDF</button><button type="button" role="menuitem" data-m="archsent">Mark as sent…</button>` :
+    m.innerHTML = r.archived && r.hidden ? `<button type="button" role="menuitem" data-m="pdf">Open the PDF</button>` + (PRX.admin ? `<button type="button" role="menuitem" data-m="archrestore">Restore</button>` : '') :
+      r.archived ? `<button type="button" role="menuitem" data-m="pdf">Open the PDF</button><button type="button" role="menuitem" data-m="archsent">Mark as sent…</button><button type="button" role="menuitem" data-m="archsigned">Mark signed…</button>` +
+        (PRX.admin ? `<hr><button type="button" role="menuitem" class="d" data-m="archdel">Delete…</button>` : '') :
       r.status === 'deleted' ? (PRX.admin ? `<button type="button" role="menuitem" data-m="restore">Restore</button>` : '') + `<button type="button" role="menuitem" data-m="open">Open</button>` :
       `<button type="button" role="menuitem" data-m="open">Open</button><button type="button" role="menuitem" data-m="number">Edit the number</button>` +
       `<button type="button" role="menuitem" data-m="pdf">View the PDF</button>` +
       (r.status === 'draft' ? `<button type="button" role="menuitem" data-m="marksent">Mark as sent</button>` : '') +
+      (prxSignable(r) ? `<button type="button" role="menuitem" data-m="marksigned">Mark signed…</button>` : '') +
       (revisable ? `<button type="button" role="menuitem" data-m="${PRX.admin ? 'version' : 'revise'}">${PRX.admin ? 'New version' : 'Request a revision'}</button>` : '') +
       (canDel ? `<hr><button type="button" role="menuitem" class="d" data-m="delete">Delete${r.status === 'draft' ? ' draft' : '…'}</button>` : '');
     document.body.appendChild(m);
@@ -4164,11 +4183,20 @@
     m.style.top = (window.scrollY + b.bottom + 4) + 'px'; m.style.left = Math.max(8, window.scrollX + b.right - m.offsetWidth) + 'px';
     const first = m.querySelector('button'); if (first) first.focus();
   }
+  // deleting a proposal from before the app (admins): the menu asks first; it only leaves the list (Claude still learns from it)
+  function prxArchConfirm(m) {
+    const r = prxFind(m.dataset.for); if (!r) return;
+    m.innerHTML = `<div class="prx-mconf" role="alert"><b>Delete ${esc(prxNo(r))}?</b><span>It leaves the list. Claude still learns from it, and an admin can bring it back from <b>Deleted</b>.</span></div>` +
+      `<button type="button" role="menuitem" class="d" data-m="archdelgo">Delete ${esc(prxNo(r))}</button><button type="button" role="menuitem" data-m="close">Keep it</button>`;
+    m.style.left = Math.max(8, Math.min(parseFloat(m.style.left) || 8, window.scrollX + document.documentElement.clientWidth - m.offsetWidth - 8)) + 'px';
+    m.querySelector('[data-m="archdelgo"]').focus();
+  }
   function prxCloseMenu() { const m = document.querySelector('.prx-menu'); if (m) m.remove(); }
   document.addEventListener('click', async e => {
     const t = e.target;
     if (!t.closest('.prx-menu') && !t.closest('[data-prx-menu]')) prxCloseMenu();
     const mi = t.closest('.prx-menu [data-m]');
+    if (mi && mi.dataset.m === 'archdel') { prxArchConfirm(mi.parentNode); return; }
     if (mi) { const id = mi.parentNode.dataset.for, m = mi.dataset.m; prxCloseMenu(); if (m === 'number') prxStartEdit(id, 'number'); else prxAct(id, m); return; }
     if (!t.closest('#pr-list, #pr-chips, #prx-drawer, #prx-scrim')) return;
     const f = t.closest('[data-prx-f]'); if (f) { PRX.f = f.dataset.prxF; PRX.edit = null; prxDraw(); return; }
@@ -4176,7 +4204,6 @@
     if (t.closest('[data-prx-cancel]')) { prxCancel(); return; }
     const pen = t.closest('[data-prx-pen]'); if (pen) { prxStartEdit(pen.dataset.id, pen.dataset.prxPen, pen.dataset.drawer === '1'); return; }
     const mb = t.closest('[data-prx-menu]'); if (mb) { prxMenu(mb, mb.dataset.prxMenu); return; }
-    const ab = t.closest('[data-prx-arch]'); if (ab) { const r = prxFind(ab.dataset.prxArch); if (r) prArchOpen(r); return; }
     const old = t.closest('[data-prx-older]'); if (old) { const k = +old.dataset.prxOlder; PRX.openOld.has(k) ? PRX.openOld.delete(k) : PRX.openOld.add(k); prxDraw(); return; }
     if (t.closest('[data-prx-stop]')) return;
     if (t.closest('[data-prx-close]') || t === $('prx-scrim')) { prxClose(); return; }
@@ -4701,7 +4728,7 @@
           $('pr-sent-how').value = ''; dateSet($('pr-sent-date'), todayLocal()); $('pr-sent-err').className = 'cp-form-err'; $('pr-sent-overlay').classList.add('open');
         });
         $('pr-sign-btn').addEventListener('click', () => {
-          $('pr-sign-form').dataset.id = p.id; $('pr-sign-name').value = p.recipient_name || p.contact_name || ''; dateSet($('pr-sign-date'), todayLocal());
+          $('pr-sign-form').dataset.id = p.id; $('pr-sign-form').dataset.from = ''; $('pr-sign-name').value = p.recipient_name || p.contact_name || ''; dateSet($('pr-sign-date'), todayLocal());
           $('pr-sign-err').className = 'cp-form-err'; $('pr-sign-overlay').classList.add('open');
         });
       }
@@ -4775,14 +4802,21 @@
     h.className = 'prx-hint ' + (hit ? 'ok' : v ? 'new' : '');
     h.textContent = hit ? 'Existing client' : v ? `New client: “${v}” is added to Clients` : '';
   }
-  async function prArchOpen(r) {
+  // Proposal Studio → Archive → Mark as sent / Mark signed links here: #proposals/before/<upload id>/sent|signed
+  async function prArchFromLink(tid, signed) {
+    history.replaceState(null, '', '#proposals'); setKind('proposal'); await loadProposals();
+    const r = PRX.rows.find(x => x.archived && String(x.archive_id) === String(tid));
+    if (r) prArchOpen(r, signed); else toast('That proposal from before the app is already in the list, or was deleted from it.', true);
+  }
+  async function prArchOpen(r, signed) {
     const f = $('pr-arch-form'); f.dataset.id = r.archive_id;
     $('pr-arch-no').value = String(r.number || '').replace(/^\D+/, '');
     dateSet($('pr-arch-date'), /^\d{4}-\d{2}-\d{2}$/.test(r.sent_at || '') ? r.sent_at : '');
     $('pr-arch-client').value = r.client_name || ''; $('pr-arch-addr').value = r.building_address || '';
     $('pr-arch-total').value = r.price != null ? Number(r.price).toFixed(2) : '';
-    $('pr-arch-ok').checked = false; $('pr-arch-apf').hidden = true; $('pr-arch-ap').classList.remove('on');
-    $('pr-arch-by').value = ''; dateSet($('pr-arch-on'), todayLocal()); $('pr-arch-go').textContent = 'Mark as sent';
+    $('pr-arch-ok').checked = !!signed; $('pr-arch-apf').hidden = !signed; $('pr-arch-ap').classList.toggle('on', !!signed);
+    $('pr-arch-by').value = ''; dateSet($('pr-arch-on'), todayLocal()); $('pr-arch-go').textContent = signed ? 'Mark sent and approved' : 'Mark as sent';
+    $('pr-arch-title').textContent = signed ? 'Mark signed' : 'Mark as sent';
     $('pr-arch-err').className = 'cp-form-err'; $('pr-arch-overlay').classList.add('open');
     try {
       if (!ESTNEW.meta) ESTNEW.meta = (await api('/estimates/meta', null, true)).data;
@@ -4801,7 +4835,7 @@
   $('pr-arch-boro').addEventListener('change', () => { $('pr-arch-boro-h').textContent = ''; });
   $('pr-arch-ok').addEventListener('change', () => {
     const on = $('pr-arch-ok').checked; $('pr-arch-apf').hidden = !on; $('pr-arch-ap').classList.toggle('on', on);
-    $('pr-arch-go').textContent = on ? 'Mark sent and approved' : 'Mark as sent'; if (on) $('pr-arch-by').focus();
+    $('pr-arch-go').textContent = on ? 'Mark sent and approved' : 'Mark as sent'; $('pr-arch-title').textContent = on ? 'Mark signed' : 'Mark as sent'; if (on) $('pr-arch-by').focus();
   });
   $('pr-arch-cancel').addEventListener('click', () => closeOverlay('pr-arch-overlay'));
   $('pr-arch-form').addEventListener('submit', async (e) => {
@@ -4832,7 +4866,8 @@
   $('pr-sign-form').addEventListener('submit', async (e) => {
     e.preventDefault(); const err = $('pr-sign-err'); err.className = 'cp-form-err'; const id = $('pr-sign-form').dataset.id;
     $('pr-sign-go').disabled = true;
-    try { await api('/proposals/' + id + '/mark-signed', { method: 'POST', body: JSON.stringify({ name: $('pr-sign-name').value.trim(), signed_on: dateGet($('pr-sign-date')) || null }) }, true); closeOverlay('pr-sign-overlay'); toast('Recorded as signed'); prAfter(id); }
+    try { await api('/proposals/' + id + '/mark-signed', { method: 'POST', body: JSON.stringify({ name: $('pr-sign-name').value.trim(), signed_on: dateGet($('pr-sign-date')) || null }) }, true); closeOverlay('pr-sign-overlay'); toast('Recorded as signed. Create the job from Projects → Ready to start');
+        if ($('pr-sign-form').dataset.from === 'list') { if (PRX.open != null && String(PRX.open) === String(id)) prxRefresh(id); else loadProposalList(); } else prAfter(id); }
     catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
     finally { $('pr-sign-go').disabled = false; }
   });
@@ -6020,7 +6055,7 @@
     $('cp-title').textContent = TITLES[v];
     if (v === 'finance') $('inv-status').value = ['overdue', 'draft', 'issued', 'paid', 'void'].includes(arg) ? arg : '';
     if (v === 'calendar' && arg && /^\d{4}-\d{2}-\d{2}$/.test(arg)) { CAL.anchor = calParse(arg); loadCalendar(); }
-    if (v === 'inbox') loadInbox(arg); else if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'proposals' && arg === 'estimate' && h.split('/')[2]) loadEstimateDetail(h.split('/')[2]); else if (v === 'proposals' && PRK_ALIAS[arg]) { setKind(PRK_ALIAS[arg]); location.replace('#proposals'); } else if (v === 'proposals' && arg && h.split('/')[2] === 'page') loadProposalDetail(arg); else if (v === 'proposals' && arg) openProposalPanel(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
+    if (v === 'inbox') loadInbox(arg); else if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'proposals' && arg === 'estimate' && h.split('/')[2]) loadEstimateDetail(h.split('/')[2]); else if (v === 'proposals' && arg === 'before' && h.split('/')[2]) prArchFromLink(h.split('/')[2], h.split('/')[3] === 'signed'); else if (v === 'proposals' && PRK_ALIAS[arg]) { setKind(PRK_ALIAS[arg]); location.replace('#proposals'); } else if (v === 'proposals' && arg && h.split('/')[2] === 'page') loadProposalDetail(arg); else if (v === 'proposals' && arg) openProposalPanel(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);
