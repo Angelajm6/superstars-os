@@ -21,6 +21,20 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Proposals from before the app: Mark as sent (Bookore, 2026-10-27)
+
+* Accepted prototype: https://claude.ai/artifact/MS6wss6jxq8mMupZMcQrY3. A "Before the app" row (an uploaded past proposal) has
+  **Mark as sent…** (row button + ⋯ menu) → `POST /api/proposals/archived/<template id>/mark-sent` {number, sent_on, client,
+  building, total, est_type, borough, approved_by?, approved_on?} (`proposals.adopt_archived`). It makes a real proposal: the
+  client found by name (any case) or added, an estimate of that type / place submitted at the total, a proposal with the number
+  people see (digits; refused if another proposal has it), `sent` on that day at noon, no client link.
+* **The uploaded PDF is the document**: copied under data_room/proposals, `pdf_hash = 'original'` (`proposals.ORIGINAL_PDF`) so
+  `pdf_file` / `render_pdf` never redraw it; `original_pdf` in the JSON swaps the drawer's editor link for Open the PDF. A photo /
+  Word upload is not copied (the app draws its PDF as usual).
+* "The client already approved it" → `mark_signed_offline` (same follow-ups: estimate approved, COI + deposit tasks, deposit
+  invoice draft) → Projects → Ready to start. The upload stays in the wording library; `proposal_id` on it hides it from Before the app.
+* Guard: `tests/smoke_old_proposal_sent.py` (new, in the gate).
+
 ### Documents "Still needed" by job scope; Rope Access repair / inspection (Bookore, 2026-10-26)
 
 * Accepted prototype: https://claude.ai/artifact/BEtxo5bKX4ozW1y6Lkp5WH. `doc_suggest.plan(ctx)` decides what a job needs: its

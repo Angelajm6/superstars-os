@@ -205,6 +205,17 @@
   .prx-no.draft { background: #FFF4E5; color: #9A5B00; }
   .prx-no.sent, .prx-no.viewed, .prx-no.expired { background: var(--accent-soft, #ebf0fe); color: var(--accent-ink, #3a5fd0); }
   .prx-no.signed { background: var(--status-complete-soft, #e7f6f0); color: var(--status-complete-deep, #0c7a5f); }
+  .prx-arch-act { margin-top: 6px; }
+  .prx-hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .prx-hint.ok { color: var(--status-complete, #15a07e); } .prx-hint.new { color: var(--accent-ink); }
+  .prx-approve { grid-column: 1 / -1; border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 12px; }
+  .prx-approve.on { border-color: var(--accent-edge); background: #fbfcff; }
+  .prx-chk { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font-weight: 600; font-size: 14px; }
+  .prx-chk input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--accent); flex: none; }
+  #pr-arch-overlay .prx-chk { font-size: 14px; font-weight: 600; letter-spacing: normal; text-transform: none; color: var(--ink); }   /* out-ranks unify.css dialog labels */
+  .prx-chk small { display: block; font-weight: 400; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .prx-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 600px) { .prx-two { grid-template-columns: 1fr; } }
   .prx-no.declined, .prx-no.superseded, .prx-no.archived, .prx-no.deleted { background: var(--fill, #f3f5f9); color: var(--muted, #8c92a0); }
   .prx-no.deleted { text-decoration: line-through; }
   .prx-st { font-size: 12px; font-weight: 600; color: var(--muted, #8c92a0); }
@@ -1644,6 +1655,29 @@
       <div class="cp-form-err" id="pr-sent-err" role="alert"></div>
     </div>
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-sent-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-sent-go">Mark as sent</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="pr-arch-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-arch-title">
+  <form class="cp-modal" id="pr-arch-form" novalidate>
+    <div class="cp-modal-head"><h2 id="pr-arch-title">Mark as sent</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">This adds the proposal to your list with its PDF, as sent on the day below. Nothing is emailed and the client gets no link. Filled in from the PDF: check the details before you save.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field"><label for="pr-arch-no">Proposal number</label><input id="pr-arch-no" inputmode="numeric" autocomplete="off"></div>
+      <div class="cp-field"><label for="pr-arch-date">Sent on</label><input id="pr-arch-date" type="date"></div>
+      <div class="cp-field full"><label for="pr-arch-client">Client</label><input id="pr-arch-client" list="pr-arch-clients" autocomplete="off"><datalist id="pr-arch-clients"></datalist><div class="prx-hint" id="pr-arch-client-h"></div></div>
+      <div class="cp-field full"><label for="pr-arch-addr">Building address</label><input id="pr-arch-addr" autocomplete="off"></div>
+      <div class="cp-field"><label for="pr-arch-type">Type of work</label><select id="pr-arch-type"></select></div>
+      <div class="cp-field"><label for="pr-arch-boro">Location</label><select id="pr-arch-boro"></select><div class="prx-hint" id="pr-arch-boro-h"></div></div>
+      <div class="cp-field full"><label for="pr-arch-total">Total</label><input id="pr-arch-total" inputmode="decimal" autocomplete="off"></div>
+      <div class="prx-approve full" id="pr-arch-ap">
+        <label class="prx-chk"><input type="checkbox" id="pr-arch-ok"><span>The client already approved it<small>Records the signature, so the job shows under Projects → Ready to start.</small></span></label>
+        <div class="prx-two" id="pr-arch-apf" hidden>
+          <div class="cp-field"><label for="pr-arch-by">Approved by</label><input id="pr-arch-by" autocomplete="off" placeholder="Full name"></div>
+          <div class="cp-field"><label for="pr-arch-on">Approved on</label><input id="pr-arch-on" type="date"></div>
+        </div>
+      </div>
+      <div class="cp-form-err" id="pr-arch-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-arch-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-arch-go">Mark as sent</button></div>
   </form>
 </div>
 <div class="cp-overlay" id="pr-sign-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-sign-title">
@@ -3886,7 +3920,7 @@
     const arch = !!r.archived, no = r.label || r.number;
     const url = arch ? r.pdf_url : `/api/proposals/${r.id}/pdf`;
     const links = [{ label: 'Download', href: url, download: true }];
-    if (!arch) links.unshift({ label: r.layout === 'ssc' ? 'Open in Proposal Studio' : 'Open', href: r.layout === 'ssc' ? `/proposal-studio#p/${r.id}` : `#proposals/${r.id}` });
+    if (!arch && !r.original_pdf) links.unshift({ label: r.layout === 'ssc' ? 'Open in Proposal Studio' : 'Open', href: r.layout === 'ssc' ? `/proposal-studio#p/${r.id}` : `#proposals/${r.id}` });
     window.SSC_PDF.panel({ title: (/^\d/.test(no) ? 'Proposal ' : '') + no, sub: [r.client_name, r.price != null ? money.format(r.price) : '', arch ? 'Before the app' : r.display_status].filter(Boolean).join(' · '), url, links });
   }
   function prPill(p) { const st = p.display_status || p.status; return `<span class="cp-pill ${PR_PILL[st] || ''}">${esc(PR_WORD[st] || st)}</span>`; }
@@ -3940,7 +3974,7 @@
     const sent = r.archived ? (r.sent_at ? fmtDate(r.sent_at) : '—') : r.sent_at ? 'Sent ' + fmtDate(r.sent_at) : 'Not sent';
     return `<div class="prx-row item${old ? ' old' : ''}${PRX.open === r.id ? ' sel' : ''}" data-prx-open="${esc(String(r.id))}" role="row" tabindex="0">
       <div class="prx-cell prx-c-no">${prxEditable(r, 'number', esc(prxNo(r)), 'prx-no ' + st)}</div>
-      <div class="prx-cell prx-who"><div class="prx-t">${r.status === 'draft' ? prxEditable(r, 'title', esc(r.title || 'Proposal')) : esc(r.title || '')}</div><div class="prx-sub">${esc(r.client_name || '—')}${r.version > 1 ? ` · version ${r.version}` : ''}</div></div>
+      <div class="prx-cell prx-who"><div class="prx-t">${r.status === 'draft' ? prxEditable(r, 'title', esc(r.title || 'Proposal')) : esc(r.title || '')}</div><div class="prx-sub">${esc(r.client_name || '—')}${r.version > 1 ? ` · version ${r.version}` : ''}</div>${r.archived ? `<div class="prx-arch-act"><button type="button" class="btn-ghost btn-sm" data-prx-arch="${esc(String(r.id))}">Mark as sent…</button></div>` : ''}</div>
       <div class="prx-cell prx-c-addr"><div class="prx-t">${esc(r.building_name || r.building_address || '—')}</div><div class="prx-sub">${esc(r.archived ? 'from before the app' : r.estimate_code || '')}</div></div>
       <div class="prx-cell prx-c-st"><span class="prx-st ${st}">${PRX_WORD[st] || esc(st)}</span>${exp}</div>
       <div class="prx-cell prx-c-sent prx-sub">${sent}</div>
@@ -4011,8 +4045,9 @@
     const a = p.amounts || { total: p.price, deposit: p.deposit_amount, deposit_pct: p.deposit_pct };
     const docHref = studio ? `/proposal-studio#p/${p.id}` : `#proposals/${p.id}/page`;
     const acts = p.status === 'deleted' ? (PRX.admin ? `<button type="button" class="btn-primary btn-sm" data-prx-restore="${p.id}">Restore</button>` : '') :
+      (p.original_pdf ? `<button type="button" class="btn-ghost btn-sm" data-prx-act="pdf">Open the PDF</button>` :
       `<a class="${p.status === 'draft' ? 'btn-primary' : 'btn-ghost'} btn-sm" href="${docHref}">${p.status === 'draft' ? 'Edit the document' : 'Open the document'}</a>` +
-      `<button type="button" class="btn-ghost btn-sm" data-prx-act="pdf">PDF</button>` +
+      `<button type="button" class="btn-ghost btn-sm" data-prx-act="pdf">PDF</button>`) +
       (p.status === 'draft' ? `<a class="btn-ghost btn-sm" href="${studio ? `/proposal-studio#p/${p.id}/send` : `#proposals/${p.id}/page`}">Send…</a><button type="button" class="btn-ghost btn-sm" data-prx-act="marksent">Mark as sent</button>` : '') +
       (revisable && !pending ? `<button type="button" class="btn-ghost btn-sm" data-prx-act="${PRX.admin ? 'version' : 'revise'}">${PRX.admin ? 'New version' : 'Request a revision'}</button>` : '') +
       (canDel ? `<button type="button" class="btn-ghost btn-sm prx-danger" data-prx-askdel>Delete</button>` : '');
@@ -4083,6 +4118,7 @@
     const r = PRX.detail && String(PRX.detail.id) === String(id) ? PRX.detail : prxFind(id); if (!r) return;
     if (act === 'pdf') { prPdf(r); return; }
     if (act === 'open') { location.hash = '#proposals/' + id; return; }
+    if (act === 'archsent') { prArchOpen(r); return; }
     if (act === 'marksent') {
       $('pr-sent-form').dataset.id = r.id; $('pr-sent-name').value = r.recipient_name || r.contact_name || ''; $('pr-sent-email').value = r.recipient_email || r.contact_email || '';
       $('pr-sent-how').value = ''; dateSet($('pr-sent-date'), todayLocal()); $('pr-sent-err').className = 'cp-form-err'; $('pr-sent-overlay').classList.add('open'); return;
@@ -4116,7 +4152,7 @@
     const m = document.createElement('div'); m.className = 'prx-menu'; m.setAttribute('role', 'menu'); m.dataset.for = id;
     const revisable = ['sent', 'viewed', 'declined'].includes(r.status);
     const canDel = !r.archived && (r.status === 'draft' || (PRX.admin && !['signed', 'deleted'].includes(r.status)));
-    m.innerHTML = r.archived ? `<button type="button" role="menuitem" data-m="pdf">Open the PDF</button>` :
+    m.innerHTML = r.archived ? `<button type="button" role="menuitem" data-m="pdf">Open the PDF</button><button type="button" role="menuitem" data-m="archsent">Mark as sent…</button>` :
       r.status === 'deleted' ? (PRX.admin ? `<button type="button" role="menuitem" data-m="restore">Restore</button>` : '') + `<button type="button" role="menuitem" data-m="open">Open</button>` :
       `<button type="button" role="menuitem" data-m="open">Open</button><button type="button" role="menuitem" data-m="number">Edit the number</button>` +
       `<button type="button" role="menuitem" data-m="pdf">View the PDF</button>` +
@@ -4140,6 +4176,7 @@
     if (t.closest('[data-prx-cancel]')) { prxCancel(); return; }
     const pen = t.closest('[data-prx-pen]'); if (pen) { prxStartEdit(pen.dataset.id, pen.dataset.prxPen, pen.dataset.drawer === '1'); return; }
     const mb = t.closest('[data-prx-menu]'); if (mb) { prxMenu(mb, mb.dataset.prxMenu); return; }
+    const ab = t.closest('[data-prx-arch]'); if (ab) { const r = prxFind(ab.dataset.prxArch); if (r) prArchOpen(r); return; }
     const old = t.closest('[data-prx-older]'); if (old) { const k = +old.dataset.prxOlder; PRX.openOld.has(k) ? PRX.openOld.delete(k) : PRX.openOld.add(k); prxDraw(); return; }
     if (t.closest('[data-prx-stop]')) return;
     if (t.closest('[data-prx-close]') || t === $('prx-scrim')) { prxClose(); return; }
@@ -4725,6 +4762,64 @@
     finally { $('pr-send-go').disabled = false; $('pr-send-go').textContent = 'Send'; }
   });
   $('pr-sent-cancel').addEventListener('click', () => closeOverlay('pr-sent-overlay'));
+  // 2026-10-27: a proposal from before the app, marked as sent (and approved) so it can become a project
+  // (accepted prototype https://claude.ai/artifact/MS6wss6jxq8mMupZMcQrY3) -> POST /proposals/archived/<id>/mark-sent
+  function prArchBoro(addr) {
+    const a = ' ' + String(addr || '').toLowerCase() + ' ', m = ESTNEW.meta || {};
+    const hit = (m.regions || []).find(x => a.includes(' ' + x.label.toLowerCase()));
+    return hit ? hit.code : /new york|\bny,? 100\d\d|manhattan/.test(a) ? 'MN' : '';
+  }
+  function prArchClientHint() {
+    const v = $('pr-arch-client').value.trim(), h = $('pr-arch-client-h');
+    const hit = (state.cache.clientOpts || []).some(c => String(c.name || '').trim().toLowerCase() === v.toLowerCase());
+    h.className = 'prx-hint ' + (hit ? 'ok' : v ? 'new' : '');
+    h.textContent = hit ? 'Existing client' : v ? `New client: “${v}” is added to Clients` : '';
+  }
+  async function prArchOpen(r) {
+    const f = $('pr-arch-form'); f.dataset.id = r.archive_id;
+    $('pr-arch-no').value = String(r.number || '').replace(/^\D+/, '');
+    dateSet($('pr-arch-date'), /^\d{4}-\d{2}-\d{2}$/.test(r.sent_at || '') ? r.sent_at : '');
+    $('pr-arch-client').value = r.client_name || ''; $('pr-arch-addr').value = r.building_address || '';
+    $('pr-arch-total').value = r.price != null ? Number(r.price).toFixed(2) : '';
+    $('pr-arch-ok').checked = false; $('pr-arch-apf').hidden = true; $('pr-arch-ap').classList.remove('on');
+    $('pr-arch-by').value = ''; dateSet($('pr-arch-on'), todayLocal()); $('pr-arch-go').textContent = 'Mark as sent';
+    $('pr-arch-err').className = 'cp-form-err'; $('pr-arch-overlay').classList.add('open');
+    try {
+      if (!ESTNEW.meta) ESTNEW.meta = (await api('/estimates/meta', null, true)).data;
+      const m = ESTNEW.meta;
+      $('pr-arch-type').innerHTML = m.types.map(t => `<option value="${esc(t.code)}">${esc(t.label)}</option>`).join('');
+      $('pr-arch-boro').innerHTML = '<option value="">— choose —</option>' + (m.regions || m.boroughs.map(b => ({ code: b, label: b }))).map(x => `<option value="${esc(x.code)}">${esc(x.label)}</option>`).join('');
+      if ([...$('pr-arch-type').options].some(o => o.value === 'FR')) $('pr-arch-type').value = 'FR';
+      const b = prArchBoro(r.building_address); $('pr-arch-boro').value = b; $('pr-arch-boro-h').textContent = b ? 'From the address' : '';
+      await clientOptions(document.createElement('select'), '');
+      $('pr-arch-clients').innerHTML = (state.cache.clientOpts || []).map(c => `<option value="${esc(c.name)}"></option>`).join('');
+    } catch (e) { formErr('pr-arch-err', e.message); }
+    prArchClientHint(); $('pr-arch-date').focus();
+  }
+  $('pr-arch-client').addEventListener('input', prArchClientHint);
+  $('pr-arch-addr').addEventListener('change', () => { const b = prArchBoro($('pr-arch-addr').value); if (b) { $('pr-arch-boro').value = b; $('pr-arch-boro-h').textContent = 'From the address'; } });
+  $('pr-arch-boro').addEventListener('change', () => { $('pr-arch-boro-h').textContent = ''; });
+  $('pr-arch-ok').addEventListener('change', () => {
+    const on = $('pr-arch-ok').checked; $('pr-arch-apf').hidden = !on; $('pr-arch-ap').classList.toggle('on', on);
+    $('pr-arch-go').textContent = on ? 'Mark sent and approved' : 'Mark as sent'; if (on) $('pr-arch-by').focus();
+  });
+  $('pr-arch-cancel').addEventListener('click', () => closeOverlay('pr-arch-overlay'));
+  $('pr-arch-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); $('pr-arch-err').className = 'cp-form-err';
+    const ok = $('pr-arch-ok').checked, go = $('pr-arch-go');
+    const body = { number: $('pr-arch-no').value.trim(), sent_on: dateGet($('pr-arch-date')) || null, client: $('pr-arch-client').value.trim(),
+      building: $('pr-arch-addr').value.trim(), total: $('pr-arch-total').value.trim(), est_type: $('pr-arch-type').value, borough: $('pr-arch-boro').value,
+      approved_by: ok ? $('pr-arch-by').value.trim() : null, approved_on: ok ? (dateGet($('pr-arch-on')) || null) : null };
+    if (ok && !body.approved_by) { formErr('pr-arch-err', 'Add who approved it.'); return; }
+    go.disabled = true;
+    try {
+      const { data } = await api('/proposals/archived/' + $('pr-arch-form').dataset.id + '/mark-sent', { method: 'POST', body: JSON.stringify(body) }, true);
+      closeOverlay('pr-arch-overlay'); state.cache.clientOpts = null;
+      toast(ok ? `${data.label || data.number} marked sent and approved. Create the job from Projects → Ready to start` : `${data.label || data.number} marked as sent`);
+      await loadProposalList();
+    } catch (x) { formErr('pr-arch-err', x.message); }
+    finally { go.disabled = false; }
+  });
   $('pr-sent-form').addEventListener('submit', async (e) => {
     e.preventDefault(); const err = $('pr-sent-err'); err.className = 'cp-form-err'; const id = $('pr-sent-form').dataset.id;
     $('pr-sent-go').disabled = true;
@@ -4741,8 +4836,8 @@
     catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
     finally { $('pr-sign-go').disabled = false; }
   });
-  ['pr-send-overlay', 'pr-sign-overlay', 'pr-rv-overlay', 'pr-sent-overlay'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target === $(id)) closeOverlay(id); }));
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ['pr-send-overlay', 'pr-sign-overlay', 'pr-rv-overlay', 'pr-sent-overlay'].forEach(closeOverlay); });
+  ['pr-send-overlay', 'pr-sign-overlay', 'pr-rv-overlay', 'pr-sent-overlay', 'pr-arch-overlay'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target === $(id)) closeOverlay(id); }));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ['pr-send-overlay', 'pr-sign-overlay', 'pr-rv-overlay', 'pr-sent-overlay', 'pr-arch-overlay'].forEach(closeOverlay); });
 
   // ---------- FINANCE ----------
   async function loadFinance() {

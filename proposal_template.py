@@ -195,8 +195,8 @@ def archive_rows(conn) -> list:
     """The archived proposals, shaped like proposals.public rows for the Estimates & proposals list."""
     out = []
     for t in _store(conn)["templates"]:
-        a = _archive(conn, t) if t.get("state") == "ready" else None
-        if not a:
+        a = _archive(conn, t) if t.get("state") == "ready" and not t.get("proposal_id") else None
+        if not a:   # marked as sent: it is a proposal in the list now (proposals.adopt_archived)
             continue
         out.append({"id": f"a{t['id']}", "archive_id": t["id"], "archived": True, "number": a["number"] or t.get("name"),
                     "label": a["number"] or t.get("name"), "client_name": a["client"], "client_org_id": a["client_org_id"],

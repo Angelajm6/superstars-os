@@ -394,7 +394,7 @@ def public(r: dict) -> dict:
         "superseded_by": r.get("superseded_by"),
         "link_expires_at": r.get("token_expires_at"),
         "has_pdf": bool(r.get("pdf_path")), "pdf_rendered_at": r.get("pdf_rendered_at"),
-        "pdf_doc_id": r.get("pdf_doc_id"),
+        "pdf_doc_id": r.get("pdf_doc_id"), "original_pdf": r.get("pdf_hash") == ORIGINAL_PDF,
         "editable": r["status"] == "draft",
         "deleted_from": r.get("deleted_from"), "deleted_at": r.get("deleted_at"),
         "expires_in_days": expires_in_days(r), "revision_of": r.get("revision_of"),
@@ -931,6 +931,9 @@ def _pdf_dir() -> Path:
     return ssc_paths.under_root("data_room", "proposals")
 
 
+ORIGINAL_PDF = "original"   # pdf_hash of a proposal from before the app: the uploaded PDF, never redrawn
+
+
 def _fingerprint(html: str) -> str:
     return hashlib.sha256(html.encode("utf-8")).hexdigest()
 
@@ -943,6 +946,8 @@ def render_pdf(conn, proposal_id: int, *, actor=None, html: Optional[str] = None
     r = get(conn, proposal_id)
     if not r:
         return {"ok": False, "error": "proposal not found"}
+    if r.get("pdf_hash") == ORIGINAL_PDF:
+        return {"ok": True, "original": True}
     try:
         import pdf_export
         d = _pdf_dir()
@@ -988,8 +993,10 @@ def pdf_file(conn, proposal_id: int) -> Optional[Path]:
     r = get(conn, proposal_id)
     if not r:
         return None
-    html = render_document(conn, r, mode="pdf")
     p = ssc_paths.resolve_data_path(r["pdf_path"]) if r.get("pdf_path") else None
+    if r.get("pdf_hash") == ORIGINAL_PDF:   # a proposal from before the app: its own PDF is the document (2026-10-27)
+        return p if p is not None and p.exists() else None
+    html = render_document(conn, r, mode="pdf")
     if p is None or not p.exists() or r.get("pdf_hash") != _fingerprint(html):
         if not render_pdf(conn, proposal_id, html=html).get("ok"):
             return None
@@ -1289,6 +1296,114 @@ def mark_sent_outside(conn, proposal_id: int, *, actor=None, sent_on=None, to_em
     supersede_predecessor(conn, r, actor=actor)
     _activity(conn, r, f"Proposal {_label(r)} marked as sent (outside the app)", actor=actor)
     return get(conn, proposal_id)
+
+
+# ============================ a proposal from before the app, marked as sent (2026-10-27) ============================
+# The PDFs uploaded under "Before the app" are only files with the facts Claude read from them. One that the client
+# approved months later has to become a real proposal so Projects → Ready to start offers it: a client (found by name or
+# added), an estimate of the type and place given, a proposal at its total, sent on the day it went out and keeping the
+# uploaded PDF as its document. With approved_by it is also recorded as signed (mark_signed_offline: the same follow-ups).
+# The upload stays in the wording library but leaves the Before the app list.
+
+def adopt_archived(conn, archive_id: int, *, number, sent_on, client, building=None, total, est_type, borough,
+                   approved_by=None, approved_on=None, actor=None) -> dict:
+    import proposal_template
+    m = re.fullmatch(r"#?\s*(\d{1,7})", str(number or "").strip())
+    if not m or int(m.group(1)) < 1:
+        raise ValueError("Write the proposal number in digits, like 1046.")
+    n = int(m.group(1))
+    on = _valid_date(sent_on, "sent on")
+    if not on:
+        raise ValueError("Pick the day it was sent.")
+    if on > _today().isoformat():
+        raise ValueError("The day it was sent can't be in the future.")
+    client = str(client or "").strip()[:200]
+    if not client:
+        raise ValueError("Add the client.")
+    try:
+        price = round(float(str(total if total is not None else "").replace("$", "").replace(",", "")), 2)
+    except ValueError:
+        price = 0
+    if price <= 0:
+        raise ValueError("Add the total.")
+    est_type, borough = str(est_type or "").strip().upper(), str(borough or "").strip().upper()
+    if est_type not in estimates.EST_TYPES:
+        raise ValueError("Pick the type of work.")
+    if borough not in estimates.BOROUGHS:
+        raise ValueError("Pick the location.")
+    approved_by = str(approved_by or "").strip()
+    signed_on = None
+    if approved_by:
+        if len(approved_by) < 2:
+            raise ValueError("Add who approved it.")
+        signed_on = _valid_date(approved_on, "approved on") or _today().isoformat()
+        if signed_on > _today().isoformat():
+            raise ValueError("The day it was approved can't be in the future.")
+        if signed_on < on:
+            raise ValueError("It was approved before it was sent. Check the dates.")
+    with proposal_template._LOCK:
+        st = proposal_template._store(conn)
+        t = proposal_template._item(st, archive_id)
+        if not t or t.get("state") != "ready" or not isinstance(t.get("archive"), dict):
+            raise LookupError("That proposal from before the app isn't there any more.")
+        if t.get("proposal_id"):
+            raise ValueError("This proposal is already in the list.")
+        other = _one(conn.execute("SELECT o.name AS client_name FROM proposal p JOIN crm_organization o "
+                                  "ON o.id = p.client_org_id WHERE p.display_no = ? ORDER BY p.id LIMIT 1", (n,)))
+        if other:
+            raise ValueError(f"Proposal {n} already exists ({other['client_name']}). Check the number.")
+        org_id = proposal_template._client_id(conn, client) or crm.create_org(
+            conn, name=client, relationship_type="client", created_by=actor)
+        building = str(building or "").strip()[:300] or None
+        est = estimates.create_estimate(conn, est_type=est_type, borough=borough, client_org_id=org_id,
+                                        building_address=building, notes=f"Proposal {n}, from before the app",
+                                        created_by=actor)
+        estimates.change_status(conn, est["id"], "scoping", actor_user_id=actor)
+        estimates.change_status(conn, est["id"], "submitted", on_date=on, final_amount=price, actor_user_id=actor)
+        r = create_from_estimate(conn, est["id"], created_by=actor)
+        pid = r["id"]
+        title = str((t.get("example") or {}).get("title") or "").strip()[:300]
+        now = _now()
+        sent_at = now if on == _today().isoformat() else f"{on}T12:00:00"
+        conn.execute("UPDATE proposal SET status = 'sent', display_no = ?, title = COALESCE(?, title), sent_at = ?, "
+                     "sent_by = ?, updated_at = ? WHERE id = ? AND status = 'draft'",
+                     (n, title or None, sent_at, actor, now, pid))
+        _event(conn, pid, "sent", actor=actor, detail="marked as sent: a proposal from before the app")
+        conn.commit()
+        _keep_original_pdf(conn, get(conn, pid), t, actor=actor)
+        t["proposal_id"] = pid
+        proposal_template._put(conn, st)
+    r = get(conn, pid)
+    _activity(conn, r, f"Proposal {_label(r)} from before the app marked as sent", actor=actor)
+    if approved_by:
+        r = mark_signed_offline(conn, pid, name=approved_by, signed_on=signed_on, actor=actor)
+    return r
+
+
+def _keep_original_pdf(conn, r: dict, t: dict, *, actor=None) -> None:
+    """A copy of the uploaded PDF becomes the proposal's document (the upload can be removed later). Another kind of
+    file (a photo, a Word file) is not a PDF to hand out: the app draws the proposal's own PDF as usual."""
+    import shutil
+    try:
+        src = ssc_paths.resolve_data_path(t["path"]) if t.get("ext") == ".pdf" and t.get("path") else None
+        if src is None or not src.exists():
+            return
+        d = _pdf_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        dst = d / f"{r['number']}.pdf"
+        shutil.copyfile(src, dst)
+        rel, size, now = ssc_paths.store_rel(dst), dst.stat().st_size, _now()
+        conn.execute("INSERT INTO estimate_document (estimate_id, category, title, doc_type, file_path, file_name, "
+                     "file_size, mime, uploaded_by, uploaded_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                     (r["estimate_id"], "proposal", f"Proposal {_label(r)}", "PDF", rel, f"{_label(r)}.pdf",
+                      size, "application/pdf", actor, now))
+        doc_id = _one(conn.execute("SELECT MAX(id) AS m FROM estimate_document"))["m"]
+        conn.execute("UPDATE proposal SET pdf_path = ?, pdf_doc_id = ?, pdf_rendered_at = ?, pdf_hash = ? WHERE id = ?",
+                     (rel, doc_id, now, ORIGINAL_PDF, r["id"]))
+        conn.commit()
+    except Exception as e:   # the proposal is still recorded; the app draws its PDF instead
+        conn.rollback()
+        log.warning("original PDF not kept for proposal %s: %s", r.get("id"), type(e).__name__)
 
 
 # ============================ keeping only the latest (2026-10-23) ============================
@@ -2015,6 +2130,24 @@ def _api_mark_sent(proposal_id):
         conn.close()
 
 
+def _api_adopt_archived(archive_id):
+    body = request.get_json(silent=True) or {}
+    conn = _conn()
+    try:
+        try:
+            r = adopt_archived(conn, archive_id, number=body.get("number"), sent_on=body.get("sent_on"),
+                               client=body.get("client"), building=body.get("building"), total=body.get("total"),
+                               est_type=body.get("est_type"), borough=body.get("borough"),
+                               approved_by=body.get("approved_by"), approved_on=body.get("approved_on"), actor=_uid())
+        except LookupError as e:
+            return _err(str(e), 404)
+        except ValueError as e:
+            return _err(str(e), 409 if "already" in str(e) else 400)
+        return _wrap(_detail(conn, r)), 201
+    finally:
+        conn.close()
+
+
 def _api_preview(proposal_id):
     conn = _conn()
     try:
@@ -2058,6 +2191,8 @@ def register(app) -> None:
     app.add_url_rule("/api/proposals/<int:proposal_id>/restore", "proposals_restore", gate(_api_restore), methods=["POST"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/record", "proposals_record", gate(_api_record), methods=["PATCH"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/mark-sent", "proposals_mark_sent", gate(_api_mark_sent), methods=["POST"])
+    app.add_url_rule("/api/proposals/archived/<int:archive_id>/mark-sent", "proposals_adopt_archived",
+                     gate(_api_adopt_archived), methods=["POST"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/mark-signed", "proposals_mark_signed", gate(_api_mark_signed), methods=["POST"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/preview", "proposals_preview", gate(_api_preview), methods=["GET"])
     app.add_url_rule("/api/proposals/<int:proposal_id>/pdf", "proposals_pdf", gate(_api_pdf), methods=["GET"])
