@@ -426,7 +426,8 @@ def save(conn, pid: int, patch: dict, lines: Optional[list] = None, *, actor=Non
     if "acked" in (patch or {}):
         c["acked"] = [str(x)[:600] for x in patch["acked"]][:60]
     if "excluded" in (patch or {}):   # paragraphs the person took out as irrelevant to this job (2026-10-22)
-        c["excluded"] = [{"kind": x["kind"], "text": str(x.get("text") or "")[:600]} for x in patch["excluded"] or []
+        c["excluded"] = [{"kind": x["kind"], "text": str(x.get("text") or "")[:600],
+                          **({"at": int(x["at"])} if isinstance(x.get("at"), int) and x["at"] >= 0 else {})} for x in patch["excluded"] or []
                          if isinstance(x, dict) and x.get("kind") in ("notes", "exclusions", "deliverables")
                          and str(x.get("text") or "").strip()][:60]
     if "email_message" in (patch or {}):

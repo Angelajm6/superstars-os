@@ -197,7 +197,8 @@
   }
   @media (min-width:761px){.arch-row .who{display:none}}
   .ps-toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,16px);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:all .2s;z-index:9200;pointer-events:none;max-width:calc(100% - 32px)}
-  .ps-toast.on{opacity:1;transform:translate(-50%,0)}.ps-toast.err{background:var(--status-behind-deep,#A8382B)}
+  .ps-toast.on{opacity:1;transform:translate(-50%,0)}.ps-toast.act{pointer-events:auto;display:flex;align-items:center;gap:12px}
+  .ps-toast button{border:0;background:none;color:#fff;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;padding:4px 2px;min-height:32px}.ps-toast.err{background:var(--status-behind-deep,#A8382B)}
   /* ready to send (2026-10-21) */
   .ck{display:flex;flex-direction:column;gap:6px}
   .ck div{display:flex;gap:8px;font-size:12.5px;line-height:1.4;padding:7px 9px;border-radius:9px;align-items:flex-start}
@@ -438,7 +439,11 @@
   const LISTS = ['notes', 'deliverables', 'exclusions'], MULTI = ['submitted_to', 'project', 'reference'];
   const ssc = () => !!(S.v && S.v.layout === 'ssc');
   let tT = null;
-  function toast(m, bad) { const t = $('toast'); t.textContent = m; t.className = 'ps-toast on' + (bad ? ' err' : ''); clearTimeout(tT); tT = setTimeout(() => t.classList.remove('on'), 3200); }
+  function toast(m, bad, act) {   // act: {label, run} adds a button (Undo) and keeps the toast up longer
+    const t = $('toast'); t.textContent = m; t.className = 'ps-toast on' + (bad ? ' err' : '') + (act ? ' act' : '');
+    if (act) { const b = document.createElement('button'); b.type = 'button'; b.textContent = act.label; b.onclick = () => { t.classList.remove('on', 'act'); act.run(); }; t.appendChild(b); }
+    clearTimeout(tT); tT = setTimeout(() => t.classList.remove('on', 'act'), act ? 8000 : 3200);
+  }
   async function api(path, opts) {
     const res = await fetch('/api' + path, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' } }, opts || {}));
     const j = await res.json().catch(() => ({}));
@@ -692,15 +697,20 @@
         '<button type="button" class="x" data-pt="exclude" title="Not relevant to this job: take it out">✕ Exclude</button>';
       const r = li.getBoundingClientRect(), w = d.defaultView, z = parseFloat(d.documentElement.style.zoom) || 1;   // a phone shows the sheet zoomed out
       bar.classList.add('on');
-      bar.style.top = Math.max(0, (r.top + w.scrollY) / z - bar.offsetHeight - 4) + 'px';
+      // on the paragraph's own row, at its right end and level with its first line: reaching it never crosses
+      // the paragraph above (it used to sit above, so the pointer picked up that one and Exclude took it out)
+      const line = Math.min(r.height / z, 22);
+      bar.style.top = Math.max(0, (r.top + w.scrollY) / z + line / 2 - bar.offsetHeight / 2) + 'px';
       bar.style.left = Math.max(4, (r.right + w.scrollX) / z - bar.offsetWidth) + 'px';
     };
+    let onBar = false;
     const off = () => { hideT = setTimeout(() => { bar.classList.remove('on'); if (cur) cur.classList.remove('ssc-pt-on'); cur = null; }, 250); };
     d.querySelectorAll('li[data-f]').forEach(li => {
-      li.addEventListener('mouseenter', () => place(li)); li.addEventListener('focus', () => place(li));
+      li.addEventListener('mouseenter', () => { if (!onBar) place(li); }); li.addEventListener('focus', () => place(li));
       li.addEventListener('mouseleave', off); li.addEventListener('blur', off);
     });
-    bar.addEventListener('mouseenter', () => clearTimeout(hideT)); bar.addEventListener('mouseleave', off);
+    bar.addEventListener('mouseenter', () => { onBar = true; clearTimeout(hideT); });
+    bar.addEventListener('mouseleave', () => { onBar = false; off(); });
     bar.addEventListener('mousedown', e => e.preventDefault());   // keep the paragraph's text as typed until the click lands
     bar.addEventListener('click', async e => {
       const b = e.target.closest('[data-pt]'); if (!b || !cur) return;
@@ -715,7 +725,8 @@
     try {
       if (verb === 'keep') { draw(await api('/proposal-studio/' + S.id + '/keep', { method: 'POST', body: JSON.stringify({ text }) })); toast('Kept: added to your library'); return; }
       draw(await api('/proposal-studio/' + S.id + '/' + verb, { method: 'POST', body: JSON.stringify({ text }) }));
-      toast(verb === 'exclude' ? 'Excluded from this proposal. Put it back under Excluded paragraphs' : 'Put back');
+      if (verb === 'exclude') { $('ex-box').open = true; toast('Excluded from this proposal', false, { label: 'Undo', run: () => paragraph('restore', text) }); }
+      else toast('Put back');
     } catch (x) { toast(x.message, true); }
   }
   $('ex-list').addEventListener('click', e => { const b = e.target.closest('[data-restore]'); if (b) paragraph('restore', b.dataset.restore); });
