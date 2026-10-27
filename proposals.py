@@ -951,7 +951,7 @@ def render_pdf(conn, proposal_id: int, *, actor=None, html: Optional[str] = None
         pdf_path = d / f"{r['number']}.pdf"
         html = render_document(conn, r, mode="pdf") if html is None else html
         html_path.write_text(html, encoding="utf-8")
-        res = pdf_export.render_html_to_pdf(html_path, pdf_path, timeout_sec=30)
+        res = pdf_export.render_html_to_pdf(html_path, pdf_path, timeout_sec=90)
         try:
             html_path.unlink(missing_ok=True)
         except Exception:

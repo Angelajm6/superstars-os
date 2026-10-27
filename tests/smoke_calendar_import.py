@@ -37,8 +37,9 @@ import logging
 import shutil
 import sys
 import tempfile
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -63,6 +64,12 @@ import team_items  # noqa: E402
 
 TAG = "calimp"
 DAY = (date.today() + timedelta(days=5)).isoformat()
+
+
+def off(zone: str) -> str:
+    """The zone's UTC offset at noon on DAY (-05:00 for Chicago in summer, -06:00 in winter), so the test holds all year."""
+    m = int(ZoneInfo(zone).utcoffset(datetime.fromisoformat(f"{DAY}T12:00:00")).total_seconds() // 60)
+    return f"{'-' if m < 0 else '+'}{abs(m) // 60:02d}:{abs(m) % 60:02d}"
 
 
 class LogTrap(logging.Handler):
@@ -155,11 +162,11 @@ def main() -> int:
         assert w["start_date"] == DAY and w["start_time"] is None and w["end_date"] is None and w["source_tz"] is None
         three = (date.fromisoformat(DAY) + timedelta(days=3)).isoformat()
         assert ci.when(ev("t", "x", allday=(DAY, three)))["end_date"] == (date.fromisoformat(DAY) + timedelta(days=2)).isoformat()
-        w = ci.when(ev("t", "x", start=f"{DAY}T12:00:00-05:00", end=f"{DAY}T13:00:00-05:00", zone="America/Chicago"))
+        w = ci.when(ev("t", "x", start=f"{DAY}T12:00:00{off('America/Chicago')}", end=f"{DAY}T13:00:00{off('America/Chicago')}", zone="America/Chicago"))
         assert w["source_tz"] == "America/Chicago" and w["source_start_time"] == "12:00" and w["start_time"] == "13:00", w
-        w = ci.when(ev("t", "x", start=f"{DAY}T12:00:00-04:00", zone="America/Detroit"))   # same wall clock as New York
+        w = ci.when(ev("t", "x", start=f"{DAY}T12:00:00{off('America/Detroit')}", zone="America/Detroit"))   # same wall clock as New York
         assert w["source_tz"] is None
-        late = ci.when(ev("t", "x", start=f"{DAY}T23:30:00-08:00", end=f"{DAY}T23:45:00-08:00", zone="America/Los_Angeles"))
+        late = ci.when(ev("t", "x", start=f"{DAY}T23:30:00{off('America/Los_Angeles')}", end=f"{DAY}T23:45:00{off('America/Los_Angeles')}", zone="America/Los_Angeles"))
         assert late["start_date"] == (date.fromisoformat(DAY) + timedelta(days=1)).isoformat()   # next day in New York
         passed += 1; print("  times + zones ok")
 
@@ -168,7 +175,7 @@ def main() -> int:
             # ---- every event is copied privately; nothing becomes a team item
             assert ci.apply_event(conn, me, ev("e1", "Calimp walkthrough", location="455 Calimp St")) == "created"
             assert ci.apply_event(conn, me, ev("e2", "Calimp dentist")) == "created"
-            assert ci.apply_event(conn, me, ev("e3", "Calimp chicago call", start=f"{DAY}T12:00:00-05:00", zone="America/Chicago")) == "created"
+            assert ci.apply_event(conn, me, ev("e3", "Calimp chicago call", start=f"{DAY}T12:00:00{off('America/Chicago')}", zone="America/Chicago")) == "created"
             assert ci.apply_event(conn, other, ev("e1", "Calimp other person's e1")) == "created"   # same Google id, other person
             rows = mine(me)
             assert [r["title"] for r in rows] == ["Calimp walkthrough", "Calimp dentist", "Calimp chicago call"]

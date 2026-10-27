@@ -176,7 +176,7 @@ def pdf_bytes(d: dict) -> bytes:
     with tempfile.TemporaryDirectory() as td:
         hp, pp = Path(td) / "doc.html", Path(td) / "doc.pdf"
         hp.write_text(page(d), encoding="utf-8")
-        res = pdf_export.render_html_to_pdf(hp, pp, timeout_sec=30)
+        res = pdf_export.render_html_to_pdf(hp, pp, timeout_sec=90)
         if not res.get("ok"):
             raise ValueError("The PDF couldn't be made right now. Try again in a minute, or download it as Word.")
         return pp.read_bytes()

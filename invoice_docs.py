@@ -242,7 +242,7 @@ def render_pdf(conn, invoice_id: int, *, actor=None) -> dict:
         html_path = d / f"{inv['number']}.html"
         pdf_path = d / f"{inv['number']}.pdf"
         html_path.write_text(render_document(conn, inv), encoding="utf-8")
-        res = pdf_export.render_html_to_pdf(html_path, pdf_path, timeout_sec=30)
+        res = pdf_export.render_html_to_pdf(html_path, pdf_path, timeout_sec=90)
         try:
             html_path.unlink(missing_ok=True)
         except Exception:
