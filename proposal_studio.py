@@ -842,13 +842,15 @@ def register(app) -> None:
                 kind = next((k for k in ("notes", "exclusions", "deliverables") if text in (cont.get(k) or [])), None)
                 if not kind:
                     raise ValueError("That paragraph isn't in this proposal any more.")
-                patch = {kind: [x for x in cont[kind] if x != text],
-                         "excluded": [g for g in gone if g.get("text") != text] + [{"kind": kind, "text": text}]}
+                patch = {kind: [x for x in cont[kind] if x != text],   # "at": where it stood, so Put back returns it there
+                         "excluded": [g for g in gone if g.get("text") != text] + [{"kind": kind, "text": text, "at": cont[kind].index(text)}]}
             else:
                 g = next((g for g in gone if g.get("text") == text), None)
                 if not g:
                     raise ValueError("That paragraph isn't excluded.")
-                patch = {g["kind"]: list(cont.get(g["kind"]) or []) + [text], "excluded": [x for x in gone if x is not g]}
+                items = list(cont.get(g["kind"]) or [])
+                items.insert(min(g.get("at", len(items)), len(items)), text)
+                patch = {g["kind"]: items, "excluded": [x for x in gone if x is not g]}
             proposal_engine.save(c, pid, patch, None, actor=me["id"])
             return view(c, pid, me["id"], me["role"])
         try:

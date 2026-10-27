@@ -442,15 +442,17 @@ def main() -> int:
         # ---------------- paragraphs: exclude what doesn't apply, put it back
         dpid = _draft(ids["cs"])
         dv = cs.get(f"/api/proposal-studio/{dpid}").get_json()["data"]
-        note = dv["content"]["notes"][-1]
+        notes0 = dv["content"]["notes"]
+        assert len(notes0) >= 2, notes0
+        note = notes0[0]   # not the last one: Put back returns it to where it stood
         r = cs.post(f"/api/proposal-studio/{dpid}/exclude", json={"text": note})
         assert r.status_code == 200, r.get_json()
         ev = r.get_json()["data"]
-        assert note not in ev["content"]["notes"] and ev["content"]["excluded"] == [{"kind": "notes", "text": note}]
+        assert note not in ev["content"]["notes"] and ev["content"]["excluded"] == [{"kind": "notes", "text": note, "at": 0}]
         assert note not in ev["html"]
         assert cs.post(f"/api/proposal-studio/{dpid}/exclude", json={"text": note}).status_code == 400
         rv_ = cs.post(f"/api/proposal-studio/{dpid}/restore", json={"text": note}).get_json()["data"]
-        assert rv_["content"]["notes"][-1] == note and rv_["content"]["excluded"] == []
+        assert rv_["content"]["notes"] == notes0 and rv_["content"]["excluded"] == []
         assert cs.post(f"/api/proposal-studio/{pid}/exclude", json={"text": "x"}).status_code == 400, "a sent proposal doesn't change"
         passed += 1; print("  paragraphs ok")
 
