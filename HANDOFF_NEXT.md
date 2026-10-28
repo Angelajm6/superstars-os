@@ -69,6 +69,24 @@ grant, or elevation code.
   name or path. The Task subagent has no Bash (hands back a PROVENANCE block). `smoke_construction_agent.py` (throwaway DB) is in
   the gate. Still open: `db_layer.py` falls back to `superstars.db` when `SSC_DB_URL` is unset (app-wide).
 
+### Company templates: Improve design + house style (Bookore, 2026-10-28)
+
+* Step 3 of the accepted prototype, built before step 2 at Angela's ask. On every filed template: **Improve design** opens a
+  full-screen window (page root, z 10050): Current (pdf.js / picture; Word and Excel say "can't be shown" + Download) beside
+  Proposed (the house-style sheet in a shadow root, scaled to fit); phone = Proposed / Current toggle. Draft chips, "What Claude
+  changed", **Suggest an edit** → a new draft, **Approve** → the template's next version, Discard.
+* **House style = code** (`template_layout.py`, `LAYOUT_VERSION`): letterhead (Company brand logo + address lines, red rule),
+  Archivo headings, Inter body, cream field boxes, ink table heads, tick boxes, signature lines, footer "company · title" and
+  "Rev. YYYY-MM · Page x of y". Claude writes only content blocks (heading / paragraph / note / fields / table / checklist /
+  signatures), keeping every word. Changing the look = editing that file; every redesign follows.
+* `template_design.py`: `company_template_design` drafts (drafting → ready | failed; stuck after 10 min shows failed; one at a
+  time per template, 409), background thread, streamed structured-output call (`TEMPLATE_DESIGN_MODEL`, else `DOC_SCAN_MODEL`).
+  Approve renders the PDF (`pdf_export`, Chromium on Render), inserts version N+1 (`supersedes_id`, `layout_json` = the blocks,
+  `fields_json` = its blanks for step 2), marks the old one superseded (still in **History**), moves the drafts along, and the
+  first approval writes app_settings `template_house_style`. Redesigned templates have a **Word** copy (`claude_docs.docx_bytes`).
+* Guard: `tests/smoke_template_design.py` (48 checks; seams `TEMPLATE_DESIGN_FAKE`, PDF stubbed). Verified locally end to end with
+  real Chrome PDFs. The live Claude redraw was NOT run (no key). Step 2 (a new job picks templates up, filled) is next.
+
 ### Company templates, step 1: the library (Bookore, 2026-10-26)
 
 * Accepted prototype: https://claude.ai/artifact/JxTQdUZxuX2JMCcHEa2pDx (three steps: library → a new job picks templates up →

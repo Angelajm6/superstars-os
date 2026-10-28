@@ -216,6 +216,8 @@ def ensure_schema(conn) -> None:
                  "ON company_template(archived_at, superseded, state, folder)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_company_template_sha ON company_template(content_sha256)")
     conn.commit()
+    import template_design   # 2026-10-28 — Improve design: drafts + the approved layout
+    template_design.ensure_schema(conn)
 
 
 # ---------------------------------------------------------------- Claude's read
@@ -383,7 +385,7 @@ def read_template(data: bytes, filename: str) -> tuple:
 # ---------------------------------------------------------------- rows
 _PUBLIC_COLS = ("id, title, folder, type_key, offer_json, summary, fields_json, design_verdict, design_notes, "
                 "state, read_status, read_error, model, file_name, file_size, mime, version, created_at, "
-                "updated_at, filed_at")
+                "updated_at, filed_at, supersedes_id, CASE WHEN layout_json IS NULL THEN 0 ELSE 1 END AS redesigned")
 
 
 def public(r: dict) -> dict:
@@ -400,6 +402,8 @@ def public(r: dict) -> dict:
         "file_name": r["file_name"], "file_size": r.get("file_size"), "mime": r.get("mime"),
         "version": r.get("version") or 1, "created_at": r.get("created_at"), "updated_at": r.get("updated_at"),
         "filed_at": r.get("filed_at"), "file_url": f"/api/company/portal/templates/{r['id']}/file",
+        "has_history": bool(r.get("supersedes_id")), "redesigned": bool(r.get("redesigned")),
+        "word_url": f"/api/company/portal/templates/{r['id']}/word" if r.get("redesigned") else None,
     }
 
 
@@ -646,3 +650,6 @@ def register_routes(app, gate) -> None:
                          download_name=name or f"template-{template_id}")
         resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         return resp
+
+    import template_design
+    template_design.register_routes(app, gate)   # 2026-10-28 — Improve design (house style)
