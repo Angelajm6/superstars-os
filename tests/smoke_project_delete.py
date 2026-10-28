@@ -6,6 +6,8 @@ Boots the real app on an ISOLATED database. Proves:
   * a job made with "+ New project" and nothing filed goes, with its crew, PM assignment and IRA
     row; the estimate made for it goes too
   * a job with a daily report is refused (409, "1 daily report"), nothing changes
+  * tab-open counts never block; a drawing set goes with the job (rows + files) unless an
+    elevation was traced from it (409, "1 drawing set")
   * a job converted from a real bid sends that estimate back to approved, unconverted
   * a suggested address (job site with no project) can be deleted: it leaves the suggestions
   * the Projects tab no longer renders access-method chips; the Edit window offers Delete
@@ -137,16 +139,40 @@ def main() -> int:
     assert _count("SELECT COUNT(1) FROM pm_project_assignment WHERE project_code = ?", (code,)) == 1
     passed += 1; print("  records block ok")
 
-    # ---- nothing filed: the job, its setup and its on-the-fly estimate go
+    # ---- a drawing set traced into an elevation blocks; usage counts never do
+    import drawing_sets
+    set_dir = drawing_sets._sets_base() / code / "1"
+    set_dir.mkdir(parents=True, exist_ok=True)
+    (set_dir / "set.pdf").write_bytes(b"%PDF-1.4")
     conn = _db()
     try:
-        conn.execute("DELETE FROM report_index WHERE project_code = ?", (code,)); conn.commit()
+        conn.execute("DELETE FROM report_index WHERE project_code = ?", (code,))
+        conn.execute("INSERT INTO ui_view_usage (day, surface, view, role, project_code, opens) VALUES (?, 'job', 'overview', 'admin', ?, 11)", (T, code))
+        conn.execute("INSERT INTO drawing_set (project_code, filename, page_count) VALUES (?, 'set.pdf', 1)", (code,))
+        set_id = conn.execute("SELECT MAX(id) FROM drawing_set WHERE project_code = ?", (code,)).fetchone()[0]
+        conn.execute("INSERT INTO drawing_sheet (set_id, page_no) VALUES (?, 1)", (set_id,))
+        sheet_id = conn.execute("SELECT MAX(id) FROM drawing_sheet WHERE set_id = ?", (set_id,)).fetchone()[0]
+        conn.execute("INSERT INTO elevation (project_code, face, name, source_sheet_id) VALUES (?, 'N', 'Pdel N', ?)", (code, sheet_id))
+        conn.commit()
+    finally:
+        conn.close()
+    r = cs.delete(url(code))
+    err = r.get_json()["error"]
+    assert r.status_code == 409 and "1 drawing set" in err and "usage" not in err, err
+    passed += 1; print("  traced drawing set blocks ok")
+
+    # ---- nothing filed: the job, its setup, drawing set, usage counts and on-the-fly estimate go
+    conn = _db()
+    try:
+        conn.execute("DELETE FROM elevation WHERE project_code = ?", (code,)); conn.commit()
     finally:
         conn.close()
     r = admin.delete(url(code))
     assert r.status_code == 200 and r.get_json()["data"]["deleted"] == code, r.get_json()
-    for t in ("projects", "pm_project_assignment", "ira_job", "project_assignments"):
+    for t in ("projects", "pm_project_assignment", "ira_job", "project_assignments", "ui_view_usage", "drawing_set"):
         assert _count(f"SELECT COUNT(1) FROM {t} WHERE project_code = ?", (code,)) == 0, t
+    assert _count("SELECT COUNT(1) FROM drawing_sheet WHERE set_id = ?", (set_id,)) == 0
+    assert not (drawing_sets._sets_base() / code).exists()
     assert _count("SELECT COUNT(1) FROM estimate WHERE id = ?", (a["estimate_id"],)) == 0
     assert admin.delete(url(code)).status_code == 404
     passed += 1; print("  delete ok")

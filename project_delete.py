@@ -9,14 +9,16 @@ job with records is refused (409) with what is still there, in words ("3 daily r
 1 invoice"); the answer is Status → closed, which keeps the history.
 
 What goes with the job (setup, not records): its crew and PM assignments, client-portal
-grants, worker-app sessions, the IRA checklist row and the DOB data synced from NYC Open
-Data. Its estimate: the one "+ New project" made on the fly is deleted; a real bid that was
+grants, worker-app sessions, the IRA checklist row, the DOB data synced from NYC Open
+Data and the anonymous tab-open counts (ui_usage). Its drawing sets too, PDFs and page images
+included, unless an elevation was traced from one (the elevation is the record). Its estimate: the one "+ New project" made on the fly is deleted; a real bid that was
 converted goes back to approved, so it can be converted again. The building stays (other
 jobs and the client may use it). The job number is not reused while a higher one exists.
 """
 from __future__ import annotations
 
 import logging
+import shutil
 from typing import Optional
 
 from flask import jsonify
@@ -29,7 +31,9 @@ log = logging.getLogger("ssc.project_delete")
 # set up with the job, deleted with it
 SETUP_TABLES = ("project_assignments", "employee_assignments", "pm_project_assignment", "client_section_grant",
                 "worker_app_session", "ira_job", "project_doc_suggest_dismissed",
-                "dob_permits", "dob_violations", "dob_complaints")
+                "dob_permits", "dob_violations", "dob_complaints", "ui_view_usage")
+# uploads that go with the job unless an elevation was traced from one of their sheets
+_DRAWING_SETS = "drawing_set"
 
 # how a blocker reads; any other table reads as "<n> <table> records"
 WORDS = {
@@ -83,6 +87,14 @@ def blockers(conn, code: str) -> list:
     for t in _project_tables(conn):
         if t == "projects" or t in SETUP_TABLES:
             continue
+        if t == _DRAWING_SETS:
+            n = int(conn.execute("SELECT COUNT(DISTINCT ds.id) FROM drawing_set ds "
+                                 "JOIN drawing_sheet sh ON sh.set_id = ds.id "
+                                 "JOIN elevation e ON e.source_sheet_id = sh.id "
+                                 "WHERE ds.project_code = ?", (code,)).fetchone()[0] or 0)
+            if n:
+                counts["drawing set"] = counts.get("drawing set", 0) + n
+            continue
         n = int(conn.execute(f"SELECT COUNT(1) FROM {t} WHERE project_code = ?", (code,)).fetchone()[0] or 0)
         if n:
             word = WORDS.get(t) or t.replace("_", " ") + " record"
@@ -102,6 +114,10 @@ def delete(conn, code: str, *, actor=None) -> Optional[dict]:
     for t in SETUP_TABLES:
         if t in tables:
             conn.execute(f"DELETE FROM {t} WHERE project_code = ?", (code,))
+    has_sets = _DRAWING_SETS in tables
+    if has_sets:
+        conn.execute("DELETE FROM drawing_sheet WHERE set_id IN (SELECT id FROM drawing_set WHERE project_code = ?)", (code,))
+        conn.execute("DELETE FROM drawing_set WHERE project_code = ?", (code,))
     from apply_crm_266 import _table_exists
     refs = [t for t in _ESTIMATE_REFS if _table_exists(conn, t)]
     for e in conn.execute("SELECT id, notes FROM estimate WHERE converted_project_code = ?", (code,)).fetchall():
@@ -116,8 +132,22 @@ def delete(conn, code: str, *, actor=None) -> Optional[dict]:
                          "updated_at = CURRENT_TIMESTAMP WHERE id = ?", (e["id"],))
     conn.execute("DELETE FROM projects WHERE project_code = ?", (code,))
     conn.commit()
+    if has_sets:
+        _remove_set_files(code)
     log.info("project deleted code=%s by user=%s", code, actor)
     return {"deleted": code}
+
+
+def _remove_set_files(code: str) -> None:
+    """The job's drawing-set folder (PDFs, thumbs, page renders); never outside the sets root."""
+    from drawing_sets import _sets_base
+    try:
+        base = _sets_base().resolve()
+        d = (base / code).resolve()
+        if d != base and d.is_relative_to(base) and d.exists():
+            shutil.rmtree(d, ignore_errors=True)
+    except (OSError, ValueError):
+        pass
 
 
 # ---------------------------------------------------------------- routes
