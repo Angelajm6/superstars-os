@@ -11,7 +11,7 @@
   'use strict';
   const API = '/api/company/portal/templates';
   const $ = (id) => document.getElementById(id);
-  const S = { items: [], meta: null, folder: null, open: {}, editing: null, confirm: null, reading: [] };
+  const S = { items: [], meta: null, folder: null, open: {}, editing: null, confirm: null, reading: [], history: {} };
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function toast(msg, isErr) {
@@ -87,6 +87,7 @@
     </div>`;
   }
   function designPill(t) {
+    if (t.redesigned) return '<span class="cp-pill active">House style</span>';
     if (t.design_verdict === 'dated') return `<span class="cp-pill warn" title="${esc((t.design_notes || []).join(' · '))}">Looks dated</span>`;
     if (t.design_verdict === 'ok') return '<span class="cp-pill ok">Design OK</span>';
     return '';
@@ -121,12 +122,20 @@
       ? `<div class="tp-row tp-row-edit" id="tp-row-${t.id}">${form(t, 'save')}</div>`
       : `<div class="tp-row" id="tp-row-${t.id}">
           <div class="tp-row-main"><button type="button" class="tp-row-title" data-preview="${t.id}">${esc(t.title)}</button>
-            <div class="tp-small">${t.type_label ? esc(t.type_label) + ' · ' : ''}Offered on: ${esc(t.offer_label)}</div></div>
+            <div class="tp-small">${t.version > 1 ? `Version ${t.version} · ` : ''}${t.type_label ? esc(t.type_label) + ' · ' : ''}Offered on: ${esc(t.offer_label)}</div></div>
           <div class="tp-row-side">${designPill(t)}
+            <button type="button" class="btn-ghost btn-sm" data-redesign="${t.id}">Improve design</button>
             <button type="button" class="btn-ghost btn-sm" data-preview="${t.id}">Preview</button>
+            ${t.word_url ? `<a class="btn-ghost btn-sm" href="${esc(t.word_url)}" download>Word</a>` : ''}
+            ${t.has_history ? `<button type="button" class="btn-ghost btn-sm" data-history="${t.id}">${S.history[t.id] ? 'Hide history' : 'History'}</button>` : ''}
             <button type="button" class="btn-ghost btn-sm" data-edit="${t.id}">Edit</button>
             <button type="button" class="btn-ghost btn-sm${S.confirm === t.id ? ' tp-danger' : ''}" data-delete="${t.id}">${S.confirm === t.id ? 'Delete? Tap again' : 'Delete'}</button></div>
+          ${S.history[t.id] ? historyList(S.history[t.id]) : ''}
         </div>`).join('') + '</div>';
+  }
+  function historyList(rows) {
+    return '<div class="tp-hist">' + rows.map((v, i) => `<div class="tp-hist-row"><span><b>Version ${v.version}</b>${i === 0 ? ' · current' : ''} · ${esc(v.file_name)}${v.redesigned ? ' · house style' : ''}</span>
+      <button type="button" class="tp-link" data-hist-preview="${v.id}">Preview</button></div>`).join('') + '</div>';
   }
 
   // ---------- actions ----------
@@ -174,8 +183,12 @@
       S.items = S.items.filter(t => t.id !== id); S.confirm = null; render(); toast(msg);
     } catch (e) { toast(e.message, true); }
   }
-  function preview(id) {
-    const t = S.items.find(x => x.id === id); if (!t || !window.SSC_PDF) return;
+  async function toggleHistory(id) {
+    if (S.history[id]) { delete S.history[id]; renderFolder(); return; }
+    try { S.history[id] = (await api('/' + id + '/history')).data; renderFolder(); } catch (e) { toast(e.message, true); }
+  }
+  function preview(id, t) {
+    t = t || S.items.find(x => x.id === id); if (!t || !window.SSC_PDF) return;
     window.SSC_PDF.panel({ title: t.title, sub: folderName(t.folder) + ' · ' + t.file_name, url: t.file_url,
       kind: window.SSC_PDF.kindOf(t.mime, t.file_name), links: [{ label: 'Open in new tab', href: t.file_url }, { label: 'Download', href: t.file_url, download: true }] });
   }
@@ -192,7 +205,176 @@
     if (d.edit) { S.editing = id('edit'); S.confirm = null; renderFolder(); return; }
     if (d.cancelEdit) { S.editing = null; delete S.open[id('cancelEdit')]; renderFolder(); return; }
     if (d.delete) { const n = id('delete'); if (S.confirm === n) remove(n, 'Template deleted'); else { S.confirm = n; renderFolder(); } return; }
+    if (d.redesign) { RD.open(id('redesign')); return; }
+    if (d.history) { toggleHistory(id('history')); return; }
+    if (d.histPreview) { const n = id('histPreview'); const v = Object.values(S.history).flat().find(x => x.id === n); preview(n, v); return; }
   });
+
+  // ---------- Improve design (template_design.py): current vs proposed, edits, approve ----------
+  const RD = {
+    tid: null, t: null, designs: [], house: null, sel: null, side: 'new', timer: null, el: null,
+    async open(tid) {
+      this.tid = tid; this.sel = null; this.side = 'new'; this.designs = []; this.drawnKey = null; this.t = S.items.find(x => x.id === tid);
+      this.mount(); this.el.hidden = false; document.body.classList.add('tp-rd-lock');
+      this.paint(); this.drawCurrent();
+      await this.refresh();
+    },
+    close() {
+      clearTimeout(this.timer); this.timer = null; this.tid = null;
+      if (this.el) this.el.hidden = true; document.body.classList.remove('tp-rd-lock');
+    },
+    mount() {
+      if (this.el) return;
+      const el = document.createElement('div');   // at the page root (DESIGN_SYSTEM: dialogs escape view wrappers)
+      el.className = 'tp-rd-scrim'; el.hidden = true; el.id = 'tp-rd';
+      el.innerHTML = `<div class="tp-rd" role="dialog" aria-modal="true" aria-labelledby="tp-rd-title">
+        <div class="tp-rd-hd"><div class="tp-rd-hd-t"><h2 id="tp-rd-title"></h2><p class="tp-small" id="tp-rd-sub">Same wording and fields, redrawn in your house style.</p></div>
+          <div class="tp-rd-chips" id="tp-rd-chips"></div><button type="button" class="tp-rd-x" id="tp-rd-close" aria-label="Close">✕</button></div>
+        <div class="tp-rd-seg" role="tablist" aria-label="Proposed or current"><button type="button" data-rd-side="new" id="tp-rd-sg-new">Proposed</button><button type="button" data-rd-side="old" id="tp-rd-sg-old">Current</button></div>
+        <div class="tp-rd-body">
+          <div class="tp-rd-cmp" id="tp-rd-cmp">
+            <section data-rd-pane="old"><div class="tp-rd-lab"><span class="tp-cap">Current</span><span class="cp-pill" id="tp-rd-file"></span></div><div class="tp-rd-paper" id="tp-rd-old"></div></section>
+            <section data-rd-pane="new"><div class="tp-rd-lab"><span class="tp-cap">Proposed</span><span class="cp-pill active" id="tp-rd-tag">House style</span></div><div class="tp-rd-paper" id="tp-rd-new"></div></section>
+          </div>
+          <aside class="tp-rd-side">
+            <div class="cp-card" id="tp-rd-act"></div>
+            <div class="cp-card" id="tp-rd-house"></div>
+          </aside>
+        </div></div>`;
+      document.body.appendChild(el); this.el = el;
+      el.addEventListener('click', (e) => {
+        if (e.target === el || e.target.closest('#tp-rd-close')) { this.close(); return; }
+        const b = e.target.closest('button'); if (!b) return;
+        const d = b.dataset;
+        if (d.rdSide) { this.side = d.rdSide; this.paintSide(); return; }
+        if (d.rdChip) { this.sel = Number(d.rdChip); this.paint(); this.drawIfChanged(); return; }
+        if (b.id === 'tp-rd-start' || b.id === 'tp-rd-retry') { this.start(); return; }
+        if (b.id === 'tp-rd-edit') { this.edit(); return; }
+        if (b.id === 'tp-rd-approve') { this.approve(b); return; }
+        if (b.id === 'tp-rd-discard') { this.discard(); return; }
+      });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.tid && !this.el.hidden) this.close(); });
+      window.addEventListener('resize', () => { if (this.tid) this.fit(); });
+    },
+    cur() { return this.designs.find(d => d.id === this.sel) || null; },
+    drawIfChanged() {   // the preview is redrawn only when the shown draft or its state changes
+      const d = this.cur(), key = d ? d.id + ':' + d.status : 'none';
+      if (key !== this.drawnKey) { this.drawnKey = key; this.drawProposed(); }
+    },
+    async refresh() {
+      const tid = this.tid; if (!tid) return;
+      try {
+        const j = await api('/' + tid + '/designs');
+        if (this.tid !== tid) return;
+        this.designs = j.data; this.house = j.meta.house_style; this.t = j.meta.template;
+        if (!this.cur()) this.sel = this.designs.length ? this.designs[0].id : null;
+        this.paint(); this.drawIfChanged();
+        clearTimeout(this.timer);
+        if (this.designs.some(d => d.status === 'drafting')) this.timer = setTimeout(() => this.refresh(), 3000);
+      } catch (e) { toast(e.message, true); }
+    },
+    paint() {
+      const t = this.t || {}, d = this.cur();
+      $('tp-rd-title').textContent = 'Improve design: ' + (t.title || '');
+      $('tp-rd-file').textContent = t.file_name || '';
+      const drafts = this.designs.filter(x => x.status !== 'approved').slice().reverse();
+      $('tp-rd-chips').innerHTML = drafts.map(x => `<button type="button" class="cp-chip${x.id === this.sel ? ' on' : ''}" data-rd-chip="${x.id}">Draft ${x.draft_no}${x.status === 'drafting' ? ' …' : ''}</button>`).join('');
+      const house = this.house || {};
+      const first = !house.set;
+      let act;
+      if (!d || d.status === 'approved') {
+        act = `<h2>Redraw in your house style</h2>
+          <p class="tp-small">Claude keeps every word and every blank of this template and lays it out in your house style: letterhead, colors, fonts and field boxes. You review it before anything changes.</p>
+          ${t.design_notes && t.design_notes.length ? `<p class="tp-small"><b>What looks dated now:</b> ${esc(t.design_notes.join(' · '))}</p>` : ''}
+          <div class="tp-actions"><button type="button" class="btn-primary btn-sm" id="tp-rd-start">Draw the new design</button></div>`;
+      } else if (d.status === 'drafting') {
+        act = `<h2>Claude is drawing draft ${d.draft_no}…</h2><p class="tp-small">${d.instruction ? 'Your edit: ' + esc(d.instruction) + '. ' : ''}A long template takes about a minute. You can close this window; the draft keeps going.</p>`;
+      } else if (d.status === 'failed') {
+        act = `<h2>Draft ${d.draft_no} didn't work</h2><p class="tp-small tp-warn-text">${esc(d.error || 'Claude couldn’t redraw this one.')}</p>
+          <div class="tp-actions"><button type="button" class="btn-primary btn-sm" id="tp-rd-retry">Try again</button><button type="button" class="btn-ghost btn-sm" id="tp-rd-discard">Discard</button></div>`;
+      } else {
+        act = `<h2>What Claude changed</h2>
+          ${d.instruction ? `<p class="tp-small"><b>Your edit:</b> ${esc(d.instruction)}</p>` : ''}
+          <ul class="tp-rd-notes">${(d.changes || []).map(c => `<li>${esc(c)}</li>`).join('') || '<li>Same content, in the house style.</li>'}</ul>
+          <label class="tp-cap" for="tp-rd-ask">Suggest an edit</label>
+          <textarea id="tp-rd-ask" class="tp-rd-ask" maxlength="1000" placeholder="e.g. Put the emergency contacts first, in a red box"></textarea>
+          <div class="tp-actions">
+            <button type="button" class="btn-ghost btn-sm" id="tp-rd-edit">Send edit · new draft</button>
+            <button type="button" class="btn-primary btn-sm" id="tp-rd-approve">${first ? 'Approve and set house style' : 'Approve as version ' + ((t.version || 1) + 1)}</button>
+          </div>
+          <button type="button" class="tp-link" id="tp-rd-discard">Discard this draft</button>`;
+      }
+      $('tp-rd-act').innerHTML = act;
+      $('tp-rd-house').innerHTML = `<div class="cp-card-head"><h2>House style</h2><span class="cp-pill${first ? '' : ' ok'}">${first ? 'Not set yet' : 'Set · ' + esc(fmtDay(house.set.set_at))}</span></div>
+        <p class="tp-small">${first ? 'The first design you approve sets it. Every redesign after that, and every document filled from a template, uses the same look.' : 'Every redesigned template and every document filled from one uses this look.'}</p>
+        <div class="tp-rd-sw">${(house.colors || []).map(c => `<span><i style="background:${esc(c.hex)}"></i>${esc(c.name)}</span>`).join('')}</div>
+        <div class="tp-small"><b>Headings</b> ${esc(house.headings || '')} · <b>Body</b> ${esc(house.body || '')}</div>
+        <div class="tp-small"><b>Letterhead</b> ${esc(house.letterhead || '')}${house.has_logo ? '' : ' (no logo uploaded yet, the company name is printed instead)'}</div>
+        ${(house.letterhead_lines || []).length ? `<div class="tp-small">${house.letterhead_lines.map(esc).join('<br>')}</div>` : ''}
+        <a class="tp-link" href="/company#brand">Change the logo or address in Settings › Company brand</a>`;
+      this.paintSide();
+    },
+    paintSide() {
+      this.el.querySelectorAll('[data-rd-side]').forEach(b => b.classList.toggle('on', b.dataset.rdSide === this.side));
+      this.el.querySelectorAll('[data-rd-pane]').forEach(p => p.classList.toggle('show', p.dataset.rdPane === this.side));
+    },
+    drawCurrent() {
+      const t = this.t, host = $('tp-rd-old'); if (!t) return;
+      const kind = window.SSC_PDF ? window.SSC_PDF.kindOf(t.mime, t.file_name) : 'other';
+      if (kind === 'pdf') { host.innerHTML = ''; window.SSC_PDF.render(t.file_url, host); }
+      else if (kind === 'image') host.innerHTML = `<img alt="" src="${esc(t.file_url)}">`;
+      else host.innerHTML = `<div class="cp-empty"><strong>${esc(kindWord(t))} files can't be shown here</strong><a class="tp-link" href="${esc(t.file_url)}" download>Download the current file</a></div>`;
+    },
+    async drawProposed() {
+      const host = $('tp-rd-new'), d = this.cur();
+      if (!d || d.status !== 'ready') {
+        host.innerHTML = `<div class="cp-empty"><strong>${d && d.status === 'drafting' ? 'Drawing…' : 'No draft yet'}</strong>${d && d.status === 'drafting' ? 'The new design shows here when Claude is done.' : 'Draw the new design to see it here.'}</div>`;
+        return;
+      }
+      try {
+        const p = (await api('/designs/' + d.id + '/preview')).data;
+        if (this.cur() !== d) return;
+        host.innerHTML = '<div class="tp-rd-shadow"></div>';
+        const root = host.firstChild.attachShadow({ mode: 'open' });
+        root.innerHTML = `<style>:host{display:block}.tl-fit{transform-origin:top left}${p.css}</style><div class="tl-fit">${p.html}</div>`;
+        this.fit();
+      } catch (e) { host.innerHTML = `<div class="cp-empty"><strong>Could not show the draft</strong>${esc(e.message)}</div>`; }
+    },
+    fit() {
+      const sh = this.el && this.el.querySelector('.tp-rd-shadow'); if (!sh || !sh.shadowRoot) return;
+      const fitEl = sh.shadowRoot.querySelector('.tl-fit'), sheet = sh.shadowRoot.querySelector('.tl-sheet'); if (!fitEl || !sheet) return;
+      const w = sh.clientWidth || sh.parentElement.clientWidth, scale = Math.min(1, w / 816);
+      fitEl.style.transform = `scale(${scale})`; sh.style.height = Math.ceil(sheet.offsetHeight * scale) + 'px';
+    },
+    async start(body) {
+      try {
+        const j = await api('/' + this.tid + '/designs', { method: 'POST', body: JSON.stringify(body || {}) });
+        this.sel = j.data.id; this.side = 'new';
+        await this.refresh();
+      } catch (e) { toast(e.message, true); }
+    },
+    edit() {
+      const v = ($('tp-rd-ask').value || '').trim();
+      if (!v) { toast('Say what to change first', true); return; }
+      this.start({ instruction: v, from_id: this.sel });
+    },
+    async approve(b) {
+      const d = this.cur(); if (!d) return;
+      b.disabled = true; b.textContent = 'Saving the PDF…';
+      try {
+        const j = await api('/designs/' + d.id + '/approve', { method: 'POST' });
+        const nt = j.data.template;
+        S.items = S.items.filter(x => x.id !== this.tid); S.items.push(nt); S.folder = nt.folder; delete S.history[this.tid];
+        toast(j.data.house_style_set_now ? `Version ${nt.version} saved. House style set.` : `Version ${nt.version} saved in the house style.`);
+        this.close(); render();
+      } catch (e) { toast(e.message, true); b.disabled = false; b.textContent = 'Try approving again'; }
+    },
+    async discard() {
+      const d = this.cur(); if (!d) return;
+      try { await api('/designs/' + d.id, { method: 'DELETE' }); this.sel = null; await this.refresh(); toast('Draft discarded'); } catch (e) { toast(e.message, true); }
+    },
+  };
+  function fmtDay(iso) { try { const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch (e) { return ''; } }
   document.addEventListener('change', (e) => {
     const el = e.target;
     if (el.id === 'tp-file') { upload(el.files); el.value = ''; return; }

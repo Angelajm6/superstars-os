@@ -23,7 +23,7 @@
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
 <script src="/files/static/js/pdf_view.js?v=3" defer></script>
-<script src="/files/static/js/company_templates.js?v=1"></script>
+<script src="/files/static/js/company_templates.js?v=2"></script>
 <style>
   /* #302 Company Portal — tokens come from widgets.css :root (accent, ink, muted, line,
      canvas, brand-red, status-*). This block only lays out the shell + portal components. */
@@ -679,6 +679,46 @@
   .tp-row-side { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .tp-row-edit { display: block; }
   .tp-danger { color: #A8382B !important; border-color: #A8382B !important; }
+  .tp-hist { flex-basis: 100%; display: flex; flex-direction: column; gap: 4px; background: var(--canvas, #fafbfd); border-radius: 10px; padding: 8px 12px; }
+  .tp-hist-row { display: flex; flex-wrap: wrap; gap: 6px 12px; justify-content: space-between; font-size: 13px; color: var(--muted); }
+  .tp-hist-row b { color: var(--ink); font-weight: 600; }
+  /* Improve design window (at the page root, above the Ask Claude button) */
+  body.tp-rd-lock { overflow: hidden; }
+  .tp-rd-scrim { position: fixed; inset: 0; z-index: 10050; background: rgba(20,24,36,.38); display: flex; align-items: stretch; justify-content: center; padding: 18px; }
+  .tp-rd-scrim[hidden] { display: none; }
+  .tp-rd { background: var(--canvas, #fafbfd); border-radius: 14px; width: 100%; max-width: 1320px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 60px rgba(20,24,36,.25); }
+  .tp-rd-hd { position: relative; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 14px 64px 14px 18px; background: #fff; border-bottom: 1px solid var(--line); }
+  .tp-rd-hd-t { flex: 1 1 260px; min-width: 0; } .tp-rd-hd h2 { margin: 0; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; } .tp-rd-hd p { margin: 2px 0 0; }
+  .tp-rd-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tp-rd-x { position: absolute; top: 12px; right: 16px; border: 1px solid var(--line); background: #fff; border-radius: 8px; width: 34px; height: 34px; font-size: 15px; cursor: pointer; color: var(--ink); }
+  .tp-rd-seg { display: none; }
+  .tp-rd-body { flex: 1; overflow: auto; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; padding: 16px 18px; align-items: start; }
+  .tp-rd-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; min-width: 0; }
+  .tp-rd-cmp section { min-width: 0; }
+  .tp-rd-lab { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .tp-rd-lab .cp-pill { max-width: 60%; overflow: hidden; text-overflow: ellipsis; }
+  .tp-rd-paper { background: #E4E7EE; border-radius: 10px; padding: 10px; min-height: 240px; }
+  .tp-rd-paper .sscpdf-pages { background: none; padding: 0; } .tp-rd-paper img { max-width: 100%; display: block; background: #fff; }
+  .tp-rd-paper .cp-empty { background: #fff; border-radius: 10px; }
+  .tp-rd-shadow { width: 100%; overflow: hidden; }
+  .tp-rd-side { display: flex; flex-direction: column; gap: 0; min-width: 0; position: sticky; top: 0; }
+  .tp-rd-side .cp-card h2 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+  .tp-rd-side .cp-card-head h2 { margin: 0; }
+  .tp-rd-side .cp-card { display: flex; flex-direction: column; gap: 8px; }
+  .tp-rd-notes { margin: 0; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+  .tp-rd-ask { width: 100%; min-height: 72px; resize: vertical; font: inherit; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .tp-rd-sw { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+  .tp-rd-sw span { display: inline-flex; gap: 6px; align-items: center; } .tp-rd-sw i { width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--line); }
+  .tp-rd .tp-link { text-align: left; align-self: flex-start; text-decoration: none; }
+  @media (max-width: 1100px) { .tp-rd-body { grid-template-columns: 1fr; } .tp-rd-side { position: static; } }
+  @media (max-width: 720px) {
+    .tp-rd-scrim { padding: 0; } .tp-rd { border-radius: 0; }
+    .tp-rd-seg { display: flex; gap: 4px; margin: 10px 16px 0; background: #eceef3; border-radius: 9px; padding: 3px; }
+    .tp-rd-seg button { flex: 1; border: 0; background: transparent; padding: 7px; border-radius: 7px; font: 500 13px Inter, sans-serif; color: var(--muted); cursor: pointer; }
+    .tp-rd-seg button.on { background: #fff; color: var(--ink); }
+    .tp-rd-body { padding: 12px 16px; }
+    .tp-rd-cmp { grid-template-columns: 1fr; } .tp-rd-cmp section:not(.show) { display: none; }
+  }
   @media (max-width: 860px) {
     .tp-folders { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .tp-review { grid-template-columns: minmax(0, 1fr); } .tp-review .tp-thumb { display: none; }
