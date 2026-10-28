@@ -21,6 +21,22 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Client page: emails, proposals, invoices (Bookore, 2026-10-28)
+
+* Accepted prototype: https://claude.ai/artifact/6demNxTPeUYpcadNXtWXNo. Company → Clients → a client now leads with **Emails**
+  (All / From them / From us; tap to read; Open in Inbox), then **Proposals** (every version, drafts included) and **Invoices**
+  (drafts, sent, overdue, paid; total sent-or-paid + owed). Rows open the proposal / the invoice panel. KPIs: Projects, Won value,
+  Invoiced, Owed to us. The **Details** card is gone (Edit client still holds email / phone / address). Phone: a sticky jump bar
+  (under the brand bar; `.ssc-main` gets `overflow-x: clip` and `.ssc-top` goes static on this page only) and cards for tables.
+* `client_detail` returns `proposals`, `invoices` and totals `invoiced` / `paid` / `owed` (issued + paid only; drafts and void
+  stay out) / `overdue_count` / `proposals_signed`.
+* **Mailbox rule (Angela):** every person sees only email from their OWN connected Gmail, filed or not. `/api/inbox/linked`
+  now filters by the signed-in user for every record type (estimate / proposal / project pages too, which used to show what
+  anyone filed). For a client, `inbox.client_mail` gathers: filed on the client or its estimates / proposals / jobs, plus mail the
+  Inbox matched on arrival (`mail_message.client_org_id` / `estimate_id` / `proposal_id` / `project_code`), not trashed.
+* Guards: `smoke_inbox` (client list = own mail only; another user gets `[]` for client and estimate), `smoke_invoices_315`
+  (client page proposals / invoices / totals), `smoke_edit_projects_clients` (page needles).
+
 ### Proposals from before the app: Mark as sent (Bookore, 2026-10-27)
 
 * Accepted prototype: https://claude.ai/artifact/MS6wss6jxq8mMupZMcQrY3. A "Before the app" row (an uploaded past proposal) has

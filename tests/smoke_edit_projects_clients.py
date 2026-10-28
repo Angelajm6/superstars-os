@@ -294,7 +294,7 @@ def main() -> int:
     assert 'id="ps-det-form"' in dash and "/details'" in dash and 'id="ps-det-edit"' in dash
     cp = cs.get("/company").get_data(as_text=True)
     for needle in ('id="ce-form"', 'id="cl-edit"', 'id="ct-remove"', "data-ct-edit", "openContactModal",
-                   'id="ce-delete"', 'id="ce-email"', 'id="ce-address"', "clientDetailsHtml"):
+                   'id="ce-delete"', 'id="ce-email"', 'id="ce-address"', "clientMail", "data-cl-inv", "data-cl-prop"):
         assert needle in cp, needle
     passed += 1; print("  pages ok")
 

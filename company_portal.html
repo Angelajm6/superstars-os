@@ -82,6 +82,43 @@
   .cp-table tr:last-child td { border-bottom: 0; }
   .cp-table tr.row-link { cursor: pointer; }
   .cp-table tr.row-link:hover td { background: #FAFAFC; }
+  /* 2026-10-28 — a client's page: emails, proposals and invoices with it (phone: jump bar + cards in place of tables) */
+  .cl-sub { color: var(--muted); font-size: 13px; margin: -4px 0 14px; }
+  .cl-jump { display: none; }
+  .cl-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cl-chip { font: inherit; font-size: 13px; font-weight: 600; border: 1px solid var(--line); background: #fff; color: var(--muted); border-radius: 999px; padding: 5px 10px; cursor: pointer; min-height: 32px; }
+  .cl-chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent-edge); }
+  .cl-chip:focus-visible, .cl-mail summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .cl-mail { border-top: 1px solid var(--line); }
+  .cl-mail:first-child { border-top: 0; }
+  .cl-mail summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 4px 10px; padding: 10px 6px; border-radius: 8px; }
+  .cl-mail summary::-webkit-details-marker { display: none; }
+  .cl-mail summary:hover { background: #FAFAFC; }
+  .cl-dir { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--accent-soft); color: var(--accent-ink); }
+  .cl-dir.out { background: var(--status-complete-soft, #e7f6f0); color: var(--status-complete-deep, #0c7a5f); }
+  .cl-m1 { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
+  .cl-m1 b { font-weight: 600; white-space: nowrap; }
+  .cl-m1 span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .cl-m2 { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px; color: var(--muted); font-size: 12px; }
+  .cl-ref { font-weight: 600; border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; color: var(--ink); }
+  .cl-date { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .cl-body { padding: 2px 6px 10px 38px; font-size: 13px; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
+  .cl-acts { padding: 0 6px 12px 38px; display: flex; gap: 14px; font-size: 13px; font-weight: 600; }
+  .cl-mcards { display: none; }
+  .cl-mc { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; padding: 10px 2px; border-top: 1px solid var(--line); cursor: pointer; }
+  .cl-mc:first-child { border-top: 0; }
+  .cl-mc .r { text-align: right; font-variant-numeric: tabular-nums; }
+  .cl-small { color: var(--muted); font-size: 13px; }
+  .cp-table tfoot td { font-weight: 700; border-bottom: 0; border-top: 1px solid var(--line); }
+  @media (max-width: 860px) {
+    .ssc-main:has(#client-detail:not([hidden])) { overflow-x: clip; }   /* shell.css's overflow-x:hidden would break the sticky jump bar */
+    .ssc-main:has(#client-detail:not([hidden])) .ssc-top { position: static; }   /* clip would make the top bar stick too; keep it as on every page */
+    .cl-jump { display: flex; gap: 6px; overflow-x: auto; position: sticky; top: var(--cl-top, 0px); z-index: 5; background: var(--canvas, #fafbfd); padding: 8px 0; margin-bottom: 8px; scrollbar-width: none; }
+    .cl-jump a { flex: none; font-size: 13px; font-weight: 600; border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 999px; padding: 7px 12px; text-decoration: none; }
+    #client-detail .cp-card { scroll-margin-top: calc(var(--cl-top, 0px) + 60px); }
+    .cl-tw { display: none; } .cl-mcards { display: block; }
+    .cl-body, .cl-acts { padding-left: 6px; }
+  }
   .cp-id { font-weight: 700; color: var(--brand-red, #B11E2E); }
   /* Oct 7 notes batch C — job number, color square, access chips, Edit */
   .pj-no { font-weight: 600; color: var(--brand-red, #B11E2E); font-variant-numeric: tabular-nums; }
@@ -2809,38 +2846,55 @@
       const ests = [].concat(...d.buildings.map(b => b.estimates));
       const projectsHtml = jobs.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Job</th><th>Address</th><th>Status</th></tr></thead><tbody>${jobs.map(p => `<tr><td><a class="cp-link" href="#projects/${encodeURIComponent(p.project_code)}"><b class="cp-id">${esc(p.project_code)}</b></a> ${esc(p.name || '')}</td><td>${esc(p.address || '')}${p.borough ? ` <span class="cp-muted">· ${esc(p.borough)}</span>` : ''}</td><td><span class="cp-pill ${p.status === 'active' ? 'ok' : ''}">${esc(p.status)}</span></td></tr>`).join('')}</tbody></table></div>` : empty('No projects yet', 'Create one under Projects → + New project and pick this client.');
       const estsHtml = ests.length ? `<div class="cp-tags" style="margin-top:10px">${ests.map(e => `<span>${esc(e.code)} · ${esc(e.status)}${e.final_amount ? ' · ' + money.format(e.final_amount) : ''}</span>`).join('')}</div>` : '';
+      // 2026-10-28 — every proposal version and every invoice for this client (rows open the real record)
+      const props = d.proposals || [], invs = d.invoices || [];
+      const prWhen = p => p.signed_at ? 'signed ' + fmtDate(p.signed_at) : p.declined_at ? 'declined ' + fmtDate(p.declined_at) : p.sent_at ? 'sent ' + fmtDate(p.sent_at) : 'edited ' + fmtDate(p.updated_at);
+      const prWhere = p => [p.converted_project_code || p.estimate_code, p.building_address].filter(Boolean).join(' · ');
+      const propsHtml = props.length ? `<div class="cp-table-wrap cl-tw"><table class="cp-table"><thead><tr><th>Proposal</th><th>Job / building</th><th>Status</th><th>Date</th><th class="num">Price</th></tr></thead><tbody>${props.map(p => `<tr class="row-link" data-cl-prop="${p.id}"><td><b class="cp-id">${esc(p.label || p.number)}</b>${p.title ? `<div class="cl-small">${esc(p.title)}</div>` : ''}</td><td>${esc(prWhere(p))}</td><td>${prPill(p)}</td><td class="cl-small">${prWhen(p)}</td><td class="num">${p.price != null ? money.format(p.price) : '—'}</td></tr>`).join('')}</tbody></table></div>` +
+        `<div class="cl-mcards">${props.map(p => `<div class="cl-mc" data-cl-prop="${p.id}"><div><b class="cp-id">${esc(p.label || p.number)}</b><div class="cl-small">${esc(prWhere(p))}</div><div class="cl-small">${prWhen(p)}</div></div><div class="r">${p.price != null ? money.format(p.price) : '—'}<div>${prPill(p)}</div></div></div>`).join('')}</div>` : empty('No proposals yet', 'Proposals for this client show here, drafts included.');
+      const invDue = i => i.status === 'draft' ? '<span class="cp-muted">draft</span>' : fmtDate(i.paid_at || i.due_at);
+      const invsHtml = invs.length ? `<div class="cp-table-wrap cl-tw"><table class="cp-table"><thead><tr><th>Invoice</th><th>Job</th><th>Status</th><th>Due / paid</th><th class="num">Amount</th><th class="num">Balance</th></tr></thead><tbody>${invs.map(i => `<tr class="row-link" data-cl-inv="${i.id}"><td><b class="cp-id">${esc(i.number)}</b><div class="cl-small">${invKind(i.kind)}</div></td><td>${esc(i.project_code || i.building_address || '')}</td><td>${invPill(i)}</td><td class="cl-small">${invDue(i)}</td><td class="num">${money2.format(i.amount)}</td><td class="num">${i.status === 'issued' ? `<strong>${money2.format(i.balance)}</strong>` : '—'}</td></tr>`).join('')}</tbody>` +
+        `<tfoot><tr><td colspan="4">Sent or paid</td><td class="num">${money2.format(t.invoiced)}</td><td class="num">${money2.format(t.owed)}</td></tr></tfoot></table></div>` +
+        `<div class="cl-mcards">${invs.map(i => `<div class="cl-mc" data-cl-inv="${i.id}"><div><b class="cp-id">${esc(i.number)}</b>${i.project_code ? ' · ' + esc(i.project_code) : ''}<div class="cl-small">${invKind(i.kind)} · ${i.status === 'draft' ? 'draft' : (i.paid_at ? 'paid ' : 'due ') + fmtDate(i.paid_at || i.due_at)}</div></div><div class="r">${money2.format(i.amount)}<div>${invPill(i)}</div></div></div>`).join('')}</div>` : empty('No invoices yet', 'Deposit and progress invoices for this client show here, drafts included.');
+      const jump = [['cl-s-mail', 'Emails'], ['cl-s-prop', 'Proposals ' + props.length], ['cl-s-inv', 'Invoices ' + invs.length], ['cl-s-jobs', 'Jobs ' + jobs.length], ['cl-s-people', 'Contacts ' + d.contacts.length]];
       host.innerHTML = `
         <div class="cp-toolbar"><a class="cp-link" href="#clients">← All clients</a><span style="flex:1"></span>
           <span class="cp-pill ${o.status === 'active' ? 'active' : ''}">${esc(o.status || 'active')}</span>${o.stage ? `<span class="cp-pill">${esc(o.stage)}</span>` : ''}
           <button class="btn-ghost btn-sm" type="button" id="cl-edit">Edit client</button><button class="btn-ghost btn-sm" type="button" id="cl-contact-add">+ Contact</button><button class="btn-ghost btn-sm" type="button" id="cl-note-add">+ Note</button><button class="btn-primary btn-sm" type="button" id="cl-task-add">+ Follow-up</button></div>
+        <nav class="cl-jump" aria-label="Jump to">${jump.map(j => `<a href="#" data-cl-jump="${j[0]}">${esc(j[1])}</a>`).join('')}</nav>
         <div class="cp-kpis">
           ${kpi('Projects', t.projects, `${t.projects_active} active`)}
-          ${kpi('Open pipeline', money.format(t.pipeline_value), `${t.estimates_open} open estimate(s)`)}
-          ${kpi('Won value', money.format(t.won_value), 'approved + converted', 'good')}
-          ${kpi('Contacts', d.contacts.length, `${d.open_tasks.length} open task(s)`)}
+          ${kpi('Won value', money.format(t.won_value), `${t.proposals_signed} signed proposal${t.proposals_signed === 1 ? '' : 's'}`, 'good')}
+          ${kpi('Invoiced', money.format(t.invoiced), `${money.format(t.paid)} paid`)}
+          ${kpi('Owed to us', money.format(t.owed), t.overdue_count ? `${t.overdue_count} invoice${t.overdue_count === 1 ? '' : 's'} overdue` : 'nothing overdue', t.overdue_count ? 'warn' : '')}
         </div>
         <div class="cp-grid3">
           <div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Projects</h2><a class="cp-link" href="#projects">All projects →</a></div>${projectsHtml}${estsHtml}</div>
+            <div class="cp-card" id="cl-s-mail"><div class="cp-card-head"><h2>Emails</h2><div class="cl-chips" role="group" aria-label="Show" id="cl-mail-f"></div></div><div id="cl-emails"><div class="cp-skel"></div><div class="cp-skel"></div></div></div>
+            <div class="cp-card" id="cl-s-prop"><div class="cp-card-head"><h2>Proposals</h2><span class="hint">every version</span></div>${propsHtml}</div>
+            <div class="cp-card" id="cl-s-inv"><div class="cp-card-head"><h2>Invoices</h2><span class="hint">drafts, sent and paid</span></div>${invsHtml}</div>
+            <div class="cp-card" id="cl-s-jobs"><div class="cp-card-head"><h2>Projects</h2><a class="cp-link" href="#projects">All projects →</a></div>${projectsHtml}${estsHtml}</div>
             <div class="cp-card"><div class="cp-card-head"><h2>Documents expiring on this client's projects</h2></div>
               ${d.documents_expiring.length ? `<div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Project</th><th>Document</th><th>Category</th><th>Expires</th><th></th></tr></thead><tbody>${d.documents_expiring.map(x => `<tr><td class="cp-id">${esc(x.project_code)}</td><td>${esc(x.title)}</td><td>${esc(x.category)}</td><td>${fmtDate(x.expiry_date)}</td><td>${daysPill(x.days_left)}</td></tr>`).join('')}</tbody></table></div>` : empty('No dated documents', 'COIs, permits and contracts with an expiry date will show here.')}
             </div>
           </div>
           <div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Details</h2></div>${clientDetailsHtml(o)}</div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Contacts</h2></div>
+            <div class="cp-card" id="cl-s-people"><div class="cp-card-head"><h2>Contacts</h2></div>
               ${d.contacts.length ? `<ul class="cp-list">${d.contacts.map(c => `<li><div><strong>${esc(c.full_name)}</strong>${c.title ? `<div class="cp-muted" style="font-size:13px">${esc(c.title)}</div>` : ''}</div><div class="ct-right"><div style="text-align:right;font-size:13px">${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a><br>` : ''}${esc(c.phone || '')}</div><button type="button" class="cp-link ct-edit" data-ct-edit="${c.id}">Edit</button></div></li>`).join('')}</ul>` : empty('No contacts yet')}
             </div>
             <div class="cp-card"><div class="cp-card-head"><h2>Follow-ups</h2></div>
               ${d.open_tasks.length ? `<ul class="cp-list">${d.open_tasks.map(x => `<li><span>${esc(x.title)}</span><span class="cp-muted">${fmtDate(x.due_date)} <button type="button" class="cp-link" data-task-done="${x.id}" style="margin-left:8px;background:none;border:0;padding:0;cursor:pointer;font:inherit">done</button></span></li>`).join('')}</ul>` : empty('No open follow-ups')}
             </div>
-            <div id="cl-emails"></div>
-            <div class="cp-card"><div class="cp-card-head"><h2>Recent activity</h2></div>
+            <div class="cp-card"><div class="cp-card-head"><h2>Notes &amp; activity</h2></div>
               ${d.activity.length ? `<ul class="cp-list">${d.activity.map(x => `<li><span><span class="cp-pill">${esc(x.activity_type)}</span> ${esc(x.summary || '')}</span><span class="cp-muted">${fmtDate(x.created_at)}</span></li>`).join('')}</ul>` : empty('No activity logged')}
             </div>
           </div>
         </div>`;
-      emailsCard($('cl-emails'), 'client', o.id);
+      clientMail(o.id);
+      clTop();
+      host.querySelectorAll('[data-cl-jump]').forEach(a => a.addEventListener('click', ev => { ev.preventDefault(); const s = $(a.dataset.clJump); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
+      host.querySelectorAll('[data-cl-prop]').forEach(r => r.addEventListener('click', () => { location.hash = '#proposals/' + r.dataset.clProp; }));
+      host.querySelectorAll('[data-cl-inv]').forEach(r => r.addEventListener('click', () => openInvoice(r.dataset.clInv)));
       $('cl-edit').addEventListener('click', () => openClientEdit(o));
       $('cl-contact-add').addEventListener('click', () => openContactModal(o.id, null));
       host.querySelectorAll('[data-ct-edit]').forEach(b => b.addEventListener('click', () => openContactModal(o.id, d.contacts.find(c => String(c.id) === b.dataset.ctEdit))));
@@ -2907,17 +2961,39 @@
   });
   // the client's own email / phone / website / address (only what's filled in)
   const CE_FIELDS = { email: 'ce-email', phone: 'ce-phone', website: 'ce-website', address_line: 'ce-address', city: 'ce-city', state: 'ce-state', zip: 'ce-zip' };
-  function clientDetailsHtml(o) {
-    const web = o.website ? (/^https?:\/\//i.test(o.website) ? o.website : 'https://' + o.website) : '';
-    const place = [o.city, [o.state, o.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
-    const addr = [o.address_line, place].filter(Boolean).join(', ');
-    const rows = [
-      o.email ? ['Email', `<a href="mailto:${esc(o.email)}">${esc(o.email)}</a>`] : null,
-      o.phone ? ['Phone', `<a href="tel:${esc(o.phone.replace(/[^0-9+]/g, ''))}">${esc(o.phone)}</a>`] : null,
-      web ? ['Website', `<a href="${esc(web)}" target="_blank" rel="noopener noreferrer">${esc(o.website)}</a>`] : null,
-      addr ? ['Address', `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}" target="_blank" rel="noopener noreferrer">${esc(addr)}</a>`] : null,
-    ].filter(Boolean);
-    return rows.length ? `<ul class="cp-list">${rows.map(r => `<li><span class="cp-muted">${r[0]}</span><span style="text-align:right;overflow-wrap:anywhere">${r[1]}</span></li>`).join('')}</ul>` : empty('No details yet', 'Add an email, phone or address with Edit client.');
+  // the jump bar sits under the brand bar that sticks on a phone
+  function clTop() {
+    const h = $('client-detail'), side = document.querySelector('.ssc-side'); if (!h || h.hidden || !side) return;
+    h.style.setProperty('--cl-top', (getComputedStyle(side).position === 'sticky' ? side.getBoundingClientRect().height : 0) + 'px');
+  }
+  window.addEventListener('resize', clTop);
+  // the client's emails from YOUR connected Gmail only (inbox.client_mail): filed on the client / its jobs, proposals,
+  // estimates, or matched to it by the Inbox when they arrived. Nobody sees another person's mailbox.
+  async function clientMail(orgId) {
+    const host = $('cl-emails'), chips = $('cl-mail-f'); if (!host) return;
+    let rows;
+    try { rows = (await api('/inbox/linked?type=client&id=' + encodeURIComponent(orgId), null, true)).data; }
+    catch (e) { host.innerHTML = empty('Could not load emails', e.message); return; }
+    if (!$('cl-emails')) return;
+    const jl = host.closest('#client-detail') && host.closest('#client-detail').querySelector('[data-cl-jump="cl-s-mail"]'); if (jl) jl.textContent = 'Emails ' + rows.length;
+    if (!rows.length) { host.innerHTML = empty('No emails with this client in your Gmail', 'Emails from or to its contacts, or naming its proposals and jobs, show here once your Gmail is connected in the Inbox.'); return; }
+    const F = [['all', 'All', rows.length], ['in', 'From them', rows.filter(r => r.direction !== 'out').length], ['out', 'From us', rows.filter(r => r.direction === 'out').length]];
+    let f = 'all', shown = 20;
+    const draw = () => {
+      chips.innerHTML = F.map(x => `<button type="button" class="cl-chip" data-f="${x[0]}" aria-pressed="${f === x[0]}">${x[1]} ${x[2]}</button>`).join('');
+      const list = rows.filter(r => f === 'all' || (f === 'out') === (r.direction === 'out'));
+      host.innerHTML = list.slice(0, shown).map(r => `<details class="cl-mail"><summary>
+          <span class="cl-dir ${r.direction === 'out' ? 'out' : ''}" title="${r.direction === 'out' ? 'Sent' : 'Received'}">${r.direction === 'out' ? '↗' : '↙'}</span>
+          <div style="min-width:0"><div class="cl-m1"><b>${r.direction === 'out' ? 'You → ' : ''}${esc(r.who)}</b><span>· ${esc(r.subject || '(no subject)')}</span></div>
+            <div class="cl-m2">${r.ref ? `<span class="cl-ref">${esc(r.ref)}</span>` : ''}<span>${r.how === 'matched' ? 'picked up by the Inbox' : 'filed from the Inbox'}</span></div></div>
+          <span class="cl-date">${fmtDate(r.received_at)}</span></summary>
+          ${r.summary ? `<div class="cl-body cp-muted">${esc(r.summary)}</div>` : ''}<div class="cl-body">${esc(r.body || '')}</div>
+          <div class="cl-acts"><a class="cp-link" href="#inbox/${r.id}">Open in Inbox</a></div></details>`).join('') +
+        (list.length > shown ? `<button type="button" class="cl-chip" id="cl-mail-more" style="margin-top:8px">Show ${Math.min(20, list.length - shown)} older</button>` : '');
+      chips.querySelectorAll('[data-f]').forEach(b => b.addEventListener('click', () => { f = b.dataset.f; shown = 20; draw(); }));
+      const more = $('cl-mail-more'); if (more) more.addEventListener('click', () => { shown += 20; draw(); });
+    };
+    draw();
   }
   // edit the client itself (name, type, active / inactive, details, notes) — or delete it
   function openClientEdit(o) {
