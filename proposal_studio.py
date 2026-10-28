@@ -125,7 +125,7 @@ def clean_lines(raw) -> list:
         qty, price = _num(li.get("qty")), _num(li.get("unit_price"))
         if (qty is not None and qty < 0) or (price is not None and price < 0):
             raise ValueError("quantities and prices can't be negative")
-        out.append({"description": str(li["description"]).strip()[:300], "qty": qty if qty is not None else 1,
+        out.append({"description": str(li["description"]).strip()[:1000], "qty": qty if qty is not None else 1,
                     "unit": (str(li.get("unit") or "").strip()[:12] or None), "unit_price": price if price is not None else 0})
     return out[:60]
 

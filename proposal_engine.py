@@ -260,9 +260,9 @@ def clean_lines(raw) -> list:
     for li in raw or []:
         if not isinstance(li, dict):
             continue
-        lead, detail = str(li.get("lead") or "").strip()[:120], str(li.get("detail") or "").strip()[:300]
+        lead, detail = str(li.get("lead") or "").strip()[:120], str(li.get("detail") or "").strip()[:1000]
         if not lead and not detail and li.get("description"):
-            lead, detail = "", str(li["description"]).strip()[:300]
+            lead, detail = "", str(li["description"]).strip()[:1000]
         if not lead and not detail:
             continue
         out.append({"lead": fix_caps(lead), "detail": fix_caps(detail), "qty": _num(li.get("qty")), "unit": unit(li.get("unit")),
