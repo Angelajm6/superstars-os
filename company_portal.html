@@ -235,6 +235,14 @@
   .prx-more:hover { background: #fff; color: var(--ink, #222633); }
   .prx-older { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted, #8c92a0); display: flex; gap: 6px; align-items: center; }
   .prx-older button { border: 0; background: none; color: var(--accent-ink, #3a5fd0); font: inherit; font-weight: 600; padding: 0; cursor: pointer; }
+  .pr-old { max-width: 460px; }
+  .pr-old .cp-modal-body { display: block; }
+  .pr-old .cp-modal-body p { margin: 0; font-size: 14px; line-height: 1.5; }
+  .pr-old-file { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--line, #e3e6ec); border-radius: 10px; margin-bottom: 12px; overflow-wrap: anywhere; }
+  .pr-old-spin { flex: none; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line, #e3e6ec); border-top-color: var(--accent, #4364dc); animation: pr-old-spin .8s linear infinite; }
+  .pr-old-spin.off { animation: none; border-color: #c9483a; }
+  @keyframes pr-old-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .pr-old-spin { animation-duration: 2.4s; } }
   .prx-empty { padding: 28px 16px; text-align: center; color: var(--muted, #8c92a0); }
   .prx-ed { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
   .prx-pen { border: 0; background: none; color: var(--muted, #8c92a0); padding: 3px 4px; border-radius: 6px; opacity: 0; transition: opacity .12s; flex: none; display: inline-grid; place-items: center; cursor: pointer; }
@@ -1272,6 +1280,8 @@
               <input class="cp-input search" id="pr-search" placeholder="Search number, title, client or address…" autocomplete="off">
               <select class="cp-select" id="pr-status" aria-label="Status"></select>
               <span style="flex:1"></span>
+              <button class="btn-ghost btn-sm" id="pr-old" type="button" title="A proposal you sent before the app: Claude reads it, then you mark it sent or approved">+ Add an old proposal</button>
+              <input type="file" id="pr-old-file" accept=".pdf,.docx" hidden>
               <a class="btn-primary btn-sm" id="pr-studio" href="/proposal-studio#new">✦ New proposal with Claude</a>
               <button class="btn-ghost btn-sm" id="pr-new" type="button" hidden>+ New estimate</button>
             </div>
@@ -1680,6 +1690,17 @@
     </div>
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-arch-cancel">Cancel</button><button class="btn-primary" type="submit" id="pr-arch-go">Mark as sent</button></div>
   </form>
+</div>
+<div class="cp-overlay" id="pr-old-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-old-title">
+  <div class="cp-modal pr-old">
+    <div class="cp-modal-head"><h2 id="pr-old-title">Claude is reading it</h2></div>
+    <div class="cp-modal-body">
+      <div class="pr-old-file"><span class="pr-old-spin" id="pr-old-spin" aria-hidden="true"></span><b id="pr-old-name"></b></div>
+      <p class="cp-muted" id="pr-old-msg">This takes about a minute. Claude fills in the number, date, client, address and total, and learns its wording and prices for your next proposals.</p>
+      <div class="cp-form-err" id="pr-old-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="pr-old-close">Keep working, open it when ready</button></div>
+  </div>
 </div>
 <div class="cp-overlay" id="pr-sign-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-sign-title">
   <form class="cp-modal" id="pr-sign-form" novalidate>
@@ -3992,7 +4013,7 @@
       `<button type="button" class="prx-chip${PRX.f === k ? ' on' : ''}" data-prx-f="${k}" aria-pressed="${PRX.f === k}">${dot ? `<i style="background:${dot}"></i>` : ''}${esc(l)} <b>${prxVisible(k).length}</b></button>`).join('');
     const rows = prxVisible().slice().sort((a, b) => (a.status === 'draft' ? 0 : 1) - (b.status === 'draft' ? 0 : 1) || String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
     $('pr-list').innerHTML = `<div class="prx-row head" role="row"><div>No.</div><div>Proposal · client</div><div>Address · estimate</div><div>Status</div><div>Sent</div><div class="prx-num">Total</div><div></div></div>` +
-      (rows.length ? rows.map(r => prxRow(r)).join('') : `<div class="prx-empty">${PRX.f === 'deleted' ? 'Nothing deleted. A deleted proposal lands here so an admin can bring it back.'
+      (rows.length ? rows.map(r => prxRow(r)).join('') : `<div class="prx-empty">${PRX.f === 'archived' ? 'Nothing from before the app. Record a proposal you sent earlier with “+ Add an old proposal”.' : PRX.f === 'deleted' ? 'Nothing deleted. A deleted proposal lands here so an admin can bring it back.'
         : PRX.f === 'latest' && !$('pr-search').value.trim() ? 'No proposals yet. Start one with “✦ New proposal with Claude”.' : 'No proposals match.'}</div>`);
     prxFocus();
   }
@@ -4245,7 +4266,7 @@
   function syncKindUi() {
     document.querySelectorAll('#pr-kind [data-kind]').forEach(b => { b.classList.toggle('on', b.dataset.kind === PRK.kind); b.setAttribute('aria-selected', String(b.dataset.kind === PRK.kind)); });
     const prop = PRK.kind === 'proposal';
-    $('pr-new').hidden = prop; $('pr-new').textContent = PRK_NEW[PRK.kind];
+    $('pr-new').hidden = prop; $('pr-new').textContent = PRK_NEW[PRK.kind]; $('pr-old').hidden = !prop;
     $('pr-status').hidden = prop; $('pr-chips').hidden = $('pr-list').hidden = !prop; $('pr-table-wrap').hidden = prop;
     if (!prop) { $('prx-drawer').hidden = $('prx-scrim').hidden = true; PRX.open = null; }
     $('pr-search').placeholder = PRK.kind === 'proposal' ? 'Search number, title, client or address…' : 'Search number, client or address…';
@@ -4855,6 +4876,44 @@
     } catch (x) { formErr('pr-arch-err', x.message); }
     finally { go.disabled = false; }
   });
+  // + Add an old proposal (2026-10-28): the same upload as Proposal Studio → Archive (Claude learns from it), then the
+  // Mark sent form opens on it, filled in, with "already approved" ticked. Closing the wait keeps watching.
+  const PROLD = { id: null, name: '', timer: null };
+  $('pr-old').addEventListener('click', () => $('pr-old-file').click());
+  $('pr-old-file').addEventListener('change', async (e) => {
+    const f = (e.target.files || [])[0]; e.target.value = ''; if (!f) return;
+    if (PROLD.timer) { toast('Claude is still reading ' + PROLD.name + '. Add the next one when it opens.', true); return; }
+    prOldShow(f.name, '', true); $('pr-old').disabled = true;
+    const fd = new FormData(); fd.append('file', f);
+    try {
+      const res = await fetch('/api/proposal-template', { method: 'POST', body: fd, credentials: 'same-origin' });
+      const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || ('The upload didn’t go through (' + res.status + ')'));
+      const t = (j.data.templates || [])[0]; if (!t) throw new Error('The upload didn’t go through.');
+      PROLD.id = t.id; PROLD.name = f.name; PROLD.timer = setTimeout(prOldPoll, 3000);
+    } catch (x) { prOldShow(f.name, x.message, false); $('pr-old').disabled = false; }
+  });
+  function prOldShow(name, err, busy) {
+    $('pr-old-name').textContent = name; $('pr-old-spin').classList.toggle('off', !busy);
+    $('pr-old-title').textContent = err ? 'Claude couldn’t read it' : 'Claude is reading it'; $('pr-old-msg').hidden = !!err;
+    $('pr-old-err').textContent = err; $('pr-old-err').className = 'cp-form-err' + (err ? ' show' : '');
+    $('pr-old-close').textContent = busy ? 'Keep working, open it when ready' : 'Close';
+    $('pr-old-overlay').classList.add('open');
+  }
+  async function prOldPoll() {
+    PROLD.timer = null;
+    let t;
+    try { t = ((await api('/proposal-template', null, true)).data.templates || []).find(x => x.id === PROLD.id); }
+    catch (x) { PROLD.timer = setTimeout(prOldPoll, 6000); return; }
+    if (t && t.state === 'reading') { PROLD.timer = setTimeout(prOldPoll, 3000); return; }
+    $('pr-old').disabled = false;
+    if (!t || t.state !== 'ready') {
+      prOldShow(PROLD.name, ((t && t.error) || 'It didn’t finish.') + ' The file is saved in Proposal Studio → Archive; remove it there and upload it again.', false); return;
+    }
+    closeOverlay('pr-old-overlay');
+    if ($('view-proposals').hidden) { toast(PROLD.name + ' is read. Open Proposals → Before the app to mark it sent'); return; }
+    await prArchFromLink(PROLD.id, true);
+  }
+  $('pr-old-close').addEventListener('click', () => { closeOverlay('pr-old-overlay'); if (PROLD.timer) toast('Claude keeps reading it. The form opens here when it’s ready'); });
   $('pr-sent-form').addEventListener('submit', async (e) => {
     e.preventDefault(); const err = $('pr-sent-err'); err.className = 'cp-form-err'; const id = $('pr-sent-form').dataset.id;
     $('pr-sent-go').disabled = true;
