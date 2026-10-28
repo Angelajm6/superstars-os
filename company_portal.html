@@ -13,7 +13,7 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1022"></script>
+<script src="/files/static/js/company_nav.js?v=1028"></script>
 <script src="/files/static/js/claude_drawer.js?v=16" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1026" defer></script>
@@ -675,6 +675,91 @@
     .cp-content { padding: 16px; }
     .cp-modal-body { grid-template-columns: 1fr; }
   }
+  /* ---- Clients + Directory (2026-10-28): who pays us, what they owe, who to call ---- */
+  :root { --kind-owner: #4F5BD5; --kind-owner-soft: #ECEEFC; --kind-board: #7B5BC4; --kind-board-soft: #F1ECFA; --kind-gc: #1F7F80; --kind-gc-soft: #E3F3F3;
+          --kind-cm: #3C6E96; --kind-cm-soft: #E6EFF6; --kind-pm: #5B6E8C; --kind-pm-soft: #EDF0F5; --kind-home: #8A7350; --kind-home-soft: #F4EFE6;
+          --kind-agency: #4A5568; --kind-agency-soft: #ECEEF2; --kind-none: #8C92A0; --kind-none-soft: #F4F5F8; }
+  .cv-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .cv-kpis .cp-kpi { min-width: 0; }
+  .cv-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .cv-search { position: relative; flex: 1 1 260px; min-width: 0; }
+  .cv-search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--muted); pointer-events: none; }
+  body .ssc-main .cv-search input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not(.ssc-tp-num) { width: 100%; height: 40px; padding-left: 34px; }   /* out-ranks unify.css field padding */
+  .cv-lede { margin: 0 0 14px; color: var(--muted); font-size: 13px; max-width: 64ch; }
+  .cv-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 14px; scrollbar-width: none; }
+  .cv-chip { flex: none; border: 1px solid var(--line); background: #fff; color: var(--ink-2, #4A4F59); border-radius: 999px; padding: 7px 12px; font: 600 12.5px Inter, sans-serif; cursor: pointer; white-space: nowrap; min-height: 34px; }
+  .cv-chip .n { opacity: .7; margin-left: 4px; font-weight: 500; }
+  .cv-chip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .cv-chip.attn { color: var(--status-behind-deep, #A8382B); }
+  .cv-chip.attn.on { background: var(--status-behind-deep, #A8382B); border-color: var(--status-behind-deep, #A8382B); color: #fff; }
+  .cv-list { background: #fff; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .cv-head, .cv-row { display: grid; grid-template-columns: minmax(0, 2.4fr) 90px 150px minmax(0, 1.4fr) 86px; gap: 14px; align-items: center; padding: 12px 16px; }
+  .cv-head { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); background: var(--fill, #F4F5F8); padding-top: 9px; padding-bottom: 9px; }
+  .cv-row { border-top: 1px solid var(--line); cursor: pointer; }
+  .cv-row:hover { background: var(--fill, #F4F5F8); }
+  .cv-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .cv-who { display: flex; gap: 12px; align-items: center; min-width: 0; }
+  .cv-av { flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+  .cv-who-t { min-width: 0; }
+  .cv-who-t b { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cv-how { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cv-kind { display: inline-flex; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; white-space: nowrap; margin-right: 4px; }
+  .cv-owed b { font-size: 14px; } .cv-owed .od { font-size: 12px; color: var(--status-behind-deep, #A8382B); font-weight: 600; }
+  .cv-next { font-size: 13px; color: var(--ink-2, #4A4F59); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cv-next .late { color: var(--status-behind-deep, #A8382B); font-weight: 600; }
+  .cv-acts { display: flex; gap: 6px; justify-content: flex-end; }
+  .cv-acts a { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: #fff; }
+  .cv-acts a:hover { border-color: var(--accent); color: var(--accent); }
+  .cv-acts svg { width: 16px; height: 16px; }
+  .cv-lab { display: none; }
+  .cv-pill { display: inline-flex; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+  .cv-setkind { border: 1px dashed currentColor; cursor: pointer; font-family: inherit; }
+  .cv-pill.mute { background: var(--fill, #F4F5F8); color: var(--muted); }
+  .cv-empty { padding: 36px 16px; text-align: center; color: var(--muted); }
+  .cv-group + .cv-group { margin-top: 20px; }
+  .cv-group h3 { font-size: 11px; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+  .cv-drow { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line); cursor: pointer; }
+  .cv-drow:first-child { border-top: 0; }
+  .cv-drow:hover { background: var(--fill, #F4F5F8); }
+  .cv-drow .cv-who { flex: 1; }
+  .cv-drow .on { font-size: 12.5px; color: var(--muted); text-align: right; max-width: 45%; }
+  /* Add client */
+  .cv-modal { max-width: 640px; }
+  .cv-pane[hidden] { display: none !important; }
+  .cv-pane[data-pane="1"] { padding: 14px 20px; }
+  .cv-step { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 3px; }
+  .cv-kinds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .cv-kopt { text-align: left; border: 1.5px solid var(--line); background: #fff; border-radius: 10px; padding: 11px 12px; cursor: pointer; color: var(--ink); display: flex; gap: 10px; align-items: flex-start; font: inherit; }
+  .cv-kopt .cv-av { width: 30px; height: 30px; font-size: 11px; border-radius: 8px; }
+  .cv-kopt b { display: block; font-size: 13.5px; } .cv-kopt small { display: block; font-size: 12px; color: var(--muted); margin-top: 1px; line-height: 1.35; }
+  .cv-kopt.on { border-color: var(--accent); background: var(--accent-soft); }
+  .cv-tog { display: flex; gap: 12px; align-items: flex-start; padding: 11px 0; border-top: 1px solid var(--line); cursor: pointer; }
+  .cv-pane[data-pane="1"] .cv-tog { margin-top: 12px; }
+  .cv-togs .cv-tog:first-child { border-top: 0; }
+  .cv-tog input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+  #cl-overlay .cv-tog { font-size: 14px; font-weight: 400; letter-spacing: normal; text-transform: none; color: var(--ink); margin: 0; }   /* out-ranks unify.css dialog labels */
+  .cv-tog b { display: block; font-size: 13.5px; } .cv-tog small { color: var(--muted); font-size: 12px; }
+  .cv-sec { font-size: 13px; font-weight: 700; margin-top: 6px; }
+  .cv-hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .cv-roles { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cv-roles button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 7px 12px; font: 600 12.5px Inter, sans-serif; color: var(--ink-2, #4A4F59); cursor: pointer; }
+  .cv-roles button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .cv-prefill { background: var(--fill, #F4F5F8); border-radius: 10px; padding: 9px 12px; font-size: 12.5px; color: var(--ink-2, #4A4F59); }
+  @media (max-width: 1080px) {
+    .cv-head { display: none; }
+    .cv-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "who acts" "meta meta"; gap: 10px 12px; }
+    .cv-row .cv-who { grid-area: who; } .cv-row .cv-acts { grid-area: acts; }
+    .cv-row .cv-meta { grid-area: meta; display: flex; gap: 8px 16px; flex-wrap: wrap; padding-left: 50px; font-size: 13px; min-width: 0; }
+    .cv-lab { display: inline; color: var(--muted); font-size: 12px; margin-right: 4px; }
+  }
+  @media (min-width: 1081px) { .cv-row .cv-meta { display: contents; } }
+  @media (max-width: 860px) {
+    .cv-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .cv-row .cv-meta { padding-left: 0; }
+    .cv-next { white-space: normal; }
+    .cv-kinds { grid-template-columns: minmax(0, 1fr); }
+    .cv-drow { flex-wrap: wrap; } .cv-drow .on { text-align: left; max-width: none; width: 100%; padding-left: 50px; }
+  }
   /* ---- Company → Templates (2026-10-26, static/js/company_templates.js) ---- */
   .tp-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .tp-head .hint { margin: 0; color: var(--muted); font-size: 13px; }
@@ -1189,27 +1274,25 @@
       <section class="cp-view" id="view-clients" hidden>
         <div class="ssc-subtabs" data-subtabs="clients"></div>
         <div id="clients-list">
-          <div class="cp-card">
-            <div class="cp-toolbar">
-              <input class="cp-input search" id="cl-search" placeholder="Search clients…" autocomplete="off">
-              <select class="cp-select" id="cl-type">
-                <option value="client">Clients</option>
-                <option value="lead">Leads</option>
-                <option value="architect">Architects</option>
-                <option value="vendor">Vendors</option>
-                <option value="owner">Owners</option>
-                <option value="property_manager">Property managers</option>
-                <option value="consultant">Consultants</option>
-                <option value="all">All organizations</option>
-              </select>
-              <label class="cp-muted" style="font-size:13px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="cl-inactive"> include inactive</label>
-              <span style="flex:1"></span>
-              <button class="btn-primary btn-sm" id="cl-add" type="button">+ Add client</button>
-            </div>
-            <div class="cp-table-wrap"><table class="cp-table" id="cl-table"></table></div>
+          <div class="cv-kpis" id="cl-sum"></div>
+          <div class="cv-bar">
+            <div class="cv-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="cp-input" id="cl-search" type="search" placeholder="Search clients, people, addresses or job numbers" autocomplete="off" aria-label="Search clients"></div>
+            <button class="btn-primary" id="cl-add" type="button">+ Add client</button>
           </div>
+          <div class="cv-chips" id="cl-chips" role="group" aria-label="Filter clients"></div>
+          <div class="cv-list" id="cl-rows"></div>
         </div>
         <div id="client-detail" hidden></div>
+      </section>
+
+      <!-- ================= DIRECTORY (2026-10-28) — everyone around our jobs who doesn't pay us ================= -->
+      <section class="cp-view" id="view-directory" hidden>
+        <div class="ssc-subtabs" data-subtabs="clients"></div>
+        <p class="cv-lede">Owners behind a GC, managing agents, architects, engineers, expediters and vendors. Clients are the ones who pay us.</p>
+        <div class="cv-bar">
+          <div class="cv-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="cp-input" id="dir-search" type="search" placeholder="Search the directory" autocomplete="off" aria-label="Search the directory"></div>
+        </div>
+        <div id="dir-groups"></div>
       </section>
 
       <!-- ================= CLIENT PORTAL (#360) — who can sign in to the client portal, and how each is set up ================= -->
@@ -1931,19 +2014,38 @@
 </div>
 <!-- #339 — clients live here now (the CRM tab is retired): add a client, a contact, a note, a follow-up -->
 <div class="cp-overlay" id="cl-overlay" role="dialog" aria-modal="true" aria-labelledby="cl-title">
-  <form class="cp-modal" id="cl-form" novalidate>
-    <div class="cp-modal-head"><h2 id="cl-title">Add client</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">The organization first; a main contact is optional and can be added later.</p></div>
-    <div class="cp-modal-body">
-      <div class="cp-field full"><label for="cl-name">Organization</label><input id="cl-name" required placeholder="e.g. Compass Point, LLC"></div>
-      <div class="cp-field"><label for="cl-rel">Relationship</label><select id="cl-rel"><option value="client">Client</option><option value="lead">Lead</option><option value="architect">Architect</option><option value="engineer">Engineer</option><option value="vendor">Vendor</option><option value="sub">Subcontractor</option><option value="partner">Partner</option><option value="owner">Owner</option><option value="property_manager">Property manager</option><option value="consultant">Consultant</option><option value="expeditor">Expeditor</option><option value="other">Other</option></select></div>
-      <div class="cp-field"><label for="cl-cname">Main contact (optional)</label><input id="cl-cname" placeholder="Full name"></div>
-      <div class="cp-field"><label for="cl-ctitle">Contact title</label><input id="cl-ctitle" placeholder="e.g. Property manager"></div>
-      <div class="cp-field"><label for="cl-cemail">Contact email</label><input id="cl-cemail" type="email" placeholder="name@example.com"></div>
-      <div class="cp-field"><label for="cl-cphone">Contact phone</label><input id="cl-cphone" inputmode="tel"></div>
-      <div class="cp-field full"><label for="cl-notes">Notes</label><textarea id="cl-notes"></textarea></div>
-      <div class="cp-form-err" id="cl-err" role="alert"></div>
+  <form class="cp-modal cv-modal" id="cl-form" novalidate>
+    <div class="cp-modal-head"><div class="cv-step" id="cl-stepno">Step 1 of 3</div><h2 id="cl-title">Who is this?</h2><p class="cp-muted" id="cl-sub" style="margin:6px 0 0;font-size:13px">Pick the one that pays us. You can change it later.</p></div>
+    <div class="cv-pane" data-pane="1">
+      <div class="cv-kinds" id="cl-kinds"></div>
+      <label class="cv-tog"><input type="checkbox" id="cl-lead"><span><b>This is a lead</b><small>No signed job yet. You're estimating or sending a proposal.</small></span></label>
     </div>
-    <div class="cp-modal-foot"><button class="btn-ghost" type="button" data-cancel>Cancel</button><button class="btn-primary" type="submit" id="cl-save">Add client</button></div>
+    <div class="cv-pane cp-modal-body" data-pane="2" hidden>
+      <div class="cp-field full"><label for="cl-name" id="cl-name-l">Company or board name</label><input id="cl-name" class="ssc-field" required maxlength="200" autocomplete="off"></div>
+      <div class="cp-field full" id="cl-agent-f" hidden><label for="cl-agent">Managing agent</label><input id="cl-agent" class="ssc-field" list="cl-agents" maxlength="200" autocomplete="off" placeholder="Pick or type a company"><datalist id="cl-agents"></datalist><div class="cv-hint">Saved in the Directory and linked to this board.</div></div>
+      <div class="cp-field full cv-sec">Main contact</div>
+      <div class="cp-field"><label for="cl-cname">Name</label><input id="cl-cname" class="ssc-field" maxlength="200" autocomplete="off"></div>
+      <div class="cp-field"><label for="cl-ctitle">Title</label><input id="cl-ctitle" class="ssc-field" maxlength="200" autocomplete="off"></div>
+      <div class="cp-field"><label for="cl-cphone">Phone</label><input id="cl-cphone" class="ssc-field" inputmode="tel" maxlength="40" autocomplete="off"></div>
+      <div class="cp-field"><label for="cl-cemail">Email</label><input id="cl-cemail" class="ssc-field" type="email" maxlength="200" autocomplete="off"></div>
+      <div class="cp-field full"><label>What this person does for us</label><div class="cv-roles" id="cl-roles"></div></div>
+    </div>
+    <div class="cv-pane cp-modal-body" data-pane="3" hidden>
+      <div class="cv-prefill full" id="cl-prefill"></div>
+      <div class="cp-field"><label for="cl-terms">Payment terms</label><select id="cl-terms" class="ssc-field"><option value="0">Due on receipt</option><option value="15">Net 15</option><option value="30">Net 30</option><option value="45">Net 45</option><option value="60">Net 60</option></select></div>
+      <div class="cp-field"><label for="cl-dep">Deposit at signing</label><select id="cl-dep" class="ssc-field"><option value="0">None</option><option value="10">10%</option><option value="20">20%</option><option value="25">25%</option><option value="33">33%</option><option value="50">50%</option></select></div>
+      <div class="cp-field"><label for="cl-ret">Retainage held</label><select id="cl-ret" class="ssc-field"><option value="0">None</option><option value="5">5%</option><option value="10">10%</option></select></div>
+      <div class="cp-field"><label for="cl-bemail">Invoices go to (email)</label><input id="cl-bemail" class="ssc-field" type="email" maxlength="200" autocomplete="off" placeholder="ap@example.com"></div>
+      <div class="full cv-togs">
+        <label class="cv-tog"><input type="checkbox" id="cl-pa"><span><b>Bill with AIA pay applications</b><small>G702/G703 each month instead of plain invoices</small></span></label>
+        <label class="cv-tog"><input type="checkbox" id="cl-lw"><span><b>Lien waivers with each payment</b><small>Conditional with the pay app, unconditional once paid</small></span></label>
+        <label class="cv-tog"><input type="checkbox" id="cl-st"><span><b>Capital improvement (ST-124)</b><small>Ask them for the certificate so the job isn't charged sales tax</small></span></label>
+        <label class="cv-tog"><input type="checkbox" id="cl-cp"><span><b>Certified payroll</b><small>Prevailing-wage public work</small></span></label>
+      </div>
+      <div class="cp-field full"><label for="cl-coi">Our insurance certificate must name</label><input id="cl-coi" class="ssc-field" maxlength="400" autocomplete="off"></div>
+    </div>
+    <div class="cp-form-err" id="cl-err" role="alert" style="margin:0 20px"></div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" data-cancel>Cancel</button><button class="btn-ghost" type="button" id="cl-back" hidden>Back</button><span style="flex:1"></span><button class="btn-primary" type="submit" id="cl-save" disabled>Next</button></div>
   </form>
 </div>
 <div class="cp-overlay" id="ct-overlay" role="dialog" aria-modal="true" aria-labelledby="ct-title">
@@ -1964,7 +2066,8 @@
     <div class="cp-modal-head"><h2 id="ce-title">Edit client</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Changes show everywhere this client appears — jobs, proposals, invoices and the client portal.</p></div>
     <div class="cp-modal-body">
       <div class="cp-field full"><label for="ce-name">Organization</label><input id="ce-name" class="ssc-field" required maxlength="200"></div>
-      <div class="cp-field"><label for="ce-rel">Relationship</label><select id="ce-rel" class="ssc-field"></select></div>
+      <div class="cp-field"><label for="ce-kind">Kind of client</label><select id="ce-kind" class="ssc-field"></select></div>
+      <div class="cp-field"><label for="ce-rel">Shows under</label><select id="ce-rel" class="ssc-field"><option value="client">Clients</option><option value="lead">Clients (lead)</option><option value="owner">Directory: owner</option><option value="property_manager">Directory: managing agent / property manager</option><option value="architect">Directory: architect</option><option value="engineer">Directory: engineer</option><option value="consultant">Directory: consultant</option><option value="expeditor">Directory: expediter</option><option value="vendor">Directory: vendor</option><option value="sub">Directory: subcontractor</option><option value="partner">Directory: partner</option><option value="other">Directory: other</option></select></div>
       <div class="cp-field"><label for="ce-status">Status</label><select id="ce-status" class="ssc-field"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
       <div class="cp-field"><label for="ce-email">Email</label><input id="ce-email" class="ssc-field" type="email" autocomplete="off" maxlength="200" placeholder="office@example.com"></div>
       <div class="cp-field"><label for="ce-phone">Phone</label><input id="ce-phone" class="ssc-field" inputmode="tel" maxlength="40"></div>
@@ -2815,25 +2918,111 @@
   }
 
   // ---------- CLIENTS ----------
+  // ---------- CLIENTS (2026-10-28): the ones who pay us + leads; who owes what, who to call ----------
+  const KIND_AB = { owner: 'OW', board: 'CO', gc: 'GC', cm: 'CM', sub: 'TS', pm: 'PM', home: 'HO', agency: 'PW' };
+  const KIND_SHORT = { owner: 'Owner', board: 'Co-op / condo', gc: 'GC', cm: 'CM', sub: 'Trade sub', pm: 'Property mgmt', home: 'Homeowner', agency: 'Public work' };
+  const KIND_DESC = { owner: 'An LLC, corporation or landlord that owns the building', board: 'The board signs; a managing agent usually runs it',
+    gc: 'We work under them and they pay us', cm: 'A CM who holds our contract and pays us', sub: 'A subcontractor we work under (one level further down)',
+    pm: 'When the management company itself hires and pays us', home: 'A person who owns a 1–4 family house', agency: 'A city or state agency, or the prime on public work' };
+  const CL_ICON = { phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 3h3l2 5-2.5 1.5a11 11 0 0 0 7 7L16 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 5a2 2 0 0 1 2-2"/></svg>',
+    mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>' };
+  const kindVar = k => (k === 'sub' ? 'gc' : (KIND_AB[k] ? k : 'none'));
+  const kindStyle = k => `background:var(--kind-${kindVar(k)}-soft);color:var(--kind-${kindVar(k)})`;
+  function initials(n) { return String(n || '').replace(/[^A-Za-z& ]/g, '').split(/\s+/).filter(w => w && w !== '&' && !/^(llc|inc|corp|co|the|of)$/i.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?'; }
+  function cvAvatar(name, k, txt) { return `<div class="cv-av" style="${kindStyle(k)}" aria-hidden="true">${esc(txt || initials(name))}</div>`; }
+  function kindBadge(k) { return KIND_AB[k] ? `<span class="cv-kind" style="${kindStyle(k)}">${esc(KIND_SHORT[k])}</span>` : '<span class="cv-kind" style="' + kindStyle('') + '">Kind not set</span>'; }
+  function reachBtns(c) {
+    if (!c) return '';
+    const tel = c.phone ? c.phone.replace(/[^0-9+]/g, '') : '';
+    return (tel ? `<a href="tel:${esc(tel)}" aria-label="Call ${esc(c.name)}" title="Call ${esc(c.name)} · ${esc(c.phone)}">${CL_ICON.phone}</a>` : '') +
+      (c.email ? `<a href="mailto:${esc(c.email)}" aria-label="Email ${esc(c.name)}" title="Email ${esc(c.name)} · ${esc(c.email)}">${CL_ICON.mail}</a>` : '');
+  }
+  const CV = { chip: 'all', rows: [], all: null };
+  const CV_CHIPS = [['all', 'All'], ['attn', 'Needs attention'], ['owner', 'Owners'], ['board', 'Co-ops / condos'], ['gcm', 'GCs, CMs and subs'], ['home', 'Homeowners'], ['pm', 'Property mgmt'], ['agency', 'Public work'], ['lead', 'Leads'], ['unset', 'Kind not set'], ['inactive', 'Inactive']];
+  function cvMatch(r, k) {
+    if (k === 'inactive') return r.status === 'inactive';
+    if (r.status === 'inactive') return false;
+    if (k === 'all') return true;
+    if (k === 'attn') return r.overdue > 0 || r.late_followups > 0;
+    if (k === 'lead') return r.relationship_type === 'lead';
+    if (k === 'unset') return !r.client_kind;
+    if (k === 'gcm') return ['gc', 'cm', 'sub'].includes(r.client_kind);
+    return r.client_kind === k;
+  }
+  function cvHow(r) {
+    if (r.relationship_type === 'lead') return 'Lead' + (r.estimates_open ? ` · ${r.estimates_open} open estimate${r.estimates_open === 1 ? '' : 's'}` : '');
+    if (r.managing_agent) return 'Through ' + r.managing_agent;
+    if (r.main_contact && r.main_contact.name !== r.name) return r.main_contact.name + (r.main_contact.title ? ' · ' + r.main_contact.title : '');
+    return r.kind_label || '';
+  }
   async function loadClients() {
     $('client-detail').hidden = true; $('clients-list').hidden = false;
-    const q = new URLSearchParams({ type: $('cl-type').value, search: $('cl-search').value.trim() });
-    if ($('cl-inactive').checked) q.set('inactive', '1');
-    skeleton($('cl-table'), 5);
+    const search = $('cl-search').value.trim();
+    if (!CV.rows.length) $('cl-rows').innerHTML = '<div class="cp-skel"></div><div class="cp-skel"></div><div class="cp-skel"></div>';
     try {
+      const q = new URLSearchParams({ type: 'clients', inactive: '1' }); if (search) q.set('search', search);
       const { data: rows } = await api('/clients?' + q.toString());
-      table($('cl-table'), [
-        { key: 'name', label: 'Organization', render: r => `<span class="cp-id">${esc(r.name)}</span>${r.status !== 'active' ? ' <span class="cp-pill">inactive</span>' : ''}<div class="cp-muted" style="font-size:13px">${esc(r.relationship_type)}${r.stage ? ' · ' + esc(r.stage) : ''}</div>` },
-        { key: 'projects_active', label: 'Active projects', num: true, render: r => `${r.projects_active}<span class="cp-muted"> / ${r.projects_total}</span>` },
-        { key: 'estimates_open', label: 'Open estimates', num: true, render: r => `${r.estimates_open}<div class="cp-muted" style="font-size:13px">${money.format(r.pipeline_value)}</div>` },
-        { key: 'won_value', label: 'Won value', num: true, render: r => money.format(r.won_value) },
-        { key: 'contacts', label: 'Contacts', num: true },
-        { key: 'open_tasks', label: 'Open tasks', num: true },
-        { key: 'last_activity_at', label: 'Last activity', render: r => fmtDate(r.last_activity_at) },
-      ], rows, { defaultSort: { key: 'name', dir: 'asc' }, rowAttr: () => 'class="row-link"', onRow: r => { location.hash = '#clients/' + r.id; },
-        emptyTitle: 'No organizations match', emptySub: 'Use "+ Add client" to add one.' });
-    } catch (e) { toast(e.message, true); $('cl-table').innerHTML = empty('Could not load clients', e.message); }
+      CV.rows = rows; if (!search) CV.all = rows;
+      cvSummary(); cvChips(); cvRows();
+    } catch (e) { toast(e.message, true); $('cl-rows').innerHTML = empty('Could not load clients', e.message); }
   }
+  function cvSummary() {
+    const all = (CV.all || CV.rows).filter(r => r.status !== 'inactive');
+    const sum = k => all.reduce((n, r) => n + (r[k] || 0), 0);
+    const od = sum('overdue'), odN = all.filter(r => r.overdue > 0).length;
+    const fu = all.reduce((n, r) => n + (r.late_followups || 0), 0);
+    $('cl-sum').innerHTML = kpi('Owed to us', money.format(sum('owed')), 'sent invoices not paid yet')
+      + kpi('Overdue', money.format(od), odN ? `${odN} client${odN === 1 ? '' : 's'}` : 'nothing late', od ? 'warn' : '')
+      + kpi('Retainage held', money.format(sum('retainage_held')), 'paid at closeout')
+      + kpi('Late follow-ups', String(fu), fu ? 'past their date' : 'all on time', fu ? 'warn' : '');
+  }
+  function cvChips() {
+    const src = CV.all || CV.rows;
+    $('cl-chips').innerHTML = CV_CHIPS.map(([k, l]) => {
+      const n = src.filter(r => cvMatch(r, k)).length;
+      if (!n && k !== 'all' && k !== CV.chip) return '';
+      return `<button type="button" class="cv-chip ${k === 'attn' ? 'attn' : ''} ${CV.chip === k ? 'on' : ''}" data-cv-chip="${k}" aria-pressed="${CV.chip === k}">${esc(l)}<span class="n">${n}</span></button>`;
+    }).join('');
+  }
+  function cvRows() {
+    const today = todayLocal();
+    const rows = CV.rows.filter(r => cvMatch(r, CV.chip)).sort((a, b) => (b.overdue - a.overdue) || ((a.relationship_type === 'lead') - (b.relationship_type === 'lead')) || a.name.localeCompare(b.name));
+    $('cl-rows').innerHTML = `<div class="cv-head"><div>Client</div><div>Active jobs</div><div>Owed</div><div>Next follow-up</div><div></div></div>` + (rows.length ? rows.map(r => {
+      const f = r.next_followup;
+      return `<div class="cv-row" data-cv-open="${r.id}" tabindex="0" role="link" aria-label="${esc(r.name)}">
+        <div class="cv-who">${cvAvatar(r.name, r.client_kind)}<div class="cv-who-t"><b>${esc(r.name)}${r.status === 'inactive' ? ' <span class="cv-pill mute">inactive</span>' : ''}</b><div class="cv-how">${kindBadge(r.client_kind)}${esc(cvHow(r))}</div></div></div>
+        <div class="cv-meta">
+          <div class="num"><span class="cv-lab">Jobs</span>${r.projects_active || (r.relationship_type === 'lead' ? '<span class="cv-pill">Lead</span>' : '0')}</div>
+          <div class="cv-owed num"><span class="cv-lab">Owed</span>${r.owed ? `<b>${money.format(r.owed)}</b>` : '<span class="cp-muted">Nothing open</span>'}${r.overdue ? `<div class="od">${money.format(r.overdue)} overdue${r.overdue_days ? ` · ${r.overdue_days}d` : ''}</div>` : ''}</div>
+          <div class="cv-next"><span class="cv-lab">Next</span>${f ? `${f.due_date ? `<span class="${f.due_date < today ? 'late' : ''}">${fmtDate(f.due_date).slice(0, 5)}</span> · ` : ''}${esc(f.title)}` : '<span class="cp-muted">None</span>'}</div>
+        </div>
+        <div class="cv-acts">${reachBtns(r.main_contact)}</div>
+      </div>`;
+    }).join('') : `<div class="cv-empty">${CV.rows.length ? 'No clients in this filter.' : ($('cl-search').value.trim() ? 'No client matches that search.' : 'No clients yet. Use “+ Add client” to add the first one.')}</div>`);
+  }
+  $('cl-chips').addEventListener('click', e => { const b = e.target.closest('[data-cv-chip]'); if (!b) return; CV.chip = b.dataset.cvChip; cvChips(); cvRows(); });
+  function cvOpen(e, attr, base) {
+    const row = e.target.closest('[' + attr + ']'); if (!row || e.target.closest('a,button')) return;
+    if (e.type === 'keydown' && e.key !== 'Enter') return;
+    location.hash = base + row.getAttribute(attr);
+  }
+  ['click', 'keydown'].forEach(t => $('cl-rows').addEventListener(t, e => cvOpen(e, 'data-cv-open', '#clients/')));
+
+  // ---------- DIRECTORY (2026-10-28): everyone around our jobs who doesn't pay us ----------
+  async function loadDirectory() {
+    const host = $('dir-groups'); if (!host.innerHTML) host.innerHTML = '<div class="cp-skel"></div><div class="cp-skel"></div>';
+    try {
+      const q = new URLSearchParams({ type: 'directory' }); const s = $('dir-search').value.trim(); if (s) q.set('search', s);
+      const { data: rows } = await api('/clients?' + q.toString());
+      const groups = {}; rows.forEach(r => (groups[r.group] = groups[r.group] || []).push(r));
+      host.innerHTML = rows.length ? Object.keys(groups).map(g => `<div class="cv-group"><h3>${esc(g)}</h3><div class="cv-list">${groups[g].map(r => {
+        const on = r.manages.length ? 'Manages ' + r.manages.map(m => m.name).join(' · ') : r.jobs.length ? 'On ' + r.jobs.join(' · ') : '';
+        const who = r.main_contact && r.main_contact.name !== r.name ? r.main_contact.name + (r.main_contact.title ? ' · ' + r.main_contact.title : '') : (r.contacts ? `${r.contacts} contact${r.contacts === 1 ? '' : 's'}` : 'No contacts yet');
+        return `<div class="cv-drow" data-dir-open="${r.id}" tabindex="0" role="link" aria-label="${esc(r.name)}"><div class="cv-who">${cvAvatar(r.name, r.relationship_type === 'owner' ? 'owner' : r.relationship_type === 'property_manager' ? 'pm' : 'agency')}<div class="cv-who-t"><b>${esc(r.name)}</b><div class="cv-how">${esc(who)}</div></div></div>${on ? `<div class="on">${esc(on)}</div>` : ''}<div class="cv-acts">${reachBtns(r.main_contact)}</div></div>`;
+      }).join('')}</div></div>`).join('') : `<div class="cv-list"><div class="cv-empty">${s ? 'Nothing in the directory matches that search.' : 'Nobody here yet. People you add to a job’s Contacts show up here.'}</div></div>`;
+    } catch (e) { toast(e.message, true); host.innerHTML = empty('Could not load the directory', e.message); }
+  }
+  ['click', 'keydown'].forEach(t => $('dir-groups').addEventListener(t, e => cvOpen(e, 'data-dir-open', '#clients/')));
 
   async function loadClientDetail(id) {
     $('clients-list').hidden = true; const host = $('client-detail'); host.hidden = false; host.innerHTML = '<div class="cp-card"><div class="cp-skel"></div><div class="cp-skel"></div><div class="cp-skel"></div></div>';
@@ -2858,7 +3047,8 @@
         `<div class="cl-mcards">${invs.map(i => `<div class="cl-mc" data-cl-inv="${i.id}"><div><b class="cp-id">${esc(i.number)}</b>${i.project_code ? ' · ' + esc(i.project_code) : ''}<div class="cl-small">${invKind(i.kind)} · ${i.status === 'draft' ? 'draft' : (i.paid_at ? 'paid ' : 'due ') + fmtDate(i.paid_at || i.due_at)}</div></div><div class="r">${money2.format(i.amount)}<div>${invPill(i)}</div></div></div>`).join('')}</div>` : empty('No invoices yet', 'Deposit and progress invoices for this client show here, drafts included.');
       const jump = [['cl-s-mail', 'Emails'], ['cl-s-prop', 'Proposals ' + props.length], ['cl-s-inv', 'Invoices ' + invs.length], ['cl-s-jobs', 'Jobs ' + jobs.length], ['cl-s-people', 'Contacts ' + d.contacts.length]];
       host.innerHTML = `
-        <div class="cp-toolbar"><a class="cp-link" href="#clients">← All clients</a><span style="flex:1"></span>
+        <div class="cp-toolbar"><a class="cp-link" href="${['client', 'lead'].includes(o.relationship_type) ? '#clients' : '#directory'}">← ${['client', 'lead'].includes(o.relationship_type) ? 'All clients' : 'Directory'}</a><span style="flex:1"></span>
+          ${['client', 'lead'].includes(o.relationship_type) ? (o.client_kind ? kindBadge(o.client_kind) : '<button type="button" class="cv-kind cv-setkind" id="cl-setkind" style="' + kindStyle('') + '">Set the kind of client</button>') : ''}
           <span class="cp-pill ${o.status === 'active' ? 'active' : ''}">${esc(o.status || 'active')}</span>${o.stage ? `<span class="cp-pill">${esc(o.stage)}</span>` : ''}
           <button class="btn-ghost btn-sm" type="button" id="cl-edit">Edit client</button><button class="btn-ghost btn-sm" type="button" id="cl-contact-add">+ Contact</button><button class="btn-ghost btn-sm" type="button" id="cl-note-add">+ Note</button><button class="btn-primary btn-sm" type="button" id="cl-task-add">+ Follow-up</button></div>
         <nav class="cl-jump" aria-label="Jump to">${jump.map(j => `<a href="#" data-cl-jump="${j[0]}">${esc(j[1])}</a>`).join('')}</nav>
@@ -2896,6 +3086,7 @@
       host.querySelectorAll('[data-cl-prop]').forEach(r => r.addEventListener('click', () => { location.hash = '#proposals/' + r.dataset.clProp; }));
       host.querySelectorAll('[data-cl-inv]').forEach(r => r.addEventListener('click', () => openInvoice(r.dataset.clInv)));
       $('cl-edit').addEventListener('click', () => openClientEdit(o));
+      if ($('cl-setkind')) $('cl-setkind').addEventListener('click', () => { openClientEdit(o); setTimeout(() => $('ce-kind').focus(), 40); });
       $('cl-contact-add').addEventListener('click', () => openContactModal(o.id, null));
       host.querySelectorAll('[data-ct-edit]').forEach(b => b.addEventListener('click', () => openContactModal(o.id, d.contacts.find(c => String(c.id) === b.dataset.ctEdit))));
       $('cl-note-add').addEventListener('click', () => openClientModal('nt', o.id));
@@ -2917,16 +3108,77 @@
   function formErr(id, msg) { const e = $(id); e.textContent = msg; e.className = 'cp-form-err show'; }
   Object.keys(CM).forEach(k => { const ov = $(CM[k]); ov.querySelector('[data-cancel]').addEventListener('click', () => closeClientModal(k)); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') Object.keys(CM).forEach(closeClientModal); });
-  $('cl-add').addEventListener('click', () => openClientModal('cl'));
+  // Add client (2026-10-28): 1 who is this (the kind that pays us) → 2 name + main contact → 3 how we bill them
+  const AC = { step: 1, kind: null, roles: [], meta: null };
+  const AC_ROLES = { signs: 'Signs contracts', billing: 'Billing / AP', pm: 'Project manager', site: 'Site super', board: 'Board member', agent: 'Managing agent' };
+  async function acMeta() { if (!AC.meta) AC.meta = (await api('/client-kinds')).data; return AC.meta; }
+  function acStep(n) {
+    AC.step = n; $('cl-err').className = 'cp-form-err';
+    document.querySelectorAll('#cl-form [data-pane]').forEach(p => { p.hidden = +p.dataset.pane !== n; });
+    const k = AC.kind, home = k === 'home';
+    $('cl-stepno').textContent = `Step ${n} of 3`;
+    $('cl-title').textContent = n === 1 ? 'Who is this?' : n === 2 ? (home ? 'About the homeowners' : 'About this client') : 'How we bill them';
+    $('cl-sub').textContent = n === 1 ? 'Pick the one that pays us. You can change it later.' : n === 2 ? 'The main contact is optional and can be added later.' : 'New invoices, pay apps and proposals start from these.';
+    $('cl-back').hidden = n === 1; $('cl-save').textContent = n === 3 ? 'Add client' : 'Next'; $('cl-save').disabled = n === 1 && !k;
+    if (n === 2) {
+      $('cl-name-l').textContent = home ? 'Homeowner name(s)' : k === 'board' ? 'Board name (the co-op or condo)' : 'Company name';
+      $('cl-name').placeholder = home ? 'e.g. Daniel & Lucia Rivera' : k === 'board' ? 'e.g. Park Terrace Owners Corp' : '';
+      $('cl-agent-f').hidden = k !== 'board';
+      $('cl-ctitle').placeholder = ['gc', 'cm', 'sub'].includes(k) ? 'Project manager' : k === 'board' ? 'Account executive' : '';
+      $('cl-roles').innerHTML = Object.keys(AC_ROLES).filter(r => k === 'board' || (r !== 'board' && r !== 'agent'))
+        .map(r => `<button type="button" data-ac-role="${r}" class="${AC.roles.includes(r) ? 'on' : ''}" aria-pressed="${AC.roles.includes(r)}">${AC_ROLES[r]}</button>`).join('');
+      setTimeout(() => $('cl-name').focus(), 30);
+    }
+    if (n === 3) {
+      $('cl-prefill').innerHTML = `Filled in for a <b>${esc((AC.meta.kinds[k] || '').toLowerCase())}</b>. Change anything that's different for this client.`;
+      if (!$('cl-coi').value.trim()) $('cl-coi').value = $('cl-name').value.trim() + ($('cl-agent').value.trim() && k === 'board' ? '; ' + $('cl-agent').value.trim() : '');
+      if (!$('cl-bemail').value.trim() && AC.roles.includes('billing')) $('cl-bemail').value = $('cl-cemail').value.trim();
+    }
+  }
+  function acPrefill(k) {
+    const d = AC.meta.defaults[k];
+    $('cl-terms').value = String(d.payment_terms_days); $('cl-dep').value = String(d.deposit_pct); $('cl-ret').value = String(d.retainage_pct);
+    $('cl-pa').checked = !!d.pay_apps; $('cl-lw').checked = !!d.lien_waivers; $('cl-st').checked = !!d.capital_improvement; $('cl-cp').checked = !!d.certified_payroll;
+  }
+  $('cl-add').addEventListener('click', async () => {
+    try { await acMeta(); } catch (e) { toast(e.message, true); return; }
+    openClientModal('cl'); AC.kind = null; AC.roles = [];
+    $('cl-kinds').innerHTML = Object.keys(KIND_AB).filter(k => AC.meta.kinds[k]).map(k => `<button type="button" class="cv-kopt" data-ac-kind="${k}">${cvAvatar('', k, KIND_AB[k])}<span><b>${esc(AC.meta.kinds[k])}</b><small>${esc(KIND_DESC[k] || '')}</small></span></button>`).join('');
+    const agents = (CV.all || []).filter(r => r.managing_agent).map(r => r.managing_agent);
+    api('/clients?type=property_manager').then(({ data }) => { $('cl-agents').innerHTML = [...new Set(data.map(r => r.name).concat(agents))].map(n => `<option value="${esc(n)}"></option>`).join(''); }).catch(() => {});
+    acStep(1); setTimeout(() => { const b = $('cl-kinds').querySelector('button'); if (b) b.focus(); }, 30);
+  });
+  $('cl-kinds').addEventListener('click', e => {
+    const b = e.target.closest('[data-ac-kind]'); if (!b) return;
+    AC.kind = b.dataset.acKind; AC.roles = AC.kind === 'board' ? ['agent', 'pm'] : ['gc', 'cm', 'sub'].includes(AC.kind) ? ['pm'] : ['signs'];
+    $('cl-kinds').querySelectorAll('[data-ac-kind]').forEach(x => x.classList.toggle('on', x === b));
+    acPrefill(AC.kind); $('cl-save').disabled = false;
+  });
+  $('cl-kinds').addEventListener('dblclick', e => { if (e.target.closest('[data-ac-kind]')) acStep(2); });
+  $('cl-roles').addEventListener('click', e => {
+    const b = e.target.closest('[data-ac-role]'); if (!b) return; const r = b.dataset.acRole;
+    AC.roles = AC.roles.includes(r) ? AC.roles.filter(x => x !== r) : AC.roles.concat(r);
+    b.classList.toggle('on'); b.setAttribute('aria-pressed', AC.roles.includes(r));
+  });
+  $('cl-back').addEventListener('click', () => acStep(AC.step - 1));
   $('cl-form').addEventListener('submit', async (e) => {
     e.preventDefault(); $('cl-err').className = 'cp-form-err';
-    const name = $('cl-name').value.trim(); if (!name) { formErr('cl-err', 'Enter the organization name.'); return; }
+    if (AC.step === 1) { if (AC.kind) acStep(2); return; }
+    const name = $('cl-name').value.trim();
+    if (AC.step === 2) {
+      if (!name) { formErr('cl-err', AC.kind === 'home' ? "Enter the homeowner's name." : "Enter the client's name."); $('cl-name').focus(); return; }
+      const em = $('cl-cemail').value.trim(); if (em && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { formErr('cl-err', "The contact's email doesn't look right."); $('cl-cemail').focus(); return; }
+      acStep(3); return;
+    }
     $('cl-save').disabled = true;
     try {
-      const { data } = await api('/crm/organizations', { method: 'POST', body: JSON.stringify({ name, relationship_type: $('cl-rel').value, notes: $('cl-notes').value.trim() || null }) }, true);
-      const cn = $('cl-cname').value.trim();
-      if (cn) await api('/crm/contacts', { method: 'POST', body: JSON.stringify({ full_name: cn, org_id: data.id, email: $('cl-cemail').value.trim() || null, phone: $('cl-cphone').value.trim() || null, title: $('cl-ctitle').value.trim() || null }) }, true);
-      toast('Client added'); closeClientModal('cl'); location.hash = '#clients/' + data.id;
+      const body = { name, client_kind: AC.kind, lead: $('cl-lead').checked, managing_agent: AC.kind === 'board' ? $('cl-agent').value.trim() || null : null,
+        contact: { full_name: $('cl-cname').value.trim(), title: $('cl-ctitle').value.trim() || null, phone: $('cl-cphone').value.trim() || null, email: $('cl-cemail').value.trim() || null, roles: AC.roles },
+        billing: { payment_terms_days: +$('cl-terms').value, deposit_pct: +$('cl-dep').value, retainage_pct: +$('cl-ret').value, pay_apps: $('cl-pa').checked ? 1 : 0,
+          lien_waivers: $('cl-lw').checked ? 1 : 0, capital_improvement: $('cl-st').checked ? 1 : 0, certified_payroll: $('cl-cp').checked ? 1 : 0,
+          billing_email: $('cl-bemail').value.trim() || null, coi_wording: $('cl-coi').value.trim() || null } };
+      const { data } = await api('/clients', { method: 'POST', body: JSON.stringify(body) });
+      toast($('cl-lead').checked ? 'Lead added' : 'Client added'); closeClientModal('cl'); CV.rows = []; CV.all = null; location.hash = '#clients/' + data.id;
     } catch (ex) { formErr('cl-err', ex.message); }
     finally { $('cl-save').disabled = false; }
   });
@@ -2998,7 +3250,8 @@
   // edit the client itself (name, type, active / inactive, details, notes) — or delete it
   function openClientEdit(o) {
     openClientModal('ce', o.id);
-    $('ce-rel').innerHTML = $('cl-rel').innerHTML;
+    $('ce-kind').innerHTML = '<option value="">Not set yet</option>' + Object.keys(KIND_SHORT).map(k => `<option value="${k}">${esc(KIND_SHORT[k])}: ${esc(KIND_DESC[k])}</option>`).join('');
+    $('ce-kind').value = o.client_kind || '';
     if (o.relationship_type && ![...$('ce-rel').options].some(x => x.value === o.relationship_type)) $('ce-rel').insertAdjacentHTML('afterbegin', `<option value="${esc(o.relationship_type)}">${esc(o.relationship_type)}</option>`);
     $('ce-name').value = o.name || ''; $('ce-rel').value = o.relationship_type || 'client';
     $('ce-status').value = o.status === 'inactive' ? 'inactive' : 'active'; $('ce-notes').value = o.notes || '';
@@ -3009,7 +3262,7 @@
     if (!name) { formErr('ce-err', 'Enter the client name.'); return; }
     $('ce-save').disabled = true;
     try {
-      const body = { name, relationship_type: $('ce-rel').value, status: $('ce-status').value, notes: $('ce-notes').value.trim() || null };
+      const body = { name, relationship_type: $('ce-rel').value, client_kind: $('ce-kind').value || null, status: $('ce-status').value, notes: $('ce-notes').value.trim() || null };
       Object.keys(CE_FIELDS).forEach(k => { body[k] = $(CE_FIELDS[k]).value.trim() || null; });
       await api('/crm/organizations/' + encodeURIComponent(org), { method: 'PUT', body: JSON.stringify(body) }, true);
       toast('Client saved'); closeClientModal('ce'); loadClientDetail(org);
@@ -6214,8 +6467,8 @@
 
   // ---------- router ----------
   // the sidebar section only; the sub-tab row names the page (no title said twice)
-  const TITLES = { overview: 'Dashboard', clients: 'Clients', portal: 'Clients', calendar: 'Projects', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance', workforce: 'Workforce', company: 'Company', templates: 'Company', usage: 'Settings', claude: 'Settings', brand: 'Settings', inbox: 'Inbox' };
-  const LOADERS = { overview: loadOverview, clients: loadClients, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance, templates: () => window.SSCTemplates.load(), usage: loadUsage, claude: loadClaudeLog, brand: loadBrand, inbox: loadInbox };
+  const TITLES = { overview: 'Dashboard', clients: 'Clients', directory: 'Clients', portal: 'Clients', calendar: 'Projects', projects: 'Projects', proposals: 'Proposals', finance: 'Finance', expenses: 'Finance', workforce: 'Workforce', company: 'Company', templates: 'Company', usage: 'Settings', claude: 'Settings', brand: 'Settings', inbox: 'Inbox' };
+  const LOADERS = { overview: loadOverview, clients: loadClients, directory: loadDirectory, portal: loadPortalAccess, calendar: loadCalendar, projects: loadProjects, proposals: loadProposals, finance: loadFinance, expenses: loadExpenses, workforce: loadWorkforce, company: loadCompliance, templates: () => window.SSCTemplates.load(), usage: loadUsage, claude: loadClaudeLog, brand: loadBrand, inbox: loadInbox };
   const ALIASES = { buildings: 'projects', compliance: 'company' };   // #339 — old bookmarks and links keep working
   function route() {
     const h = (location.hash || '#overview').slice(1);
@@ -6241,6 +6494,7 @@
   let t;
   const debounce = (fn) => { clearTimeout(t); t = setTimeout(fn, 250); };
   $('cl-search').addEventListener('input', () => debounce(loadClients));
+  $('dir-search').addEventListener('input', () => debounce(loadDirectory));
   // "+ New project" opens the form right here (static/js/new_project_modal.js)
   $('pj-new').addEventListener('click', () => window.SSCNewProject.open());
   $('pj-ready').addEventListener('click', openReady);
@@ -6262,7 +6516,7 @@
   $('pr-search').addEventListener('input', () => debounce(loadProposals));
   $('pr-status').addEventListener('change', loadProposals);
   $('pr-kind').addEventListener('click', e => { const b = e.target.closest('[data-kind]'); if (!b) return; setKind(b.dataset.kind); loadProposals(); });
-  $('cl-type').addEventListener('change', loadClients); $('cl-inactive').addEventListener('change', loadClients);
+
   $('fin-months').addEventListener('change', loadFinance);
   ['ex-project', 'ex-category', 'ex-month', 'ex-source', 'ex-status'].forEach(id => $(id).addEventListener('change', loadExpenses));
   $('ex-clear').addEventListener('click', () => { ['ex-project', 'ex-category', 'ex-status'].forEach(id => $(id).value = ''); $('ex-month').value = ''; $('ex-source').value = 'all'; loadExpenses(); });
