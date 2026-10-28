@@ -17,7 +17,7 @@ Proves, through a Flask test client against an ISOLATED database (no Google, no 
     email on the bid and the client; a reply goes out in the same thread (In-Reply-To) to the
     sender; a proposal emailed from Gmail is logged as sent; a read-only connection is told to
     reconnect before anything is sent
-  * the record pages list filed emails; another person never sees someone else's mail
+  * the record pages list filed emails (the client page: matched ones too); only from the person's own Gmail
   * the Gmail-like view: the email as written (html, scripts stripped, inline pictures), one row per
     conversation, attachments, Reply / Reply all, Claude's reply draft sent only by the person's Send,
     Compose, and the live sync line (Refresh retired 2026-10-23; the route stays)
@@ -323,7 +323,13 @@ def main() -> int:
         assert "See you Tuesday at 10." in eml
         linked = a.get(f"/api/inbox/linked?type=estimate&id={est}").get_json()["data"]
         assert [x["id"] for x in linked] == [r1["id"]] and SECRET_SUBJECT == linked[0]["subject"]
-        assert [x["id"] for x in a.get(f"/api/inbox/linked?type=client&id={ids['org']}").get_json()["data"]] == [r1["id"]]
+        # the client page (2026-10-28): the filed email plus what the Inbox matched, from the person's OWN Gmail only
+        cl = a.get(f"/api/inbox/linked?type=client&id={ids['org']}").get_json()["data"]
+        mine = {x["id"] for x in _q("SELECT id FROM mail_message WHERE client_org_id = ? AND trashed_at IS NULL", (ids["org"],))}
+        assert r1["id"] in [x["id"] for x in cl] and {x["id"] for x in cl} <= mine | {r1["id"]}
+        assert next(x for x in cl if x["id"] == r1["id"])["how"] == "filed"
+        assert cs.get(f"/api/inbox/linked?type=client&id={ids['org']}").get_json()["data"] == []        # not c_suite's mailbox
+        assert cs.get(f"/api/inbox/linked?type=estimate&id={est}").get_json()["data"] == []              # filed, but not theirs
         passed += 1; print("  approve: bid + documents + filing + threaded reply ok")
 
         # ---- a proposal emailed from Gmail

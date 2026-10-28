@@ -458,8 +458,26 @@ def client_detail(conn, org_id: int, today: Optional[date] = None) -> Optional[d
         "pipeline_value": round(sum(e["final_amount"] for b in buildings for e in b["estimates"]
                                     if e["status"] in PIPELINE_STATUSES), 2),
     }
+    # 2026-10-28: every proposal version and every invoice for this client (drafts included; void invoices stay out of the sums)
+    import proposals as _proposals
+    props = [{k: p.get(k) for k in ("id", "label", "number", "version", "status", "display_status", "price", "title",
+                                    "estimate_code", "converted_project_code", "building_address", "sent_at", "signed_at",
+                                    "declined_at", "updated_at", "superseded_by")}
+             for p in _proposals.list_proposals(conn, client_org_id=org_id)]
+    invs = [{k: i.get(k) for k in ("id", "number", "kind", "status", "description", "project_code", "building_address",
+                                   "amount", "amount_paid", "balance", "issued_at", "due_at", "paid_at", "overdue", "days_overdue")}
+            for i in invoices.list_invoices(conn, client_org_id=org_id, today=today)]
+    live = [i for i in invs if i["status"] in ("issued", "paid")]
+    totals.update({
+        "invoiced": round(sum(_num(i["amount"]) for i in live), 2),
+        "paid": round(sum(_num(i["amount_paid"]) for i in live), 2),
+        "owed": round(sum(i["balance"] for i in live if i["status"] == "issued"), 2),
+        "overdue_count": sum(1 for i in invs if i["overdue"]),
+        "proposals_signed": sum(1 for p in props if p["status"] == "signed"),
+    })
     return {"organization": org, "contacts": contacts, "buildings": buildings,
-            "documents_expiring": docs, "activity": activity, "open_tasks": tasks, "totals": totals}
+            "documents_expiring": docs, "activity": activity, "open_tasks": tasks, "totals": totals,
+            "proposals": props, "invoices": invs}
 
 
 # ============================ finance ============================

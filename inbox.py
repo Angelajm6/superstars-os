@@ -1850,29 +1850,79 @@ def _process_alone(mid, want_reply=False):
         conn.close()
 
 
+def client_mail(conn, org_id: int, uid) -> list:
+    """Every email about one client in THIS person's mailbox (2026-10-28): filed on the client or on its estimates,
+    proposals or jobs, plus what the Inbox matched to it on arrival. Another person's mail never shows (one connected
+    Gmail per account; Angela's rule). Returns [{id, how: 'filed' | 'matched', ref}]."""
+    if not uid:
+        return []
+    ests = _rows(conn, "SELECT id, code, converted_project_code FROM estimate WHERE client_org_id = ?", (org_id,))
+    props = _rows(conn, "SELECT id, number, display_no, version FROM proposal WHERE client_org_id = ? AND status <> 'deleted'",
+                  (org_id,))
+    codes = {e["converted_project_code"] for e in ests if e["converted_project_code"]}
+    codes |= {r["project_code"] for r in _rows(conn, "SELECT project_code FROM projects WHERE client_org_id = ?", (org_id,))}
+    import proposal_engine
+    ref = {("proposal", str(p["id"])): "Proposal " + proposal_engine.label(p) for p in props}
+    ref.update({("estimate", str(e["id"])): e["code"] for e in ests})
+    ref.update({("project", c): c for c in codes})
+    keys = [("client", str(org_id))] + list(ref)
+    found = {}   # message id -> {how, ref}
+    for i in range(0, len(keys), 200):
+        chunk = keys[i:i + 200]
+        cond = " OR ".join(["(l.entity_type = ? AND l.entity_id = ?)"] * len(chunk))
+        for r in _rows(conn, f"SELECT l.message_id, l.entity_type, l.entity_id FROM mail_link l "
+                             f"JOIN mail_message m ON m.id = l.message_id WHERE m.user_id = ? AND ({cond})",
+                       [uid] + [v for k in chunk for v in k]):
+            f = found.setdefault(r["message_id"], {"how": "filed", "ref": None})
+            f["ref"] = f["ref"] or ref.get((r["entity_type"], r["entity_id"]))
+    cond, params = ["client_org_id = ?"], [org_id]
+    for col, vals in (("estimate_id", [e["id"] for e in ests]), ("proposal_id", [p["id"] for p in props]),
+                      ("project_code", sorted(codes))):
+        if vals:
+            cond.append(f"{col} IN ({','.join('?' * len(vals))})"); params += vals
+    for r in _rows(conn, f"SELECT id, estimate_id, proposal_id, project_code FROM mail_message WHERE user_id = ? "
+                         f"AND trashed_at IS NULL AND ({' OR '.join(cond)}) ORDER BY received_at DESC LIMIT 300",
+                   [uid] + params):
+        f = found.setdefault(r["id"], {"how": "matched", "ref": None})
+        f["ref"] = f["ref"] or (ref.get(("proposal", str(r["proposal_id"]))) or ref.get(("project", r["project_code"]))
+                                or ref.get(("estimate", str(r["estimate_id"]))))
+    return [dict(v, id=k) for k, v in found.items()]
+
+
 @requires_role(*OFFICE_ROLES)
 def _api_linked():
     etype = request.args.get("type") or ""
     eid = str(request.args.get("id") or "")
     if etype not in ("client", "estimate", "proposal", "project") or not eid:
         return _err("type and id are required")
+    uid = _me()["id"]   # 2026-10-28: only the person's own mailbox, filed or not (one connected Gmail per account)
+    if not uid:
+        return jsonify({"data": []})
     conn = _conn()
     try:
-        ids = [r["message_id"] for r in _rows(conn, "SELECT message_id FROM mail_link WHERE entity_type = ? AND entity_id = ?",
-                                               (etype, eid))]
-        if etype == "estimate":   # a bid's page also shows the email on its proposals
-            ids += [r["message_id"] for r in _rows(conn, "SELECT l.message_id FROM mail_link l JOIN proposal p ON "
-                                                         "l.entity_type = 'proposal' AND l.entity_id = CAST(p.id AS TEXT) "
-                                                         "WHERE p.estimate_id = ?", (int(eid) if eid.isdigit() else 0,))]
+        if etype == "client":   # the client page: the whole relationship, see client_mail
+            if not eid.isdigit():
+                return _err("id must be a number")
+            found = {f["id"]: f for f in client_mail(conn, int(eid), uid)}
+            limit = 150
+        else:
+            ids = [r["message_id"] for r in _rows(conn, "SELECT message_id FROM mail_link WHERE entity_type = ? AND entity_id = ?",
+                                                   (etype, eid))]
+            if etype == "estimate":   # a bid's page also shows the email on its proposals
+                ids += [r["message_id"] for r in _rows(conn, "SELECT l.message_id FROM mail_link l JOIN proposal p ON "
+                                                             "l.entity_type = 'proposal' AND l.entity_id = CAST(p.id AS TEXT) "
+                                                             "WHERE p.estimate_id = ?", (int(eid) if eid.isdigit() else 0,))]
+            found = {mid: {} for mid in ids}
+            limit = 100
         out = []
-        for mid in sorted(set(ids), reverse=True)[:100]:
-            m = message(conn, mid)
+        for mid in sorted(found, reverse=True)[:limit]:
+            m = message(conn, mid, uid)
             if not m:
                 continue
             who = m["to"] if m["direction"] == "out" else m["from"]
             out.append({"id": m["id"], "direction": m["direction"], "who": (parseaddr(who)[0] or parseaddr(who)[1])[:80],
                         "subject": m["subject"], "summary": m["summary"] or m["snippet"], "received_at": m["received_at"],
-                        "body": m["body"][:6000]})
+                        "body": m["body"][:6000], "how": found[mid].get("how", "filed"), "ref": found[mid].get("ref")})
         out.sort(key=lambda x: x["received_at"] or "", reverse=True)
         return jsonify({"data": out})
     finally:
