@@ -16,6 +16,8 @@ Boots the real app (`import server`) on an ISOLATED database. Proves:
   * Proposal Studio → Archive: the uploads carry proposal_id once marked; the ⋯ menu links to the portal's form
     (#proposals/before/<id>/sent|signed), which the portal opens
   * the served page has the modal, the menu items and the calls, and no button under each row
+  * + Add an old proposal (2026-10-28): the Proposals toolbar uploads to the Studio's archive, waits for Claude's read
+    and opens Mark sent on it with "already approved" ticked
 Run:  venv/bin/python tests/smoke_old_proposal_sent.py
 """
 from __future__ import annotations
@@ -235,6 +237,9 @@ def main() -> int:
                        'data-m="archrestore"', "prxArchConfirm", 'data-m="marksigned"', 'data-m="archsigned"', "prxSignable", "prArchFromLink"):
             assert needle in page, needle
         assert "data-prx-arch" not in page, "no Mark as sent button under each row"
+        for needle in ('id="pr-old"', 'id="pr-old-file"', 'id="pr-old-overlay"', "fetch('/api/proposal-template', { method: 'POST'",
+                       "api('/proposal-template', null, true)", "prArchFromLink(PROLD.id, true)", "$('pr-old').hidden = !prop"):
+            assert needle in page, needle
         passed += 1
     finally:
         _cleanup(ids)
