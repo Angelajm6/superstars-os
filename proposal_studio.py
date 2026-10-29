@@ -688,9 +688,11 @@ def register(app) -> None:
     @gate
     def proposal_studio_revise(pid):
         me = _me()
-        ins = str((request.get_json(silent=True) or {}).get("instruction") or "").strip()
+        body = request.get_json(silent=True) or {}
+        ins = str(body.get("instruction") or "").strip()
         if not ins:
             return err("Say what to change.")
+        history = body.get("history") if isinstance(body.get("history"), list) else []   # this chat so far, for "yes, do that"
 
         def run(c):
             import proposals
@@ -701,7 +703,7 @@ def register(app) -> None:
                 raise ValueError("This proposal was already sent. Make a new version to change it.")
             if r.get("layout") == "ssc":
                 import proposal_engine
-                out = proposal_engine.revise(c, pid, ins, me["id"])
+                out = proposal_engine.revise(c, pid, ins, me["id"], history)
             else:
                 out = revise(c, pid, ins, me["id"])
             return dict(view(c, pid, me["id"], me["role"]), **out)
