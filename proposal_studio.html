@@ -284,15 +284,15 @@
     <div class="ed">
       <div>
         <div class="desk"><iframe class="doc" id="doc" title="The proposal: click any text to edit it" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe></div>
-        <div class="doc-tools" id="doc-tools"><button class="btn-ghost btn-sm" type="button" id="e-addline">+ Add a price line</button><button class="btn-ghost btn-sm" type="button" id="e-addsec">+ Add a section</button>
+        <div class="doc-tools" id="doc-tools"><button class="btn-ghost btn-sm" type="button" id="e-addline">+ Add a price line</button><button class="btn-ghost btn-sm" type="button" id="e-addalt">+ Add an alternate</button><button class="btn-ghost btn-sm" type="button" id="e-addsec">+ Add a section</button>
           <button class="btn-ghost btn-sm" type="button" data-addlist="notes" hidden>+ Note</button><button class="btn-ghost btn-sm" type="button" data-addlist="deliverables" hidden>+ Deliverable</button><button class="btn-ghost btn-sm" type="button" data-addlist="exclusions" hidden>+ Exclusion</button></div>
       </div>
       <aside class="rail">
         <div class="chat-scrim" id="chat-scrim" hidden></div>
         <div class="card chat-card" id="chat-card" role="region" aria-label="Ask Claude to change the proposal"><div class="chat-h"><h3>Ask Claude to change it</h3><button class="x" type="button" id="chat-x" aria-label="Close">×</button></div>
-          <div class="chat" id="chat" aria-live="polite"><div class="msg c">Click any outlined text to edit it, or tell me what to change. The fixed wording and the totals take care of themselves.</div></div>
-          <div class="quick"><button class="chip" type="button" data-ask="Add a 10% contingency line">+ 10% contingency</button><button class="chip" type="button" data-ask="Make the scope shorter">Shorter scope</button><button class="chip" type="button" data-ask="Split the work into two phases with their own lines">Two phases</button></div>
-          <form class="inl" id="chat-form"><input class="fld" id="chat-in" placeholder="e.g. “lintels at $2,600 each”" aria-label="Ask Claude to change the proposal"><button class="btn-ghost btn-sm" type="submit" id="chat-go">Send</button></form>
+          <div class="chat" id="chat" aria-live="polite"><div class="msg c">Click any outlined text to edit it, or just talk to me: ask a question, or tell me what to change. I can add price lines and alternates and edit the notes, exclusions and terms. The fixed wording and the totals take care of themselves.</div></div>
+          <div class="quick"><button class="chip" type="button" data-ask="Add an alternate">+ Add alternate</button><button class="chip" type="button" data-ask="Add a 10% contingency line">+ 10% contingency</button><button class="chip" type="button" data-ask="Make the scope shorter">Shorter scope</button><button class="chip" type="button" data-ask="Split the work into two phases with their own lines">Two phases</button></div>
+          <form class="inl" id="chat-form"><input class="fld" id="chat-in" placeholder="Ask anything or say what to change" aria-label="Ask Claude about the proposal or what to change"><button class="btn-ghost btn-sm" type="submit" id="chat-go">Send</button></form>
         </div>
         <div class="card" id="rv-card" hidden><h3>Revisions</h3><div class="rv" id="rv"></div></div>
         <div class="card" id="ck-card" hidden><h3>Ready to send</h3><div class="ck" id="ck"></div>
@@ -435,8 +435,9 @@
   const money = n => '$' + (+n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   const money2 = n => '$' + (+n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtDate = iso => { if (!iso) return ''; const [y, m, d] = String(iso).slice(0, 10).split('-'); return `${m}/${d}/${y}`; };
-  const S = { id: null, v: null, job: null, files: [], how: 'new', send: null, preview: null, asking: false };
+  const S = { id: null, v: null, job: null, files: [], how: 'new', send: null, preview: null, asking: false, chat: [] };
   const STEPS = ['Loading your fixed wording', 'Finding your closest past proposals and prices', 'Looking up the client', 'Reading what you attached', 'Writing the proposal', 'Saving the draft'];
+  const GREET = 'Click any outlined text to edit it, or just talk to me: ask a question, or tell me what to change. I can add price lines and alternates and edit the notes, exclusions and terms. The fixed wording and the totals take care of themselves.';
   const LISTS = ['notes', 'deliverables', 'exclusions'], MULTI = ['submitted_to', 'project', 'reference'];
   const ssc = () => !!(S.v && S.v.layout === 'ssc');
   let tT = null;
@@ -566,6 +567,7 @@
   // ---------------- the proposal (no-scripts frame the page edits in place)
   async function openProposal(id, keep) {
     if (S.id === id && S.v && keep !== false) return;
+    if (S.id !== id) { S.chat = []; $('chat').innerHTML = '<div class="msg c">' + GREET + '</div>'; }   // each proposal has its own conversation
     S.id = id;
     try { draw(await api('/proposal-studio/' + id)); }
     catch (e) { toast(e.message, true); S.id = null; location.hash = '#new'; }
@@ -576,7 +578,7 @@
     $('e-num').textContent = /^\d/.test(v.label || '') ? 'Proposal No. ' + v.label : (v.label || p.number) + (p.version > 1 ? ' (version ' + p.version + ')' : '');
     $('e-total').textContent = money2(v.amounts.total);   // the same total the PDF, the email and every list show
     const lay = ssc();
-    $('ck-card').hidden = !lay; $('e-head-row').hidden = !lay; $('e-legacy-row').hidden = lay; $('e-secs-row').hidden = lay; $('e-addsec').hidden = lay;
+    $('ck-card').hidden = !lay; $('e-head-row').hidden = !lay; $('e-legacy-row').hidden = lay; $('e-secs-row').hidden = lay; $('e-addsec').hidden = lay; $('e-addalt').hidden = !lay;
     document.querySelectorAll('[data-addlist]').forEach(b => b.hidden = !lay);
     if (lay) { drawChecks(v); document.querySelectorAll('[data-head]').forEach(b => { b.classList.toggle('on', b.dataset.head === (v.content.heading || 'ESTIMATE')); b.disabled = !v.editable; }); }
     const st = p.display_status || p.status;
@@ -613,7 +615,7 @@
     $('e-valid').value = (p.valid_until || '').slice(0, 10); $('e-dep').value = p.deposit_pct != null ? p.deposit_pct : '';
     $('e-valid').disabled = $('e-dep').disabled = !v.editable;
     $('chat-in').disabled = $('chat-go').disabled = !v.editable || S.asking;
-    $('chat-in').placeholder = v.editable ? 'e.g. “lintels at $2,600 each”' : 'Sent proposals don’t change. Make a new version to edit.';
+    $('chat-in').placeholder = v.editable ? 'Ask anything or say what to change' : 'Sent proposals don’t change. Make a new version to edit.';
     if (!lay) drawSecs(); paint(v.html, flash);
     document.querySelectorAll('[data-step="edit"]').forEach(b => b.disabled = false);
     bars();
@@ -651,25 +653,29 @@
       };
       fit(); setTimeout(fit, 300); S.fit = fit;
       d.addEventListener('input', e => { onEdit(e.target); fit(); });
-      d.addEventListener('focusout', e => { if (e.target.closest && e.target.closest('[data-lf]')) saveSoon(true); });
+      d.addEventListener('focusout', e => { if (e.target.closest && e.target.closest('[data-lf], [data-af]')) saveSoon(true); });
       d.addEventListener('keydown', e => {
         if (e.key !== 'Enter' || !e.target.closest) return;
         const li = e.target.closest('li[data-f]');
         if (li && !e.shiftKey) { e.preventDefault(); const k = li.dataset.f, items = readList(k); items.splice(+li.dataset.i + 1, 0, 'Type here'); pend[k] = items; flushNow(k, +li.dataset.i + 1); return; }
-        if (e.target.closest('[data-lf], span[data-f]')) { e.preventDefault(); e.target.blur(); }
+        if (e.target.closest('[data-lf], [data-af], span[data-f]')) { e.preventDefault(); e.target.blur(); }
       });
       d.addEventListener('focusin', e => { const el = e.target; if (el.matches && el.matches('li[data-f]') && txt(el) === 'Type here') { const r = d.createRange(); r.selectNodeContents(el); const sel = d.getSelection(); sel.removeAllRanges(); sel.addRange(r); } });
       d.addEventListener('focusout', e => { const li = e.target.closest && e.target.closest('li[data-f]'); if (li && !txt(li)) { pend[li.dataset.f] = readList(li.dataset.f); saveSoon(true); } });
-      if (S.v.editable) d.querySelectorAll('tr[data-li]').forEach(tr => {
+      if (S.v.editable) d.querySelectorAll('tr[data-li], tr[data-ai]').forEach(tr => {
         const td = tr.lastElementChild; if (!td) return;
-        const b = d.createElement('button'); b.type = 'button'; b.textContent = '×'; b.title = 'Remove this line';
+        const alt = tr.dataset.ai != null;
+        const b = d.createElement('button'); b.type = 'button'; b.textContent = '×'; b.title = alt ? 'Remove this alternate' : 'Remove this line';
         b.style.cssText = 'margin-left:6px;border:0;background:none;color:#a0a4ae;cursor:pointer;font-size:14px;padding:0 2px';
-        b.addEventListener('click', () => { const lines = readLines(); lines.splice(+tr.dataset.li, 1); save({}, lines, true); });
+        b.addEventListener('click', () => {
+          if (alt) { const a = readAlts(); a.splice(+tr.dataset.ai, 1); save({ alternates: a }, null, true); return; }
+          const lines = readLines(); lines.splice(+tr.dataset.li, 1); save({}, lines, true);
+        });
         td.appendChild(b);
       });
       if (S.v.editable && ssc()) paraTools(d);
       (flash || []).forEach(k => {
-        const els = k === 'lines' ? d.querySelectorAll('tr[data-li]') : d.querySelectorAll(`[data-f="${k}"]`);
+        const els = k === 'lines' ? d.querySelectorAll('tr[data-li]') : k === 'alternates' ? d.querySelectorAll('tr[data-ai]') : d.querySelectorAll(`[data-f="${k}"]`);
         els.forEach(x => { x.classList.add('ssc-flash'); setTimeout(() => x.classList.remove('ssc-flash'), 1800); });
         if (els[0]) els[0].scrollIntoView({ block: 'center' });
       });
@@ -741,6 +747,15 @@
       return { description: g('description'), qty: n(g('qty')), unit: g('unit'), unit_price: n(g('unit_price')) };
     });
   }
+  // Add Alternates (A1, A2…): the same cells as a price line, kept in the content (never in the base bid)
+  function readAlts() {
+    const d = $('doc').contentDocument;
+    return Array.from(d.querySelectorAll('tr[data-ai]')).map(tr => {
+      const g = k => { const el = tr.querySelector(`[data-af="${k}"]`); return el ? txt(el) : ''; };
+      const n = v => { const x = parseFloat(String(v).replace(/[$,\s]/g, '')); return isNaN(x) ? 0 : x; };
+      return { lead: g('lead'), detail: g('detail'), qty: n(g('qty')), unit: g('unit'), unit_price: n(g('unit_price')) };
+    });
+  }
   // the company layout: lists are bullets, the four top boxes are lines
   function readList(k) { return Array.from($('doc').contentDocument.querySelectorAll(`li[data-f="${k}"]`)).map(txt); }
   async function flushNow(k, focusAt) {
@@ -749,8 +764,9 @@
   }
   let pend = {}, pendLines = false, saveT = null;
   function onEdit(el) {
-    const f = el.closest && el.closest('[data-f]'), lf = el.closest && el.closest('[data-lf]');
+    const f = el.closest && el.closest('[data-f]'), lf = el.closest && el.closest('[data-lf]'), af = el.closest && el.closest('[data-af]');
     if (lf) pendLines = true;
+    else if (af) pend.alternates = readAlts();
     else if (f && ssc()) { const k = f.dataset.f; pend[k] = LISTS.includes(k) ? readList(k) : MULTI.includes(k) ? txt(f).split('\n').map(x => x.trim()).filter(Boolean) : txt(f); }
     else if (f) { const k = f.dataset.f; if (/^x\d+[hb]$/.test(k)) pend.extra_sections = true; else pend[k] = txt(f); }
     $('e-saved').textContent = 'Editing…'; saveSoon(false);
@@ -782,6 +798,7 @@
       }
     } catch (x) { $('e-saved').textContent = 'Not saved'; toast(x.message, true); }
   }
+  $('e-addalt').addEventListener('click', () => { const a = readAlts(); a.push({ lead: 'New alternate', detail: '', qty: 1, unit: 'LS', unit_price: 0 }); save({ alternates: a }, null, true, ['alternates']); });
   $('e-addline').addEventListener('click', () => { const l = readLines(); l.push(ssc() ? { lead: 'New item', detail: '', qty: 1, unit: 'LS', unit_price: 0 } : { description: 'New item', qty: 1, unit: 'ls', unit_price: 0 }); save({}, l, true, ['lines']); });
   document.querySelectorAll('[data-addlist]').forEach(b => b.addEventListener('click', async () => {
     const k = b.dataset.addlist, items = readList(k); items.push('Type here'); await save({ [k]: items }, null, true, [k]);
@@ -884,7 +901,7 @@
   function say(cls, html) { chat.insertAdjacentHTML('beforeend', `<div class="msg ${cls}">${html}</div>`); chat.scrollTop = chat.scrollHeight; return chat.lastElementChild; }
   const LABEL = { heading: 'heading', job_type: 'job type', submitted_to: 'submitted to', project: 'project', reference: 'reference', overview: 'overview',
     notes: 'important notes', deliverables: 'deliverables', mobilization: 'mobilization', duration: 'duration', hours: 'hours', warranty: 'warranty',
-    additional_insureds: 'insured names', accepted_by: 'accepted by', title: 'title', submitted_by: 'submitted by', prepared_for: 'prepared for', project_text: 'building', reference_text: 'reference', intro_text: 'opening', scope_summary: 'scope', schedule_text: 'schedule', exclusions_text: 'exclusions', terms_text: 'terms', deposit_pct: 'deposit', email_message: 'email', extra_sections: 'sections', lines: 'price lines' };
+    additional_insureds: 'insured names', accepted_by: 'accepted by', title: 'title', submitted_by: 'submitted by', prepared_for: 'prepared for', project_text: 'building', reference_text: 'reference', intro_text: 'opening', scope_summary: 'scope', schedule_text: 'schedule', exclusions_text: 'exclusions', terms_text: 'terms', deposit_pct: 'deposit', email_message: 'email', extra_sections: 'sections', lines: 'price lines', alternates: 'alternates' };
   function asking(on) { S.asking = on; $('chat-go').disabled = $('chat-in').disabled = on || !(S.v && S.v.editable); $('chat-go').textContent = on ? 'Working…' : 'Send'; document.querySelectorAll('[data-ask]').forEach(b => b.disabled = on); }
   async function ask(q) {
     if (!S.v || !S.v.editable) { toast('Make a new version first to change a sent proposal', true); return; }
@@ -894,11 +911,14 @@
     say('u', esc(q)); const wait = say('c', 'Working on it…'), t0 = Date.now();
     const tick = setInterval(() => { const n = Math.round((Date.now() - t0) / 1000); if (n >= 6) wait.textContent = `Working on it… ${n}s`; }, 1000);
     try {
-      const r = await api('/proposal-studio/' + S.id + '/revise', { method: 'POST', body: JSON.stringify({ instruction: q }) });
+      const history = (S.chat || []).slice(-12);   // the conversation so far, so "yes, do that" makes sense
+      const r = await api('/proposal-studio/' + S.id + '/revise', { method: 'POST', body: JSON.stringify({ instruction: q, history }) });
       clearInterval(tick); wait.remove(); asking(false);
-      if (!r.changed.length) { say('c', 'Nothing needed to change for that. Try saying it another way.'); return; }
+      const reply = r.reply || (r.changed.length ? 'Changed the ' + r.changed.map(k => LABEL[k] || k).join(', ') + '.' : 'Tell me a bit more about what you\'d like.');
+      S.chat = history.concat({ role: 'user', text: q }, { role: 'assistant', text: reply });
+      if (!r.changed.length) { say('c', esc(reply)); return; }
       draw(r, r.changed);
-      const m = say('c', 'Changed the ' + esc(r.changed.map(k => LABEL[k] || k).join(', ')) + '. <button class="undo" type="button">Undo</button>');
+      const m = say('c', esc(reply) + ' <button class="undo" type="button">Undo</button>');
       m.querySelector('.undo').addEventListener('click', async ev => {
         ev.target.remove(); const b = r.before;
         if (ssc()) { try { draw(await api('/proposal-studio/' + S.id + '/undo', { method: 'POST', body: JSON.stringify({ before: b }) })); say('c', 'Undone.'); } catch (x) { toast(x.message, true); } return; }

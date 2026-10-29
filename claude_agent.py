@@ -939,7 +939,7 @@ def _exec_proposal_edit(ctx, inp):
     if r and r.get("layout") == "ssc":
         import proposal_engine
         out = proposal_engine.revise(ctx.conn, r["id"], str(inp.get("instruction") or ""), ctx.uid)
-        return {"id": r["id"], "summary": f"{proposal_engine.label(r)} changed: " + (", ".join(out["changed"]) or "nothing needed to change"),
+        return {"id": r["id"], "summary": f"{proposal_engine.label(r)}: {out['reply']}",
                 "link": _proposal_link(r), "undo": False}
     fields = {}
     for k, col, _label, _t in _PROP_FIELDS:

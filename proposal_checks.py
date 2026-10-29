@@ -22,6 +22,7 @@ def _texts(doc: dict) -> list:
                      ("notes", "Important notes"), ("deliverables", "Deliverables"), ("exclusions", "Exclusions")):
         out += [(label, x) for x in doc.get(k) or []]
     out += [(f"Line {i}", f"{li.get('lead') or ''} {li.get('detail') or ''}") for i, li in enumerate(doc.get("lines") or [], 1)]
+    out += [(f"Alternate A{i}", f"{li.get('lead') or ''} {li.get('detail') or ''}") for i, li in enumerate(doc.get("alternates") or [], 1)]
     return [(lbl, str(v)) for lbl, v in out if v]
 
 
@@ -41,6 +42,10 @@ def check(doc: dict, house: dict | None = None) -> list:
            or not li.get("unit_price") or float(li.get("unit_price") or 0) <= 0]
     if bad:
         add("block", "Line " + ", ".join(map(str, bad)) + " is missing a description, quantity or rate.")
+    alt_bad = [f"A{i}" for i, li in enumerate(doc.get("alternates") or [], 1)
+               if not (li.get("lead") or li.get("detail")) or float(li.get("qty") or 0) <= 0 or float(li.get("unit_price") or 0) <= 0]
+    if alt_bad:
+        add("block", "Alternate " + ", ".join(alt_bad) + " is missing a description, quantity or rate.")
     units = [i for i, li in enumerate(lines, 1) if str(li.get("unit") or "").upper() not in L.UNITS]
     if units:
         add("block", "Line " + ", ".join(map(str, units)) + " has a unit that isn't one of " + ", ".join(L.UNITS) + ".")
