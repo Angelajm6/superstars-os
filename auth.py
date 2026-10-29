@@ -105,6 +105,16 @@ _PUBLIC_EXACT = {
     "/worker-app-manifest.json",  # PWA shell (#248) — code/config, no data
     "/worker-app-sw.js",          # PWA shell (#248)
     "/favicon.ico",               # brand star for the browser tab — no data
+    # Your own Claude, connected (claude_connector.py, off unless SSC_CLAUDE_CONNECTOR=1): these carry their
+    # OWN credential (a bearer token, a PKCE code, claude.ai's callback only). /oauth/consent/<id> is NOT
+    # public: the person signs in to the app there, like any page.
+    "/mcp",
+    "/oauth/register",
+    "/oauth/authorize",
+    "/oauth/token",
+    "/.well-known/oauth-protected-resource",
+    "/.well-known/oauth-protected-resource/mcp",
+    "/.well-known/oauth-authorization-server",
 }
 
 

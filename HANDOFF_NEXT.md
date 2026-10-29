@@ -21,6 +21,23 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Your own Claude, connected: a claude.ai connector (Bookore, 2026-10-29)
+
+* Accepted prototype: https://claude.ai/artifact/VdvZw7Dr3u4VB9H6kZHSJ3. The leadership team (Max plans) adds the app in
+  claude.ai > Settings > Connectors (custom connector, address `APP_BASE_URL/mcp`); their Claude then reads jobs, job
+  documents (PDF text, scanned pages and photos as pictures, spreadsheets), daily reports, estimates, proposals and clients,
+  and `save_document` files a PDF "Made with Claude" in a job's folder (a new version supersedes, never overwrites; the
+  Word copy downloads from the app). `claude_connector.py`: MCP Streamable HTTP (JSON, stateless) + OAuth 2.1 (DCR,
+  PKCE S256, claude.ai's callback only, tokens hashed, 1 h access, rotating refresh with reuse = revoke, 30-day cap).
+* **Off unless `SSC_CLAUDE_CONNECTOR=1`.** Who may connect: admin / C-suite ticked in Settings > Claude (admins tick);
+  consent needs the app login AND a fresh 6-digit code (two-step sign-in required). Rechecked on every call. Optional
+  IP check: `SSC_CONNECTOR_CIDRS=160.79.104.0/21` + `SSC_CONNECTOR_IP_HEADER=CF-Connecting-IP` (Cloudflare). Note the
+  onrender.com hostname bypasses Cloudflare, so the header could be forged there: the tokens are the real control.
+* No pay: reused claude_agent reads go through `scrub` + `_no_pay` (cost / labor / wage / rate keys dropped). No email,
+  hours, payroll, send, sign or delete tools. Logs + `claude_connector_log` carry who / tool / job / counts only;
+  `/oauth/consent/<id>` is redacted in request logs.
+* Guard: `tests/smoke_claude_connector.py` (in the gate).
+
 ### Client page: emails, proposals, invoices (Bookore, 2026-10-28)
 
 * Accepted prototype: https://claude.ai/artifact/6demNxTPeUYpcadNXtWXNo. Company → Clients → a client now leads with **Emails**
