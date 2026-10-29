@@ -90,7 +90,7 @@
     margin-bottom: 6px;
     margin-top: 14px;
   }
-  input[type="email"], .password-wrap input {
+  input[type="email"], .password-wrap input, #code {
     width: 100%;
     padding: 10px 12px;
     font: inherit;
@@ -102,7 +102,7 @@
     outline: none;
     transition: border-color 0.15s ease;
   }
-  input[type="email"]:focus, .password-wrap input:focus {
+  input[type="email"]:focus, .password-wrap input:focus, #code:focus {
     border-color: var(--ui);
     box-shadow: 0 0 0 3px rgba(36,65,140,0.15);
   }
@@ -118,6 +118,10 @@
   }
   .password-toggle svg { width: 18px; height: 18px; }
   .password-toggle svg[hidden] { display: none; }
+  /* two-step sign-in: the 6-digit code step, shown when the server asks for it (totp_required) */
+  .code-wrap[hidden] { display: none; }
+  #code { letter-spacing: .25em; }
+  .code-help { margin-top: 7px; font-size: 13px; color: #6B7180; }
   .password-help { display: flex; justify-content: flex-end; margin-top: 9px; }
   .forgot {
     width: auto; margin: 0; padding: 0; color: var(--ui); background: transparent;
@@ -229,6 +233,12 @@
     </div>
     <div class="password-help"><button class="forgot" id="forgot-password" type="button">Forgot password?</button></div>
 
+    <div class="code-wrap" id="code-wrap" hidden>
+      <label for="code">6-digit code</label>
+      <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="11" spellcheck="false">
+      <div class="code-help">From your authenticator app. Lost your phone? Enter one of your recovery codes.</div>
+    </div>
+
     <div class="err" id="err" role="alert"></div>
 
     <button type="submit" id="submit-btn">Sign in</button>
@@ -246,6 +256,8 @@
   const pwEl = document.getElementById('password');
   const pwToggle = document.getElementById('toggle-password');
   const forgotPassword = document.getElementById('forgot-password');
+  const codeWrap = document.getElementById('code-wrap');
+  const codeEl = document.getElementById('code');
 
   // Same-origin next= only. Reject absolute URLs, scheme-relative URLs, and
   // anything that doesn't start with "/" to block open-redirect.
@@ -317,7 +329,8 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ email, password })
+        // two-step sign-in: the code rides along once the server has asked for it
+        body: JSON.stringify(codeWrap.hidden ? { email, password } : { email, password, totp: codeEl.value.trim() })
       });
       if (res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -329,8 +342,19 @@
         window.location.href = (next && next !== '/') ? next : roleHome(u.role);
         return;
       }
-      if (res.status === 401) {
+      const j = await res.json().catch(() => ({}));
+      if (res.status === 401 && j && j.totp_required) {
+        // the password was right; the account has two-step sign-in on
+        const asked = !codeWrap.hidden && codeEl.value.trim();
+        codeWrap.hidden = false;
+        if (!asked) err.classList.add('info');
+        showErr(asked ? "That code didn't work. Use the code your app shows now." : 'Enter the 6-digit code from your authenticator app.');
+        codeEl.value = '';
+        codeEl.focus();
+      } else if (res.status === 401) {
         showErr('Email or password is incorrect.');
+      } else if (res.status === 403 && j && j.sso_required) {
+        showErr('This account signs in with Google. Use Sign in with Google above.');
       } else if (res.status === 400) {
         showErr('Please enter your email and password.');
       } else {
