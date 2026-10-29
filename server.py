@@ -256,6 +256,8 @@ import claude_agent  # noqa: E402
 claude_agent.register(app)   # Claude across the platform: lookups run, every change waits for a person's approval
 import claude_docs  # noqa: E402
 claude_docs.register(app)   # documents Claude makes: open beside the chat, edit, PDF / Word, save to a job
+import claude_connector  # noqa: E402
+claude_connector.register(app)   # your own claude.ai, connected (MCP + OAuth; off unless SSC_CLAUDE_CONNECTOR=1)
 import inbox  # noqa: E402
 inbox.register(app)   # admin / C-suite email live in the software: matched, sorted, Claude's cards (approval for every change and send)
 import calendar_import  # noqa: E402

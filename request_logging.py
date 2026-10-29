@@ -21,7 +21,7 @@ import re
 
 from flask import request
 
-_TOKEN_PATH = re.compile(r"^(/(?:api/)?(?:p|i|d))/[^/?#]+")
+_TOKEN_PATH = re.compile(r"^(/(?:api/)?(?:p|i|d)|/oauth/consent)/[^/?#]+")   # /oauth/consent/<id>: claude_connector.py
 _WORKER_FILES = re.compile(r"^(/worker-files)/.*")
 
 

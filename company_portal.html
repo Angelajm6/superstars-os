@@ -65,6 +65,20 @@
   .cp-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
   .cp-card-head h2 { margin: 0; font-size: 15px; font-weight: 700; }
   .cp-card-head .hint { font-size:13px; color: var(--muted); }
+  /* Settings > Claude: connect your own Claude (claude_connector.py) */
+  .cc-card { margin-bottom: 14px; }
+  .cc-p { margin: 0 0 12px; font-size: 14px; }
+  .cc-addr { display: flex; gap: 8px; align-items: center; background: var(--canvas); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin: 6px 0 12px; }
+  .cc-addr code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13.5px; }
+  .cc-steps { margin: 0 0 12px; padding-left: 20px; font-size: 14px; display: grid; gap: 3px; }
+  .cc-note { font-size: 13.5px; border-radius: 10px; padding: 9px 12px; margin: 0 0 12px; background: var(--status-behind-soft, #fdeeea); color: var(--status-behind-deep, #A8382B); }
+  .cc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .cc-row .grow { flex: 1 1 200px; min-width: 0; }
+  .cc-row small { display: block; color: var(--muted); font-size: 12.5px; }
+  .cc-row label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .cc-sub { margin: 16px 0 4px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .cc-danger { color: var(--status-behind-deep, #A8382B); }
+  @media (max-width: 600px) { .cc-row .btn-ghost, .cc-row .btn-primary { min-height: 44px; } }
   .cp-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
   .cp-input, .cp-select { font: inherit; font-size: 13px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); outline: none; min-width: 0; }
   .cp-input:focus, .cp-select:focus { border-color: var(--accent, #4364dc); box-shadow: 0 0 0 3px var(--accent-soft, #ebf0fe); }
@@ -1548,6 +1562,12 @@
 
       <section class="cp-view" id="view-claude" hidden>
         <div class="ssc-subtabs" data-subtabs="settings"></div>
+        <!-- your own Claude, connected (accepted 2026-10-29, https://claude.ai/artifact/VdvZw7Dr3u4VB9H6kZHSJ3; claude_connector.py) -->
+        <div class="cp-card cc-card" id="cc-card" hidden>
+          <div class="cp-card-head"><h2>Connect your Claude</h2><span class="cp-pill" id="cc-state"></span></div>
+          <p class="cp-muted cc-p">Use your own claude.ai with this app's jobs, proposals and documents. Your Claude plan pays for it.</p>
+          <div id="cc-body"></div>
+        </div>
         <div class="cp-kpis" id="ca-kpis"></div>
         <div class="cp-card">
           <div class="cp-card-head"><h2>Every change Claude proposed</h2><span class="hint">who asked, who decided, what happened</span></div>
@@ -4011,7 +4031,70 @@
   const CA_PILL = { pending: 'warn', approved: 'ok', declined: 'bad', expired: '', undone: '', failed: 'bad' };
   const CA_WORD = { pending: 'waiting', approved: 'approved', declined: 'declined', expired: 'expired', undone: 'undone', failed: 'failed' };
   let caRows = [];
+  // ---------- CONNECT YOUR CLAUDE (claude_connector.py): your own claude.ai reads the app and saves documents to jobs ----------
+  let CC = null;
+  async function loadConnector() {
+    try { CC = (await api('/claude-connector', null, true)).data; } catch (e) { $('cc-card').hidden = true; return; }
+    $('cc-card').hidden = false;
+    renderConnector();
+  }
+  function renderConnector() {
+    const d = CC, mine = d.connections[0], st = $('cc-state');
+    st.textContent = !d.enabled ? 'Off' : mine ? 'Connected' : 'Not connected';
+    st.className = 'cp-pill ' + (mine && d.enabled ? 'ok' : '');
+    let h = '';
+    if (!d.enabled) {
+      h += `<p class="cp-muted cc-p">The connector is turned off on this server.${d.is_admin ? ' It turns on with the SSC_CLAUDE_CONNECTOR setting.' : ''}</p>`;
+    } else if (!d.allowed) {
+      h += `<p class="cp-muted cc-p">An admin turns this on for you here, in Settings, Claude.</p>`;
+    } else {
+      if (!d.two_step) h += `<p class="cc-note">Turn on two-step sign-in first (<a class="cp-link" href="/account">Settings, Account</a>). Connecting asks for your 6-digit code.</p>`;
+      h += `<div style="font-size:13.5px;font-weight:600">Connector address</div>
+        <div class="cc-addr"><code id="cc-url">${esc(d.url)}</code><button type="button" class="btn-ghost btn-sm" id="cc-copy">Copy</button></div>
+        <ol class="cc-steps"><li>In claude.ai, open <b>Settings → Connectors</b>.</li><li>Choose <b>Add custom connector</b>, name it Superstars OS and paste the address.</li>
+        <li>Press <b>Connect</b>, sign in here and enter your 6-digit code.</li></ol>`;
+      if (mine) h += `<div class="cc-row"><div class="grow"><b>Your Claude is connected</b><small>Since ${fmtWhen(mine.since)} · last used ${fmtWhen(mine.last_used)} · ends ${fmtWhen(mine.ends)}</small></div>
+        <button type="button" class="btn-ghost btn-sm cc-danger" data-cc="disconnect" data-id="">Disconnect</button></div>`;
+      h += `<p class="cp-muted" style="font-size:13px;margin:10px 0 0">Claude can read jobs, documents, daily reports, estimates, proposals and clients, and save new documents to a job (claude.ai asks you first). It never sees pay, hours, costs, worker personal details or client phone numbers and emails, and can't send, sign, delete or change prices.</p>`;
+    }
+    if (d.is_admin && d.people) {
+      h += `<div class="cc-sub">Who can connect</div>` + d.people.map(p => `<div class="cc-row"><div class="grow"><b>${esc(p.name)}</b><small>${esc(p.role)} · ${p.connected ? 'connected' : 'not connected'}${p.two_step ? '' : ' · no two-step sign-in yet'}</small></div>
+        <label><input type="checkbox" data-cc-allow="${p.id}"${p.allowed ? ' checked' : ''}> Can connect</label>
+        ${p.connected ? `<button type="button" class="btn-ghost btn-sm cc-danger" data-cc="disconnect" data-id="${p.id}">Disconnect</button>` : ''}</div>`).join('');
+      if (d.people.some(p => p.connected)) h += `<div class="cc-row"><div class="grow"><small>Cut every connection at once. People connect again from claude.ai.</small></div><button type="button" class="btn-ghost btn-sm cc-danger" data-cc="all">Disconnect everyone</button></div>`;
+    }
+    if (d.activity.length) {
+      h += `<div class="cc-sub">${d.is_admin ? 'What connected Claudes did' : 'What your Claude did'}</div>` + d.activity.slice(0, 25).map(a =>
+        `<div class="cc-row"><div class="grow">${esc(a.what)}${a.job ? ' · ' + esc(a.job) : ''}<small>${fmtWhen(a.at)}${d.is_admin ? ' · ' + esc(a.who) : ''}</small></div></div>`).join('');
+    }
+    $('cc-body').innerHTML = h;
+  }
+  $('cc-card').addEventListener('click', async e => {
+    if (e.target.id === 'cc-copy') {
+      const t = $('cc-url').textContent;
+      try { await navigator.clipboard.writeText(t); toast('Copied'); } catch (x) { const r = document.createRange(); r.selectNodeContents($('cc-url')); getSelection().removeAllRanges(); getSelection().addRange(r); }
+      return;
+    }
+    const b = e.target.closest('[data-cc]'); if (!b) return;
+    if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = 'Sure? Press again'; return; }
+    try {
+      if (b.dataset.cc === 'all') await api('/claude-connector/disconnect-all', { method: 'POST', body: '{}' }, true);
+      else await api('/claude-connector/disconnect', { method: 'POST', body: JSON.stringify(b.dataset.id ? { user_id: +b.dataset.id } : {}) }, true);
+      toast('Disconnected');
+      await loadConnector();
+    } catch (x) { toast(x.message, true); }
+  });
+  $('cc-card').addEventListener('change', async e => {
+    const c = e.target.closest('[data-cc-allow]'); if (!c) return;
+    try {
+      await api('/claude-connector/allow', { method: 'POST', body: JSON.stringify({ user_id: +c.dataset.ccAllow, allowed: c.checked }) }, true);
+      toast(c.checked ? 'They can connect their Claude' : 'Turned off and disconnected');
+      await loadConnector();
+    } catch (x) { c.checked = !c.checked; toast(x.message, true); }
+  });
+
   async function loadClaudeLog() {
+    loadConnector();
     skeleton($('ca-kpis'), 4);
     try { caRows = (await api('/claude/actions?scope=all', null, true)).data || []; } catch (e) { toast(e.message, true); caRows = []; }
     const since = todayLocal(-30);   // LOCAL date (CLAUDE.md dates rule)
