@@ -188,6 +188,7 @@ BOOT_ENSURED = {
     "apply_buildings_304.py": ("building",),
     "apply_proposals_307.py": ("proposal",),
     "apply_company_templates.py": ("company_template",),
+    "apply_client_profile.py": ("crm_organization.client_kind", "crm_contact.roles"),
 }
 
 

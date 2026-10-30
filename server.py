@@ -7748,6 +7748,9 @@ try:   # the client's email / phone / website / address columns; apply_crm_org_d
     _cod_conn = db()
     try:
         crm.ensure_org_details(_cod_conn)
+        crm.ensure_client_profile(_cod_conn)   # 2026-10-28 clients revamp; apply_client_profile.py is the migration
+        if migrations._table_exists(_cod_conn, 'schema_migrations'):   # record it now, not on the next boot
+            migrations.reconcile_boot_ensured(_cod_conn, [n for n in migrations.pending(_cod_conn) if n == 'apply_client_profile.py'])
     finally:
         _cod_conn.close()
 except Exception as _cod_e:   # never blocks boot
@@ -7828,7 +7831,7 @@ def api_crm_org_update(org_id):
         conn = db()
         ok = crm.update_org(conn, org_id, actor_user_id=_crm_uid(),
                             **_crm_pick(d, ('name', 'relationship_type', 'status', 'stage', 'notes', 'function_tags',
-                                            *crm.ORG_DETAIL_FIELDS)))
+                                            *crm.ORG_DETAIL_FIELDS, *crm.CLIENT_PROFILE_FIELDS)))
         if not ok:
             conn.close()
             return jsonify({"error": "not found"}), 404
@@ -7885,7 +7888,8 @@ def api_crm_contact_create():
         cid = crm.create_contact(
             conn, full_name=d.get('full_name'), org_id=d.get('org_id'), email=d.get('email'),
             phone=d.get('phone'), title=d.get('title'), relationship_type=d.get('relationship_type'),
-            status=d.get('status') or 'active', notes=d.get('notes'), created_by=_crm_uid())
+            status=d.get('status') or 'active', notes=d.get('notes'), created_by=_crm_uid(),
+            roles=d.get('roles'), is_primary=bool(d.get('is_primary')))
         contact = crm.get_contact(conn, cid)
         conn.close()
         return response_wrapper({"id": cid, "contact": contact})
@@ -7924,7 +7928,7 @@ def api_crm_contact_update(contact_id):
         conn = db()
         ok = crm.update_contact(conn, contact_id,
                                 **_crm_pick(d, ('org_id', 'full_name', 'email', 'phone', 'title',
-                                                'relationship_type', 'status', 'notes')))
+                                                'relationship_type', 'status', 'notes', 'roles', 'is_primary')))
         if not ok:
             conn.close()
             return jsonify({"error": "not found"}), 404
