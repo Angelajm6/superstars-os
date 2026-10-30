@@ -428,6 +428,35 @@ def request_reset():
     return _generic()
 
 
+def check_reset():
+    """Public. {token} -> the account email for a live, eligible token (never burns it).
+
+    The reset page puts this email in a hidden username field so the browser's
+    password manager knows WHICH saved login the new password replaces. Without it
+    Chrome keeps the old password and autofills it on /login right after a reset,
+    which then fails as "incorrect". Only the holder of the emailed token learns
+    the address, and it is the inbox the token was mailed to."""
+    payload = request.get_json(silent=True) or {}
+    token = str(payload.get("token") or "")
+    if not token:
+        return jsonify({"error": INVALID_TOKEN_MESSAGE, "code": "invalid_token"}), 400
+    conn = auth._db()
+    try:
+        row = conn.execute(
+            "SELECT u.email, u.is_active, u.status, u.force_sso "
+            "FROM password_reset_token t JOIN users u ON u.id = t.user_id "
+            "WHERE t.token_hash = ? AND t.used_at IS NULL AND t.expires_at > ?",
+            (_hash(token), auth._now_iso()),
+        ).fetchone()
+    finally:
+        conn.close()
+    account = row and {"is_active": row["is_active"], "status": row["status"],
+                       "force_sso": row["force_sso"]}
+    if not row or not _eligible(account):
+        return jsonify({"error": INVALID_TOKEN_MESSAGE, "code": "invalid_token"}), 400
+    return jsonify({"email": row["email"]})
+
+
 def confirm_reset():
     payload = request.get_json(silent=True) or {}
     token = str(payload.get("token") or "")
@@ -492,5 +521,7 @@ def register(app) -> None:
                      config_endpoint, methods=["GET"])
     app.add_url_rule("/api/auth/password-reset/request", "password_reset_request",
                      request_reset, methods=["POST"])
+    app.add_url_rule("/api/auth/password-reset/check", "password_reset_check",
+                     check_reset, methods=["POST"])
     app.add_url_rule("/api/auth/password-reset/confirm", "password_reset_confirm",
                      confirm_reset, methods=["POST"])

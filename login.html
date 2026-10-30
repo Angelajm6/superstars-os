@@ -90,7 +90,9 @@
     margin-bottom: 6px;
     margin-top: 14px;
   }
-  input[type="email"], .password-wrap input {
+  #totp-section[hidden] { display: none; }
+  .totp-help { font-size: 12px; color: var(--mute); margin-top: 6px; }
+  input[type="email"], .password-wrap input, #totp {
     width: 100%;
     padding: 10px 12px;
     font: inherit;
@@ -102,7 +104,7 @@
     outline: none;
     transition: border-color 0.15s ease;
   }
-  input[type="email"]:focus, .password-wrap input:focus {
+  input[type="email"]:focus, .password-wrap input:focus, #totp:focus {
     border-color: var(--ui);
     box-shadow: 0 0 0 3px rgba(36,65,140,0.15);
   }
@@ -229,6 +231,14 @@
     </div>
     <div class="password-help"><button class="forgot" id="forgot-password" type="button">Forgot password?</button></div>
 
+    <!-- Second step for accounts with an authenticator app; shown only after the
+         server answers totp_required to a correct password. -->
+    <div id="totp-section" hidden>
+      <label for="totp">Authenticator code</label>
+      <input id="totp" name="totp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="20">
+      <div class="totp-help">The 6-digit code from your authenticator app, or a recovery code.</div>
+    </div>
+
     <div class="err" id="err" role="alert"></div>
 
     <button type="submit" id="submit-btn">Sign in</button>
@@ -246,6 +256,9 @@
   const pwEl = document.getElementById('password');
   const pwToggle = document.getElementById('toggle-password');
   const forgotPassword = document.getElementById('forgot-password');
+  const totpSection = document.getElementById('totp-section');
+  const totpEl = document.getElementById('totp');
+  let fails = 0;
 
   // Same-origin next= only. Reject absolute URLs, scheme-relative URLs, and
   // anything that doesn't start with "/" to block open-redirect.
@@ -306,18 +319,26 @@
     clearErr();
     const email = emailEl.value.trim();
     const password = pwEl.value;
+    const totp = totpSection.hidden ? '' : totpEl.value.trim();
     if (!email || !password) {
       showErr('Email and password are required.');
+      return;
+    }
+    if (!totpSection.hidden && !totp) {
+      showErr('Enter the code from your authenticator app.');
+      totpEl.focus();
       return;
     }
     btn.disabled = true;
     btn.textContent = 'Signing in…';
     try {
+      const body = { email, password };
+      if (totp) body.totp = totp;
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify(body)
       });
       if (res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -329,8 +350,25 @@
         window.location.href = (next && next !== '/') ? next : roleHome(u.role);
         return;
       }
-      if (res.status === 401) {
-        showErr('Email or password is incorrect.');
+      const j = await res.json().catch(() => ({}));
+      if (res.status === 401 && j && j.totp_required) {
+        // The password was right; the account also needs its authenticator code.
+        const badCode = !totpSection.hidden && !!totp;
+        totpSection.hidden = false;
+        err.classList.toggle('info', !badCode);
+        showErr(badCode ? 'That code didn’t work. Try the current code.'
+                        : 'Password accepted. Enter the code from your authenticator app.');
+        totpEl.value = '';
+        totpEl.focus();
+      } else if (res.status === 401) {
+        fails += 1;
+        // The server refuses even a correct password during the 15-minute pause after
+        // repeated failures, and (by design) says so in the same words — say it here.
+        showErr(fails >= 3
+          ? 'Email or password is incorrect. After 5 failed tries, sign-in pauses for 15 minutes — even the right password won’t work until then.'
+          : 'Email or password is incorrect.');
+      } else if (res.status === 403 && j && j.sso_required) {
+        showErr('This account signs in with Google. Use the Sign in with Google button.');
       } else if (res.status === 400) {
         showErr('Please enter your email and password.');
       } else {
@@ -361,7 +399,19 @@
   (function showResetDone() {
     if (new URLSearchParams(window.location.search).get('reset') !== '1') return;
     err.classList.add('info');
-    showErr('Your password has been updated. Sign in with your new password.');
+    showErr('Your password has been updated. Type your new password to sign in.');
+    // The browser may still hold the OLD password for this site and autofill it,
+    // which then fails as "incorrect". Prefill the email the reset page handed
+    // over (sessionStorage, never the URL) and keep the password box empty.
+    let resetEmail = '';
+    try { resetEmail = sessionStorage.getItem('ssc_reset_email') || ''; sessionStorage.removeItem('ssc_reset_email'); } catch (e) {}
+    if (resetEmail) emailEl.value = resetEmail;
+    let typed = false;
+    pwEl.addEventListener('keydown', () => { typed = true; }, { once: true });
+    const clearAutofill = () => { if (!typed) pwEl.value = ''; };
+    clearAutofill();
+    window.addEventListener('load', () => { clearAutofill(); setTimeout(clearAutofill, 400); });
+    if (resetEmail) pwEl.focus();
   })();
   // Reveal the Google button ONLY when SSO is enabled server-side (creds present).
   // If the config call fails, SSO stays hidden and email/password is unaffected.

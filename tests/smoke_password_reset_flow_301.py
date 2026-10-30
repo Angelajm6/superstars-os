@@ -215,6 +215,14 @@ def main() -> int:
         assert r.status_code == 400 and r.get_json()["code"] == "invalid_token", "replaced token must die"
         token = _token_from_mail(_mail_files()[-1])
 
+        # ---- check: names the account for the password manager, never burns ----
+        r = post("/api/auth/password-reset/check", {"token": token}, "10.99.0.8")
+        assert r.status_code == 200 and r.get_json() == {"email": active_email}, r.get_json()
+        assert _tokens(uid)[0]["used_at"] is None, "check must not consume the token"
+        for bad in ("", "nope", token[:-1]):
+            r = post("/api/auth/password-reset/check", {"token": bad}, "10.99.0.8")
+            assert r.status_code == 400 and r.get_json()["code"] == "invalid_token", bad
+
         # ---- weak password: rejected, token untouched ----
         r = post("/api/auth/password-reset/confirm", {"token": token, "new_password": "short1"}, "10.99.0.8")
         assert r.status_code == 400 and r.get_json()["code"] == "weak_password"
@@ -247,6 +255,8 @@ def main() -> int:
         # ---- replay is refused ----
         r = post("/api/auth/password-reset/confirm", {"token": token, "new_password": NEW_PW + "1"}, "10.99.0.9")
         assert r.status_code == 400 and r.get_json()["code"] == "invalid_token"
+        r = post("/api/auth/password-reset/check", {"token": token}, "10.99.0.9")
+        assert r.status_code == 400, "a used token must not reveal the account email"
         assert auth.verify_password(NEW_PW, auth.get_user_by_email(active_email)["password_hash"])
 
         # ---- expired token is refused ----
