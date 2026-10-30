@@ -570,6 +570,27 @@
   .cp-modal-body .qb-check { background: #F7F8FA; font-weight: 400; font-size: 13px; }
   .qb-match select { width: 100%; min-width: 180px; }
   .qb-match td { vertical-align: middle; }
+  .qb-banner { grid-column: 1 / -1; background: var(--accent-soft); border-radius: 10px; padding: 11px 14px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 13.5px; }
+  .qb-banner .grow { flex: 1; min-width: 220px; } .qb-banner strong { color: var(--accent-ink); }
+  .qb-strip { background: #fff; border: 1px solid var(--line); border-left: 4px solid #d98a1c; border-radius: 14px; padding: 12px 14px; margin-bottom: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .qb-strip .grow { flex: 1; min-width: 220px; } .qb-strip .eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 700; }
+  .qb-strip strong { display: block; margin-top: 2px; } .qb-strip span { color: var(--muted); font-size: 13px; }
+  .qb-aging { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .qb-age { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fff; cursor: pointer; text-align: left; font: inherit; color: var(--ink); }
+  .qb-age:hover { border-color: var(--accent-edge); } .qb-age.on { border-color: var(--accent); background: var(--accent-soft); }
+  .qb-age .l { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 700; }
+  .qb-age .v { font-size: 19px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; } .qb-age.late .v { color: var(--status-behind, #e9685a); }
+  .qb-age .s { color: var(--muted); font-size: 12.5px; }
+  .qb-age .bar { height: 6px; border-radius: 3px; background: var(--line); margin-top: 8px; overflow: hidden; } .qb-age .bar i { display: block; height: 100%; background: var(--accent); }
+  .qb-age.late .bar i { background: var(--status-behind, #e9685a); }
+  .qb-src { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: #eaf6e7; color: #1d6e12; white-space: nowrap; }
+  .qb-next { font-size: 13px; } .qb-next strong { display: block; font-size: 13px; font-weight: 600; }
+  .qb-rv { display: grid; gap: 10px; } .qb-rv .c { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 8px; }
+  .qb-rv .acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; } .qb-rv .acts select { max-width: 100%; }
+  .qb-sum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .qb-sum div { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; } .qb-sum strong { display: block; font-size: 17px; font-variant-numeric: tabular-nums; }
+  .qb-sum span { color: var(--muted); font-size: 12.5px; }
+  @media (max-width: 760px) { .qb-aging { grid-template-columns: repeat(2, minmax(0, 1fr)); } .qb-sum { grid-template-columns: 1fr; } }
   @media (max-width: 640px) { .qb-card { grid-template-columns: auto minmax(0, 1fr); } .qb-actions { grid-column: 1 / -1; justify-content: flex-start; } }
 
   /* ---- modal ---- */
@@ -1386,6 +1407,7 @@
 
       <section class="cp-view" id="view-finance" hidden>
         <div class="ssc-subtabs" data-subtabs="finance"></div>
+        <div class="qb-strip" id="qb-review-strip" hidden></div>
         <div class="cp-card qb-card" id="qb-card" aria-live="polite" hidden></div>
         <div class="cp-kpis" id="fin-kpis"></div>
         <!-- #319 — accounts payable + the 30-day cash view -->
@@ -1429,6 +1451,7 @@
         <div class="cp-card" id="fin-inv-card">
           <div class="cp-card-head"><h2>Receivables — invoices</h2><span class="hint">what needs to get paid · deposits draft themselves when a proposal is signed</span></div>
           <div class="cp-kpis" id="inv-kpis" style="margin-bottom:12px"></div>
+          <div class="qb-aging" id="inv-aging" hidden></div>
           <div class="cp-toolbar">
             <input class="cp-input search" id="inv-search" placeholder="Search number, client, project or description…" autocomplete="off">
             <select class="cp-select" id="inv-status"><option value="">All statuses</option><option value="issued">Open (issued)</option><option value="overdue">Overdue</option><option value="draft">Draft</option><option value="paid">Paid</option><option value="void">Void</option></select>
@@ -1840,6 +1863,33 @@
       <div class="cp-form-err" id="inv-pay-err" role="alert"></div>
     </div>
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="inv-pay-cancel">Cancel</button><button class="btn-primary" type="submit" id="inv-pay-go">Record payment</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="qb-import-overlay" role="dialog" aria-modal="true" aria-labelledby="qb-import-title">
+  <form class="cp-modal" id="qb-import-form" novalidate>
+    <div class="cp-modal-head"><h2 id="qb-import-title">Bring in from QuickBooks</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Open invoices join Receivables and unpaid bills join Bills, next to what is made here. From then on they stay in step with QuickBooks. Only admins see them.</p></div>
+    <div class="cp-modal-body"><div class="full" id="qb-import-body"></div><div class="cp-form-err" id="qb-import-err" role="alert"></div></div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="qb-import-cancel">Not now</button><button class="btn-primary" type="submit" id="qb-import-go">Bring them in</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="qb-review-overlay" role="dialog" aria-modal="true" aria-labelledby="qb-review-title">
+  <div class="cp-modal vf">
+    <div class="cp-modal-head"><h2 id="qb-review-title">New clients from QuickBooks</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">These QuickBooks customers had no client here, so they were created when their invoices came in. Approve each one, edit it, or merge it into a client you already have.</p></div>
+    <div class="cp-modal-body"><div class="full qb-rv" id="qb-review-body"></div><div class="cp-note full">Merging moves the invoices to the client you pick and links that client to the QuickBooks customer, so it never comes back as new.</div></div>
+    <div class="cp-modal-foot"><button class="btn-primary" type="button" id="qb-review-done">Done</button></div>
+  </div>
+</div>
+<div class="cp-overlay" id="qb-fu-overlay" role="dialog" aria-modal="true" aria-labelledby="qb-fu-title">
+  <form class="cp-modal" id="qb-fu-form" novalidate>
+    <div class="cp-modal-head"><h2 id="qb-fu-title">Add a follow-up</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="qb-fu-sub"></p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><label for="qb-fu-what">What</label><input id="qb-fu-what" maxlength="200" autocomplete="off"></div>
+      <div class="cp-field"><label for="qb-fu-who">Who</label><select id="qb-fu-who"></select></div>
+      <div class="cp-field"><label for="qb-fu-when">When</label><input id="qb-fu-when" type="date"></div>
+      <div class="cp-note full">It lands on that person's to-do list and calendar, and shows as the invoice's next step.</div>
+      <div class="cp-form-err" id="qb-fu-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="qb-fu-cancel">Cancel</button><button class="btn-primary" type="submit" id="qb-fu-go">Add follow-up</button></div>
   </form>
 </div>
 <div class="cp-overlay" id="qb-match-overlay" role="dialog" aria-modal="true" aria-labelledby="qb-match-title">
@@ -5197,13 +5247,13 @@
       kpi('Net, next 30 days', `${c.net < 0 ? '−' : '+'}${money2.format(Math.abs(c.net))}`, 'in minus out', c.net < 0 ? 'warn' : 'good');
     $('pb-count').textContent = `${d.items.length} shown`;
     table($('pb-table'), [
-      { key: 'vendor', label: 'Vendor', render: r => `<span class="cp-id">${esc(r.vendor)}</span><div class="cp-muted" style="font-size:13px">${esc(r.doc_number || '')}${r.source !== 'bill' ? (r.doc_number ? ' · ' : '') + esc(r.source) : ''}</div>` },
+      { key: 'vendor', label: 'Vendor', render: r => `<span class="cp-id">${esc(r.vendor)}</span><div class="cp-muted" style="font-size:13px">${esc(r.doc_number || '')}${r.source === 'quickbooks' ? (r.doc_number ? ' · ' : '') + '<span class="qb-src">From QuickBooks</span>' : (r.source !== 'bill' ? (r.doc_number ? ' · ' : '') + esc(r.source) : '')}</div>` },
       { key: 'description', label: 'What for', render: r => `${esc(r.description || '—')}<div class="cp-muted" style="font-size:13px">${esc(r.project_code || 'overhead')}${r.category ? ' · ' + esc(r.category) : ''}</div>` },
       { key: 'amount', label: 'Amount', num: true, render: r => money2.format(r.amount) },
       { key: 'balance', label: 'Owed', num: true, render: r => r.status === 'open' ? `<strong>${money2.format(r.balance)}</strong>` : '—' },
       { key: 'due_at', label: 'Due', render: r => r.status === 'paid' ? `<span class="cp-muted">paid ${fmtDate(r.paid_at)}</span>` : fmtDate(r.due_at) },
       { key: 'status', label: 'Status', render: r => pbPill(r) },
-      { key: 'id', label: '', render: r => r.status === 'open' ? `<span style="white-space:nowrap"><button class="btn-primary btn-sm" type="button" data-pb-pay="${r.id}">Pay…</button> <button class="btn-ghost btn-sm" type="button" data-pb-void="${r.id}">Void</button></span>` : '' },
+      { key: 'id', label: '', render: r => r.source === 'quickbooks' ? (r.status === 'open' && QB.st && QB.st.open_bill_url ? `<a class="btn-ghost btn-sm" href="${esc(QB.st.open_bill_url + encodeURIComponent(r.qb_bill_id || ''))}" target="_blank" rel="noopener" style="text-decoration:none;white-space:nowrap">Pay in QuickBooks ↗</a>` : '') : r.status === 'open' ? `<span style="white-space:nowrap"><button class="btn-primary btn-sm" type="button" data-pb-pay="${r.id}">Pay…</button> <button class="btn-ghost btn-sm" type="button" data-pb-void="${r.id}">Void</button></span>` : '' },
     ], d.items, { defaultSort: { key: 'due_at', dir: 'asc' }, emptyTitle: 'No bills here', emptySub: 'Add one, log a receipt bought on account, or a subscription renewal.' });
     $('pb-table').querySelectorAll('[data-pb-pay]').forEach(b => b.addEventListener('click', () => openPbPay(d.items.find(x => String(x.id) === b.dataset.pbPay))));
     $('pb-table').querySelectorAll('[data-pb-void]').forEach(b => b.addEventListener('click', async () => {
@@ -5845,17 +5895,18 @@
       kpi('Drafts', money.format(sum.draft_value), `${sum.draft_count} not issued yet`) +
       kpi('Collected YTD', money.format(sum.collected_ytd_value), `${sum.collected_ytd_count} payment(s)`, 'good');
     const st = $('inv-status').value, kd = $('inv-kind').value, q = $('inv-search').value.trim().toLowerCase();
-    const data = rows.filter(r => (st === 'overdue' ? r.overdue : (!st || r.status === st)) && (!kd || r.kind === kd) &&
+    renderAging(rows);
+    const data = rows.filter(r => (st === 'overdue' ? r.overdue : (!st || r.status === st)) && (!kd || r.kind === kd) && qbAgeOk(r) &&
       (!q || [r.number, r.client_name, r.project_code, r.description, r.building_address].some(v => String(v || '').toLowerCase().includes(q))));
     table($('inv-table'), [
-      { key: 'number', label: 'Invoice', render: r => `<span class="cp-id">${esc(r.number)}</span><div class="cp-muted" style="font-size:13px">${invKind(r.kind)}${r.proposal_number ? ' · ' + esc(r.proposal_number) : ''}</div>` },
+      { key: 'number', label: 'Invoice', render: r => `<span class="cp-id">${esc(r.number)}</span><div class="cp-muted" style="font-size:13px">${r.source === 'quickbooks' ? '<span class="qb-src">From QuickBooks</span>' : invKind(r.kind) + (r.proposal_number ? ' · ' + esc(r.proposal_number) : '')}</div>` },
       { key: 'client_name', label: 'Client', render: r => `${esc(r.client_name || '')}<div class="cp-muted" style="font-size:13px">${esc(r.project_code || r.building_address || '')}</div>` },
       { key: 'description', label: 'Description', render: r => esc(r.description || '—') },
       { key: 'amount', label: 'Amount', num: true, render: r => money2.format(r.amount) },
       { key: 'balance', label: 'Open', num: true, render: r => r.status === 'issued' ? `<strong>${money2.format(r.balance)}</strong>` : '—' },
       { key: 'due_at', label: 'Due', render: r => r.status === 'draft' ? '<span class="cp-muted">draft</span>' : fmtDate(r.due_at) },
       { key: 'status', label: 'Status', render: r => invPill(r) + (r.sent_at ? `<div class="cp-muted" style="font-size:13px">${r.viewed_at ? 'opened' : 'sent'} ${fmtDate(r.viewed_at || r.sent_at)}</div>` : '') },
-    ].concat(qbShown() ? [{ key: 'qb_status', label: 'QuickBooks', render: r => qbCell(r) }] : []), data, { defaultSort: { key: 'due_at', dir: 'asc' }, emptyTitle: rows.length ? 'No invoices match' : 'No invoices yet', emptySub: rows.length ? '' : 'Sign a proposal with deposit terms, or create one here.', onRow: r => openInvoice(r.id) });
+    ].concat(qbShown() ? [{ key: 'qb_status', label: 'QuickBooks', render: r => qbCell(r) }, { key: 'followup_due', label: 'Next step', render: r => qbNext(r) }] : []), data, { defaultSort: { key: 'due_at', dir: 'asc' }, emptyTitle: rows.length ? 'No invoices match' : 'No invoices yet', emptySub: rows.length ? '' : 'Sign a proposal with deposit terms, or create one here.', onRow: r => openInvoice(r.id) });
   }
   async function reloadInvoices() {
     try { const { data, meta } = await api('/invoices', null, true); state.cache.invoices = data; renderInvoices(meta.summary); }
@@ -5878,33 +5929,40 @@
           ${f('Due', r.due_at ? fmtDate(r.due_at) + (r.overdue ? ` <span class="cp-pill bad">${r.days_overdue} days late</span>` : (r.days_to_due != null ? ` <span class="cp-muted">in ${r.days_to_due} days</span>` : '')) : '')}
           ${f('Paid so far', money2.format(r.amount_paid) + (r.status === 'issued' ? ` <span class="cp-muted">· ${money2.format(r.balance)} open</span>` : ''))}
           ${f('QuickBooks', qbLine(r))}
+          ${f('Follow-up', r.followup_title && QB.st ? `${esc(r.followup_who ? r.followup_who + ': ' : '')}${esc(r.followup_title)}${r.followup_due ? ' · by ' + fmtDate(r.followup_due) : ''}${r.followup_status === 'done' ? ' <span class="cp-pill ok">done</span>' : ''}` : '')}
           ${f('Notes', esc(r.notes || '').replace(/\n/g, '<br>'))}
         </ul>
         ${r.payments.length ? `<div class="cp-card-head" style="margin-top:14px"><h2>Payments</h2></div><div class="cp-table-wrap"><table class="cp-table"><thead><tr><th>Received</th><th>Method</th><th>Reference</th><th class="num">Amount</th></tr></thead><tbody>${r.payments.map(p => `<tr><td>${fmtDate(p.paid_on)}</td><td>${esc(p.method || '—')}</td><td>${esc(p.reference || '—')}</td><td class="num">${money2.format(p.amount)}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
-      if (QB.st && r.qb_status === 'error' && r.qb_error) body.insertAdjacentHTML('beforeend', `<div class="cp-form-err show" style="margin-top:12px">QuickBooks refused this invoice: ${esc(r.qb_error)}</div>`);
+      const qbOwned = r.source === 'quickbooks';
+      if (qbOwned) body.insertAdjacentHTML('beforeend', '<div class="cp-note" style="margin-top:12px">This invoice lives in QuickBooks. Its lines, amount and due date are changed there and come back here within 15 minutes. A payment you record here goes to QuickBooks.</div>');
+      else if (QB.st && r.qb_status === 'error' && r.qb_error) body.insertAdjacentHTML('beforeend', `<div class="cp-form-err show" style="margin-top:12px">QuickBooks refused this invoice: ${esc(r.qb_error)}</div>`);
       else if (r.status === 'issued' && QB.st && QB.st.connected) body.insertAdjacentHTML('beforeend', '<div class="cp-note" style="margin-top:12px">Payments recorded in QuickBooks land here automatically. A payment you record here is sent to QuickBooks too, so both sides match.</div>');
       const btn = (id, cls, label) => `<button class="${cls}" type="button" id="${id}">${label}</button>`;
       const qbOn = QB.st && QB.st.connected;
       foot.innerHTML = btn('inv-close', 'btn-ghost', 'Close') +
         (r.qb_invoice_id && QB.st && QB.st.open_url && r.qb_realm_id ? `<a class="btn-ghost" href="${esc(QB.st.open_url + encodeURIComponent(r.qb_invoice_id))}" target="_blank" rel="noopener" style="text-decoration:none">Open in QuickBooks ↗</a>` : '') +
         (qbOn && ['issued', 'paid'].includes(r.status) && !r.qb_invoice_id && r.qb_status !== 'pending' ? btn('inv-qb-push', 'btn-ghost', r.qb_status === 'error' ? 'Try QuickBooks again' : 'Send to QuickBooks') : '') +
-        `<a class="btn-ghost" href="/api/invoices/${r.id}/preview" target="_blank" rel="noopener" style="text-decoration:none">Preview</a>` +
-        (r.status !== 'draft' ? `<a class="btn-ghost" href="/api/invoices/${r.id}/pdf" target="_blank" rel="noopener" style="text-decoration:none">PDF</a>` : '') +
+        (qbOwned ? '' : `<a class="btn-ghost" href="/api/invoices/${r.id}/preview" target="_blank" rel="noopener" style="text-decoration:none">Preview</a>`) +
+        (r.status !== 'draft' && !qbOwned ? `<a class="btn-ghost" href="/api/invoices/${r.id}/pdf" target="_blank" rel="noopener" style="text-decoration:none">PDF</a>` : '') +
         '<span style="flex:1"></span>' +
         (r.status === 'draft' ? btn('inv-del', 'btn-ghost', 'Delete draft') + btn('inv-issue', 'btn-primary', 'Issue invoice') : '') +
-        (r.status === 'issued' ? btn('inv-void', 'btn-ghost', 'Void') + btn('inv-send', 'btn-ghost', r.sent_at ? 'Resend…' : 'Email to client…') + btn('inv-pay', 'btn-primary', 'Record payment…') : '') +
-        (r.status === 'paid' ? btn('inv-send', 'btn-ghost', 'Email receipt…') : '');
+        (r.status === 'issued' && QB.st ? btn('inv-fu', 'btn-ghost', 'Add follow-up…') : '') +
+        (r.status === 'issued' && qbOwned ? btn('inv-send', 'btn-ghost', 'Send reminder…') + btn('inv-pay', 'btn-primary', 'Record payment…') : '') +
+        (r.status === 'issued' && !qbOwned ? btn('inv-void', 'btn-ghost', 'Void') + btn('inv-send', 'btn-ghost', r.sent_at ? 'Resend…' : 'Email to client…') + btn('inv-pay', 'btn-primary', 'Record payment…') : '') +
+        (r.status === 'paid' && !qbOwned ? btn('inv-send', 'btn-ghost', 'Email receipt…') : '');
       if (r.sent_at) body.insertAdjacentHTML('beforeend', `<div class="cp-note" style="margin-top:12px">Emailed to ${esc(r.sent_name ? r.sent_name + ' · ' : '')}${esc(r.sent_to || '')} on ${fmtWhen(r.sent_at)}${r.sent_count > 1 ? ' (' + r.sent_count + ' sends)' : ''}${r.viewed_at ? ' · opened ' + fmtWhen(r.viewed_at) : ' · not opened yet'}</div>`);
       if ($('inv-send')) $('inv-send').addEventListener('click', async () => {
         $('inv-mail-form').dataset.id = r.id; $('inv-mail-sub').textContent = `${r.number} · ${money2.format(r.balance)} open`;
         $('inv-mail-err').className = 'cp-form-err'; $('inv-mail-msg').value = '';
         $('inv-mail-name').value = r.sent_name || ''; $('inv-mail-email').value = r.sent_to || '';
         const via = qbOn && r.status === 'issued';
-        $('inv-mail-via').hidden = !via; $('inv-mail-via-qb').checked = via && !!r.qb_invoice_id; $('inv-mail-via-app').checked = !$('inv-mail-via-qb').checked; qbViaChanged();
+        $('inv-mail-via').hidden = !via; $('inv-mail-via-qb').checked = via && (!!r.qb_invoice_id || qbOwned); $('inv-mail-via-app').checked = !$('inv-mail-via-qb').checked;
+        $('inv-mail-via-app').closest('label').hidden = qbOwned; $('inv-mail-title').textContent = qbOwned ? 'Send a reminder' : 'Email invoice to the client'; qbViaChanged();
         if (!r.sent_to) { try { const { data } = await api('/invoices/' + r.id + '/recipient', null, true); $('inv-mail-email').value = data.email || ''; $('inv-mail-name').value = data.name || ''; } catch (e) {} }
         closeOverlay('inv-view-overlay'); $('inv-mail-overlay').classList.add('open'); setTimeout(() => $('inv-mail-email').focus(), 30);
       });
       $('inv-close').addEventListener('click', () => closeOverlay('inv-view-overlay'));
+      if ($('inv-fu')) $('inv-fu').addEventListener('click', () => { closeOverlay('inv-view-overlay'); openQBFollowup(r); });
       if ($('inv-qb-push')) $('inv-qb-push').addEventListener('click', async () => {
         $('inv-qb-push').disabled = true;
         try { await api('/quickbooks/invoices/' + r.id + '/push', { method: 'POST', body: '{}' }, true); toast(`${r.number} is in QuickBooks`); }
@@ -5928,7 +5986,7 @@
           $('inv-pay-amount').value = r.balance.toFixed(2); dateSet($('inv-pay-date'), todayLocal()); $('inv-pay-method').value = ''; $('inv-pay-ref').value = ''; $('inv-pay-notes').value = '';
           $('inv-pay-err').className = 'cp-form-err'; closeOverlay('inv-view-overlay'); $('inv-pay-overlay').classList.add('open'); setTimeout(() => $('inv-pay-amount').focus(), 30);
         });
-        $('inv-void').addEventListener('click', async () => {
+        if ($('inv-void')) $('inv-void').addEventListener('click', async () => {
           const reason = prompt(`Void ${r.number}? It stops being a receivable. Reason (optional):`); if (reason === null) return;
           try { await api('/invoices/' + r.id + '/void', { method: 'POST', body: JSON.stringify({ reason }) }, true); after(`${r.number} voided`); } catch (e) { toast(e.message, true); }
         });
@@ -5988,7 +6046,28 @@
   document.querySelectorAll('.cp-overlay').forEach(o => o.addEventListener('click', (e) => { if (e.target === o) o.classList.remove('open'); }));
 
   // ---------- #316 QUICKBOOKS ONLINE: invoices out, payments back ----------
-  const QB = { st: null, clients: null };
+  const QB = { st: null, clients: null, age: '', preview: null, wantReview: false, people: null };
+  const QB_AGES = [{ k: 'cur', l: 'Current', t: d => d <= 0 }, { k: 'a', l: '1–30 days late', t: d => d >= 1 && d <= 30 },
+    { k: 'b', l: '31–60 days', t: d => d >= 31 && d <= 60 }, { k: 'c', l: '61–90 days', t: d => d >= 61 && d <= 90 }, { k: 'd', l: 'Over 90 days', t: d => d > 90 }];
+  const qbLate = r => (r.overdue ? r.days_overdue : (r.days_to_due != null ? -r.days_to_due : 0));
+  function qbAgeOk(r) { if (!QB.age || !QB.st) return true; const b = QB_AGES.find(x => x.k === QB.age); return r.status === 'issued' && b.t(qbLate(r)); }
+  function renderAging(rows) {   // admins only: open invoices by how late they are; a tile filters the list
+    const el = $('inv-aging'); if (!QB.st) { el.hidden = true; QB.age = ''; return; }
+    const open = rows.filter(r => r.status === 'issued'); el.hidden = !open.length; if (!open.length) return;
+    const total = open.reduce((a, r) => a + (r.balance || 0), 0) || 1;
+    el.innerHTML = QB_AGES.map(b => { const rs = open.filter(r => b.t(qbLate(r))), v = rs.reduce((a, r) => a + (r.balance || 0), 0);
+      return `<button class="qb-age ${b.k !== 'cur' && v ? 'late' : ''} ${QB.age === b.k ? 'on' : ''}" type="button" data-age="${b.k}" aria-pressed="${QB.age === b.k}"><div class="l">${b.l}</div><div class="v">${money.format(v)}</div><div class="s">${rs.length} invoice${rs.length === 1 ? '' : 's'}</div><div class="bar"><i style="width:${Math.round(v / total * 100)}%"></i></div></button>`; }).join('');
+    el.querySelectorAll('[data-age]').forEach(b => b.addEventListener('click', () => { QB.age = QB.age === b.dataset.age ? '' : b.dataset.age; renderInvoices(); }));
+  }
+  function qbNext(r) {
+    if (r.status !== 'issued') return '<span class="cp-muted">—</span>';
+    if (r.followup_title && r.followup_status !== 'done') return `<div class="qb-next"><strong>${esc(r.followup_who ? r.followup_who + ': ' : '')}${esc(r.followup_title)}</strong><span class="cp-muted">${r.followup_due ? 'by ' + fmtDate(r.followup_due) : 'follow-up set'}</span></div>`;
+    if (r.sent_at) return `<div class="qb-next"><strong>${r.qb_status === 'emailed' ? 'Reminder sent' : 'Emailed'}</strong><span class="cp-muted">${fmtDate(String(r.sent_at).slice(0, 10))}</span></div>`;
+    const d = qbLate(r);
+    if (d > 60) return '<div class="qb-next"><strong>Call the client</strong><span class="cp-muted">over 60 days late</span></div>';
+    if (d > 0) return '<div class="qb-next"><strong>Send a reminder</strong><span class="cp-muted">past due</span></div>';
+    return '<span class="cp-muted">Nothing yet</span>';
+  }
   const QB_LABEL = { created: 'In QuickBooks', emailed: 'Emailed', paid: 'Paid', voided: 'Voided' };
   function qbShown() { return !!(QB.st && (QB.st.connected || QB.st.status)); }
   function qbCell(r) {
@@ -6018,8 +6097,93 @@
     try { const { data } = await api('/quickbooks/status', null, true); QB.st = data; }
     catch (e) { QB.st = null; }
     renderQB();
+    if (!QB.st) renderReviewStrip();
     if (state.cache.invoices) renderInvoices();
+    if (QB.wantReview) { QB.wantReview = false; if (QB.st && QB.st.review) openQBReview(); }
   }
+  // ---- #316 1b: bring in open invoices + unpaid bills; new clients to review; follow-ups
+  function qbBannerText() {
+    const p = QB.preview;
+    if (!p) return "<strong>Bring in QuickBooks' open invoices and unpaid bills</strong> so everything that is due shows here. <span class='cp-muted'>Counting…</span>";
+    if (p.error) return `<strong>Bring in QuickBooks' open invoices and unpaid bills.</strong> <span class="cp-muted">${esc(p.error)}</span>`;
+    if (!p.invoices && !p.bills) return "<strong>QuickBooks has no open invoices or unpaid bills that aren't here.</strong> Bring them in anyway so new ones typed in QuickBooks show up here.";
+    return `<strong>QuickBooks has ${p.invoices} open invoice${p.invoices === 1 ? '' : 's'} and ${p.bills} unpaid bill${p.bills === 1 ? '' : 's'} that are not in the app yet</strong> (${money.format(p.invoices_open)} owed to us${p.late_30 ? ', ' + p.late_30 + ' more than 30 days late' : ''}; ${money.format(p.bills_open)} we owe).`;
+  }
+  async function loadQBPreview() {
+    try { const { data } = await api('/quickbooks/import/preview', null, true); QB.preview = data; }
+    catch (e) { QB.preview = { error: e.message }; }
+    if ($('qb-banner')) $('qb-banner').querySelector('.grow').innerHTML = qbBannerText();
+  }
+  function openQBImport() {
+    const p = QB.preview && !QB.preview.error ? QB.preview : null;
+    $('qb-import-err').className = 'cp-form-err';
+    $('qb-import-body').innerHTML = (p ? `<div class="qb-sum"><div><strong>${p.invoices}</strong><span>open invoices · ${money.format(p.invoices_open)}</span></div><div><strong>${p.bills}</strong><span>unpaid bills · ${money.format(p.bills_open)}</span></div><div><strong>${p.customers_matched} + ${p.customers_new}</strong><span>clients matched + new</span></div></div>` : '') +
+      `<div class="qb-via" role="radiogroup" aria-label="Which invoices" style="margin-top:12px">
+        <label><input type="radio" name="qb-import-days" id="qb-import-open-only" value="0" checked><span>Open invoices only<small>Unpaid and part-paid. Recommended.</small></span></label>
+        <label><input type="radio" name="qb-import-days" id="qb-import-90" value="90"><span>Open, plus paid in the last 90 days<small>Adds recent payment history to each client.</small></span></label></div>` +
+      `<div class="cp-note">${p && p.customers_new ? p.customers_new + ' QuickBooks customer' + (p.customers_new === 1 ? ' has' : 's have') + ' no client here. They are created as clients with their QuickBooks email and flagged for you to review. ' : ''}Invoices you already sent from the app to QuickBooks are recognised and not brought in twice.</div>`;
+    $('qb-import-body').querySelector('.qb-via').classList.add('cp-field');
+    $('qb-import-overlay').classList.add('open');
+  }
+  $('qb-import-cancel').addEventListener('click', () => closeOverlay('qb-import-overlay'));
+  $('qb-import-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('qb-import-err'); err.className = 'cp-form-err';
+    $('qb-import-go').disabled = true; $('qb-import-go').textContent = 'Bringing in…';
+    try { const days = $('qb-import-90').checked ? 90 : 0;
+      const { data } = await api('/quickbooks/import', { method: 'POST', body: JSON.stringify({ paid_days: days }) }, true);
+      closeOverlay('qb-import-overlay'); QB.st = data; QB.preview = null;
+      toast(`${data.invoices} invoice${data.invoices === 1 ? '' : 's'} and ${data.bills} bill${data.bills === 1 ? '' : 's'} from QuickBooks${data.review ? ' · ' + data.review + ' new client' + (data.review === 1 ? '' : 's') + ' to review' : ''}`);
+      renderQB(); await reloadInvoices(); loadPayables(); }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('qb-import-go').disabled = false; $('qb-import-go').textContent = 'Bring them in'; }
+  });
+  function renderReviewStrip() {
+    const el = $('qb-review-strip'), n = QB.st && QB.st.review ? QB.st.review : 0;
+    el.hidden = !n; if (!n) { el.innerHTML = ''; return; }
+    el.innerHTML = `<div class="grow"><div class="eyebrow">Needs you · admins</div><strong>${n} new client${n > 1 ? 's' : ''} from QuickBooks to review</strong><span>Created automatically when their invoices came in. Approve, edit, or merge into a client you already have.</span></div><button class="btn-primary btn-sm" type="button" id="qb-review-open">Review</button>`;
+    $('qb-review-open').addEventListener('click', openQBReview);
+  }
+  async function openQBReview() {
+    const body = $('qb-review-body'); skeleton(body, 3); $('qb-review-overlay').classList.add('open');
+    try {
+      const { data } = await api('/quickbooks/review', null, true);
+      if (!data.length) { body.innerHTML = empty('Nothing to review', 'Every client that came from QuickBooks has been checked.'); return; }
+      body.innerHTML = data.map(c => `<div class="c"><div><strong>${esc(c.name)}</strong> <span class="qb-src">From QuickBooks</span></div>
+        <div class="cp-muted" style="font-size:13px">${esc(c.email || 'no email')} · ${c.open_invoices} open invoice${c.open_invoices === 1 ? '' : 's'} · ${money2.format(c.open_value)} open</div>
+        <div class="acts"><button class="btn-primary btn-sm" type="button" data-qb-ok="${c.org_id}">Approve</button><a class="btn-ghost btn-sm" href="#clients/${c.org_id}" data-qb-edit style="text-decoration:none">Edit details</a>
+        <select class="cp-select" data-qb-merge="${c.org_id}" aria-label="Merge ${esc(c.name)} into"><option value="">Merge into an existing client…</option></select></div></div>`).join('');
+      body.querySelectorAll('[data-qb-edit]').forEach(a => a.addEventListener('click', () => closeOverlay('qb-review-overlay')));
+      body.querySelectorAll('[data-qb-merge]').forEach(async sel => { await clientOptions(sel, ''); [...sel.options].forEach(o => { if (o.value === sel.dataset.qbMerge) o.remove(); }); });
+      body.querySelectorAll('[data-qb-ok]').forEach(b => b.addEventListener('click', async () => {
+        try { await api('/quickbooks/review/' + b.dataset.qbOk + '/approve', { method: 'POST', body: '{}' }, true); toast('Client approved'); await loadQB(); openQBReview(); } catch (e) { toast(e.message, true); }
+      }));
+      body.querySelectorAll('[data-qb-merge]').forEach(sel => sel.addEventListener('change', async () => {
+        if (!sel.value) return; const name = sel.options[sel.selectedIndex].text;
+        if (!confirm(`Merge into ${name}? Its invoices move to ${name}, and this duplicate client is removed.`)) { sel.value = ''; return; }
+        try { await api('/quickbooks/review/' + sel.dataset.qbMerge + '/merge', { method: 'POST', body: JSON.stringify({ into_org_id: Number(sel.value) }) }, true);
+          state.cache.clientOpts = null; toast(`Merged into ${name}`); await loadQB(); await reloadInvoices(); openQBReview(); } catch (e) { toast(e.message, true); sel.value = ''; }
+      }));
+    } catch (e) { body.innerHTML = empty('Could not load the clients to review', e.message); }
+  }
+  $('qb-review-done').addEventListener('click', () => closeOverlay('qb-review-overlay'));
+  async function openQBFollowup(r) {
+    $('qb-fu-form').dataset.id = r.id; $('qb-fu-err').className = 'cp-form-err';
+    $('qb-fu-sub').textContent = `${r.number} · ${r.client_name || ''} · ${money2.format(r.balance)} open`;
+    $('qb-fu-what').value = `Call ${r.client_name || 'the client'} about ${r.number}`; dateSet($('qb-fu-when'), todayLocal(2));
+    if (!QB.people) { try { const j = await api('/team/people', null, true); QB.people = j.data || j.people || []; } catch (e) { QB.people = []; } }
+    $('qb-fu-who').innerHTML = QB.people.map(p => `<option value="${p.id}">${esc(p.name)}${p.hint ? ' (' + esc(p.hint) + ')' : ''}</option>`).join('');
+    $('qb-fu-overlay').classList.add('open'); setTimeout(() => $('qb-fu-what').focus(), 30);
+  }
+  $('qb-fu-cancel').addEventListener('click', () => closeOverlay('qb-fu-overlay'));
+  $('qb-fu-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('qb-fu-err'); err.className = 'cp-form-err';
+    const due = dateGet($('qb-fu-when')); if (!$('qb-fu-what').value.trim()) { err.textContent = 'Say what needs doing.'; err.className = 'cp-form-err show'; return; }
+    $('qb-fu-go').disabled = true;
+    try { await api('/quickbooks/invoices/' + $('qb-fu-form').dataset.id + '/followup', { method: 'POST', body: JSON.stringify({ title: $('qb-fu-what').value.trim(), assignee_user_id: Number($('qb-fu-who').value) || null, due_date: due || null }) }, true);
+      closeOverlay('qb-fu-overlay'); toast('Follow-up added'); await reloadInvoices(); }
+    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('qb-fu-go').disabled = false; }
+  });
   function renderQB() {
     const c = $('qb-card'), s = QB.st;
     if (!s || (!s.status && !s.can_connect)) { c.hidden = true; return; }
@@ -6034,10 +6198,12 @@
     }
     const st = s.stats || {};
     const needs = s.needs_you || [];
+    renderReviewStrip();
     const parts = [`<div class="qb-logo" aria-hidden="true">qb</div>`,
       `<div><h2>QuickBooks Online ${s.connected ? '<span class="cp-pill ok">Connected</span>' : '<span class="cp-pill bad">Needs reconnecting</span>'}${sandbox}</h2>
-        <p>${esc(s.company_name || 'QuickBooks company')} · connected${s.connected_by ? ' by ' + esc(s.connected_by) : ''} on ${fmtDate((s.connected_at || '').slice(0, 10))}${s.last_check_at ? ' · last checked ' + fmtWhen(s.last_check_at) : ''}. Payments are checked every ${s.every_minutes} minutes.</p></div>`,
+        <p>${esc(s.company_name || 'QuickBooks company')} · connected${s.connected_by ? ' by ' + esc(s.connected_by) : ''} on ${fmtDate((s.connected_at || '').slice(0, 10))}${s.last_check_at ? ' · last checked ' + fmtWhen(s.last_check_at) : ''}. Payments are checked every ${s.every_minutes} minutes.${s.imported ? ' Open invoices and unpaid bills from QuickBooks are kept in step.' : ''}</p></div>`,
       `<div class="qb-actions">${s.connected ? btn('qb-sync', 'btn-ghost', 'Check now') + btn('qb-clients', 'btn-ghost', 'Clients') : ''}${s.can_connect ? (s.connected ? btn('qb-off', 'btn-ghost', 'Disconnect') : `<a class="btn-primary btn-sm" href="/quickbooks/connect" style="text-decoration:none">Reconnect</a>`) : ''}</div>`];
+    if (s.connected && s.matched && !s.imported) parts.push(`<div class="qb-banner" id="qb-banner"><span class="grow">${qbBannerText()}</span><button class="btn-primary btn-sm" type="button" id="qb-import-open">Bring them in</button></div>`);
     if (s.connected && !s.matched) parts.push(`<div class="qb-alert"><strong>Match your clients</strong><span class="grow">so invoices land on the right QuickBooks customer.</span>${btn('qb-match-now', 'btn-primary', 'Match clients')}</div>`);
     if (needs.length) parts.push(`<div class="qb-alert"><strong>${needs.length} invoice${needs.length > 1 ? 's need' : ' needs'} you.</strong><span class="grow">${esc(needs[0].number)}: ${esc(needs[0].error)}${needs.length > 1 ? ` (and ${needs.length - 1} more)` : ''}</span>${btn('qb-open-err', 'btn-ghost', 'Open ' + esc(needs[0].number))}</div>`);
     if (s.problem) parts.push(`<div class="qb-alert"><span class="grow">${esc(s.problem)}</span></div>`);
@@ -6056,6 +6222,7 @@
       catch (e) { toast(e.message, true); renderQB(); }
     });
     if ($('qb-clients')) $('qb-clients').addEventListener('click', () => openQBMatch());
+    if ($('qb-import-open')) { $('qb-import-open').addEventListener('click', openQBImport); if (!QB.preview) loadQBPreview(); }
     if ($('qb-match-now')) $('qb-match-now').addEventListener('click', () => openQBMatch());
     if ($('qb-open-err')) $('qb-open-err').addEventListener('click', () => openInvoice(needs[0].id));
     if ($('qb-off')) $('qb-off').addEventListener('click', async () => {
@@ -6313,6 +6480,7 @@
     document.querySelectorAll('.cp-view').forEach(s => s.hidden = (s.id !== 'view-' + v));
     $('cp-title').textContent = TITLES[v];
     if (v === 'finance') $('inv-status').value = ['overdue', 'draft', 'issued', 'paid', 'void'].includes(arg) ? arg : '';
+    if (v === 'finance' && arg === 'qb-review') QB.wantReview = true;   // #316 1b: Today's "new clients to review"
     if (v === 'calendar' && arg && /^\d{4}-\d{2}-\d{2}$/.test(arg)) { CAL.anchor = calParse(arg); loadCalendar(); }
     if (v === 'inbox') loadInbox(arg); else if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'proposals' && arg === 'estimate' && h.split('/')[2]) loadEstimateDetail(h.split('/')[2]); else if (v === 'proposals' && arg === 'before' && h.split('/')[2]) prArchFromLink(h.split('/')[2], h.split('/')[3] === 'signed'); else if (v === 'proposals' && PRK_ALIAS[arg]) { setKind(PRK_ALIAS[arg]); location.replace('#proposals'); } else if (v === 'proposals' && arg && h.split('/')[2] === 'page') loadProposalDetail(arg); else if (v === 'proposals' && arg) openProposalPanel(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
     window.scrollTo(0, 0);

@@ -105,14 +105,14 @@ import invoices  # noqa: E402
 invoices.register(app)
 import invoice_docs  # noqa: E402
 invoice_docs.register(app)   # #326 — invoice documents, email, public link, project Payments
-import qbo  # noqa: E402
-qbo.register(app)            # #316 — QuickBooks Online: invoices out, payments back (off until configured)
 import doc_packages  # noqa: E402
 doc_packages.register(app)   # #327 — permits & insurance package, send to client
 import aia_billing
 aia_billing.register(app)    # #317 — AIA G702/G703 progress billing on the invoice model
 import payables
 payables.register(app)       # #319 — accounts payable + the 30-day cash view
+import qbo  # noqa: E402
+qbo.register(app)            # #316 — QuickBooks Online: invoices out, payments back, open invoices + bills in (off until configured)
 import fleet
 fleet.register(app)          # #355 — vehicles: mileage, service, E-ZPass tolls, car bills
 import portal_projects

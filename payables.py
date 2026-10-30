@@ -85,6 +85,18 @@ def _iso_date(v) -> Optional[str]:
     return s
 
 
+def _hide(alias: str = "") -> str:
+    """#316 1b: bills that came from QuickBooks are for admins only (qbo.show_imported)."""
+    try:
+        import qbo
+        return qbo.hide_sql(alias)
+    except Exception:
+        return ""
+
+
+QB_OWNED = "this bill lives in QuickBooks: pay or change it there and it updates here"
+
+
 def _uid():
     u = current_user()
     return u.get("id") if u else None
@@ -145,13 +157,13 @@ def _decorate(r: dict, today: Optional[date] = None) -> dict:
 
 
 def get(conn, payable_id: int, *, today: Optional[date] = None) -> Optional[dict]:
-    r = _one(conn.execute(_SELECT + "WHERE p.id = ?", (payable_id,)))
+    r = _one(conn.execute(_SELECT + "WHERE p.id = ?" + _hide("p"), (payable_id,)))
     return _decorate(r, today) if r else None
 
 
 def list_payables(conn, *, status=None, search=None, limit=500, today: Optional[date] = None) -> list:
     today = today or _today()
-    where, params = ["1=1"], []
+    where, params = ["1=1" + _hide("p")], []
     if status == "overdue":
         where.append("p.status = 'open' AND p.due_at IS NOT NULL AND p.due_at < ?"); params.append(today.isoformat())
     elif status and status != "all":
@@ -227,6 +239,8 @@ def update(conn, payable_id: int, fields: dict) -> dict:
     r = get(conn, payable_id)
     if not r:
         raise LookupError("bill not found")
+    if r.get("source") == "quickbooks":
+        raise ValueError(QB_OWNED)
     if r["status"] != "open":
         raise ValueError(f"a {r['status']} bill cannot be edited")
     f = _validate(fields, partial=True)
@@ -244,6 +258,8 @@ def pay(conn, payable_id: int, *, amount=None, paid_on=None, method=None, refere
     r = get(conn, payable_id)
     if not r:
         raise LookupError("bill not found")
+    if r.get("source") == "quickbooks":
+        raise ValueError(QB_OWNED)
     if r["status"] != "open":
         raise ValueError(f"a {r['status']} bill cannot take a payment")
     try:
@@ -275,6 +291,8 @@ def void(conn, payable_id: int, *, reason=None) -> dict:
     r = get(conn, payable_id)
     if not r:
         raise LookupError("bill not found")
+    if r.get("source") == "quickbooks":
+        raise ValueError(QB_OWNED)
     if r["status"] != "open":
         raise ValueError(f"a {r['status']} bill cannot be voided")
     if _num(r["paid_amount"]) > 0:
@@ -390,7 +408,7 @@ def summary(conn, *, today: Optional[date] = None) -> dict:
     due30 = [r for r in open_rows if r.get("due_at") and r["due_at"] <= h]
     renewals = [r for r in renewal_candidates(conn, today=today) if r["renewal_date"] <= h]
     paid_ytd = _one(conn.execute("SELECT COALESCE(SUM(paid_amount),0) AS v, COUNT(1) AS n FROM payable "
-                                 "WHERE paid_amount > 0 AND COALESCE(paid_at, updated_at) >= ?", (t[:4] + "-01-01",))) or {}
+                                 "WHERE paid_amount > 0 AND COALESCE(paid_at, updated_at) >= ?" + _hide(), (t[:4] + "-01-01",))) or {}
     try:
         recv = invoices.receivables_summary(conn, today=today, horizon_days=HORIZON_DAYS)
         recv_rows = [r for r in invoices.list_invoices(conn, status="open", limit=2000, today=today)
