@@ -107,3 +107,4 @@ psycopg-pool>=3.2
 # Official PyCA library (Fernet = AES + HMAC, authenticated). Key comes from the
 # 1Password-injected SSC_FIELD_ENCRYPTION_KEY env var — never stored on disk.
 cryptography>=43.0
+segno==1.6.6                  # QR code for two-step sign-in setup (pure Python, no deps; vetted 2026-10-30: no network/exec)

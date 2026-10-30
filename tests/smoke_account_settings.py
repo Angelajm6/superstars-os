@@ -122,7 +122,7 @@ def main() -> int:
     raw = pm.get("/api/account").get_data(as_text=True)
     assert "password_hash" not in raw and "$2b$" not in raw and "totp_secret" not in raw
     page = pm.get("/account").get_data(as_text=True)
-    assert 'id="pf"' in page and 'id="dv-list"' in page and "/api/2fa/begin" in page and "/settings/interface" not in page
+    assert 'id="pf"' in page and 'id="dv-list"' in page and "/api/2fa/begin" in page and 'id="tf-qr"' in page and "qr_svg" in page and "/settings/interface" not in page
     passed += 1; print("  access ok")
 
     # ---- profile
