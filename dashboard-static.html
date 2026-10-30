@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
 <script src="/files/static/js/datepicker.js?v=1007"></script>
 <script src="/files/static/js/timepicker.js"></script>
+<script src="/files/static/js/payroll_week.js?v=1"></script>
 <style>
   /* ===== Project Health redesign (#208) — new design language, modular DRAG-READY widgets ===== */
   .ph-wrap { color:var(--ink, #222633); }
@@ -3204,11 +3205,21 @@
                 if (!tIn || !tOut) { setStatus('Time in and time out are both required', '#B11E2E'); return; }
                 saveBtn.disabled = true;
                 try {
-                  const resp = await fetch('/api/sign-ins/' + sid, {
+                  const putBody = {time_in: tIn, time_out: tOut, reason: reason || undefined};
+                  const put = () => fetch('/api/sign-ins/' + sid, {
                     method: 'PUT', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({time_in: tIn, time_out: tOut, reason: reason || undefined})
+                    body: JSON.stringify(putBody)
                   });
-                  const json = await resp.json().catch(() => ({}));
+                  let resp = await put();
+                  let json = await resp.json().catch(() => ({}));
+                  if (resp.status === 422 && json.needs_reason && window.SSCPayrollWeek) {
+                    const otReason = await SSCPayrollWeek.reasonDialog({
+                      message: `That makes ${json.day_total} hours for the day. Hours over 8 need a reason and an admin or PM\u2019s approval. Until then payroll pays 8.`});
+                    if (!otReason) { setStatus('Not saved', '#76777E'); saveBtn.disabled = false; return; }
+                    putBody.overtime_reason = otReason;
+                    resp = await put();
+                    json = await resp.json().catch(() => ({}));
+                  }
                   if (!resp.ok) { setStatus('Correction failed: ' + (json.error || ('HTTP ' + resp.status)), '#B11E2E'); saveBtn.disabled = false; return; }
                   _laborEditSid = null;
                   notifyHoursAmended((json.data || {}).dcr_amended);
@@ -4836,18 +4847,30 @@
 
               btn.disabled = true; setStatus('Adding…', '#76777E');
               try {
-                const resp = await fetch('/api/sign-ins', {
+                // One place at a time + the 8-hour day: a 422 needs_reason asks
+                // for the reason and adds again with it.
+                const addBody = {
+                  employee_id: employeeId,
+                  project_code: PROJECT_CODE,
+                  date: dateStr,
+                  time_in: timeIn,
+                  time_out: timeOut || null,
+                };
+                const post = () => fetch('/api/sign-ins', {
                   method: 'POST',
                   headers: {'Content-Type': 'application/json'},
-                  body: JSON.stringify({
-                    employee_id: employeeId,
-                    project_code: PROJECT_CODE,
-                    date: dateStr,
-                    time_in: timeIn,
-                    time_out: timeOut || null,
-                  }),
+                  body: JSON.stringify(addBody),
                 });
-                const json = await resp.json().catch(() => ({}));
+                let resp = await post();
+                let json = await resp.json().catch(() => ({}));
+                if (resp.status === 422 && json.needs_reason && window.SSCPayrollWeek) {
+                  const reason = await SSCPayrollWeek.reasonDialog({
+                    message: `That makes ${json.day_total} hours for the day. Hours over 8 need a reason and an admin or PM\u2019s approval. Until then payroll pays 8.`});
+                  if (!reason) { setStatus('Not added', '#76777E'); btn.disabled = false; return; }
+                  addBody.overtime_reason = reason;
+                  resp = await post();
+                  json = await resp.json().catch(() => ({}));
+                }
                 if (resp.status === 201) {
                   // Record this manual-add's sign_in_log id in the
                   // session-added set so a subsequent Cancel can roll
@@ -4863,6 +4886,8 @@
                   // re-renders the dropdown — the just-added worker is
                   // filtered out automatically.
                   loadDcr(dateStr);
+                } else if (resp.status === 409 && json.code === 'overlap') {
+                  setStatus(json.error, '#B11E2E');
                 } else if (resp.status === 409) {
                   // Defensive only — DCR-2's dropdown filter prevents
                   // this. If we still hit it (concurrent operator action,

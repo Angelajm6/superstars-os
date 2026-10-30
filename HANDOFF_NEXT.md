@@ -38,6 +38,25 @@ grant, or elevation code.
   `/oauth/consent/<id>` is redacted in request logs.
 * Guard: `tests/smoke_claude_connector.py` (in the gate).
 
+### Payroll hours rules + week picker (Bookore, 2026-10-30)
+
+* Accepted prototype: https://claude.ai/artifact/2BUTcts8FyvJm4ihFjwHtY. Four fixes on Weekly Payroll / Hours Log:
+  **trade** = the Pay Rates trade (`COALESCE(labor_worker_state.trade, employees.trade)` in `payroll_hours.build_week_grid`);
+  **history**: the grid pool is everyone with a sign-in that week (any status, on a crew or not) plus active crew, so a
+  deactivated / off-rolled worker keeps every week they worked (Inactive tag); Pay Rates opens inactive workers read-only.
+* **One place at a time**: `POST/PUT/PATCH /api/sign-ins` refuse times that overlap another entry that day on any job
+  (409 `code: overlap`); worker-app clock-in is refused while a finished entry covers now (open entries don't block, so a
+  missed sign-out never locks a worker out); DCR reconcile skips overlaps.
+* **8-hour day** (`payroll_hours.DAY_LIMIT`, from `RULE_START` 2026-10-26; earlier weeks stay paid as logged): past 8 hrs
+  across jobs the write needs `overtime_reason` (422 `needs_reason`), else `hours_overtime` row pending; payroll pays 8 until
+  an admin / C-suite / PM approves (`POST /api/payroll/overtime/decide`, `hours_overtime.py`), then up to the approved total;
+  raising hours after approval reopens it. Worker app asks the worker for the reason (EN/ES chips) before clock-out.
+  CSV adds `overtime_pending`. Day cells carry `hours` (paid), `hours_logged`, `overtime`.
+* **Worker-app hours**: `payroll_hours.to_hhmm` reads the app's ISO timestamps; before, those shifts counted 0 hrs.
+* **Week picker** (`static/js/payroll_week.js`): tap the date range on Weekly Payroll / Hours Log for a month of Mon–Sun
+  weeks with paid hours and a needs-approval dot (`GET /api/payroll/weeks`). Same file: approval list, cell badge, reason dialog.
+* Guard: `tests/smoke_payroll_rules.py` (new, in the gate). Migration `apply_hours_overtime.py` (boot-ensured).
+
 ### Client page: emails, proposals, invoices (Bookore, 2026-10-28)
 
 * Accepted prototype: https://claude.ai/artifact/6demNxTPeUYpcadNXtWXNo. Company → Clients → a client now leads with **Emails**

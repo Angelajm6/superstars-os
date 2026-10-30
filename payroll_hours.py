@@ -55,15 +55,32 @@ def week_dates(monday):
     return [monday + timedelta(days=i) for i in range(WEEK_DAYS)]
 
 
-def _parse_hhmm(s):
-    """Parse 'HH:MM' (or 'HH:MM:SS') to (hour, minute). Returns None on bad input."""
+def to_hhmm(s):
+    """'HH:MM' from 'HH:MM', 'HH:MM:SS' or a worker-app ISO timestamp
+    ('2026-10-30T07:02:11'). The worker app stores the full timestamp; before
+    this the parser choked on the date part and those shifts counted 0 hours."""
     if not s:
         return None
+    s = str(s)
+    if 'T' in s:
+        s = s.split('T', 1)[1]
+    parts = s.split(':')
     try:
-        parts = str(s).split(':')
-        return int(parts[0]), int(parts[1])
+        h, m = int(parts[0]), int(parts[1])
     except (ValueError, IndexError):
         return None
+    if not (0 <= h <= 23 and 0 <= m <= 59):
+        return None
+    return f"{h:02d}:{m:02d}"
+
+
+def _parse_hhmm(s):
+    """Parse 'HH:MM' (or 'HH:MM:SS', or an ISO timestamp) to (hour, minute).
+    Returns None on bad input."""
+    v = to_hhmm(s)
+    if v is None:
+        return None
+    return int(v[:2]), int(v[3:])
 
 
 def compute_worked_hours(time_in, time_out, lunch_minutes=DEFAULT_LUNCH_MINUTES):
@@ -98,6 +115,153 @@ def compute_worked_hours(time_in, time_out, lunch_minutes=DEFAULT_LUNCH_MINUTES)
         return 0.0
     paid_minutes = max(0, raw_minutes - lunch_minutes)
     return round(paid_minutes / 60.0, 2)
+
+
+# ---------------------------------------------------------------------------
+# One place at a time + the 8-hour day (Angela, 2026-10-30).
+# A worker's entries on one date may span several jobs, but their times must
+# not overlap. The day's hours across every job are capped at DAY_LIMIT for
+# pay until an admin or PM approves the extra (hours_overtime).
+# ---------------------------------------------------------------------------
+DAY_LIMIT = 8.0
+_DAY_END = 24 * 60
+# The rule starts with the payroll week of Mon 2026-10-26 (not yet paid when it
+# shipped). Earlier weeks were paid as logged and must read the same forever.
+RULE_START = "2026-10-26"
+
+
+def rule_applies(date_str):
+    return str(date_str) >= RULE_START
+
+
+def _minutes(s):
+    p = _parse_hhmm(s)
+    return None if p is None else p[0] * 60 + p[1]
+
+
+def day_entries(conn, employee_id, date_str, exclude_id=None):
+    """Every sign-in row for this worker on this date, any job."""
+    rows = conn.execute(
+        "SELECT id, project_code, time_in, time_out FROM sign_in_log "
+        "WHERE employee_id = ? AND date = ? ORDER BY id", (employee_id, date_str)).fetchall()
+    return [dict(r) for r in rows if exclude_id is None or r["id"] != exclude_id]
+
+
+def find_overlap(entries, time_in, time_out):
+    """The first entry whose times overlap [time_in, time_out), or None. An
+    entry still open (no time out) runs to the end of the day."""
+    a0 = _minutes(time_in)
+    if a0 is None:
+        return None
+    a1 = _minutes(time_out)
+    a1 = _DAY_END if a1 is None else a1
+    for e in entries:
+        b0 = _minutes(e["time_in"])
+        if b0 is None:
+            continue
+        b1 = _minutes(e["time_out"])
+        b1 = _DAY_END if b1 is None else b1
+        if a0 < b1 and b0 < a1:
+            return e
+    return None
+
+
+def overlap_message(e):
+    def fmt(v):
+        hm = to_hhmm(v)
+        if not hm:
+            return "now"
+        h, m = int(hm[:2]), hm[3:]
+        return f"{(h % 12) or 12}:{m} {'AM' if h < 12 else 'PM'}"
+    return (f"Already logged on {e['project_code']} from {fmt(e['time_in'])} to "
+            f"{fmt(e['time_out']) if e['time_out'] else 'now (still signed in)'} that day. "
+            "Change the times so they don't overlap.")
+
+
+def day_total(entries, extra=None):
+    """Worked hours for the day across jobs; `extra` = (time_in, time_out) of
+    the entry being saved."""
+    total = sum(compute_worked_hours(e["time_in"], e["time_out"]) for e in entries)
+    if extra:
+        total += compute_worked_hours(*extra)
+    return round(total, 2)
+
+
+def get_overtime(conn, employee_id, date_str):
+    r = conn.execute("SELECT * FROM hours_overtime WHERE employee_id = ? AND date = ?",
+                     (employee_id, date_str)).fetchone()
+    return dict(r) if r else None
+
+
+def payable_hours(total, ot):
+    """Hours payroll pays for a day: everything up to DAY_LIMIT, more only
+    once approved (and never more than was approved)."""
+    if total <= DAY_LIMIT:
+        return round(total, 2)
+    if ot and ot.get("status") == "approved" and ot.get("approved_hours") is not None:
+        return round(min(total, max(DAY_LIMIT, float(ot["approved_hours"]))), 2)
+    return DAY_LIMIT
+
+
+def overtime_view(logged, ot):
+    """The day's over-the-limit state for the UI. 'missing' = over the limit
+    with no request, or more hours than were approved: someone must give a
+    reason (or approve with one)."""
+    status = ot["status"] if ot else "missing"
+    if status == "approved" and ot.get("approved_hours") is not None and logged > float(ot["approved_hours"]):
+        status = "missing"
+    return {
+        "id": ot["id"] if ot else None,
+        "status": status,
+        "extra": round(logged - DAY_LIMIT, 2),
+        "reason": ot["reason"] if ot else None,
+        "approved_hours": ot.get("approved_hours") if ot else None,
+    }
+
+
+def needs_reason(total, ot):
+    """True when saving a day of `total` hours needs a fresh reason: over the
+    limit and not already covered by an approval or a pending request."""
+    if total <= DAY_LIMIT:
+        return False
+    if not ot:
+        return True
+    if ot["status"] == "pending":
+        return False
+    if ot["status"] == "approved" and ot.get("approved_hours") is not None:
+        return total > float(ot["approved_hours"])
+    return True   # rejected -> a new request needs its own reason
+
+
+def sync_overtime(conn, employee_id, date_str, total, reason=None,
+                  actor_uid=None, actor_role=None, now=None):
+    """Keep hours_overtime in step with the day's hours after a write.
+    <= limit: a pending or rejected request is dropped. Over the limit with a
+    reason: (re)opened as pending. Over the limit already covered: the pending
+    row's logged hours are refreshed. Returns the row (or None)."""
+    from datetime import datetime as _dt
+    now = now or _dt.now().isoformat(timespec="seconds")
+    ot = get_overtime(conn, employee_id, date_str)
+    if total <= DAY_LIMIT:
+        if ot and ot["status"] in ("pending", "rejected"):
+            conn.execute("DELETE FROM hours_overtime WHERE id = ?", (ot["id"],))
+        return None
+    reason = (reason or "").strip()[:500] or None
+    if reason:
+        if ot:
+            conn.execute(
+                "UPDATE hours_overtime SET logged_hours = ?, reason = ?, status = 'pending', "
+                "approved_hours = NULL, requested_by_uid = ?, requested_by_role = ?, requested_at = ?, "
+                "decided_by_uid = NULL, decided_by_role = NULL, decided_at = NULL, decision_note = NULL "
+                "WHERE id = ?", (total, reason, actor_uid, actor_role, now, ot["id"]))
+        else:
+            conn.execute(
+                "INSERT INTO hours_overtime (employee_id, date, logged_hours, reason, status, "
+                "requested_by_uid, requested_by_role, requested_at) VALUES (?,?,?,?,'pending',?,?,?)",
+                (employee_id, date_str, total, reason, actor_uid, actor_role, now))
+    elif ot and ot["status"] == "pending":
+        conn.execute("UPDATE hours_overtime SET logged_hours = ? WHERE id = ?", (total, ot["id"]))
+    return get_overtime(conn, employee_id, date_str)
 
 
 def build_week_grid(conn, monday):
@@ -141,27 +305,37 @@ def build_week_grid(conn, monday):
 
     Sums hours across all projects for a given (worker, date) — payroll
     doesn't care which project a worker was on, just the total.
+
+    2026-10-30 (Angela):
+      * the pool is everyone with a sign-in this week (any status, on a crew
+        or not: taking a deactivated worker off a crew used to erase them from
+        every past week) plus labor-active, non-archived workers on a crew;
+      * `trade` is the Pay Rates trade (labor_worker_state), falling back to
+        the employee record — edits on Pay Rates show here at once;
+      * a day's `hours` is what payroll PAYS (payable_hours: 8 until extra is
+        approved); `hours_logged` is what was worked; `overtime` carries the
+        request when the day is over the limit.
     """
     dates = week_dates(monday)
     date_strs = [d.isoformat() for d in dates]
 
-    # #246 — pool from the CANONICAL roster view (v_worker_roster carries
-    # labor_status with the #241 LEFT-JOIN semantics defined in ONE place);
-    # this module applies its own inclusion rule (active OR has-hours) on top.
+    placeholders = ",".join("?" * len(date_strs))
+    # #246 — pool from the CANONICAL roster view (labor_status, #241 semantics).
+    # #260 — the sort key is selected (Postgres).
     workers = conn.execute(
-        # #260 — sort key in the SELECT list: Postgres requires SELECT DISTINCT
-        # ORDER BY expressions to be selected (SQLite did not). Dependent on
-        # worker_id, so the distinct set is unchanged; callers ignore it.
-        """SELECT DISTINCT e.employee_id, e.worker_id, e.name, e.trade,
-                  e.labor_status, CAST(SUBSTR(e.worker_id, 3) AS INTEGER) AS sort_key
+        f"""SELECT e.employee_id, e.worker_id, e.name,
+                  COALESCE(ls.trade, e.trade) AS trade,
+                  e.labor_status, e.archived_at,
+                  CAST(SUBSTR(e.worker_id, 3) AS INTEGER) AS sort_key
            FROM v_worker_roster e
-           JOIN project_assignments pa ON pa.employee_id = e.employee_id
-           WHERE pa.status = 'active'
-           ORDER BY sort_key"""
+           LEFT JOIN labor_worker_state ls ON ls.worker_id = e.worker_id
+           WHERE e.employee_id IN (SELECT employee_id FROM project_assignments WHERE status = 'active')
+              OR e.employee_id IN (SELECT employee_id FROM sign_in_log WHERE date IN ({placeholders}))
+           ORDER BY sort_key, e.employee_id""",
+        date_strs,
     ).fetchall()
 
     # One query for the whole week — index on (date, project_code) covers this.
-    placeholders = ",".join("?" * len(date_strs))
     rows = conn.execute(
         f"""SELECT id, employee_id, date, time_in, time_out, project_code
             FROM sign_in_log
@@ -169,6 +343,11 @@ def build_week_grid(conn, monday):
             ORDER BY employee_id, date, id""",
         date_strs,
     ).fetchall()
+
+    overtime = {}
+    for r in conn.execute(
+            f"SELECT * FROM hours_overtime WHERE date IN ({placeholders})", date_strs).fetchall():
+        overtime[(r["employee_id"], r["date"])] = dict(r)
 
     # Bucket by (employee_id, date) — multiple project rows on same day get summed.
     by_emp_day = {}
@@ -184,8 +363,9 @@ def build_week_grid(conn, monday):
 
     for w in workers:
         eid = w["employee_id"]
-        labor_active = w["labor_status"] != "inactive"
+        labor_active = w["labor_status"] != "inactive" and not w["archived_at"]
         days = []
+        pending_extra = 0.0
         weekly_total = 0.0
         day_hours_by_index = []
         for i, dstr in enumerate(date_strs):
@@ -197,22 +377,29 @@ def build_week_grid(conn, monday):
                 day_hours_by_index.append(0.0)
             else:
                 # Sum hours across all projects for this (worker, date)
-                day_hours = 0.0
-                for r in day_rows:
-                    day_hours += compute_worked_hours(r["time_in"], r["time_out"])
+                logged = round(sum(compute_worked_hours(r["time_in"], r["time_out"])
+                                   for r in day_rows), 2)
+                ot = overtime.get((eid, dstr))
+                capped = rule_applies(dstr)
+                day_hours = payable_hours(logged, ot) if capped else logged
                 # Primary row is the one most recently created (last id); show
                 # its times in the cell. Operator edits this primary row.
                 primary = day_rows[-1]
                 day = {
                     "date": dstr,
                     "sign_in_id": primary["id"],
-                    "time_in": primary["time_in"],
-                    "time_out": primary["time_out"],
-                    "hours": round(day_hours, 2),
+                    "time_in": to_hhmm(primary["time_in"]),
+                    "time_out": to_hhmm(primary["time_out"]),
+                    "hours": day_hours,
+                    "hours_logged": logged,
                     "project_code": primary["project_code"],
                     "has_entry": True,
                     "row_count": len(day_rows),  # >1 means multi-project day
                 }
+                if capped and logged > DAY_LIMIT:
+                    day["overtime"] = overtime_view(logged, ot)
+                    if day["overtime"]["status"] in ("pending", "missing"):
+                        pending_extra += round(logged - day_hours, 2)
                 weekly_total += day_hours
                 day_hours_by_index.append(day_hours)
             days.append(day)
@@ -234,6 +421,7 @@ def build_week_grid(conn, monday):
             "labor_active": labor_active,
             "days": days,
             "weekly_total": round(weekly_total, 2),
+            "overtime_pending_hours": round(pending_extra, 2),
         })
         grand_total += weekly_total
 
@@ -267,4 +455,7 @@ def build_week_grid(conn, monday):
         "roster_active_count": roster_active_count,
         "no_signin_count": no_signin_count,
         "paid_count": sum(1 for gw in grid_workers if gw["weekly_total"] > 0),
+        "overtime_pending_hours": round(sum(gw["overtime_pending_hours"] for gw in grid_workers), 2),
+        "overtime_pending_count": sum(1 for gw in grid_workers for d in gw["days"]
+                                      if (d.get("overtime") or {}).get("status") in ("pending", "missing")),
     }
