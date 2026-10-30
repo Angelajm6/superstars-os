@@ -37,6 +37,14 @@ grant, or elevation code.
   hours, payroll, send, sign or delete tools. Logs + `claude_connector_log` carry who / tool / job / counts only;
   `/oauth/consent/<id>` is redacted in request logs.
 * Guard: `tests/smoke_claude_connector.py` (in the gate).
+* **Alerts (2026-10-30):** `claude_connector.alert` emails every active admin + the person (notifications.notify_user,
+  kinds `claude_connector_*`): someone connected, who-can-connect changed, a refused attempt (once a day), 5 wrong codes,
+  a reused old pass (connection cut), unusual activity (rate limit hit; once a day). No tokens, codes or document text.
+* **Back door closed (2026-10-30, `edge_guard.py`):** with `SSC_EDGE_SECRET` set, every request must carry header
+  `X-SSC-Edge` = that secret, which a Cloudflare Transform Rule adds; the onrender.com address (no Cloudflare) gets 403.
+  `/api/health` is exempt (Render's health check). Order: Cloudflare rule first, then the Render variable; undo = delete
+  the variable. Only then is `SSC_CONNECTOR_IP_HEADER=CF-Connecting-IP` trustworthy (boot warns otherwise).
+  Guard: `tests/smoke_edge_guard.py`.
 
 ### Payroll hours rules + week picker (Bookore, 2026-10-30)
 
