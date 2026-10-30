@@ -125,6 +125,8 @@ import dcr_maintenance
 dcr_maintenance.register(app)   # #344 — DCR register + the pinned 109→097 correction
 import worker_lifecycle
 worker_lifecycle.register(app)   # #345 — Workforce: archive / reactivate / delete permanently
+import hours_overtime
+hours_overtime.register(app)   # hours over 8: approve / reject + the week picker summary
 import worker_id_cleanup
 worker_id_cleanup.register(app)  # #346 — one-time W-0030..32 -> W-0027..29 renumber (admin)
 
@@ -401,6 +403,19 @@ try:
     db_layer._PKMAP_CACHE.clear()   # #290 fresh-DB pk-map note, as above
 except Exception as _e:
     logging.warning(f"#295 hours-edit schema ensure skipped: {_e}")
+
+# Hours over 8 in a day: reason + admin/PM approval (payroll_hours.DAY_LIMIT).
+import apply_hours_overtime as _hours_overtime_schema  # noqa: E402
+try:
+    _hc = db_layer.connect(pragma_fk=True)
+    try:
+        _hours_overtime_schema.ensure_hours_overtime_schema(_hc)
+        _hc.commit()
+    finally:
+        _hc.close()
+    db_layer._PKMAP_CACHE.clear()
+except Exception as _e:
+    logging.warning(f"hours-overtime schema ensure skipped: {_e}")
 
 # #278 — Project Cost "Spent to Date" (C-Suite) + the project expense ledger.
 # Comp data: every endpoint admin/c_suite; cost keys OMITTED for every other role
@@ -1258,6 +1273,41 @@ def validate_project_exists(conn, project_code):
 
 # ============= SIGN-IN LOG ENDPOINTS =============
 
+def _hours_check(conn, employee_id, date_str, time_in, time_out, exclude_id=None, reason=None):
+    """One place at a time + the 8-hour day (payroll_hours). Returns
+    (error_response, None) or (None, the day's total after this write).
+    409 code=overlap: the times overlap another entry that day (any job).
+    422 code=needs_reason: the day passes 8 hours and no reason was given."""
+    import payroll_hours as ph
+    others = ph.day_entries(conn, employee_id, date_str, exclude_id)
+    hit = ph.find_overlap(others, time_in, time_out)
+    if hit:
+        return (jsonify({"error": ph.overlap_message(hit), "code": "overlap",
+                         "project_code": hit["project_code"]}), 409), None
+    total = ph.day_total(others, (time_in, time_out))
+    if (ph.rule_applies(date_str) and not (reason or "").strip()
+            and ph.needs_reason(total, ph.get_overtime(conn, employee_id, date_str))):
+        return (jsonify({"error": f"That makes {total:g} hours for the day. Hours over 8 need a "
+                                  "reason and an admin or PM's approval.",
+                         "code": "needs_reason", "needs_reason": True, "day_total": total}), 422), None
+    return None, total
+
+
+def _hours_sync(conn, employee_id, date_str, reason=None, actor_role=None):
+    """After a sign-in write: bring the day's over-8 request in step."""
+    import payroll_hours as ph
+    if not ph.rule_applies(date_str):
+        return
+    try:
+        from auth import current_user
+        user = current_user() or {}
+    except Exception:
+        user = {}
+    total = ph.day_total(ph.day_entries(conn, employee_id, date_str))
+    ph.sync_overtime(conn, employee_id, date_str, total, reason,
+                     actor_uid=user.get("id"), actor_role=actor_role or user.get("role"))
+
+
 @app.route('/api/sign-ins', methods=['POST'])
 def create_sign_in():
     """Create a sign-in row. Two supported callers:
@@ -1309,17 +1359,23 @@ def create_sign_in():
                 "existing_time_out": existing["time_out"],
             }), 409
 
+        ot_reason = (data.get('overtime_reason') or '').strip()
+        err, _total = _hours_check(conn, employee_id, date_str, time_in, time_out, reason=ot_reason)
+        if err:
+            conn.close()
+            return err
         now = datetime.now().isoformat()
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO sign_in_log (date, employee_id, project_code, time_in, time_out, created_at, updated_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (date_str, employee_id, project_code, time_in, time_out, now, now)
         )
+        new_id = cur.lastrowid   # before _hours_sync, which may insert its own row
+        _hours_sync(conn, employee_id, date_str, ot_reason)
         # Stale flag: if a DCR was already issued for this (project, date),
         # the rendered artifact no longer matches live labor. Mark it.
         _mark_dcr_stale(conn, project_code, date_str)
         conn.commit()
-        new_id = conn.execute("SELECT last_insert_rowid() as id").fetchone()['id']
         row = conn.execute("SELECT * FROM sign_in_log WHERE id = ?", (new_id,)).fetchone()
         conn.close()
         return response_wrapper(dict(row)), 201
@@ -1344,10 +1400,17 @@ def update_sign_in(sign_in_id):
         if not before:
             conn.close()
             return jsonify({"error": "sign_in_log row not found"}), 404
+        ot_reason = (data.get('overtime_reason') or '').strip()
+        err, _total = _hours_check(conn, before["employee_id"], before["date"], before["time_in"],
+                                   time_out, exclude_id=sign_in_id, reason=ot_reason)
+        if err:
+            conn.close()
+            return err
         conn.execute(
             "UPDATE sign_in_log SET time_out = ?, updated_at = ? WHERE id = ?",
             (time_out, datetime.now().isoformat(), sign_in_id)
         )
+        _hours_sync(conn, before["employee_id"], before["date"], ot_reason)
         edit_id = _record_sign_in_edit(conn, before, 'edit', before["time_in"], time_out, reason)
         _mark_dcr_stale(conn, before["project_code"], before["date"])
         amended = _amend_issued_dcr_hours(
@@ -1398,10 +1461,17 @@ def replace_sign_in(sign_in_id):
         if not before:
             conn.close()
             return jsonify({"error": "sign_in_log row not found"}), 404
+        ot_reason = (data.get('overtime_reason') or '').strip()
+        err, _total = _hours_check(conn, before["employee_id"], before["date"], time_in, time_out,
+                                   exclude_id=sign_in_id, reason=ot_reason)
+        if err:
+            conn.close()
+            return err
         conn.execute(
             "UPDATE sign_in_log SET time_in = ?, time_out = ?, updated_at = ? WHERE id = ?",
             (time_in, time_out, datetime.now().isoformat(), sign_in_id)
         )
+        _hours_sync(conn, before["employee_id"], before["date"], ot_reason)
         # #295 — the correction trail + issued-day amendment, in-transaction.
         edit_id = _record_sign_in_edit(conn, before, 'edit', time_in, time_out, reason)
         _mark_dcr_stale(conn, before["project_code"], before["date"])
@@ -1449,6 +1519,7 @@ def delete_sign_in(sign_in_id):
             conn.close()
             return jsonify({"error": "sign_in_log row not found"}), 404
         conn.execute("DELETE FROM sign_in_log WHERE id = ?", (sign_in_id,))
+        _hours_sync(conn, before["employee_id"], before["date"])
         edit_id = _record_sign_in_edit(conn, before, 'remove', None, None, reason)
         _mark_dcr_stale(conn, before["project_code"], before["date"])
         amended = _amend_issued_dcr_hours(
@@ -1613,16 +1684,19 @@ def api_payroll_hours_csv():
         # payroll uses to match workers across systems. employee_id stays
         # so the internal key is in the export for traceback.
         w.writerow(["worker_id", "employee_id", "name", "trade",
-                    *grid["dates"], "weekly_total"])
+                    *grid["dates"], "weekly_total", "overtime_pending"])
+        # Day cells and totals are PAID hours; extra hours still waiting for
+        # approval sit in their own column so nobody pays them by accident.
         for emp in grid["workers"]:
             w.writerow([
                 emp.get("worker_id") or "",
                 emp["employee_id"], emp["name"], emp["trade"] or "",
                 *[(d["hours"] if d["has_entry"] else "") for d in emp["days"]],
-                emp["weekly_total"],
+                emp["weekly_total"], emp.get("overtime_pending_hours") or "",
             ])
         w.writerow(["", "", "DAILY TOTAL", "",
-                    *grid["totals_by_day"], grid["grand_total"]])
+                    *grid["totals_by_day"], grid["grand_total"],
+                    grid.get("overtime_pending_hours") or ""])
 
         csv_bytes = buf.getvalue().encode("utf-8")
         filename = f"weekly-hours-{grid['week_start']}-to-{grid['week_end']}.csv"
@@ -4558,6 +4632,15 @@ def worker_session_start():
         if not project_code or project_code not in allowed:
             conn.close()
             return jsonify({"error": "pick one of your jobs"}), 403
+        # One place at a time: a finished entry today (another job, or typed in
+        # by the office) that covers now blocks a second clock-in. An entry
+        # left open (a missed sign-out) does not, or the worker is locked out.
+        import payroll_hours as _ph
+        _closed = [e for e in _ph.day_entries(conn, employee_id, today) if e["time_out"]]
+        _hit = _ph.find_overlap(_closed, now_iso, None)
+        if _hit:
+            conn.close()
+            return jsonify({"error": _ph.overlap_message(_hit), "code": "overlap"}), 409
         if not session["project_code"]:
             conn.execute("UPDATE worker_app_session SET project_code=? WHERE token_hash=?",
                          (project_code, session["token_hash"]))
@@ -4622,10 +4705,23 @@ def worker_session_end():
             return jsonify({"error": "No open session found for today"}), 404
 
         sign_in_log_id = row['id']
+        # Past 8 hours for the day: the worker gives a reason before clocking
+        # out (the app shows the reason screen on 422 needs_reason).
+        import payroll_hours as _ph
+        ot_reason = (data.get('reason') or '').strip()
+        if _ph.rule_applies(today):
+            full = conn.execute("SELECT time_in FROM sign_in_log WHERE id = ?", (sign_in_log_id,)).fetchone()
+            total = _ph.day_total(_ph.day_entries(conn, employee_id, today, exclude_id=sign_in_log_id),
+                                  (full["time_in"], now_iso))
+            if not ot_reason and _ph.needs_reason(total, _ph.get_overtime(conn, employee_id, today)):
+                conn.close()
+                return jsonify({"error": "Over 8 hours today. Tell the office why.",
+                                "code": "needs_reason", "needs_reason": True, "day_total": total}), 422
         conn.execute(
             "UPDATE sign_in_log SET time_out = ?, updated_at = ? WHERE id = ?",
             (now_iso, now_iso, sign_in_log_id)
         )
+        _hours_sync(conn, employee_id, today, ot_reason, actor_role='worker')
         conn.execute(
             "UPDATE worker_app_session SET ended_at=?, revoked_at=? WHERE token_hash=?",
             (now_iso, now_iso, session["token_hash"]),

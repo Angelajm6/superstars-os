@@ -110,6 +110,7 @@
   .lr-card-sub{color:var(--muted);font-size:13px;margin-top:2px}
   .lr-card-loading{color:var(--muted);font-size:13px}
   .brand-mark,.mark{object-fit:contain;}  /* #265 swap-safe logo */
+#lr-overlay .field :disabled{opacity:.6;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -202,6 +203,7 @@
       <div class="field" id="lr-status-field"><label>Status</label><select id="lr-f-status"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
       <button class="submit" id="lr-submit"><svg class="ic" style="width:15px;height:15px"><use href="#i-send"/></svg><span id="lr-submit-label">Submit for PM approval</span></button>
       <div class="gatenote" id="lr-gatenote"><svg class="ic" style="width:11px;height:11px;vertical-align:-1px"><use href="#i-lock"/></svg> Rate changes take effect only once a PM approves.</div>
+      <div class="gatenote" id="lr-ro-note" style="display:none;">Inactive. Their past weeks stay on Weekly Payroll. Reactivate to change the rate or trade.</div>
       <button class="ghost" id="lr-deact-btn" type="button" style="display:none;margin-top:12px;width:100%;color:var(--red);border-color:rgba(200,16,46,.4);align-items:center;justify-content:center;gap:6px;"><svg class="ic" style="width:14px;height:14px"><use href="#i-ban"/></svg>Request deactivation (PM approval)</button>
     </div>
     <div class="hist">
@@ -407,6 +409,12 @@
     $('lr-status-field').style.display=isAdd?'':'none';
     $('lr-pendbar').style.display='none';
     $('lr-deact-btn').style.display=(!isAdd && w && w.status==='active')?'':'none';
+    // An inactive worker opens read-only: trade, last rate and the rate history.
+    const ro=!isAdd && w && w.status==='inactive';
+    ['lr-f-trade','lr-f-rate','lr-f-date'].forEach(id=>{ $(id).disabled=ro; });
+    $('lr-submit').style.display=ro?'none':'';
+    if(ro){ $('lr-panel-title').textContent='Rate history'; $('lr-gatenote').style.display='none'; }
+    $('lr-ro-note').style.display=ro?'':'none';
     if(window.SSCDatePicker) SSCDatePicker.wire($('lr-f-date'));
     if(isAdd){
       loadEligible(pendingPreselect); pendingPreselect=null;

@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
 <script src="/files/static/js/datepicker.js?v=1007"></script>
 <script src="/files/static/js/timepicker.js"></script>
+<script src="/files/static/js/payroll_week.js?v=1"></script>
 <!-- #210 company console redesign — REUSES the #209 drag framework:
      vendored GridStack (offline-safe, no CDN) + the shared widget design language
      + the shared per-user layout helper (DashLayout → /api/dashboard/layout). -->
@@ -565,7 +566,7 @@
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <button id="hrs-prev" type="button" style="background:white;border:1px solid var(--ui);color:var(--ui);padding:6px 12px;border-radius:var(--r-inner, 10px);font-size:13px;font-weight:600;cursor:pointer;">‹ Prev</button>
-          <div id="hrs-range" style="font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:14px;font-weight:700;min-width:220px;text-align:center;">—</div>
+          <button type="button" id="hrs-range" style="font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:14px;font-weight:700;min-width:220px;justify-content:center;background:transparent;padding:6px 4px;">—</button>
           <button id="hrs-next" type="button" style="background:white;border:1px solid var(--ui);color:var(--ui);padding:6px 12px;border-radius:var(--r-inner, 10px);font-size:13px;font-weight:600;cursor:pointer;">Next ›</button>
           <button id="hrs-csv" type="button" style="background:#14161C;color:white;border:none;padding:6px 14px;border-radius:var(--r-inner, 10px);font-size:13px;font-weight:600;cursor:pointer;margin-left:14px;display:inline-flex;align-items:center;gap:6px;">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -577,6 +578,7 @@
           </button>
         </div>
       </div>
+      <div id="hrs-approvals" hidden></div>
       <div id="hrs-status" style="font-size:13px;color:#76777E;min-height:18px;margin-bottom:8px;"></div>
       <div id="hrs-grid-wrap" style="overflow-x:auto;">
         <table id="hrs-grid" style="width:100%;border-collapse:collapse;font-size:13px;">
@@ -1223,13 +1225,14 @@
           <div class="lrt-pills">
             <span class="lrt-pill" id="lrt-pill-hours" style="display:none;"><i class="dot azure"></i><span class="t"></span></span>
             <span class="lrt-pill" id="lrt-pill-nosign" style="display:none;"><i class="dot oat"></i><span class="t"></span></span>
+            <span class="lrt-pill" id="lrt-pill-ot" style="display:none;"><i class="dot" style="background:var(--status-warn)"></i><span class="t"></span></span>
             <span class="lrt-money-sub" id="lrt-payroll-sub" style="align-self:center;"></span>
           </div>
         </div>
         <div class="lrt-hero-right">
           <div class="lrt-weeknav">
             <button id="lrt-prev" type="button" title="Previous week">‹</button>
-            <div id="lrt-range">—</div>
+            <button type="button" id="lrt-range">—</button>
             <button id="lrt-next" type="button" title="Next week">›</button>
           </div>
         </div>
@@ -1257,6 +1260,7 @@
         <button id="lrt-reconcile-btn" type="button"
                 style="background:#B27A18;color:white;border:none;padding:6px 14px;border-radius:3px;font-size:13px;font-weight:700;letter-spacing:0.4px;cursor:pointer;text-transform:uppercase;">Reconcile</button>
       </div>
+      <div id="lrt-approvals" hidden></div>
       <div id="lrt-status" style="font-size:13px;color:var(--mute);min-height:18px;margin-bottom:8px;"></div>
       <div id="lrt-grid-wrap">
         <table id="lrt-grid" style="width:100%;border-collapse:collapse;font-size:13px;">
@@ -1309,7 +1313,8 @@
     .lrt-weeknav { display: inline-flex; align-items: stretch; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
     .lrt-weeknav button { border: none; background: #fff; color: var(--accent); font-size: 17px; font-weight: 700; padding: 8px 13px; cursor: pointer; font-family: inherit; line-height: 1; }
     .lrt-weeknav button:hover { background: var(--accent-soft); }
-    .lrt-weeknav #lrt-range { background: var(--accent-soft); color: var(--ink); font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; padding: 0 16px; min-width: 190px; }
+    .lrt-weeknav #lrt-range { background: var(--accent-soft); color: var(--ink); font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; padding: 0 16px; min-width: 190px; font-size: 13px; }
+    .lrt-weeknav #lrt-range:hover { background: var(--accent-in); }
     #lrt-grid th.lrt-weekend { background: #F3F0E9; color: #6b6455; }   /* #310 — Sat/Sun columns */
     .lrt-body { padding: 16px 22px 18px; }
     .lrt-note { display: none; align-items: center; gap: 8px; background: var(--accent-soft); border: 1px solid var(--accent-edge); color: var(--muted); font-size:13px; padding: 8px 12px; border-radius: 9px; margin-bottom: 12px; }
@@ -3809,6 +3814,7 @@ applyLanguage();
       currentMonday = new Date(currentGrid.week_start + 'T00:00:00');
       $('hrs-range').textContent = fmtRange(currentMonday);
       renderGrid(currentGrid);
+      if (window.SSCPayrollWeek) SSCPayrollWeek.renderApprovals($('hrs-approvals'), currentGrid, {onChange: () => loadGrid(currentMonday)});
       setStatus('', '#76777E');
     } catch (e) {
       setStatus('Network error', '#B11E2E');
@@ -3838,19 +3844,20 @@ applyLanguage();
       const cells = w.days.map(day => {
         const cls = day.has_entry ? '' : ' hrs-blank';
         const hours = day.has_entry ? day.hours.toFixed(2) : '';
+        const otBadge = window.SSCPayrollWeek ? SSCPayrollWeek.cellBadge(day) : null;
         const times = day.has_entry ? `${esc(day.time_in||'')}–${esc(day.time_out||'')}` : '';
         const multi = (day.row_count||1) > 1 ? `<span style="font-size:13px;background:#eee;padding:0 4px;border-radius:3px;margin-left:3px;">×${day.row_count}</span>` : '';
         return `<td class="hrs-cell${cls}" data-emp="${esc(w.employee_id)}" data-date="${esc(day.date)}" data-id="${esc(day.sign_in_id || '')}"
           data-in="${esc(day.time_in||'')}" data-out="${esc(day.time_out||'')}"
           style="border:1px solid #E8E4DD;padding:6px 8px;text-align:center;cursor:pointer;${day.has_entry?'background:#fffefb':'background:#fafafa;color:#bbb'}">
-          <div style="font-weight:700;font-size:13px;">${hours||'—'}${multi}</div>
+          <div style="font-weight:700;font-size:13px;">${otBadge || hours || '—'}${multi}</div>
           <div style="font-size:13px;color:#76777E;">${times}</div>
         </td>`;
       }).join('');
       return `<tr>
         <td style="border:1px solid #E8E4DD;padding:6px 10px;">
           <div style="font-size:13px;font-weight:700;color:#B11E2E;letter-spacing:0.04em;">${esc(w.worker_id || '—')}</div>
-          <div style="font-weight:700;font-size:13px;">${esc(w.name)}</div>
+          <div style="font-weight:700;font-size:13px;">${esc(w.name)}${w.labor_active === false ? '<span class="spw-inactive" title="Kept here because they worked this week">Inactive</span>' : ''}</div>
           <div style="font-size:13px;color:#76777E;">
             <button type="button" data-hrs-row-full="${esc(w.employee_id)}" title="Fill Mon-Fri full days for this worker"
               style="background:#f1eee8;color:#14161C;border:1px solid #C8C0B4;font-size:13px;padding:1px 5px;border-radius:3px;cursor:pointer;">Full week</button>
@@ -3924,26 +3931,35 @@ applyLanguage();
     td.querySelector('.hrs-edit-cancel').addEventListener('click', (e) => { e.stopPropagation(); loadGrid(currentMonday); });
   }
 
+  // One place at a time + the 8-hour day: a 409 code=overlap names the other
+  // job; a 422 needs_reason asks for the reason and saves again with it.
+  function sendCell(empId, dateStr, sid, tin, tout, otReason) {
+    const body = {time_in: tin, time_out: tout};
+    if (otReason) body.overtime_reason = otReason;
+    if (sid && sid !== '') {
+      return fetch('/api/sign-ins/' + sid, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    }
+    return fetch('/api/sign-ins', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(Object.assign({employee_id: empId, project_code: PROJECT_CODE, date: dateStr}, body))});
+  }
+
   async function saveCell(empId, dateStr, sid, tin, tout) {
     if (!tin || !tout) { setStatus('Both times required', '#B11E2E'); return; }
     if (tout < tin) { setStatus('Time-out is before time-in', '#B11E2E'); return; }
     try {
-      let r;
-      if (sid && sid !== '') {
-        r = await fetch('/api/sign-ins/' + sid, {
-          method:'PUT', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({time_in: tin, time_out: tout})
-        });
-      } else {
-        r = await fetch('/api/sign-ins', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({employee_id: empId, project_code: PROJECT_CODE,
-                                date: dateStr, time_in: tin, time_out: tout})
-        });
-        // 409: a row already exists (probably from concurrent edit). Fetch latest grid.
-        if (r.status === 409) { setStatus('Already had an entry — refreshed', '#B68838'); await loadGrid(currentMonday); return; }
+      let r = await sendCell(empId, dateStr, sid, tin, tout);
+      let j = await r.json().catch(()=>({}));
+      if (r.status === 422 && j.needs_reason && window.SSCPayrollWeek) {
+        const reason = await SSCPayrollWeek.reasonDialog({
+          message: `That makes ${j.day_total} hours for the day. Hours over 8 need a reason and an admin or PM\u2019s approval. Until then payroll pays 8.`});
+        if (!reason) { setStatus('Not saved', '#76777E'); return; }
+        r = await sendCell(empId, dateStr, sid, tin, tout, reason);
+        j = await r.json().catch(()=>({}));
       }
-      if (!r.ok) { const j = await r.json().catch(()=>({})); setStatus('Save failed: ' + (j.error || r.status), '#B11E2E'); return; }
+      if (r.status === 409 && j.code === 'overlap') { setStatus(j.error, '#B11E2E'); return; }
+      // 409: a row already exists (probably from concurrent edit). Fetch latest grid.
+      if (r.status === 409) { setStatus('Already had an entry — refreshed', '#B68838'); await loadGrid(currentMonday); return; }
+      if (!r.ok) { setStatus('Save failed: ' + (j.error || r.status), '#B11E2E'); return; }
       await loadGrid(currentMonday);
     } catch (e) { setStatus('Network error', '#B11E2E'); }
   }
@@ -3977,8 +3993,15 @@ applyLanguage();
         });
       }
     });
-    await Promise.allSettled(ops);
+    await reportBulk(ops);
+  }
+
+  // Days a bulk fill could not set: overlapping another job or past 8 hours.
+  async function reportBulk(ops) {
+    const res = await Promise.allSettled(ops);
+    const skipped = res.filter(x => x.status === 'fulfilled' && x.value && (x.value.status === 409 || x.value.status === 422)).length;
     await loadGrid(currentMonday);
+    if (skipped) setStatus(`${skipped} day(s) skipped: already logged on another job or would pass 8 hours. Edit those cells one by one.`, '#B68838');
   }
 
   // Bulk: full Mon-Fri week for a specific worker
@@ -4003,8 +4026,7 @@ applyLanguage();
         });
       }
     });
-    await Promise.allSettled(ops);
-    await loadGrid(currentMonday);
+    await reportBulk(ops);
   }
 
   // Event delegation: cell clicks + bulk-action buttons
@@ -4042,6 +4064,12 @@ applyLanguage();
   $('hrs-pdf').addEventListener('click', () => {
     if (!currentMonday) return;
     window.location.href = '/api/payroll/hours.pdf?week_start=' + isoDate(currentMonday);
+  });
+
+  // Week picker: a calendar of Mon–Sun weeks on the range label
+  if (window.SSCPayrollWeek) SSCPayrollWeek.attachPicker($('hrs-range'), {
+    getCurrent: () => currentMonday ? isoDate(currentMonday) : null,
+    onPick: (mon) => loadGrid(new Date(mon + 'T00:00:00')),
   });
 
   // Init: load the default week (server resolves to last_completed_week)
@@ -4191,6 +4219,9 @@ applyLanguage();
           return `<td class="lrt-num" style="background:#FFF4E6;color:#A0561B;">—</td>`;
         }
         if (!h || h <= 0) return `<td class="lrt-num"><span style="color:var(--mute);">—</span></td>`;
+        // Over 8 hours: paid 8 until approved (8 + 2 pending / 10 ✓ / 8 +2 rejected)
+        const ot = window.SSCPayrollWeek && SSCPayrollWeek.cellBadge(d);
+        if (ot) return `<td class="lrt-num">${ot}</td>`;
         if (h >= 8) return `<td class="lrt-num"><span class="lrt-full">${h.toFixed(2)}</span></td>`;
         return `<td class="lrt-num"><span class="lrt-partial">${h.toFixed(2)}</span></td>`;
       }).join('');
@@ -4218,7 +4249,7 @@ applyLanguage();
           <div class="lrt-worker">
             ${lrtAvatar(w)}
             <div>
-              <div class="lrt-wname">${esc(w.name || '—')}${noSign ? `<span class="lrt-nosign-tag">${esc(lrtT('lrt-pill-nosign'))}</span>` : ''}</div>
+              <div class="lrt-wname">${esc(w.name || '—')}${noSign ? `<span class="lrt-nosign-tag">${esc(lrtT('lrt-pill-nosign'))}</span>` : ''}${w.labor_active === false ? '<span class="spw-inactive" title="Kept here because they worked this week">Inactive</span>' : ''}</div>
               <div class="lrt-wmeta"><span class="wid">${esc(w.worker_id || '—')}</span> · ${esc(w.trade || '—')}</div>
             </div>
           </div>
@@ -4333,6 +4364,9 @@ applyLanguage();
       };
       setPill('lrt-pill-hours', true, `${(grid.grand_total || 0).toFixed(2)} ${lrtT('lrt-pill-hrs')}`);
       setPill('lrt-pill-nosign', noSign > 0, `${noSign} ${lrtT('lrt-pill-nosign')}`);
+      const otHrs = grid.overtime_pending_hours || 0;
+      setPill('lrt-pill-ot', otHrs > 0, `${otHrs} hrs waiting for approval`);
+      if (window.SSCPayrollWeek) SSCPayrollWeek.renderApprovals($('lrt-approvals'), grid, {onChange: () => loadGrid(currentMonday)});
       // #245 — collapsed strip (same count as the pill, by construction)
       const strip = $('lrt-nosign-strip');
       if (strip) {
@@ -4374,6 +4408,11 @@ applyLanguage();
   }
   $('lrt-prev').addEventListener('click', () => shiftWeek(-7));
   $('lrt-next').addEventListener('click', () => shiftWeek(7));
+  // Week picker: tap the dates for a calendar of Mon–Sun weeks (hours + approvals per week)
+  if (window.SSCPayrollWeek) SSCPayrollWeek.attachPicker($('lrt-range'), {
+    getCurrent: () => currentMonday,
+    onPick: (mon) => loadGrid(mon),
+  });
 
   // #191 — admin-gated [Reconcile] click. POSTs the reconcile endpoint
   // for the current week, then re-runs loadGrid so the banner clears
