@@ -32,6 +32,16 @@ def _staff_only():
 
 # ============================ STAFF TOTP (self-service) ============================
 
+def _qr_data_uri(text: str):
+    """The setup QR as an SVG data: URI for an <img> (Salesforce Authenticator and others only scan), or None."""
+    try:
+        import segno
+        return segno.make(text, error="m").svg_data_uri(scale=6, border=2, dark="#222633", light="#ffffff")
+    except Exception:   # the key + link still work without the picture
+        logging.warning("auth: totp qr unavailable")
+        return None
+
+
 def _api_totp_begin():
     """POST /api/auth/totp/begin — mint a fresh secret + recovery codes and return
     them ONCE (secret, otpauth URI, recovery list) for the caller to scan/save. The
@@ -51,9 +61,11 @@ def _api_totp_begin():
     finally:
         conn.close()
     logging.info(f"auth: totp begin uid={user['id']}")   # never the secret
+    uri = _totp.provisioning_uri(secret, user.get("email") or f"user-{user['id']}")
     return jsonify({"data": {
         "secret": secret,
-        "otpauth_uri": _totp.provisioning_uri(secret, user.get("email") or f"user-{user['id']}"),
+        "otpauth_uri": uri,
+        "qr_svg": _qr_data_uri(uri),   # drawn here (segno), so the secret never goes to an outside QR service
         "recovery_codes": recovery,   # shown ONCE — the caller must save them now
     }})
 

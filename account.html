@@ -67,7 +67,10 @@
   .item .m{font-size:13px;color:var(--muted);margin-top:2px;}
   .tf-steps{display:grid;gap:10px;max-width:560px;font-size:13px;color:var(--ink-2,#4A4F59);}
   .tf-key{display:inline-block;padding:8px 12px;background:#F4F5F8;border-radius:8px;font-size:15px;letter-spacing:1px;user-select:all;word-break:break-all;}
-  .tf-uri{font-size:13px;color:var(--muted);word-break:break-all;}
+  .tf-qr-wrap{display:flex;}
+  .tf-qr[hidden]{display:none;}
+  .tf-qr{display:block;width:216px;height:216px;max-width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;image-rendering:pixelated;}
+  .tf-or{font-size:13px;color:var(--muted);}
   .tf-codes{background:#F4F5F8;border-radius:8px;padding:10px 12px;font-size:13px;white-space:pre-wrap;user-select:all;}
   .tf-code{max-width:140px !important;letter-spacing:3px;font-size:16px;}
   .loading{color:var(--muted);font-size:13px;}
@@ -313,8 +316,10 @@
     b.innerHTML =
       '<div class="actions"><span class="chip off">Off</span><button class="btn-sm" type="button" id="tf-start">Set up authenticator</button><span id="tf-msg"></span></div>' +
       '<div class="tf-steps" id="tf-steps" hidden>' +
-        '<div>1. In your authenticator app, add an account and paste this setup key:</div>' +
-        '<div><code class="tf-key" id="tf-secret"></code><div class="tf-uri" id="tf-uri"></div></div>' +
+        '<div>1. In your authenticator app, add an account and scan this code:</div>' +
+        '<div class="tf-qr-wrap"><img class="tf-qr" id="tf-qr" alt="QR code for your authenticator app" width="216" height="216" hidden></div>' +
+        '<div class="tf-or">Can\u2019t scan? Type this setup key instead (time-based):</div>' +
+        '<div><code class="tf-key" id="tf-secret"></code></div>' +
         '<div>2. Save these one-time recovery codes somewhere safe. Each one works once if you lose your phone. They are shown only now.</div>' +
         '<pre class="tf-codes" id="tf-codes"></pre>' +
         '<div>3. Enter the 6-digit code your app shows now:</div>' +
@@ -322,11 +327,11 @@
         '<button class="btn-primary" type="button" id="tf-on">Turn on</button></div>' +
       '</div>';
     $('tf-start').addEventListener('click', function () {
-      var btn = $('tf-start'); btn.disabled = true;
+      var btn = $('tf-start'); btn.disabled = true; btn.textContent = 'Setting up\u2026';
       req('POST', '/api/2fa/begin', {}).then(function (r) {
-        if (!r.ok || !r.j.data) { btn.disabled = false; say($('tf-msg'), r.j.error || 'Could not start. Try again.'); return; }
+        if (!r.ok || !r.j.data) { btn.disabled = false; btn.textContent = 'Set up authenticator'; say($('tf-msg'), r.j.error || 'Could not start. Try again.'); return; }
         $('tf-secret').textContent = r.j.data.secret;
-        $('tf-uri').textContent = r.j.data.otpauth_uri;
+        if (r.j.data.qr_svg) { $('tf-qr').src = r.j.data.qr_svg; $('tf-qr').hidden = false; }
         $('tf-codes').textContent = (r.j.data.recovery_codes || []).join('\n');
         $('tf-steps').hidden = false; btn.hidden = true;
         $('tf-code').focus();
