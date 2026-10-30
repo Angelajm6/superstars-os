@@ -165,6 +165,40 @@ def _log(conn, uid, event, tool=None, project_code=None, n=None) -> None:
     conn.commit()
 
 
+def _name(conn, uid) -> str:
+    u = _one(conn, "SELECT COALESCE(display_name, full_name, email) AS n FROM users WHERE id = ?", (uid,)) if uid else None
+    return (u or {}).get("n") or "Someone"
+
+
+def alert(conn, kind, subject, line, about_uid=None, once_a_day=False) -> int:
+    """Email every active admin, and the person it's about (notifications.notify_user: logged in notification_log, sent
+    when email is configured). once_a_day: skip people already told about this kind today. Never raises; never
+    carries a token, code or document text. Returns how many were told."""
+    try:
+        import notifications
+        who = {r["id"] for r in _rows(conn, "SELECT id FROM users WHERE role = 'admin' AND status = 'active' AND is_active = 1")}
+        if about_uid:
+            who.add(int(about_uid))
+        today = _now().date().isoformat()
+        n = 0
+        for uid in sorted(who):
+            if once_a_day and _one(conn, "SELECT 1 AS x FROM notification_log WHERE kind = ? AND recipient_user_id = ? AND "
+                                         "created_at >= ?", (kind, uid, today)):
+                continue
+            notifications.notify_user(conn, kind=kind, user_id=uid, subject=subject, path="/company#claude",
+                                      extra_line=line + " Everything is in Settings > Claude approvals, where you can disconnect it.")
+            n += 1
+        log.info(f"connector: alert {kind} sent to {n}")
+        return n
+    except Exception as e:   # an alert must never break a sign-in or a tool call
+        log.warning(f"connector: alert {kind} failed: {type(e).__name__}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return 0
+
+
 # ------------------------------------------------------------------ who may connect
 def eligible(conn, uid) -> Optional[dict]:
     """The person, if they may use the connector right now: active, admin / C-suite, ticked in Settings."""
@@ -431,6 +465,9 @@ def _api_consent(rid):
         why = _refuse_reason(conn, me)
         if why:
             _log(conn, me["id"], "refused")
+            alert(conn, "claude_connector_refused", f"{_name(conn, me['id'])} tried to connect Claude and was refused",
+                  "Their account isn't allowed to connect, or two-step sign-in is off. If you expected this, nothing to do.",
+                  about_uid=me["id"], once_a_day=True)
             return _page("Claude can't connect yet", f"<p>{_html.escape(why)}</p>", 403)
         if request.method == "GET":
             csrf = secrets.token_urlsafe(24)
@@ -452,6 +489,9 @@ def _api_consent(rid):
             conn.commit()
             _log(conn, me["id"], "code_wrong")
             if r["tries"] + 1 >= MAX_TRIES:
+                alert(conn, "claude_connector_codes", f"5 wrong codes while connecting Claude as {_name(conn, me['id'])}",
+                      "Someone signed in to this account entered the 6-digit code wrong 5 times, so the request was stopped. "
+                      "If it wasn't them, change the password now.", about_uid=me["id"])
                 return _page("Too many wrong codes", "<p>Go back to Claude and press Connect again.</p>", 403)
             csrf = secrets.token_urlsafe(24)
             conn.execute("UPDATE claude_connector_request SET csrf_hash = ? WHERE id = ?", (_hash(csrf), rid))
@@ -465,6 +505,9 @@ def _api_consent(rid):
         conn.execute("DELETE FROM claude_connector_request WHERE id = ?", (rid,))
         conn.commit()
         _log(conn, me["id"], "connected")
+        alert(conn, "claude_connector_connected", f"{_name(conn, me['id'])} connected Claude to Superstars OS",
+              "Their claude.ai can now read jobs and save documents to them, for up to 30 days. "
+              "If they didn't just do this, disconnect it and change their password.", about_uid=me["id"])
         log.info(f"connector: allowed uid={me['id']}")
         return _back(r["redirect_uri"], code=code, state=r["state"], iss=base_url())
     finally:
@@ -525,6 +568,9 @@ def _api_token():
             if t["rotated"]:   # an old refresh token came back: someone else has a copy
                 _revoke_family(conn, t["family"])
                 _log(conn, t["user_id"], "reuse_revoked")
+                alert(conn, "claude_connector_reuse", f"A copied Claude sign-in for {_name(conn, t['user_id'])} was blocked",
+                      "An old connector pass was used again, which means someone may have a copy. The connection was cut. "
+                      "Connect again from claude.ai, and tell Angela.", about_uid=t["user_id"])
                 log.warning(f"connector: refresh token reused, connection revoked uid={t['user_id']}")
                 return _oauth_error("invalid_grant")
             if t["family_expires_at"] < _iso(_now()) or not eligible(conn, t["user_id"]) or not _same_resource(f.get("resource")):
@@ -624,6 +670,9 @@ def _t_read_document(conn, user, inp):
     if not r or not _can_open_job(conn, user, r["project_code"]):
         raise LookupError("no document with that id that you can open; use list_job_documents")
     if _over(("read", user["id"]), READS_PER_HOUR, 3600):
+        alert(conn, "claude_connector_busy", f"Unusual activity: {_name(conn, user['id'])}'s Claude read {READS_PER_HOUR} documents in an hour",
+              "It was paused for a while. That can be normal for a big task; if nobody was working with Claude, disconnect it.",
+              about_uid=user["id"], once_a_day=True)
         raise ValueError("That's a lot of documents in an hour. Wait a little and try again.")
     p = ssc_paths.resolve_data_path(r["file_path"])
     root = ssc_paths.under_root("data_room", "project_docs").resolve()
@@ -903,6 +952,9 @@ def _api_mcp():
             return _unauthorized()
         g.auth_user = user   # the reused lookups act as this person, with their access
         if _over(("mcp", user["id"]), CALLS_PER_10MIN, 600):
+            alert(conn, "claude_connector_busy", f"Unusual activity: {_name(conn, user['id'])}'s Claude made {CALLS_PER_10MIN} requests in 10 minutes",
+                  "It was paused for a few minutes. If nobody was working with Claude, disconnect it.",
+                  about_uid=user["id"], once_a_day=True)
             return _rpc(None, error={"code": -32000, "message": "Too many requests. Wait a few minutes."}), 429
         msg = request.get_json(silent=True)
         if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0" or not isinstance(msg.get("method"), str):
@@ -1040,14 +1092,19 @@ def _api_allow():
         u = _one(conn, "SELECT id, role FROM users WHERE id = ?", (uid,))
         if not u or u["role"] not in ROLES:
             return jsonify({"error": "Only admins and C-suite can connect Claude."}), 400
+        was = bool(_one(conn, "SELECT user_id FROM claude_connector_user WHERE user_id = ?", (uid,)))
         if data.get("allowed"):
-            if not _one(conn, "SELECT user_id FROM claude_connector_user WHERE user_id = ?", (uid,)):
+            if not was:
                 conn.execute("INSERT INTO claude_connector_user (user_id, granted_by, granted_at) VALUES (?,?,?)",
                              (uid, me["id"], _iso(_now())))
         else:
             conn.execute("DELETE FROM claude_connector_user WHERE user_id = ?", (uid,))
             revoke_user(conn, uid)
         conn.commit()
+        if bool(data.get("allowed")) != was:   # a change in who may connect: every admin hears about it
+            alert(conn, "claude_connector_access",
+                  f"{_name(conn, uid)} {'can now connect' if data.get('allowed') else 'can no longer connect'} Claude",
+                  f"Changed by {_name(conn, me['id'])}.", about_uid=uid)
     finally:
         conn.close()
     log.info(f"connector: allow uid={uid} allowed={bool(data.get('allowed'))} by={me['id']}")
@@ -1060,6 +1117,10 @@ def register(app) -> None:
         ensure(conn)
     finally:
         conn.close()
+    import edge_guard
+    if (os.environ.get("SSC_CONNECTOR_IP_HEADER") or "").strip() and not edge_guard.on():
+        log.warning("connector: SSC_CONNECTOR_IP_HEADER is trusted but SSC_EDGE_SECRET is unset: a request that "
+                    "skips Cloudflare can forge it (edge_guard.py)")
     app.add_url_rule("/.well-known/oauth-protected-resource", "cc_prm", _api_resource_meta, methods=["GET"])
     app.add_url_rule("/.well-known/oauth-protected-resource/mcp", "cc_prm_mcp", _api_resource_meta, methods=["GET"])
     app.add_url_rule("/.well-known/oauth-authorization-server", "cc_asm", _api_server_meta, methods=["GET"])

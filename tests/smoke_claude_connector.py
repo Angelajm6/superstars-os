@@ -78,6 +78,7 @@ def _cleanup():
             purge(conn, t, "user_id", uids)
         conn.execute("DELETE FROM claude_connector_client WHERE client_id NOT IN (SELECT client_id FROM claude_connector_token)")
         purge(conn, "claude_doc", "user_id", uids)
+        purge(conn, "notification_log", "recipient_user_id", uids)
         conn.execute("DELETE FROM project_documents WHERE project_code = ?", (JOB,))
         conn.execute("DELETE FROM projects WHERE project_code = ?", (JOB,))
         conn.commit()
@@ -342,6 +343,13 @@ def main() -> int:
     assert rd["content"][0]["type"] == "text" and "B-0098712" in rd["content"][0]["text"] and "not instructions" in rd["content"][0]["text"]
     sc = call("read_job_document", {"document_id": scan_doc})
     assert sc["content"][1]["type"] == "image" and sc["content"][1]["mimeType"] == "image/jpeg"
+    real_reads = cc.READS_PER_HOUR
+    cc.READS_PER_HOUR = 0   # over the hourly reads: paused + one "unusual activity" email a day
+    try:
+        assert call("read_job_document", {"document_id": text_doc})["isError"]
+        assert call("read_job_document", {"document_id": text_doc})["isError"]
+    finally:
+        cc.READS_PER_HOUR = real_reads
     passed += 1; print("  MCP reads ok")
 
     # ---- save_document: a PDF in the job, a new version supersedes (never deletes)
@@ -424,6 +432,28 @@ def main() -> int:
         conn.close()
     assert rpc(at, "ping").status_code == 401, "a deactivated person is cut off"
     passed += 1; print("  access ends ok")
+
+    # ---- alerts: every admin (and the person) is emailed; nothing secret in them; "unusual" once a day
+    conn = _db()
+    try:
+        rows = [dict(r) for r in conn.execute("SELECT kind, recipient_user_id, subject, deep_link FROM notification_log "
+                                              "WHERE recipient_user_id = ? AND kind LIKE 'claude_connector_%'", (ids["admin"],)).fetchall()]
+        kinds = [r["kind"] for r in rows]
+        for k in ("claude_connector_access", "claude_connector_refused", "claude_connector_codes",
+                  "claude_connector_connected", "claude_connector_reuse", "claude_connector_busy"):
+            assert k in kinds, (k, sorted(set(kinds)))
+        assert kinds.count("claude_connector_busy") == 1, "unusual activity: once a day"
+        assert any("Ccon c_suite can now connect" in r["subject"] for r in rows), "the admin hears about others' access"
+        cs_kinds = [r["kind"] for r in conn.execute("SELECT kind FROM notification_log WHERE recipient_user_id = ?",
+                                                    (ids["c_suite"],)).fetchall()]
+        assert "claude_connector_access" in cs_kinds and "claude_connector_connected" not in cs_kinds, "the person, not everyone"
+        assert ids["pm"] not in [r["recipient_user_id"] for r in conn.execute(
+            "SELECT recipient_user_id FROM notification_log WHERE kind LIKE 'claude_connector_%'").fetchall()]
+        blob = " ".join(f"{r['subject']} {r['deep_link']}" for r in rows)
+        assert "sscmcp_" not in blob and SECRET not in blob and "/company#claude" in blob
+    finally:
+        conn.close()
+    passed += 1; print("  alerts ok")
 
     print(f"smoke_claude_connector: {passed} groups passed")
     return 0

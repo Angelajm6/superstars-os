@@ -66,6 +66,10 @@ app = Flask(__name__, static_folder=str(SCRIPT_DIR / 'static'),
 import http_security
 http_security.apply_http_security_headers(app)
 
+# Only traffic that came through Cloudflare (SSC_EDGE_SECRET; off when unset). First hook, before the auth gate.
+import edge_guard  # noqa: E402
+edge_guard.apply_edge_guard(app)
+
 # Browser-preview blueprint: /preview/* URLs for HTML-first design iteration.
 # WeasyPrint stays in render_pdf.py for production export only.
 from preview_routes import preview_bp
