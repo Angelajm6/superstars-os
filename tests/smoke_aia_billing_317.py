@@ -8,6 +8,9 @@ Proves:
     project -> 404
   * schedule of values: save (insert / update / delete), validation, import from the
     drop-plan lines, a billed line cannot be removed
+  * from the signed proposal: none -> 400; the latest signed version's priced lines become
+    the base lines (lead wins, unpriced scope lines skipped), change orders stay; refused
+    once an application exists
   * applications: needs an SOV; one draft at a time; over-billing a line -> 400;
     G702 arithmetic (lines 1–9) on app #1; issue -> issued `progress` invoice for line 8
     with the period's retainage; a second application's column D and line 7 come from
@@ -89,9 +92,50 @@ def _seed() -> dict:
     return ids
 
 
+EST_CODE = "AIA317-E1"
+
+
+def _seed_proposal(org_id: int, signed: bool) -> None:
+    """An estimate converted into PROJ: v1 declined (must be ignored), v2 signed (or sent)."""
+    now = f"{D(-5)}T10:00:00"
+    conn = _db()
+    try:
+        est = conn.execute("SELECT id FROM estimate WHERE code = ?", (EST_CODE,)).fetchone()
+        if not est:
+            conn.execute("INSERT INTO estimate (code, est_type, borough, seq, client_org_id, status, converted_project_code, "
+                         "created_at) VALUES (?, 'FR', 'BX', 317, ?, 'converted', ?, ?)", (EST_CODE, org_id, PROJ, now))
+            est = conn.execute("SELECT id FROM estimate WHERE code = ?", (EST_CODE,)).fetchone()
+        eid = est["id"]
+        old = [r["id"] for r in conn.execute("SELECT id FROM proposal WHERE estimate_id = ?", (eid,)).fetchall()]
+        purge(conn, "proposal_line", "proposal_id", old)
+        purge(conn, "proposal", "id", old)
+        for ver, status, lines in (
+                (1, "declined", [("Old scope", None, 99999)]),
+                (2, "signed" if signed else "sent", [("Brick restoration at all four elevations, rake and repoint", "Brick restoration", 50000),
+                                                     ("Scaffold, protection and permits are included", None, None),
+                                                     ("Lintel replacement", None, 40000)])):
+            conn.execute("INSERT INTO proposal (estimate_id, version, number, status, client_org_id, title, price, signed_at, "
+                         "created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'Aia317 facade', ?, ?, ?, ?)",
+                         (eid, ver, f"{EST_CODE}-v{ver}", status, org_id, sum(a or 0 for *_, a in lines),
+                          now if status == "signed" else None, now, now))
+            pid = conn.execute("SELECT id FROM proposal WHERE number = ?", (f"{EST_CODE}-v{ver}",)).fetchone()["id"]
+            for i, (desc, lead, amt) in enumerate(lines):
+                conn.execute("INSERT INTO proposal_line (proposal_id, sort, description, lead, amount) VALUES (?,?,?,?,?)",
+                             (pid, i, desc, lead, amt))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _cleanup():
     conn = _db()
     try:
+        est_ids = [r["id"] for r in conn.execute("SELECT id FROM estimate WHERE code = ?", (EST_CODE,)).fetchall()]
+        ph = ",".join("?" * len(est_ids)) or "NULL"
+        p_ids = [r["id"] for r in conn.execute(f"SELECT id FROM proposal WHERE estimate_id IN ({ph})", est_ids).fetchall()]
+        purge(conn, "proposal_line", "proposal_id", p_ids)
+        purge(conn, "proposal", "id", p_ids)
+        purge(conn, "estimate", "id", est_ids)
         app_ids = [r["id"] for r in conn.execute("SELECT id FROM pay_application WHERE project_code = ?", (PROJ,)).fetchall()]
         purge(conn, "pay_application_line", "application_id", app_ids)
         purge(conn, "pay_application", "id", app_ids)
@@ -163,6 +207,34 @@ def main() -> int:
     assert cs.get("/api/projects/NOPE-317/billing").status_code == 404
     passed += 1; print("  gates ok")
 
+    # ---- from the signed proposal (before any application)
+    org_id = cs.get(BILL).get_json()["data"]["project"]["client_org_id"]
+    assert cs.get(BILL).get_json()["data"]["signed_proposal"] is None
+    r = cs.post(f"{BILL}/sov/from-proposal", json={})
+    assert r.status_code == 400 and "no signed proposal" in r.get_json()["error"], r.get_json()
+    _seed_proposal(org_id, signed=False)
+    assert cs.post(f"{BILL}/sov/from-proposal", json={}).status_code == 400, "a sent proposal is not signed"
+    _seed_proposal(org_id, signed=True)
+    sp = cs.get(BILL).get_json()["data"]["signed_proposal"]
+    assert sp["number"] == f"{EST_CODE}-v2" and sp["lines"] == 2 and sp["total"] == 90000.0 and sp["price"] == 90000.0, sp
+    assert sp["signed_at"] == D(-5)
+    r = cs.put(f"{BILL}/sov", json={"rows": [
+        {"item_no": "9", "description": "Typed by hand", "scheduled_value": 1},
+        {"item_no": "CO-1", "description": "Kept change order", "scheduled_value": 700, "kind": "change_order", "approved_on": D(-1)}]})
+    assert r.status_code == 200
+    r = cs.post(f"{BILL}/sov/from-proposal", json={})
+    assert r.status_code == 200, r.get_json()
+    j = r.get_json()
+    assert j["meta"]["imported"] == 2 and j["meta"]["proposal"]["number"] == f"{EST_CODE}-v2"
+    assert [(s["item_no"], s["description"], s["scheduled_value"], s["kind"]) for s in j["data"]] == [
+        ("1", "Brick restoration", 50000.0, "base"), ("2", "Lintel replacement", 40000.0, "base"),
+        ("CO-1", "Kept change order", 700.0, "change_order")], j["data"]
+    _no_secrets(j, "from-proposal")
+    for role in ("pm", "super"):
+        assert _login(role).post(f"{BILL}/sov/from-proposal", json={}).status_code == 403, role
+    assert cs.put(f"{BILL}/sov", json={"rows": []}).status_code == 200   # the steps below start empty
+    passed += 1; print("  from signed proposal ok")
+
     # ---- schedule of values
     r = cs.post(f"{BILL}/applications", json={"period_to": D(0)})
     assert r.status_code == 400 and "schedule of values" in r.get_json()["error"]
@@ -198,6 +270,9 @@ def main() -> int:
     a1 = r.get_json()["data"]
     assert a1["number"] == 1 and a1["status"] == "draft" and len(a1["lines"]) == 4
     assert cs.post(f"{BILL}/applications", json={"period_to": D(0)}).status_code == 409, "one draft at a time"
+    r = cs.post(f"{BILL}/sov/from-proposal", json={})
+    assert r.status_code == 400 and "pay application" in r.get_json()["error"], "billed lines never move"
+    assert len(cs.get(BILL).get_json()["data"]["sov"]) == 4
     sid = {ln["item_no"]: ln["sov_id"] for ln in a1["lines"]}
     r = cs.put(f"/api/billing/applications/{a1['id']}", json={"lines": [{"sov_id": sid["1"], "this_period": 10001}]})
     assert r.status_code == 400 and "exceeds" in r.get_json()["error"]
@@ -290,6 +365,14 @@ def main() -> int:
     assert "window.SSC_PROJECT_CODE || decodeURIComponent((location.pathname.match(/\\/projects\\/([^\\/]+)/)" in page
     assert 'id="aia-card"' in page and 'id="aia-sov-table"' in page and "AIA_pay_load" in page
     assert 'window.SSC_PROJECT_CODE = "' + PROJ + '"' in page
+    # the signed-proposal strip sits in Billing Breakdown; the drop-plan unit rates live on the Drop Plan tab
+    assert 'id="aia-sov-sp"' in page and "/billing/sov/from-proposal" in page
+    sov_view = page[page.index('<section class="view" data-view="sov">'):]
+    sov_view = sov_view[:sov_view.index("</section>")]
+    assert 'id="sov-body"' not in sov_view
+    dp_view = page[page.index('<section class="view" data-view="drop-plans">'):]
+    dp_view = dp_view[:dp_view.index("</section>")]
+    assert 'id="dp-rates"' in dp_view and 'id="sov-body"' in dp_view and "window.DP_rates_load" in page
     passed += 1; print("  served page ok")
 
     print(f"PASS smoke_aia_billing_317 ({passed} groups)")

@@ -858,6 +858,15 @@
   .bt-note.warn { background: var(--status-warn-soft, #FFF4E5); border-color: var(--status-warn-edge, #E8C9A0); color: var(--status-warn, #9A5B00); }
   body[data-billing-type]:not([data-billing-type=""]):not([data-billing-type="aia_sov"]) .bt-note.bt-off { display: block; }
   body[data-billing-type=""] .bt-note.bt-unset { display: block; }
+  /* Billing Breakdown: the job's signed proposal, offered as the starting lines */
+  .aia-sp { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; margin: 0 0 14px; padding: 12px 14px; border-radius: 10px;
+            background: var(--accent-soft, #ebf0fe); border: 1px solid var(--accent-edge, rgba(67,100,220,.30)); font-size: 13.5px; line-height: 1.45; }
+  .aia-sp[hidden] { display: none; }
+  .aia-sp .aia-sp-t { flex: 1 1 260px; min-width: 0; color: var(--ink, #222633); }
+  .aia-sp .aia-sp-t b { font-weight: 600; }
+  .aia-sp .aia-sp-m { display: block; color: var(--muted, #8c92a0); font-size: 12.5px; margin-top: 2px; }
+  .aia-sp.none { background: var(--fill, #F4F5F8); border-color: var(--line, #eceef3); }
+  @media (max-width: 640px) { .aia-sp .pay-btn { width: 100%; justify-content: center; } }
   /* per-job modules (project_modules.py): a switched-off module's nav links and cards disappear.
      .nav-link is display:flex, which would otherwise override the `hidden` attribute. */
   .nav-link[hidden], .nav-group[hidden], .nav-subitems[hidden] { display: none !important; }
@@ -2286,6 +2295,13 @@
           </div>
           <div id="dp-elev"></div>
           <div id="dp-stage" class="dp-hide"></div>
+          <!-- SECTION:financial:start -->
+          <details class="section dp-rates" id="dp-rates" style="margin-top:20px">
+            <summary style="cursor:pointer;font-weight:600">Unit rates</summary>
+            <div class="pay-muted" style="margin:6px 0 12px">The rate behind each Drop Plan quantity, for field tracking. What the client is billed lives in Billing Breakdown.</div>
+            <div id="sov-body" class="placeholder-card">Loading…</div>
+          </details>
+          <!-- SECTION:financial:end -->
         </div>
       </section>
 
@@ -5755,7 +5771,7 @@
             const rows = S.sov;
             const l1 = rows.filter(r => r.kind !== 'change_order').reduce((s, r) => s + num(r.scheduled_value), 0), l2 = rows.filter(r => r.kind === 'change_order').reduce((s, r) => s + num(r.scheduled_value), 0);
             $a('aia-sov-summary').innerHTML = kpi('Original contract sum', money.format(l1), `${rows.filter(r => r.kind !== 'change_order').length} line(s)`) + kpi('Change orders', money.format(l2), `${rows.filter(r => r.kind === 'change_order').length} approved`) + kpi('Contract sum to date', money.format(l1 + l2), 'what applications bill against');
-            $a('aia-sov-table').innerHTML = '<thead><tr><th>Item</th><th>Description of work</th><th class="num">Scheduled value</th><th>Kind</th><th>Approved</th><th></th></tr></thead><tbody>' + (rows.length ? rows.map(sovRow).join('') : '<tr><td colspan="6" class="pay-empty">No lines yet — add the approved breakdown, or import the drop-plan lines and fill in the dollars.</td></tr>') + '</tbody>';
+            $a('aia-sov-table').innerHTML = '<thead><tr><th>Item</th><th>Description of work</th><th class="num">Scheduled value</th><th>Kind</th><th>Approved</th><th></th></tr></thead><tbody>' + (rows.length ? rows.map(sovRow).join('') : '<tr><td colspan="6" class="pay-empty">' + (S.sp ? 'No lines yet. Use the signed proposal\'s lines above, or add the approved breakdown by hand.' : 'No lines yet. Add the approved breakdown, or import the drop-plan lines and fill in the dollars.') + '</td></tr>') + '</tbody>';
             $a('aia-sov-table').querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => { S.sov = readSov(); S.sov.splice(Number(b.dataset.del), 1); renderSov(); }));
             $a('aia-sov-table').querySelectorAll('select[data-k="kind"]').forEach(sel => sel.addEventListener('change', () => { S.sov = readSov(); renderSov(); }));
             $a('aia-sov-table').querySelectorAll('input[data-k="scheduled_value"]').forEach(i => i.addEventListener('input', () => { const rows = readSov(); const l1 = rows.filter(r => r.kind !== 'change_order').reduce((s, r) => s + num(r.scheduled_value), 0), l2 = rows.filter(r => r.kind === 'change_order').reduce((s, r) => s + num(r.scheduled_value), 0); $a('aia-sov-summary').innerHTML = kpi('Original contract sum', money.format(l1), '') + kpi('Change orders', money.format(l2), '') + kpi('Contract sum to date', money.format(l1 + l2), 'what applications bill against'); }));
@@ -5763,10 +5779,35 @@
           async function loadSov() {
             if (!$a('aia-sov-table')) return;
             if (!S.wired) { wireSov(); S.wired = true; }   // the SOV view is later in the document than this script
-            try { const { data } = await api('/api/projects/' + encodeURIComponent(code()) + '/billing'); S.sov = data.sov.map(r => Object.assign({}, r)); renderSov(); }
+            try { const { data } = await api('/api/projects/' + encodeURIComponent(code()) + '/billing'); S.sov = data.sov.map(r => Object.assign({}, r)); S.sp = data.signed_proposal || null; S.billed = data.applications.length > 0; renderSp(); renderSov(); }
             catch (e) { $a('aia-sov-table').innerHTML = '<tbody><tr><td class="pay-empty">' + esc(e.message) + '</td></tr></tbody>'; }
           }
           window.AIA_sov_load = loadSov;
+          // The job's signed proposal, offered as the starting base lines
+          function spDate(d) { return d ? new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : ''; }
+          function renderSp() {
+            const el = $a('aia-sov-sp'), sp = S.sp;
+            if (!sp) { el.className = 'aia-sp none'; el.innerHTML = '<div class="aia-sp-t">No signed proposal on this job yet. When one is signed, its prices can fill these lines.</div>'; el.hidden = false; return; }
+            const off = sp.total && sp.price && Math.abs(sp.total - sp.price) >= 0.01 ? ` · lines add up to ${money.format(sp.total)}` : '';
+            const meta = `Signed ${esc(spDate(sp.signed_at))} · ${sp.lines} priced line${sp.lines === 1 ? '' : 's'} · ${money.format(sp.price || sp.total)}${off}`;
+            const note = S.billed ? ' Already billed against, so lines are edited by hand.' : '';
+            el.className = 'aia-sp';
+            el.innerHTML = `<div class="aia-sp-t"><b>Proposal #${esc(sp.number)}</b> was signed for this job.${note}<span class="aia-sp-m">${meta}</span></div>`
+              + (S.billed || !sp.lines ? '' : (S.sov.some(r => r.kind !== 'change_order')
+                ? '<button type="button" class="pay-btn" id="aia-sov-fromprop">Replace with proposal lines</button>'
+                : '<button type="button" class="pay-btn primary" id="aia-sov-fromprop">Use these lines</button>'));
+            el.hidden = false;
+            const b = $a('aia-sov-fromprop'); if (b) b.addEventListener('click', fromProposal);
+          }
+          async function fromProposal() {
+            const sp = S.sp, base = S.sov.filter(r => r.kind !== 'change_order').length;
+            if (base && !confirm(`Replace the ${base} base line${base === 1 ? '' : 's'} with the ${sp.lines} priced line${sp.lines === 1 ? '' : 's'} from proposal #${sp.number}? Change orders stay. Unsaved edits are lost.`)) return;
+            try {
+              const j = await api('/api/projects/' + encodeURIComponent(code()) + '/billing/sov/from-proposal', { method: 'POST', body: '{}' });
+              S.sov = j.data.map(r => Object.assign({}, r)); renderSp(); renderSov();
+              toast(`${j.meta.imported} line${j.meta.imported === 1 ? '' : 's'} from proposal #${sp.number}. Check them, then Save if you change anything.`);
+            } catch (e) { toast(e.message, true); }
+          }
           function wireSov() {
             if (!$a('aia-sov-save')) return;
             $a('aia-sov-add').addEventListener('click', () => { S.sov = readSov(); S.sov.push({ item_no: '', description: '', scheduled_value: '', kind: 'base' }); renderSov(); $a('aia-sov-table').querySelector('tbody tr:last-child input').focus(); });
@@ -5915,23 +5956,22 @@
           <div class="tab-head"><div><h2>Billing Breakdown</h2>
           <div class="tab-sub">The approved list of work and what each part is worth (called the schedule of values, or SOV). Each progress billing form (the standard AIA G702 / G703 forms, under Invoices &amp; Payments) bills against these lines. Change orders sit as their own lines.</div></div></div>
           <div class="pay-kpis" id="aia-sov-summary"></div>
+          <div class="aia-sp" id="aia-sov-sp" hidden></div>
           <div class="pay-toolbar"><button type="button" class="pay-btn" id="aia-sov-add">+ Line</button><button type="button" class="pay-btn" id="aia-sov-addco">+ Change order</button><button type="button" class="pay-btn" id="aia-sov-import" title="Copy the drop-plan line descriptions in, then fill in the dollars">Import drop-plan lines</button><span style="flex:1"></span><button type="button" class="pay-btn primary" id="aia-sov-save">Save</button></div>
           <div style="overflow:auto"><table class="pay-table aia-sov" id="aia-sov-table"><tbody><tr><td class="pay-empty">Loading…</td></tr></tbody></table></div>
           <div class="pay-err" id="aia-sov-err" style="margin-top:10px"></div>
         </div>
-        <div class="section">
-          <h2>Drop-plan unit rates</h2>
-          <div class="pay-muted" style="margin:-4px 0 12px">Field-tracking rates behind the Drop Plan quantities — not the billing breakdown above.</div>
-          <div id="sov-body" class="placeholder-card">Loading…</div>
-        </div>
       </section>
       <script>
         // #262 — lazy-loaded when the SoV view activates (see the view-switch hook).
-        // Reads the gated /api/projects/<code>/sov (admin/c_suite only). This whole
-        // block is server-stripped for pm/super, so window.SOV_load is undefined for
-        // them (the view-switch hook guards on its presence).
+        // This whole block is server-stripped for pm/super, so window.SOV_load and
+        // window.DP_rates_load are undefined for them (the hooks guard on presence).
         window.SOV_load = function () {
           if (typeof window.AIA_sov_load === 'function') window.AIA_sov_load();   // #317
+        };
+        // The drop-plan unit rates card (on the Drop Plan tab, financial-gated) reads the
+        // gated /api/projects/<code>/sov (admin/c_suite only).
+        window.DP_rates_load = function () {
           var body = document.getElementById('sov-body');
           if (!body) return;
           function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
@@ -5942,7 +5982,7 @@
             .then(function (j) {
               if (!j) return;
               var rows = (j && j.data) || [];
-              if (!rows.length) { body.className = 'placeholder-card'; body.textContent = 'No billing breakdown lines yet.'; return; }
+              if (!rows.length) { body.className = 'placeholder-card'; body.textContent = 'No unit rates on this job.'; return; }
               var h = '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr>' +
                       '<th style="text-align:left;padding:8px;">Code</th>' +
                       '<th style="text-align:left;padding:8px;">Description</th>' +
@@ -5958,7 +5998,7 @@
               h += '</tbody></table>';
               body.className = ''; body.innerHTML = h;
             })
-            .catch(function () { body.className = 'placeholder-card'; body.textContent = 'Could not load the billing breakdown.'; });
+            .catch(function () { body.className = 'placeholder-card'; body.textContent = 'Could not load the unit rates.'; });
         };
       </script>
       <!-- SECTION:financial:end -->
@@ -9070,6 +9110,8 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
   document.querySelectorAll('.nav-link[data-view="drop-plans"]').forEach(function(l){
     l.addEventListener('click',function(){loadDropPlan();});
   });
+  var rates=document.getElementById('dp-rates');   // stripped for pm/super with DP_rates_load
+  if(rates)rates.addEventListener('toggle',function(){if(rates.open&&typeof window.DP_rates_load==='function')window.DP_rates_load();});
   if(document.querySelector('section[data-view="drop-plans"].active'))loadDropPlan();
 })();
 </script>
