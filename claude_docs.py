@@ -12,6 +12,10 @@ the person's own click.
   GET   /api/claude/docs/<id>/docx      a real Word file (headings, paragraphs, lists, tables)
   POST  /api/claude/docs/<id>/save      {project_code, category} -> the PDF into that job's documents
 
+Saving again to a job that already has this document (2026-11-02) files a NEW VERSION of that copy: the earlier PDF
+moves to the document's History in the job, so the job never keeps showing the old design. `claude_doc_filing`
+remembers which job document each save made; Claude proposes the same update with save_document_to_job.
+
 Only the person who owns the chat can open, change or download its documents.
 """
 from __future__ import annotations
@@ -90,7 +94,32 @@ def ensure(conn) -> None:
     conn.execute("CREATE TABLE IF NOT EXISTS claude_doc_ref (doc_id INTEGER NOT NULL, chat_id INTEGER, message_id INTEGER, "
                  "kind TEXT NOT NULL, created_at TEXT NOT NULL)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_claude_doc_ref_chat ON claude_doc_ref(chat_id)")
+    conn.execute("CREATE TABLE IF NOT EXISTS claude_doc_filing (doc_id INTEGER NOT NULL, project_code TEXT NOT NULL, "
+                 "project_doc_id INTEGER NOT NULL, filed_at TEXT NOT NULL)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_claude_doc_filing_doc ON claude_doc_filing(doc_id)")
     conn.commit()
+    _backfill_filings(conn)
+
+
+def _backfill_filings(conn) -> None:
+    """Copies saved before claude_doc_filing existed: the same person's document with the same title, made before it was
+    filed (the newest such document). Idempotent: a job document already linked is skipped."""
+    try:
+        done = {r["project_doc_id"] for r in _rows(conn, "SELECT project_doc_id FROM claude_doc_filing")}
+        for pd in _rows(conn, "SELECT id, project_code, title, uploaded_by_uid, uploaded_at FROM project_documents "
+                              "WHERE notes = 'Made with Claude' AND superseded = 0 ORDER BY id"):
+            if pd["id"] in done:
+                continue
+            d = _one(conn, "SELECT id FROM claude_doc WHERE user_id = ? AND title = ? AND created_at <= ? "
+                           "ORDER BY created_at DESC, id DESC LIMIT 1",
+                     (pd["uploaded_by_uid"], pd["title"], str(pd["uploaded_at"])[:19]))
+            if d:
+                conn.execute("INSERT INTO claude_doc_filing (doc_id, project_code, project_doc_id, filed_at) VALUES (?,?,?,?)",
+                             (d["id"], pd["project_code"], pd["id"], str(pd["uploaded_at"])[:19]))
+        conn.commit()
+    except Exception as e:   # a database without job documents (some test fixtures)
+        conn.rollback()
+        log.info("claude doc filing backfill skipped: %s", type(e).__name__)
 
 
 def clean(html: str) -> str:
@@ -382,26 +411,72 @@ def file_name(d: dict, ext: str) -> str:
 
 
 # ------------------------------------------------------------------ save to a job
-def save_to_job(conn, uid, did: int, project_code: str, category: str) -> dict:
-    """The PDF into a job's documents (server._projdoc_insert, the same path as an upload)."""
+def filings(conn, did: int) -> list:
+    """The jobs holding a copy of this document, current copies only: [{project_code, document_id, title, category,
+    filed_at, stale}]. stale = the document changed after that copy was filed."""
+    d = _one(conn, "SELECT updated_at FROM claude_doc WHERE id = ?", (did,))
+    if not d:
+        return []
+    out = []
+    for r in _rows(conn, "SELECT f.project_code, f.project_doc_id, f.filed_at, p.title, p.category FROM claude_doc_filing f "
+                         "JOIN project_documents p ON p.id = f.project_doc_id "
+                         "WHERE f.doc_id = ? AND p.superseded = 0 ORDER BY f.filed_at", (did,)):
+        out.append({"project_code": r["project_code"], "document_id": r["project_doc_id"], "title": r["title"],
+                    "category": r["category"], "filed_at": r["filed_at"], "stale": str(d["updated_at"]) > str(r["filed_at"])})
+    return out
+
+
+def replace_target(conn, did: int, project_code: str, replaces_id=None) -> Optional[dict]:
+    """The job document a save replaces: the one named (it must be a current document of that job), else this
+    document's own current copy in that job, else None (a first save)."""
+    if replaces_id:
+        old = _one(conn, "SELECT id, project_code, category, requirement_key, party, party_name, superseded, title "
+                         "FROM project_documents WHERE id = ?", (int(replaces_id),))
+        if not old or old["project_code"] != project_code:
+            raise LookupError("that document isn't in this job's documents")
+        if old["superseded"]:
+            raise ValueError("that copy was already replaced; update the current version")
+        return old
+    for f in filings(conn, did):
+        if f["project_code"] == project_code:
+            return _one(conn, "SELECT id, project_code, category, requirement_key, party, party_name, superseded, title "
+                              "FROM project_documents WHERE id = ?", (f["document_id"],))
+    return None
+
+
+def save_to_job(conn, uid, did: int, project_code: str, category: Optional[str] = None, replaces_id=None) -> dict:
+    """The PDF into a job's documents (server._projdoc_insert, the same path as an upload). When the job already holds
+    this document (or replaces_id names a document there), the PDF is filed as its new version: same folder and
+    checklist item, the earlier copy superseded (it stays in History) and no longer shared outside the company."""
     from werkzeug.datastructures import FileStorage
     d = get(conn, uid, did)
     if not d:
         raise LookupError("not found")
-    category = (category or "").strip().upper()
-    if category not in CATEGORIES:
-        raise ValueError("pick a folder: " + ", ".join(c.title() for c in CATEGORIES))
     if not _one(conn, "SELECT project_code FROM projects WHERE project_code = ?", (project_code,)):
         raise ValueError("that job doesn't exist")
+    old = replace_target(conn, did, project_code, replaces_id)
+    category = (category or "").strip().upper() or (old or {}).get("category") or ""
+    if category not in CATEGORIES:
+        raise ValueError("pick a folder: " + ", ".join(c.title() for c in CATEGORIES))
     data = pdf_bytes(d)
     srv = sys.modules.get("server") or sys.modules.get("__main__")
     insert = getattr(srv, "_projdoc_insert", None)
     if not insert:
         raise ValueError("Saving to a job isn't available here.")
     fs = FileStorage(stream=io.BytesIO(data), filename=file_name(d, ".pdf"), content_type="application/pdf")
-    new_id = insert(conn, project_code, fs, {"category": category, "title": d["title"], "notes": "Made with Claude"})
+    form = {"category": category, "title": d["title"], "notes": "Made with Claude"}
+    if old:
+        form.update(requirement_key=old.get("requirement_key") or "", party=old.get("party"), party_name=old.get("party_name"))
+    new_id = insert(conn, project_code, fs, form, supersedes_id=old["id"] if old else None)
+    if old:
+        import visibility
+        conn.execute("UPDATE project_documents SET superseded = 1 WHERE id = ?", (old["id"],))
+        for aud in visibility.audiences_for(conn, "document", old["id"]):
+            visibility.unshare(conn, "document", old["id"], aud, uid)
+    conn.execute("INSERT INTO claude_doc_filing (doc_id, project_code, project_doc_id, filed_at) VALUES (?,?,?,?)",
+                 (did, project_code, new_id, _now()))
     conn.commit()
-    return {"id": new_id, "project_code": project_code}
+    return {"id": new_id, "project_code": project_code, "replaced": old["id"] if old else None}
 
 
 # ------------------------------------------------------------------ routes
@@ -416,7 +491,8 @@ def _api_get(did):
         d = get(conn, _uid(), did)
         if not d:
             return jsonify({"error": "not found"}), 404
-        return jsonify({"data": {"id": d["id"], "title": d["title"], "html": page(d, edit=True), "updated_at": d["updated_at"]}})
+        return jsonify({"data": {"id": d["id"], "title": d["title"], "html": page(d, edit=True), "updated_at": d["updated_at"],
+                                 "filed": filings(conn, did)}})
     finally:
         conn.close()
 
@@ -428,7 +504,7 @@ def _api_patch(did):
     try:
         r = update(conn, _uid(), did, html=body.get("html"), title=body.get("title"))
         d = get(conn, _uid(), did)
-        return jsonify({"data": dict(r, updated_at=d["updated_at"])})
+        return jsonify({"data": dict(r, updated_at=d["updated_at"], filed=filings(conn, did))})
     except LookupError:
         return jsonify({"error": "not found"}), 404
     except ValueError as e:
@@ -475,7 +551,8 @@ def _api_save(did):
     body = request.get_json(silent=True) or {}
     conn = _conn()
     try:
-        return jsonify({"data": save_to_job(conn, _uid(), did, str(body.get("project_code") or ""), str(body.get("category") or ""))})
+        r = save_to_job(conn, _uid(), did, str(body.get("project_code") or ""), str(body.get("category") or ""))
+        return jsonify({"data": dict(r, filed=filings(conn, did))})
     except LookupError:
         return jsonify({"error": "not found"}), 404
     except ValueError as e:

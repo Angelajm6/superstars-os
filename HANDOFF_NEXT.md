@@ -77,6 +77,21 @@ grant, or elevation code.
   weeks with paid hours and a needs-approval dot (`GET /api/payroll/weeks`). Same file: approval list, cell badge, reason dialog.
 * Guard: `tests/smoke_payroll_rules.py` (new, in the gate). Migration `apply_hours_overtime.py` (boot-ensured).
 
+### Claude documents: updating the copy in a job (Bookore, 2026-11-02)
+
+* Bug (Angela): she had the in-app Claude redesign an invoice, then asked it to update the copy in the job's documents; the
+  job still showed the old design. "Save to a job" filed a frozen PDF and nothing linked it back to the Claude document, so
+  edits (by Claude or by hand) never reached the job, and saving again only added a second file next to the old one.
+* `claude_doc_filing` (doc_id, project_code, project_doc_id, filed_at; created in `claude_docs.ensure`) remembers each save.
+  Saving to a job that already holds the document files a **new version** (`supersedes_id`, old row `superseded = 1` and
+  unshared, same folder / checklist item / party), like Update on the Documents tab. Old saves are linked once at boot by
+  title + owner (`_backfill_filings`).
+* Doc panel: GET / PATCH / save return `filed` [{project_code, document_id, stale}]; the button reads **Update the job
+  copy…** when the document changed after it was filed, **✓ In <job>** when it is current; the bar preselects that job.
+* Claude: `edit_document` returns `filed_in` + a note when a job copy is out of date; new `save_document_to_job` (approval
+  card, admin / C-suite) saves or replaces (also a document named by id: an invoice made in another chat), and
+  `job_documents` lists a job's current documents. Guard: `smoke_claude_docs`.
+
 ### Client page: emails, proposals, invoices (Bookore, 2026-10-28)
 
 * Accepted prototype: https://claude.ai/artifact/6demNxTPeUYpcadNXtWXNo. Company → Clients → a client now leads with **Emails**

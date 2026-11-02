@@ -104,7 +104,10 @@ make_document: complete, ready to use, as clean HTML (h1 for the title, h2 for s
 b/i). The platform shows it to them as a file they open beside the chat, edit, and download as PDF or Word, or save to
 a job. Fill it from the attached files and the platform; mark anything you could not find as [to fill]. To change a
 document, use edit_document with the whole new HTML (keep everything they did not ask to change; their own edits
-are in it). The platform prints the company's logo and letterhead (Settings > Company brand) at the top of every
+are in it). A document already saved to a job keeps its old copy there until the job's copy is updated: after changing
+one, if edit_document says it is filed in a job, propose save_document_to_job for that job in the same turn. When the
+person wants a new design to take the place of an older file in a job (an invoice made in another chat, say), look it up
+with job_documents and pass its id as replaces_document_id. The platform prints the company's logo and letterhead (Settings > Company brand) at the top of every
 document, so do not write your own company header or logo. After making or changing one, say in one or two sentences what it contains. Never say you cannot create,
 generate or attach documents or files.
 
@@ -1506,8 +1509,14 @@ def _t_create_doc(ctx, inp):
 
 def _t_update_doc(ctx, inp):
     import claude_docs
-    return claude_docs.update(ctx.conn, ctx.uid, int(inp.get("doc_id") or 0), html=inp.get("html"), title=inp.get("title"),
-                              chat_id=getattr(ctx, "chat_id", None), message_id=getattr(ctx, "message_id", None))
+    r = claude_docs.update(ctx.conn, ctx.uid, int(inp.get("doc_id") or 0), html=inp.get("html"), title=inp.get("title"),
+                           chat_id=getattr(ctx, "chat_id", None), message_id=getattr(ctx, "message_id", None))
+    filed = sorted({f["project_code"] for f in claude_docs.filings(ctx.conn, r["doc_id"]) if f["stale"]})
+    if filed:
+        r["filed_in"] = filed
+        r["note"] = ("The copy saved in these jobs' documents still shows the earlier version. Propose "
+                     "save_document_to_job for each job to update it.")
+    return r
 
 
 def _t_read_doc(ctx, inp):
@@ -1516,6 +1525,59 @@ def _t_read_doc(ctx, inp):
     if not d:
         raise LookupError("no document with that id in this person's chats")
     return {"doc_id": d["id"], "title": d["title"], "html": d["html"]}
+
+
+def _t_job_docs(ctx, inp):
+    import pm_scoping
+    code = str(inp.get("project_code") or "").strip()
+    if not code or not pm_scoping.pm_can_access_project(ctx.role, ctx.uid, code, ctx.conn):
+        raise LookupError("no job with that code that you can open")
+    rows = _rows(ctx.conn, "SELECT id, category, title, file_name, uploaded_at, notes FROM project_documents "
+                           "WHERE project_code = ? AND superseded = 0 ORDER BY uploaded_at DESC, id DESC LIMIT 200", (code,))
+    return {"project_code": code, "documents": [
+        {"document_id": r["id"], "folder": (r["category"] or "").title(), "title": r["title"], "file": r["file_name"],
+         "filed": str(r["uploaded_at"])[:10], "made_with_claude": r.get("notes") == "Made with Claude"} for r in rows]}
+
+
+def _check_doc_to_job(ctx, inp):
+    import claude_docs
+    if not claude_docs.get(ctx.conn, ctx.uid, int(inp.get("doc_id") or 0)):
+        raise LookupError("no document with that id in this person's chats")
+    code = str(inp.get("project_code") or "").strip()
+    if not _one(ctx.conn, "SELECT project_code FROM projects WHERE project_code = ?", (code,)):
+        raise LookupError("no job with that code")
+    old = claude_docs.replace_target(ctx.conn, int(inp["doc_id"]), code, inp.get("replaces_document_id"))
+    cat = str(inp.get("category") or "").strip().upper() or (old or {}).get("category") or ""
+    if cat not in claude_docs.CATEGORIES:
+        raise ValueError("give category, the job's folder: " + ", ".join(claude_docs.CATEGORIES))
+    return old
+
+
+def _doc_to_job_card(ctx, inp):
+    import claude_docs
+    d = claude_docs.get(ctx.conn, ctx.uid, int(inp.get("doc_id") or 0)) or {}
+    code = str(inp.get("project_code") or "")
+    try:
+        old = claude_docs.replace_target(ctx.conn, int(inp.get("doc_id") or 0), code, inp.get("replaces_document_id"))
+    except (LookupError, ValueError):
+        old = None
+    fields = [{"key": "doc_id", "label": "Document", "type": "readonly", "value": str(inp.get("doc_id") or ""),
+               "hint": d.get("title") or ""},
+              {"key": "project_code", "label": "Job", "type": "readonly", "value": code, "hint": _job_label(ctx.conn, code)}]
+    if old:
+        fields.append({"key": "replaces_document_id", "label": "Replaces", "type": "readonly", "value": str(old["id"]),
+                       "hint": f"{old.get('title') or ''} (kept in its history)"})
+    return {"title": "Update the job's copy" if old else "Save the document to the job", "fields": fields}
+
+
+def _exec_doc_to_job(ctx, inp):
+    import claude_docs
+    code = str(inp["project_code"]).strip()
+    r = claude_docs.save_to_job(ctx.conn, ctx.uid, int(inp["doc_id"]), code, inp.get("category"),
+                                inp.get("replaces_document_id"))
+    return {"id": r["id"], "summary": (f"The copy in {code}'s documents now shows this version; the earlier one is in its "
+                                       "history" if r["replaced"] else f"Saved to {code}'s documents"),
+            "link": f"/projects/{code}", "undo": False}
 
 
 _S, _D, _T, _I, _B = ({"type": "string"}, {"type": "string", "description": "YYYY-MM-DD"},
@@ -1669,6 +1731,15 @@ TOOLS += [
          run=_t_update_doc),
     Tool("read_document", "Document", "Read a document made in this conversation (doc_id), including the person's own edits, "
          "before changing it.", {"doc_id": _I}, ["doc_id"], roles=TEAM_ROLES, run=_t_read_doc),
+    Tool("job_documents", "Job documents", "List a job's current documents (id, folder, title, file, date filed, whether "
+         "it was made with Claude), to find the copy a new version should replace.", {"project_code": _S},
+         ["project_code"], roles=OFFICE_ROLES, run=_t_job_docs),
+    Tool("save_document_to_job", "Save to the job", "Propose saving a document made in this conversation (doc_id) as a PDF "
+         "in a job's documents. If the job already has this document, or replaces_document_id names a document there "
+         "(from job_documents), the PDF becomes its new version and the old copy moves to its history. category is the "
+         "folder (PERMITS, DRAWINGS, CONTRACTS, INSPECTIONS, SAFETY, CLOSEOUT); leave it out when replacing.",
+         {"doc_id": _I, "project_code": _S, "category": _S, "replaces_document_id": _I}, ["doc_id", "project_code"],
+         write=True, roles=OFFICE_ROLES, run=_check_doc_to_job, card=_doc_to_job_card, execute=_exec_doc_to_job),
 ]
 BY_NAME = {t.name: t for t in TOOLS}
 
