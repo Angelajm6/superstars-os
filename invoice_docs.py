@@ -17,7 +17,11 @@ invoices and email them straight to the client".
 
 Columns added to `invoice` (idempotent, both backends): sent_at, sent_to,
 sent_name, sent_count, viewed_at, view_count, pdf_path, pdf_rendered_at,
-token_hash, token_expires_at, last_message. `pdf_path` / `token_hash` never
+token_hash, token_expires_at, last_message, design_doc_id, design_html, design_at.
+
+A design made with Claude (2026-11-02): saving a Claude document to the job as an invoice's document
+(`claude_docs.save_to_job`) stores its HTML on the invoice (`set_design`); Preview, the PDF and the client's link then
+show that design instead of the standard layout, until `DELETE /api/invoices/<id>/design` puts the standard one back. `pdf_path` / `token_hash` never
 enter a JSON payload. AIA G702/G703 is #317 — an invoice of kind `progress` is
 the row it will fill; nothing here blocks it.
 """
@@ -27,6 +31,7 @@ import hashlib
 import html as _html
 import logging
 import os
+import re
 
 import runtime_seams
 import secrets
@@ -55,8 +60,9 @@ DEFAULT_PAY_INSTRUCTIONS = ("Please remit by check payable to Superstars Contrac
 
 _COLUMNS = (("sent_at", "TEXT"), ("sent_to", "TEXT"), ("sent_name", "TEXT"), ("sent_count", "INTEGER DEFAULT 0"),
             ("viewed_at", "TEXT"), ("view_count", "INTEGER DEFAULT 0"), ("pdf_path", "TEXT"), ("pdf_rendered_at", "TEXT"),
-            ("token_hash", "TEXT"), ("token_expires_at", "TEXT"), ("last_message", "TEXT"))
-PRIVATE_KEYS = ("pdf_path", "token_hash")
+            ("token_hash", "TEXT"), ("token_expires_at", "TEXT"), ("last_message", "TEXT"),
+            ("design_doc_id", "INTEGER"), ("design_html", "TEXT"), ("design_at", "TEXT"))
+PRIVATE_KEYS = ("pdf_path", "token_hash", "design_html")
 
 
 # ---------------------------------------------------------------- helpers
@@ -133,6 +139,7 @@ def public(inv: dict) -> dict:
     """Strip the server-only keys before a row leaves the API."""
     d = {k: v for k, v in inv.items() if k not in PRIVATE_KEYS}
     d["has_pdf"] = bool(inv.get("pdf_path"))
+    d["has_design"] = bool(inv.get("design_html"))
     d["link_active"] = bool(inv.get("token_hash")) and (inv.get("token_expires_at") or "") >= _now()
     return d
 
@@ -176,6 +183,8 @@ def render_document(conn, inv: dict) -> str:
         app = None
     if app:
         return aia_billing.render_document(conn, app, inv)
+    if inv.get("design_html"):
+        return _design_document(conn, inv)
     from proposals import _DOC_CSS
     e = _html.escape
     facts = _company_facts(conn)
@@ -225,6 +234,52 @@ def render_document(conn, inv: dict) -> str:
   {stamp}
   <div class="foot">{COMPANY_NAME}{(' · ' + e(letter)) if letter else ''}{lic} · Invoice {e(inv['number'])}</div>
 </div></div></body></html>"""
+
+
+def _design_document(conn, inv: dict) -> str:
+    """The invoice as designed with Claude: the company letterhead over the design, plus the status stamp."""
+    import claude_docs
+    e = _html.escape
+    status = inv.get("status")
+    stamp = {"paid": f"Paid in full on {_fmt_date(inv.get('paid_at'))} — thank you.",
+             "void": "Void — this invoice was cancelled.", "draft": "Draft — not yet issued."}.get(status)
+    stamp_html = (f"<p style='margin-top:18px;padding:8px 12px;border:1.5px solid {'#2E7D4F' if status == 'paid' else '#A8382B'};"
+                  f"border-radius:8px;font-weight:600'>{e(stamp)}</p>") if stamp else ""
+    return claude_docs.page({"title": f"Invoice {inv['number']} — {COMPANY_NAME}", "html": inv["design_html"] + stamp_html})
+
+
+def amount_mismatch(inv: dict, html: str) -> Optional[str]:
+    """The design's text should carry the invoice's amount; a design that doesn't is flagged, never blocked."""
+    text = re.sub(r"\s+", " ", _html.unescape(re.sub(r"(?s)<[^>]+>", " ", html or "")))
+    m = _money(inv.get("amount"))
+    if m in text or m.replace(".00", "") in text:
+        return None
+    return f"The design doesn't show {m}, the amount on invoice {inv['number']}. Check the numbers before sending it."
+
+
+def set_design(conn, invoice_id: int, doc_id: Optional[int], html: Optional[str]) -> dict:
+    """Use a Claude document as this invoice's document (html=None puts the standard layout back). The stored PDF is
+    redrawn so the PDF button and the client's link match; if the PDF engine is down it is drawn on the next open."""
+    inv = invoices.get(conn, invoice_id)
+    if not inv:
+        raise LookupError("invoice not found")
+    if html is not None:
+        if inv.get("status") == "void":
+            raise ValueError(f"invoice {inv['number']} is void")
+        try:
+            import aia_billing
+            if aia_billing.for_invoice(conn, invoice_id):
+                raise ValueError(f"invoice {inv['number']} is an AIA pay application; its G702 / G703 is the document")
+        except ImportError:
+            pass
+    conn.execute("UPDATE invoice SET design_doc_id = ?, design_html = ?, design_at = ?, pdf_path = NULL, "
+                 "pdf_rendered_at = NULL WHERE id = ?", (doc_id if html is not None else None, html,
+                                                         _now() if html is not None else None, invoice_id))
+    conn.commit()
+    if inv.get("pdf_path") or inv.get("token_hash"):
+        render_pdf(conn, invoice_id)
+    return {"id": invoice_id, "number": inv["number"],
+            "warning": amount_mismatch(inv, html) if html is not None else None}
 
 
 def _pdf_dir() -> Path:
@@ -545,6 +600,16 @@ def _api_recipient(invoice_id):
         conn.close()
 
 
+def _api_design_reset(invoice_id):
+    conn = _conn()
+    try:
+        return jsonify({"data": set_design(conn, invoice_id, None, None)})
+    except LookupError as e:
+        return _err(str(e), 404)
+    finally:
+        conn.close()
+
+
 @requires_company
 def _api_project_payments(project_code):
     conn = _conn()
@@ -567,6 +632,8 @@ def register(app) -> None:
     app.add_url_rule("/api/invoices/<int:invoice_id>/preview", "invoices_preview", gate(_api_preview), methods=["GET"])
     app.add_url_rule("/api/invoices/<int:invoice_id>/pdf", "invoices_pdf", gate(_api_pdf), methods=["GET"])
     app.add_url_rule("/api/invoices/<int:invoice_id>/send", "invoices_send", gate(_api_send), methods=["POST"])
+    app.add_url_rule("/api/invoices/<int:invoice_id>/design", "invoices_design_reset", gate(_api_design_reset),
+                     methods=["DELETE"])
     app.add_url_rule("/api/invoices/<int:invoice_id>/recipient", "invoices_recipient", gate(_api_recipient), methods=["GET"])
     app.add_url_rule("/api/projects/<project_code>/payments", "project_payments", _api_project_payments, methods=["GET"])
     app.add_url_rule("/i/<token>", "invoice_public_page", _public_page, methods=["GET"])

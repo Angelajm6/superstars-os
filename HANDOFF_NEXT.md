@@ -77,6 +77,19 @@ grant, or elevation code.
   weeks with paid hours and a needs-approval dot (`GET /api/payroll/weeks`). Same file: approval list, cell badge, reason dialog.
 * Guard: `tests/smoke_payroll_rules.py` (new, in the gate). Migration `apply_hours_overtime.py` (boot-ensured).
 
+### Claude documents: an invoice's design reaches Invoices & Payments (Bookore, 2026-11-02, follow-up)
+
+* Angela: the redesigned invoice reached the job's Documents but not the job's **Invoices & Payments** tab, which draws
+  every invoice from its record (`invoice_docs.render_document`).
+* `invoice` gets `design_doc_id` / `design_html` / `design_at` (`invoice_docs._COLUMNS`, idempotent). With a design,
+  `render_document` returns the Claude document (letterhead + design + a paid / void / draft stamp), so Preview, the PDF
+  (redrawn on change) and the client's `/i/<token>` link all show it. AIA invoices keep their G702 / G703 (refused);
+  void refused. `DELETE /api/invoices/<id>/design` = **Standard layout** button on the Payments row ("designed with Claude").
+* The link is made only when named: the save bar's **Invoice** picker (`GET /api/claude/docs/<id>/invoices`; preselects
+  the invoice whose number is in the text, folder Contracts) or Claude's `save_document_to_job(invoice_id)`. After that,
+  every save of that document updates the invoice. A letter that only mentions a number never replaces the invoice. A
+  design that doesn't show the invoice's amount saves with a warning. `design_html` never leaves the API (`PRIVATE_KEYS`).
+
 ### Claude documents: updating the copy in a job (Bookore, 2026-11-02)
 
 * Bug (Angela): she had the in-app Claude redesign an invoice, then asked it to update the copy in the job's documents; the
