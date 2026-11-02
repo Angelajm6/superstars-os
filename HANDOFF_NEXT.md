@@ -92,6 +92,18 @@ grant, or elevation code.
   card, admin / C-suite) saves or replaces (also a document named by id: an invoice made in another chat), and
   `job_documents` lists a job's current documents. Guard: `smoke_claude_docs`.
 
+### Billing Breakdown from the signed proposal (Bookore, 2026-11-02)
+
+* Accepted prototype: https://claude.ai/artifact/VjvRu8a8HbwjRGnWSQddJc. Job → Billing Breakdown shows the job's signed proposal
+  (number, signed date, priced lines, total) with **Use these lines** → `POST /api/projects/<code>/billing/sov/from-proposal`
+  (`aia_billing.import_proposal_sov`). The latest signed proposal on an estimate converted to the job; each priced
+  `proposal_line` becomes a base `billing_sov` line (lead, else description; amount = scheduled value); unpriced scope lines
+  skipped; no priced lines → one line for `proposal.price`; change orders kept. Refused once any pay application exists.
+  With base lines present the button is **Replace with proposal lines** (asks first). `billing()` returns `signed_proposal`.
+* The drop-plan unit rates (`sov_line_items.unit_rate`) left Billing Breakdown: a collapsed **Unit rates** card at the bottom of
+  the Drop Plan tab, still inside `SECTION:financial` (stripped for pm/super), loaded by `window.DP_rates_load` on open.
+* Guards: `smoke_aia_billing_317` (from-proposal rules + page placement), `smoke_billing_type_356` (pm page has no rates card).
+
 ### Client page: emails, proposals, invoices (Bookore, 2026-10-28)
 
 * Accepted prototype: https://claude.ai/artifact/6demNxTPeUYpcadNXtWXNo. Company → Clients → a client now leads with **Emails**
