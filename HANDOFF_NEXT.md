@@ -45,6 +45,18 @@ grant, or elevation code.
   `/api/health` is exempt (Render's health check). Order: Cloudflare rule first, then the Render variable; undo = delete
   the variable. Only then is `SSC_CONNECTOR_IP_HEADER=CF-Connecting-IP` trustworthy (boot warns otherwise).
   Guard: `tests/smoke_edge_guard.py`.
+* **Writes + admins only (2026-11-02):** accepted prototype https://claude.ai/artifact/L2VCnsB68MLN6Ls5eqt8KU. Only **admins**
+  can connect now (`ROLES = ("admin",)`); a C-suite person ticked before is refused and cut off on their next call.
+  New tools, each a write claude.ai confirms with its own "Allow" prompt, logged, never a delete:
+  `upload_link` (a file attached in claude.ai, as the original: a one-time link `/u/<token>`, public path, token hashed,
+  15 min, once, one job folder or one bid's documents, page shows only where it goes, owner's access re-checked; the person
+  taps it or Claude's sandbox `curl -F file=@…` posts it; `/u/` is masked in request logs), `proposal_guide` →
+  `write_proposal` (claude.ai's Claude writes the content; `proposal_engine.create` saves it in the locked layout: no
+  app Claude spend), `edit_proposal` / `undo_proposal_change` (drafts; previous version in `claude_connector_snapshot`),
+  `create_proposal_from_estimate`, `mark_proposal_sent` / `_signed` (`mark_signed_offline`: same follow-ups) /
+  `_declined` (new `proposals.mark_declined_offline`, for proposals with no live link), `send_proposal` (only to a
+  contact at the proposal's client; checklist gate). 60 changes per hour per person. Search now matches "21st" ↔ "21",
+  St ↔ Street (`claude_agent.addr_words`, also in the app's Claude).
 
 ### Payroll hours rules + week picker (Bookore, 2026-10-30)
 
