@@ -220,6 +220,7 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
 .clx-dframe{display:block;width:100%;max-width:820px;min-height:600px;margin:0 auto;border:0;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.16)}\
 .clx-dsave{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 14px;background:#fff;border-bottom:1px solid #E6E8EE;font-size:13px}\
 .clx-dsave[hidden]{display:none}\
+.clx-dsave #clx-dsavemsg{white-space:normal}\
 .clx-dsave select{font:13px Inter,sans-serif;border:1px solid #E6E8EE;border-radius:8px;padding:6px 8px;max-width:240px}\
 @media (max-width:900px){#clx-doc{left:0;right:0!important;z-index:9003}}\
 @media print{#clx-fab,#clx-panel,#clx-doc{display:none!important}}\
@@ -714,13 +715,15 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     if (canSave) {
       $('clx-dsavebtn').addEventListener('click', async function () {
         var bar = $('clx-dsave'); bar.hidden = !bar.hidden; if (bar.hidden || $('clx-djob').options.length) return;
-        try { var j = await api('/docs/jobs'); $('clx-djob').innerHTML = j.data.map(function (x) { return '<option value="' + esc(x.project_code) + '">' + esc(x.project_code + ' · ' + x.name) + '</option>'; }).join(''); }
+        try { var j = await api('/docs/jobs'); $('clx-djob').innerHTML = j.data.map(function (x) { return '<option value="' + esc(x.project_code) + '">' + esc(x.project_code + ' · ' + x.name) + '</option>'; }).join(''); docFiled(true); }
         catch (e) { $('clx-dsavemsg').textContent = e.message; }
       });
+      $('clx-djob').addEventListener('change', function () { docFiled(false); });
       $('clx-dsavego').addEventListener('click', async function () {
         $('clx-dsavemsg').textContent = 'Saving…';
-        try { await docFlush(); await api('/docs/' + D.id + '/save', { method: 'POST', body: JSON.stringify({ project_code: $('clx-djob').value, category: $('clx-dcat').value }) });
-          $('clx-dsavemsg').textContent = 'Saved to ' + $('clx-djob').value + '. It\u2019s in the job\u2019s documents.'; }
+        try { await docFlush(); var r = (await api('/docs/' + D.id + '/save', { method: 'POST', body: JSON.stringify({ project_code: $('clx-djob').value, category: $('clx-dcat').value }) })).data;
+          D.filed = r.filed || []; docFiled(false);
+          $('clx-dsavemsg').textContent = r.replaced ? 'Updated in ' + r.project_code + '. The earlier copy is in its history.' : 'Saved to ' + r.project_code + '. It\u2019s in the job\u2019s documents.'; }
         catch (e) { $('clx-dsavemsg').textContent = e.message; }
       });
     }
@@ -738,10 +741,10 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     var p = docPanel();
     try {
       var r = (await api('/docs/' + id)).data;
-      D.id = id; D.at = r.updated_at;
+      D.id = id; D.at = r.updated_at; D.filed = r.filed || [];
       $('clx-dtitle').value = r.title; $('clx-dsaved').textContent = 'Saved';
       $('clx-dpdf').href = '/api/claude/docs/' + id + '/pdf'; $('clx-ddocx').href = '/api/claude/docs/' + id + '/docx';
-      $('clx-dsave').hidden = true;
+      $('clx-dsave').hidden = true; $('clx-dsavemsg').textContent = ''; docFiled(true);
       var f = $('clx-dframe');
       f.onload = function () {
         var d = f.contentDocument; if (!d) return;
@@ -763,8 +766,22 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
   }
   async function docSave(body) {
     $('clx-dsaved').textContent = 'Saving…';
-    try { var r = (await api('/docs/' + D.id, { method: 'PATCH', body: JSON.stringify(body) })).data; D.at = r.updated_at; D.seen && (D.seen[D.id + '@' + r.updated_at] = 1); $('clx-dsaved').textContent = 'Saved'; }
+    try { var r = (await api('/docs/' + D.id, { method: 'PATCH', body: JSON.stringify(body) })).data; D.at = r.updated_at; D.seen && (D.seen[D.id + '@' + r.updated_at] = 1); $('clx-dsaved').textContent = 'Saved'; D.filed = r.filed || D.filed; docFiled(false); }
     catch (e) { $('clx-dsaved').textContent = e.message; }
+  }
+  // a document already in a job's documents: "Update the job copy" files the new version there (the old one goes to its history)
+  function docFiled(pick) {
+    var btn = $('clx-dsavebtn'); if (!btn) return;
+    var filed = D.filed || [], stale = filed.filter(function (f) { return f.stale; });
+    btn.textContent = stale.length ? 'Update the job copy\u2026' : filed.length ? '\u2713 In ' + filed[filed.length - 1].project_code : 'Save to a job\u2026';
+    btn.classList.toggle('go', !!stale.length);
+    var job = $('clx-djob'), f0 = (stale[0] || filed[filed.length - 1]);
+    if (pick && f0 && [].some.call(job.options, function (o) { return o.value === f0.project_code; })) job.value = f0.project_code;
+    var hit = filed.filter(function (f) { return f.project_code === job.value; })[0];
+    if (hit) $('clx-dcat').value = hit.category;
+    $('clx-dcat').hidden = !!hit;
+    $('clx-dsavego').textContent = hit ? 'Update' : 'Save';
+    $('clx-dsave').firstChild.textContent = hit ? 'Replace the copy in' : 'Save the PDF to';
   }
   function closeDoc() { docFlush(); var p = $('clx-doc'); if (p) p.hidden = true; D.id = null; document.querySelectorAll('.clx-doccard.on').forEach(function (c) { c.classList.remove('on'); }); }
   document.addEventListener('click', function (e) { var c = e.target.closest && e.target.closest('[data-doc]'); if (c) { e.preventDefault(); openDoc(+c.getAttribute('data-doc')); } });
