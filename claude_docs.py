@@ -16,6 +16,11 @@ Saving again to a job that already has this document (2026-11-02) files a NEW VE
 moves to the document's History in the job, so the job never keeps showing the old design. `claude_doc_filing`
 remembers which job document each save made; Claude proposes the same update with save_document_to_job.
 
+An invoice's design (2026-11-02): when the document is one of the job's invoices (named on the save, or already that
+invoice's design; a number in the text only preselects it in the save bar), the save also makes it that invoice's document, so the
+Invoices & Payments tab's Preview / PDF and the client's link show the new design (invoice_docs.set_design).
+  GET   /api/claude/docs/<id>/invoices?project_code=  -> the job's invoices, with the one this document matches
+
 Only the person who owns the chat can open, change or download its documents.
 """
 from __future__ import annotations
@@ -444,7 +449,43 @@ def replace_target(conn, did: int, project_code: str, replaces_id=None) -> Optio
     return None
 
 
-def save_to_job(conn, uid, did: int, project_code: str, category: Optional[str] = None, replaces_id=None) -> dict:
+def job_invoices(conn, did: int, project_code: str) -> list:
+    """The job's invoices a design can belong to (not void): [{id, number, description, status, amount, linked, match}].
+    linked = this document is already its design; match = its number is in the document's text."""
+    d = _one(conn, "SELECT html FROM claude_doc WHERE id = ?", (did,)) or {}
+    text = re.sub(r"(?s)<[^>]+>", " ", d.get("html") or "")
+    try:
+        rows = _rows(conn, "SELECT id, number, description, status, amount, design_doc_id FROM invoice "
+                           "WHERE project_code = ? AND status <> 'void' ORDER BY id DESC", (project_code,))
+    except Exception:   # no invoice table (some test fixtures)
+        conn.rollback()
+        return []
+    return [{"id": r["id"], "number": r["number"], "description": r["description"], "status": r["status"],
+             "amount": r["amount"], "linked": r["design_doc_id"] == did,
+             "match": bool(r["number"]) and re.search(r"(?<![\w-])" + re.escape(r["number"]) + r"(?![\w-])", text) is not None}
+            for r in rows]
+
+
+def invoice_for(conn, did: int, project_code: str, invoice_id=None, suggest=False) -> Optional[int]:
+    """Which invoice a save updates: the one named (0 = none), else the one this document already designs. With
+    suggest, also the one whose number is in the document (exactly one): only a suggestion, since a letter that
+    mentions an invoice must never replace it."""
+    if invoice_id is not None and str(invoice_id) != "":
+        if int(invoice_id) == 0:
+            return None
+        if not any(i["id"] == int(invoice_id) for i in job_invoices(conn, did, project_code)):
+            raise LookupError("that invoice isn't on this job")
+        return int(invoice_id)
+    rows = job_invoices(conn, did, project_code)
+    linked = [i["id"] for i in rows if i["linked"]]
+    if linked:
+        return linked[0]
+    match = [i["id"] for i in rows if i["match"]]
+    return match[0] if suggest and len(match) == 1 else None
+
+
+def save_to_job(conn, uid, did: int, project_code: str, category: Optional[str] = None, replaces_id=None,
+                invoice_id=None) -> dict:
     """The PDF into a job's documents (server._projdoc_insert, the same path as an upload). When the job already holds
     this document (or replaces_id names a document there), the PDF is filed as its new version: same folder and
     checklist item, the earlier copy superseded (it stays in History) and no longer shared outside the company."""
@@ -454,6 +495,7 @@ def save_to_job(conn, uid, did: int, project_code: str, category: Optional[str] 
         raise LookupError("not found")
     if not _one(conn, "SELECT project_code FROM projects WHERE project_code = ?", (project_code,)):
         raise ValueError("that job doesn't exist")
+    inv_id = invoice_for(conn, did, project_code, invoice_id)
     old = replace_target(conn, did, project_code, replaces_id)
     category = (category or "").strip().upper() or (old or {}).get("category") or ""
     if category not in CATEGORIES:
@@ -476,7 +518,11 @@ def save_to_job(conn, uid, did: int, project_code: str, category: Optional[str] 
     conn.execute("INSERT INTO claude_doc_filing (doc_id, project_code, project_doc_id, filed_at) VALUES (?,?,?,?)",
                  (did, project_code, new_id, _now()))
     conn.commit()
-    return {"id": new_id, "project_code": project_code, "replaced": old["id"] if old else None}
+    invoice = None
+    if inv_id:
+        import invoice_docs
+        invoice = invoice_docs.set_design(conn, inv_id, did, d["html"])
+    return {"id": new_id, "project_code": project_code, "replaced": old["id"] if old else None, "invoice": invoice}
 
 
 # ------------------------------------------------------------------ routes
@@ -551,12 +597,27 @@ def _api_save(did):
     body = request.get_json(silent=True) or {}
     conn = _conn()
     try:
-        r = save_to_job(conn, _uid(), did, str(body.get("project_code") or ""), str(body.get("category") or ""))
+        r = save_to_job(conn, _uid(), did, str(body.get("project_code") or ""), str(body.get("category") or ""),
+                        invoice_id=body.get("invoice_id"))
         return jsonify({"data": dict(r, filed=filings(conn, did))})
     except LookupError:
         return jsonify({"error": "not found"}), 404
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+    finally:
+        conn.close()
+
+
+@requires_role(*SAVE_ROLES)
+def _api_invoices(did):
+    conn = _conn()
+    try:
+        if not get(conn, _uid(), did):
+            return jsonify({"error": "not found"}), 404
+        code = str(request.args.get("project_code") or "")
+        rows = job_invoices(conn, did, code)
+        pick = invoice_for(conn, did, code, suggest=True)
+        return jsonify({"data": [dict(r, pick=r["id"] == pick) for r in rows]})
     finally:
         conn.close()
 
@@ -582,4 +643,5 @@ def register(app) -> None:
     app.add_url_rule("/api/claude/docs/<int:did>", "claude_doc_patch", _api_patch, methods=["PATCH"])
     app.add_url_rule("/api/claude/docs/<int:did>/pdf", "claude_doc_pdf", _api_pdf, methods=["GET"])
     app.add_url_rule("/api/claude/docs/<int:did>/docx", "claude_doc_docx", _api_docx, methods=["GET"])
+    app.add_url_rule("/api/claude/docs/<int:did>/invoices", "claude_doc_invoices", _api_invoices, methods=["GET"])
     app.add_url_rule("/api/claude/docs/<int:did>/save", "claude_doc_save", _api_save, methods=["POST"])

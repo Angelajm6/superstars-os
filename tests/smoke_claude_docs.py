@@ -11,6 +11,9 @@ Proves against an ISOLATED database (no model call, no PDF engine):
   * saving again to the same job files a NEW VERSION of that copy (old one superseded, kept in history, folder kept);
     an edit after saving marks the job copy out of date; Claude's edit_document says so and save_document_to_job (an
     approval card, office roles) replaces the copy, or a document named by job_documents; old saves are linked by backfill
+  * an invoice's design: saving with invoice_id makes the document that invoice's document (Preview / PDF / client
+    link), later saves follow it, a number in the text only preselects it, an amount it doesn't show is flagged, and
+    DELETE /api/invoices/<id>/design puts the standard layout back
   * the instructions say Claude CAN make documents; past proposals reach the drafting prompt; the page and the
     Claude window carry the pieces
 """
@@ -68,6 +71,10 @@ def _cleanup():
         docs = [r["id"] for r in conn.execute(f"SELECT id FROM claude_doc WHERE user_id IN ({ph(uids)})", uids).fetchall()]
         purge(conn, "claude_doc_filing", "doc_id", docs)
         conn.execute("DELETE FROM project_documents WHERE project_code = ?", (JOB,))
+        try:
+            conn.execute("DELETE FROM invoice WHERE project_code = ?", (JOB,))
+        except Exception:
+            conn.rollback()
         purge(conn, "claude_doc", "user_id", uids)
         purge(conn, "claude_chat_message", "chat_id", chats)
         purge(conn, "claude_chat", "id", chats)
@@ -125,6 +132,8 @@ def main() -> int:
     auth.apply_auth_gate(app)
     ca.register(app)
     claude_docs.register(app)
+    import invoice_docs
+    invoice_docs.register(app)   # DELETE /api/invoices/<id>/design
 
     def login(role):
         c = app.test_client()
@@ -226,6 +235,66 @@ def main() -> int:
                 conn.commit()
                 claude_docs.ensure(conn); claude_docs.ensure(conn)
                 assert [f["document_id"] for f in claude_docs.filings(conn, did)] == [res["id"]]
+
+                # the invoice's own document (Invoices & Payments): only when named, then it follows every save
+                import invoices
+                import invoice_docs
+                invoices.ensure_schema(conn)
+                now = datetime.now().isoformat(timespec="seconds")
+                for num, st in (("INV-2026-9901", "issued"), ("INV-2026-9902", "draft")):
+                    conn.execute("INSERT INTO invoice (number, kind, status, client_org_id, project_code, description, amount, "
+                                 "created_at, updated_at) VALUES (?, 'deposit', ?, 0, ?, 'Deposit', 12500, ?, ?)", (num, st, JOB, now, now))
+                conn.commit()
+                inv1, inv2 = [r["id"] for r in conn.execute("SELECT id FROM invoice WHERE project_code = ? ORDER BY number", (JOB,)).fetchall()]
+                claude_docs.update(conn, ids["admin"], did, html="<h1>Invoice INV-2026-9901</h1><p>Deposit</p><p>Total $12,500.00</p>")
+                rows = {r["id"]: r for r in claude_docs.job_invoices(conn, did, JOB)}
+                assert rows[inv1]["match"] and not rows[inv2]["match"]
+                assert claude_docs.invoice_for(conn, did, JOB) is None and claude_docs.invoice_for(conn, did, JOB, suggest=True) == inv1
+            finally:
+                conn.close()
+            picks = a.get(f"/api/claude/docs/{did}/invoices?project_code={JOB}").get_json()["data"]
+            assert [x["id"] for x in picks if x["pick"]] == [inv1], picks
+            assert pm.get(f"/api/claude/docs/{did}/invoices?project_code={JOB}").status_code == 403
+            s3 = a.post(f"/api/claude/docs/{did}/save", json={"project_code": JOB, "invoice_id": inv1}).get_json()["data"]
+            assert s3["invoice"]["number"] == "INV-2026-9901" and s3["invoice"]["warning"] is None, s3
+            conn = _db()
+            try:
+                inv = invoices.get(conn, inv1)
+                assert inv["design_doc_id"] == did and "Total $12,500.00" in inv["design_html"]
+                doc = invoice_docs.render_document(conn, inv)
+                assert "Total $12,500.00" in doc and "How to pay" not in doc and "<body>" in doc
+                pub = invoice_docs.public(inv)
+                assert pub["has_design"] and "design_html" not in pub
+                assert "How to pay" in invoice_docs.render_document(conn, invoices.get(conn, inv2))   # the other one: standard
+                # a later save follows the invoice without naming it; a design without the amount is flagged
+                claude_docs.update(conn, ids["admin"], did, html="<h1>Invoice INV-2026-9901</h1><p>New look, total $9,000</p>")
+                r4 = claude_docs.save_to_job(conn, ids["admin"], did, JOB)
+                assert r4["invoice"]["id"] == inv1 and "$12,500.00" in r4["invoice"]["warning"], r4
+                assert "New look" in invoices.get(conn, inv1)["design_html"]
+                # a letter that mentions the invoice never becomes it
+                letter = claude_docs.create(conn, ids["admin"], chat, None, "Reminder", "<p>Invoice INV-2026-9902 is due.</p>")["doc_id"]
+                assert claude_docs.save_to_job(conn, ids["admin"], letter, JOB, "CONTRACTS")["invoice"] is None
+                assert not invoices.get(conn, inv2).get("design_html")
+                # Claude's card names the invoice; void / other jobs are refused
+                actx = ca.Ctx(conn, {"id": ids["admin"], "role": "admin"}, "office")
+                card = ca.BY_NAME["save_document_to_job"].card(actx, {"doc_id": did, "project_code": JOB, "invoice_id": inv1})
+                assert any(f["key"] == "invoice_id" and "INV-2026-9901" in f["hint"] for f in card["fields"]), card
+                assert any(i["number"] == "INV-2026-9901" and i["designed_with_claude_doc"] == did
+                           for i in ca._t_job_docs(actx, {"project_code": JOB})["invoices"])
+                try:
+                    ca.BY_NAME["save_document_to_job"].run(actx, {"doc_id": did, "project_code": JOB, "invoice_id": 999999})
+                    raise AssertionError("an invoice on another job can't be named")
+                except LookupError:
+                    pass
+            finally:
+                conn.close()
+            d = a.delete(f"/api/invoices/{inv1}/design")
+            assert d.status_code == 200, d.get_json()
+            conn = _db()
+            try:
+                inv = invoices.get(conn, inv1)
+                assert not inv.get("design_html") and not inv.get("design_doc_id")
+                assert "How to pay" in invoice_docs.render_document(conn, inv)
             finally:
                 conn.close()
         finally:
@@ -238,7 +307,7 @@ def main() -> int:
         src = (ROOT / "proposal_engine.py").read_text(encoding="utf-8")   # 2026-10-21: one engine writes every proposal
         assert "<closest_past_proposals>" in src and "Copy the closest past" in src
         js = (ROOT / "static/js/claude_drawer.js").read_text(encoding="utf-8")
-        for needle in ("function docCards(docs)", "async function openDoc(id, flash)", "'/api/claude/docs/' + id + '/docx'", "Save to a job\\u2026", "function docFiled(pick)", "Update the job copy",
+        for needle in ("function docCards(docs)", "async function openDoc(id, flash)", "'/api/claude/docs/' + id + '/docx'", "Save to a job\\u2026", "function docFiled(pick)", "Update the job copy", "async function docInvoices()",
                        'sandbox="allow-same-origin"', "docFollow(v)"):
             assert needle in js, needle
         html = (ROOT / "proposal_studio.html").read_text(encoding="utf-8")
