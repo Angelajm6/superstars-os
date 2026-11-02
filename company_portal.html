@@ -4055,7 +4055,7 @@
         <li>Press <b>Connect</b>, sign in here and enter your 6-digit code.</li></ol>`;
       if (mine) h += `<div class="cc-row"><div class="grow"><b>Your Claude is connected</b><small>Since ${fmtWhen(mine.since)} · last used ${fmtWhen(mine.last_used)} · ends ${fmtWhen(mine.ends)}</small></div>
         <button type="button" class="btn-ghost btn-sm cc-danger" data-cc="disconnect" data-id="">Disconnect</button></div>`;
-      h += `<p class="cp-muted" style="font-size:13px;margin:10px 0 0">Claude can read jobs, documents, daily reports, estimates, proposals and clients, and save new documents to a job (claude.ai asks you first). It never sees pay, hours, costs, worker personal details or client phone numbers and emails, and can't send, sign, delete or change prices.</p>`;
+      h += `<p class="cp-muted" style="font-size:13px;margin:10px 0 0">Claude can read jobs, documents, daily reports, estimates, proposals and clients; file documents into jobs and bids; write and change proposals, mark them sent, signed or declined, and email them to the client. claude.ai asks you before every change. It never sees pay, hours, costs, worker personal details or client phone numbers and emails, and can't delete anything. Only admins can connect.</p>`;
     }
     if (d.is_admin && d.people) {
       h += `<div class="cc-sub">Who can connect</div>` + d.people.map(p => `<div class="cc-row"><div class="grow"><b>${esc(p.name)}</b><small>${esc(p.role)} · ${p.connected ? 'connected' : 'not connected'}${p.two_step ? '' : ' · no two-step sign-in yet'}</small></div>

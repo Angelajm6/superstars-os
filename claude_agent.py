@@ -247,6 +247,24 @@ def _range(inp, default_days=31, max_days=93):
 
 
 # ---- reads
+_ADDR_WORDS = {"street": "st", "avenue": "ave", "av": "ave", "road": "rd", "place": "pl", "boulevard": "blvd",
+               "drive": "dr", "parkway": "pkwy", "east": "e", "west": "w", "north": "n", "south": "s"}
+
+
+def addr_words(text) -> list:
+    """An address the way people type it either way: "2600 East 21st Street" and "2600 E 21 St" give the same words."""
+    out = []
+    for w in re.findall(r"[a-z0-9]+", str(text or "").lower()):
+        w = re.sub(r"^(\d+)(st|nd|rd|th)$", r"\1", w)
+        out.append(_ADDR_WORDS.get(w, w))
+    return out
+
+
+def _words_match(q_words: list, *fields) -> bool:
+    have = set(addr_words(" ".join(str(f or "") for f in fields)))
+    return bool(q_words) and all(w in have for w in q_words)
+
+
 def _t_find(ctx, inp):
     import pm_scoping
     q = str(inp.get("query") or "").strip().lower()
@@ -258,6 +276,11 @@ def _t_find(ctx, inp):
         "SELECT project_code, name, address, COALESCE(status,'active') AS status FROM projects WHERE "
         "LOWER(project_code) LIKE ? OR LOWER(COALESCE(name,'')) LIKE ? OR LOWER(COALESCE(address,'')) LIKE ? "
         "ORDER BY project_code LIMIT 40", (s, s, s)).fetchall()
+    qw = addr_words(q)
+    if not rows and len(qw) > 1:   # "21st" vs "21", "Street" vs "St": match word by word
+        rows = [r for r in ctx.conn.execute("SELECT project_code, name, address, COALESCE(status,'active') AS status "
+                                            "FROM projects ORDER BY project_code").fetchall()
+                if _words_match(qw, r["project_code"], r["name"], r["address"])][:40]
     out["jobs"] = [dict(r) for r in pm_scoping.filter_visible_projects(rows, ctx.role, ctx.uid, ctx.conn)][:15]
     import team_items
     out["team_people"] = [p for p in team_items.people(ctx.conn) if q in (p["name"] or "").lower()][:10]
@@ -269,6 +292,12 @@ def _t_find(ctx, inp):
                                  "FROM estimate e LEFT JOIN crm_organization o ON o.id = e.client_org_id WHERE "
                                  "LOWER(e.code) LIKE ? OR LOWER(COALESCE(e.building_address,'')) LIKE ? OR "
                                  "LOWER(COALESCE(o.name,'')) LIKE ? ORDER BY e.updated_at DESC LIMIT 10", (s, s, s))
+        if not out["estimates"] and len(qw) > 1:
+            out["estimates"] = [r for r in _rows(ctx.conn,
+                                                 "SELECT e.id, e.code, e.status, e.inquiry_kind, e.building_address, o.name AS client "
+                                                 "FROM estimate e LEFT JOIN crm_organization o ON o.id = e.client_org_id "
+                                                 "ORDER BY e.updated_at DESC LIMIT 2000")
+                                if _words_match(qw, r["code"], r["building_address"], r["client"])][:10]
     return out
 
 
