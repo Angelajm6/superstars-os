@@ -92,6 +92,11 @@
   }
   #totp-section[hidden] { display: none; }
   .totp-help { font-size: 12px; color: var(--mute); margin-top: 6px; }
+  .remember { display: flex; align-items: center; gap: 10px; margin-top: 12px; min-height: 44px;
+    font-size: 13px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--ink);
+    margin-bottom: 0; cursor: pointer; }
+  .remember[hidden] { display: none; }
+  .remember input { width: 18px; height: 18px; margin: 0; flex-shrink: 0; accent-color: var(--ui); }
   input[type="email"], .password-wrap input, #totp {
     width: 100%;
     padding: 10px 12px;
@@ -237,6 +242,11 @@
       <label for="totp">Authenticator code</label>
       <input id="totp" name="totp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="20">
       <div class="totp-help">The 6-digit code from your authenticator app, or a recovery code.</div>
+      <!-- Admins only (the server says so with can_remember): skip the code on this
+           browser for 30 days. The password is still asked every time. -->
+      <label class="remember" id="remember-row" hidden>
+        <input type="checkbox" id="remember"> Remember this device for 30 days
+      </label>
     </div>
 
     <div class="err" id="err" role="alert"></div>
@@ -258,6 +268,8 @@
   const forgotPassword = document.getElementById('forgot-password');
   const totpSection = document.getElementById('totp-section');
   const totpEl = document.getElementById('totp');
+  const rememberRow = document.getElementById('remember-row');
+  const rememberEl = document.getElementById('remember');
   let fails = 0;
 
   // Same-origin next= only. Reject absolute URLs, scheme-relative URLs, and
@@ -334,6 +346,7 @@
     try {
       const body = { email, password };
       if (totp) body.totp = totp;
+      if (totp && !rememberRow.hidden && rememberEl.checked) body.remember = true;
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -355,6 +368,7 @@
         // The password was right; the account also needs its authenticator code.
         const badCode = !totpSection.hidden && !!totp;
         totpSection.hidden = false;
+        rememberRow.hidden = !j.can_remember;
         err.classList.toggle('info', !badCode);
         showErr(badCode ? 'That code didn’t work. Try the current code.'
                         : 'Password accepted. Enter the code from your authenticator app.');
