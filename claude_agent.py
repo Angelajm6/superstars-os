@@ -109,7 +109,9 @@ one, if edit_document says it is filed in a job, propose save_document_to_job fo
 person wants a new design to take the place of an older file in a job (an invoice made in another chat, say), look it up
 with job_documents and pass its id as replaces_document_id. When the document is an invoice, also pass invoice_id
 (the job's invoice it is, from job_documents) so the job's Invoices & Payments tab, its PDF and the client's link
-show the new design; an invoice already designed this way is updated on every save. The platform prints the company's logo and letterhead (Settings > Company brand) at the top of every
+show the new design; an invoice already designed this way is updated on every save. Title an invoice's design
+"Invoice <its number> - <place>" (e.g. Invoice INV-2026-0004 - 1160 River Ave): a document titled that way becomes
+that invoice's document whenever it is saved to the job. The platform prints the company's logo and letterhead (Settings > Company brand) at the top of every
 document, so do not write your own company header or logo. After making or changing one, say in one or two sentences what it contains. Never say you cannot create,
 generate or attach documents or files.
 

@@ -295,6 +295,26 @@ def main() -> int:
                 inv = invoices.get(conn, inv1)
                 assert not inv.get("design_html") and not inv.get("design_doc_id")
                 assert "How to pay" in invoice_docs.render_document(conn, inv)
+
+                # titled as the invoice: every save path links it with nothing picked (Claude's card, the connector)
+                titled = claude_docs.create(conn, ids["admin"], chat, None, "Invoice INV-2026-9902 - Cdc job",
+                                            "<h1>Invoice</h1><p>Amount due $12,500.00</p>")["doc_id"]
+                rt = claude_docs.save_to_job(conn, ids["admin"], titled, JOB, "CONTRACTS")
+                assert rt["invoice"] and rt["invoice"]["id"] == inv2, rt
+                assert invoices.get(conn, inv2)["design_doc_id"] == titled
+                reminder = claude_docs.create(conn, ids["admin"], chat, None, "Payment reminder INV-2026-9901",
+                                              "<p>Invoice INV-2026-9901 is due.</p>")["doc_id"]
+                assert claude_docs.save_to_job(conn, ids["admin"], reminder, JOB, "CONTRACTS")["invoice"] is None
+                assert not invoices.get(conn, inv1).get("design_html")
+                # filed before the link existed: the next boot gives the invoice its design (PDF drawn on next open)
+                invoice_docs.set_design(conn, inv2, None, None)
+                conn.execute("DELETE FROM claude_doc_filing WHERE doc_id = ?", (titled,))
+                conn.commit()
+                claude_docs.ensure(conn)
+                inv = invoices.get(conn, inv2)
+                assert inv["design_doc_id"] == titled and "Amount due $12,500.00" in inv["design_html"] and not inv["pdf_path"]
+                claude_docs.ensure(conn)   # idempotent
+                assert invoices.get(conn, inv2)["design_doc_id"] == titled
             finally:
                 conn.close()
         finally:
@@ -310,6 +330,11 @@ def main() -> int:
         for needle in ("function docCards(docs)", "async function openDoc(id, flash)", "'/api/claude/docs/' + id + '/docx'", "Save to a job\\u2026", "function docFiled(pick)", "Update the job copy", "async function docInvoices()",
                        'sandbox="allow-same-origin"', "docFollow(v)"):
             assert needle in js, needle
+        assert "Invoice <its number> - <place>" in ca.SYSTEM
+        assert 'claude_docs.filed(conn, made["doc_id"], code, saved)' in (ROOT / "claude_connector.py").read_text(encoding="utf-8")
+        assert "o.kind === 'page'" in (ROOT / "static/js/pdf_view.js").read_text(encoding="utf-8")   # Preview inside the app
+        assert "data-preview=" in (ROOT / "dashboard-static.html").read_text(encoding="utf-8")
+        assert "$('inv-preview').addEventListener" in (ROOT / "company_portal.html").read_text(encoding="utf-8")
         html = (ROOT / "proposal_studio.html").read_text(encoding="utf-8")
         assert "House style Claude follows" not in html and "Your past proposals" in html
         passed += 1; print("  wiring ok")

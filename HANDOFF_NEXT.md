@@ -77,6 +77,21 @@ grant, or elevation code.
   weeks with paid hours and a needs-approval dot (`GET /api/payroll/weeks`). Same file: approval list, cell badge, reason dialog.
 * Guard: `tests/smoke_payroll_rules.py` (new, in the gate). Migration `apply_hours_overtime.py` (boot-ensured).
 
+### Invoice designs connect on every save + Preview inside the app (Bookore, 2026-11-02, second follow-up)
+
+* Angela's INV-2026-0004 design was in the job's Documents but Invoices & Payments still drew the standard layout: the
+  link was made only from the save bar's picker, so Claude's card, the claude.ai connector (`_t_save`, which also never
+  recorded `claude_doc_filing`) and saves made before #188 left the invoice alone.
+* `claude_docs.filed()` runs after every save (save bar, `save_document_to_job`, connector `save_document`): it records
+  the job copy and connects the invoice. A document whose TITLE starts as an invoice ("Invoice …", "Deposit invoice …")
+  and carries exactly one of the job's invoice numbers connects with nothing picked (`titled_invoice`); a number only in
+  the text still just preselects. Boot backfill `_backfill_invoices`: an invoice with no design takes a current titled
+  Claude document of its job (PDF cleared, drawn on next open; the public `/i/<token>/pdf` now draws it on demand).
+  Claude (in-app + connector) is told to title designs "Invoice <number> - <place>".
+* **Preview** on the job's Invoices & Payments rows and the Company → Invoices panel opens in the shared side panel
+  (`SSC_PDF.panel` kind `page`: fetched, then srcdoc in a script-free frame scaled to fit, since the preview route
+  is never framable). pdf_view.js v=4.
+
 ### Claude documents: an invoice's design reaches Invoices & Payments (Bookore, 2026-11-02, follow-up)
 
 * Angela: the redesigned invoice reached the job's Documents but not the job's **Invoices & Payments** tab, which draws
