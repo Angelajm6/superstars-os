@@ -14,8 +14,17 @@ background so the books stay complete:
     every QBO_POLL_MINUTES (15) through Intuit's change feed (CDC) and close the invoice;
   * "Send from QuickBooks" emails the invoice through QuickBooks (its Pay now button).
 
-Not in phase 1: bills / receipts / vehicle costs to QuickBooks (phase 2); invoices typed
-straight into QuickBooks are not copied in.
+Phase 1b (2026-10-20, Angela's accepted prototype "QuickBooks Receivables Import"):
+  * an admin brings in QuickBooks' open invoices (Receivables) and unpaid bills (Bills); they
+    stay in step through the change feed (new ones, payments, due dates, voids, deletes);
+    QuickBooks is the source of truth for them: their balance comes from QuickBooks, they are
+    edited, voided and (bills) paid there; a payment recorded here goes to QuickBooks;
+  * a QuickBooks customer with no client here becomes a client right away and is flagged
+    (qbo_customer.review = 'pending'): admins approve it or merge it into an existing client;
+  * everything that came from QuickBooks is visible to admins only (show_imported());
+  * disconnecting a SANDBOX company removes everything that came from it (test data never
+    lingers in production) and frees the app's own invoices to go to the next company.
+Not yet: receipts / vehicle costs to QuickBooks (phase 2).
 
   GET  /quickbooks/connect                    admin -> Intuit consent
   GET  /quickbooks/callback                   Intuit sends the admin back here
@@ -25,6 +34,12 @@ straight into QuickBooks are not copied in.
   POST /api/quickbooks/sync                   admin: check now (payments back, retries)
   POST /api/quickbooks/invoices/<id>/push     admin: send one issued invoice to QuickBooks
   POST /api/quickbooks/invoices/<id>/send     admin: email it from QuickBooks
+  GET  /api/quickbooks/import/preview         admin: what bringing in would add (counts)
+  POST /api/quickbooks/import                 admin: bring in open invoices + unpaid bills
+  GET  /api/quickbooks/review                 admin: new clients from QuickBooks to review
+  POST /api/quickbooks/review/<org>/approve   admin: keep it
+  POST /api/quickbooks/review/<org>/merge     admin: move it into an existing client
+  POST /api/quickbooks/invoices/<id>/followup admin: a follow-up task on someone's to-do list
   POST /api/quickbooks/disconnect             admin: revoke and forget the connection
 
 Rules
@@ -132,6 +147,24 @@ def _has_column(conn, table: str, column: str) -> bool:
 
 _INVOICE_COLUMNS = (("qb_error", "TEXT"), ("qb_doc_number", "TEXT"), ("qb_realm_id", "TEXT"), ("qb_synced_at", "TEXT"))
 _PAYMENT_COLUMNS = (("qb_payment_id", "TEXT"), ("source", "TEXT"))
+_INVOICE_COLUMNS_1B = (("source", "TEXT"), ("followup_item_id", "INTEGER"))
+_PAYABLE_COLUMNS = (("qb_bill_id", "TEXT"), ("qb_realm_id", "TEXT"))
+_CONNECTION_COLUMNS = (("imported_at", "TEXT"),)
+_CUSTOMER_COLUMNS = (("review", "TEXT"), ("created_org", "INTEGER"))
+
+
+def _table_exists(conn, table: str) -> bool:
+    if db_layer.is_postgres():
+        return bool(conn.execute("SELECT 1 AS x FROM information_schema.tables WHERE table_name = ?", (table,)).fetchone())
+    return bool(conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)).fetchone())
+
+
+def _add_columns(conn, table: str, cols) -> None:
+    if not _table_exists(conn, table):
+        return
+    for col, ddl in cols:
+        if not _has_column(conn, table, col):
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
 
 
 def ensure(conn) -> None:
@@ -165,12 +198,18 @@ def ensure(conn) -> None:
         f"  how TEXT,"
         f"  linked_at TEXT NOT NULL"
         f")")
-    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_qbo_customer_org ON qbo_customer(realm_id, org_id)")
-    for table, cols in (("invoice", _INVOICE_COLUMNS), ("invoice_payment", _PAYMENT_COLUMNS)):
-        for col, ddl in cols:
-            if not _has_column(conn, table, col):
-                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
+    # 1b: a client may carry more than one QuickBooks customer (a reviewed duplicate merged into it),
+    # so the (realm, org) index is no longer unique; lookups take the first link
+    conn.execute("DROP INDEX IF EXISTS idx_qbo_customer_org")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_qbo_customer_org2 ON qbo_customer(realm_id, org_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_qbo_customer_qb ON qbo_customer(realm_id, qb_customer_id)")
+    for table, cols in (("invoice", _INVOICE_COLUMNS + _INVOICE_COLUMNS_1B), ("invoice_payment", _PAYMENT_COLUMNS),
+                        ("payable", _PAYABLE_COLUMNS), ("qbo_connection", _CONNECTION_COLUMNS),
+                        ("qbo_customer", _CUSTOMER_COLUMNS)):
+        _add_columns(conn, table, cols)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_invoice_qb ON invoice(qb_invoice_id)")
+    if _table_exists(conn, "payable"):
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_payable_qb ON payable(qb_bill_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_invoice_payment_qb ON invoice_payment(qb_payment_id)")
     conn.commit()
 
@@ -362,7 +401,7 @@ def _clients(conn, realm: str) -> list:
 
 
 def _customer_link(conn, realm: str, org_id: int) -> Optional[dict]:
-    return _one(conn.execute("SELECT * FROM qbo_customer WHERE realm_id = ? AND org_id = ?", (realm, org_id)))
+    return _one(conn.execute("SELECT * FROM qbo_customer WHERE realm_id = ? AND org_id = ? ORDER BY id LIMIT 1", (realm, org_id)))
 
 
 def _save_link(conn, realm: str, org_id: int, qb_id: str, qb_name: str, how: str) -> None:
@@ -469,6 +508,10 @@ def push_invoice(conn, invoice_id: int) -> dict:
         if not inv or inv["status"] == "draft":
             return {"skipped": True}
         try:
+            if inv.get("source") == "quickbooks":
+                if inv.get("qb_realm_id") == link["realm_id"] and inv.get("qb_invoice_id"):
+                    return {"ok": True, "qb_invoice_id": inv["qb_invoice_id"], "payments": _push_payments(conn, link, inv)}
+                return {"skipped": True}   # it came from QuickBooks: QuickBooks owns it
             if inv.get("qb_invoice_id") and inv.get("qb_realm_id") not in (None, link["realm_id"]):
                 return {"skipped": True}   # it lives in another QuickBooks company
             if inv["status"] == "void":
@@ -610,8 +653,25 @@ def pull_payments(conn, link: dict) -> int:
     """Payments recorded in QuickBooks since the last check -> payments here."""
     import invoices
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    body = _api(conn, link, "GET", "cdc", params={"entities": "Payment", "changedSince": _cdc_since(link)})
+    imported = bool(link.get("imported_at"))
+    entities = "Payment,Invoice,Bill,BillPayment" if imported else "Payment"
+    body = _api(conn, link, "GET", "cdc", params={"entities": entities, "changedSince": _cdc_since(link)})
     made = 0
+    refresh_invoices, refresh_bills = set(), set()
+    if imported:
+        for block in (body.get("CDCResponse") or []):
+            for qr in (block.get("QueryResponse") or []):
+                for qi in (qr.get("Invoice") or []):
+                    if upsert_invoice(conn, link, qi):
+                        made += 1
+                for qb in (qr.get("Bill") or []):
+                    if upsert_bill(conn, link, qb):
+                        made += 1
+                for bp in (qr.get("BillPayment") or []):
+                    for line in (bp.get("Line") or []):
+                        for lt in (line.get("LinkedTxn") or []):
+                            if lt.get("TxnType") == "Bill":
+                                refresh_bills.add(str(lt["TxnId"]))
     for block in (body.get("CDCResponse") or []):
         for qr in (block.get("QueryResponse") or []):
             for p in (qr.get("Payment") or []):
@@ -625,8 +685,11 @@ def pull_payments(conn, link: dict) -> int:
                         key = f"{p['Id']}:{lt['TxnId']}"
                         if conn.execute("SELECT 1 FROM invoice_payment WHERE qb_payment_id = ?", (key,)).fetchone():
                             continue
-                        inv = _one(conn.execute("SELECT id, status, amount, amount_paid FROM invoice WHERE qb_invoice_id = ? "
+                        inv = _one(conn.execute("SELECT id, status, amount, amount_paid, source FROM invoice WHERE qb_invoice_id = ? "
                                                 "AND qb_realm_id = ?", (str(lt["TxnId"]), link["realm_id"])))
+                        if inv and inv.get("source") == "quickbooks":
+                            refresh_invoices.add(str(lt["TxnId"]))   # its balance comes from QuickBooks
+                            continue
                         if not inv or inv["status"] != "issued":
                             continue
                         amt = min(round(float(line.get("Amount") or 0), 2),
@@ -640,6 +703,15 @@ def pull_payments(conn, link: dict) -> int:
                         if invoices.get(conn, inv["id"])["status"] == "paid":
                             _mark(conn, inv["id"], qb_status="paid")
                         made += 1
+    for qid in sorted(refresh_invoices):   # a payment on an invoice that came from QuickBooks: read its new balance
+        if conn.execute("SELECT 1 FROM invoice WHERE qb_invoice_id = ? AND qb_realm_id = ? AND source = 'quickbooks'",
+                        (qid, link["realm_id"])).fetchone():
+            if upsert_invoice(conn, link, _api(conn, link, "GET", f"invoice/{qid}").get("Invoice") or {}):
+                made += 1
+    for qid in sorted(refresh_bills):
+        if conn.execute("SELECT 1 FROM payable WHERE qb_bill_id = ? AND qb_realm_id = ?", (qid, link["realm_id"])).fetchone():
+            if upsert_bill(conn, link, _api(conn, link, "GET", f"bill/{qid}").get("Bill") or {}):
+                made += 1
     conn.execute("UPDATE qbo_connection SET poll_cursor = ? WHERE id = ?", (body.get("time") or started, link["id"]))
     conn.commit()
     link["poll_cursor"] = body.get("time") or started
@@ -697,6 +769,360 @@ def _needs_reconnect(conn, link: dict) -> None:
                  ("The QuickBooks sign-in expired; an admin needs to reconnect", link["id"]))
     conn.commit()
     log.info("qbo needs reconnect")
+
+
+# ------------------------------------------------------------------ 1b: invoices + bills that live in QuickBooks
+def show_imported() -> bool:
+    """Admins see what came from QuickBooks; nobody else does. Outside a request (the poller,
+    a script) everything is visible."""
+    try:
+        from flask import has_request_context
+        if not has_request_context():
+            return True
+        u = current_user()
+        return bool(u and u.get("role") in ROLES)
+    except Exception:
+        return False
+
+
+def hide_sql(alias: str = "") -> str:
+    """' AND <imported rows hidden>' for a viewer who must not see QuickBooks rows, else ''."""
+    if show_imported():
+        return ""
+    a = (alias + ".") if alias else ""
+    return f" AND COALESCE({a}source, '') <> 'quickbooks'"
+
+
+def _num(v) -> float:
+    try:
+        return float(v or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _d(v) -> Optional[str]:
+    v = str(v or "")[:10]
+    return v if re.fullmatch(r"\d{4}-\d{2}-\d{2}", v) else None
+
+
+def _lines_text(obj: dict) -> str:
+    for ln in (obj.get("Line") or []):
+        if ln.get("Description"):
+            return str(ln["Description"]).strip()[:2000]
+    return (((obj.get("CustomerMemo") or {}).get("value")) or obj.get("PrivateNote") or "").strip()[:2000]
+
+
+def org_for_customer(conn, link: dict, ref: dict) -> int:
+    """The client for a QuickBooks customer: its link, else a client with the same name, else a new
+    client flagged for an admin to review."""
+    qid = str((ref or {}).get("value") or "")
+    have = _one(conn.execute("SELECT org_id FROM qbo_customer WHERE realm_id = ? AND qb_customer_id = ? ORDER BY id LIMIT 1",
+                             (link["realm_id"], qid)))
+    if have:
+        return have["org_id"]
+    cust = (_api(conn, link, "GET", f"customer/{qid}").get("Customer") or {}) if qid else {}
+    name = (cust.get("DisplayName") or cust.get("CompanyName") or (ref or {}).get("name") or f"QuickBooks customer {qid}").strip()[:200]
+    same = _one(conn.execute("SELECT id FROM crm_organization WHERE LOWER(name) = ? ORDER BY id LIMIT 1", (name.lower(),)))
+    if same:
+        org_id, review, made = same["id"], None, 0
+    else:
+        import crm
+        org_id = crm.create_org(conn, name=name, relationship_type="client", notes="Created from QuickBooks")
+        email = ((cust.get("PrimaryEmailAddr") or {}).get("Address") or "").strip()
+        if email:
+            crm.create_contact(conn, full_name=name, org_id=org_id, email=email[:200], notes="Billing email from QuickBooks")
+        review, made = "pending", 1
+        log.info("qbo client %s created from a quickbooks customer (to review)", org_id)
+    conn.execute("INSERT INTO qbo_customer (realm_id, org_id, qb_customer_id, qb_name, how, linked_at, review, created_org) "
+                 "VALUES (?,?,?,?,?,?,?,?)", (link["realm_id"], org_id, qid, name, "imported", _now(), review, made))
+    conn.commit()
+    return org_id
+
+
+def _qb_number(conn, doc: str, qid: str) -> str:
+    base = f"QB-{(doc or qid)[:30]}"
+    if not conn.execute("SELECT 1 FROM invoice WHERE number = ?", (base,)).fetchone():
+        return base
+    return f"{base}-{qid}"
+
+
+def upsert_invoice(conn, link: dict, qi: dict, *, allow_paid: bool = False) -> bool:
+    """One QuickBooks invoice -> Receivables. Ours (made here) are left to the payment flow.
+    Returns True when something changed here."""
+    if not qi or not qi.get("Id"):
+        return False
+    qid, realm, now = str(qi["Id"]), link["realm_id"], _now()
+    row = _one(conn.execute("SELECT * FROM invoice WHERE qb_invoice_id = ? AND qb_realm_id = ?", (qid, realm)))
+    if row and row.get("source") != "quickbooks":
+        return False   # made here: payments and voids already flow
+    if qi.get("status") == "Deleted":
+        if row and row["status"] != "void":
+            conn.execute("UPDATE invoice SET status = 'void', voided_at = ?, updated_at = ? WHERE id = ?", (now, now, row["id"]))
+            conn.commit()
+            return True
+        return False
+    if not row and qi.get("DocNumber") and conn.execute(
+            "SELECT 1 FROM invoice WHERE number = ? AND COALESCE(source, '') <> 'quickbooks'", (qi["DocNumber"],)).fetchone():
+        return False   # one of ours whose id was not stored yet (a push still in flight)
+    total, bal = round(_num(qi.get("TotalAmt")), 2), round(_num(qi.get("Balance")), 2)
+    voided = total <= 0.004 and bool(row) and _num(row.get("amount")) > 0
+    paid = bal <= 0.004 and not voided
+    if not row:
+        if total <= 0.004 or (paid and not allow_paid):
+            return False
+        org_id = org_for_customer(conn, link, qi.get("CustomerRef") or {})
+        txn = _d(qi.get("TxnDate")) or date.today().isoformat()
+        conn.execute(
+            "INSERT INTO invoice (number, kind, status, client_org_id, description, amount, retainage, amount_paid, issued_at, "
+            "due_at, paid_at, qb_invoice_id, qb_doc_number, qb_realm_id, qb_status, qb_synced_at, source, created_at, updated_at) "
+            "VALUES (?, 'other', ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'quickbooks', ?, ?)",
+            (_qb_number(conn, qi.get("DocNumber") or "", qid), "paid" if paid else "issued", org_id, _lines_text(qi) or None,
+             total, round(total - bal, 2), txn, _d(qi.get("DueDate")) or txn, txn if paid else None, qid,
+             qi.get("DocNumber") or None, realm, "paid" if paid else "created", now, now, now))
+        conn.commit()
+        return True
+    if row["status"] == "void":
+        return False
+    if voided:
+        conn.execute("UPDATE invoice SET status = 'void', voided_at = ?, qb_status = 'voided', updated_at = ? WHERE id = ?",
+                     (now, now, row["id"]))
+        conn.commit()
+        return True
+    new = {"amount": total, "amount_paid": round(total - bal, 2), "due_at": _d(qi.get("DueDate")) or row.get("due_at"),
+           "status": "paid" if paid else "issued", "qb_status": "paid" if paid else (row.get("qb_status") if row.get("qb_status") == "emailed" else "created")}
+    new["paid_at"] = (row.get("paid_at") or date.today().isoformat()) if paid else None
+    if all((row.get(k) if not isinstance(row.get(k), float) else round(row[k], 2)) == v for k, v in new.items()):
+        return False
+    sets = ", ".join(f"{k} = ?" for k in new)
+    conn.execute(f"UPDATE invoice SET {sets}, qb_synced_at = ?, updated_at = ? WHERE id = ?", (*new.values(), now, now, row["id"]))
+    conn.commit()
+    if paid and row["status"] != "paid":
+        log.info("qbo invoice %s paid in quickbooks", row["id"])
+    return True
+
+
+def upsert_bill(conn, link: dict, qb: dict) -> bool:
+    """One QuickBooks bill -> Bills (payable, source 'quickbooks'). Paid in QuickBooks; the balance comes back."""
+    if not qb or not qb.get("Id"):
+        return False
+    qid, realm, now = str(qb["Id"]), link["realm_id"], _now()
+    row = _one(conn.execute("SELECT * FROM payable WHERE qb_bill_id = ? AND qb_realm_id = ?", (qid, realm)))
+    if qb.get("status") == "Deleted":
+        if row and row["status"] != "void":
+            conn.execute("UPDATE payable SET status = 'void', updated_at = ? WHERE id = ?", (now, row["id"]))
+            conn.commit()
+            return True
+        return False
+    total, bal = round(_num(qb.get("TotalAmt")), 2), round(_num(qb.get("Balance")), 2)
+    paid = bal <= 0.004
+    vendor = (((qb.get("VendorRef") or {}).get("name")) or "Vendor").strip()[:200]
+    if not row:
+        if paid or total <= 0.004:
+            return False
+        txn = _d(qb.get("TxnDate")) or date.today().isoformat()
+        conn.execute(
+            "INSERT INTO payable (vendor, source, source_ref, doc_number, description, category, amount, paid_amount, issued_at, "
+            "due_at, status, qb_bill_id, qb_realm_id, created_at, updated_at) "
+            "VALUES (?, 'quickbooks', ?, ?, ?, NULL, ?, ?, ?, ?, 'open', ?, ?, ?, ?)",
+            (vendor, qid, (qb.get("DocNumber") or None), _lines_text(qb) or None, total, round(total - bal, 2), txn,
+             _d(qb.get("DueDate")) or txn, qid, realm, now, now))
+        conn.commit()
+        return True
+    if row["status"] == "void":
+        return False
+    new = {"amount": total, "paid_amount": round(total - bal, 2), "due_at": _d(qb.get("DueDate")) or row.get("due_at"),
+           "status": "paid" if paid else "open", "vendor": vendor}
+    new["paid_at"] = (row.get("paid_at") or date.today().isoformat()) if paid else None
+    if paid:
+        new["payment_method"] = "quickbooks"
+    if all((row.get(k) if not isinstance(row.get(k), float) else round(row[k], 2)) == v for k, v in new.items()):
+        return False
+    sets = ", ".join(f"{k} = ?" for k in new)
+    conn.execute(f"UPDATE payable SET {sets}, updated_at = ? WHERE id = ?", (*new.values(), now, row["id"]))
+    conn.commit()
+    return True
+
+
+def _open_in_qb(conn, link: dict, entity: str, *, paid_since: Optional[str] = None) -> list:
+    out, start = [], 1
+    cond = "Balance > '0'" if not paid_since else f"Balance = '0' and TxnDate >= '{paid_since}'"
+    for _ in range(5):   # up to 5,000 of each
+        page = _query(conn, link, f"select * from {entity} where {cond} startposition {start} maxresults 1000").get(entity) or []
+        out += page
+        if len(page) < 1000:
+            break
+        start += 1000
+    return out
+
+
+_PREVIEW: dict = {}   # realm -> (expires_at, preview); a Finance visit never re-reads QuickBooks within 10 minutes
+
+
+def preview(conn, link: dict) -> dict:
+    hit = _PREVIEW.get(link["realm_id"])
+    if hit and hit[0] > time.time():
+        return hit[1]
+    ours = {r["qb_invoice_id"] for r in conn.execute("SELECT qb_invoice_id FROM invoice WHERE qb_realm_id = ? AND qb_invoice_id IS NOT NULL",
+                                                     (link["realm_id"],)).fetchall()}
+    ours_doc = {r["number"] for r in conn.execute("SELECT number FROM invoice WHERE COALESCE(source, '') <> 'quickbooks'").fetchall()}
+    inv = [q for q in _open_in_qb(conn, link, "Invoice") if str(q["Id"]) not in ours and (q.get("DocNumber") or "") not in ours_doc]
+    have_bills = {r["qb_bill_id"] for r in conn.execute("SELECT qb_bill_id FROM payable WHERE qb_realm_id = ?", (link["realm_id"],)).fetchall()}
+    bills = [b for b in _open_in_qb(conn, link, "Bill") if str(b["Id"]) not in have_bills]
+    linked = {r["qb_customer_id"] for r in conn.execute("SELECT qb_customer_id FROM qbo_customer WHERE realm_id = ?", (link["realm_id"],)).fetchall()}
+    t = date.today().isoformat()
+    custs = {str((q.get("CustomerRef") or {}).get("value")) for q in inv}
+    out = {"invoices": len(inv), "invoices_open": round(sum(_num(q.get("Balance")) for q in inv), 2),
+           "invoices_late": sum(1 for q in inv if (_d(q.get("DueDate")) or t) < t),
+           "late_30": sum(1 for q in inv if (_d(q.get("DueDate")) or t) < (date.today() - timedelta(days=30)).isoformat()),
+           "bills": len(bills), "bills_open": round(sum(_num(b.get("Balance")) for b in bills), 2),
+           "customers_matched": len(custs & linked), "customers_new": len(custs - linked)}
+    _PREVIEW[link["realm_id"]] = (time.time() + 600, out)
+    return out
+
+
+def import_open(conn, link: dict, *, paid_days: int = 0) -> dict:
+    """Bring in QuickBooks' open invoices (+ paid in the last `paid_days`) and unpaid bills."""
+    with _LOCK:
+        n_inv = n_bill = 0
+        for qi in _open_in_qb(conn, link, "Invoice"):
+            n_inv += 1 if upsert_invoice(conn, link, qi) else 0
+        if paid_days:
+            since = (date.today() - timedelta(days=int(paid_days))).isoformat()
+            for qi in _open_in_qb(conn, link, "Invoice", paid_since=since):
+                n_inv += 1 if upsert_invoice(conn, link, qi, allow_paid=True) else 0
+        for qb in _open_in_qb(conn, link, "Bill"):
+            n_bill += 1 if upsert_bill(conn, link, qb) else 0
+        now = _now()
+        conn.execute("UPDATE qbo_connection SET imported_at = ? WHERE id = ?", (now, link["id"]))
+        conn.commit()
+        link["imported_at"] = now
+        _PREVIEW.pop(link["realm_id"], None)
+        log.info("qbo brought in %s invoice(s) and %s bill(s)", n_inv, n_bill)
+        return {"invoices": n_inv, "bills": n_bill, "review": review_count(conn, link["realm_id"])}
+
+
+# ---- new clients from QuickBooks: review
+def review_count(conn, realm: Optional[str]) -> int:
+    if not realm:
+        return 0
+    return conn.execute("SELECT COUNT(DISTINCT org_id) FROM qbo_customer WHERE realm_id = ? AND review = 'pending'", (realm,)).fetchone()[0]
+
+
+def review_list(conn, realm: str) -> list:
+    out = []
+    for r in _rows(conn.execute(
+            "SELECT q.org_id, q.qb_name, o.name FROM qbo_customer q JOIN crm_organization o ON o.id = q.org_id "
+            "WHERE q.realm_id = ? AND q.review = 'pending' ORDER BY o.name", (realm,))):
+        if any(x["org_id"] == r["org_id"] for x in out):
+            continue
+        n = _one(conn.execute("SELECT COUNT(*) AS n, COALESCE(SUM(amount - amount_paid), 0) AS v FROM invoice "
+                              "WHERE client_org_id = ? AND status = 'issued'", (r["org_id"],))) or {}
+        emails = _org_emails(conn, r["org_id"])
+        out.append({"org_id": r["org_id"], "name": r["name"], "qb_name": r["qb_name"], "email": emails[0] if emails else None,
+                    "open_invoices": int(n.get("n") or 0), "open_value": round(_num(n.get("v")), 2)})
+    return out
+
+
+def approve_client(conn, realm: str, org_id: int) -> None:
+    conn.execute("UPDATE qbo_customer SET review = 'approved' WHERE realm_id = ? AND org_id = ? AND review = 'pending'", (realm, org_id))
+    conn.commit()
+
+
+_ORG_REFS = (("projects", "client_org_id"), ("proposal", "client_org_id"), ("estimate", "org_id"), ("building", "client_org_id"),
+             ("payable", "vendor_org_id"))
+
+
+def merge_client(conn, realm: str, org_id: int, into_id: int) -> dict:
+    """Move a client created from QuickBooks into an existing one: its invoices move, the QuickBooks
+    customer is linked to the existing client, the duplicate goes away (kept, inactive, if anything
+    else already points at it)."""
+    if org_id == into_id:
+        raise ValueError("pick a different client")
+    if not _one(conn.execute("SELECT 1 AS x FROM qbo_customer WHERE realm_id = ? AND org_id = ? AND created_org = 1", (realm, org_id))):
+        raise LookupError("only a client created from QuickBooks can be merged here")
+    if not _one(conn.execute("SELECT id FROM crm_organization WHERE id = ?", (into_id,))):
+        raise LookupError("that client does not exist")
+    moved = conn.execute("SELECT COUNT(*) FROM invoice WHERE client_org_id = ?", (org_id,)).fetchone()[0]
+    conn.execute("UPDATE invoice SET client_org_id = ? WHERE client_org_id = ?", (into_id, org_id))
+    conn.execute("UPDATE qbo_customer SET org_id = ?, review = 'approved', how = 'merged', created_org = 0 WHERE realm_id = ? AND org_id = ?",
+                 (into_id, realm, org_id))
+    conn.commit()   # the move is saved before the checks below (a failed check's rollback must not undo it)
+    still = False
+    for table, col in _ORG_REFS:
+        try:
+            if _has_column(conn, table, col) and conn.execute(f"SELECT 1 FROM {table} WHERE {col} = ? LIMIT 1", (org_id,)).fetchone():
+                still = True
+        except Exception:
+            conn.rollback()
+    if still:
+        conn.execute("UPDATE crm_organization SET status = 'inactive' WHERE id = ?", (org_id,))
+    else:
+        conn.execute("DELETE FROM crm_contact WHERE org_id = ?", (org_id,))
+        conn.execute("DELETE FROM crm_activity WHERE entity_type = 'organization' AND entity_id = ?", (org_id,))
+        conn.execute("DELETE FROM crm_organization WHERE id = ?", (org_id,))
+    conn.commit()
+    log.info("qbo client %s merged into %s (%s invoice(s))", org_id, into_id, moved)
+    return {"moved": moved, "removed": not still}
+
+
+# ---- follow-ups
+def add_followup(conn, invoice_id: int, *, title: str, assignee_user_id, due_date, actor) -> dict:
+    import invoices
+    import team_items
+    inv = invoices.get(conn, invoice_id)
+    if not inv:
+        raise LookupError("invoice not found")
+    detail = f"Invoice {inv['number']} · {inv.get('client_name') or ''} · ${_num(inv.get('balance')):,.2f} open" + (
+        f" · due {inv['due_at']}" if inv.get("due_at") else "")
+    item = team_items.create(conn, {"kind": "task", "title": title, "detail": detail, "assignee_user_id": assignee_user_id,
+                                    "due_date": due_date}, actor=actor)
+    conn.execute("UPDATE invoice SET followup_item_id = ?, updated_at = ? WHERE id = ?", (item, _now(), invoice_id))
+    conn.commit()
+    return invoices.get(conn, invoice_id)
+
+
+# ---- leaving a company
+def forget_company(conn, realm: str, environment_: str) -> dict:
+    """A TEST (sandbox) company leaves nothing behind: what came from it is removed, the clients it
+    created (still to review) go, and the app's own invoices that were sent to it are free to go to
+    the next company. A real company's data is kept (it is the company's history)."""
+    out = {"invoices": 0, "bills": 0, "clients": 0}
+    if environment_ != "sandbox":
+        return out
+    ids = [r["id"] for r in conn.execute("SELECT id FROM invoice WHERE source = 'quickbooks' AND qb_realm_id = ?", (realm,)).fetchall()]
+    for i in ids:
+        conn.execute("DELETE FROM invoice_payment WHERE invoice_id = ?", (i,))
+        conn.execute("DELETE FROM invoice WHERE id = ?", (i,))
+    out["invoices"] = len(ids)
+    if _table_exists(conn, "payable"):
+        out["bills"] = conn.execute("SELECT COUNT(*) FROM payable WHERE source = 'quickbooks' AND qb_realm_id = ?", (realm,)).fetchone()[0]
+        conn.execute("DELETE FROM payable WHERE source = 'quickbooks' AND qb_realm_id = ?", (realm,))
+    for r in _rows(conn.execute("SELECT DISTINCT org_id FROM qbo_customer WHERE realm_id = ? AND created_org = 1", (realm,))):
+        busy = conn.execute("SELECT 1 FROM invoice WHERE client_org_id = ? LIMIT 1", (r["org_id"],)).fetchone()
+        if not busy:
+            conn.execute("DELETE FROM crm_contact WHERE org_id = ?", (r["org_id"],))
+            conn.execute("DELETE FROM crm_activity WHERE entity_type = 'organization' AND entity_id = ?", (r["org_id"],))
+            conn.execute("DELETE FROM crm_organization WHERE id = ?", (r["org_id"],))
+            out["clients"] += 1
+    conn.execute("DELETE FROM qbo_customer WHERE realm_id = ?", (realm,))
+    ours = [r["id"] for r in conn.execute("SELECT id FROM invoice WHERE qb_realm_id = ?", (realm,)).fetchall()]
+    undone = 0
+    for i in ours:
+        conn.execute("UPDATE invoice_payment SET qb_payment_id = NULL WHERE invoice_id = ? AND COALESCE(source, 'app') <> 'quickbooks'", (i,))
+        # a payment recorded in the TEST company never counts against a real invoice
+        undone += conn.execute("SELECT COUNT(*) FROM invoice_payment WHERE invoice_id = ? AND source = 'quickbooks'", (i,)).fetchone()[0]
+        conn.execute("DELETE FROM invoice_payment WHERE invoice_id = ? AND source = 'quickbooks'", (i,))
+        paid = _num(conn.execute("SELECT COALESCE(SUM(amount), 0) FROM invoice_payment WHERE invoice_id = ?", (i,)).fetchone()[0])
+        conn.execute("UPDATE invoice SET amount_paid = ?, status = CASE WHEN status = 'paid' AND ? < amount - 0.005 THEN 'issued' ELSE status END, "
+                     "paid_at = CASE WHEN status = 'paid' AND ? < amount - 0.005 THEN NULL ELSE paid_at END WHERE id = ?",
+                     (round(paid, 2), paid, paid, i))
+    out["payments_undone"] = undone
+    conn.execute("UPDATE invoice SET qb_invoice_id = NULL, qb_doc_number = NULL, qb_realm_id = NULL, qb_status = NULL, qb_error = NULL "
+                 "WHERE qb_realm_id = ?", (realm,))
+    conn.commit()
+    log.info("qbo test company forgotten: %s invoice(s), %s bill(s), %s client(s) removed; %s invoice(s) freed, %s test payment(s) undone",
+             out["invoices"], out["bills"], out["clients"], len(ours), undone)
+    return out
 
 
 # ------------------------------------------------------------------ hooks (invoices.py calls these)
@@ -790,12 +1216,14 @@ def status(conn, user: Optional[dict] = None) -> dict:
         "connected": link["status"] == "active", "status": link["status"], "company_name": link["company_name"],
         "environment": link["environment"], "connected_by": who.get("n"), "connected_at": link["connected_at"],
         "matched": bool(link.get("matched_at")), "last_check_at": link["last_poll_at"], "problem": link["last_error"],
-        "every_minutes": poll_seconds() // 60, "open_url": APP_BASE[link["environment"]] + "/app/invoice?txnId=",
+        "every_minutes": poll_seconds() // 60, "open_url": APP_BASE[link["environment"]] + "/app/invoice?txnId=", "open_bill_url": APP_BASE[link["environment"]] + "/app/bill?txnId=",
         "stats": {"clients_linked": sum(1 for c in clients if c["qb_customer_id"]), "clients_total": len(clients),
                   "invoices_in_qb": in_qb, "invoices_total": sendable, "payments_back_month": back,
                   "reads_today": int(link.get("reads_count") or 0) if link.get("reads_day") == date.today().isoformat() else 0,
                   "read_cap": read_cap(), "waiting": waiting, "not_sent": not_sent},
         "needs_you": [{"id": r["id"], "number": r["number"], "error": r["qb_error"] or "QuickBooks refused it"} for r in needs],
+        "imported": bool(link.get("imported_at")), "imported_at": link.get("imported_at"),
+        "review": review_count(conn, realm),
     })
     return out
 
@@ -1064,13 +1492,132 @@ def _disconnect():
                 _http("POST", REVOKE_URL, basic=True, json_body={"token": secret_box.decrypt_text(link["refresh_token_enc"])})
             except Exception as e:
                 log.info("qbo disconnect: revoke skipped (%s)", type(e).__name__)
+        forgot = {}
         if link:
             _TOKENS.pop(link["realm_id"], None)
+            _PREVIEW.pop(link["realm_id"], None)
+            forgot = forget_company(conn, link["realm_id"], link["environment"])
         conn.execute("DELETE FROM qbo_connection")   # client matches and invoice ids are kept for a reconnect
         conn.execute("UPDATE invoice SET qb_status = NULL WHERE qb_status = 'pending'")
         conn.commit()
         log.info("qbo disconnected user=%s", _uid())
-        return jsonify({"data": {"connected": False}})
+        return jsonify({"data": {"connected": False, "removed": forgot}})
+    finally:
+        conn.close()
+
+
+# ---- 1b routes (admins only, like every QuickBooks route)
+def _api_import_preview():
+    conn = db_layer.connect()
+    try:
+        link, bad = _need_link(conn)
+        if bad:
+            return bad
+        try:
+            with _LOCK:
+                return jsonify({"data": preview(conn, link)})
+        except NeedsReconnect:
+            _needs_reconnect(conn, link)
+            return _err("QuickBooks needs to be reconnected (Company > Finance)", 409)
+        except CapReached:
+            return _err("today's QuickBooks limit is reached; try again tomorrow", 429)
+        except QBError as e:
+            return _err(str(e), 502)
+        except Exception as e:
+            conn.rollback()
+            log.warning("qbo preview failed: %s", type(e).__name__)
+            return _err("QuickBooks did not answer; try again", 502)
+    finally:
+        conn.close()
+
+
+def _api_import():
+    body = request.get_json(silent=True) or {}
+    try:
+        days = int(body.get("paid_days") or 0)
+    except (TypeError, ValueError):
+        return _err("paid_days must be a number")
+    if days not in (0, 90):
+        return _err("paid_days must be 0 or 90")
+    conn = db_layer.connect()
+    try:
+        link, bad = _need_link(conn)
+        if bad:
+            return bad
+        try:
+            res = import_open(conn, link, paid_days=days)
+        except NeedsReconnect:
+            _needs_reconnect(conn, link)
+            return _err("QuickBooks needs to be reconnected (Company > Finance)", 409)
+        except CapReached:
+            return _err("today's QuickBooks limit is reached; try again tomorrow", 429)
+        except QBError as e:
+            return _err(str(e), 502)
+        except Exception as e:
+            conn.rollback()
+            log.warning("qbo import failed: %s", type(e).__name__)
+            return _err("QuickBooks did not answer; what came in is kept, try again for the rest", 502)
+        return jsonify({"data": {**res, **status(conn, current_user())}})
+    finally:
+        conn.close()
+
+
+def _api_review():
+    conn = db_layer.connect()
+    try:
+        link = connection(conn)
+        return jsonify({"data": review_list(conn, link["realm_id"]) if link else []})
+    finally:
+        conn.close()
+
+
+def _api_review_approve(org_id):
+    conn = db_layer.connect()
+    try:
+        link = connection(conn)
+        if not link:
+            return _err("connect QuickBooks first", 409)
+        approve_client(conn, link["realm_id"], org_id)
+        return jsonify({"data": {"review": review_count(conn, link["realm_id"])}})
+    finally:
+        conn.close()
+
+
+def _api_review_merge(org_id):
+    body = request.get_json(silent=True) or {}
+    try:
+        into = int(body.get("into_org_id"))
+    except (TypeError, ValueError):
+        return _err("pick the client to merge into")
+    conn = db_layer.connect()
+    try:
+        link = connection(conn)
+        if not link:
+            return _err("connect QuickBooks first", 409)
+        try:
+            res = merge_client(conn, link["realm_id"], org_id, into)
+        except LookupError as e:
+            return _err(str(e), 404)
+        except ValueError as e:
+            return _err(str(e))
+        return jsonify({"data": {**res, "review": review_count(conn, link["realm_id"])}})
+    finally:
+        conn.close()
+
+
+def _api_followup(invoice_id):
+    body = request.get_json(silent=True) or {}
+    conn = db_layer.connect()
+    try:
+        try:
+            r = add_followup(conn, invoice_id, title=body.get("title"), assignee_user_id=body.get("assignee_user_id"),
+                             due_date=body.get("due_date"), actor=_uid())
+        except LookupError as e:
+            return _err(str(e), 404)
+        except ValueError as e:
+            return _err(str(e))
+        import invoice_docs
+        return jsonify({"data": invoice_docs.public(r)}), 201
     finally:
         conn.close()
 
@@ -1098,5 +1645,11 @@ def register(app) -> None:
     app.add_url_rule("/api/quickbooks/invoices/<int:invoice_id>/push", "qbo_push", gate(_api_push), methods=["POST"])
     app.add_url_rule("/api/quickbooks/invoices/<int:invoice_id>/send", "qbo_send", gate(_api_send), methods=["POST"])
     app.add_url_rule("/api/quickbooks/disconnect", "qbo_disconnect", _disconnect, methods=["POST"])
+    app.add_url_rule("/api/quickbooks/import/preview", "qbo_import_preview", gate(_api_import_preview), methods=["GET"])
+    app.add_url_rule("/api/quickbooks/import", "qbo_import", gate(_api_import), methods=["POST"])
+    app.add_url_rule("/api/quickbooks/review", "qbo_review", gate(_api_review), methods=["GET"])
+    app.add_url_rule("/api/quickbooks/review/<int:org_id>/approve", "qbo_review_approve", gate(_api_review_approve), methods=["POST"])
+    app.add_url_rule("/api/quickbooks/review/<int:org_id>/merge", "qbo_review_merge", gate(_api_review_merge), methods=["POST"])
+    app.add_url_rule("/api/quickbooks/invoices/<int:invoice_id>/followup", "qbo_followup", gate(_api_followup), methods=["POST"])
     if not unavailable_reason():
         start()
