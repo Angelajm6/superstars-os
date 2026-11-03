@@ -117,6 +117,23 @@ def ensure_hardening_schema(conn) -> dict:
 
     # ---- 4) widen the login_audit.event CHECK (SQLite rebuild; PG drop+add) ----
     out["login_audit.check"] = _widen_login_audit_check(conn, pg)
+
+    # ---- 5) admin "remember this device for 30 days" (skips the authenticator code,
+    # never the password). token_hash = sha256 of the cookie value; factor_fp ties the
+    # row to the password + authenticator secret it was earned with, so changing either
+    # forgets every remembered device. ----
+    out["trusted_device"] = "present" if _table_exists(conn, "trusted_device") else "created"
+    conn.execute(
+        f"""CREATE TABLE IF NOT EXISTS trusted_device (
+              {pk},
+              user_id     INTEGER NOT NULL,
+              token_hash  TEXT NOT NULL,
+              factor_fp   TEXT NOT NULL,
+              created_at  TEXT NOT NULL,
+              expires_at  TEXT NOT NULL
+            )""")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_trusted_device_token ON trusted_device(token_hash)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_trusted_device_user ON trusted_device(user_id)")
     return out
 
 
