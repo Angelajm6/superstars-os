@@ -99,6 +99,7 @@ DUAL_BACKEND_MIGRATIONS = (
     "apply_crm_org_details.py",
     "apply_company_templates.py",
     "apply_client_profile.py",
+    "apply_hours_overtime.py",
 )
 
 

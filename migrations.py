@@ -189,6 +189,7 @@ BOOT_ENSURED = {
     "apply_proposals_307.py": ("proposal",),
     "apply_company_templates.py": ("company_template",),
     "apply_client_profile.py": ("crm_organization.client_kind", "crm_contact.roles"),
+    "apply_hours_overtime.py": ("hours_overtime",),
 }
 
 

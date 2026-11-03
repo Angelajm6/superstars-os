@@ -87,6 +87,8 @@ _PUBLIC_PREFIXES = (
     "/api/p/",            # #307 — accept / decline from that page
     "/i/",                # #326 — a client's invoice link (the token IS the credential)
     "/d/",                # #327 — a client's permits & insurance package link
+    "/u/",                # a one-time upload link from the claude.ai connector (claude_connector.py): the token IS
+                          # the credential, used once, 15 minutes, adds files to one folder and reveals nothing
     "/auth/google/",      # #261 — Google OIDC login/callback must be reachable while
                           # logged OUT (that IS the login). When SSO is disabled (no
                           # GOOGLE_OAUTH_* env) the handlers themselves return 404.
@@ -105,6 +107,16 @@ _PUBLIC_EXACT = {
     "/worker-app-manifest.json",  # PWA shell (#248) — code/config, no data
     "/worker-app-sw.js",          # PWA shell (#248)
     "/favicon.ico",               # brand star for the browser tab — no data
+    # Your own Claude, connected (claude_connector.py, off unless SSC_CLAUDE_CONNECTOR=1): these carry their
+    # OWN credential (a bearer token, a PKCE code, claude.ai's callback only). /oauth/consent/<id> is NOT
+    # public: the person signs in to the app there, like any page.
+    "/mcp",
+    "/oauth/register",
+    "/oauth/authorize",
+    "/oauth/token",
+    "/.well-known/oauth-protected-resource",
+    "/.well-known/oauth-protected-resource/mcp",
+    "/.well-known/oauth-authorization-server",
 }
 
 
@@ -565,8 +577,70 @@ def _fail_login(user, ip, delay):
     return jsonify(_UNIFORM_401[0]), _UNIFORM_401[1]
 
 
+# Admins may tick "Remember this device for 30 days" at the authenticator step; the
+# next 30 days of sign-ins from that browser still need the password but not the code.
+TRUSTED_COOKIE = "ssc_trusted"
+TRUSTED_TTL = timedelta(days=30)
+TRUSTED_ROLES = ("admin",)
+
+
+def _hash_token(token: str) -> str:
+    import hashlib
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _factor_fp(user) -> str:
+    """Changes whenever the password or the authenticator secret changes (reset,
+    re-enroll, turn off), which silently forgets every remembered device."""
+    return _hash_token(f"{user.get('password_hash') or ''}|{user.get('totp_secret') or ''}")
+
+
+def _device_trusted(user) -> bool:
+    if user.get("role") not in TRUSTED_ROLES:
+        return False
+    token = request.cookies.get(TRUSTED_COOKIE) or ""
+    if not token:
+        return False
+    conn = _db()
+    try:
+        row = conn.execute(
+            "SELECT factor_fp FROM trusted_device WHERE token_hash = ? AND user_id = ? AND expires_at > ?",
+            (_hash_token(token), user["id"], _now_iso())).fetchone()
+    except Exception as e:  # table missing on a not-yet-migrated DB: just ask for the code
+        logging.warning(f"auth: trusted device lookup failed: {type(e).__name__}")
+        return False
+    finally:
+        conn.close()
+    return bool(row) and secrets.compare_digest(row["factor_fp"], _factor_fp(user))
+
+
+def _remember_device(response, user) -> None:
+    token = secrets.token_urlsafe(32)
+    now = datetime.now()
+    conn = _db()
+    try:
+        conn.execute("DELETE FROM trusted_device WHERE expires_at <= ?", (_now_iso(),))
+        conn.execute(
+            "INSERT INTO trusted_device (user_id, token_hash, factor_fp, created_at, expires_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (user["id"], _hash_token(token), _factor_fp(user),
+             now.isoformat(timespec="seconds"), (now + TRUSTED_TTL).isoformat(timespec="seconds")))
+        conn.commit()
+    except Exception as e:  # never fail a good sign-in over this; they'll be asked next time
+        logging.warning(f"auth: remember device failed: {type(e).__name__}")
+        return
+    finally:
+        conn.close()
+    response.set_cookie(
+        TRUSTED_COOKIE, token,
+        max_age=int(TRUSTED_TTL.total_seconds()),
+        httponly=True, secure=_request_is_https(), samesite="Lax",
+        path="/api/auth/login",  # only ever sent to the login call
+    )
+
+
 def _api_login():
-    """POST /api/auth/login → {email, password, totp?} → session cookie.
+    """POST /api/auth/login → {email, password, totp?, remember?} → session cookie.
 
     #289 order of operations, chosen so nothing distinguishes accounts to an
     UNAUTHENTICATED caller:
@@ -610,7 +684,10 @@ def _api_login():
         return jsonify({"error": "This account must sign in with Google.",
                         "sso_required": True}), 403
 
-    if user.get("totp_enabled"):
+    remembered = False
+    if user.get("totp_enabled") and not totp_code and _device_trusted(user):
+        remembered = True
+    elif user.get("totp_enabled"):
         import json
         ok_totp = False
         recovery_used = False
@@ -640,7 +717,8 @@ def _api_login():
             # password lockout); its own audit event, and a distinct 401 that the
             # UI turns into the code prompt.
             _login_audit(user["id"], "totp_fail", ip)
-            return jsonify({"error": "second factor required", "totp_required": True}), 401
+            return jsonify({"error": "second factor required", "totp_required": True,
+                            "can_remember": user.get("role") in TRUSTED_ROLES}), 401
         if recovery_used:
             _login_audit(user["id"], "totp_recovery_used", ip)
 
@@ -650,8 +728,8 @@ def _api_login():
         destroy_session(old_sid)
     sid = create_session(user["id"], request.headers.get("User-Agent"))
     touch_last_login(user["id"])
-    _login_audit(user["id"], "login_success", ip)
-    logging.info(f"auth: login ok role={user['role']} sid={_redact_sid(sid)}")
+    _login_audit(user["id"], "login_success", ip, "remembered_device" if remembered else None)
+    logging.info(f"auth: login ok role={user['role']} sid={_redact_sid(sid)} remembered={remembered}")
     response = make_response(jsonify({
         "user": {
             "id": user["id"],
@@ -663,6 +741,9 @@ def _api_login():
         }
     }))
     _set_session_cookie(response, sid)
+    if (user.get("totp_enabled") and not remembered and data.get("remember") is True
+            and user.get("role") in TRUSTED_ROLES):
+        _remember_device(response, user)
     return response
 
 

@@ -104,7 +104,14 @@ make_document: complete, ready to use, as clean HTML (h1 for the title, h2 for s
 b/i). The platform shows it to them as a file they open beside the chat, edit, and download as PDF or Word, or save to
 a job. Fill it from the attached files and the platform; mark anything you could not find as [to fill]. To change a
 document, use edit_document with the whole new HTML (keep everything they did not ask to change; their own edits
-are in it). The platform prints the company's logo and letterhead (Settings > Company brand) at the top of every
+are in it). A document already saved to a job keeps its old copy there until the job's copy is updated: after changing
+one, if edit_document says it is filed in a job, propose save_document_to_job for that job in the same turn. When the
+person wants a new design to take the place of an older file in a job (an invoice made in another chat, say), look it up
+with job_documents and pass its id as replaces_document_id. When the document is an invoice, also pass invoice_id
+(the job's invoice it is, from job_documents) so the job's Invoices & Payments tab, its PDF and the client's link
+show the new design; an invoice already designed this way is updated on every save. Title an invoice's design
+"Invoice <its number> - <place>" (e.g. Invoice INV-2026-0004 - 1160 River Ave): a document titled that way becomes
+that invoice's document whenever it is saved to the job. The platform prints the company's logo and letterhead (Settings > Company brand) at the top of every
 document, so do not write your own company header or logo. After making or changing one, say in one or two sentences what it contains. Never say you cannot create,
 generate or attach documents or files.
 
@@ -247,6 +254,24 @@ def _range(inp, default_days=31, max_days=93):
 
 
 # ---- reads
+_ADDR_WORDS = {"street": "st", "avenue": "ave", "av": "ave", "road": "rd", "place": "pl", "boulevard": "blvd",
+               "drive": "dr", "parkway": "pkwy", "east": "e", "west": "w", "north": "n", "south": "s"}
+
+
+def addr_words(text) -> list:
+    """An address the way people type it either way: "2600 East 21st Street" and "2600 E 21 St" give the same words."""
+    out = []
+    for w in re.findall(r"[a-z0-9]+", str(text or "").lower()):
+        w = re.sub(r"^(\d+)(st|nd|rd|th)$", r"\1", w)
+        out.append(_ADDR_WORDS.get(w, w))
+    return out
+
+
+def _words_match(q_words: list, *fields) -> bool:
+    have = set(addr_words(" ".join(str(f or "") for f in fields)))
+    return bool(q_words) and all(w in have for w in q_words)
+
+
 def _t_find(ctx, inp):
     import pm_scoping
     q = str(inp.get("query") or "").strip().lower()
@@ -258,6 +283,11 @@ def _t_find(ctx, inp):
         "SELECT project_code, name, address, COALESCE(status,'active') AS status FROM projects WHERE "
         "LOWER(project_code) LIKE ? OR LOWER(COALESCE(name,'')) LIKE ? OR LOWER(COALESCE(address,'')) LIKE ? "
         "ORDER BY project_code LIMIT 40", (s, s, s)).fetchall()
+    qw = addr_words(q)
+    if not rows and len(qw) > 1:   # "21st" vs "21", "Street" vs "St": match word by word
+        rows = [r for r in ctx.conn.execute("SELECT project_code, name, address, COALESCE(status,'active') AS status "
+                                            "FROM projects ORDER BY project_code").fetchall()
+                if _words_match(qw, r["project_code"], r["name"], r["address"])][:40]
     out["jobs"] = [dict(r) for r in pm_scoping.filter_visible_projects(rows, ctx.role, ctx.uid, ctx.conn)][:15]
     import team_items
     out["team_people"] = [p for p in team_items.people(ctx.conn) if q in (p["name"] or "").lower()][:10]
@@ -269,6 +299,12 @@ def _t_find(ctx, inp):
                                  "FROM estimate e LEFT JOIN crm_organization o ON o.id = e.client_org_id WHERE "
                                  "LOWER(e.code) LIKE ? OR LOWER(COALESCE(e.building_address,'')) LIKE ? OR "
                                  "LOWER(COALESCE(o.name,'')) LIKE ? ORDER BY e.updated_at DESC LIMIT 10", (s, s, s))
+        if not out["estimates"] and len(qw) > 1:
+            out["estimates"] = [r for r in _rows(ctx.conn,
+                                                 "SELECT e.id, e.code, e.status, e.inquiry_kind, e.building_address, o.name AS client "
+                                                 "FROM estimate e LEFT JOIN crm_organization o ON o.id = e.client_org_id "
+                                                 "ORDER BY e.updated_at DESC LIMIT 2000")
+                                if _words_match(qw, r["code"], r["building_address"], r["client"])][:10]
     return out
 
 
@@ -939,7 +975,7 @@ def _exec_proposal_edit(ctx, inp):
     if r and r.get("layout") == "ssc":
         import proposal_engine
         out = proposal_engine.revise(ctx.conn, r["id"], str(inp.get("instruction") or ""), ctx.uid)
-        return {"id": r["id"], "summary": f"{proposal_engine.label(r)} changed: " + (", ".join(out["changed"]) or "nothing needed to change"),
+        return {"id": r["id"], "summary": f"{proposal_engine.label(r)}: {out['reply']}",
                 "link": _proposal_link(r), "undo": False}
     fields = {}
     for k, col, _label, _t in _PROP_FIELDS:
@@ -1477,8 +1513,14 @@ def _t_create_doc(ctx, inp):
 
 def _t_update_doc(ctx, inp):
     import claude_docs
-    return claude_docs.update(ctx.conn, ctx.uid, int(inp.get("doc_id") or 0), html=inp.get("html"), title=inp.get("title"),
-                              chat_id=getattr(ctx, "chat_id", None), message_id=getattr(ctx, "message_id", None))
+    r = claude_docs.update(ctx.conn, ctx.uid, int(inp.get("doc_id") or 0), html=inp.get("html"), title=inp.get("title"),
+                           chat_id=getattr(ctx, "chat_id", None), message_id=getattr(ctx, "message_id", None))
+    filed = sorted({f["project_code"] for f in claude_docs.filings(ctx.conn, r["doc_id"]) if f["stale"]})
+    if filed:
+        r["filed_in"] = filed
+        r["note"] = ("The copy saved in these jobs' documents still shows the earlier version. Propose "
+                     "save_document_to_job for each job to update it.")
+    return r
 
 
 def _t_read_doc(ctx, inp):
@@ -1487,6 +1529,79 @@ def _t_read_doc(ctx, inp):
     if not d:
         raise LookupError("no document with that id in this person's chats")
     return {"doc_id": d["id"], "title": d["title"], "html": d["html"]}
+
+
+def _t_job_docs(ctx, inp):
+    import pm_scoping
+    code = str(inp.get("project_code") or "").strip()
+    if not code or not pm_scoping.pm_can_access_project(ctx.role, ctx.uid, code, ctx.conn):
+        raise LookupError("no job with that code that you can open")
+    rows = _rows(ctx.conn, "SELECT id, category, title, file_name, uploaded_at, notes FROM project_documents "
+                           "WHERE project_code = ? AND superseded = 0 ORDER BY uploaded_at DESC, id DESC LIMIT 200", (code,))
+    try:
+        invs = _rows(ctx.conn, "SELECT id, number, description, status, amount, design_doc_id FROM invoice "
+                               "WHERE project_code = ? AND status <> 'void' ORDER BY id DESC LIMIT 100", (code,))
+    except Exception:
+        ctx.conn.rollback()
+        invs = []
+    return {"project_code": code, "documents": [
+        {"document_id": r["id"], "folder": (r["category"] or "").title(), "title": r["title"], "file": r["file_name"],
+         "filed": str(r["uploaded_at"])[:10], "made_with_claude": r.get("notes") == "Made with Claude"} for r in rows],
+        "invoices": [{"invoice_id": i["id"], "number": i["number"], "description": i["description"], "status": i["status"],
+                      "amount": i["amount"], "designed_with_claude_doc": i["design_doc_id"]} for i in invs]}
+
+
+def _check_doc_to_job(ctx, inp):
+    import claude_docs
+    if not claude_docs.get(ctx.conn, ctx.uid, int(inp.get("doc_id") or 0)):
+        raise LookupError("no document with that id in this person's chats")
+    code = str(inp.get("project_code") or "").strip()
+    if not _one(ctx.conn, "SELECT project_code FROM projects WHERE project_code = ?", (code,)):
+        raise LookupError("no job with that code")
+    old = claude_docs.replace_target(ctx.conn, int(inp["doc_id"]), code, inp.get("replaces_document_id"))
+    claude_docs.invoice_for(ctx.conn, int(inp["doc_id"]), code, inp.get("invoice_id"))
+    cat = str(inp.get("category") or "").strip().upper() or (old or {}).get("category") or ""
+    if cat not in claude_docs.CATEGORIES:
+        raise ValueError("give category, the job's folder: " + ", ".join(claude_docs.CATEGORIES))
+    return old
+
+
+def _doc_to_job_card(ctx, inp):
+    import claude_docs
+    d = claude_docs.get(ctx.conn, ctx.uid, int(inp.get("doc_id") or 0)) or {}
+    code = str(inp.get("project_code") or "")
+    try:
+        old = claude_docs.replace_target(ctx.conn, int(inp.get("doc_id") or 0), code, inp.get("replaces_document_id"))
+    except (LookupError, ValueError):
+        old = None
+    fields = [{"key": "doc_id", "label": "Document", "type": "readonly", "value": str(inp.get("doc_id") or ""),
+               "hint": d.get("title") or ""},
+              {"key": "project_code", "label": "Job", "type": "readonly", "value": code, "hint": _job_label(ctx.conn, code)}]
+    if old:
+        fields.append({"key": "replaces_document_id", "label": "Replaces", "type": "readonly", "value": str(old["id"]),
+                       "hint": f"{old.get('title') or ''} (kept in its history)"})
+    try:
+        inv_id = claude_docs.invoice_for(ctx.conn, int(inp.get("doc_id") or 0), code, inp.get("invoice_id"))
+    except (LookupError, ValueError):
+        inv_id = None
+    if inv_id:
+        inv = _one(ctx.conn, "SELECT number FROM invoice WHERE id = ?", (inv_id,)) or {}
+        fields.append({"key": "invoice_id", "label": "Invoice", "type": "readonly", "value": str(inv_id),
+                       "hint": f"{inv.get('number') or ''}: Invoices & Payments, its PDF and the client's link use this design"})
+    return {"title": "Update the job's copy" if old else "Save the document to the job", "fields": fields}
+
+
+def _exec_doc_to_job(ctx, inp):
+    import claude_docs
+    code = str(inp["project_code"]).strip()
+    r = claude_docs.save_to_job(ctx.conn, ctx.uid, int(inp["doc_id"]), code, inp.get("category"),
+                                inp.get("replaces_document_id"), inp.get("invoice_id"))
+    inv = r.get("invoice") or {}
+    return {"id": r["id"], "summary": (f"The copy in {code}'s documents now shows this version; the earlier one is in its "
+                                       "history" if r["replaced"] else f"Saved to {code}'s documents")
+            + (f"; invoice {inv['number']} in Invoices & Payments uses it too" if inv else "")
+            + (f". {inv['warning']}" if inv.get("warning") else ""),
+            "link": f"/projects/{code}", "undo": False}
 
 
 _S, _D, _T, _I, _B = ({"type": "string"}, {"type": "string", "description": "YYYY-MM-DD"},
@@ -1640,6 +1755,18 @@ TOOLS += [
          run=_t_update_doc),
     Tool("read_document", "Document", "Read a document made in this conversation (doc_id), including the person's own edits, "
          "before changing it.", {"doc_id": _I}, ["doc_id"], roles=TEAM_ROLES, run=_t_read_doc),
+    Tool("job_documents", "Job documents", "List a job's current documents (id, folder, title, file, date filed, whether "
+         "it was made with Claude) and its invoices, to find the copy a new version should replace or the invoice a "
+         "design belongs to.", {"project_code": _S},
+         ["project_code"], roles=OFFICE_ROLES, run=_t_job_docs),
+    Tool("save_document_to_job", "Save to the job", "Propose saving a document made in this conversation (doc_id) as a PDF "
+         "in a job's documents. If the job already has this document, or replaces_document_id names a document there "
+         "(from job_documents), the PDF becomes its new version and the old copy moves to its history. category is the "
+         "folder (PERMITS, DRAWINGS, CONTRACTS, INSPECTIONS, SAFETY, CLOSEOUT); leave it out when replacing. invoice_id: "
+         "when the document is one of the job's invoices, it becomes that invoice's document in Invoices & Payments.",
+         {"doc_id": _I, "project_code": _S, "category": _S, "replaces_document_id": _I, "invoice_id": _I},
+         ["doc_id", "project_code"],
+         write=True, roles=OFFICE_ROLES, run=_check_doc_to_job, card=_doc_to_job_card, execute=_exec_doc_to_job),
 ]
 BY_NAME = {t.name: t for t in TOOLS}
 

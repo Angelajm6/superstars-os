@@ -780,6 +780,21 @@
       background: #f9fafb;
     }
 
+    /* Over 8 hours: the reason step before clock-out goes through */
+    .ot-step { display: flex; flex-direction: column; gap: 12px; text-align: left; }
+    .ot-step[hidden] { display: none; }
+    .ot-hours { font-size: 40px; font-weight: 600; line-height: 1; }
+    .ot-hours small { font-size: 15px; font-weight: 600; color: var(--color-mute); margin-left: 4px; }
+    .ot-help { font-size: 14px; color: var(--color-mute); line-height: 1.5; margin: 0; }
+    .ot-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .ot-chips button { font: inherit; font-size: 15px; min-height: 46px; padding: 10px 14px; border-radius: 999px;
+      border: 1px solid var(--color-hairline); background: white; color: inherit; cursor: pointer; }
+    .ot-chips button[aria-pressed="true"] { background: #24418C; border-color: #24418C; color: white; }
+    .ot-note { font: inherit; font-size: 15px; width: 100%; min-height: 70px; border-radius: 10px;
+      border: 1px solid var(--color-hairline); padding: 10px; resize: vertical; box-sizing: border-box; }
+    .ot-err { color: var(--color-red); font-size: 14px; min-height: 0; }
+    .signout-confirm[disabled] { opacity: .45; cursor: not-allowed; }
+
     .signout-goodbye {
       position: absolute;
       top: 0;
@@ -974,7 +989,17 @@
         Hours: 8.5<br>Photos: 24
       </div>
       <button class="signout-confirm" onclick="confirmSignout()" id="signout-confirm-text">Sign Out</button>
-      <button class="signout-cancel" onclick="cancelSignout()">Cancel</button>
+      <button class="signout-cancel" onclick="cancelSignout()" id="signout-cancel-text">Cancel</button>
+      <div class="ot-step" id="ot-step" hidden>
+        <div class="signout-title" id="ot-title" style="margin:0">Over 8 hours today</div>
+        <div class="ot-hours" id="ot-hours">10<small>hrs</small></div>
+        <p class="ot-help" id="ot-help">Tell the office why. Your extra hours go to them for approval.</p>
+        <div class="ot-chips" id="ot-chips" role="group" aria-labelledby="ot-title"></div>
+        <textarea class="ot-note" id="ot-note" maxlength="400" aria-labelledby="ot-help"></textarea>
+        <div class="ot-err" id="ot-err" role="alert"></div>
+        <button class="signout-confirm" id="ot-confirm" onclick="submitOvertimeReason()" disabled>Sign Out</button>
+        <button class="signout-cancel" onclick="cancelSignout()" id="ot-cancel">Cancel</button>
+      </div>
     </div>
     <div class="signout-goodbye" id="goodbye-screen">
       <div class="goodbye-text" id="goodbye-text">Goodbye</div>
@@ -1034,7 +1059,14 @@ const i18n = {
     video_big: "The video is too big. Record a shorter one.",
     video_full: "Storage is nearly full. Tell the office. Photos still work.",
     video_left: "s left",
-    video_unsupported: "This phone cannot record video here. Take a photo instead."
+    video_unsupported: "This phone cannot record video here. Take a photo instead.",
+    ot_title: "Over 8 hours today",
+    ot_help: "Tell the office why. Your extra hours go to them for approval.",
+    ot_reasons: ["Job ran late", "Weather — finishing up", "Foreman asked me to stay", "Other"],
+    ot_note: "Add details",
+    ot_other_needs_note: "Write a few words about why.",
+    ot_sent: "8 hrs recorded. Extra hours sent to the office for approval.",
+    ot_failed: "Could not sign out. Try again."
   },
   es: {
     sign_in: "Iniciar Sesión",
@@ -1085,7 +1117,14 @@ const i18n = {
     video_big: "El video es muy grande. Graba uno más corto.",
     video_full: "El almacenamiento está casi lleno. Avisa a la oficina. Las fotos siguen funcionando.",
     video_left: "s restantes",
-    video_unsupported: "Este teléfono no puede grabar video aquí. Toma una foto."
+    video_unsupported: "Este teléfono no puede grabar video aquí. Toma una foto.",
+    ot_title: "Más de 8 horas hoy",
+    ot_help: "Dile a la oficina por qué. Tus horas extra van a ellos para aprobación.",
+    ot_reasons: ["El trabajo se alargó", "Clima — terminando", "El capataz me pidió quedarme", "Otro"],
+    ot_note: "Agrega detalles",
+    ot_other_needs_note: "Escribe unas palabras sobre por qué.",
+    ot_sent: "8 horas registradas. Las horas extra se enviaron a la oficina para aprobación.",
+    ot_failed: "No se pudo salir. Intenta de nuevo."
   }
 };
 
@@ -1756,32 +1795,47 @@ function goToSignout() {
   goToScreen('signout');
 }
 
-async function confirmSignout() {
-  clearInterval(workingTimer);
+let otPick = null;
 
-  // Best-effort: tell the server to close the open sign_in_log row before we
-  // wipe local state. A network failure here doesn't block the worker from
-  // physically leaving — log it and continue with the UI transition.
+async function confirmSignout(reason) {
+  // Tell the server to close the open sign_in_log row before we wipe local
+  // state. Past 8 hours today the server answers 422 needs_reason: show the
+  // reason step and send again with it. A network failure doesn't block the
+  // worker from physically leaving — log it and continue.
   if (sessionData.employeeId) {
     try {
-      await fetch('/api/worker/session/end', {
+      const r = await fetch('/api/worker/session/end', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           employee_id: sessionData.employeeId,
-          session_token: sessionData.sessionToken
+          session_token: sessionData.sessionToken,
+          reason: reason || undefined
         })
       });
+      if (r.status === 422) {
+        const j = await r.json().catch(() => ({}));
+        if (j.needs_reason) { showOvertimeStep(j.day_total); return; }
+      }
+      if (reason && !r.ok) {
+        document.getElementById('ot-err').textContent = t('ot_failed');
+        document.getElementById('ot-confirm').disabled = false;
+        return;
+      }
     } catch (e) {
       console.warn('session/end failed:', e);
     }
   }
+  clearInterval(workingTimer);
 
   const elapsed = new Date() - sessionData.startTime;
   const hours = (elapsed / 3600000).toFixed(1);
   document.getElementById('goodbye-text').textContent = t('goodbye');
-  document.getElementById('goodbye-stats').textContent = hours + ' hrs · ' + sessionData.photoCount + ' ' + t('photos');
+  document.getElementById('goodbye-stats').textContent = reason
+    ? t('ot_sent')
+    : hours + ' hrs · ' + sessionData.photoCount + ' ' + t('photos');
   document.getElementById('goodbye-screen').classList.add('active');
+  resetOvertimeStep();
   setTimeout(() => {
     pinCode = '';
     sessionData = {
@@ -1792,10 +1846,65 @@ async function confirmSignout() {
     goToScreen('signin');
     updateUI();
     updateGeofence();
-  }, 2000);
+  }, reason ? 3500 : 2000);
+}
+
+function showOvertimeStep(dayTotal) {
+  ['signout-title', 'signout-stats', 'signout-confirm-text', 'signout-cancel-text'].forEach(id => {
+    document.getElementById(id).hidden = true;
+  });
+  document.getElementById('ot-title').textContent = t('ot_title');
+  document.getElementById('ot-help').textContent = t('ot_help');
+  document.getElementById('ot-hours').innerHTML = (Math.round((dayTotal || 0) * 10) / 10) + '<small>' + (lang === 'es' ? 'horas' : 'hrs') + '</small>';
+  document.getElementById('ot-note').placeholder = t('ot_note');
+  document.getElementById('ot-confirm').textContent = t('sign_out');
+  document.getElementById('ot-cancel').textContent = t('cancel');
+  document.getElementById('ot-err').textContent = '';
+  const chips = document.getElementById('ot-chips');
+  chips.innerHTML = '';
+  t('ot_reasons').forEach((label, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.setAttribute('aria-pressed', 'false');
+    b.onclick = () => {
+      chips.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', 'false'));
+      b.setAttribute('aria-pressed', 'true');
+      otPick = { label, other: i === t('ot_reasons').length - 1 };
+      updateOvertimeConfirm();
+    };
+    chips.appendChild(b);
+  });
+  otPick = null;
+  document.getElementById('ot-note').value = '';
+  document.getElementById('ot-note').oninput = updateOvertimeConfirm;
+  document.getElementById('ot-step').hidden = false;
+  updateOvertimeConfirm();
+}
+
+function updateOvertimeConfirm() {
+  const note = document.getElementById('ot-note').value.trim();
+  document.getElementById('ot-confirm').disabled = !((otPick && (!otPick.other || note)) || note);
+}
+
+function submitOvertimeReason() {
+  const note = document.getElementById('ot-note').value.trim();
+  if (otPick && otPick.other && !note) { document.getElementById('ot-err').textContent = t('ot_other_needs_note'); return; }
+  const reason = [otPick && !otPick.other ? otPick.label : '', note].filter(Boolean).join(' — ');
+  document.getElementById('ot-confirm').disabled = true;
+  confirmSignout(reason);
+}
+
+function resetOvertimeStep() {
+  document.getElementById('ot-step').hidden = true;
+  ['signout-title', 'signout-stats', 'signout-confirm-text', 'signout-cancel-text'].forEach(id => {
+    document.getElementById(id).hidden = false;
+  });
+  otPick = null;
 }
 
 function cancelSignout() {
+  resetOvertimeStep();
   goToScreen('working');
 }
 

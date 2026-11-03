@@ -48,7 +48,7 @@ LINE_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["le
 CONTENT_PROPS = {
     "heading": {"type": "string", "enum": list(L.HEADINGS)}, "job_type": {"type": "string", "enum": list(JOB_TYPES)},
     "title": _S, "submitted_to": _SL, "project": _SL, "reference": _SL, "overview": _S,
-    "lines": {"type": "array", "items": LINE_SCHEMA}, "notes": _SL, "deliverables": _SL, "mobilization": _S,
+    "lines": {"type": "array", "items": LINE_SCHEMA}, "alternates": {"type": "array", "items": LINE_SCHEMA}, "notes": _SL, "deliverables": _SL, "mobilization": _S,
     "duration": _S, "hours": _S, "warranty": _S, "additional_insureds": _SL, "exclusions": _SL, "accepted_by": _S,
 }
 ARCHIVE_PROPS = {"proposal_number": _S, "proposal_date": _S, "total": {"type": "number"}, "building": _S}
@@ -59,8 +59,9 @@ DRAFT_SCHEMA = {"type": "object", "additionalProperties": False,
                 "required": list(CONTENT_PROPS) + ["borough", "email_subject", "email_message", "sources"],
                 "properties": dict(CONTENT_PROPS, borough={"type": "string", "enum": list(BOROUGHS)}, email_subject=_S,
                                    email_message=_S, sources=_SL)}
-REVISE_SCHEMA = {"type": "object", "additionalProperties": False, "required": list(CONTENT_PROPS) + ["email_message"],
-                 "properties": dict(CONTENT_PROPS, email_message=_S)}
+REVISE_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["reply", "edit"] + list(CONTENT_PROPS) + ["email_message"],
+                 "properties": dict(CONTENT_PROPS, email_message=_S, reply=_S, edit={"type": "boolean"})}
+ALT_KEYS = ("lead", "detail", "qty", "unit", "unit_price")
 
 RULES = (
     "Rules for every proposal:\n"
@@ -77,6 +78,10 @@ RULES = (
     "phrase starting in lower case (\"rigging and close-up physical inspection\"); keep names, products and acronyms "
     "capitalized as usual (SPRAT, PDF, DOB, FISP, QEWI, DOWSIL AllGuard, Jahn M100, SSX). Never put quantities, rates or \"daily rate\" "
     "in the text: they are columns. Units only from the list. Mobilization first, reports / tests last.\n"
+    "- alternates: the Add Alternate section, numbered A1, A2… under the Base Bid. An optional item the owner may add "
+    "(\"add alternate\", \"alternate\", \"option\", \"if required\", \"optional\") goes in alternates, never in lines: it is "
+    "never in the base bid total or the deposit (the app draws \"Base Bid with Add Alternate A1\" itself). Same lead / "
+    "detail style as lines. [] when there are none.\n"
     "- pricing: follow the pricing structure of the closest past proposal of the same job type, item by item: the same "
     "kinds of lines, the same units (per drop stays EA per drop, per day stays DAY, lump sums stay LS) and its rates. "
     "Use the price history only for items that proposal doesn't have. Rates the request gives always win. Say in each "
@@ -279,6 +284,8 @@ def clean_content(d: dict, h: dict) -> dict:
         if k in d:
             items = d[k] if isinstance(d[k], list) else str(d[k] or "").split("\n")
             out[k] = [re.sub(r"^\s*[•\-\*]\s*", "", str(x)).strip()[:600] for x in items if str(x or "").strip()][:40]
+    if "alternates" in d:
+        out["alternates"] = [{k: x[k] for k in ALT_KEYS} for x in clean_lines(d["alternates"])][:10]
     if "heading" in out:
         out["heading"] = out["heading"].upper() if out["heading"].upper() in L.HEADINGS else "ESTIMATE"
     if "job_type" in out and out["job_type"] not in JOB_TYPES:
@@ -345,6 +352,7 @@ def doc(conn, r: dict, lis: Optional[list] = None, known: Optional[set] = None) 
              lines=[dict(li, **split_line(li)) if "detail" not in li else li for li in rows],
              new_clauses=new_clauses(conn, c, known))
     d["title"] = r.get("title") or c.get("title") or ""
+    d["alternates"] = c.get("alternates") or []
     return d
 
 
@@ -497,14 +505,14 @@ def _house_text(h: dict) -> str:
                                "net_days", "insurance", "first_exclusion", "acceptance"))
 
 
-def _model(system: str, blocks: list, schema: dict, conn, uid, title: str) -> dict:
+def _model(system: str, blocks: list, schema: dict, conn, uid, title: str, history: Optional[list] = None) -> dict:
     import assistant
     import proposal_studio
     last = None
     for attempt in (1, 2):   # one more try when the reply is cut off or the call drops
         try:
-            res = assistant._call_model([{"type": "text", "text": system}], [{"role": "user", "content": blocks}], schema=schema,
-                                        auto_cache=False)
+            res = assistant._call_model([{"type": "text", "text": system}], (history or []) + [{"role": "user", "content": blocks}],
+                                        schema=schema, auto_cache=False)
         except Exception as x:
             last = x
             log.info("proposal engine call failed (%s), attempt %s", type(x).__name__, attempt)
@@ -619,7 +627,7 @@ def create(conn, uid, req: dict, d: dict) -> int:
                                     building_address=req.get("building_address") or (d.get("project") or [""])[0],
                                     notes="Drafted in Proposal Studio: " + str(req.get("what") or "")[:400], created_by=uid)
     p = proposals.create_from_estimate(conn, est["id"], created_by=uid)
-    patch = {k: d[k] for k in TEXT_KEYS + LIST_KEYS if k in d}
+    patch = {k: d[k] for k in TEXT_KEYS + LIST_KEYS + ("alternates",) if k in d}
     if req.get("heading"):
         patch["heading"] = req["heading"]
     patch["email_message"] = d.get("email_message") or ""
@@ -635,7 +643,7 @@ def snapshot(conn, pid: int) -> dict:
     import proposals
     r = proposals.get(conn, pid)
     c = content(r)
-    out = {k: c.get(k, [] if k in LIST_KEYS else "") for k in CONTENT_PROPS if k != "lines"}
+    out = {k: c.get(k, [] if k in LIST_KEYS + ("alternates",) else "") for k in CONTENT_PROPS if k != "lines"}
     out["title"] = r.get("title") or c.get("title") or ""
     out["email_message"] = c.get("email_message") or r.get("email_message") or ""
     out["lines"] = [{k: v for k, v in dict(li, **split_line(li)).items() if k in ("lead", "detail", "qty", "unit", "unit_price")}
@@ -645,22 +653,71 @@ def snapshot(conn, pid: int) -> dict:
     return out
 
 
-REVISE_SYSTEM = ("You edit a Superstars Contracting proposal before it is sent. Apply the person's request to the proposal "
-                 "below and return the complete proposal (every key). Keep everything they didn't ask to change exactly as it "
-                 "is, word for word. When a change affects other parts (a quantity mentioned in the notes or the duration, "
-                 "item numbers in a unit-price note), update those too so the proposal stays consistent.")
+REVISE_SYSTEM = (
+    "You are Claude, working beside a Superstars Contracting estimator on one proposal before it is sent. Talk with them the "
+    "way you would in a normal chat: plainly, briefly, like a colleague who knows estimating.\n"
+    "Each turn, decide what they want:\n"
+    "- a change to the proposal: make it (edit = true) and say in one or two sentences what you changed, with the numbers "
+    "that matter (an item's rate and amount, the base bid total, what an alternate brings it to);\n"
+    "- a question (about the proposal, the price, the wording, the job): answer it (edit = false);\n"
+    "- a change you can't make well without one fact (a price, a quantity, which item): ask for just that (edit = false). "
+    "Never guess a price.\n"
+    "The proposal has these parts, and you can change any of them: the title, SUBMITTED TO / PROJECT / REFERENCE lines, the "
+    "overview, the Base Bid lines, the Add Alternates (A1, A2…: optional items the owner may add, never in the base bid), "
+    "Important Notes, Deliverables, the schedule rows (mobilization, duration, hours, warranty), the names on the COI, the "
+    "exclusions, who it's accepted by and the email message. The proposal number, date, totals, deposit, payment terms and "
+    "the company's fixed wording are drawn by the app: when asked about them, explain that, and say how they'd change "
+    "(e.g. the total follows the lines).\n"
+    "Read the conversation so far: \"yes\", \"do it\", \"make it $3,500 instead\" refer to what was just discussed.\n"
+    "Always return the complete proposal (every key). When edit is false return it exactly as it is. When you change it, "
+    "keep everything they didn't ask to change exactly as it is, word for word; when a change affects other parts (a "
+    "quantity mentioned in the notes or the duration, item numbers in a unit-price note), update those too so it stays "
+    "consistent. reply: plain text, no markdown, never \"nothing needed to change\": if you can't do something, say why "
+    "and what you can do instead.")
 
 
-def revise(conn, pid: int, instruction: str, uid) -> dict:
+def _history(turns) -> list:
+    """The chat so far ([{role: 'user'|'assistant', text}], oldest first) as prior turns: last 12, starting with the
+    person, roles alternating."""
+    out = []
+    for t in (turns or [])[-12:] if isinstance(turns, list) else []:
+        role = t.get("role") if isinstance(t, dict) else None
+        txt = str((t or {}).get("text") or "").strip()[:2000] if role in ("user", "assistant") else ""
+        if not txt:
+            continue
+        if out and out[-1]["role"] == role:
+            out[-1]["content"] += "\n\n" + txt
+        else:
+            out.append({"role": role, "content": txt})
+    while out and out[0]["role"] != "user":
+        out.pop(0)
+    if out and out[-1]["role"] == "user":   # the new request follows as the next person turn
+        out.append({"role": "assistant", "content": "(no reply)"})
+    return out
+
+
+def _fake_revise(payload: dict, instruction: str) -> dict:
+    out = json.loads(json.dumps(payload))
+    q = instruction or ""
+    m = re.search(r"(\d+)\s*%", q)
+    if re.search(r"\balternate\b", q, re.I):
+        out["alternates"] = out.get("alternates", []) + [{"lead": "Roof anchor pull test", "detail": "if required: pull test of existing "
+                                                          "roof anchors / tie-backs", "qty": 1, "unit": "LS", "unit_price": 3000, "source": ""}]
+        return dict(out, edit=True, reply=f"Added Alternate A{len(out['alternates'])}: Roof anchor pull test, 1 LS at $3,000.00.")
+    if m:
+        out["notes"] = out["notes"] + [f"Due to concealed or unforeseen conditions, the Owner is advised to carry a "
+                                        f"{m.group(1)}% contingency. Any additional work will be priced by change order."]
+        return dict(out, edit=True, reply=f"Added a note advising a {m.group(1)}% contingency.")
+    return dict(out, edit=False, reply="The base bid follows the price lines; the deposit is a share of the base bid.")
+
+
+def revise(conn, pid: int, instruction: str, uid, history: Optional[list] = None) -> dict:
+    """One turn of the conversation beside the proposal: Claude answers, asks, or changes it. {reply, changed, before}."""
     import assistant
     before = snapshot(conn, pid)
     payload = {k: before[k] for k in list(CONTENT_PROPS) + ["email_message"] if k in before}
     if assistant._fake():
-        out = json.loads(json.dumps(payload))
-        m = re.search(r"(\d+)\s*%", instruction or "")
-        if m:
-            out["notes"] = out["notes"] + [f"Due to concealed or unforeseen conditions, the Owner is advised to carry a "
-                                            f"{m.group(1)}% contingency. Any additional work will be priced by change order."]
+        out = _fake_revise(payload, instruction)
     else:
         import proposal_studio
         proposal_studio._claude_ready(conn, uid)
@@ -669,13 +726,17 @@ def revise(conn, pid: int, instruction: str, uid) -> dict:
                + (f"<taken_out_by_the_person>\n{json.dumps(gone, indent=1)}\n</taken_out_by_the_person>\n"
                   "Those paragraphs don't apply to this job: never put them back unless the request asks for them.\n" if gone else "")
                + f"<request>\n{instruction[:2000]}\n</request>")
-        out = _model(REVISE_SYSTEM, [{"type": "text", "text": txt}], REVISE_SCHEMA, conn, uid, "Proposal Studio change")
-    patch = {k: out[k] for k in out if k != "lines"}
+        out = _model(REVISE_SYSTEM, [{"type": "text", "text": txt}], REVISE_SCHEMA, conn, uid, "Proposal Studio change",
+                     history=_history(history))
+    reply = str(out.get("reply") or "").strip()[:4000]
+    if not out.get("edit"):
+        return {"reply": reply or "Tell me a bit more about what you'd like.", "changed": [], "before": before}
+    patch = {k: out[k] for k in out if k not in ("lines", "reply", "edit")}
     save(conn, pid, patch, out.get("lines") if "lines" in out else None, actor=uid)
     after = snapshot(conn, pid)
     changed = [k for k in list(CONTENT_PROPS) + ["email_message"]
                if json.dumps(before.get(k), sort_keys=True, default=str) != json.dumps(after.get(k), sort_keys=True, default=str)]
-    return {"changed": changed, "before": before}
+    return {"reply": reply or "Done.", "changed": changed, "before": before}
 
 
 def undo(conn, pid: int, before: dict, uid) -> dict:
@@ -686,7 +747,8 @@ def undo(conn, pid: int, before: dict, uid) -> dict:
 # ------------------------------------------------------------------ learning a past proposal
 LEARN_PROMPT = ("This is one of the company's own past proposals. Record it exactly as written, in the structure given: "
                 "every line of SUBMITTED TO, PROJECT and REFERENCE; the overview paragraph; each Base Bid line split into the "
-                "bold lead and the rest (detail), with quantity, unit and rate; every Important Note except the first "
+                "bold lead and the rest (detail), with quantity, unit and rate; each Add Alternate row (A1, A2…) the same way in "
+                "alternates ([] when there is no Add Alternate section); every Important Note except the first "
                 "\"reserves the right to withdraw\" one; deliverables; the Schedule & Terms rows (mobilization, duration, hours, "
                 "warranty — \"\" when a row isn't there); the names on the COI (additional_insureds); every exclusion except "
                 "\"Any work not specifically listed above.\"; and who it's ACCEPTED BY. Copy the wording word for word. "

@@ -168,6 +168,9 @@ table{{width:100%;border-collapse:collapse}}
 .bid .c{{text-align:center;white-space:nowrap}}
 .bid .amt{{font-weight:700}}
 .bid .lead{{font-weight:700}}
+.bid.alt .n{{width:34px}}
+.bid.alt tfoot td{{background:#f3f0ec;font-weight:700;font-size:10.4px;padding:7px 8px;border-bottom:1px solid #e6e6e6}}
+.bid.alt tfoot td:first-child{{text-align:right}}
 .tot{{background:{RED};color:#fff;display:flex;justify-content:flex-end;align-items:center;gap:14px;padding:9px 8px 9px}}
 .tot .l{{font-weight:700;font-size:11.4px;letter-spacing:.3px}}
 .tot .v{{font-weight:800;font-size:16px}}
@@ -233,22 +236,34 @@ def render(doc: dict, house: Optional[dict] = None, *, mode: str = "pdf", logo_u
 
     logo = f"<img src='{logo_uri}' alt='Superstars Contracting Inc.'>" if logo_uri else "<div class='logo-txt'>SUPERSTARS</div>"
     heading = (doc.get("heading") or "ESTIMATE").upper()
-    rows = ""
-    for i, li in enumerate(doc.get("lines") or [], 1):
-        lead = t(li.get("lead"))
-        detail = t(li.get("detail"))
-        sep = ("" if not (lead and detail) else " " if _joins_plain(li.get("detail")) else ", ")
-        if edit:
-            desc = (f"<span class='lead' data-lf='lead' contenteditable='true'>{lead}</span>{sep}"
-                    f"<span data-lf='detail' contenteditable='true'>{detail}</span>")
-            q = f"<span data-lf='qty' contenteditable='true'>{qty_text(li.get('qty'))}</span>"
-            u = f"<span data-lf='unit' contenteditable='true'>{e(li.get('unit') or '')}</span>"
-            r = f"<span data-lf='unit_price' contenteditable='true'>{money(li.get('unit_price'))}</span>"
-        else:
-            desc = (f"<span class='lead'>{lead}</span>" if lead else "") + sep + detail
-            q, u, r = qty_text(li.get("qty")), e(li.get("unit") or ""), money(li.get("unit_price"))
-        rows += (f"<tr data-li='{i - 1}'><td class='n'>{i}</td><td>{desc}</td><td class='c'>{q}</td><td class='c'>{u}</td>"
-                 f"<td class='r'>{r}</td><td class='r amt'>{money(amount(li))}</td></tr>")
+    def bid_rows(items, attr, num) -> str:
+        """Base Bid lines (data-li / data-lf) and Add Alternates (data-ai / data-af) are the same row."""
+        out = ""
+        for i, li in enumerate(items or []):
+            lead = t(li.get("lead"))
+            detail = t(li.get("detail"))
+            sep = ("" if not (lead and detail) else " " if _joins_plain(li.get("detail")) else ", ")
+            if edit:
+                cell = lambda k, v, cls="": f"<span{cls} data-{attr}f='{k}' contenteditable='true'>{v}</span>"
+                desc = cell("lead", lead, " class='lead'") + sep + cell("detail", detail)
+                q, u, r = cell("qty", qty_text(li.get("qty"))), cell("unit", e(li.get("unit") or "")), cell("unit_price", money(li.get("unit_price")))
+            else:
+                desc = (f"<span class='lead'>{lead}</span>" if lead else "") + sep + detail
+                q, u, r = qty_text(li.get("qty")), e(li.get("unit") or ""), money(li.get("unit_price"))
+            out += (f"<tr data-{attr}i='{i}'><td class='n'>{num(i)}</td><td>{desc}</td><td class='c'>{q}</td><td class='c'>{u}</td>"
+                    f"<td class='r'>{r}</td><td class='r amt'>{money(amount(li))}</td></tr>")
+        return out
+
+    rows = bid_rows(doc.get("lines"), "l", lambda i: i + 1)
+    alts = doc.get("alternates") or []
+    alt_block = ""
+    if alts:   # optional items the owner may add (proposal 1040): never in the base bid, the deposit or the acceptance
+        with_rows = "".join(f"<tr class='with'><td colspan='5'>Base Bid with Add Alternate A{i}</td><td class='r'>{money(total(doc) + amount(a))}</td></tr>"
+                            for i, a in enumerate(alts, 1))
+        alt_block = (f"<div style='height:14px'></div><h2>Add Alternate{'s' if len(alts) > 1 else ''}</h2>"
+                     f"<table class='bid alt'><thead><tr><th class='n'>#</th><th>DESCRIPTION</th><th class='c'>QTY</th><th class='c'>UNIT</th>"
+                     f"<th class='r' style='text-align:left'>RATE</th><th class='r' style='text-align:left'>AMOUNT</th></tr></thead>"
+                     f"<tbody>{bid_rows(alts, 'a', lambda i: f'A{i + 1}')}</tbody><tfoot>{with_rows}</tfoot></table>")
 
     deliv = doc.get("deliverables") or []
     sched = "".join(f"<tr><td>{e(lbl)}</td><td>{ed(key, t(txt)) if key else t(txt)}</td></tr>" for lbl, txt, key in schedule_rows(doc, house, edit))
@@ -284,6 +299,7 @@ def render(doc: dict, house: Optional[dict] = None, *, mode: str = "pdf", logo_u
   <table class="bid"><thead><tr><th class="n">#</th><th>DESCRIPTION</th><th class="c">QTY</th><th class="c">UNIT</th>
     <th class="r" style="text-align:left">RATE</th><th class="r" style="text-align:left">AMOUNT</th></tr></thead><tbody>{rows}</tbody></table>
   <div class="tot keep"><span class="l">BASE BID TOTAL</span><span class="v">{money(total(doc))}</span></div>
+  {alt_block}
   <div style="height:14px"></div>
   <div class="notes"><h3>Important Notes</h3><ul>{bullets("notes", notes_with_withdraw(doc, house), True)}</ul></div>
   {f'<div class="keep"><h2>Deliverables</h2><ul class="cols">{bullets("deliverables", deliv)}</ul></div>' if deliv else ''}
@@ -296,10 +312,10 @@ def render(doc: dict, house: Optional[dict] = None, *, mode: str = "pdf", logo_u
             f"<style>{_css(doc, house)}{EDIT_CSS if edit else ''}</style></head><body>{body}</body></html>")
 
 
-EDIT_CSS = ("[data-f],[data-lf]{border-radius:3px;outline:none;cursor:text;transition:background .3s}"
-            "span[data-f],span[data-lf]{display:inline-block;min-width:2ch}"
-            "span[data-lf=lead],span[data-lf=detail]{display:inline}"
-            "[data-f]:hover,[data-lf]:hover{box-shadow:0 0 0 1px rgba(67,100,220,.45)}"
-            "[data-f]:focus,[data-lf]:focus{background:rgba(67,100,220,.07);box-shadow:0 0 0 1px rgba(67,100,220,.6)}"
-            "[data-f]:empty::before,[data-lf]:empty::before{content:'…';color:#aab}"
+EDIT_CSS = ("[data-f],[data-lf],[data-af]{border-radius:3px;outline:none;cursor:text;transition:background .3s}"
+            "span[data-f],span[data-lf],span[data-af]{display:inline-block;min-width:2ch}"
+            "span[data-lf=lead],span[data-lf=detail],span[data-af=lead],span[data-af=detail]{display:inline}"
+            "[data-f]:hover,[data-lf]:hover,[data-af]:hover{box-shadow:0 0 0 1px rgba(67,100,220,.45)}"
+            "[data-f]:focus,[data-lf]:focus,[data-af]:focus{background:rgba(67,100,220,.07);box-shadow:0 0 0 1px rgba(67,100,220,.6)}"
+            "[data-f]:empty::before,[data-lf]:empty::before,[data-af]:empty::before{content:'…';color:#aab}"
             ".ssc-flash{background:#fff3c4!important}")

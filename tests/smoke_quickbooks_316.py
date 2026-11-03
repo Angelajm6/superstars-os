@@ -24,6 +24,13 @@ Boots the real app on an ISOLATED database. Proves:
   * the daily read cap stops reads and says so
   * disconnect: revokes; client matches are kept
   * logs carry ids and counts only: no token, client name or email
+  * 1b: bringing in QuickBooks' open invoices + unpaid bills: admin-only (C-suite / PM 403 and
+    never see them in lists, totals, Today or the calendar); part-paid balances; a customer with
+    no client here becomes a client flagged for review (approve / merge moves its invoices);
+    follow-ups; imported invoices / bills cannot be edited, voided or (bills) paid here; a payment
+    recorded here goes to QuickBooks; QuickBooks changes (paid, new, deleted, bill paid) follow
+  * disconnecting the TEST company removes everything that came from it, undoes its payments on
+    real invoices and frees the app's invoices for the next company
   * the Finance page carries the card
 Run:  venv/bin/python tests/smoke_quickbooks_316.py
 """
@@ -81,6 +88,7 @@ class FakeQB:
                           "103": {"Id": "103", "DisplayName": "Kingsbridge Realty"}}
         self.items = {"1": {"Id": "1", "Name": "Services"}}
         self.invoices, self.payments, self.calls, self.sent, self.revoked = {}, {}, [], [], []
+        self.bills, self.cdc_inv, self.cdc_bill, self.cdc_billpay = {}, [], [], []
         self.n = 500
         self.refresh_ok, self.rotate, self.refuse_invoice_for = True, False, set()
         self.next_exchange = None
@@ -114,8 +122,11 @@ class FakeQB:
         if method == "GET" and path == "query":
             return 200, {"QueryResponse": self.query(q["query"])}
         if method == "GET" and path == "cdc":
-            assert q["entities"] == "Payment" and q["changedSince"]
-            return 200, {"CDCResponse": [{"QueryResponse": [{"Payment": list(self.cdc)}]}],
+            assert q["entities"] in ("Payment", "Payment,Invoice,Bill,BillPayment") and q["changedSince"]
+            qr = [{"Payment": list(self.cdc)}]
+            if "Invoice" in q["entities"]:
+                qr += [{"Invoice": list(self.cdc_inv)}, {"Bill": list(self.cdc_bill)}, {"BillPayment": list(self.cdc_billpay)}]
+            return 200, {"CDCResponse": [{"QueryResponse": qr}],
                          "time": datetime.now(timezone.utc).isoformat(timespec="seconds")}
         if method == "POST" and path == "customer":
             if any(c["DisplayName"] == json_body["DisplayName"] for c in self.customers.values()):
@@ -133,8 +144,13 @@ class FakeQB:
                 return 400, {"Fault": {"Error": [{"Message": "Business Validation Error",
                                                   "Detail": "Select a customer with a billing address"}]}}
             iid = self._id()
-            self.invoices[iid] = {"Id": iid, "SyncToken": "0", **json_body}
+            tot = sum(l["Amount"] for l in json_body["Line"])
+            self.invoices[iid] = {"Id": iid, "SyncToken": "0", "TotalAmt": tot, "Balance": tot, **json_body}
             return 200, {"Invoice": self.invoices[iid]}
+        if method == "GET" and path.startswith("customer/"):
+            return 200, {"Customer": self.customers[path.split("/")[1]]}
+        if method == "GET" and path.startswith("bill/"):
+            return 200, {"Bill": self.bills[path.split("/")[1]]}
         if method == "GET" and path.startswith("invoice/"):
             return 200, {"Invoice": self.invoices[path.split("/")[1]]}
         if method == "POST" and path.startswith("invoice/") and path.endswith("/send"):
@@ -157,6 +173,12 @@ class FakeQB:
         if s.startswith("select * from invoice where docnumber"):
             num = sql.split("'", 1)[1].rsplit("'", 1)[0]
             return {"Invoice": [i for i in self.invoices.values() if i.get("DocNumber") == num]}
+        if s.startswith("select * from invoice where balance > '0'"):
+            return {"Invoice": [i for i in self.invoices.values() if i.get("Balance", 0) > 0 and not i.get("voided")]}
+        if s.startswith("select * from invoice where balance = '0'"):
+            return {"Invoice": [i for i in self.invoices.values() if i.get("Balance", 1) == 0 and not i.get("voided")]}
+        if s.startswith("select * from bill where balance > '0'"):
+            return {"Bill": [b for b in self.bills.values() if b["Balance"] > 0]}
         if "from item where name = 'services'" in s:
             return {"Item": list(self.items.values())}
         raise AssertionError("unexpected query " + sql)
@@ -196,6 +218,12 @@ def _purge_all(conn):
         conn.execute(f"DELETE FROM crm_organization WHERE id IN ({ph})", orgs)
     conn.execute("DELETE FROM qbo_customer")
     conn.execute("DELETE FROM qbo_connection")
+    try:
+        conn.execute("DELETE FROM invoice WHERE source = 'quickbooks'")
+        conn.execute("DELETE FROM payable WHERE source = 'quickbooks'")
+        conn.execute("DELETE FROM crm_task WHERE title LIKE 'Qbtest%'")
+    except Exception:
+        conn.rollback()
     conn.commit()
     purge_users(conn, _uids(conn))
     conn.commit()
@@ -474,6 +502,129 @@ def main() -> int:
         assert "pdf_path" not in r and "token_hash" not in r
         passed += 1; print("  send ok")
 
+        # ---- 1b: bring in QuickBooks' open invoices + unpaid bills
+        def qd(n):
+            return (date.today() + timedelta(days=n)).isoformat()
+        Q.customers["201"] = {"Id": "201", "DisplayName": "Qbtest Grand St Associates", "PrimaryEmailAddr": {"Address": "billing@grandst.example"}}
+        Q.invoices["701"] = {"Id": "701", "SyncToken": "0", "DocNumber": "1031", "CustomerRef": {"value": "101"}, "TotalAmt": 18400,
+                             "Balance": 18400, "TxnDate": qd(-36), "DueDate": qd(-6), "Line": [{"Description": "Progress billing #2", "Amount": 18400}]}
+        Q.invoices["702"] = {"Id": "702", "SyncToken": "0", "DocNumber": "1019", "CustomerRef": {"value": "201", "name": "Qbtest Grand St Associates"},
+                             "TotalAmt": 6250, "Balance": 6250, "TxnDate": qd(-101), "DueDate": qd(-71), "Line": [{"Description": "Shed rental", "Amount": 6250}]}
+        Q.invoices["703"] = {"Id": "703", "SyncToken": "0", "DocNumber": "1027", "CustomerRef": {"value": "102"}, "TotalAmt": 39880,
+                             "Balance": 19880, "TxnDate": qd(-68), "DueDate": qd(-38), "Line": [{"Description": "AIA application #2", "Amount": 39880}]}
+        Q.invoices["704"] = {"Id": "704", "SyncToken": "0", "DocNumber": "1001", "CustomerRef": {"value": "101"}, "TotalAmt": 900,
+                             "Balance": 0, "TxnDate": qd(-20), "DueDate": qd(-10), "Line": [{"Description": "Paid already", "Amount": 900}]}
+        Q.bills["801"] = {"Id": "801", "DocNumber": "B-7781", "VendorRef": {"value": "55", "name": "Qbtest Bricklayers Supply"}, "TotalAmt": 4380,
+                          "Balance": 4380, "TxnDate": qd(-33), "DueDate": qd(-3), "Line": [{"Description": "Mortar, lintels"}]}
+        Q.bills["802"] = {"Id": "802", "DocNumber": "B-7700", "VendorRef": {"value": "56", "name": "Qbtest Paid Vendor"}, "TotalAmt": 100,
+                          "Balance": 0, "TxnDate": qd(-40), "DueDate": qd(-10), "Line": []}
+        for who in (cs, pm):
+            for method, path in (("get", "/api/quickbooks/import/preview"), ("post", "/api/quickbooks/import"), ("get", "/api/quickbooks/review"),
+                                 ("post", f"/api/quickbooks/review/{ids['a']}/approve"), ("post", f"/api/quickbooks/review/{ids['a']}/merge"),
+                                 ("post", f"/api/quickbooks/invoices/{inv_a}/followup")):
+                r = who.get(path) if method == "get" else who.post(path, json={})
+                assert r.status_code == 403, (path, r.status_code)
+        pv = _ok(admin.get("/api/quickbooks/import/preview"))["data"]
+        assert pv["invoices"] == 3 and pv["invoices_open"] == 18400 + 6250 + 19880 and pv["invoices_late"] == 3 and pv["late_30"] == 2, pv
+        assert pv["bills"] == 1 and pv["bills_open"] == 4380 and pv["customers_new"] == 1 and pv["customers_matched"] == 2, pv
+        assert admin.post("/api/quickbooks/import", json={"paid_days": 7}).status_code == 400
+        res = _ok(admin.post("/api/quickbooks/import", json={}))["data"]
+        assert res["invoices"] == 3 and res["bills"] == 1 and res["review"] == 1 and res["imported"] is True, res
+        assert _ok(admin.post("/api/quickbooks/import", json={}))["data"]["invoices"] == 0, "bringing in twice adds nothing"
+        conn = _db()
+        try:
+            imp = {r["qb_invoice_id"]: dict(r) for r in conn.execute("SELECT * FROM invoice WHERE source = 'quickbooks'").fetchall()}
+            bill = dict(conn.execute("SELECT * FROM payable WHERE source = 'quickbooks'").fetchone())
+            new_org = conn.execute("SELECT o.id, o.name FROM crm_organization o JOIN qbo_customer q ON q.org_id = o.id "
+                                   "WHERE q.qb_customer_id = '201' AND q.review = 'pending'").fetchone()
+            new_email = conn.execute("SELECT email FROM crm_contact WHERE org_id = ?", (new_org["id"],)).fetchone()["email"]
+        finally:
+            conn.close()
+        assert set(imp) == {"701", "702", "703"} and "704" not in imp, "open ones only; ours are not brought in twice"
+        assert imp["701"]["number"] == "QB-1031" and imp["701"]["client_org_id"] == ids["a"] and imp["701"]["status"] == "issued"
+        assert imp["703"]["amount_paid"] == 20000 and imp["703"]["client_org_id"] == ids["b"] and imp["703"]["due_at"] == qd(-38)
+        assert imp["702"]["client_org_id"] == new_org["id"] and new_org["name"] == "Qbtest Grand St Associates" and new_email == "billing@grandst.example"
+        assert bill["vendor"] == "Qbtest Bricklayers Supply" and bill["amount"] == 4380 and bill["status"] == "open" and bill["due_at"] == qd(-3)
+        # admins only, everywhere
+        cs_nums = [r["number"] for r in _ok(cs.get("/api/invoices"))["data"]]
+        ad_nums = [r["number"] for r in _ok(admin.get("/api/invoices"))["data"]]
+        assert "QB-1031" in ad_nums and not any(n.startswith("QB-") for n in cs_nums), "C-suite never sees QuickBooks invoices"
+        assert cs.get(f"/api/invoices/{imp['701']['id']}").status_code == 404
+        s_cs, s_ad = _ok(cs.get("/api/invoices"))["meta"]["summary"], _ok(admin.get("/api/invoices"))["meta"]["summary"]
+        assert round(s_ad["open_value"] - s_cs["open_value"], 2) == 18400 + 6250 + 19880, (s_ad["open_value"], s_cs["open_value"])
+        pay_cs = _ok(cs.get("/api/company/portal/payables?status=open"))["data"]["items"]
+        pay_ad = _ok(admin.get("/api/company/portal/payables?status=open"))["data"]["items"]
+        assert not any(b.get("source") == "quickbooks" for b in pay_cs) and any(b.get("source") == "quickbooks" for b in pay_ad)
+        t_cs, t_ad = _ok(cs.get("/api/company/portal/today"))["data"], _ok(admin.get("/api/company/portal/today"))["data"]
+        assert any(c["key"] == "qbo:review" for c in t_ad["needs"]) and not any(c["key"] == "qbo:review" for c in t_cs["needs"])
+        assert any(c["key"] == f"invoice:{imp['702']['id']}" for c in t_ad["needs"]) and not any(c["key"] == f"invoice:{imp['702']['id']}" for c in t_cs["needs"])
+        cal = lambda c: [m for d in _ok(c.get(f"/api/company/portal/calendar?from={qd(-10)}&to={qd(10)}"))["data"]["days"].values() for m in d.get("milestones", [])]
+        assert any(m.get("number") == "QB-1031" for m in cal(admin)) and not any(m.get("number") == "QB-1031" for m in cal(cs))
+        # QuickBooks owns them
+        assert admin.patch(f"/api/invoices/{imp['701']['id']}", json={"notes": "x"}).status_code in (400, 409)
+        assert admin.post(f"/api/invoices/{imp['701']['id']}/void", json={}).status_code == 409
+        assert admin.post(f"/api/company/portal/payables/{bill['id']}/pay", json={}).status_code in (400, 409)
+        assert admin.post(f"/api/company/portal/payables/{bill['id']}/void", json={}).status_code in (400, 409)
+        # a payment recorded here goes to QuickBooks
+        _ok(admin.post(f"/api/invoices/{imp['701']['id']}/payments", json={"amount": 5000, "method": "check", "reference": "Chk 9"}), 201)
+        assert _inv(imp["701"]["id"])["amount_paid"] == 5000 and _inv(imp["701"]["id"])["status"] == "issued"
+        assert any(p["Line"][0]["LinkedTxn"][0]["TxnId"] == "701" and p["TotalAmt"] == 5000 for p in Q.payments.values())
+        # follow-up
+        fu = _ok(admin.post(f"/api/quickbooks/invoices/{imp['702']['id']}/followup",
+                            json={"title": "Qbtest call Grand St about 1019", "assignee_user_id": ids["admin"], "due_date": qd(2)}), 201)["data"]
+        assert fu["followup_title"] == "Qbtest call Grand St about 1019" and fu["followup_due"] == qd(2) and fu["followup_who"] == "Qbo admin"
+        assert admin.post(f"/api/quickbooks/invoices/{imp['702']['id']}/followup", json={"title": ""}).status_code == 400
+        # reminder from QuickBooks
+        _ok(admin.post(f"/api/quickbooks/invoices/{imp['703']['id']}/send", json={"to_email": "ap@hudson.example"}), 201)
+        assert Q.sent[-1] == ("703", "ap@hudson.example") and _inv(imp["703"]["id"])["sent_to"] == "ap@hudson.example"
+        # QuickBooks changes follow: paid in full, a new invoice, a bill paid
+        Q.invoices["701"]["Balance"] = 0
+        Q.cdc_inv.append(Q.invoices["701"])
+        Q.invoices["705"] = {"Id": "705", "SyncToken": "0", "DocNumber": "1038", "CustomerRef": {"value": "101"}, "TotalAmt": 7250,
+                             "Balance": 7250, "TxnDate": qd(0), "DueDate": qd(30), "Line": [{"Description": "Change order #4", "Amount": 7250}]}
+        Q.cdc_inv.append(Q.invoices["705"])
+        Q.bills["801"]["Balance"] = 0
+        Q.cdc_billpay.append({"Id": "990", "Line": [{"Amount": 4380, "LinkedTxn": [{"TxnId": "801", "TxnType": "Bill"}]}]})
+        _ok(admin.post("/api/quickbooks/sync", json={}))
+        assert _inv(imp["701"]["id"])["status"] == "paid" and _inv(imp["701"]["id"])["amount_paid"] == 18400
+        conn = _db()
+        try:
+            n705 = conn.execute("SELECT number, amount, status FROM invoice WHERE qb_invoice_id = '705'").fetchone()
+            b801 = conn.execute("SELECT status, paid_amount, payment_method FROM payable WHERE id = ?", (bill["id"],)).fetchone()
+        finally:
+            conn.close()
+        assert n705 and n705["number"] == "QB-1038" and n705["amount"] == 7250 and n705["status"] == "issued"
+        assert b801["status"] == "paid" and b801["paid_amount"] == 4380 and b801["payment_method"] == "quickbooks"
+        _ok(admin.post("/api/quickbooks/sync", json={}))
+        assert _inv(imp["701"]["id"])["amount_paid"] == 18400, "nothing counted twice"
+        # review: merge the new client into one we have; a second new one is approved
+        rv = _ok(admin.get("/api/quickbooks/review"))["data"]
+        assert [r["org_id"] for r in rv] == [new_org["id"]] and rv[0]["email"] == "billing@grandst.example" and rv[0]["open_value"] == 6250
+        assert admin.post(f"/api/quickbooks/review/{ids['c']}/merge", json={"into_org_id": ids["a"]}).status_code == 404, "only clients made from QuickBooks"
+        mg = _ok(admin.post(f"/api/quickbooks/review/{new_org['id']}/merge", json={"into_org_id": ids["c"]}))["data"]
+        assert mg["moved"] == 1 and mg["removed"] is True and mg["review"] == 0
+        assert _inv(imp["702"]["id"])["client_org_id"] == ids["c"]
+        conn = _db()
+        try:
+            assert conn.execute("SELECT 1 FROM crm_organization WHERE id = ?", (new_org["id"],)).fetchone() is None
+            assert conn.execute("SELECT org_id FROM qbo_customer WHERE qb_customer_id = '201'").fetchone()["org_id"] == ids["c"]
+        finally:
+            conn.close()
+        Q.customers["202"] = {"Id": "202", "DisplayName": "Qbtest Kingsbridge Realty"}
+        Q.invoices["706"] = {"Id": "706", "SyncToken": "0", "DocNumber": "1036", "CustomerRef": {"value": "202"}, "TotalAmt": 4870,
+                             "Balance": 4870, "TxnDate": qd(-1), "DueDate": qd(21), "Line": [{"Description": "Pointing", "Amount": 4870}]}
+        Q.cdc_inv.append(Q.invoices["706"])
+        Q.invoices["702"]["Balance"] = 6250
+        Q.cdc_inv.append({"domain": "QBO", "status": "Deleted", "Id": "702"})
+        _ok(admin.post("/api/quickbooks/sync", json={}))
+        assert _inv(imp["702"]["id"])["status"] == "void", "deleted in QuickBooks"
+        rv = _ok(admin.get("/api/quickbooks/review"))["data"]
+        assert [r["name"] for r in rv] == ["Qbtest Kingsbridge Realty"]
+        assert _ok(admin.post(f"/api/quickbooks/review/{rv[0]['org_id']}/approve", json={}))["data"]["review"] == 0
+        assert _ok(admin.get("/api/quickbooks/status"))["data"]["review"] == 0
+        kingsbridge = rv[0]["org_id"]
+        passed += 1; print("  bring in + review ok")
+
         # ---- the rotating refresh token, the read cap
         qbo._TOKENS.clear(); Q.rotate = True
         _ok(admin.post("/api/quickbooks/sync", json={}))
@@ -512,11 +663,21 @@ def main() -> int:
         assert _conn_row() is None and Q.revoked and Q.revoked[-1] == REFRESH1
         st = _ok(admin.get("/api/quickbooks/status"))["data"]
         assert st["connected"] is False and not st.get("status")
+        rm = _ok(admin.get("/api/quickbooks/status"))["data"]
         conn = _db()
         try:
-            assert conn.execute("SELECT COUNT(*) FROM qbo_customer").fetchone()[0] == 4, "client matches are kept (Mott Haven was matched automatically when invoiced)"
+            assert conn.execute("SELECT COUNT(*) FROM invoice WHERE source = 'quickbooks'").fetchone()[0] == 0, "test invoices removed"
+            assert conn.execute("SELECT COUNT(*) FROM payable WHERE source = 'quickbooks'").fetchone()[0] == 0, "test bills removed"
+            assert conn.execute("SELECT COUNT(*) FROM qbo_customer").fetchone()[0] == 0
+            assert conn.execute("SELECT 1 FROM crm_organization WHERE id = ?", (kingsbridge,)).fetchone() is None, "clients it created go"
+            assert conn.execute("SELECT 1 FROM crm_organization WHERE id = ?", (ids["d"],)).fetchone(), "our own clients stay"
+            pay_a = conn.execute("SELECT qb_payment_id FROM invoice_payment WHERE invoice_id = ?", (inv_a,)).fetchone()
+            assert pay_a["qb_payment_id"] is None, "our payment can go to the next company"
         finally:
             conn.close()
+        ia2, ic2 = _inv(inv_a), _inv(inv_c)
+        assert ia2["qb_invoice_id"] is None and ia2["qb_status"] is None and ia2["amount_paid"] == 5000, "freed, our check kept"
+        assert ic2["status"] == "issued" and ic2["amount_paid"] == 0 and ic2["paid_at"] is None, "the TEST payment no longer counts"
         n = len(Q.calls)
         new_inv(ids["a"], 50)
         assert len(Q.calls) == n, "disconnected: issuing never calls QuickBooks"
@@ -532,7 +693,9 @@ def main() -> int:
     # ---- the page
     src = (ROOT / "company_portal.html").read_text(encoding="utf-8")
     for needle in ('id="qb-card"', "/quickbooks/status", 'href="/quickbooks/connect"', "/quickbooks/clients", "/quickbooks/sync",
-                   "/quickbooks/disconnect", "Send from QuickBooks", "Open in QuickBooks", 'id="qb-match-overlay"', "qb-send-open"):
+                   "/quickbooks/disconnect", "Send from QuickBooks", "Open in QuickBooks", 'id="qb-match-overlay"', "qb-send-open",
+                   'id="qb-import-overlay"', 'id="qb-review-overlay"', 'id="qb-fu-overlay"', 'id="qb-review-strip"', 'id="inv-aging"',
+                   "/quickbooks/import/preview", "/quickbooks/review", "/followup", "From QuickBooks", "Pay in QuickBooks", "qb-review"):
         assert needle in src, needle
     passed += 1; print("  page ok")
 

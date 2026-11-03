@@ -1221,14 +1221,29 @@ def _on_signed(conn, r: dict) -> None:
 def decline(conn, r: dict, *, reason: Optional[str] = None, ip=None) -> dict:
     if _link_state(r) != "open":
         raise ValueError("this proposal can no longer be declined")
+    return _declined(conn, r, reason=reason, ip=ip)
+
+
+def mark_declined_offline(conn, proposal_id: int, *, reason: Optional[str] = None, actor=None) -> dict:
+    """The client said no by phone or email (2026-11-02, the claude.ai connector): the same record and follow-up as
+    declining from the link, for a proposal that went out (sent or opened), with or without a live link."""
+    r = get(conn, proposal_id)
+    if not r:
+        raise LookupError("proposal not found")
+    if r["status"] not in ("sent", "viewed"):
+        raise ValueError(f"a {r['status']} proposal cannot be marked declined" + (" (it was never sent)" if r["status"] == "draft" else ""))
+    return _declined(conn, r, reason=reason, actor=actor)
+
+
+def _declined(conn, r: dict, *, reason: Optional[str] = None, ip=None, actor=None) -> dict:
     now = _now()
     reason = (reason or "").strip()[:1000] or None
     conn.execute("UPDATE proposal SET status = 'declined', declined_at = ?, decline_reason = ?, updated_at = ? "
                  "WHERE id = ? AND status IN ('sent','viewed')", (now, reason, now, r["id"]))
-    _event(conn, r["id"], "declined", ip=ip, detail=reason)
+    _event(conn, r["id"], "declined", actor=actor, ip=ip, detail=reason)
     conn.commit()
     r = get(conn, r["id"])
-    _activity(conn, r, f"Proposal {_label(r)} declined" + (f": {reason}" if reason else ""))
+    _activity(conn, r, f"Proposal {_label(r)} declined" + (f": {reason}" if reason else ""), actor=actor)
     try:
         crm.create_task(conn, title=f"Follow up on declined proposal {_label(r)}",
                         entity_type="organization", entity_id=r["client_org_id"],

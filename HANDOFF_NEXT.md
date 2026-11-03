@@ -21,6 +21,117 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Your own Claude, connected: a claude.ai connector (Bookore, 2026-10-29)
+
+* Accepted prototype: https://claude.ai/artifact/VdvZw7Dr3u4VB9H6kZHSJ3. The leadership team (Max plans) adds the app in
+  claude.ai > Settings > Connectors (custom connector, address `APP_BASE_URL/mcp`); their Claude then reads jobs, job
+  documents (PDF text, scanned pages and photos as pictures, spreadsheets), daily reports, estimates, proposals and clients,
+  and `save_document` files a PDF "Made with Claude" in a job's folder (a new version supersedes, never overwrites; the
+  Word copy downloads from the app). `claude_connector.py`: MCP Streamable HTTP (JSON, stateless) + OAuth 2.1 (DCR,
+  PKCE S256, claude.ai's callback only, tokens hashed, 1 h access, rotating refresh with reuse = revoke, 30-day cap).
+* **Off unless `SSC_CLAUDE_CONNECTOR=1`.** Who may connect: admin / C-suite ticked in Settings > Claude (admins tick);
+  consent needs the app login AND a fresh 6-digit code (two-step sign-in required). Rechecked on every call. Optional
+  IP check: `SSC_CONNECTOR_CIDRS=160.79.104.0/21` + `SSC_CONNECTOR_IP_HEADER=CF-Connecting-IP` (Cloudflare). Note the
+  onrender.com hostname bypasses Cloudflare, so the header could be forged there: the tokens are the real control.
+* No pay: reused claude_agent reads go through `scrub` + `_no_pay` (cost / labor / wage / rate keys dropped). No email,
+  hours, payroll, send, sign or delete tools. Logs + `claude_connector_log` carry who / tool / job / counts only;
+  `/oauth/consent/<id>` is redacted in request logs.
+* Guard: `tests/smoke_claude_connector.py` (in the gate).
+* **Alerts (2026-10-30):** `claude_connector.alert` emails every active admin + the person (notifications.notify_user,
+  kinds `claude_connector_*`): someone connected, who-can-connect changed, a refused attempt (once a day), 5 wrong codes,
+  a reused old pass (connection cut), unusual activity (rate limit hit; once a day). No tokens, codes or document text.
+* **Back door closed (2026-10-30, `edge_guard.py`):** with `SSC_EDGE_SECRET` set, every request must carry header
+  `X-SSC-Edge` = that secret, which a Cloudflare Transform Rule adds; the onrender.com address (no Cloudflare) gets 403.
+  `/api/health` is exempt (Render's health check). Order: Cloudflare rule first, then the Render variable; undo = delete
+  the variable. Only then is `SSC_CONNECTOR_IP_HEADER=CF-Connecting-IP` trustworthy (boot warns otherwise).
+  Guard: `tests/smoke_edge_guard.py`.
+* **Writes + admins only (2026-11-02):** accepted prototype https://claude.ai/artifact/L2VCnsB68MLN6Ls5eqt8KU. Only **admins**
+  can connect now (`ROLES = ("admin",)`); a C-suite person ticked before is refused and cut off on their next call.
+  New tools, each a write claude.ai confirms with its own "Allow" prompt, logged, never a delete:
+  `upload_link` (a file attached in claude.ai, as the original: a one-time link `/u/<token>`, public path, token hashed,
+  15 min, once, one job folder or one bid's documents, page shows only where it goes, owner's access re-checked; the person
+  taps it or Claude's sandbox `curl -F file=@…` posts it; `/u/` is masked in request logs), `proposal_guide` →
+  `write_proposal` (claude.ai's Claude writes the content; `proposal_engine.create` saves it in the locked layout: no
+  app Claude spend), `edit_proposal` / `undo_proposal_change` (drafts; previous version in `claude_connector_snapshot`),
+  `create_proposal_from_estimate`, `mark_proposal_sent` / `_signed` (`mark_signed_offline`: same follow-ups) /
+  `_declined` (new `proposals.mark_declined_offline`, for proposals with no live link), `send_proposal` (only to a
+  contact at the proposal's client; checklist gate). 60 changes per hour per person. Search now matches "21st" ↔ "21",
+  St ↔ Street (`claude_agent.addr_words`, also in the app's Claude).
+
+### Payroll hours rules + week picker (Bookore, 2026-10-30)
+
+* Accepted prototype: https://claude.ai/artifact/2BUTcts8FyvJm4ihFjwHtY. Four fixes on Weekly Payroll / Hours Log:
+  **trade** = the Pay Rates trade (`COALESCE(labor_worker_state.trade, employees.trade)` in `payroll_hours.build_week_grid`);
+  **history**: the grid pool is everyone with a sign-in that week (any status, on a crew or not) plus active crew, so a
+  deactivated / off-rolled worker keeps every week they worked (Inactive tag); Pay Rates opens inactive workers read-only.
+* **One place at a time**: `POST/PUT/PATCH /api/sign-ins` refuse times that overlap another entry that day on any job
+  (409 `code: overlap`); worker-app clock-in is refused while a finished entry covers now (open entries don't block, so a
+  missed sign-out never locks a worker out); DCR reconcile skips overlaps.
+* **8-hour day** (`payroll_hours.DAY_LIMIT`, from `RULE_START` 2026-10-26; earlier weeks stay paid as logged): past 8 hrs
+  across jobs the write needs `overtime_reason` (422 `needs_reason`), else `hours_overtime` row pending; payroll pays 8 until
+  an admin / C-suite / PM approves (`POST /api/payroll/overtime/decide`, `hours_overtime.py`), then up to the approved total;
+  raising hours after approval reopens it. Worker app asks the worker for the reason (EN/ES chips) before clock-out.
+  CSV adds `overtime_pending`. Day cells carry `hours` (paid), `hours_logged`, `overtime`.
+* **Worker-app hours**: `payroll_hours.to_hhmm` reads the app's ISO timestamps; before, those shifts counted 0 hrs.
+* **Week picker** (`static/js/payroll_week.js`): tap the date range on Weekly Payroll / Hours Log for a month of Mon–Sun
+  weeks with paid hours and a needs-approval dot (`GET /api/payroll/weeks`). Same file: approval list, cell badge, reason dialog.
+* Guard: `tests/smoke_payroll_rules.py` (new, in the gate). Migration `apply_hours_overtime.py` (boot-ensured).
+
+### Invoice designs connect on every save + Preview inside the app (Bookore, 2026-11-02, second follow-up)
+
+* Angela's INV-2026-0004 design was in the job's Documents but Invoices & Payments still drew the standard layout: the
+  link was made only from the save bar's picker, so Claude's card, the claude.ai connector (`_t_save`, which also never
+  recorded `claude_doc_filing`) and saves made before #188 left the invoice alone.
+* `claude_docs.filed()` runs after every save (save bar, `save_document_to_job`, connector `save_document`): it records
+  the job copy and connects the invoice. A document whose TITLE starts as an invoice ("Invoice …", "Deposit invoice …")
+  and carries exactly one of the job's invoice numbers connects with nothing picked (`titled_invoice`); a number only in
+  the text still just preselects. Boot backfill `_backfill_invoices`: an invoice with no design takes a current titled
+  Claude document of its job (PDF cleared, drawn on next open; the public `/i/<token>/pdf` now draws it on demand).
+  Claude (in-app + connector) is told to title designs "Invoice <number> - <place>".
+* **Preview** on the job's Invoices & Payments rows and the Company → Invoices panel opens in the shared side panel
+  (`SSC_PDF.panel` kind `page`: fetched, then srcdoc in a script-free frame scaled to fit, since the preview route
+  is never framable). pdf_view.js v=4.
+
+### Claude documents: an invoice's design reaches Invoices & Payments (Bookore, 2026-11-02, follow-up)
+
+* Angela: the redesigned invoice reached the job's Documents but not the job's **Invoices & Payments** tab, which draws
+  every invoice from its record (`invoice_docs.render_document`).
+* `invoice` gets `design_doc_id` / `design_html` / `design_at` (`invoice_docs._COLUMNS`, idempotent). With a design,
+  `render_document` returns the Claude document (letterhead + design + a paid / void / draft stamp), so Preview, the PDF
+  (redrawn on change) and the client's `/i/<token>` link all show it. AIA invoices keep their G702 / G703 (refused);
+  void refused. `DELETE /api/invoices/<id>/design` = **Standard layout** button on the Payments row ("designed with Claude").
+* The link is made only when named: the save bar's **Invoice** picker (`GET /api/claude/docs/<id>/invoices`; preselects
+  the invoice whose number is in the text, folder Contracts) or Claude's `save_document_to_job(invoice_id)`. After that,
+  every save of that document updates the invoice. A letter that only mentions a number never replaces the invoice. A
+  design that doesn't show the invoice's amount saves with a warning. `design_html` never leaves the API (`PRIVATE_KEYS`).
+
+### Claude documents: updating the copy in a job (Bookore, 2026-11-02)
+
+* Bug (Angela): she had the in-app Claude redesign an invoice, then asked it to update the copy in the job's documents; the
+  job still showed the old design. "Save to a job" filed a frozen PDF and nothing linked it back to the Claude document, so
+  edits (by Claude or by hand) never reached the job, and saving again only added a second file next to the old one.
+* `claude_doc_filing` (doc_id, project_code, project_doc_id, filed_at; created in `claude_docs.ensure`) remembers each save.
+  Saving to a job that already holds the document files a **new version** (`supersedes_id`, old row `superseded = 1` and
+  unshared, same folder / checklist item / party), like Update on the Documents tab. Old saves are linked once at boot by
+  title + owner (`_backfill_filings`).
+* Doc panel: GET / PATCH / save return `filed` [{project_code, document_id, stale}]; the button reads **Update the job
+  copy…** when the document changed after it was filed, **✓ In <job>** when it is current; the bar preselects that job.
+* Claude: `edit_document` returns `filed_in` + a note when a job copy is out of date; new `save_document_to_job` (approval
+  card, admin / C-suite) saves or replaces (also a document named by id: an invoice made in another chat), and
+  `job_documents` lists a job's current documents. Guard: `smoke_claude_docs`.
+
+### Billing Breakdown from the signed proposal (Bookore, 2026-11-02)
+
+* Accepted prototype: https://claude.ai/artifact/VjvRu8a8HbwjRGnWSQddJc. Job → Billing Breakdown shows the job's signed proposal
+  (number, signed date, priced lines, total) with **Use these lines** → `POST /api/projects/<code>/billing/sov/from-proposal`
+  (`aia_billing.import_proposal_sov`). The latest signed proposal on an estimate converted to the job; each priced
+  `proposal_line` becomes a base `billing_sov` line (lead, else description; amount = scheduled value); unpriced scope lines
+  skipped; no priced lines → one line for `proposal.price`; change orders kept. Refused once any pay application exists.
+  With base lines present the button is **Replace with proposal lines** (asks first). `billing()` returns `signed_proposal`.
+* The drop-plan unit rates (`sov_line_items.unit_rate`) left Billing Breakdown: a collapsed **Unit rates** card at the bottom of
+  the Drop Plan tab, still inside `SECTION:financial` (stripped for pm/super), loaded by `window.DP_rates_load` on open.
+* Guards: `smoke_aia_billing_317` (from-proposal rules + page placement), `smoke_billing_type_356` (pm page has no rates card).
+
 ### Client page: emails, proposals, invoices (Bookore, 2026-10-28)
 
 * Accepted prototype: https://claude.ai/artifact/6demNxTPeUYpcadNXtWXNo. Company → Clients → a client now leads with **Emails**
