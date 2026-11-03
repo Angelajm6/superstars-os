@@ -377,6 +377,7 @@
         <form class="inl" id="s-find" role="search"><input class="fld" id="s-q" placeholder="Search your inbox for another thread" aria-label="Search your inbox"><button class="btn-ghost btn-sm" type="submit">Search</button></form>
         <div class="muted" id="s-nothr" hidden></div>
         <div class="thr" id="s-thr" hidden></div>
+        <div class="seg" id="s-rall" role="tablist" aria-label="Who the reply goes to" hidden><button type="button" data-rk="one">Reply</button><button type="button" data-rk="all">Reply all</button></div>
       </div>
       <div class="mr" id="s-to-row"><span>To</span><input class="fld" id="s-to" list="s-people" placeholder="name@company.com, …" autocomplete="off"></div>
       <div class="mr" id="s-cc-row"><span>Cc</span><input class="fld" id="s-cc" list="s-people" placeholder="optional" autocomplete="off"></div>
@@ -939,7 +940,7 @@
   }
   async function openSend() {
     const v = S.v; if (!v || !v.editable) return; const p = v.proposal, no = v.label || p.number;
-    stepSend(1); $('s-err').textContent = ''; $('s-thr').hidden = true; $('s-q').value = '';
+    stepSend(1); $('s-err').textContent = ''; $('s-thr').hidden = true; $('s-rall').hidden = true; $('s-q').value = ''; S.replyKind = 'one';
     $('s-from').textContent = 'Loading…'; $('s-thread').innerHTML = '<option>Loading your emails with this client…</option>';
     $('s-msg').value = p.email_message || `Hi,\n\nAttached is our proposal ${no} for ${p.title || 'the work'}.\n\nBest,`;
     $('s-file').textContent = '…'; $('s-amt').textContent = money2(v.amounts.total);
@@ -972,7 +973,7 @@
       $('s-to').value = S.newTo || ''; $('s-cc').value = '';
       $('s-subject').value = `Proposal ${S.v.label || p.number} · ${p.title || ''}`; return;
     }
-    if (noThreads()) { $('s-thr').hidden = true; $('s-to').value = ''; $('s-cc').value = ''; return; }
+    if (noThreads()) { $('s-thr').hidden = true; $('s-rall').hidden = true; $('s-to').value = ''; $('s-cc').value = ''; return; }
     await previewThread();
   }
   async function previewThread() {   // the thread it joins and the people Gmail would answer (they can be changed)
@@ -981,9 +982,19 @@
       const r = await api('/proposal-studio/' + S.id + '/send-preview', { method: 'POST', body: JSON.stringify({ how: 'reply', mail_id: $('s-thread').value }) });
       S.preview = r; const t = r.thread;
       $('s-thr').innerHTML = `<b>${esc(t.subject)}</b><span class="muted">${t.count} email${t.count === 1 ? '' : 's'} · latest from ${esc(who(t.from))}, ${fmtDate(t.received_at)}</span><div style="margin-top:4px">${esc(t.snippet || '')}</div>`;
-      $('s-to').value = r.to || ''; $('s-cc').value = r.cc || ''; $('s-subject').value = r.subject;
-    } catch (x) { $('s-thr').hidden = true; $('s-err').textContent = x.message; }
+      $('s-subject').value = r.subject;
+      // Reply all only when it adds someone; picking the same thread again keeps the choice
+      $('s-rall').hidden = !(r.reply_all_to && r.reply_all_to.cc);
+      replyKind($('s-rall').hidden ? 'one' : S.replyKind);
+    } catch (x) { $('s-thr').hidden = true; $('s-rall').hidden = true; $('s-err').textContent = x.message; }
   }
+  function replyKind(k) {   // Reply / Reply all fill To and Cc the way Gmail would (still editable)
+    S.replyKind = k === 'all' ? 'all' : 'one';
+    const rc = (S.preview && (S.replyKind === 'all' ? S.preview.reply_all_to : S.preview.reply_to)) || {};
+    $('s-to').value = rc.to || ''; $('s-cc').value = rc.cc || '';
+    document.querySelectorAll('[data-rk]').forEach(b => { b.classList.toggle('on', b.dataset.rk === S.replyKind); b.setAttribute('aria-selected', String(b.dataset.rk === S.replyKind)); });
+  }
+  document.querySelectorAll('[data-rk]').forEach(b => b.addEventListener('click', () => replyKind(b.dataset.rk)));
   document.querySelectorAll('[data-how]').forEach(b => b.addEventListener('click', () => setHow(b.dataset.how)));
   $('s-thread').addEventListener('change', () => setHow('reply'));
   $('s-find').addEventListener('submit', async e => {
@@ -1005,7 +1016,7 @@
     if (!o.can_send) { $('s-err').textContent = $('s-from').textContent; return; }
     const row = (k, v) => `<span>${k}</span><div>${v}</div>`;
     $('s-rev').innerHTML = row('From', esc(o.gmail || '')) + row('To', esc($('s-to').value)) + ($('s-cc').value.trim() ? row('Cc', esc($('s-cc').value)) : '') +
-      row('How', reply ? `A reply in “${esc(S.preview.thread.subject)}” (${S.preview.thread.count} email${S.preview.thread.count === 1 ? '' : 's'}), kept in that conversation` : 'A new email') +
+      row('How', reply ? `${S.replyKind === 'all' ? 'A reply to all' : 'A reply'} in “${esc(S.preview.thread.subject)}” (${S.preview.thread.count} email${S.preview.thread.count === 1 ? '' : 's'}), kept in that conversation` : 'A new email') +
       row('Subject', esc($('s-subject').value)) + row('Message', `<div class="msg-pre">${esc($('s-msg').value)}</div>`) +
       row('Attached', `<span class="att"><i>PDF</i><span>${esc(o.attachment)}</span></span> <span class="num">Base bid total ${money2(o.amounts.total)}</span>`);
     stepSend(2); $('s-send').focus();
@@ -1074,7 +1085,7 @@
   $('s-send').addEventListener('click', async () => {
     const b = $('s-send'); b.disabled = true; $('s-back').disabled = true; b.textContent = 'Making the PDF and sending…'; $('s-err').textContent = '';
     try {
-      const r = await api('/proposal-studio/' + S.id + '/send', { method: 'POST', body: JSON.stringify({ how: S.how, mail_id: S.how === 'reply' ? $('s-thread').value : null,
+      const r = await api('/proposal-studio/' + S.id + '/send', { method: 'POST', body: JSON.stringify({ how: S.how, mail_id: S.how === 'reply' ? $('s-thread').value : null, reply_all: S.how === 'reply' && S.replyKind === 'all',
         to: $('s-to').value, cc: $('s-cc').value, subject: $('s-subject').value, message: $('s-msg').value, confirm: true, expected_total: S.send.amounts.total }) });
       $('send-m').hidden = true;
       toast('Sent to ' + who(r.to || 'the client') + ' with the PDF' + (r.follow_up_task ? ' · follow-up on ' + fmtDate(r.follow_up_date) : ''));

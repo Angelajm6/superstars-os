@@ -73,6 +73,7 @@ TAG = "prv"
 PW = "RevisionsSmokePassword2026"
 ORG = "Prv Smoke Rosen Properties"
 DANA = "dana@prv-rosen.example"
+SAM = "sam@prv-rosen.example"
 TODAY = date.today()
 
 
@@ -150,7 +151,7 @@ def _seed() -> dict:
                          "cc_enc, subject_enc, body_enc, snippet_enc, needs_action, status, ai_state, created_at) "
                          "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,'new','done',?)",
                          (ids["cs"], gid, thread, e_(f"<{gid}@mail.example>"), "in", now, e_(frm), e_(f"{TAG}.cs@superstarscontracting.com"),
-                          None, e_(subj), e_("Could you send pricing for the drops?"), e_("Could you send pricing"), now))
+                          e_(f"Sam Ortiz <{SAM}>") if gid == "g-prv-1" else None, e_(subj), e_("Could you send pricing for the drops?"), e_("Could you send pricing"), now))
         conn.commit()
         ids["org"] = org
         ids["mail"] = conn.execute("SELECT id FROM mail_message WHERE gmail_id = 'g-prv-1'").fetchone()["id"]
@@ -286,10 +287,12 @@ def main() -> int:
         assert [t["subject"] for t in found] == ["Lunch on Friday"], "search finds a thread the app didn't match to the client"
         pv = cs.post(f"/api/proposal-studio/{pid}/send-preview", json={"how": "reply", "mail_id": ids["mail"]}).get_json()["data"]
         assert pv["to"] == f"Dana Rosen <{DANA}>" and pv["subject"] == "Re: Pricing for the east wall" and pv["thread"]["count"] == 1
+        assert pv["cc"] == "" and pv["reply_to"] == {"to": f"Dana Rosen <{DANA}>", "cc": ""}, "Reply answers the sender only"
+        assert pv["reply_all_to"] == {"to": f"Dana Rosen <{DANA}>", "cc": f"Sam Ortiz <{SAM}>"}, "Reply all keeps the others, never me"
         assert pv["attachment"].startswith("Proposal ") and pv["attachment"].endswith(".pdf") and pv["amounts"]["total"] == total
         assert cs2.post(f"/api/proposal-studio/{pid}/send-preview", json={"how": "reply", "mail_id": ids["mail"]}).status_code == 400, \
             "someone else's email is not offered"
-        body = {"how": "reply", "mail_id": ids["mail"], "to": f"Dana Rosen <{DANA}>", "cc": "", "subject": pv["subject"],
+        body = {"how": "reply", "mail_id": ids["mail"], "to": f"Dana Rosen <{DANA}>", "cc": f"Sam Ortiz <{SAM}>", "reply_all": True, "subject": pv["subject"],
                 "message": "Hi Dana, our proposal is attached."}
         r = cs.post(f"/api/proposal-studio/{pid}/send", json=body)
         assert r.status_code == 400 and "confirm" in r.get_json()["error"] and not emls(), "nothing goes out without confirm"
@@ -300,6 +303,7 @@ def main() -> int:
         sent = emls()
         assert len(sent) == 1
         m = email.message_from_bytes(sent[0].read_bytes())
+        assert m["Cc"] == f"Sam Ortiz <{SAM}>", "a reply-all goes to everyone on the email"
         assert m["To"] == f"Dana Rosen <{DANA}>" and m["In-Reply-To"] == "<g-prv-1@mail.example>" and m["Subject"] == "Re: Pricing for the east wall"
         att = [x for x in m.walk() if x.get_content_disposition() == "attachment"][0].get_payload(decode=True)
         dl = cs.get(f"/api/proposals/{pid}/pdf").data
@@ -614,7 +618,7 @@ def main() -> int:
 
         # ---------------- the pages
         html = (ROOT / "proposal_studio.html").read_text(encoding="utf-8")
-        for needle in ("confirm: true, expected_total", 'id="s-step2"', "'/send-options'", "'/send-preview'", 'id="rq-m"', 'id="dc-m"',
+        for needle in ("confirm: true, expected_total", 'id="s-step2"', "'/send-options'", "'/send-preview'", 'data-rk="all"', 'id="rq-m"', 'id="dc-m"',
                        "data-pt=\"exclude\"", "'/proposal-studio/' + S.id + '/' + verb", 'id="ex-list"', 'id="chat-card"', "chatPanel(",
                        "$('e-pdf').addEventListener('click'", "await flushNow();", "markStep(j.step || 0)", 'id="e-expiry"', "SSC_CLAUDE.ask(q)",
                        "if (S.asking) return;", "'/proposals/revisions/' + S.decide.id"):
