@@ -133,7 +133,7 @@ def main() -> int:
     for path, html in pages.items():
         assert 'data-company-nav' in html and "SSC_NAV.mount()" in html and "company_nav.js?v=" in html, path
         assert ">Office Console<" not in html and "ssc-nav-ext" not in html and "ssc-side-foot" not in html, path
-        assert '<div class="brand-sub">Company</div>' in html, path
+        assert '<img class="brand-full" src="/files/static/brand/logo-full.png"' in html, path
     for path, tab in ADMIN_PAGES.items():
         assert f'data-subtabs="{tab}"' in pages[path] and "sscNavForRole(" in pages[path] and "window.sscNavForRole = function" not in pages[path], path
     passed += 1; print("  one sidebar ok")
@@ -159,7 +159,7 @@ def main() -> int:
                  'id="cl-add"', 'id="cl-overlay"', 'id="ct-overlay"', 'id="nt-overlay"', 'id="fu-overlay"', "data-task-done",
                  'id="view-company"', "const ALIASES = { buildings: 'projects', compliance: 'company' };",
                  'data-subtabs="projects"', 'data-subtabs="finance"', 'data-subtabs="workforce"', 'data-subtabs="company"', 'data-subtabs="proposals"',
-                 "sites_without_project", "function newProjectHref"):
+                 "ready_to_start", "function drawReady"):
         assert kept in po, kept
     assert po.index('id="ov-kpis"') < po.index('id="cc-week"') < po.index('id="td-needs"'), "cards, then the week, then Needs you"
     assert po.count('data-subtabs="projects"') == 2, "list and calendar both carry the Projects sub-tabs"

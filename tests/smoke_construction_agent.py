@@ -1,9 +1,9 @@
 """#198 — Construction Specialist Agent provenance smoke (synthetic-only).
 
-Exercises the PII-safe provenance writer end-to-end against the real
-`construction_agent_provenance` table, using ONLY synthetic SMK--prefixed
-rows that are cleaned up in `finally`. This is the regression net for the
-agent's audit-trail surface.
+Exercises the PII-safe provenance writer end-to-end against a THROWAWAY
+SQLite database (the #198 schema in a temp dir), using ONLY synthetic
+SMK--prefixed rows. Never the real superstars.db (CLAUDE.md). This is the
+regression net for the agent's audit-trail surface.
 
 Asserts:
   1. log_interaction writes EXACTLY ONE row per call (one-per-call /
@@ -14,6 +14,8 @@ Asserts:
   4. Stored rows are PII-safe: no phone/rate/PIN/SSN shapes survive.
   5. interaction_ids are unique across calls (no dupes / collisions).
   6. Synthetic rows carry the SMK- prefix and are fully cleaned up.
+  7. db_guard: no default database; the real superstars.db (by name or by
+     path), a missing file and a bare CLI call are all refused before any write.
 
 PII discipline: prints booleans + counts only; never the stored text.
 
@@ -23,18 +25,20 @@ Run:
 from __future__ import annotations
 
 import datetime as _dt
+import os
 import re
 import sqlite3
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPT_DIR / "agents" / "construction_specialist"))
 
-DB = SCRIPT_DIR / "superstars.db"
 import provenance as prov  # noqa: E402
-sys.path.insert(0, str(SCRIPT_DIR))
-import db_layer  # noqa: E402  # #260 — route DB access through the env-driven layer (SSC_DB_URL)
+import db_guard  # noqa: E402
+SCHEMA = SCRIPT_DIR / "schema_construction_agent_provenance.sql"
 
 SMK = "SMK-"
 PASS, FAIL = 0, 0
@@ -71,8 +75,43 @@ def cleanup(conn):
     conn.commit()
 
 
+def refused(path) -> bool:
+    try:
+        db_guard.resolve(path)
+        return False
+    except db_guard.RefusedDB:
+        return True
+
+
+def guard_checks(tmp: Path):
+    os.environ.pop(db_guard.ENV_VAR, None)
+    check("guard: no database given -> refused", refused(None))
+    # only the path string is checked against the real one; it is never opened
+    check("guard: the repo's real superstars.db -> refused", refused(str(SCRIPT_DIR / "superstars.db")))
+    decoy = tmp / "superstars.db"
+    decoy.write_bytes(b"")
+    check("guard: any file named superstars.db -> refused", refused(str(decoy)))
+    check("guard: a missing file -> refused (never created)",
+          refused(str(tmp / "nope.db")) and not (tmp / "nope.db").exists())
+    try:
+        prov.log_interaction(question_text="SMK refused", synthetic=True)
+        check("log_interaction without a database raises", False)
+    except db_guard.RefusedDB:
+        check("log_interaction without a database raises", True)
+    env = {k: v for k, v in os.environ.items() if k != db_guard.ENV_VAR}
+    r = subprocess.run([sys.executable, str(SCRIPT_DIR / "agents" / "construction_specialist" / "provenance.py"),
+                        "--question", "SMK cli", "--synthetic"], capture_output=True, text=True, env=env)
+    check("CLI without --db exits 2 and writes nothing", r.returncode == 2 and "not logged" in r.stderr)
+
+
 def main() -> int:
-    conn = db_layer.connect()
+    tmp = Path(tempfile.mkdtemp(prefix="ssc-agent-smoke-"))
+    guard_checks(tmp)
+    db = tmp / "agent_test.db"
+    conn = sqlite3.connect(str(db))
+    conn.executescript(SCHEMA.read_text(encoding="utf-8"))
+    conn.commit()
+    os.environ[db_guard.ENV_VAR] = str(db)   # the helper reads it; nothing else is ever opened
     try:
         cleanup(conn)
         base = count_smk(conn)

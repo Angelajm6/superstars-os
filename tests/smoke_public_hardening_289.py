@@ -247,6 +247,16 @@ def run(admin_id, admin_tok):
     secret, recovery = bd.get("secret"), bd.get("recovery_codes") or []
     ok("totp_begin_returns_secret_and_recovery",
        bool(secret) and len(recovery) == 10, f"{b.status_code} {b.text[:60]}")
+    # 2026-10-30: a QR to scan (Salesforce Authenticator only scans), drawn on the server as an SVG data URI
+    qr = bd.get("qr_svg") or ""
+    import base64 as _b64, urllib.parse as _up
+    _svg = ""
+    if qr.startswith("data:image/svg+xml;base64,"):
+        _svg = _b64.b64decode(qr.split(",", 1)[1]).decode("utf-8", "replace")
+    elif qr.startswith("data:image/svg+xml"):
+        _svg = _up.unquote(qr.split(",", 1)[1])
+    ok("totp_begin_returns_qr_svg", "<svg" in _svg and (secret or "x") not in _svg and "http" not in _svg.replace("http://www.w3.org", ""),
+       qr[:40])
     if secret:
         c = st.post(f"{BASE}/api/2fa/confirm",
                     json={"code": _totp._code_at(secret, int(time.time() // 30))}, **R)

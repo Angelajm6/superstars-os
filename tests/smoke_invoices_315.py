@@ -358,6 +358,16 @@ def main() -> int:
         # the proposal-scoped list the portal detail reads
         r = admin.get(f"/api/invoices?proposal_id={p['id']}")
         assert [x["id"] for x in _j(r)["data"]] == [dep["id"]]
+        # the client's page (2026-10-28): its proposals + every invoice, drafts included; drafts / void stay out of the sums
+        det = company_portal.client_detail(conn, org)
+        assert any(x["id"] == p["id"] and x["status"] == "signed" for x in det["proposals"])
+        allinv = invoices.list_invoices(conn, client_org_id=org)
+        assert {x["id"] for x in det["invoices"]} == {x["id"] for x in allinv} and dep["id"] in {x["id"] for x in det["invoices"]}
+        assert not {x["id"] for x in det["invoices"]} & {x["id"] for x in invoices.list_invoices(conn, client_org_id=org2)}
+        live = [x for x in allinv if x["status"] in ("issued", "paid")]
+        t = det["totals"]
+        assert t["invoiced"] == round(sum(x["amount"] for x in live), 2) and t["paid"] == round(sum(x["amount_paid"] for x in live), 2)
+        assert t["owed"] == round(sum(x["balance"] for x in live if x["status"] == "issued"), 2) and t["proposals_signed"] >= 1
         # company portal payloads carry the new keys and keep the old ones
         ov = company_portal.overview(conn)
         assert delta(ov["invoices"], "open_count") == 1 and "awaiting_deposit" in ov["receivables"], ov["invoices"]

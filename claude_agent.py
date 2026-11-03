@@ -11,28 +11,40 @@ platform comes back as an approval card, and nothing happens until a person pres
     field (editable). Approve runs it with the approver's own permissions; Decline drops it.
     Only the person who asked can decide; a card expires after 48 hours. Every action, its
     decision, who made it and the result are kept (the Approvals log).
-  * Pay data (the payroll summary) is offered ONLY to admin / c_suite, and only in
-    conversations started on an office page — never on a job dashboard, which is field-
-    reachable (CLAUDE.md compensation rule). Conversations are stamped with that surface and
-    a job dashboard never lists or opens an office conversation.
+  * Pay data (the payroll summary) is offered ONLY to admin / c_suite, and only on an office
+    page — never on a job dashboard, which is field-reachable (CLAUDE.md compensation rule).
+  * One conversation follows the person (2026-10-22, accepted): closed on the company dashboard,
+    opened again on a job dashboard, it is the same chat. The exception: a chat that has shown
+    pay or email details (claude_chat.office_only = 'pay' | 'email', set when payroll_summary /
+    search_email / email_detail return data; Inbox mail chats count as 'email') opens and is
+    listed on office pages only. A chat's tools and system prompt stay those of the surface it
+    started on (Opus 5.5 binds replayed thinking to an unchanged prefix); the page the person is
+    on NOW (claude_chat.page_surface) decides whether an office-only tool may run.
+  * Each message carries what the person points at: the page (unless they hid it), a quote
+    they picked on the page, and @-mentions (GET /api/claude/mentions); Claude looks them up
+    with the same tools, so access is checked as always.
   * Never offered: deleting, pay rates, sign-in details or access, invoices. Email goes only to a client
     contact the person picks, on its own card each time; Claude never sees contact email addresses.
   * Tool results are scrubbed of emails, phone numbers and file paths before Claude sees them;
     emails and documents are untrusted data, never instructions.
   * Conversations are private to their owner. Logs carry ids, tool names, counts and cost only.
   * A turn runs in the background (several model calls when Claude looks things up); the page
-    polls the conversation. The company-wide daily budget (assistant.cap_usd; never shown on a page) is shared with the
-    Proposals panel and checked before every model call.
+    polls the conversation. The budgets (assistant.limit_reason: the company's monthly budget and each person's
+    daily guard; never shown on a page as dollars) are shared with the Proposals panel and checked before every
+    model call.
 
-Model and switch: assistant.model() (Opus 5.5), medium effort, server-side refusal fallback;
-off without ANTHROPIC_API_KEY. Test seam SSC_ASSISTANT_FAKE (JSON script; inert in production).
+Model and switch: SSC_CLAUDE_MODEL (default assistant.model(), Opus 5.5), effort SSC_CLAUDE_EFFORT (default
+low since 2026-10-22: lookups and short answers; was medium), server-side refusal fallback where the model
+offers it; off without ANTHROPIC_API_KEY. Test seam SSC_ASSISTANT_FAKE (JSON script; inert in production).
 
   GET  /api/claude/status?surface=           available? cap, spend, what Claude can do here
-  GET  /api/claude/chats?surface=            my conversations on this surface
+  GET  /api/claude/chats?surface=            my conversations (on a job dashboard: not office-only ones)
+  GET  /api/claude/chats/latest?surface=     the conversation to reopen (the last one usable here), or null
+  GET  /api/claude/mentions?q=&surface=      jobs, bids / estimates, clients, team people for @
   POST /api/claude/chats                     {surface}
   GET  /api/claude/chats/<id>                messages, cards, busy
   PATCH /api/claude/chats/<id>               {title?, starred?, archived?}  (History: rename, save, remove)
-  POST /api/claude/chats/<id>/messages       {text, page{path,label,project_code}} -> 202 (runs)
+  POST /api/claude/chats/<id>/messages       {text, page{surface,path,label,project_code,shared}, quote?, refs?} -> 202
   POST /api/claude/actions/<id>/approve      {values} -> runs the change
   POST /api/claude/actions/<id>/decline
   POST /api/claude/actions/<id>/undo         creates only (cancels the new task / event)
@@ -43,6 +55,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import threading
 from datetime import date, datetime, timedelta
@@ -50,6 +63,7 @@ from typing import Callable, Optional
 
 from flask import jsonify, request
 
+import ai_models
 import assistant
 import claude_files
 import db_layer
@@ -59,6 +73,7 @@ from auth import current_user, requires_role
 log = logging.getLogger("ssc.claude_agent")
 
 TEAM_ROLES = ("admin", "c_suite", "pm", "super")
+LOCK_TOOLS = {"payroll_summary": "pay", "search_email": "email", "email_detail": "email"}   # results keep a chat on office pages
 OFFICE_ROLES = ("admin", "c_suite")
 SURFACES = ("office", "field")
 MAX_STEPS = 8                 # model calls per turn
@@ -89,7 +104,14 @@ make_document: complete, ready to use, as clean HTML (h1 for the title, h2 for s
 b/i). The platform shows it to them as a file they open beside the chat, edit, and download as PDF or Word, or save to
 a job. Fill it from the attached files and the platform; mark anything you could not find as [to fill]. To change a
 document, use edit_document with the whole new HTML (keep everything they did not ask to change; their own edits
-are in it). The platform prints the company's logo and letterhead (Settings > Company brand) at the top of every
+are in it). A document already saved to a job keeps its old copy there until the job's copy is updated: after changing
+one, if edit_document says it is filed in a job, propose save_document_to_job for that job in the same turn. When the
+person wants a new design to take the place of an older file in a job (an invoice made in another chat, say), look it up
+with job_documents and pass its id as replaces_document_id. When the document is an invoice, also pass invoice_id
+(the job's invoice it is, from job_documents) so the job's Invoices & Payments tab, its PDF and the client's link
+show the new design; an invoice already designed this way is updated on every save. Title an invoice's design
+"Invoice <its number> - <place>" (e.g. Invoice INV-2026-0004 - 1160 River Ave): a document titled that way becomes
+that invoice's document whenever it is saved to the job. The platform prints the company's logo and letterhead (Settings > Company brand) at the top of every
 document, so do not write your own company header or logo. After making or changing one, say in one or two sentences what it contains. Never say you cannot create,
 generate or attach documents or files.
 
@@ -104,10 +126,13 @@ def ensure(conn) -> None:
         f"CREATE TABLE IF NOT EXISTS claude_chat ({pk}, user_id INTEGER NOT NULL, surface TEXT NOT NULL, title TEXT, "
         f"busy_since TEXT, last_error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_claude_chat_user ON claude_chat(user_id)")
-    for col, typ in (("starred", "INTEGER"), ("archived_at", "TEXT"), ("source", "TEXT"), ("mail_id", "INTEGER")):
+    backfill = False
+    for col, typ in (("starred", "INTEGER"), ("archived_at", "TEXT"), ("source", "TEXT"), ("mail_id", "INTEGER"),
+                     ("page_surface", "TEXT"), ("office_only", "TEXT")):
         # History: saved chats, removed from the list; source 'mail' = an Inbox email's own Claude pass (not History)
         if not _has_column(conn, "claude_chat", col):
             conn.execute(f"ALTER TABLE claude_chat ADD COLUMN {col} {typ}")
+            backfill = backfill or col == "office_only"
     conn.execute(
         f"CREATE TABLE IF NOT EXISTS claude_chat_message ({pk}, chat_id INTEGER NOT NULL, role TEXT NOT NULL, "
         f"kind TEXT NOT NULL, content TEXT NOT NULL, replay INTEGER NOT NULL, created_at TEXT NOT NULL, model TEXT, "
@@ -115,6 +140,11 @@ def ensure(conn) -> None:
         f"cost_micro INTEGER)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_claude_msg_chat ON claude_chat_message(chat_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_claude_msg_created ON claude_chat_message(created_at)")
+    if backfill:   # chats from before 2026-10-22 that already looked at pay or email stay on office pages
+        for tool_name, why in LOCK_TOOLS.items():
+            conn.execute("UPDATE claude_chat SET office_only = ? WHERE office_only IS NULL AND id IN "
+                         "(SELECT chat_id FROM claude_chat_message WHERE role = 'assistant' AND content LIKE ?)",
+                         (why, f'%"name": "{tool_name}"%'))
     conn.execute(
         f"CREATE TABLE IF NOT EXISTS claude_action ({pk}, chat_id INTEGER NOT NULL, message_id INTEGER, "
         f"tool_use_id TEXT, user_id INTEGER NOT NULL, tool TEXT NOT NULL, input TEXT NOT NULL, summary TEXT, "
@@ -174,8 +204,10 @@ def scrub(v):
 
 # ------------------------------------------------------------------ tools
 class Ctx:
-    def __init__(self, conn, user: dict, surface: str):
+    def __init__(self, conn, user: dict, surface: str, page_surface: Optional[str] = None):
+        # surface: where the chat started (its tools); page_surface: the page the person is on now
         self.conn, self.user, self.surface = conn, user, surface
+        self.page_surface = page_surface or surface
         self.uid, self.role = user.get("id"), user.get("role")
 
 
@@ -222,6 +254,24 @@ def _range(inp, default_days=31, max_days=93):
 
 
 # ---- reads
+_ADDR_WORDS = {"street": "st", "avenue": "ave", "av": "ave", "road": "rd", "place": "pl", "boulevard": "blvd",
+               "drive": "dr", "parkway": "pkwy", "east": "e", "west": "w", "north": "n", "south": "s"}
+
+
+def addr_words(text) -> list:
+    """An address the way people type it either way: "2600 East 21st Street" and "2600 E 21 St" give the same words."""
+    out = []
+    for w in re.findall(r"[a-z0-9]+", str(text or "").lower()):
+        w = re.sub(r"^(\d+)(st|nd|rd|th)$", r"\1", w)
+        out.append(_ADDR_WORDS.get(w, w))
+    return out
+
+
+def _words_match(q_words: list, *fields) -> bool:
+    have = set(addr_words(" ".join(str(f or "") for f in fields)))
+    return bool(q_words) and all(w in have for w in q_words)
+
+
 def _t_find(ctx, inp):
     import pm_scoping
     q = str(inp.get("query") or "").strip().lower()
@@ -233,6 +283,11 @@ def _t_find(ctx, inp):
         "SELECT project_code, name, address, COALESCE(status,'active') AS status FROM projects WHERE "
         "LOWER(project_code) LIKE ? OR LOWER(COALESCE(name,'')) LIKE ? OR LOWER(COALESCE(address,'')) LIKE ? "
         "ORDER BY project_code LIMIT 40", (s, s, s)).fetchall()
+    qw = addr_words(q)
+    if not rows and len(qw) > 1:   # "21st" vs "21", "Street" vs "St": match word by word
+        rows = [r for r in ctx.conn.execute("SELECT project_code, name, address, COALESCE(status,'active') AS status "
+                                            "FROM projects ORDER BY project_code").fetchall()
+                if _words_match(qw, r["project_code"], r["name"], r["address"])][:40]
     out["jobs"] = [dict(r) for r in pm_scoping.filter_visible_projects(rows, ctx.role, ctx.uid, ctx.conn)][:15]
     import team_items
     out["team_people"] = [p for p in team_items.people(ctx.conn) if q in (p["name"] or "").lower()][:10]
@@ -244,6 +299,12 @@ def _t_find(ctx, inp):
                                  "FROM estimate e LEFT JOIN crm_organization o ON o.id = e.client_org_id WHERE "
                                  "LOWER(e.code) LIKE ? OR LOWER(COALESCE(e.building_address,'')) LIKE ? OR "
                                  "LOWER(COALESCE(o.name,'')) LIKE ? ORDER BY e.updated_at DESC LIMIT 10", (s, s, s))
+        if not out["estimates"] and len(qw) > 1:
+            out["estimates"] = [r for r in _rows(ctx.conn,
+                                                 "SELECT e.id, e.code, e.status, e.inquiry_kind, e.building_address, o.name AS client "
+                                                 "FROM estimate e LEFT JOIN crm_organization o ON o.id = e.client_org_id "
+                                                 "ORDER BY e.updated_at DESC LIMIT 2000")
+                                if _words_match(qw, r["code"], r["building_address"], r["client"])][:10]
     return out
 
 
@@ -279,6 +340,14 @@ def _t_job(ctx, inp):
         raise LookupError("no job with that code that you can open")
     s = project_summary.summary(ctx.conn, code, ctx.role, uid=ctx.uid) or {}
     s.pop("photos", None)
+    try:   # the job's own settings (what update_job can change)
+        import project_setup
+        st = project_setup.setup(ctx.conn, code) or {}
+        s["job_setup"] = {"status": _one(ctx.conn, "SELECT COALESCE(status, 'active') AS s FROM projects WHERE project_code = ?",
+                                          (code,))["s"], "job_type": st.get("job_type_label"),
+                          "access_methods": st.get("access_methods") if st.get("access_applies") else None}
+    except Exception:
+        ctx.conn.rollback()
     return s
 
 
@@ -671,7 +740,7 @@ def _t_proposals(ctx, inp):
     import proposals
     rows = proposals.list_proposals(ctx.conn, status=(inp.get("status") or None),
                                     estimate_id=inp.get("estimate_id") or None, q=(inp.get("query") or None))
-    keep = ("id", "number", "status", "display_status", "title", "price", "client_name", "estimate_id", "estimate_code",
+    keep = ("id", "label", "number", "status", "display_status", "title", "price", "client_name", "estimate_id", "estimate_code",
             "building_address", "sent_at", "viewed_at", "signed_at", "valid_until", "updated_at")
     return {"proposals": [{k: r.get(k) for k in keep if k in r} for r in rows[:60]], "count": len(rows)}
 
@@ -685,6 +754,7 @@ def _t_proposal(ctx, inp):
             "terms_text", "price", "deposit_pct", "deposit_amount", "valid_until", "estimate_id", "client_org_id",
             "contact_id", "recipient_name", "sent_at", "viewed_at", "signed_at")
     out = {k: r.get(k) for k in keep}
+    out["label"] = proposals._label(r)   # the number people see: "Proposal No. 1045"
     out["lines"] = [{k: ln.get(k) for k in ("description", "qty", "unit", "unit_price", "amount")}
                     for ln in proposals.lines(ctx.conn, r["id"])]
     out["editable"] = r["status"] == "draft"
@@ -905,7 +975,7 @@ def _exec_proposal_edit(ctx, inp):
     if r and r.get("layout") == "ssc":
         import proposal_engine
         out = proposal_engine.revise(ctx.conn, r["id"], str(inp.get("instruction") or ""), ctx.uid)
-        return {"id": r["id"], "summary": f"{proposal_engine.label(r)} changed: " + (", ".join(out["changed"]) or "nothing needed to change"),
+        return {"id": r["id"], "summary": f"{proposal_engine.label(r)}: {out['reply']}",
                 "link": _proposal_link(r), "undo": False}
     fields = {}
     for k, col, _label, _t in _PROP_FIELDS:
@@ -1025,6 +1095,129 @@ def _undo_issue(ctx, action, result):
     ctx.conn.commit()
 
 
+# ---- jobs (2026-10-22): a job's details, status and access methods, through the same code as Edit project
+_JOB_FIELDS = {"name": "Name", "address": "Address", "city_zip": "City / ZIP", "start_date": "Start date",
+               "target_completion": "Target completion", "contract_value": "Contract value"}
+_JOB_DATES = ("start_date", "target_completion")
+_JOB_STATUSES = ("active", "closed")
+
+
+def _access_names(keys) -> str:
+    import project_setup
+    return ", ".join(project_setup.ACCESS_LABELS.get(k, k) for k in keys or []) or "none"
+
+
+def _job_changes(ctx, inp) -> dict:
+    """What approving would change, checked against the job as it is now. Raises when nothing would."""
+    import pm_scoping
+    import project_details
+    import project_setup
+    code = str(inp.get("project_code") or "").strip()
+    if not code or not pm_scoping.pm_can_access_project(ctx.role, ctx.uid, code, ctx.conn):
+        raise LookupError("no job with that code that you can open")
+    now = project_details.details(ctx.conn, code)
+    if not now:
+        raise LookupError("no job with that code that you can open")
+    det = {}
+    for k in _JOB_FIELDS:
+        v = inp.get(k)
+        if v in (None, ""):
+            continue
+        det[k] = _d(v, _JOB_FIELDS[k].lower()) if k in _JOB_DATES else str(v).strip()
+    if inp.get("client_org_id") not in (None, ""):
+        det["client_org_id"] = inp["client_org_id"]
+    status = str(inp.get("status") or "").strip().lower() or None
+    if status and status not in _JOB_STATUSES:
+        raise ValueError("status is active or closed")
+    if status == (now.get("status") or "active"):
+        status = None
+    access = None
+    add, rm = inp.get("add_access_methods") or [], inp.get("remove_access_methods") or []
+    if add or rm:
+        bad = [k for k in list(add) + list(rm) if k not in project_setup.ACCESS_LABELS]
+        if bad:
+            raise ValueError("unknown access method: " + ", ".join(map(str, bad))[:80])
+        cur = list((project_setup.setup(ctx.conn, code) or {}).get("access_methods") or [])
+        keep = (set(cur) - set(rm)) | set(add)
+        after = [k for k, _ in project_setup.ACCESS_METHODS if k in keep]
+        if after != cur:
+            project_setup.validate({"access_methods": after}, project_setup.est_type_of(code))
+            access = (cur, after)
+    if not det and not status and not access:
+        raise ValueError("that would not change anything on the job")
+    return {"code": code, "now": now, "details": det, "status": status, "access": access}
+
+
+def _check_job(ctx, inp):
+    _job_changes(ctx, inp)
+
+
+def _job_card(ctx, inp):
+    c = _job_changes(ctx, inp)
+    now = c["now"]
+    fields = [{"key": "project_code", "label": "Job", "type": "readonly", "value": c["code"],
+               "hint": _job_label(ctx.conn, c["code"])}]
+    for k, v in c["details"].items():
+        if k == "client_org_id":
+            import crm
+            org = crm.get_org(ctx.conn, int(v)) if str(v).isdigit() else None
+            fields.append({"key": k, "label": "Client", "type": "readonly", "value": str(v),
+                           "hint": f"{(org or {}).get('name') or 'that client'} (now: {now.get('client_name') or 'none'})"})
+            continue
+        was = now.get(k)
+        fields.append({"key": k, "label": _JOB_FIELDS[k], "type": "date" if k in _JOB_DATES else "text", "value": str(v),
+                       "hint": "Now: " + (str(was)[:10] if k in _JOB_DATES and was else
+                                          f"${float(was):,.2f}" if k == "contract_value" and was is not None else str(was or "—"))})
+    if c["status"]:
+        fields.append({"key": "status", "label": "Status", "type": "select", "value": c["status"],
+                       "options": [{"value": v, "label": v.title()} for v in _JOB_STATUSES],
+                       "hint": "Now: " + (now.get("status") or "active").title()})
+    if c["access"]:
+        fields.append({"key": "access_methods", "label": "Access methods", "type": "readonly", "value": "",
+                       "hint": f"{_access_names(c['access'][0])} → {_access_names(c['access'][1])}"})
+    return {"title": "Change job details", "fields": fields}
+
+
+def _set_job_status(conn, code, status, actor):
+    conn.execute("UPDATE projects SET status = ? WHERE project_code = ?", (status, code))
+    conn.commit()
+    log.info("claude job status %s -> %s by user %s", code, status, actor)
+
+
+def _exec_job(ctx, inp):
+    import project_details
+    import project_setup
+    c = _job_changes(ctx, inp)
+    code, now, det = c["code"], c["now"], c["details"]
+    before = {k: now.get(k) for k in det}
+    if det:
+        project_details.update(ctx.conn, code, det, actor=ctx.uid)   # validates all of it before writing any
+    if c["access"]:
+        before["access_methods"] = c["access"][0]
+        project_setup.update(ctx.conn, code, {"access_methods": c["access"][1]}, actor=ctx.uid)
+    if c["status"]:
+        before["status"] = now.get("status") or "active"
+        _set_job_status(ctx.conn, code, c["status"], ctx.uid)
+    what = [("client" if k == "client_org_id" else _JOB_FIELDS[k].lower()) for k in det]
+    what += (["access methods"] if c["access"] else []) + (["status"] if c["status"] else [])
+    return {"id": code, "summary": f"{code} updated: {', '.join(what)}", "link": f"/projects/{code}", "undo": True,
+            "before": before}
+
+
+def _undo_job(ctx, action, result):
+    import project_details
+    import project_setup
+    code, b = result["id"], result.get("before") or {}
+    det = {k: ("" if b[k] is None else b[k]) for k in list(_JOB_FIELDS) + ["client_org_id"]
+           if k in b and k != "contract_value" or (k == "contract_value" and b.get(k) is not None)}
+    if det:
+        project_details.update(ctx.conn, code, det, actor=ctx.uid)
+    if "access_methods" in b:
+        project_setup.update(ctx.conn, code, {"access_methods": b["access_methods"]}, actor=ctx.uid)
+    if "status" in b:
+        _set_job_status(ctx.conn, code, b["status"], ctx.uid)
+
+
 # ---- inbox (2026-10-14): cards born from an email in the person's own mailbox
 def _mail(ctx, mid):
     import inbox
@@ -1039,7 +1232,7 @@ def _t_search_email(ctx, inp):
     q = str(inp.get("query") or "").strip().lower()
     if len(q) < 2:
         raise ValueError("search for at least 2 characters")
-    rows = _rows(ctx.conn, "SELECT id FROM mail_message WHERE user_id = ? ORDER BY received_at DESC LIMIT 400", (ctx.uid,))
+    rows = _rows(ctx.conn, "SELECT id FROM mail_message WHERE user_id = ? AND trashed_at IS NULL ORDER BY received_at DESC LIMIT 400", (ctx.uid,))
     out = []
     for r in rows:
         m = inbox.message(ctx.conn, r["id"])
@@ -1185,42 +1378,64 @@ def _exec_save_files(ctx, inp):
 
 
 def _check_log_sent(ctx, inp):
+    """2026-10-22: mail_id is optional. With it, the proposal is linked to the email someone sent from Gmail; without it,
+    it is simply recorded as sent outside the app (a date and who it went to, when known)."""
     import proposals
-    m = _mail(ctx, inp.get("mail_id"))
-    if m["direction"] != "out":
-        raise ValueError("that email was not sent by this person")
+    if inp.get("mail_id"):
+        m = _mail(ctx, inp.get("mail_id"))
+        if m["direction"] != "out":
+            raise ValueError("that email was not sent by this person")
     p = proposals.get(ctx.conn, int(inp.get("proposal_id") or 0))
     if not p:
         raise LookupError("no proposal with that id")
     if p["status"] != "draft":
-        raise ValueError(f"{p['number']} is already {p['status']}")
+        raise ValueError(f"proposal {proposals._label(p)} is already {p['status']}")
+    why = proposals.predecessor_problem(ctx.conn, p)
+    if why:
+        raise ValueError(why)
+    if inp.get("sent_on"):
+        _d(inp["sent_on"], "sent on")
     if inp.get("price") not in (None, ""):
         float(str(inp["price"]).replace("$", "").replace(",", ""))
+        why = proposals.logged_price_problem(ctx.conn, p, inp["price"])   # the record must match the document (2026-10-22)
+        if why:
+            raise ValueError(why)
 
 
 def _log_sent_card(ctx, inp):
     import proposals
     p = proposals.get(ctx.conn, int(inp.get("proposal_id") or 0)) or {}
-    try:
-        m = _mail(ctx, inp.get("mail_id"))
-        sent = f"{(m['received_at'] or '')[:10]} to {m['to'].split('<')[0].strip()}"
-    except LookupError:
-        sent = ""
+    label = proposals._label(p) if p else str(inp.get("proposal_id") or "")
     f = [{"key": "proposal_id", "label": "Proposal", "type": "readonly", "value": str(inp.get("proposal_id") or ""),
-          "hint": f"{p.get('number')} · draft → sent"},
-         {"key": "mail_id", "label": "Sent", "type": "readonly", "value": str(inp.get("mail_id") or ""), "hint": sent + " (from Gmail)"},
-         {"key": "price", "label": "Price ($)", "type": "text",
-          "value": str(inp.get("price") if inp.get("price") not in (None, "") else (p.get("price") or ""))}]
-    return {"title": "Log the proposal as sent", "fields": f}
+          "hint": f"Proposal No. {label} · draft → sent"}]
+    if inp.get("mail_id"):
+        try:
+            m = _mail(ctx, inp.get("mail_id"))
+            sent = f"{(m['received_at'] or '')[:10]} to {m['to'].split('<')[0].strip()}"
+        except LookupError:
+            sent = ""
+        f.append({"key": "mail_id", "label": "Sent", "type": "readonly", "value": str(inp.get("mail_id") or ""), "hint": sent + " (from Gmail)"})
+    else:
+        f += [{"key": "sent_on", "label": "Sent on", "type": "date", "value": str(inp.get("sent_on") or date.today().isoformat())},
+              {"key": "to_email", "label": "Sent to (email)", "type": "text", "value": str(inp.get("to_email") or p.get("recipient_email") or "")},
+              {"key": "how", "label": "They get", "type": "readonly", "value": "x",
+               "hint": "nothing from the app: this only records that it went out another way (no online accept link)"}]
+    f.append({"key": "price", "label": "Price ($)", "type": "text",
+              "value": str(inp.get("price") if inp.get("price") not in (None, "") else (p.get("price") or ""))})
+    return {"title": "Mark the proposal as sent", "fields": f}
 
 
 def _exec_log_sent(ctx, inp):
     import inbox
     import proposals
-    m = _mail(ctx, inp["mail_id"])
     pid = int(inp["proposal_id"])
     if inp.get("price") not in (None, ""):
-        proposals.update(ctx.conn, pid, {"price": str(inp["price"]).replace("$", "").replace(",", "")}, actor=ctx.uid)
+        proposals.log_price(ctx.conn, pid, inp["price"], actor=ctx.uid)
+    if not inp.get("mail_id"):
+        r = proposals.mark_sent_outside(ctx.conn, pid, actor=ctx.uid, sent_on=inp.get("sent_on"), to_email=inp.get("to_email"),
+                                        to_name=inp.get("to_name"), how="recorded by Claude on request")
+        return {"id": pid, "summary": f"Proposal No. {proposals._label(r)} marked as sent", "link": _proposal_link(r), "undo": False}
+    m = _mail(ctx, inp["mail_id"])
     from email.utils import parseaddr
     name, addr = parseaddr(m["to"])
     ctx.conn.execute("UPDATE proposal SET status = 'sent', sent_at = ?, sent_by = ?, recipient_email = COALESCE(?, recipient_email), "
@@ -1298,8 +1513,14 @@ def _t_create_doc(ctx, inp):
 
 def _t_update_doc(ctx, inp):
     import claude_docs
-    return claude_docs.update(ctx.conn, ctx.uid, int(inp.get("doc_id") or 0), html=inp.get("html"), title=inp.get("title"),
-                              chat_id=getattr(ctx, "chat_id", None), message_id=getattr(ctx, "message_id", None))
+    r = claude_docs.update(ctx.conn, ctx.uid, int(inp.get("doc_id") or 0), html=inp.get("html"), title=inp.get("title"),
+                           chat_id=getattr(ctx, "chat_id", None), message_id=getattr(ctx, "message_id", None))
+    filed = sorted({f["project_code"] for f in claude_docs.filings(ctx.conn, r["doc_id"]) if f["stale"]})
+    if filed:
+        r["filed_in"] = filed
+        r["note"] = ("The copy saved in these jobs' documents still shows the earlier version. Propose "
+                     "save_document_to_job for each job to update it.")
+    return r
 
 
 def _t_read_doc(ctx, inp):
@@ -1310,8 +1531,84 @@ def _t_read_doc(ctx, inp):
     return {"doc_id": d["id"], "title": d["title"], "html": d["html"]}
 
 
+def _t_job_docs(ctx, inp):
+    import pm_scoping
+    code = str(inp.get("project_code") or "").strip()
+    if not code or not pm_scoping.pm_can_access_project(ctx.role, ctx.uid, code, ctx.conn):
+        raise LookupError("no job with that code that you can open")
+    rows = _rows(ctx.conn, "SELECT id, category, title, file_name, uploaded_at, notes FROM project_documents "
+                           "WHERE project_code = ? AND superseded = 0 ORDER BY uploaded_at DESC, id DESC LIMIT 200", (code,))
+    try:
+        invs = _rows(ctx.conn, "SELECT id, number, description, status, amount, design_doc_id FROM invoice "
+                               "WHERE project_code = ? AND status <> 'void' ORDER BY id DESC LIMIT 100", (code,))
+    except Exception:
+        ctx.conn.rollback()
+        invs = []
+    return {"project_code": code, "documents": [
+        {"document_id": r["id"], "folder": (r["category"] or "").title(), "title": r["title"], "file": r["file_name"],
+         "filed": str(r["uploaded_at"])[:10], "made_with_claude": r.get("notes") == "Made with Claude"} for r in rows],
+        "invoices": [{"invoice_id": i["id"], "number": i["number"], "description": i["description"], "status": i["status"],
+                      "amount": i["amount"], "designed_with_claude_doc": i["design_doc_id"]} for i in invs]}
+
+
+def _check_doc_to_job(ctx, inp):
+    import claude_docs
+    if not claude_docs.get(ctx.conn, ctx.uid, int(inp.get("doc_id") or 0)):
+        raise LookupError("no document with that id in this person's chats")
+    code = str(inp.get("project_code") or "").strip()
+    if not _one(ctx.conn, "SELECT project_code FROM projects WHERE project_code = ?", (code,)):
+        raise LookupError("no job with that code")
+    old = claude_docs.replace_target(ctx.conn, int(inp["doc_id"]), code, inp.get("replaces_document_id"))
+    claude_docs.invoice_for(ctx.conn, int(inp["doc_id"]), code, inp.get("invoice_id"))
+    cat = str(inp.get("category") or "").strip().upper() or (old or {}).get("category") or ""
+    if cat not in claude_docs.CATEGORIES:
+        raise ValueError("give category, the job's folder: " + ", ".join(claude_docs.CATEGORIES))
+    return old
+
+
+def _doc_to_job_card(ctx, inp):
+    import claude_docs
+    d = claude_docs.get(ctx.conn, ctx.uid, int(inp.get("doc_id") or 0)) or {}
+    code = str(inp.get("project_code") or "")
+    try:
+        old = claude_docs.replace_target(ctx.conn, int(inp.get("doc_id") or 0), code, inp.get("replaces_document_id"))
+    except (LookupError, ValueError):
+        old = None
+    fields = [{"key": "doc_id", "label": "Document", "type": "readonly", "value": str(inp.get("doc_id") or ""),
+               "hint": d.get("title") or ""},
+              {"key": "project_code", "label": "Job", "type": "readonly", "value": code, "hint": _job_label(ctx.conn, code)}]
+    if old:
+        fields.append({"key": "replaces_document_id", "label": "Replaces", "type": "readonly", "value": str(old["id"]),
+                       "hint": f"{old.get('title') or ''} (kept in its history)"})
+    try:
+        inv_id = claude_docs.invoice_for(ctx.conn, int(inp.get("doc_id") or 0), code, inp.get("invoice_id"))
+    except (LookupError, ValueError):
+        inv_id = None
+    if inv_id:
+        inv = _one(ctx.conn, "SELECT number FROM invoice WHERE id = ?", (inv_id,)) or {}
+        fields.append({"key": "invoice_id", "label": "Invoice", "type": "readonly", "value": str(inv_id),
+                       "hint": f"{inv.get('number') or ''}: Invoices & Payments, its PDF and the client's link use this design"})
+    return {"title": "Update the job's copy" if old else "Save the document to the job", "fields": fields}
+
+
+def _exec_doc_to_job(ctx, inp):
+    import claude_docs
+    code = str(inp["project_code"]).strip()
+    r = claude_docs.save_to_job(ctx.conn, ctx.uid, int(inp["doc_id"]), code, inp.get("category"),
+                                inp.get("replaces_document_id"), inp.get("invoice_id"))
+    inv = r.get("invoice") or {}
+    return {"id": r["id"], "summary": (f"The copy in {code}'s documents now shows this version; the earlier one is in its "
+                                       "history" if r["replaced"] else f"Saved to {code}'s documents")
+            + (f"; invoice {inv['number']} in Invoices & Payments uses it too" if inv else "")
+            + (f". {inv['warning']}" if inv.get("warning") else ""),
+            "link": f"/projects/{code}", "undo": False}
+
+
 _S, _D, _T, _I, _B = ({"type": "string"}, {"type": "string", "description": "YYYY-MM-DD"},
                       {"type": "string", "description": "HH:MM, 24-hour"}, {"type": "integer"}, {"type": "boolean"})
+_ACCESS = {"type": "array", "items": {"type": "string", "enum": ["suspended_scaffold", "supported_scaffold", "rope_access",
+                                                            "boom_lift"]}}
+
 TOOLS = [
     Tool("find", "Search", "Search jobs, team members and (office roles) clients and estimates by name, code or address.",
          {"query": _S}, ["query"], run=_t_find),
@@ -1366,7 +1663,8 @@ TOOLS = [
 TOOLS += [
     Tool("client_detail", "Client", "One client: contacts (by contact_id, never emails), recent activity, estimates and jobs.",
          {"client_id": _I}, ["client_id"], roles=OFFICE_ROLES, run=_t_client),
-    Tool("proposals", "Proposals", "Proposals with status, price, client and estimate (filter by status, estimate or text).",
+    Tool("proposals", "Proposals", "Proposals with status, price, client and estimate (filter by status, estimate or text). "
+         "label is the number people use (\"Proposal No. 1045\"; query \"1045\" finds it); number is an internal code.",
          {"status": {"type": "string", "enum": ["draft", "sent", "viewed", "signed", "declined", "superseded"]},
           "estimate_id": _I, "query": _S}, [], roles=OFFICE_ROLES, run=_t_proposals),
     Tool("proposal_detail", "Proposal", "One proposal's full text: title, scope, schedule, exclusions, terms, price, lines.",
@@ -1401,6 +1699,15 @@ TOOLS += [
          ["project_code", "description"], write=True, run=_check_issue, card=_issue_card, execute=_exec_issue, undo=_undo_issue),
 ]
 TOOLS += [
+    Tool("update_job", "Change job details", "Propose changing a job: name, address, city / ZIP, client (client_org_id "
+         "from find), start date, target completion, contract value, status (active or closed) and the access methods "
+         "of an Exterior Restoration job (add_access_methods / remove_access_methods: suspended_scaffold, "
+         "supported_scaffold, rope_access, boom_lift). Pass only what changes; look the job up first.",
+         {"project_code": _S, "name": _S, "address": _S, "city_zip": _S, "client_org_id": _I, "start_date": _D,
+          "target_completion": _D, "contract_value": {"type": "number"}, "status": {"type": "string", "enum": list(_JOB_STATUSES)},
+          "add_access_methods": _ACCESS, "remove_access_methods": _ACCESS},
+         ["project_code"], write=True, roles=OFFICE_ROLES, run=_check_job, card=_job_card, execute=_exec_job,
+         undo=_undo_job),
     Tool("search_email", "Email", "Search this person's own email (subject, sender, text) of the last 90 days.",
          {"query": _S}, ["query"], roles=OFFICE_ROLES, office_only=True, run=_t_search_email),
     Tool("email_detail", "Email", "One email from this person's inbox by mail_id: sender, subject, full text, attachment names.",
@@ -1418,10 +1725,13 @@ TOOLS += [
          "(ids from the [Attached: …] line) to an existing estimate or bid's documents.",
          {"file_ids": {"type": "array", "items": {"type": "integer"}}, "estimate_id": _I}, ["file_ids", "estimate_id"],
          write=True, roles=OFFICE_ROLES, run=_check_save_files, card=_save_files_card, execute=_exec_save_files),
-    Tool("log_proposal_sent", "Log the proposal as sent", "Propose marking a DRAFT proposal as sent because this person "
-         "emailed it from Gmail (mail_id of the sent email); optionally the price stated in that email.",
-         {"proposal_id": _I, "mail_id": _I, "price": {"type": "number"}}, ["proposal_id", "mail_id"], write=True,
-         roles=OFFICE_ROLES, office_only=True, run=_check_log_sent, card=_log_sent_card, execute=_exec_log_sent),
+    Tool("log_proposal_sent", "Mark the proposal as sent", "Propose marking a DRAFT proposal as sent because it went out "
+         "another way. If this person emailed it from Gmail, give mail_id (the sent email) so it is linked; otherwise leave "
+         "mail_id out and give sent_on (YYYY-MM-DD, default today) and to_email / to_name when known. Optionally the price "
+         "stated in that email. Find the proposal with the proposals tool (query the number people use, e.g. 1045).",
+         {"proposal_id": _I, "mail_id": _I, "sent_on": _S, "to_email": _S, "to_name": _S, "price": {"type": "number"}},
+         ["proposal_id"], write=True, roles=OFFICE_ROLES, office_only=True, run=_check_log_sent, card=_log_sent_card,
+         execute=_exec_log_sent),
     Tool("draft_proposal", "Write a proposal", "Propose writing a new proposal, from an email asking for a price "
          "(mail_id) or when the person asks for one. Give only the facts: the client (client_org_id of an existing client, "
          "else client_name), the building address, the job type, and `what`: the work, quantities, drawings or reports "
@@ -1445,6 +1755,18 @@ TOOLS += [
          run=_t_update_doc),
     Tool("read_document", "Document", "Read a document made in this conversation (doc_id), including the person's own edits, "
          "before changing it.", {"doc_id": _I}, ["doc_id"], roles=TEAM_ROLES, run=_t_read_doc),
+    Tool("job_documents", "Job documents", "List a job's current documents (id, folder, title, file, date filed, whether "
+         "it was made with Claude) and its invoices, to find the copy a new version should replace or the invoice a "
+         "design belongs to.", {"project_code": _S},
+         ["project_code"], roles=OFFICE_ROLES, run=_t_job_docs),
+    Tool("save_document_to_job", "Save to the job", "Propose saving a document made in this conversation (doc_id) as a PDF "
+         "in a job's documents. If the job already has this document, or replaces_document_id names a document there "
+         "(from job_documents), the PDF becomes its new version and the old copy moves to its history. category is the "
+         "folder (PERMITS, DRAWINGS, CONTRACTS, INSPECTIONS, SAFETY, CLOSEOUT); leave it out when replacing. invoice_id: "
+         "when the document is one of the job's invoices, it becomes that invoice's document in Invoices & Payments.",
+         {"doc_id": _I, "project_code": _S, "category": _S, "replaces_document_id": _I, "invoice_id": _I},
+         ["doc_id", "project_code"],
+         write=True, roles=OFFICE_ROLES, run=_check_doc_to_job, card=_doc_to_job_card, execute=_exec_doc_to_job),
 ]
 BY_NAME = {t.name: t for t in TOOLS}
 
@@ -1492,16 +1814,35 @@ def _clean_content(blocks: list) -> list:
     return out
 
 
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+
+
+def model() -> str:
+    return (os.environ.get("SSC_CLAUDE_MODEL") or "").strip() or assistant.model()
+
+
+def effort() -> str:
+    e = (os.environ.get("SSC_CLAUDE_EFFORT") or "").strip().lower()
+    return e if e in EFFORTS else "low"
+
+
 def call_model(system_text, tools, messages) -> dict:
     if assistant._fake():
         return _fake_call(messages)
+    m = model()
     import anthropic
-    client = anthropic.Anthropic()
-    resp = client.beta.messages.create(
-        model=assistant.model(), max_tokens=assistant.MAX_TOKENS,
-        system=[{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}],
-        tools=[t.api() for t in tools], messages=messages, output_config={"effort": "medium"},
-        cache_control={"type": "ephemeral"}, betas=["server-side-fallback-2026-07-01"], fallbacks="default")
+    client = assistant.client()   # one shared client: no new connection per step
+    req = dict(model=m, max_tokens=assistant.MAX_TOKENS,
+               system=[{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}],
+               tools=[t.api() for t in tools], messages=messages, output_config={"effort": effort()},
+               cache_control={"type": "ephemeral"})
+    try:
+        resp = client.beta.messages.create(**req, **ai_models.agent_kwargs(m))
+    except anthropic.BadRequestError as e:   # the binding control refused (new beta): the plain request still answers
+        if "binding" not in str(e).lower():
+            raise
+        log.warning("claude thinking-binding control refused; sent without it")
+        resp = client.beta.messages.create(**req, **ai_models.fallback_kwargs(m))
     u = resp.usage
     return {"content": _clean_content([b.model_dump(mode="json", exclude_none=True) for b in resp.content]),
             "stop_reason": resp.stop_reason, "model": getattr(resp, "model", None) or assistant.model(),
@@ -1527,10 +1868,14 @@ def _add_msg(conn, chat_id, role, kind, content, replay=True, usage=None, model_
                  (chat_id, role, kind, json.dumps(content), 1 if replay else 0, _now(), model_id,
                   u.get("input_tokens"), u.get("output_tokens"), u.get("cache_read_tokens"), u.get("cache_write_tokens"), cost))
     conn.commit()
+    if usage:
+        assistant.check_budget_alerts(conn)
     return _one(conn, "SELECT MAX(id) AS m FROM claude_chat_message WHERE chat_id = ?", (chat_id,))["m"]
 
 
-def _history(conn, chat_id) -> list:
+def _history(conn, chat_id, file_cache: Optional[dict] = None) -> list:
+    """The conversation as the model reads it. `file_cache` (one turn's): an attached file is read (and an image resized,
+    a spreadsheet parsed) once per turn, not again on every step of it."""
     rows = _rows(conn, "SELECT role, content FROM claude_chat_message WHERE chat_id = ? AND replay = 1 ORDER BY id", (chat_id,))
     msgs = []
     for r in rows:
@@ -1552,15 +1897,21 @@ def _history(conn, chat_id) -> list:
                     if b.get("type") != "ssc_file":
                         out.append(b)
                     elif b.get("id") in files:
-                        out.extend(claude_files.blocks(conn, files[b["id"]]))
+                        if file_cache is None:
+                            out.extend(claude_files.blocks(conn, files[b["id"]]))
+                        else:
+                            if b["id"] not in file_cache:
+                                file_cache[b["id"]] = claude_files.blocks(conn, files[b["id"]])
+                            out.extend(file_cache[b["id"]])
                     else:
                         out.append({"type": "text", "text": "[An attached file was removed.]"})
                 m["content"] = out
     return msgs
 
 
-def _over_budget(conn) -> bool:
-    return assistant.spent_today_micro(conn) >= int(round(assistant.cap_usd() * 1_000_000))
+def _over_budget(conn, user_id=None) -> Optional[str]:
+    """The limit message when a new model call has to wait (the person's own daily guard too, given user_id)."""
+    return assistant.limit_reason(conn, user_id)
 
 
 def run_turn(chat_id: int, user: dict) -> None:
@@ -1568,16 +1919,17 @@ def run_turn(chat_id: int, user: dict) -> None:
     conn = _conn()
     try:
         chat = _one(conn, "SELECT * FROM claude_chat WHERE id = ?", (chat_id,))
-        ctx = Ctx(conn, user, chat["surface"])
+        ctx = Ctx(conn, user, chat["surface"], chat.get("page_surface"))
         tools = tools_for(ctx.role, ctx.surface)
         system_text = _system_for(user, chat["surface"])
         error = None
+        files: dict = {}
         for _step in range(MAX_STEPS):
-            if _over_budget(conn):
-                error = assistant.LIMIT_MSG
+            error = _over_budget(conn, user.get("id"))
+            if error:
                 break
             try:
-                out = call_model(system_text, tools, _history(conn, chat_id))
+                out = call_model(system_text, tools, _history(conn, chat_id, files))
             except Exception as e:   # anthropic.APIError + transport; never log message text
                 log.warning("claude call failed on chat %s: %s", chat_id, type(e).__name__)
                 error = "Claude did not answer (" + type(e).__name__ + "). Try again in a minute."
@@ -1618,6 +1970,10 @@ def _tool_result(ctx, chat_id, message_id, block) -> dict:
     if not tool or not tool.allowed(ctx.role, ctx.surface):
         return {"type": "tool_result", "tool_use_id": tid, "is_error": True,
                 "content": "That tool is not available to this person here."}
+    if tool.office_only and ctx.page_surface != "office":
+        return {"type": "tool_result", "tool_use_id": tid, "is_error": True,
+                "content": "Pay and email details only show on office pages. The person is on a job dashboard, which "
+                           "can be seen in the field: tell them to ask on the company dashboard."}
     unknown = set(inp) - set(tool.schema["properties"])
     missing = [k for k in tool.schema["required"] if inp.get(k) in (None, "")]
     if unknown or missing:
@@ -1631,6 +1987,10 @@ def _tool_result(ctx, chat_id, message_id, block) -> dict:
             if len(text) > MAX_RESULT_CHARS:
                 text = text[:MAX_RESULT_CHARS] + ' … (cut; ask for a narrower range)'
             log.info("claude read tool %s on chat %s (%s chars)", tool.name, chat_id, len(text))
+            if tool.name in LOCK_TOOLS:   # from now on this chat opens on office pages only
+                ctx.conn.execute("UPDATE claude_chat SET office_only = COALESCE(office_only, ?) WHERE id = ?",
+                                 (LOCK_TOOLS[tool.name], chat_id))
+                ctx.conn.commit()
             return {"type": "tool_result", "tool_use_id": tid, "content": text}
         tool.run(ctx, inp)   # validate now so the card never shows an impossible change
     except (ValueError, LookupError, PermissionError) as e:
@@ -1648,9 +2008,20 @@ def _tool_result(ctx, chat_id, message_id, block) -> dict:
             "content": f"Shown to the person as approval card A-{aid}. NOT done yet: it happens only if they approve it."}
 
 
-def purge_expired(conn) -> int:
+_PURGED = {"at": 0.0}
+PURGE_EVERY = 60   # seconds: the open conversation is re-read every second or two while Claude answers
+
+
+def purge_expired(conn, throttle: bool = False) -> int:
     """Delete cards nobody answered within CARD_TTL: they leave no trace (Angela 2026-10-19).
-    Approved / declined / undone / failed cards stay in the approvals log."""
+    Approved / declined / undone / failed cards stay in the approvals log. throttle=True (the open conversation, read
+    every second or two while Claude answers): at most once a minute per process. A card past its 48 hours already
+    shows as expired and can't be approved (_decide checks the time), so waiting a minute to delete it changes nothing."""
+    import time
+    now = time.monotonic()
+    if throttle and now - _PURGED["at"] < PURGE_EVERY:
+        return 0
+    _PURGED["at"] = now
     cutoff = (datetime.now() - CARD_TTL).isoformat(timespec="seconds")
     cur = conn.execute("DELETE FROM claude_action WHERE status = 'pending' AND created_at < ?", (cutoff,))
     n = max(getattr(cur, "rowcount", 0) or 0, 0)
@@ -1686,7 +2057,7 @@ def _action_public(conn, a: dict, me_id=None) -> dict:
 
 
 def _chat_view(conn, chat: dict) -> dict:
-    purge_expired(conn)
+    purge_expired(conn, throttle=True)
     msgs = _rows(conn, "SELECT id, role, kind, content, created_at FROM claude_chat_message WHERE chat_id = ? ORDER BY id",
                  (chat["id"],))
     acts = {}
@@ -1706,9 +2077,16 @@ def _chat_view(conn, chat: dict) -> dict:
         c = json.loads(m["content"])
         if m["role"] == "user" and m["kind"] == "text":
             text = "".join(b.get("text", "") for b in c if b.get("type") == "text")
-            text = re.sub(r"^\[Page:[^\]]*\]\n", "", text)
+            pg = re.match(r"^\[Page: ([^;\]]*)[^\]]*\]\n", text)
+            text = text[pg.end():] if pg else text
+            qt = re.match(r"^\[Quoted from the page: ([^\n]*)\]\n", text)
+            text = text[qt.end():] if qt else text
+            text = re.sub(r"^\[Points at:[^\n]*\]\n", "", text)
             text = re.sub(r"^\[Attached:[^\n]*\]\n?", "", text)
+            label = pg.group(1).strip() if pg else ""
             out.append({"id": m["id"], "role": "user", "text": text, "created_at": m["created_at"],
+                        "page": None if label in ("", "not shared", "unknown") else label,
+                        "quote": qt.group(1) if qt else None,
                         "files": [files[b["id"]] for b in c if b.get("type") == "ssc_file" and b.get("id") in files]})
         elif m["role"] == "assistant":
             text = "\n".join(b.get("text", "") for b in c if b.get("type") == "text").strip()
@@ -1725,7 +2103,7 @@ def _chat_view(conn, chat: dict) -> dict:
     busy = bool(chat.get("busy_since") and datetime.fromisoformat(chat["busy_since"]) > datetime.now() - BUSY_STALE)
     return {"chat": {"id": chat["id"], "title": chat.get("title") or "New conversation", "surface": chat["surface"],
                      "updated_at": chat["updated_at"], "starred": bool(chat.get("starred")),
-                     "archived": bool(chat.get("archived_at"))},
+                     "archived": bool(chat.get("archived_at")), "office_only": office_lock(chat)},
             "messages": out, "busy": busy, "error": None if busy else chat.get("last_error"), "files": list(files.values())}
 
 
@@ -1741,6 +2119,22 @@ def _surface(v) -> str:
     return v if v in SURFACES else "office"
 
 
+def office_lock(chat: dict) -> Optional[str]:
+    """'pay' / 'email' when the chat has shown those details (job dashboards never open it), else None."""
+    return chat.get("office_only") or ("email" if chat.get("source") == "mail" else None)
+
+
+LOCKED_MSG = {"pay": "This conversation has pay details, so it only opens on office pages.",
+              "email": "This conversation has email in it, so it only opens on office pages."}
+
+
+def _locked_here(chat, surface) -> Optional[tuple]:
+    why = office_lock(chat)
+    if why and surface == "field":
+        return _err(LOCKED_MSG[why], 403, locked=why)
+    return None
+
+
 def _own_chat(conn, chat_id, me):
     c = _one(conn, "SELECT * FROM claude_chat WHERE id = ?", (chat_id,))
     return c if c and c["user_id"] == me["id"] else None
@@ -1754,7 +2148,7 @@ def _api_status():
         reason = assistant.unavailable_reason()
         ts = tools_for(me["role"], surface)
         return jsonify({"data": {"available": reason is None, "reason": reason, "name": me["name"], "role": me["role"],
-                                 "limit_reached": _over_budget(conn),
+                                 "limit_reached": bool(_over_budget(conn, me["id"])),
                                  "looks_up": [t.label for t in ts if not t.write],
                                  "proposes": [t.label for t in ts if t.write]}})
     finally:
@@ -1768,9 +2162,11 @@ def _api_chats():
     try:
         sql = ("SELECT c.id, c.title, c.created_at, c.updated_at, COALESCE(c.starred, 0) AS starred, "
                "(SELECT COUNT(*) FROM claude_chat_message m WHERE m.chat_id = c.id AND m.role = 'user' AND m.kind = 'text') AS asked "
-               "FROM claude_chat c WHERE c.user_id = ? AND c.surface = ? AND c.archived_at IS NULL "
+               "FROM claude_chat c WHERE c.user_id = ? AND c.archived_at IS NULL "
                "AND COALESCE(c.source, 'chat') NOT IN ('mail', 'system')")
-        params = [me["id"], surface]
+        params = [me["id"]]
+        if surface == "field":
+            sql += " AND c.office_only IS NULL"
         if request.args.get("saved") == "1":
             sql += " AND COALESCE(c.starred, 0) = 1"
         q = (request.args.get("q") or "").strip().lower()[:100]
@@ -1781,6 +2177,48 @@ def _api_chats():
         rows = _rows(conn, sql + " ORDER BY COALESCE(c.starred, 0) DESC, c.updated_at DESC, c.id DESC LIMIT 200", params)
         rows = [r for r in rows if r["asked"] or r["starred"]]   # an empty "New" chat is not history
         return jsonify({"data": [dict(r, title=r["title"] or "New conversation", starred=bool(r["starred"])) for r in rows]})
+    finally:
+        conn.close()
+
+
+@requires_role(*TEAM_ROLES)
+def _api_chat_latest():
+    """The conversation the window reopens on another device or a fresh tab: the last one usable here."""
+    me, surface = _me(), _surface(request.args.get("surface"))
+    conn = _conn()
+    try:
+        sql = ("SELECT c.* FROM claude_chat c WHERE c.user_id = ? AND c.archived_at IS NULL "
+               "AND COALESCE(c.source, 'chat') NOT IN ('mail', 'system') AND EXISTS (SELECT 1 FROM claude_chat_message m "
+               "WHERE m.chat_id = c.id AND m.role = 'user' AND m.kind = 'text')")
+        if surface == "field":
+            sql += " AND c.office_only IS NULL"
+        c = _one(conn, sql + " ORDER BY c.updated_at DESC, c.id DESC LIMIT 1", (me["id"],))
+        return jsonify({"data": _chat_view(conn, c) if c else None})
+    finally:
+        conn.close()
+
+
+@requires_role(*TEAM_ROLES)
+def _api_mentions():
+    """What @ can point at: the same search Claude uses (jobs the person can see; clients and estimates for office
+    roles; team people). Names only, never contact details."""
+    me, surface = _me(), _surface(request.args.get("surface"))
+    q = (request.args.get("q") or "").strip()[:60]
+    if len(q) < 2:
+        return jsonify({"data": []})
+    conn = _conn()
+    try:
+        f = _t_find(Ctx(conn, me, surface), {"query": q})
+        out = [{"kind": "job", "label": "Job", "tag": j["project_code"], "id": j["project_code"],
+                "sub": " · ".join(x for x in (j.get("name"), j.get("address")) if x)} for j in f.get("jobs", [])]
+        out += [{"kind": "estimate", "label": "Bid" if e.get("inquiry_kind") == "bid" else "Estimate", "tag": e["code"] or f"E-{e['id']}",
+                 "id": e["id"], "sub": " · ".join(x for x in (e.get("building_address"), e.get("client")) if x)}
+                for e in f.get("estimates", [])]
+        out += [{"kind": "client", "label": "Client", "tag": o["name"], "id": o["id"], "sub": o.get("relationship_type") or ""}
+                for o in f.get("clients", [])]
+        out += [{"kind": "person", "label": "Person", "tag": (p["name"] or "").split("@")[0], "id": p["id"],
+                 "sub": (p.get("role") or "").replace("_", "-")} for p in f.get("team_people", [])]
+        return jsonify({"data": out[:12]})
     finally:
         conn.close()
 
@@ -1809,8 +2247,9 @@ def _api_chat_get(chat_id):
         c = _own_chat(conn, chat_id, me)
         if not c:
             return _err("not found", 404)
-        if c["surface"] == "office" and _surface(request.args.get("surface")) == "field":
-            return _err("This conversation is only shown on office pages.", 403)
+        locked = _locked_here(c, _surface(request.args.get("surface")))
+        if locked:
+            return locked
         return jsonify({"data": _chat_view(conn, c)})
     finally:
         conn.close()
@@ -1864,13 +2303,15 @@ def _api_message(chat_id):
         c = _own_chat(conn, chat_id, me)
         if not c:
             return _err("not found", 404)
-        if c["surface"] == "office" and _surface((d.get("page") or {}).get("surface")) == "field":
-            return _err("This conversation is only shown on office pages.", 403)
+        here = _surface((d.get("page") or {}).get("surface"))
+        locked = _locked_here(c, here)
+        if locked:
+            return locked
         if c.get("busy_since") and datetime.fromisoformat(c["busy_since"]) > datetime.now() - BUSY_STALE:
             return _err("Claude is still answering the last message.", 409)
-        if _over_budget(conn):
-            return _err(assistant.LIMIT_MSG, 429,
-                        cap_reached=True)
+        why = _over_budget(conn, me["id"])
+        if why:
+            return _err(why, 429, cap_reached=True)
         try:
             att = claude_files.owned(conn, me["id"], file_ids)
         except LookupError as e:
@@ -1878,10 +2319,21 @@ def _api_message(chat_id):
         if any(f["message_id"] for f in att):
             return _err("One of those files was already sent. Attach it again.", 409)
         page = d.get("page") or {}
-        label = re.sub(r"[\[\]\n]", " ", str(page.get("label") or ""))[:120].strip()
-        code = re.sub(r"[^A-Za-z0-9_-]", "", str(page.get("project_code") or ""))[:40]
         today = date.today()
-        head = f"[Page: {label or page.get('path') or 'unknown'}{'; job ' + code if code else ''}; today {today.strftime('%a')} {today.isoformat()}]\n"
+        when_ = f"today {today.strftime('%a')} {today.isoformat()}"
+        field = "; a job dashboard (seen in the field: no pay or email here)" if here == "field" else ""
+        if page.get("shared") is False:   # the person hid the page from Claude
+            head = f"[Page: not shared{field}; {when_}]\n"
+        else:
+            label = _clean_line(page.get("label"), 120).replace(";", ",")
+            code = re.sub(r"[^A-Za-z0-9_-]", "", str(page.get("project_code") or ""))[:40]
+            head = f"[Page: {label or _clean_line(page.get('path'), 120) or 'unknown'}{'; job ' + code if code else ''}{field}; {when_}]\n"
+        quote = scrub_text(_clean_line(d.get("quote"), 1000))
+        if quote:   # a line the person picked on the page
+            head += f"[Quoted from the page: {quote}]\n"
+        refs = _refs(d.get("refs"), text)
+        if refs:
+            head += "[Points at: " + "; ".join(refs) + "]\n"
         if att:   # their ids, so Claude can save one to a record (through a card)
             head += "[Attached: " + "; ".join(f"file {f['id']} \"{f['name']}\"" for f in att) + "]\n"
         content = [{"type": "ssc_file", "id": f["id"]} for f in att] + \
@@ -1890,8 +2342,8 @@ def _api_message(chat_id):
         for f in att:
             conn.execute("UPDATE claude_file SET chat_id = ?, message_id = ? WHERE id = ?", (chat_id, mid, f["id"]))
         title = text.splitlines()[0][:60] if text else att[0]["name"][:60]
-        conn.execute("UPDATE claude_chat SET busy_since = ?, last_error = NULL, updated_at = ?, title = COALESCE(title, ?) "
-                     "WHERE id = ?", (_now(), _now(), title, chat_id))
+        conn.execute("UPDATE claude_chat SET busy_since = ?, last_error = NULL, updated_at = ?, title = COALESCE(title, ?), "
+                     "page_surface = ? WHERE id = ?", (_now(), _now(), title, here, chat_id))
         conn.commit()
         log.info("claude turn started on chat %s by user %s (%s files)", chat_id, me["id"], len(att))
     finally:
@@ -1905,6 +2357,37 @@ def _api_message(chat_id):
         return jsonify({"data": _chat_view(conn, _one(conn, "SELECT * FROM claude_chat WHERE id = ?", (chat_id,)))}), 202
     finally:
         conn.close()
+
+
+_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(\.[\w-]+)+")
+_PHONE_RE = re.compile(r"(?<!\d)(\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)")
+
+
+def scrub_text(s: str) -> str:
+    """A quote from the page as Claude sees it: no email addresses or phone numbers (like tool results)."""
+    return _PHONE_RE.sub("[phone]", _EMAIL_RE.sub("[email]", s))
+
+
+def _clean_line(v, n) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[\[\]]", " ", str(v or ""))).strip()[:n]
+
+
+_REF_KINDS = {"job": "job", "estimate": "estimate", "client": "client", "person": "team member"}
+
+
+def _refs(raw, text) -> list:
+    """@-mentions still in the text, as '<kind> <tag> (id …)'. Hints only: Claude looks each up with its tools."""
+    out = []
+    for r in (raw if isinstance(raw, list) else [])[:8]:
+        if not isinstance(r, dict) or r.get("kind") not in _REF_KINDS:
+            continue
+        tag = scrub_text(_clean_line(r.get("tag"), 60)).replace(";", ",")
+        rid = re.sub(r"[^A-Za-z0-9_-]", "", str(r.get("id") or ""))[:40]
+        if tag and ("@" + tag).lower() in text.lower():
+            line = f"{_REF_KINDS[r['kind']]} {tag}" + (f" (id {rid})" if rid and rid != tag else "")
+            if line not in out:
+                out.append(line)
+    return out
 
 
 def _decide(action_id, verb):
@@ -2069,6 +2552,8 @@ def register(app) -> None:
     app.add_url_rule("/api/claude/status", "claude_status", _api_status, methods=["GET"])
     app.add_url_rule("/api/claude/chats", "claude_chats", _api_chats, methods=["GET"])
     app.add_url_rule("/api/claude/chats", "claude_chat_create", _api_chat_create, methods=["POST"])
+    app.add_url_rule("/api/claude/chats/latest", "claude_chat_latest", _api_chat_latest, methods=["GET"])
+    app.add_url_rule("/api/claude/mentions", "claude_mentions", _api_mentions, methods=["GET"])
     app.add_url_rule("/api/claude/chats/<int:chat_id>", "claude_chat_get", _api_chat_get, methods=["GET"])
     app.add_url_rule("/api/claude/chats/<int:chat_id>", "claude_chat_update", _api_chat_update, methods=["PATCH"])
     app.add_url_rule("/api/claude/chats/<int:chat_id>/messages", "claude_message", _api_message, methods=["POST"])

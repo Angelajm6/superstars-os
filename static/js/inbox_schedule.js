@@ -1,4 +1,4 @@
-/* Inbox · Mine / All (prototype accepted 2026-10-16, inbox_schedule.py).
+/* Inbox · My calendar (scope mine) / Team (scope all) (prototype accepted 2026-10-16, renamed 2026-10-23, inbox_schedule.py).
  *
  * SSC_SCHEDULE.mount(el, { scope: 'mine' | 'all', admin: bool, next: '/company#inbox/mine', onOpenItem: fn })
  *   Mine  this person's own Google Calendar events (private, lock pill) + what is assigned to them,
@@ -127,7 +127,7 @@
       var data;
       try { data = await get(q); }
       catch (e) {
-        if (e.status === 403) { el.innerHTML = '<div class="isx-forbid"><p><b>Only admins and C-suite can see the whole team\'s work.</b></p><p class="isx-note" style="justify-content:center">Your own calendar and assignments are under Mine.</p></div>'; return; }
+        if (e.status === 403) { el.innerHTML = '<div class="isx-forbid"><p><b>Only admins and C-suite can see the whole team\'s work.</b></p><p class="isx-note" style="justify-content:center">Your own calendar and assignments are under My calendar.</p></div>'; return; }
         el.innerHTML = '<div class="isx-empty">Could not load this. ' + esc(e.message) + '</div>'; return;
       }
       var rows = (data.items || []).slice();

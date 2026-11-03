@@ -24,6 +24,9 @@ weasyprint>=60.0
 
 # Spreadsheet read/write (used by report generators)
 openpyxl>=3.1
+# Old Excel 97-2003 .xls files on the Documents tab (sheet_read.py). 2.x reads ONLY .xls;
+# pure Python, no dependencies, BSD. Vetted 2026-10-26.
+xlrd==2.0.2
 
 # Data manipulation (used by lookahead/meeting generators)
 pandas>=2.0
@@ -104,3 +107,4 @@ psycopg-pool>=3.2
 # Official PyCA library (Fernet = AES + HMAC, authenticated). Key comes from the
 # 1Password-injected SSC_FIELD_ENCRYPTION_KEY env var — never stored on disk.
 cryptography>=43.0
+segno==1.6.6                  # QR code for two-step sign-in setup (pure Python, no deps; vetted 2026-10-30: no network/exec)

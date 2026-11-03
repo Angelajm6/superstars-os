@@ -606,7 +606,7 @@ def _own_proposal(conn, code, proposal_id):
     if not org:
         return None
     r = proposals.get(conn, proposal_id)
-    if not r or r["client_org_id"] != org or r["status"] in ("draft", "superseded"):
+    if not r or r["client_org_id"] != org or r["status"] in ("draft", "superseded", "deleted"):
         return None
     return r
 

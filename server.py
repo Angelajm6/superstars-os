@@ -66,6 +66,10 @@ app = Flask(__name__, static_folder=str(SCRIPT_DIR / 'static'),
 import http_security
 http_security.apply_http_security_headers(app)
 
+# Only traffic that came through Cloudflare (SSC_EDGE_SECRET; off when unset). First hook, before the auth gate.
+import edge_guard  # noqa: E402
+edge_guard.apply_edge_guard(app)
+
 # Browser-preview blueprint: /preview/* URLs for HTML-first design iteration.
 # WeasyPrint stays in render_pdf.py for production export only.
 from preview_routes import preview_bp
@@ -125,6 +129,8 @@ import dcr_maintenance
 dcr_maintenance.register(app)   # #344 — DCR register + the pinned 109→097 correction
 import worker_lifecycle
 worker_lifecycle.register(app)   # #345 — Workforce: archive / reactivate / delete permanently
+import hours_overtime
+hours_overtime.register(app)   # hours over 8: approve / reject + the week picker summary
 import worker_id_cleanup
 worker_id_cleanup.register(app)  # #346 — one-time W-0030..32 -> W-0027..29 renumber (admin)
 
@@ -227,6 +233,8 @@ import project_summary  # noqa: E402
 project_summary.register(app)   # #358 — the job dashboard summary (bootstrap part + /summary)
 import project_details  # noqa: E402
 project_details.register(app)   # edit a job's name, address, client, dates, contract value
+import project_delete  # noqa: E402
+project_delete.register(app)    # delete a job that has nothing filed under it yet
 import team_items  # noqa: E402
 team_items.register(app)   # team tasks & events: the dashboard to-do list, synced onto the calendar
 import gcal_sync  # noqa: E402
@@ -254,6 +262,8 @@ import claude_agent  # noqa: E402
 claude_agent.register(app)   # Claude across the platform: lookups run, every change waits for a person's approval
 import claude_docs  # noqa: E402
 claude_docs.register(app)   # documents Claude makes: open beside the chat, edit, PDF / Word, save to a job
+import claude_connector  # noqa: E402
+claude_connector.register(app)   # your own claude.ai, connected (MCP + OAuth; off unless SSC_CLAUDE_CONNECTOR=1)
 import inbox  # noqa: E402
 inbox.register(app)   # admin / C-suite email live in the software: matched, sorted, Claude's cards (approval for every change and send)
 import calendar_import  # noqa: E402
@@ -397,6 +407,19 @@ try:
     db_layer._PKMAP_CACHE.clear()   # #290 fresh-DB pk-map note, as above
 except Exception as _e:
     logging.warning(f"#295 hours-edit schema ensure skipped: {_e}")
+
+# Hours over 8 in a day: reason + admin/PM approval (payroll_hours.DAY_LIMIT).
+import apply_hours_overtime as _hours_overtime_schema  # noqa: E402
+try:
+    _hc = db_layer.connect(pragma_fk=True)
+    try:
+        _hours_overtime_schema.ensure_hours_overtime_schema(_hc)
+        _hc.commit()
+    finally:
+        _hc.close()
+    db_layer._PKMAP_CACHE.clear()
+except Exception as _e:
+    logging.warning(f"hours-overtime schema ensure skipped: {_e}")
 
 # #278 — Project Cost "Spent to Date" (C-Suite) + the project expense ledger.
 # Comp data: every endpoint admin/c_suite; cost keys OMITTED for every other role
@@ -1254,6 +1277,41 @@ def validate_project_exists(conn, project_code):
 
 # ============= SIGN-IN LOG ENDPOINTS =============
 
+def _hours_check(conn, employee_id, date_str, time_in, time_out, exclude_id=None, reason=None):
+    """One place at a time + the 8-hour day (payroll_hours). Returns
+    (error_response, None) or (None, the day's total after this write).
+    409 code=overlap: the times overlap another entry that day (any job).
+    422 code=needs_reason: the day passes 8 hours and no reason was given."""
+    import payroll_hours as ph
+    others = ph.day_entries(conn, employee_id, date_str, exclude_id)
+    hit = ph.find_overlap(others, time_in, time_out)
+    if hit:
+        return (jsonify({"error": ph.overlap_message(hit), "code": "overlap",
+                         "project_code": hit["project_code"]}), 409), None
+    total = ph.day_total(others, (time_in, time_out))
+    if (ph.rule_applies(date_str) and not (reason or "").strip()
+            and ph.needs_reason(total, ph.get_overtime(conn, employee_id, date_str))):
+        return (jsonify({"error": f"That makes {total:g} hours for the day. Hours over 8 need a "
+                                  "reason and an admin or PM's approval.",
+                         "code": "needs_reason", "needs_reason": True, "day_total": total}), 422), None
+    return None, total
+
+
+def _hours_sync(conn, employee_id, date_str, reason=None, actor_role=None):
+    """After a sign-in write: bring the day's over-8 request in step."""
+    import payroll_hours as ph
+    if not ph.rule_applies(date_str):
+        return
+    try:
+        from auth import current_user
+        user = current_user() or {}
+    except Exception:
+        user = {}
+    total = ph.day_total(ph.day_entries(conn, employee_id, date_str))
+    ph.sync_overtime(conn, employee_id, date_str, total, reason,
+                     actor_uid=user.get("id"), actor_role=actor_role or user.get("role"))
+
+
 @app.route('/api/sign-ins', methods=['POST'])
 def create_sign_in():
     """Create a sign-in row. Two supported callers:
@@ -1305,17 +1363,23 @@ def create_sign_in():
                 "existing_time_out": existing["time_out"],
             }), 409
 
+        ot_reason = (data.get('overtime_reason') or '').strip()
+        err, _total = _hours_check(conn, employee_id, date_str, time_in, time_out, reason=ot_reason)
+        if err:
+            conn.close()
+            return err
         now = datetime.now().isoformat()
-        conn.execute(
+        cur = conn.execute(
             "INSERT INTO sign_in_log (date, employee_id, project_code, time_in, time_out, created_at, updated_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (date_str, employee_id, project_code, time_in, time_out, now, now)
         )
+        new_id = cur.lastrowid   # before _hours_sync, which may insert its own row
+        _hours_sync(conn, employee_id, date_str, ot_reason)
         # Stale flag: if a DCR was already issued for this (project, date),
         # the rendered artifact no longer matches live labor. Mark it.
         _mark_dcr_stale(conn, project_code, date_str)
         conn.commit()
-        new_id = conn.execute("SELECT last_insert_rowid() as id").fetchone()['id']
         row = conn.execute("SELECT * FROM sign_in_log WHERE id = ?", (new_id,)).fetchone()
         conn.close()
         return response_wrapper(dict(row)), 201
@@ -1340,10 +1404,17 @@ def update_sign_in(sign_in_id):
         if not before:
             conn.close()
             return jsonify({"error": "sign_in_log row not found"}), 404
+        ot_reason = (data.get('overtime_reason') or '').strip()
+        err, _total = _hours_check(conn, before["employee_id"], before["date"], before["time_in"],
+                                   time_out, exclude_id=sign_in_id, reason=ot_reason)
+        if err:
+            conn.close()
+            return err
         conn.execute(
             "UPDATE sign_in_log SET time_out = ?, updated_at = ? WHERE id = ?",
             (time_out, datetime.now().isoformat(), sign_in_id)
         )
+        _hours_sync(conn, before["employee_id"], before["date"], ot_reason)
         edit_id = _record_sign_in_edit(conn, before, 'edit', before["time_in"], time_out, reason)
         _mark_dcr_stale(conn, before["project_code"], before["date"])
         amended = _amend_issued_dcr_hours(
@@ -1394,10 +1465,17 @@ def replace_sign_in(sign_in_id):
         if not before:
             conn.close()
             return jsonify({"error": "sign_in_log row not found"}), 404
+        ot_reason = (data.get('overtime_reason') or '').strip()
+        err, _total = _hours_check(conn, before["employee_id"], before["date"], time_in, time_out,
+                                   exclude_id=sign_in_id, reason=ot_reason)
+        if err:
+            conn.close()
+            return err
         conn.execute(
             "UPDATE sign_in_log SET time_in = ?, time_out = ?, updated_at = ? WHERE id = ?",
             (time_in, time_out, datetime.now().isoformat(), sign_in_id)
         )
+        _hours_sync(conn, before["employee_id"], before["date"], ot_reason)
         # #295 — the correction trail + issued-day amendment, in-transaction.
         edit_id = _record_sign_in_edit(conn, before, 'edit', time_in, time_out, reason)
         _mark_dcr_stale(conn, before["project_code"], before["date"])
@@ -1445,6 +1523,7 @@ def delete_sign_in(sign_in_id):
             conn.close()
             return jsonify({"error": "sign_in_log row not found"}), 404
         conn.execute("DELETE FROM sign_in_log WHERE id = ?", (sign_in_id,))
+        _hours_sync(conn, before["employee_id"], before["date"])
         edit_id = _record_sign_in_edit(conn, before, 'remove', None, None, reason)
         _mark_dcr_stale(conn, before["project_code"], before["date"])
         amended = _amend_issued_dcr_hours(
@@ -1609,16 +1688,19 @@ def api_payroll_hours_csv():
         # payroll uses to match workers across systems. employee_id stays
         # so the internal key is in the export for traceback.
         w.writerow(["worker_id", "employee_id", "name", "trade",
-                    *grid["dates"], "weekly_total"])
+                    *grid["dates"], "weekly_total", "overtime_pending"])
+        # Day cells and totals are PAID hours; extra hours still waiting for
+        # approval sit in their own column so nobody pays them by accident.
         for emp in grid["workers"]:
             w.writerow([
                 emp.get("worker_id") or "",
                 emp["employee_id"], emp["name"], emp["trade"] or "",
                 *[(d["hours"] if d["has_entry"] else "") for d in emp["days"]],
-                emp["weekly_total"],
+                emp["weekly_total"], emp.get("overtime_pending_hours") or "",
             ])
         w.writerow(["", "", "DAILY TOTAL", "",
-                    *grid["totals_by_day"], grid["grand_total"]])
+                    *grid["totals_by_day"], grid["grand_total"],
+                    grid.get("overtime_pending_hours") or ""])
 
         csv_bytes = buf.getvalue().encode("utf-8")
         filename = f"weekly-hours-{grid['week_start']}-to-{grid['week_end']}.csv"
@@ -4554,6 +4636,15 @@ def worker_session_start():
         if not project_code or project_code not in allowed:
             conn.close()
             return jsonify({"error": "pick one of your jobs"}), 403
+        # One place at a time: a finished entry today (another job, or typed in
+        # by the office) that covers now blocks a second clock-in. An entry
+        # left open (a missed sign-out) does not, or the worker is locked out.
+        import payroll_hours as _ph
+        _closed = [e for e in _ph.day_entries(conn, employee_id, today) if e["time_out"]]
+        _hit = _ph.find_overlap(_closed, now_iso, None)
+        if _hit:
+            conn.close()
+            return jsonify({"error": _ph.overlap_message(_hit), "code": "overlap"}), 409
         if not session["project_code"]:
             conn.execute("UPDATE worker_app_session SET project_code=? WHERE token_hash=?",
                          (project_code, session["token_hash"]))
@@ -4618,10 +4709,23 @@ def worker_session_end():
             return jsonify({"error": "No open session found for today"}), 404
 
         sign_in_log_id = row['id']
+        # Past 8 hours for the day: the worker gives a reason before clocking
+        # out (the app shows the reason screen on 422 needs_reason).
+        import payroll_hours as _ph
+        ot_reason = (data.get('reason') or '').strip()
+        if _ph.rule_applies(today):
+            full = conn.execute("SELECT time_in FROM sign_in_log WHERE id = ?", (sign_in_log_id,)).fetchone()
+            total = _ph.day_total(_ph.day_entries(conn, employee_id, today, exclude_id=sign_in_log_id),
+                                  (full["time_in"], now_iso))
+            if not ot_reason and _ph.needs_reason(total, _ph.get_overtime(conn, employee_id, today)):
+                conn.close()
+                return jsonify({"error": "Over 8 hours today. Tell the office why.",
+                                "code": "needs_reason", "needs_reason": True, "day_total": total}), 422
         conn.execute(
             "UPDATE sign_in_log SET time_out = ?, updated_at = ? WHERE id = ?",
             (now_iso, now_iso, sign_in_log_id)
         )
+        _hours_sync(conn, employee_id, today, ot_reason, actor_role='worker')
         conn.execute(
             "UPDATE worker_app_session SET ended_at=?, revoked_at=? WHERE token_hash=?",
             (now_iso, now_iso, session["token_hash"]),
@@ -5117,13 +5221,16 @@ _PROJDOC_EXT_TYPE = {
     '.png': ('PNG', 'image/png'),
     '.heic': ('HEIC', 'image/heic'), '.heif': ('HEIC', 'image/heif'),
     '.xlsx': ('XLSX', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+    '.xlsm': ('XLSM', 'application/vnd.ms-excel.sheet.macroEnabled.12'),
+    '.xls': ('XLS', 'application/vnd.ms-excel'),
+    '.csv': ('CSV', 'text/csv'),
 }
 
 
 def _projdoc_suggest_category(filename):
     """Filename heuristic for the bulk tray's category auto-suggest (overridable)."""
     f = (filename or '').lower()
-    if any(k in f for k in ('coi', 'insurance', 'contract', 'aia', 'sov', 'bond')):
+    if any(k in f for k in ('coi', 'insurance', 'contract', 'aia', 'sov', 'pay app', 'payapp', 'pay_app', 'g702')):
         return 'CONTRACTS'
     if any(k in f for k in ('rope', 'sds', 'safety', 'sst', 'toolbox')):
         return 'SAFETY'
@@ -5160,6 +5267,11 @@ def _projdoc_public(d, today_iso, d30_iso):
         'version': d['version'], 'notes': d['notes'], 'superseded': d['superseded'],
         'uploaded_at': d['uploaded_at'], 'status': _projdoc_status(d, today_iso, d30_iso),
         'file_url': f"/api/documents/{d['id']}/file",
+        # drop zone — the approved type tag + what Claude read off the pages
+        'type_key': d.get('type_key'), 'type_label': doc_intake.type_label(d.get('type_key')),
+        'ai': doc_intake.doc_ai_public(d),
+        # whose record it is (NULL = our company); several parties can share a checklist item
+        'party': d.get('party'), 'party_name': d.get('party_name'),
     }
     # #271 — version history (computed by the list endpoint for current docs only)
     if '_history' in d:
@@ -5206,13 +5318,15 @@ def _projdoc_insert(conn, project_code, fs, form, supersedes_id=None):
                 datetime.strptime(dval, '%Y-%m-%d')   # LOCAL YYYY-MM-DD validation
         version = (form.get('version') or '').strip() or None
         notes = (form.get('notes') or '').strip() or None
+        party, party_name = doc_intake.clean_party(form.get('party'), form.get('party_name'))
         uid = (current_user() or {}).get('id')
         cur = conn.execute(
             "INSERT INTO project_documents (project_code, category, requirement_key, title, doc_type, "
             "file_path, file_name, file_size, mime, effective_date, expiry_date, version, notes, "
-            "superseded, uploaded_by_uid, uploaded_at, supersedes_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?)",
+            "superseded, uploaded_by_uid, uploaded_at, supersedes_id, party, party_name) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?)",
             (project_code, category, rk, title, doc_type, str(fpath), file_name, size, mime,
-             eff, exp, version, notes, uid, datetime.now().isoformat(), supersedes_id))
+             eff, exp, version, notes, uid, datetime.now().isoformat(), supersedes_id, party, party_name))
         return cur.lastrowid
     except Exception:
         try:
@@ -5222,14 +5336,74 @@ def _projdoc_insert(conn, project_code, fs, form, supersedes_id=None):
         raise
 
 
+_PROJDOC_OTHER_PARTIES = ('subcontractor', 'other')
+
+
+def _projdoc_other_company(d):
+    """A subcontractor's or another company's record: filed under Additional documents,
+    never counted toward the job's own checklist."""
+    return (d.get('party') or 'company') in _PROJDOC_OTHER_PARTIES
+
+
+def _projdoc_job_ctx(conn, project_code):
+    """What decides which documents the job needs (doc_suggest.plan): its type (and, for rope
+    access, inspection or repair), access methods (None = never set), billing type, whether the
+    Drop Plan has drops and whether closeout is near (target completion within 30 days, or closed).
+    The caller adds `filed` (what is on file)."""
+    import project_setup
+    ctx = {'project_type': None, 'ra_scope': None, 'access': None, 'access_applies': False, 'billing_type': None,
+           'has_drops': False, 'near_end': False}
+    try:
+        su = project_setup.setup(conn, project_code) or {}
+        et = su.get('est_type') or project_setup.est_type_of(project_code)
+        ctx['ra_scope'] = su.get('rope_access_scope')
+        ctx['access'] = su.get('access_methods')
+        ctx['access_applies'] = bool(su.get('access_applies'))
+        ctx['project_type'] = project_setup.PROJECT_TYPE_FOR.get(et)
+    except Exception:
+        conn.rollback()
+    try:   # a type set on the project wins over the job-code prefix ('generic' is the column default)
+        row = conn.execute("SELECT project_type FROM projects WHERE project_code=?", (project_code,)).fetchone()
+        if row and row['project_type'] and (row['project_type'] != 'generic' or not ctx['project_type']):
+            ctx['project_type'] = row['project_type']
+    except Exception:   # a database without the #project-type column
+        conn.rollback()
+    try:
+        ctx['billing_type'] = billing_type.get(conn, project_code)
+    except Exception:
+        conn.rollback()
+    try:
+        ctx['has_drops'] = conn.execute("SELECT 1 FROM drops WHERE project_code=? LIMIT 1",
+                                        (project_code,)).fetchone() is not None
+    except Exception:   # no Drop Plan tables on this database
+        conn.rollback()
+    try:
+        row = conn.execute("SELECT status, target_completion FROM projects WHERE project_code=?", (project_code,)).fetchone()
+        if row:
+            end = str(row['target_completion'] or '')[:10]
+            ctx['near_end'] = (row['status'] or 'active') != 'active' or bool(
+                end and end <= (date.today() + timedelta(days=30)).isoformat())
+    except Exception:   # a database without target_completion
+        conn.rollback()
+    return ctx
+
+
 @app.route('/api/projects/<project_code>/documents', methods=['GET'])
 @requires_role(*_PROJDOC_ROLES)
 def api_project_documents(project_code):
     """#229 — the compliance checklist payload: per category, each REQUIRED item with
     its computed status (on_file/missing/expiring/expired) + extra docs + the readiness
-    rollup (on_file/missing/attention + % of required on file). NO *_path. no-store."""
+    rollup (on_file/missing/attention + % of required on file). NO *_path. no-store.
+    An item can hold several current documents (ours + each subcontractor's COI, say):
+    `docs` lists them all; `doc` is the one that decides the item's status (the best
+    standing, newest first). `suggestions` = doc_suggest over what is filed.
+    Only what the job needs now counts (doc_suggest.applies: its scope, access methods, billing,
+    drops, what is filed; closeout once the end is near); a missing item is returned as a suggestion, never as an empty
+    row. Another company's documents (party subcontractor / other) are not ours: they never
+    fill the job's checklist and come back grouped in `additional`."""
     conn = db()
     try:
+        ctx = _projdoc_job_ctx(conn, project_code)
         today = date.today()
         today_iso = today.isoformat()
         d30_iso = (today + timedelta(days=30)).isoformat()
@@ -5239,11 +5413,16 @@ def api_project_documents(project_code):
         docs = [dict(d) for d in conn.execute(
             "SELECT * FROM project_documents WHERE project_code=? ORDER BY uploaded_at DESC, id DESC",
             (project_code,)).fetchall()]
-        by_req = {}   # most-recent non-superseded doc fulfilling each requirement
+        if ctx.get('access') is None and any(d.get('type_key') == 'best_permit' and not d['superseded']
+                                             for d in docs):
+            ctx['has_drops'] = True   # access never set, but a BEST permit is filed: suspended scaffold
+        by_req = {}   # every non-superseded doc of OURS fulfilling each requirement, newest first
         for d in docs:
             rk = d['requirement_key']
-            if rk and not d['superseded'] and rk not in by_req:
-                by_req[rk] = d
+            if rk and not d['superseded'] and not _projdoc_other_company(d):
+                by_req.setdefault((d['category'], rk), []).append(d)
+        ctx['filed'] = {rk for (_c, rk) in by_req}   # what is on file brings more in (a PW2 -> SST cards, …)
+        _rank = {'on_file': 0, 'expiring': 1, 'expired': 2}
         # #271 — version chains: history = walk supersedes_id from each CURRENT doc.
         # A superseded row that is REFERENCED by a newer version lives in History (not
         # extras); legacy superseded rows with no successor stay extras as before.
@@ -5258,7 +5437,8 @@ def api_project_documents(project_code):
                 prev = by_id[cur_id]
                 chain.append({'id': prev['id'], 'effective_date': prev['effective_date'],
                               'expiry_date': prev['expiry_date'], 'uploaded_at': prev['uploaded_at'],
-                              'doc_type': prev['doc_type'],
+                              'doc_type': prev['doc_type'], 'mime': prev['mime'],
+                              'file_name': prev['file_name'],
                               'file_url': f"/api/documents/{prev['id']}/file"})
                 in_history.add(cur_id)
                 cur_id = prev.get('supersedes_id')
@@ -5271,24 +5451,37 @@ def api_project_documents(project_code):
         for r in reqs:
             cat_reqs.setdefault(r['category'], []).append(r)
         agg = {'required_total': 0, 'on_file': 0, 'missing': 0, 'attention': 0}
+        missing_labels = {}
+        not_asked = []
         out_cats = []
         for code in _PROJDOC_CATEGORIES:
             items = []
             for r in cat_reqs.get(code, []):
-                d = by_req.get(r['requirement_key'])
-                agg['required_total'] += 1
-                if d:
-                    st = _projdoc_status(d, today_iso, d30_iso)
-                    agg['attention' if st in ('expiring', 'expired') else 'on_file'] += 1
+                held = [_projdoc_public(d, today_iso, d30_iso)
+                        for d in by_req.get((code, r['requirement_key']), [])]
+                required = doc_suggest.applies(r['requirement_key'], ctx)
+                missing_labels[(code, r['requirement_key'])] = r['label']
+                if not required and not held:   # not needed now and nothing filed: not shown, not counted
+                    if doc_suggest.phase(r['requirement_key'], ctx) is None and r['requirement_key'] not in doc_suggest.NOT_REQUIRED:
+                        not_asked.append({'requirement_key': r['requirement_key'], 'label': r['label'],
+                                          'why': doc_suggest.why_not(r['requirement_key'], ctx)})
+                    continue
+                if required:
+                    agg['required_total'] += 1
+                if held:
+                    best = min(held, key=lambda x: _rank.get(x['status'], 9))   # stable: newest wins ties
+                    st = best['status']
+                    if required:
+                        agg['attention' if st in ('expiring', 'expired') else 'on_file'] += 1
                     items.append({'requirement_key': r['requirement_key'], 'label': r['label'],
-                                  'status': st, 'doc': _projdoc_public(d, today_iso, d30_iso)})
+                                  'status': st, 'doc': best, 'docs': held, 'required': required})
                 else:
                     agg['missing'] += 1
                     items.append({'requirement_key': r['requirement_key'], 'label': r['label'],
-                                  'status': 'missing', 'doc': None})
+                                  'status': 'missing', 'doc': None, 'docs': [], 'required': True})
             req_keys = {r['requirement_key'] for r in cat_reqs.get(code, [])}
             extras = [_projdoc_public(d, today_iso, d30_iso) for d in docs
-                      if d['category'] == code and d['id'] not in in_history
+                      if d['category'] == code and d['id'] not in in_history and not _projdoc_other_company(d)
                       and (not d['requirement_key']
                            or d['requirement_key'] not in req_keys or d['superseded'])]
             filed = sum(1 for it in items if it['status'] != 'missing')
@@ -5299,17 +5492,35 @@ def api_project_documents(project_code):
         # #270 — annotate every doc payload with its client-visibility state (one batched
         # query pair via visibility.document_states; default internal-only/not-flagged).
         states = visibility.document_states(conn, project_code)
-        for c in out_cats:
-            for it in c['items']:
-                if it.get('doc'):
-                    st = states.get(it['doc']['id'], {})
-                    it['doc']['shared_client'] = bool(st.get('shared_client'))
-                    it['doc']['flagged'] = bool(st.get('flagged'))
-            for d in c['extras']:
-                st = states.get(d['id'], {})
-                d['shared_client'] = bool(st.get('shared_client'))
-                d['flagged'] = bool(st.get('flagged'))
-        resp = response_wrapper({'categories': out_cats, 'readiness': {**agg, 'pct': pct}})
+        additional = {}   # other companies' documents, one group per (party, company name)
+        for d in docs:
+            if _projdoc_other_company(d) and d['id'] not in in_history and not d['superseded']:
+                g = additional.setdefault((d['party'], (d.get('party_name') or '').strip().lower()),
+                                          {'party': d['party'], 'party_name': d.get('party_name') or None, 'docs': []})
+                g['docs'].append(_projdoc_public(d, today_iso, d30_iso))
+        additional = sorted(additional.values(), key=lambda g: ((g['party_name'] or '~').lower(), g['party']))
+        for d in [x for c in out_cats for it in c['items'] for x in it['docs']] + \
+                 [x for c in out_cats for x in c['extras']] + [x for g in additional for x in g['docs']]:
+            st = states.get(d['id'], {})   # `doc` is one of `docs`
+            d['shared_client'] = bool(st.get('shared_client'))
+            d['flagged'] = bool(st.get('flagged'))
+        missing_reqs = {(c['category'], it['requirement_key']) for c in out_cats
+                        for it in c['items'] if it['status'] == 'missing'}
+        current = [{**d, 'ai': doc_intake.doc_ai_public(d)} for d in docs if not d['superseded']]
+        dismissed = {r['suggestion_key'] for r in conn.execute(
+            "SELECT suggestion_key FROM project_doc_suggest_dismissed WHERE project_code=?",
+            (project_code,)).fetchall()}
+        suggestions = doc_suggest.suggest(current, missing_reqs, dismissed, ctx=ctx, missing_labels=missing_labels)
+        resp = response_wrapper({'categories': out_cats, 'readiness': {**agg, 'pct': pct},
+                                 'suggestions': suggestions, 'additional': additional,
+                                 'job': {'project_type': ctx.get('project_type'),
+                                         'scope': doc_suggest.scope_of(ctx),
+                                         'scope_label': doc_suggest.SCOPE_LABELS[doc_suggest.scope_of(ctx)],
+                                         'near_end': bool(ctx.get('near_end')),
+                                         'access_applies': bool(ctx.get('access_applies')),
+                                         'access_set': ctx.get('access') is not None,
+                                         'billing_type': ctx.get('billing_type'),
+                                         'has_drops': bool(ctx.get('has_drops')), 'not_asked': not_asked}})
         resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         return resp
     finally:
@@ -5435,7 +5646,7 @@ def api_project_documents_scan(project_code):
         return jsonify({"error": f"Too many pages — max {scanner.MAX_PAGES}"}), 400
     for f in files:
         if Path(f.filename or '').suffix.lower() not in _PROJDOC_EXT_TYPE:
-            return jsonify({"error": "unsupported file type — use PDF, JPG, PNG, or HEIC"}), 400
+            return jsonify({"error": "unsupported file type — use PDF, JPG, PNG, HEIC, Excel or CSV"}), 400
     # DOC_SCAN_FAKE (test-only, NEVER set in prod) bypasses the live model so the
     # pipeline can be proven deterministically when the API key is absent.
     fake_path = runtime_seams.seam('DOC_SCAN_FAKE')
@@ -5465,7 +5676,10 @@ def api_project_documents_scan(project_code):
         f.seek(0)
         if size > scanner.MAX_FILE_BYTES:
             return jsonify({"error": "a page is too large (max 16 MB)"}), 400
-        specs.append(scanner.spec_from_bytes(f.read(), f.filename))
+        try:
+            specs.append(scanner.spec_from_bytes(f.read(), f.filename))
+        except scanner.ScanError:
+            return jsonify({"error": "That spreadsheet couldn't be opened. Check the file and try again."}), 400
     try:
         if fake_path:
             with open(fake_path, encoding='utf-8') as fh:
@@ -5488,6 +5702,326 @@ def api_project_documents_scan(project_code):
     resp = response_wrapper(suggestion)
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return resp
+
+
+# ---------- Documents drop zone: intake -> Claude reads -> approve the tag -> filed ----------
+import doc_intake  # noqa: E402
+import doc_types  # noqa: E402
+import doc_suggest  # noqa: E402
+
+try:
+    _di_conn = db()
+    try:
+        doc_intake.ensure_schema(_di_conn)
+        db_layer._PKMAP_CACHE.clear()
+    finally:
+        _di_conn.close()
+except Exception as _di_e:   # never blocks boot; apply_doc_intake.py is the migration
+    logging.warning(f"doc-intake schema ensure skipped: {_di_e}")
+
+
+def _projdoc_scope_err(conn, project_code):
+    """404 for an unknown project, 403 when a PM/super isn't on it, else None."""
+    if not validate_project_exists(conn, project_code):
+        return jsonify({"error": "project not found"}), 404
+    user = current_user() or {}
+    if not pm_scoping.pm_can_access_project(user.get("role"), user.get("id"), project_code, conn):
+        return jsonify({"error": "forbidden"}), 403
+    return None
+
+
+def _intake_row(conn, intake_id):
+    """(row, None) for an intake item the current user may act on, else (None, error)."""
+    row = conn.execute("SELECT * FROM project_doc_intake WHERE id=?", (intake_id,)).fetchone()
+    if not row:
+        return None, (jsonify({"error": "not found"}), 404)
+    err = _projdoc_scope_err(conn, row['project_code'])
+    if err:
+        return None, err
+    return row, None
+
+
+def _projdoc_unlink(path_text):
+    """Delete a stored file, confined to data_room/project_docs/."""
+    try:
+        p = ssc_paths.resolve_data_path(path_text)
+        base = (ssc_paths.under_root('data_room', 'project_docs')).resolve()
+        if p.resolve().is_relative_to(base):
+            p.unlink(missing_ok=True)
+    except (OSError, ValueError):
+        pass
+
+
+def _intake_read(conn_factory, project_code, data_bytes, filename):
+    """Run Claude's read on one stored file. Returns (status, suggestion|None, error|None).
+    The DB connection is NOT held across the model call."""
+    import document_scanner as scanner
+    fake_path = runtime_seams.seam('DOC_SCAN_FAKE')
+    if not os.environ.get('ANTHROPIC_API_KEY') and not fake_path:
+        return 'unread', None, "AI reading is off — pick the type yourself."
+    if len(data_bytes) > scanner.MAX_FILE_BYTES:
+        return 'unread', None, "Too large for Claude to read (max 16 MB) — pick the type yourself."
+    conn = conn_factory()
+    try:
+        req_rows = conn.execute(
+            "SELECT category, requirement_key, label FROM document_requirements "
+            "ORDER BY category, sort_order").fetchall()
+    finally:
+        conn.close()
+    categories = [(c, _PROJDOC_CATNAMES.get(c, c)) for c in _PROJDOC_CATEGORIES]
+    requirements = [(r['category'], r['requirement_key'], r['label']) for r in req_rows]
+    req_by_cat = {}
+    for cat, key, _label in requirements:
+        req_by_cat.setdefault(cat, set()).add(key)
+    try:
+        if fake_path:
+            with open(fake_path, encoding='utf-8') as fh:
+                raw = json.load(fh)
+        else:
+            raw = scanner.call_vision_model([scanner.spec_from_bytes(data_bytes, filename)],
+                                            categories, requirements)
+    except scanner.ScanUnavailable:
+        return 'unread', None, "AI reading is off — pick the type yourself."
+    except Exception as e:   # ScanError + anything unexpected; never log document content
+        logging.error(f"doc intake read failed: {type(e).__name__}")
+        return 'unread', None, "Claude couldn't read this one — pick the type yourself."
+    sug = scanner.process_scan_result(raw, set(_PROJDOC_CATEGORIES), req_by_cat)
+    sug['model'] = (raw.get('_meta') or {}).get('model') or scanner.MODEL
+    return 'ready', sug, None
+
+
+@app.route('/api/documents/types', methods=['GET'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_types():
+    """The document types the drop zone tags with (key, label, category, requirement_key)."""
+    return response_wrapper({'types': doc_types.public_list(),
+                             'categories': [{'code': c, 'name': _PROJDOC_CATNAMES[c]} for c in _PROJDOC_CATEGORIES]})
+
+
+@app.route('/api/projects/<project_code>/documents/intake', methods=['GET'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_intake_list(project_code):
+    """Files dropped on this project still waiting for their tag to be approved."""
+    conn = db()
+    try:
+        err = _projdoc_scope_err(conn, project_code)
+        if err:
+            return err
+        rows = conn.execute("SELECT * FROM project_doc_intake WHERE project_code=? ORDER BY id",
+                            (project_code,)).fetchall()
+        resp = response_wrapper({'items': [doc_intake.intake_public(r) for r in rows]})
+        resp.headers['Cache-Control'] = 'no-store'
+        return resp
+    finally:
+        conn.close()
+
+
+@app.route('/api/projects/<project_code>/documents/intake', methods=['POST'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_intake_add(project_code):
+    """Drop ONE file: save it now, have Claude read it, return the review card.
+    The file is sent to the Anthropic API (same trust as /documents/scan). Nothing is
+    filed until /approve. Without an API key the file still waits, as 'unread'."""
+    fs = request.files.get('file')
+    if not fs or not fs.filename:
+        return jsonify({"error": "no file"}), 400
+    conn = db()
+    try:
+        err = _projdoc_scope_err(conn, project_code)
+        if err:
+            return err
+        try:
+            fpath, ftype, mime, size = _projdoc_save_file(project_code, fs)
+        except ValueError as ve:
+            return jsonify({"error": str(ve)}), 400
+        file_name = Path(fs.filename).name
+        uid = (current_user() or {}).get('id')
+        sha = hashlib.sha256(fpath.read_bytes()).hexdigest()
+        try:
+            cur = conn.execute(
+                "INSERT INTO project_doc_intake (project_code, file_path, file_name, file_size, mime, "
+                "doc_type, status, uploaded_by_uid, created_at, content_sha256) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (project_code, str(fpath), file_name, size, mime, ftype, 'unread', uid,
+                 datetime.now().isoformat(timespec='seconds'), sha))
+            intake_id = cur.lastrowid
+            conn.commit()
+        except Exception:
+            _projdoc_unlink(str(fpath))
+            raise
+        # The same file already waiting (a double drop, a second tab): keep the first, drop
+        # this copy. Checked after the insert so two drops racing each other still end as one.
+        first = conn.execute("SELECT * FROM project_doc_intake WHERE project_code=? AND content_sha256=? "
+                             "ORDER BY id LIMIT 1", (project_code, sha)).fetchone()
+        if first and first['id'] != intake_id:
+            conn.execute("DELETE FROM project_doc_intake WHERE id=?", (intake_id,))
+            conn.commit()
+            _projdoc_unlink(str(fpath))
+            out = doc_intake.intake_public(first)
+            out['duplicate_of'] = first['id']
+            resp = response_wrapper(out)
+            resp.headers['Cache-Control'] = 'no-store'
+            return resp, 200
+    finally:
+        conn.close()
+    status, sug, read_err = _intake_read(db, project_code, fpath.read_bytes(), file_name)
+    conn = db()
+    try:
+        conn.execute("UPDATE project_doc_intake SET status=?, suggestion_json=?, error=? WHERE id=?",
+                     (status, json.dumps(sug, ensure_ascii=False) if sug else None, read_err, intake_id))
+        conn.commit()
+        row = conn.execute("SELECT * FROM project_doc_intake WHERE id=?", (intake_id,)).fetchone()
+        resp = response_wrapper(doc_intake.intake_public(row))
+        resp.headers['Cache-Control'] = 'no-store'
+        return resp, 201
+    finally:
+        conn.close()
+
+
+@app.route('/api/documents/intake/<int:intake_id>/file', methods=['GET'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_intake_file(intake_id):
+    """View a waiting file (inline, gated, confined to data_room/project_docs/)."""
+    from flask import send_file
+    conn = db()
+    try:
+        row, err = _intake_row(conn, intake_id)
+        if err:
+            return err
+        p = ssc_paths.resolve_data_path(row['file_path'])
+        base = (ssc_paths.under_root('data_room', 'project_docs')).resolve()
+        if not (p.resolve().is_relative_to(base) and p.exists()):
+            return jsonify({"error": "file missing"}), 404
+        resp = send_file(str(p), mimetype=row['mime'] or 'application/octet-stream',
+                         as_attachment=False, download_name=(row['file_name'] or f"document-{intake_id}"))
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        return resp
+    finally:
+        conn.close()
+
+
+@app.route('/api/documents/intake/<int:intake_id>/approve', methods=['POST'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_intake_approve(intake_id):
+    """File a waiting document under the approved tag. Body {type_key, title?,
+    effective_date?, expiry_date?, supersedes_id?, party?, party_name?}. party = whose
+    record it is (company / subcontractor / owner / other; Claude's read when omitted). The tag decides the folder and the
+    checklist item. supersedes_id = 'newer version of' (same rules as Update: the old
+    version moves to History and loses its client shares; the new one starts internal)."""
+    body = request.get_json(silent=True) or {}
+    t = doc_types.get(body.get('type_key'))
+    if not t:
+        return jsonify({"error": "pick a document type"}), 400
+    conn = db()
+    try:
+        row, err = _intake_row(conn, intake_id)
+        if err:
+            return err
+        code = row['project_code']
+        try:
+            sug = json.loads(row['suggestion_json']) if row['suggestion_json'] else None
+        except ValueError:
+            sug = None
+        sug = sug or {}
+        valid_reqs = {r['requirement_key'] for r in conn.execute(
+            "SELECT requirement_key FROM document_requirements WHERE category=?", (t['category'],)).fetchall()}
+        rk = t['requirement_key'] if t['requirement_key'] in valid_reqs else None
+        title = (str(body.get('title') or '').strip() or sug.get('title') or row['file_name'] or 'Document')[:300]
+        dates = {}
+        for k in ('effective_date', 'expiry_date'):
+            v = body[k] if k in body else sug.get(k)
+            v = (str(v).strip() if v else '') or None
+            if v:
+                try:
+                    datetime.strptime(v, '%Y-%m-%d')   # LOCAL YYYY-MM-DD
+                except ValueError:
+                    return jsonify({"error": f"{k} must be YYYY-MM-DD"}), 400
+            dates[k] = v
+        supersedes_id = body.get('supersedes_id')
+        if supersedes_id not in (None, ''):
+            try:
+                supersedes_id = int(supersedes_id)
+            except (TypeError, ValueError):
+                return jsonify({"error": "supersedes_id must be an integer"}), 400
+            old = conn.execute("SELECT project_code, superseded FROM project_documents WHERE id=?",
+                               (supersedes_id,)).fetchone()
+            if not old or old['project_code'] != code:
+                return jsonify({"error": "document to update not found in this project"}), 404
+            if old['superseded']:
+                return jsonify({"error": "that version is already superseded"}), 409
+        else:
+            supersedes_id = None
+        set_by = 'ai' if sug.get('type_key') == t['key'] else 'user'
+        if 'party' in body:
+            party, party_name = doc_intake.clean_party(body.get('party'), body.get('party_name'))
+        else:
+            party, party_name = doc_intake.clean_party(sug.get('party'), sug.get('party_name'))
+        uid = (current_user() or {}).get('id')
+        cur = conn.execute(
+            "INSERT INTO project_documents (project_code, category, requirement_key, title, doc_type, "
+            "file_path, file_name, file_size, mime, effective_date, expiry_date, version, notes, "
+            "superseded, uploaded_by_uid, uploaded_at, supersedes_id, type_key, ai_extract, party, party_name) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?)",
+            (code, t['category'], rk, title, row['doc_type'], row['file_path'], row['file_name'],
+             row['file_size'], row['mime'], dates['effective_date'], dates['expiry_date'], None, None,
+             uid, datetime.now().isoformat(), supersedes_id, t['key'],
+             doc_intake.extract_for_storage(sug if sug else None, set_by), party, party_name))
+        new_id = cur.lastrowid
+        if supersedes_id is not None:
+            conn.execute("UPDATE project_documents SET superseded=1 WHERE id=?", (supersedes_id,))
+            for aud in visibility.audiences_for(conn, 'document', supersedes_id):
+                visibility.unshare(conn, 'document', supersedes_id, aud, uid)
+        conn.execute("DELETE FROM project_doc_intake WHERE id=?", (intake_id,))
+        conn.commit()
+        today = date.today()
+        fresh = dict(conn.execute("SELECT * FROM project_documents WHERE id=?", (new_id,)).fetchone())
+        return response_wrapper(_projdoc_public(fresh, today.isoformat(),
+                                                (today + timedelta(days=30)).isoformat())), 201
+    except Exception as e:
+        logging.error(f"POST documents/intake/{intake_id}/approve: {type(e).__name__}")
+        return _server_error(e)
+    finally:
+        conn.close()
+
+
+@app.route('/api/projects/<project_code>/documents/suggestions/dismiss', methods=['POST'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_suggestion_dismiss(project_code):
+    """Mark a suggested document 'not needed' for this job. Body {key}."""
+    key = str((request.get_json(silent=True) or {}).get('key') or '').strip()
+    if not key or len(key) > 300 or not doc_types.get(key.split('|', 1)[0]):
+        return jsonify({"error": "unknown suggestion"}), 400
+    conn = db()
+    try:
+        err = _projdoc_scope_err(conn, project_code)
+        if err:
+            return err
+        if not conn.execute("SELECT 1 FROM project_doc_suggest_dismissed WHERE project_code=? AND suggestion_key=?",
+                            (project_code, key)).fetchone():
+            conn.execute("INSERT INTO project_doc_suggest_dismissed (project_code, suggestion_key, dismissed_by_uid, "
+                         "dismissed_at) VALUES (?,?,?,?)",
+                         (project_code, key, (current_user() or {}).get('id'),
+                          datetime.now().isoformat(timespec='seconds')))
+            conn.commit()
+        return response_wrapper({'dismissed': key})
+    finally:
+        conn.close()
+
+
+@app.route('/api/documents/intake/<int:intake_id>', methods=['DELETE'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_intake_delete(intake_id):
+    """Remove a waiting file (row + file). Filed documents are untouched."""
+    conn = db()
+    try:
+        row, err = _intake_row(conn, intake_id)
+        if err:
+            return err
+        conn.execute("DELETE FROM project_doc_intake WHERE id=?", (intake_id,))
+        conn.commit()
+        _projdoc_unlink(row['file_path'])
+        return response_wrapper({'deleted': intake_id})
+    finally:
+        conn.close()
 
 
 @app.route('/api/documents/<int:doc_id>/file', methods=['GET'])
@@ -5516,6 +6050,65 @@ def api_projdoc_file(doc_id):
         return resp
     finally:
         conn.close()
+
+
+_SHEET_PREVIEW_MAX_BYTES = 32 * 1024 * 1024
+
+
+def _projdoc_sheet_resp(path_text, file_name):
+    """The cells of a stored spreadsheet for the in-app preview (sheet_read.grid). Confined to
+    data_room/project_docs/; values as Excel last saved them (no formulas run, no macros)."""
+    import sheet_read
+    ext = Path(file_name or '').suffix.lower()
+    if ext not in sheet_read.EXTS:
+        return jsonify({"error": "not a spreadsheet"}), 400
+    p = ssc_paths.resolve_data_path(path_text)
+    base = (ssc_paths.under_root('data_room', 'project_docs')).resolve()
+    if not (p.resolve().is_relative_to(base) and p.exists()):
+        return jsonify({"error": "file missing"}), 404
+    if p.stat().st_size > _SHEET_PREVIEW_MAX_BYTES:
+        return jsonify({"error": "This spreadsheet is too large to show here. Use Download to open it."}), 413
+    try:
+        out = sheet_read.grid(p.read_bytes(), ext)
+    except Exception as e:   # never log cell content
+        logging.info(f"sheet preview failed: {type(e).__name__}")
+        return jsonify({"error": "This spreadsheet couldn't be opened here. Use Download to open it."}), 422
+    out['preview_rows'] = sheet_read.PREVIEW_ROWS
+    resp = response_wrapper(out)
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+@app.route('/api/documents/<int:doc_id>/sheet', methods=['GET'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_sheet(doc_id):
+    """Preview a filed spreadsheet (any version) as cells, on the job's own scope."""
+    conn = db()
+    try:
+        row = conn.execute("SELECT project_code, file_path, file_name FROM project_documents WHERE id=?",
+                           (doc_id,)).fetchone()
+        if not row or not row['file_path']:
+            return jsonify({"error": "not found"}), 404
+        err = _projdoc_scope_err(conn, row['project_code'])
+        if err:
+            return err
+    finally:
+        conn.close()
+    return _projdoc_sheet_resp(row['file_path'], row['file_name'])
+
+
+@app.route('/api/documents/intake/<int:intake_id>/sheet', methods=['GET'])
+@requires_role(*_PROJDOC_ROLES)
+def api_projdoc_intake_sheet(intake_id):
+    """Preview a spreadsheet still waiting in the drop-zone tray."""
+    conn = db()
+    try:
+        row, err = _intake_row(conn, intake_id)
+        if err:
+            return err
+    finally:
+        conn.close()
+    return _projdoc_sheet_resp(row['file_path'], row['file_name'])
 
 
 @app.route('/api/documents/<int:doc_id>/replace-file', methods=['POST'])
@@ -5572,16 +6165,24 @@ def api_projdoc_replace_file(doc_id):
 @app.route('/api/documents/<int:doc_id>', methods=['PATCH'])
 @requires_role(*_PROJDOC_ROLES)
 def api_projdoc_patch(doc_id):
-    """#229 — edit metadata / mark superseded. Whitelisted fields only; never the path."""
+    """#229 — edit metadata / mark superseded. Whitelisted fields only; never the path.
+    title = rename (the name shown on the row; the stored file name is unchanged)."""
     conn = db()
     try:
-        if not conn.execute("SELECT 1 FROM project_documents WHERE id=?", (doc_id,)).fetchone():
-            return jsonify({"error": "not found"}), 404
+        _code, err = _doc_actor_can_admin(conn, doc_id)
+        if err:
+            return err
         body = request.get_json(silent=True) or {}
         fields = {}
         for k in ('category', 'requirement_key', 'title', 'effective_date', 'expiry_date', 'version', 'notes', 'superseded'):
             if k in body:
                 fields[k] = body[k]
+        if 'title' in fields:
+            fields['title'] = " ".join(str(fields['title'] or '').split())[:300]
+            if not fields['title']:
+                return jsonify({"error": "the name can't be empty"}), 400
+        if 'party' in body:
+            fields['party'], fields['party_name'] = doc_intake.clean_party(body.get('party'), body.get('party_name'))
         if 'category' in fields and fields['category'] not in _PROJDOC_CATEGORIES:
             return jsonify({"error": "invalid category"}), 400
         for dk in ('effective_date', 'expiry_date'):
@@ -5607,22 +6208,31 @@ def api_projdoc_patch(doc_id):
 @app.route('/api/documents/<int:doc_id>', methods=['DELETE'])
 @requires_role(*_PROJDOC_ROLES)
 def api_projdoc_delete(doc_id):
-    """#229 — remove the row + its on-disk file (confined to data_room/project_docs/)."""
+    """#229 — remove the row + its on-disk file (confined to data_room/project_docs/).
+    Deleting the current version brings the previous one back as current (it stays
+    internal; its shares were pulled when it was superseded). A newer version that
+    pointed at the deleted row now points at the one before it, so History stays whole."""
     conn = db()
     try:
-        row = conn.execute("SELECT file_path FROM project_documents WHERE id=?", (doc_id,)).fetchone()
-        if not row:
-            return jsonify({"error": "not found"}), 404
+        _code, err = _doc_actor_can_admin(conn, doc_id)
+        if err:
+            return err
+        row = conn.execute("SELECT file_path, superseded, supersedes_id FROM project_documents WHERE id=?",
+                           (doc_id,)).fetchone()
+        prev_id = row['supersedes_id']
+        restored = None
+        if not row['superseded'] and prev_id and conn.execute(
+                "SELECT 1 FROM project_documents WHERE id=? AND superseded=1", (prev_id,)).fetchone():
+            conn.execute("UPDATE project_documents SET superseded=0 WHERE id=?", (prev_id,))
+            restored = prev_id
+        conn.execute("UPDATE project_documents SET supersedes_id=? WHERE supersedes_id=?", (prev_id, doc_id))
+        conn.execute("DELETE FROM item_visibility WHERE item_type='document' AND item_id=?", (doc_id,))
+        conn.execute("DELETE FROM item_redflag WHERE item_type='document' AND item_id=?", (doc_id,))
         conn.execute("DELETE FROM project_documents WHERE id=?", (doc_id,))
         conn.commit()
-        try:
-            p = Path(row['file_path'])
-            base = (ssc_paths.under_root('data_room', 'project_docs')).resolve()
-            if p.resolve().is_relative_to(base):
-                p.unlink(missing_ok=True)
-        except Exception as e:
-            logging.warning(f"projdoc delete file unlink failed for {doc_id}: {e}")
-        return response_wrapper({"deleted": doc_id})
+        if row['file_path']:
+            _projdoc_unlink(row['file_path'])
+        return response_wrapper({"deleted": doc_id, "restored": restored})
     finally:
         conn.close()
 
@@ -7234,6 +7844,16 @@ def api_company_summary():
 # dates rule). Activity/task entities are organization|contact this build; 'project' stays
 # in the vocabulary (scale-ready) — the project<->client relationship is client_org_id.
 
+try:   # the client's email / phone / website / address columns; apply_crm_org_details.py is the migration
+    _cod_conn = db()
+    try:
+        crm.ensure_org_details(_cod_conn)
+    finally:
+        _cod_conn.close()
+except Exception as _cod_e:   # never blocks boot
+    logging.warning(f"crm org details ensure skipped: {_cod_e}")
+
+
 def _crm_uid():
     return (current_user() or {}).get("id")
 
@@ -7307,7 +7927,8 @@ def api_crm_org_update(org_id):
         d = request.get_json(silent=True) or {}
         conn = db()
         ok = crm.update_org(conn, org_id, actor_user_id=_crm_uid(),
-                            **_crm_pick(d, ('name', 'relationship_type', 'status', 'stage', 'notes', 'function_tags')))
+                            **_crm_pick(d, ('name', 'relationship_type', 'status', 'stage', 'notes', 'function_tags',
+                                            *crm.ORG_DETAIL_FIELDS)))
         if not ok:
             conn.close()
             return jsonify({"error": "not found"}), 404
@@ -7316,6 +7937,28 @@ def api_crm_org_update(org_id):
         return response_wrapper({"organization": org})
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route('/api/crm/organizations/<int:org_id>', methods=['DELETE'])
+@requires_section('crm')
+def api_crm_org_delete(org_id):
+    """Permanently delete a client nothing real points at (no jobs, estimates, proposals, invoices,
+    bills, document packages). Anything else is refused with what still points at it."""
+    try:
+        conn = db()
+        out = crm.delete_org(conn, org_id)
+        conn.close()
+        if out is None:
+            return jsonify({"error": "not found"}), 404
+        if out.get("blockers"):
+            return jsonify({"error": "This client has " + ", ".join(out["blockers"])
+                            + " — mark it inactive instead.", "blockers": out["blockers"]}), 409
+        if out["user_ids"]:
+            team_items._sync_google(*out["user_ids"])
+        logging.info("crm org deleted id=%s by user=%s", org_id, _crm_uid())
+        return response_wrapper({"deleted": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
@@ -9748,6 +10391,7 @@ def api_compliance_pulse():
 # requires_role. Money writes (expenses) are admin/c_suite only.
 import dropplan_rollups as _rollups
 import lookahead as _lookahead  # #255 — Two-Week Look-Ahead (auto-draft + editable)
+import project_schedule as _project_schedule  # the Schedule window's one payload
 
 _DROPPLAN_ROLES = ('admin', 'c_suite', 'pm', 'super')
 _DROPPLAN_COST_ROLES = ('admin', 'c_suite')
@@ -9822,8 +10466,8 @@ def api_dropplan_rollup(project_code):
 
 # ============= TWO-WEEK LOOK-AHEAD (#255) — auto-draft + editable =============
 # Gated as the project Drop-Plan views are. AUTO-DRAFTS planned activity bars
-# from the Drop Plan; the super adjusts by dragging. A re-draft (?refresh=1)
-# re-projects ONLY the untouched source='auto' rows — manual/custom rows survive.
+# from the Drop Plan; the super adjusts by dragging. Every load re-projects ONLY the
+# untouched source='auto' rows (project_schedule.redraft) — manual/custom rows survive.
 
 def _lookahead_default_start():
     """This week's Monday, LOCAL — the natural window start."""
@@ -9831,24 +10475,42 @@ def _lookahead_default_start():
     return (t - timedelta(days=t.weekday())).isoformat()
 
 
-@app.route('/api/projects/<project_code>/lookahead', methods=['GET'])
+@app.route('/api/projects/<project_code>/schedule', methods=['GET'])
 @requires_role(*_DROPPLAN_ROLES)
-def api_lookahead_get(project_code):
-    """Window load. Auto-drafts on first open (no rows yet) or when ?refresh=1
-    (re-projects auto rows, keeps manual/custom). LOCAL dates; no-store."""
+def api_project_schedule(project_code):
+    """The Schedule window in one call: job dates + pace, the two-week board, the
+    job's tasks / events / meetings in the window, and the site pin for weather."""
     start = (request.args.get('start') or '').strip() or _lookahead_default_start()
     try:
         date.fromisoformat(start)
     except ValueError:
         return jsonify({"error": "start must be YYYY-MM-DD"}), 400
-    refresh = request.args.get('refresh') in ('1', 'true', 'yes')
     conn = db()
     try:
-        have = conn.execute("SELECT COUNT(*) FROM lookahead_activity WHERE project_code=?",
-                            (project_code,)).fetchone()[0]
-        if refresh or have == 0:
-            _lookahead.draft_lookahead(conn, project_code, start)
-            conn.commit()
+        if not validate_project_exists(conn, project_code):
+            return jsonify({"error": "project not found"}), 404
+        data = _project_schedule.payload(conn, project_code, start)
+    finally:
+        conn.close()
+    resp = response_wrapper(data)
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return resp
+
+
+@app.route('/api/projects/<project_code>/lookahead', methods=['GET'])
+@requires_role(*_DROPPLAN_ROLES)
+def api_lookahead_get(project_code):
+    """Window load. Auto rows are re-projected from this week's Drop Plan progress
+    through the window on every load (manual/custom rows kept). LOCAL dates; no-store."""
+    start = (request.args.get('start') or '').strip() or _lookahead_default_start()
+    try:
+        date.fromisoformat(start)
+    except ValueError:
+        return jsonify({"error": "start must be YYYY-MM-DD"}), 400
+    conn = db()
+    try:
+        _project_schedule.redraft(conn, project_code, start)
+        conn.commit()
         data = _lookahead.load_window(conn, project_code, start)
     finally:
         conn.close()
@@ -9909,6 +10571,9 @@ def api_lookahead_patch(aid):
         if not row:
             return jsonify({"error": "not found"}), 404
         row = dict(row)
+        err = _projdoc_scope_err(conn, row['project_code'])   # the id carries no project in the path
+        if err:
+            return err
         sets, args = [], []
         if 'planned_start' in body or 'planned_finish' in body:
             ps = (body.get('planned_start') or row['planned_start'])
@@ -9943,9 +10608,15 @@ def api_lookahead_patch(aid):
 @app.route('/api/lookahead/activities/<int:aid>', methods=['DELETE'])
 @requires_role(*_DROPPLAN_ROLES)
 def api_lookahead_delete(aid):
-    """Remove an activity row."""
+    """Remove an activity row (only on a job the caller can open)."""
     conn = db()
     try:
+        row = conn.execute("SELECT project_code FROM lookahead_activity WHERE id=?", (aid,)).fetchone()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+        err = _projdoc_scope_err(conn, row[0])
+        if err:
+            return err
         conn.execute("DELETE FROM lookahead_activity WHERE id=?", (aid,))
         conn.commit()
         return response_wrapper({"deleted": aid})
@@ -11247,6 +11918,17 @@ def worker_app_manifest():
     hardened catch-all below denies .json by design."""
     resp = send_file(str(SCRIPT_DIR / 'worker-app-manifest.json'), max_age=0)
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    return resp
+
+
+@app.route('/favicon.ico')
+def favicon():
+    """Browser-tab icon fallback — the star mark as PNG. Browsers request
+    /favicon.ico on any page without a <link rel="icon"> (generated reports,
+    Python-rendered pages), so this keeps the grey globe off every tab.
+    Public-exact in auth.py: brand asset, no data."""
+    resp = send_file(str(SCRIPT_DIR / 'static' / 'brand' / 'favicon-32.png'), mimetype='image/png')
+    resp.headers['Cache-Control'] = 'public, max-age=86400'
     return resp
 
 

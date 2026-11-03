@@ -89,8 +89,9 @@ AUTHORED_SCALE_NOTE = (
     "Confirm against the architect's current set before using for takeoff."
 )
 
-# Vision model: house env-override pattern; strongest default for a counting task.
-TRACE_MODEL = os.environ.get("SSC_TRACE_MODEL", "claude-opus-5")
+# Vision model: house env-override pattern; strongest default for a counting task (Opus 5.5 since 2026-10-22:
+# the same tier at a fifth less per token).
+TRACE_MODEL = os.environ.get("SSC_TRACE_MODEL", "claude-opus-5-5")
 
 
 def _db():

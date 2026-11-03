@@ -19,9 +19,11 @@ import re
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
+import ai_models
+
 # Default vision model — good at messy / handwritten receipts. Overridable via
-# env so the operator can pin a different model without a code change.
-MODEL = os.environ.get("EXPENSE_SCAN_MODEL", "claude-sonnet-4-6")
+# env so the operator can pin a different model without a code change. Sonnet 5.5 since 2026-10-22.
+MODEL = os.environ.get("EXPENSE_SCAN_MODEL", "claude-sonnet-5-5")
 
 MAX_PAGES = 10
 MAX_FILE_BYTES = 12 * 1024 * 1024  # 12 MB / file
@@ -164,7 +166,7 @@ def call_vision_model(file_specs, classes, units):
     client = anthropic.Anthropic()
     try:
         resp = client.messages.create(
-            model=MODEL, max_tokens=8000, thinking={"type": "disabled"},
+            model=MODEL, max_tokens=8000, **ai_models.thinking_off(MODEL),
             output_config={"effort": "low",
                            "format": {"type": "json_schema", "schema": SCAN_SCHEMA}},
             messages=[{"role": "user", "content": content}],

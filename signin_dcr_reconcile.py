@@ -70,6 +70,7 @@ from typing import Iterable, List, Optional
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 import ssc_paths  # #287
+from payroll_hours import day_entries, find_overlap
 DCR_ARTIFACT_ROOT = ssc_paths.under_root("data_room", "reports", "dcr")   # #287
 
 # Default times to use when reconciling an `in_dcr_not_log` divergence.
@@ -441,6 +442,12 @@ def apply_roster_completeness_decision(
         ).fetchone()
         if existing:
             continue
+        # One place at a time: never add a default day over hours the worker
+        # already has on another job.
+        if find_overlap(day_entries(conn, emp_id, report_date),
+                        ROSTER_DEFAULT_TIME_IN, ROSTER_DEFAULT_TIME_OUT):
+            summary["errors"].append(f"{wid} already logged on another job that day")
+            continue
         conn.execute(
             "INSERT INTO sign_in_log "
             "(date, employee_id, project_code, time_in, time_out, "
@@ -531,6 +538,9 @@ def reconcile_in_dcr_not_log(
         ).fetchone()
         if existing:
             summary["skipped_already_present"] += 1
+            continue
+        if find_overlap(day_entries(conn, emp_id, date), RECONCILE_TIME_IN, RECONCILE_TIME_OUT):
+            summary["skipped_overlap"] = summary.get("skipped_overlap", 0) + 1
             continue
         try:
             conn.execute(

@@ -13,6 +13,7 @@ source of truth in access.py); this module is access-agnostic pure logic.
 """
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from typing import Optional
 
@@ -26,6 +27,9 @@ TASK_ENTITIES = {"organization", "contact", "project", "none"}
 TASK_STATUSES = {"open", "done"}
 TASK_PRIORITIES = {"low", "normal", "high"}
 FUNCTION_TAGS = {"finance", "sales", "compliance", "ops", "exec"}
+# the client's own details on Edit client (2026-10-22): one email / phone / website + its address
+ORG_DETAIL_FIELDS = ("email", "phone", "website", "address_line", "city", "state", "zip")
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 # a sensible default pipeline order for the "orgs grouped by stage" summary
 STAGE_ORDER = ["prospect", "proposal", "onboarding", "active", "closed"]
 
@@ -133,7 +137,7 @@ def update_org(conn, org_id, *, actor_user_id=None, **fields) -> bool:
     cur = get_org(conn, org_id)
     if not cur:
         return False
-    allowed = {"name", "relationship_type", "status", "stage", "notes"}
+    allowed = {"name", "relationship_type", "status", "stage", "notes", *ORG_DETAIL_FIELDS}
     sets, params = [], []
     old_stage = cur.get("stage")
     for k, v in fields.items():
@@ -151,6 +155,8 @@ def update_org(conn, org_id, *, actor_user_id=None, **fields) -> bool:
                 v = str(v).strip().lower()
                 if v not in ORG_STATUSES:
                     raise ValueError(f"invalid status: {v}")
+            if k == "email" and str(v or "").strip() and not _EMAIL_RE.match(str(v).strip()):
+                raise ValueError("That email doesn't look right.")
             sets.append(f"{k} = ?")
             params.append((str(v).strip() or None) if v is not None else None)
     if not sets:
@@ -163,13 +169,116 @@ def update_org(conn, org_id, *, actor_user_id=None, **fields) -> bool:
         add_activity(conn, entity_type="organization", entity_id=org_id,
                      activity_type="stage_change", author_user_id=actor_user_id,
                      summary=f"Stage: {old_stage or '—'} → {new_stage or '—'}")
-    labels = {"name": "name", "relationship_type": "type", "status": "status", "notes": "notes"}
-    moved = [labels[k] for k in labels if k in fields
-             and ((str(fields[k]).strip() or None) if fields[k] is not None else None) != (cur.get(k) or None)]
+    labels = {"name": "name", "relationship_type": "type", "status": "status", "notes": "notes",
+              "email": "email", "phone": "phone", "website": "website",
+              "address_line": "address", "city": "address", "state": "address", "zip": "address"}
+    moved = []
+    for k in labels:
+        if k in fields and labels[k] not in moved \
+                and ((str(fields[k]).strip() or None) if fields[k] is not None else None) != (cur.get(k) or None):
+            moved.append(labels[k])
     if moved:
         add_activity(conn, entity_type="organization", entity_id=org_id, activity_type="system",
                      author_user_id=actor_user_id, summary="Client details updated: " + ", ".join(moved))
     return True
+
+
+def ensure_org_details(conn) -> bool:
+    """Additive: crm_organization gains the ORG_DETAIL_FIELDS columns. Idempotent, both backends."""
+    from apply_crm_266 import _columns
+    have = _columns(conn, "crm_organization")
+    missing = [c for c in ORG_DETAIL_FIELDS if c not in have]
+    for c in missing:
+        conn.execute(f"ALTER TABLE crm_organization ADD COLUMN {c} TEXT")
+    conn.commit()
+    return bool(missing)
+
+
+# Real business records that keep a client from being deleted: (table, column, what to call it).
+# A client with any of these is marked inactive instead; the delete is for a mistake or a test.
+_ORG_KEEPERS = (
+    ("projects", "client_org_id", "job"),
+    ("estimate", "client_org_id", "estimate"),
+    ("proposal", "client_org_id", "proposal"),
+    ("invoice", "client_org_id", "invoice"),
+    ("payable", "vendor_org_id", "bill"),
+    ("document_package", "client_org_id", "document package"),
+)
+
+
+def _has_table(conn, table) -> bool:
+    from apply_crm_266 import _table_exists
+    return _table_exists(conn, table)
+
+
+def _in(ids) -> str:
+    return ",".join("?" * len(ids))
+
+
+def org_delete_blockers(conn, org_id) -> list:
+    """What still points at this client, as human words ("2 jobs", "1 proposal"). Empty = deletable."""
+    out = []
+    for table, col, word in _ORG_KEEPERS:
+        if not _has_table(conn, table):
+            continue
+        n = conn.execute(f"SELECT COUNT(1) AS n FROM {table} WHERE {col} = ?", (org_id,)).fetchone()["n"]
+        if n:
+            out.append(f"{n} {word}{'' if n == 1 else 's'}")
+    cids = [r["id"] for r in conn.execute("SELECT id FROM crm_contact WHERE org_id = ?", (org_id,)).fetchall()]
+    if cids and _has_table(conn, "project_contact"):
+        n = conn.execute(f"SELECT COUNT(1) AS n FROM project_contact WHERE contact_id IN ({_in(cids)})",
+                         cids).fetchone()["n"]
+        if n:
+            out.append(f"{n} job contact{'' if n == 1 else 's'}")
+    if _has_table(conn, "meeting_invite"):
+        n = conn.execute(
+            "SELECT COUNT(1) AS n FROM meeting_invite i JOIN crm_task t ON t.id = i.item_id "
+            "WHERE (t.entity_type = 'organization' AND t.entity_id = ?)"
+            + (f" OR (t.entity_type = 'contact' AND t.entity_id IN ({_in(cids)}))" if cids else ""),
+            [org_id, *cids]).fetchone()["n"]
+        if n:
+            out.append(f"{n} meeting{'' if n == 1 else 's'} with invitations sent")
+    return out
+
+
+def delete_org(conn, org_id) -> Optional[dict]:
+    """Permanently delete a client that nothing real points at: the org, its contacts, its notes /
+    timeline, its follow-ups, its email links and its QuickBooks customer link. Buildings and emails
+    that named it stay, unlinked. Returns None when the org doesn't exist, {"blockers": [...]} when
+    it can't go, else {"deleted": True, "user_ids": [...]} (people whose calendars carried its items)."""
+    if not get_org(conn, org_id):
+        return None
+    blockers = org_delete_blockers(conn, org_id)
+    if blockers:
+        return {"blockers": blockers}
+    cids = [r["id"] for r in conn.execute("SELECT id FROM crm_contact WHERE org_id = ?", (org_id,)).fetchall()]
+    ent = "(entity_type = 'organization' AND entity_id = ?)" + (
+        f" OR (entity_type = 'contact' AND entity_id IN ({_in(cids)}))" if cids else "")
+    ent_params = [org_id, *cids]
+    tasks = _rows(conn.execute(f"SELECT id, assignee_user_id FROM crm_task WHERE {ent}", ent_params))
+    tids = [t["id"] for t in tasks]
+    users = {t["assignee_user_id"] for t in tasks if t.get("assignee_user_id")}
+    if tids and _has_table(conn, "crm_task_attendee"):
+        users |= {r["user_id"] for r in conn.execute(
+            f"SELECT user_id FROM crm_task_attendee WHERE task_id IN ({_in(tids)})", tids).fetchall()}
+        conn.execute(f"DELETE FROM crm_task_attendee WHERE task_id IN ({_in(tids)})", tids)
+    if tids:
+        conn.execute(f"DELETE FROM crm_task WHERE id IN ({_in(tids)})", tids)
+    conn.execute(f"DELETE FROM crm_activity WHERE {ent}", ent_params)
+    if _has_table(conn, "mail_link"):
+        conn.execute("DELETE FROM mail_link WHERE entity_type = 'client' AND entity_id = ?", (str(org_id),))
+    if _has_table(conn, "mail_message"):
+        conn.execute("UPDATE mail_message SET client_org_id = NULL WHERE client_org_id = ?", (org_id,))
+        if cids:
+            conn.execute(f"UPDATE mail_message SET contact_id = NULL WHERE contact_id IN ({_in(cids)})", cids)
+    if _has_table(conn, "building"):
+        conn.execute("UPDATE building SET client_org_id = NULL WHERE client_org_id = ?", (org_id,))
+    if _has_table(conn, "qbo_customer"):
+        conn.execute("DELETE FROM qbo_customer WHERE org_id = ?", (org_id,))
+    conn.execute("DELETE FROM crm_contact WHERE org_id = ?", (org_id,))
+    conn.execute("DELETE FROM crm_organization WHERE id = ?", (org_id,))
+    conn.commit()
+    return {"deleted": True, "user_ids": sorted(users)}
 
 
 # ============================ contacts ============================

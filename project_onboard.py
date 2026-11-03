@@ -18,12 +18,14 @@ GET /api/admin/projects/onboard-meta feeds the modal's selects.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date, datetime
 from typing import Optional
 
 from flask import jsonify, request
 
 import billing_type
+import buildings
 import project_modules
 import crm
 import db_layer
@@ -217,8 +219,30 @@ def _existing_client_id(conn, name: str):
     return None
 
 
+def _signed_proposal(conn, proposal_id) -> dict:
+    """Ready to start (2026-10-23): the signed proposal a project is created from, with its estimate."""
+    try:
+        proposal_id = int(proposal_id)
+    except (TypeError, ValueError):
+        raise ValueError("from_proposal_id must be an integer")
+    r = _one(conn.execute("SELECT p.id, p.status, p.estimate_id, p.client_org_id, e.est_type, e.borough, e.status AS est_status, "
+                          "e.converted_project_code FROM proposal p JOIN estimate e ON e.id = p.estimate_id WHERE p.id = ?",
+                          (proposal_id,)))
+    if not r:
+        raise LookupError("proposal not found")
+    if r["status"] != "signed":
+        raise ValueError("only a signed proposal becomes a project")
+    if r.get("converted_project_code"):
+        raise ValueError(f"this proposal is already project {r['converted_project_code']}")
+    return r
+
+
 def onboard(conn, payload: dict, *, actor=None) -> dict:
-    p = payload or {}
+    p = dict(payload or {})
+    prop = _signed_proposal(conn, p["from_proposal_id"]) if p.get("from_proposal_id") not in (None, "") else None
+    if prop:   # the client is the proposal's; type and region default to its estimate's and stay editable
+        p.update(est_type=p.get("est_type") or prop["est_type"], borough=p.get("borough") or prop["borough"],
+                 client_org_id=prop["client_org_id"], new_org_name="")
     est_type = (p.get("est_type") or "").strip().upper()
     borough = (p.get("borough") or "").strip().upper()
     if est_type not in estimates.EST_TYPES:
@@ -226,11 +250,12 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     if borough not in estimates.BOROUGHS:
         raise ValueError("pick the borough or region")
     import project_setup   # checked before anything is created, so a bad value never leaves half a job
-    project_setup.validate({k: p.get(k) for k in ("color_index", "access_methods", "worker_access", "job_type_other")}, est_type)
+    project_setup.validate({k: p.get(k) for k in ("color_index", "access_methods", "worker_access", "job_type_other", "rope_access_scope")}, est_type)
     address = (p.get("address") or "").strip()
     if len(address) < 4:
         raise ValueError("the building address is required")
     name = (p.get("name") or "").strip()[:200] or address
+    city_zip = re.sub(r"\s+", " ", str(p.get("city_zip") or "")).strip()[:120] or None   # "Bronx, NY 10454"
     contract = p.get("contract_value")
     if contract in (None, ""):
         contract = None
@@ -299,13 +324,26 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
         raise LookupError("client not found")
 
     # ---- 1. the estimate in the series, 2. approved on the start date
-    est = estimates.create_estimate(conn, est_type=est_type, borough=borough, client_org_id=org_id,
-                                    building_address=address, notes=(NOTE + (" " + notes if notes else "")),
-                                    created_by=actor)
     now = _now()
-    conn.execute("UPDATE estimate SET status = 'approved', final_amount = ?, submitted_date = ?, decided_date = ?, "
-                 "status_changed_at = ?, updated_at = ? WHERE id = ?",
-                 (contract, start, start, f"{start}T00:00:00" if start != date.today().isoformat() else now, now, est["id"]))
+    if prop:   # Ready to start: the signed proposal's own estimate becomes the job (no second estimate)
+        est = estimates.get_estimate(conn, prop["estimate_id"])
+        if (est["est_type"], est["borough"]) != (est_type, borough):   # a changed type / region moves it to that series
+            seq = estimates.next_seq(conn, est_type, borough)
+            conn.execute("UPDATE estimate SET est_type = ?, borough = ?, seq = ?, code = ? WHERE id = ?",
+                         (est_type, borough, seq, estimates.make_code(est_type, borough, seq), est["id"]))
+            if estimates._has_276(conn):
+                conn.execute("UPDATE estimate SET division = ? WHERE id = ?", (estimates.DIVISION_OF_TYPE.get(est_type), est["id"]))
+            est = estimates.get_estimate(conn, est["id"])
+        conn.execute("UPDATE estimate SET status = 'approved', final_amount = COALESCE(?, final_amount), "
+                     "building_address = COALESCE(building_address, ?), status_changed_at = ?, updated_at = ? WHERE id = ?",
+                     (contract, address, now, now, est["id"]))
+    else:
+        est = estimates.create_estimate(conn, est_type=est_type, borough=borough, client_org_id=org_id,
+                                        building_address=address, notes=(NOTE + (" " + notes if notes else "")),
+                                        created_by=actor)
+        conn.execute("UPDATE estimate SET status = 'approved', final_amount = ?, submitted_date = ?, decided_date = ?, "
+                     "status_changed_at = ?, updated_at = ? WHERE id = ?",
+                     (contract, start, start, f"{start}T00:00:00" if start != date.today().isoformat() else now, now, est["id"]))
     conn.commit()
 
     # ---- 3. convert (building auto-link, IRA checklist), 4. name / start / PM
@@ -336,6 +374,13 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
         sets = ", ".join(f"{k} = ?" for k in site)
         conn.execute(f"UPDATE projects SET {sets} WHERE project_code = ?", (*site.values(), code))
         conn.commit()
+    if city_zip:   # from the address lookup (or typed); the job site gets its city / ZIP too
+        conn.execute("UPDATE projects SET city_zip = ? WHERE project_code = ?", (city_zip, code))
+        city, state, zip_ = buildings._split_city_zip(city_zip)
+        conn.execute("UPDATE building SET city = COALESCE(NULLIF(city, ''), ?), state = COALESCE(NULLIF(state, ''), ?), "
+                     "zip = COALESCE(NULLIF(zip, ''), ?) WHERE id = (SELECT building_id FROM projects WHERE project_code = ?)",
+                     (city, state, zip_, code))
+        conn.commit()
     try:
         project_modules.set_modules(conn, code, modules, actor=actor)   # always a list now: a new job is lean
     except Exception as e:   # a job without the setting just shows every tab, as before
@@ -357,7 +402,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     crew_change = _apply_crew(conn, code, crew_ids, today=start) if crew_ids else {"added": [], "removed": []}
     import project_setup   # Oct 7 notes batch C: number, color, type, access method, worker access
     try:   # validated up front; never fail a created job over its setup
-        setup = project_setup.assign_new(conn, code, est_type, {k: p.get(k) for k in ("color_index", "access_methods", "worker_access", "job_type_other")})
+        setup = project_setup.assign_new(conn, code, est_type, {k: p.get(k) for k in ("color_index", "access_methods", "worker_access", "job_type_other", "rope_access_scope")})
     except Exception as e:
         log.warning("job setup not written for %s: %s", code, type(e).__name__)
         try:
@@ -365,10 +410,21 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
         except Exception:
             pass
         setup = {}
+    if prop:   # the deposit invoice drafted at signing belongs to the new job
+        try:
+            conn.execute("UPDATE invoice SET project_code = ? WHERE proposal_id = ? AND project_code IS NULL", (code, prop["id"]))
+            conn.commit()
+        except Exception as e:
+            log.info("deposit invoice not linked to %s: %s", code, type(e).__name__)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
     try:
         crm.add_activity(conn, entity_type="organization", entity_id=org_id, activity_type="system",
                          author_user_id=actor, function_tag="sales",
-                         summary=f"Project {code} onboarded directly — {name}"
+                         summary=(f"Project {code} started from signed proposal — {name}" if prop else
+                                  f"Project {code} onboarded directly — {name}")
                                  + (f" ({'${:,.0f}'.format(contract)})" if contract else ""))
     except Exception as e:
         log.info("#324 activity not logged: %s", e)
@@ -378,9 +434,10 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
         conn.commit()
     except Exception as e:
         log.info("#331 region label not stamped on the job site: %s", e)
-    project = _one(conn.execute("SELECT project_code, name, address, status, client_org_id, building_id, "
+    project = _one(conn.execute("SELECT project_code, name, address, city_zip, status, client_org_id, building_id, "
                                 "site_lat, site_lng, geofence_m FROM projects WHERE project_code = ?", (code,)))
     return {"project_code": code, "project": project, "estimate_id": est["id"], "estimate_code": est["code"],
+            "from_proposal_id": prop["id"] if prop else None,
             "client_org_id": org_id, "pm_user_id": pm_user_id, "billing_type": bt, "modules": list(project_modules.KEYS) if modules is None else modules, "start_date": provided_start, "target_completion": target, "contract_value": contract,
             "crew": crew_change["added"], "job_number": setup.get("job_number"), "setup": setup}
 

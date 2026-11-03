@@ -16,20 +16,21 @@ won value, other projects). This module gives the portal a project-centric read:
 Job sites keep their own pages (`#buildings/<id>`, one address ↔ many jobs); the
 Projects view links to them, they are no longer the front door.
 
-Read-only; gated by the company-portal section (admin / c_suite). Never returns a
+Ready to start (2026-10-23): signed proposals not yet a project, with "Not a project" as the one write.
+Otherwise read-only; gated by the company-portal section (admin / c_suite). Never returns a
 `*_path` or a worker's PII beyond name / trade (company-only surface, same as Workforce).
 """
 from __future__ import annotations
 
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 from flask import jsonify, request
 
 import crm
 import db_layer
-from auth import requires_section
+from auth import current_user, requires_company, requires_section
 
 log = logging.getLogger("ssc.portal_projects")
 
@@ -71,16 +72,88 @@ _PROJECT_COLS = ("p.project_code, p.name, p.address, p.city_zip, p.project_type,
                  "p.target_completion, p.superintendent, p.client_org_id, p.building_id")
 
 
+_ACTIVE_USER = "COALESCE(u.is_active, 1) = 1 AND COALESCE(u.status, 'active') = 'active'"
+_USER_NAME = "COALESCE(u.display_name, u.full_name, u.email)"
+
+
 def _pms(conn, codes: list) -> dict:
+    """The PM column: active users whose role IS pm. pm_project_assignment also holds the
+    job's clients / architects / supers / estimators (their access scope), so an unfiltered
+    read listed those people — and anyone who used to be a PM — as the job's PMs."""
     if not codes:
         return {}
     marks = ",".join("?" * len(codes))
     out: dict = {}
     for r in _rows(conn.execute(
-            f"SELECT a.project_code, u.full_name, u.email FROM pm_project_assignment a JOIN users u ON u.id = a.user_id "
-            f"WHERE a.project_code IN ({marks}) AND COALESCE(u.is_active,1) = 1 ORDER BY u.full_name", codes)):
-        out.setdefault(r["project_code"], []).append({"name": r["full_name"], "email": r["email"]})
+            f"SELECT a.project_code, u.id, {_USER_NAME} AS name, u.email FROM pm_project_assignment a "
+            f"JOIN users u ON u.id = a.user_id WHERE a.project_code IN ({marks}) AND u.role = 'pm' AND {_ACTIVE_USER} "
+            f"ORDER BY LOWER({_USER_NAME})", codes)):
+        out.setdefault(r["project_code"], []).append({"user_id": r["id"], "name": r["name"], "email": r["email"]})
     return out
+
+
+# ---- editing a job's PMs from the Projects table ----
+# Roles that use pm_project_assignment as their project scope. An active user with one of
+# these roles (other than pm) is someone's ACCESS, managed elsewhere (Client portal,
+# Users) — this editor never touches it. A row whose user is inactive, or whose role no
+# longer uses project scoping (a PM who became an admin, say), is "outdated".
+SCOPED_ROLES = ("pm", "client", "architect", "estimator", "super")
+
+
+def project_pms(conn, code: str) -> Optional[dict]:
+    """{assigned: [{user_id, name, email, role, outdated}], available: [{user_id, name, email}],
+    others: {role: count}} — `others` are the job's active clients / architects / … (counts only)."""
+    if not _one(conn.execute("SELECT project_code FROM projects WHERE project_code = ?", (code,))):
+        return None
+    assigned, others = [], {}
+    for r in _rows(conn.execute(
+            f"SELECT u.id, {_USER_NAME} AS name, u.email, u.role, "
+            f"CASE WHEN {_ACTIVE_USER} THEN 1 ELSE 0 END AS active FROM pm_project_assignment a "
+            f"JOIN users u ON u.id = a.user_id WHERE a.project_code = ? ORDER BY LOWER({_USER_NAME})", (code,))):
+        active = bool(r["active"])
+        if active and r["role"] == "pm":
+            assigned.append({"user_id": r["id"], "name": r["name"], "email": r["email"], "role": r["role"], "outdated": False})
+        elif active and r["role"] in SCOPED_ROLES:
+            others[r["role"]] = others.get(r["role"], 0) + 1
+        else:
+            assigned.append({"user_id": r["id"], "name": r["name"], "email": r["email"], "role": r["role"], "outdated": True})
+    available = [{"user_id": r["id"], "name": r["name"], "email": r["email"]} for r in _rows(conn.execute(
+        f"SELECT u.id, {_USER_NAME} AS name, u.email FROM users u WHERE u.role = 'pm' AND {_ACTIVE_USER} "
+        f"AND COALESCE(u.is_system, 0) = 0 ORDER BY LOWER({_USER_NAME})"))]
+    return {"project_code": code, "assigned": assigned, "available": available, "others": others}
+
+
+def set_project_pms(conn, code: str, user_ids, actor=None) -> dict:
+    """Replace this job's PMs with `user_ids` (active PM users, plus any outdated name already
+    on the job that should stay). Adds the missing ones and removes, on this job only, PM rows
+    and outdated rows not in the list. Never touches an active client / architect / estimator /
+    super's access."""
+    if not isinstance(user_ids, list):
+        raise ValueError("user_ids must be a list")
+    try:
+        want = {int(x) for x in user_ids}
+    except (TypeError, ValueError):
+        raise ValueError("user_ids must be integers")
+    cur = project_pms(conn, code)
+    if cur is None:
+        raise LookupError("project not found")
+    # an outdated name already on the job may stay (listed = kept); nobody new but an active PM
+    ok = {u["user_id"] for u in cur["available"]} | {u["user_id"] for u in cur["assigned"] if u["outdated"]}
+    bad = want - ok
+    if bad:
+        raise ValueError("only active project managers can be assigned")
+    have = {u["user_id"] for u in cur["assigned"]}
+    remove = sorted(have - want)
+    add = sorted(want - have)
+    for uid in remove:
+        conn.execute("DELETE FROM pm_project_assignment WHERE user_id = ? AND project_code = ?", (uid, code))
+    now = datetime.now().isoformat(timespec="seconds")
+    for uid in add:
+        conn.execute("INSERT INTO pm_project_assignment (user_id, project_code, assigned_by, assigned_at) "
+                     "VALUES (?,?,?,?)", (uid, code, actor, now))
+    conn.commit()
+    log.info("project PMs set on %s: +%d -%d (by user %s)", code, len(add), len(remove), actor)
+    return {**project_pms(conn, code), "added": add, "removed": remove}
 
 
 def _contract(conn, code: str) -> dict:
@@ -252,15 +325,45 @@ def project_detail(conn, code: str, *, today: Optional[date] = None) -> Optional
 
 
 # ---------------------------------------------------------------- routes
-def sites_without_project(conn) -> list:
-    """#337 — job sites (addresses) nobody has created a project for yet. The office entered
-    five of these thinking they were projects; the Projects tab now says so and offers the
-    one-click path."""
-    return _safe(lambda: _rows(conn.execute(
-        "SELECT b.id, b.name, b.address_line, b.borough, b.client_org_id, o.name AS client_name, b.created_at "
-        "FROM building b LEFT JOIN crm_organization o ON o.id = b.client_org_id "
-        "WHERE b.archived_at IS NULL AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.building_id = b.id) "
-        "ORDER BY b.created_at DESC, b.id DESC LIMIT 50")), [])
+def ready_to_start(conn) -> list:
+    """Signed proposals that are not a project yet (2026-10-23, replaces #337's "addresses without a project": every
+    proposal adds an address, so that list grew with every bid sent). One row per signed proposal whose estimate was
+    never converted, unless someone marked it "Not a project" or a job was already started at that address on or after
+    the signing day (a project made by hand before this existed)."""
+    import proposal_engine
+    rows = _safe(lambda: _rows(conn.execute(
+        "SELECT p.id, p.display_no, p.version, p.number, p.title, p.price, p.deposit_amount, p.signed_at, "
+        "p.client_org_id, p.building_id, o.name AS client_name, e.est_type, e.borough, e.building_address, "
+        "b.name AS building_name, b.address_line, "
+        "(SELECT i.number FROM invoice i WHERE i.proposal_id = p.id ORDER BY i.id LIMIT 1) AS deposit_invoice "
+        "FROM proposal p JOIN estimate e ON e.id = p.estimate_id "
+        "LEFT JOIN crm_organization o ON o.id = p.client_org_id LEFT JOIN building b ON b.id = p.building_id "
+        "WHERE p.status = 'signed' AND e.converted_project_code IS NULL AND p.project_dismissed_at IS NULL "
+        "AND NOT EXISTS (SELECT 1 FROM projects j WHERE p.building_id IS NOT NULL AND j.building_id = p.building_id "
+        "                AND SUBSTR(j.created_at, 1, 10) >= SUBSTR(p.signed_at, 1, 10)) "
+        "ORDER BY p.signed_at DESC, p.id DESC LIMIT 20")), [])
+    return [{"proposal_id": r["id"], "label": proposal_engine.label(r), "title": r.get("title") or r.get("building_name") or "",
+             "client_org_id": r.get("client_org_id"), "client_name": r.get("client_name"),
+             "address": r.get("address_line") or r.get("building_address") or "",
+             "est_type": r.get("est_type"), "borough": r.get("borough"),
+             "price": r.get("price"), "deposit_amount": r.get("deposit_amount"), "deposit_invoice": r.get("deposit_invoice"),
+             "signed_at": r.get("signed_at")} for r in rows]
+
+
+def waiting_signature(conn) -> int:
+    """Proposals out with a client and not answered yet: the one line under Ready to start that points to Proposals."""
+    r = _safe(lambda: _one(conn.execute("SELECT COUNT(1) AS n FROM proposal WHERE status IN ('sent','viewed')")), None)
+    return int((r or {}).get("n") or 0)
+
+
+def dismiss_ready(conn, proposal_id: int, *, actor=None) -> None:
+    """"Not a project": the signed proposal leaves Ready to start; it stays signed in Proposals."""
+    cur = conn.execute("UPDATE proposal SET project_dismissed_at = ?, project_dismissed_by = ? "
+                       "WHERE id = ? AND status = 'signed' AND project_dismissed_at IS NULL",
+                       (datetime.now().isoformat(timespec="seconds"), actor, proposal_id))
+    conn.commit()
+    if not cur.rowcount and not _one(conn.execute("SELECT id FROM proposal WHERE id = ? AND status = 'signed'", (proposal_id,))):
+        raise LookupError("signed proposal not found")
 
 
 def _api_list():
@@ -268,7 +371,8 @@ def _api_list():
     try:
         rows = list_projects(conn, status=(request.args.get("status") or "active").strip().lower(),
                              search=(request.args.get("search") or "").strip() or None)
-        return jsonify({"data": rows, "meta": {"count": len(rows), "sites_without_project": sites_without_project(conn)}})
+        return jsonify({"data": rows, "meta": {"count": len(rows), "ready_to_start": ready_to_start(conn),
+                                               "waiting_signature": waiting_signature(conn)}})
     finally:
         conn.close()
 
@@ -282,8 +386,42 @@ def _api_detail(project_code):
         conn.close()
 
 
+def _api_dismiss_ready(proposal_id):
+    conn = _conn()
+    try:
+        try:
+            dismiss_ready(conn, proposal_id, actor=(current_user() or {}).get("id"))
+        except LookupError as e:
+            return jsonify({"error": str(e)}), 404
+        return jsonify({"data": {"proposal_id": proposal_id, "dismissed": True}})
+    finally:
+        conn.close()
+
+
+@requires_company
+def _api_pms(project_code):
+    conn = _conn()
+    try:
+        if request.method == "GET":
+            d = project_pms(conn, project_code)
+            return jsonify({"data": d}) if d else (jsonify({"error": "project not found"}), 404)
+        body = request.get_json(silent=True) or {}
+        try:
+            d = set_project_pms(conn, project_code, body.get("user_ids"), actor=(current_user() or {}).get("id"))
+        except LookupError as e:
+            return jsonify({"error": str(e)}), 404
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        return jsonify({"data": d})
+    finally:
+        conn.close()
+
+
 def register(app) -> None:
     import company_portal
     gate = requires_section(company_portal.SECTION)
+    app.add_url_rule("/api/company/portal/projects/ready/<int:proposal_id>/dismiss", "portal_projects_ready_dismiss",
+                     gate(_api_dismiss_ready), methods=["POST"])
     app.add_url_rule("/api/company/portal/projects", "portal_projects_list", gate(_api_list), methods=["GET"])
     app.add_url_rule("/api/company/portal/projects/<project_code>", "portal_projects_detail", gate(_api_detail), methods=["GET"])
+    app.add_url_rule("/api/company/portal/projects/<project_code>/pms", "portal_projects_pms", _api_pms, methods=["GET", "PUT"])

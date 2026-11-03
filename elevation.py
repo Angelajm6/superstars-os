@@ -580,6 +580,11 @@ def _api_my_elevations():
     try:
         user = current_user()
         codes = accessible_codes(conn, user)
+        # ?project=<code> — a job's Drawings tab lists that job's elevations only, so a
+        # new job never opens 890 E 135th's markups. Never widens: intersect, not trust.
+        scope = (request.args.get("project") or "").strip()
+        if scope:
+            codes = codes & {scope}
         if not codes:
             return jsonify({"data": []})
         marks = ",".join("?" for _ in codes)

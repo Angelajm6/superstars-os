@@ -17,6 +17,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Drawing Markup · Superstars Contracting</title>
+<link rel="icon" type="image/svg+xml" href="/files/static/brand/mark.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/files/static/brand/favicon-32.png">
+<link rel="apple-touch-icon" href="/files/static/brand/apple-touch-icon.png">
 <link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
 <link rel="stylesheet" href="/files/static/v2/v2.css">
 <style>
@@ -1038,7 +1041,11 @@
   $('zoomout').addEventListener('click', function () { stepZoom(-1); });
 
   // ---------- elevation picker ------------------------------------------------
-  var LS_KEY = 'ssc.drawingMarkup.elevationId';
+  // ?project=<code> — opened from a job's Drawings tab: that job's elevations only, and
+  // its own remembered choice, so a new job never inherits another job's markups.
+  var PROJECT = (new URLSearchParams(location.search).get('project') || '').trim();
+  var LS_KEY = 'ssc.drawingMarkup.elevationId' + (PROJECT ? '.' + PROJECT : '');
+  var QS = PROJECT ? '?project=' + encodeURIComponent(PROJECT) : '';
 
   function openable(e) {
     // #293 — a DRAFT is authoring-in-progress: internal users see it listed
@@ -1074,7 +1081,7 @@
     try { window.localStorage.setItem(LS_KEY, String(id)); } catch (e) { /* private mode */ }
     // Reflect in the URL too, so a refresh — or a copied link — lands on the same
     // elevation even when localStorage is unavailable.
-    try { history.replaceState(null, '', '/drawing-markup/' + id); } catch (e) { /* no-op */ }
+    try { history.replaceState(null, '', '/drawing-markup/' + id + QS); } catch (e) { /* no-op */ }
   }
 
   $('elevpick').addEventListener('change', function () {
@@ -1086,13 +1093,14 @@
   });
 
   // ---------- boot --------------------------------------------------------------
-  fetch('/api/elevations', { credentials:'same-origin' })
+  fetch('/api/elevations' + QS, { credentials:'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (j) {
       S.elevations = (j && j.data) || [];
       var traced = S.elevations.filter(openable);
       if (!S.elevations.length) {
-        $('subtitle').textContent = 'No elevation is available for your projects.';
+        $('subtitle').textContent = PROJECT ? 'No drawings for this job yet.'
+                                            : 'No elevation is available for your projects.';
         $('elevpick').hidden = true;
         return;
       }

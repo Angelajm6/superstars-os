@@ -26,7 +26,7 @@ expected residue, and they MUST be cleaned up by the test.
 
 Importable:  from provenance import log_interaction
 CLI:
-  python agents/construction_specialist/provenance.py \
+  python agents/construction_specialist/provenance.py --db <isolated.db> \
       --question "..." --sources "..." --summary "..." \
       --disposition pending
 Prints the interaction_id + row id only — never echoes the content back.
@@ -43,8 +43,8 @@ from pathlib import Path
 from typing import Optional
 
 HERE = Path(__file__).resolve().parent
-REPO_ROOT = HERE.parent.parent  # dashboard/
-DEFAULT_DB = REPO_ROOT / "superstars.db"
+sys.path.insert(0, str(HERE))
+import db_guard  # noqa: E402 — no default database: an isolated one only (CLAUDE.md)
 CORPUS_VERSION_FILE = HERE / "corpus" / "CORPUS_VERSION"
 
 SYNTHETIC_PREFIX = "SMK-"
@@ -108,7 +108,7 @@ def log_interaction(
     if not question_text or not question_text.strip():
         raise ValueError("question_text is required")
 
-    db_path = Path(db_path) if db_path else DEFAULT_DB
+    db_path = db_guard.resolve(db_path)   # RefusedDB before anything is written
     corpus_version = corpus_version or _read_corpus_version()
     asked_at = asked_at or _local_now_str()
     created_at = _local_now_str()
@@ -121,7 +121,7 @@ def log_interaction(
     s = scrub_pii(sources_cited)
     a = scrub_pii(answer_summary)
 
-    conn = sqlite3.connect(str(db_path), timeout=60.0)
+    conn = db_guard.connect(str(db_path), timeout=60.0)
     try:
         conn.execute("PRAGMA busy_timeout=60000;")
         cur = conn.execute(
@@ -162,9 +162,16 @@ def main() -> int:
                     help="Override interaction_id (default: auto CAP-...).")
     ap.add_argument("--synthetic", action="store_true",
                     help="Mark as a test row (SMK- prefix). Tests only.")
-    ap.add_argument("--db", default=None, help="DB path override.")
+    ap.add_argument("--db", default=None,
+                    help=f"Isolated database (or set {db_guard.ENV_VAR}). Required; "
+                         "the real superstars.db is refused.")
     args = ap.parse_args()
 
+    try:
+        db_guard.resolve(args.db)
+    except db_guard.RefusedDB as e:
+        print(f"provenance not logged: {e}", file=sys.stderr)
+        return 2
     res = log_interaction(
         question_text=args.question,
         sources_cited=args.sources,

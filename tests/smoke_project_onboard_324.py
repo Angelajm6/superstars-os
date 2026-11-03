@@ -221,7 +221,8 @@ def main() -> int:
     finally:
         conn.close()
     r = admin.post(f"{API}/onboard", json={**base, "name": "Np324 Quay facade", "contract_value": "185,000",
-                                           "start_date": D(-14), "pm_user_id": ids["pm_active"], "notes": "won by phone"})
+                                           "start_date": D(-14), "pm_user_id": ids["pm_active"], "notes": "won by phone",
+                                           "city_zip": "  Bronx,  NY 10454 "})
     assert r.status_code == 201, r.get_json()
     d = r.get_json()["data"]
     _no_paths(d, "onboard")
@@ -230,6 +231,7 @@ def main() -> int:
     assert d["project"]["name"] == "Np324 Quay facade" and d["project"]["status"] == "active"
     assert d["project"]["client_org_id"] == ids["org"] and d["project"]["building_id"], d["project"]
     assert d["contract_value"] == 185000.0 and d["start_date"] == D(-14) and d["pm_user_id"] == ids["pm_active"]
+    assert d["project"]["city_zip"] == "Bronx, NY 10454"   # from the address lookup; the job site gets it too
     conn = _db()
     try:
         est = estimates.get_estimate(conn, d["estimate_id"])
@@ -238,6 +240,8 @@ def main() -> int:
         assert project_onboard.NOTE in (est["notes"] or "") and "won by phone" in est["notes"]
         pa = conn.execute("SELECT user_id FROM pm_project_assignment WHERE project_code = ?", (code,)).fetchone()
         assert pa and pa["user_id"] == ids["pm_active"]
+        site = conn.execute("SELECT city, state, zip FROM building WHERE id = ?", (d["project"]["building_id"],)).fetchone()
+        assert (site["city"], site["state"], site["zip"]) == ("Bronx", "NY", "10454"), dict(site)
         act = conn.execute("SELECT summary FROM crm_activity WHERE entity_type='organization' AND entity_id=? "
                            "AND summary LIKE ?", (ids["org"], f"Project {code} onboarded directly%")).fetchone()
         assert act and "$185,000" in act["summary"], act

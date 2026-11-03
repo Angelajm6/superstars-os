@@ -8,6 +8,7 @@ Proves against an ISOLATED database (no Google; the test mail folder):
   * Forward: "Fwd:" subject, the forwarded-message block, the email's own attachment along
   * people search: a client contact and a team member by name; pm gets 403
   * the page carries the recipients editor (reply type menu, chips, Cc / Bcc, subject)
+  * New email and Proposal Studio's Send To / Cc boxes carry the same people suggestions (static/js/mail_suggest.js)
 """
 from __future__ import annotations
 
@@ -166,6 +167,19 @@ def main() -> int:
                        "'/inbox/people?q='", "forward: R.kind === 'fwd'", "bcc: R.list('bcc')", 'id="ib-subj"'):
             assert needle in cp, needle
         passed += 1; print("  page ok")
+
+        # ---- the same suggestions in the plain To / Cc boxes: inbox New email + Proposal Studio's Send pop-up (2026-10-27)
+        js = (ROOT / "static" / "js" / "mail_suggest.js").read_text(encoding="utf-8")
+        for needle in ("window.SSCMailSuggest = {", "'/api/inbox/people?q='", "res.status === 403", "inp.removeAttribute('list')",
+                       "used(inp, t, opts.group)", "'ArrowDown'", "document.body.appendChild(box)"):
+            assert needle in js, needle
+        ps = (ROOT / "proposal_studio.html").read_text(encoding="utf-8")
+        for page, needle in ((cp, "['ib-cmp-to', 'ib-cmp-cc'].forEach(i => SSCMailSuggest.attach("), (ps, "['s-to', 's-cc'].forEach(i => SSCMailSuggest.attach("),
+                             (ps, "group: [$('s-to'), $('s-cc')]")):
+            assert needle in page, needle
+        for page in (cp, ps):
+            assert '<script src="/files/static/js/mail_suggest.js?v=' in page
+        passed += 1; print("  suggestions wired ok")
     finally:
         _cleanup()
         shutil.rmtree(_TMP, ignore_errors=True)

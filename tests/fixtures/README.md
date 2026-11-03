@@ -43,3 +43,9 @@ Documents location automatically. When the fixture is absent (fresh clone, CI),
 the suite SKIPS the vector text-layer assertions loudly and still proves the
 full lifecycle with a generated raster PDF — which doubles as the scanned-set
 degradation test (no text layer -> blank pre-fill, everything else works).
+
+## takeoff_sample.xls
+
+A tiny synthetic Excel 97-2003 workbook (two sheets: a takeoff with a date and a boolean, and a totals
+sheet) for `tests/smoke_doc_sheets.py`. Made once with xlwt 1.3.0 outside the app; xlwt is NOT a
+dependency. No real data.

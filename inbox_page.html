@@ -4,20 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
-<link rel="stylesheet" href="/files/static/css/widgets.css?v=1007">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=1008">
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1021"></script>
-<script src="/files/static/js/claude_drawer.js?v=13" defer></script>
+<script src="/files/static/js/company_nav.js?v=1022"></script>
+<script src="/files/static/js/claude_drawer.js?v=18" defer></script>
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1010" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
-<script src="/files/static/js/inbox_schedule.js?v=4" defer></script>
+<script src="/files/static/js/inbox_schedule.js?v=5" defer></script>
 <title>Inbox · Superstars Contracting</title>
-<!-- Inbox for PMs and supers (prototype accepted 2026-10-16): "Mine" only — their own Google
+<link rel="icon" type="image/svg+xml" href="/files/static/brand/mark.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/files/static/brand/favicon-32.png">
+<link rel="apple-touch-icon" href="/files/static/brand/apple-touch-icon.png">
+<!-- Inbox for PMs and supers (prototype accepted 2026-10-16): "My calendar" only (was "Mine", renamed 2026-10-23) — their own Google
      Calendar (private to them) + the tasks, events and meetings they are on. Admins and C-suite
-     get Mail / Mine / All inside /company#inbox; /inbox redirects them there (inbox_schedule.py). -->
+     get Email / My calendar / Team inside /company#inbox; /inbox redirects them there (inbox_schedule.py). -->
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:var(--canvas);color:var(--ink);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;}
@@ -34,7 +37,7 @@
 <aside class="ssc-side" aria-label="Company navigation">
   <div class="brand">
     <img class="brand-mark" width="34" height="34" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
-    <div><div class="brand-name">Superstars Contracting</div><div class="brand-sub">Company</div></div>
+    <img class="brand-full" src="/files/static/brand/logo-full.png" width="320" height="189" alt="Superstars Contracting Inc">
   </div>
   <nav class="ssc-nav" id="ssc-nav" data-company-nav></nav>
   <script>SSC_NAV.mount();</script>
@@ -45,7 +48,7 @@
   <div class="ssc-top-right"><span id="who" hidden></span><div id="user-menu" aria-live="polite"></div></div>
 </header>
 <main class="ix-wrap" aria-label="Inbox">
-  <p class="ix-sub">Your calendar and everything assigned to you. Only you see your calendar.</p>
+  <p class="ix-sub"><b>My calendar</b>: your Google Calendar and everything assigned to you. Only you see your calendar.</p>
   <div id="ix-sched"></div>
 </main>
 </div><!-- /.ssc-main -->
@@ -55,7 +58,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (window.SSC_SCHEDULE) window.SSC_SCHEDULE.mount(document.getElementById('ix-sched'), { scope: 'mine', admin: false, next: '/inbox' });
 });
 </script>
-<link rel="stylesheet" href="/files/static/css/unify.css?v=6">
+<link rel="stylesheet" href="/files/static/css/unify.css?v=16">
 <script src="/files/static/js/file_drop.js?v=1" defer></script>
 </body>
 </html>

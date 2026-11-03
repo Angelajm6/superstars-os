@@ -21,6 +21,457 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Your own Claude, connected: a claude.ai connector (Bookore, 2026-10-29)
+
+* Accepted prototype: https://claude.ai/artifact/VdvZw7Dr3u4VB9H6kZHSJ3. The leadership team (Max plans) adds the app in
+  claude.ai > Settings > Connectors (custom connector, address `APP_BASE_URL/mcp`); their Claude then reads jobs, job
+  documents (PDF text, scanned pages and photos as pictures, spreadsheets), daily reports, estimates, proposals and clients,
+  and `save_document` files a PDF "Made with Claude" in a job's folder (a new version supersedes, never overwrites; the
+  Word copy downloads from the app). `claude_connector.py`: MCP Streamable HTTP (JSON, stateless) + OAuth 2.1 (DCR,
+  PKCE S256, claude.ai's callback only, tokens hashed, 1 h access, rotating refresh with reuse = revoke, 30-day cap).
+* **Off unless `SSC_CLAUDE_CONNECTOR=1`.** Who may connect: admin / C-suite ticked in Settings > Claude (admins tick);
+  consent needs the app login AND a fresh 6-digit code (two-step sign-in required). Rechecked on every call. Optional
+  IP check: `SSC_CONNECTOR_CIDRS=160.79.104.0/21` + `SSC_CONNECTOR_IP_HEADER=CF-Connecting-IP` (Cloudflare). Note the
+  onrender.com hostname bypasses Cloudflare, so the header could be forged there: the tokens are the real control.
+* No pay: reused claude_agent reads go through `scrub` + `_no_pay` (cost / labor / wage / rate keys dropped). No email,
+  hours, payroll, send, sign or delete tools. Logs + `claude_connector_log` carry who / tool / job / counts only;
+  `/oauth/consent/<id>` is redacted in request logs.
+* Guard: `tests/smoke_claude_connector.py` (in the gate).
+* **Alerts (2026-10-30):** `claude_connector.alert` emails every active admin + the person (notifications.notify_user,
+  kinds `claude_connector_*`): someone connected, who-can-connect changed, a refused attempt (once a day), 5 wrong codes,
+  a reused old pass (connection cut), unusual activity (rate limit hit; once a day). No tokens, codes or document text.
+* **Back door closed (2026-10-30, `edge_guard.py`):** with `SSC_EDGE_SECRET` set, every request must carry header
+  `X-SSC-Edge` = that secret, which a Cloudflare Transform Rule adds; the onrender.com address (no Cloudflare) gets 403.
+  `/api/health` is exempt (Render's health check). Order: Cloudflare rule first, then the Render variable; undo = delete
+  the variable. Only then is `SSC_CONNECTOR_IP_HEADER=CF-Connecting-IP` trustworthy (boot warns otherwise).
+  Guard: `tests/smoke_edge_guard.py`.
+* **Writes + admins only (2026-11-02):** accepted prototype https://claude.ai/artifact/L2VCnsB68MLN6Ls5eqt8KU. Only **admins**
+  can connect now (`ROLES = ("admin",)`); a C-suite person ticked before is refused and cut off on their next call.
+  New tools, each a write claude.ai confirms with its own "Allow" prompt, logged, never a delete:
+  `upload_link` (a file attached in claude.ai, as the original: a one-time link `/u/<token>`, public path, token hashed,
+  15 min, once, one job folder or one bid's documents, page shows only where it goes, owner's access re-checked; the person
+  taps it or Claude's sandbox `curl -F file=@…` posts it; `/u/` is masked in request logs), `proposal_guide` →
+  `write_proposal` (claude.ai's Claude writes the content; `proposal_engine.create` saves it in the locked layout: no
+  app Claude spend), `edit_proposal` / `undo_proposal_change` (drafts; previous version in `claude_connector_snapshot`),
+  `create_proposal_from_estimate`, `mark_proposal_sent` / `_signed` (`mark_signed_offline`: same follow-ups) /
+  `_declined` (new `proposals.mark_declined_offline`, for proposals with no live link), `send_proposal` (only to a
+  contact at the proposal's client; checklist gate). 60 changes per hour per person. Search now matches "21st" ↔ "21",
+  St ↔ Street (`claude_agent.addr_words`, also in the app's Claude).
+
+### Payroll hours rules + week picker (Bookore, 2026-10-30)
+
+* Accepted prototype: https://claude.ai/artifact/2BUTcts8FyvJm4ihFjwHtY. Four fixes on Weekly Payroll / Hours Log:
+  **trade** = the Pay Rates trade (`COALESCE(labor_worker_state.trade, employees.trade)` in `payroll_hours.build_week_grid`);
+  **history**: the grid pool is everyone with a sign-in that week (any status, on a crew or not) plus active crew, so a
+  deactivated / off-rolled worker keeps every week they worked (Inactive tag); Pay Rates opens inactive workers read-only.
+* **One place at a time**: `POST/PUT/PATCH /api/sign-ins` refuse times that overlap another entry that day on any job
+  (409 `code: overlap`); worker-app clock-in is refused while a finished entry covers now (open entries don't block, so a
+  missed sign-out never locks a worker out); DCR reconcile skips overlaps.
+* **8-hour day** (`payroll_hours.DAY_LIMIT`, from `RULE_START` 2026-10-26; earlier weeks stay paid as logged): past 8 hrs
+  across jobs the write needs `overtime_reason` (422 `needs_reason`), else `hours_overtime` row pending; payroll pays 8 until
+  an admin / C-suite / PM approves (`POST /api/payroll/overtime/decide`, `hours_overtime.py`), then up to the approved total;
+  raising hours after approval reopens it. Worker app asks the worker for the reason (EN/ES chips) before clock-out.
+  CSV adds `overtime_pending`. Day cells carry `hours` (paid), `hours_logged`, `overtime`.
+* **Worker-app hours**: `payroll_hours.to_hhmm` reads the app's ISO timestamps; before, those shifts counted 0 hrs.
+* **Week picker** (`static/js/payroll_week.js`): tap the date range on Weekly Payroll / Hours Log for a month of Mon–Sun
+  weeks with paid hours and a needs-approval dot (`GET /api/payroll/weeks`). Same file: approval list, cell badge, reason dialog.
+* Guard: `tests/smoke_payroll_rules.py` (new, in the gate). Migration `apply_hours_overtime.py` (boot-ensured).
+
+### Invoice designs connect on every save + Preview inside the app (Bookore, 2026-11-02, second follow-up)
+
+* Angela's INV-2026-0004 design was in the job's Documents but Invoices & Payments still drew the standard layout: the
+  link was made only from the save bar's picker, so Claude's card, the claude.ai connector (`_t_save`, which also never
+  recorded `claude_doc_filing`) and saves made before #188 left the invoice alone.
+* `claude_docs.filed()` runs after every save (save bar, `save_document_to_job`, connector `save_document`): it records
+  the job copy and connects the invoice. A document whose TITLE starts as an invoice ("Invoice …", "Deposit invoice …")
+  and carries exactly one of the job's invoice numbers connects with nothing picked (`titled_invoice`); a number only in
+  the text still just preselects. Boot backfill `_backfill_invoices`: an invoice with no design takes a current titled
+  Claude document of its job (PDF cleared, drawn on next open; the public `/i/<token>/pdf` now draws it on demand).
+  Claude (in-app + connector) is told to title designs "Invoice <number> - <place>".
+* **Preview** on the job's Invoices & Payments rows and the Company → Invoices panel opens in the shared side panel
+  (`SSC_PDF.panel` kind `page`: fetched, then srcdoc in a script-free frame scaled to fit, since the preview route
+  is never framable). pdf_view.js v=4.
+
+### Claude documents: an invoice's design reaches Invoices & Payments (Bookore, 2026-11-02, follow-up)
+
+* Angela: the redesigned invoice reached the job's Documents but not the job's **Invoices & Payments** tab, which draws
+  every invoice from its record (`invoice_docs.render_document`).
+* `invoice` gets `design_doc_id` / `design_html` / `design_at` (`invoice_docs._COLUMNS`, idempotent). With a design,
+  `render_document` returns the Claude document (letterhead + design + a paid / void / draft stamp), so Preview, the PDF
+  (redrawn on change) and the client's `/i/<token>` link all show it. AIA invoices keep their G702 / G703 (refused);
+  void refused. `DELETE /api/invoices/<id>/design` = **Standard layout** button on the Payments row ("designed with Claude").
+* The link is made only when named: the save bar's **Invoice** picker (`GET /api/claude/docs/<id>/invoices`; preselects
+  the invoice whose number is in the text, folder Contracts) or Claude's `save_document_to_job(invoice_id)`. After that,
+  every save of that document updates the invoice. A letter that only mentions a number never replaces the invoice. A
+  design that doesn't show the invoice's amount saves with a warning. `design_html` never leaves the API (`PRIVATE_KEYS`).
+
+### Claude documents: updating the copy in a job (Bookore, 2026-11-02)
+
+* Bug (Angela): she had the in-app Claude redesign an invoice, then asked it to update the copy in the job's documents; the
+  job still showed the old design. "Save to a job" filed a frozen PDF and nothing linked it back to the Claude document, so
+  edits (by Claude or by hand) never reached the job, and saving again only added a second file next to the old one.
+* `claude_doc_filing` (doc_id, project_code, project_doc_id, filed_at; created in `claude_docs.ensure`) remembers each save.
+  Saving to a job that already holds the document files a **new version** (`supersedes_id`, old row `superseded = 1` and
+  unshared, same folder / checklist item / party), like Update on the Documents tab. Old saves are linked once at boot by
+  title + owner (`_backfill_filings`).
+* Doc panel: GET / PATCH / save return `filed` [{project_code, document_id, stale}]; the button reads **Update the job
+  copy…** when the document changed after it was filed, **✓ In <job>** when it is current; the bar preselects that job.
+* Claude: `edit_document` returns `filed_in` + a note when a job copy is out of date; new `save_document_to_job` (approval
+  card, admin / C-suite) saves or replaces (also a document named by id: an invoice made in another chat), and
+  `job_documents` lists a job's current documents. Guard: `smoke_claude_docs`.
+
+### Billing Breakdown from the signed proposal (Bookore, 2026-11-02)
+
+* Accepted prototype: https://claude.ai/artifact/VjvRu8a8HbwjRGnWSQddJc. Job → Billing Breakdown shows the job's signed proposal
+  (number, signed date, priced lines, total) with **Use these lines** → `POST /api/projects/<code>/billing/sov/from-proposal`
+  (`aia_billing.import_proposal_sov`). The latest signed proposal on an estimate converted to the job; each priced
+  `proposal_line` becomes a base `billing_sov` line (lead, else description; amount = scheduled value); unpriced scope lines
+  skipped; no priced lines → one line for `proposal.price`; change orders kept. Refused once any pay application exists.
+  With base lines present the button is **Replace with proposal lines** (asks first). `billing()` returns `signed_proposal`.
+* The drop-plan unit rates (`sov_line_items.unit_rate`) left Billing Breakdown: a collapsed **Unit rates** card at the bottom of
+  the Drop Plan tab, still inside `SECTION:financial` (stripped for pm/super), loaded by `window.DP_rates_load` on open.
+* Guards: `smoke_aia_billing_317` (from-proposal rules + page placement), `smoke_billing_type_356` (pm page has no rates card).
+
+### Client page: emails, proposals, invoices (Bookore, 2026-10-28)
+
+* Accepted prototype: https://claude.ai/artifact/6demNxTPeUYpcadNXtWXNo. Company → Clients → a client now leads with **Emails**
+  (All / From them / From us; tap to read; Open in Inbox), then **Proposals** (every version, drafts included) and **Invoices**
+  (drafts, sent, overdue, paid; total sent-or-paid + owed). Rows open the proposal / the invoice panel. KPIs: Projects, Won value,
+  Invoiced, Owed to us. The **Details** card is gone (Edit client still holds email / phone / address). Phone: a sticky jump bar
+  (under the brand bar; `.ssc-main` gets `overflow-x: clip` and `.ssc-top` goes static on this page only) and cards for tables.
+* `client_detail` returns `proposals`, `invoices` and totals `invoiced` / `paid` / `owed` (issued + paid only; drafts and void
+  stay out) / `overdue_count` / `proposals_signed`.
+* **Mailbox rule (Angela):** every person sees only email from their OWN connected Gmail, filed or not. `/api/inbox/linked`
+  now filters by the signed-in user for every record type (estimate / proposal / project pages too, which used to show what
+  anyone filed). For a client, `inbox.client_mail` gathers: filed on the client or its estimates / proposals / jobs, plus mail the
+  Inbox matched on arrival (`mail_message.client_org_id` / `estimate_id` / `proposal_id` / `project_code`), not trashed.
+* Guards: `smoke_inbox` (client list = own mail only; another user gets `[]` for client and estimate), `smoke_invoices_315`
+  (client page proposals / invoices / totals), `smoke_edit_projects_clients` (page needles).
+
+### Proposals from before the app: Mark as sent (Bookore, 2026-10-27)
+
+* Accepted prototype: https://claude.ai/artifact/MS6wss6jxq8mMupZMcQrY3. A "Before the app" row (an uploaded past proposal) has
+  **Mark as sent…** (row button + ⋯ menu) → `POST /api/proposals/archived/<template id>/mark-sent` {number, sent_on, client,
+  building, total, est_type, borough, approved_by?, approved_on?} (`proposals.adopt_archived`). It makes a real proposal: the
+  client found by name (any case) or added, an estimate of that type / place submitted at the total, a proposal with the number
+  people see (digits; refused if another proposal has it), `sent` on that day at noon, no client link.
+* **The uploaded PDF is the document**: copied under data_room/proposals, `pdf_hash = 'original'` (`proposals.ORIGINAL_PDF`) so
+  `pdf_file` / `render_pdf` never redraw it; `original_pdf` in the JSON swaps the drawer's editor link for Open the PDF. A photo /
+  Word upload is not copied (the app draws its PDF as usual).
+* "The client already approved it" → `mark_signed_offline` (same follow-ups: estimate approved, COI + deposit tasks, deposit
+  invoice draft) → Projects → Ready to start. The upload stays in the wording library; `proposal_id` on it hides it from Before the app.
+* Guard: `tests/smoke_old_proposal_sent.py` (new, in the gate).
+* Follow-up (same day): the Mark as sent button under each row is gone (the ⋯ menu has it). The ⋯ menu also has **Delete…**
+  (admins; asks first inside the menu) → `DELETE /api/proposals/archived/<id>` sets `hidden` on the upload: it leaves Before the
+  app and is listed under **Deleted** (`?status=deleted`), where ⋯ → **Restore** (`POST …/<id>/restore`) brings it back. The upload
+  and file stay, so Claude keeps learning from it (Angela's choice: hide, not delete for good).
+* **Mark signed… on any proposal** (same day): ⋯ menu + side panel for a draft, sent, opened, or declined latest version
+  (`prxSignable`); opens the existing signature form. `mark_signed_offline` now also takes a declined latest version (a newer
+  version -> refused), refuses a future day or a day before it was sent, and gives a draft its sent date = the signing day.
+  Before the app rows: ⋯ → Mark signed… opens the Mark as sent form with the approval ticked.
+* **Proposal Studio → Archive** (same uploads): ⋯ → Mark as sent… / Mark signed… link to `/company#proposals/before/<id>/sent|signed`
+  (`prArchFromLink` opens the same form); a marked upload shows "in Proposals" and its ⋯ has Open in Proposals (`proposal_id`
+  is in `/api/proposal-template` templates).
+
+### Documents "Still needed" by job scope; Rope Access repair / inspection (Bookore, 2026-10-26)
+
+* Accepted prototype: https://claude.ai/artifact/BEtxo5bKX4ozW1y6Lkp5WH. `doc_suggest.plan(ctx)` decides what a job needs: its
+  scope (`facade`, `ra_inspection`, `ra_repair`, `garage`, `interiors`, `generic`), access methods, billing, drops, and what is
+  FILED (`TRIGGERS`: a PW2 brings in SST cards now + the DOB sign-off at closeout; a BEST permit the rigging engineering + drop
+  layout; a FISP report the acknowledgment, with the final filing / shed as "maybe, if Unsafe"). Each item is `now`, `later`
+  (closeout) or `maybe` (with a one-line condition: TR1 "if the permit lists special inspections", Site Safety Plan "10+ stories").
+  Rules reviewed against NYC BC Ch. 33; whether a job needs a PW2 / TR1 / SSP stays the expediter's call (Not needed on every row).
+* Readiness counts `now` items, plus closeout once `near_end` (target completion within 30 days, or the job is closed). Every
+  suggestion carries `phase` / `group` / `cond`; the panel groups rows by why (one line each), folds "At closeout" (opens itself
+  near the end) and "Might also apply". `NEVER` keeps a document's mention from suggesting what a scope never needs.
+* **Job type:** `EST_TYPES['IRA']` = "Rope Access" (the word Inspection is gone). New `projects.rope_access_scope` (`repair` |
+  `inspection`; NULL reads as inspection, the jobs made before), asked on New / Edit project for IRA jobs, synced to
+  `estimate.ra_subtype` (work | inspection); an unpicked new job takes its estimate's subtype. `new_project_modal.js?v=1026`.
+* Guards: `smoke_doc_dropzone.py` (scope rules, phases, groups), `smoke_projects_batch_c.py` (rope access scope API + onboarding).
+
+### Construction specialist can't open the real DB (Bookore, 2026-10-26, PR #163)
+
+* A subagent call connected to the real `superstars.db` through `provenance.py`'s default (insert failed, file unchanged).
+  `agents/construction_specialist/db_guard.py`: no default, `--db` / `SSC_AGENT_DB` only, file must exist, the real DB refused by
+  name or path. The Task subagent has no Bash (hands back a PROVENANCE block). `smoke_construction_agent.py` (throwaway DB) is in
+  the gate. Still open: `db_layer.py` falls back to `superstars.db` when `SSC_DB_URL` is unset (app-wide).
+
+### Company templates: Improve design + house style (Bookore, 2026-10-28)
+
+* Step 3 of the accepted prototype, built before step 2 at Angela's ask. On every filed template: **Improve design** opens a
+  full-screen window (page root, z 10050): Current (pdf.js / picture; Word and Excel say "can't be shown" + Download) beside
+  Proposed (the house-style sheet in a shadow root, scaled to fit); phone = Proposed / Current toggle. Draft chips, "What Claude
+  changed", **Suggest an edit** → a new draft, **Approve** → the template's next version, Discard.
+* **House style = code** (`template_layout.py`, `LAYOUT_VERSION`): letterhead (Company brand logo + address lines, red rule),
+  Archivo headings, Inter body, cream field boxes, ink table heads, tick boxes, signature lines, footer "company · title" and
+  "Rev. YYYY-MM · Page x of y". Claude writes only content blocks (heading / paragraph / note / fields / table / checklist /
+  signatures), keeping every word. Changing the look = editing that file; every redesign follows.
+* `template_design.py`: `company_template_design` drafts (drafting → ready | failed; stuck after 10 min shows failed; one at a
+  time per template, 409), background thread, streamed structured-output call (`TEMPLATE_DESIGN_MODEL`, else `DOC_SCAN_MODEL`).
+  Approve renders the PDF (`pdf_export`, Chromium on Render), inserts version N+1 (`supersedes_id`, `layout_json` = the blocks,
+  `fields_json` = its blanks for step 2), marks the old one superseded (still in **History**), moves the drafts along, and the
+  first approval writes app_settings `template_house_style`. Redesigned templates have a **Word** copy (`claude_docs.docx_bytes`).
+* Guard: `tests/smoke_template_design.py` (48 checks; seams `TEMPLATE_DESIGN_FAKE`, PDF stubbed). Verified locally end to end with
+  real Chrome PDFs. The live Claude redraw was NOT run (no key). Step 2 (a new job picks templates up, filled) is next.
+
+### Company templates, step 1: the library (Bookore, 2026-10-26)
+
+* Accepted prototype: https://claude.ai/artifact/JxTQdUZxuX2JMCcHEa2pDx (three steps: library → a new job picks templates up →
+  redesign + house style). This PR is step 1. Steps 2 and 3 are next, in that order.
+* **Company → Templates** (`/company#templates`, admin / C-suite): drop or pick many files (PDF, Word, Excel, CSV, photo) →
+  one review card per file → **Approve** files it. Folders = the six project folders + Letters & notices, Field forms (+ Other).
+  Rows: Preview (shared `pdf_view.js` panel), Edit, Delete (second tap).
+* `company_templates.py`: table `company_template` (boot-ensured from `company_portal.ensure_schema`; migration
+  `apply_company_templates.py` on the ledger + `BOOT_ENSURED`). Files in `data_room/company_templates/`, read only through
+  `GET /api/company/portal/templates/<id>/file`. Same file twice = one card (`content_sha256`).
+* **Claude's read** (`call_model`, `DOC_SCAN_MODEL` / `TEMPLATE_READ_MODEL`, structured output): name, folder, `type_key`
+  (only a type in that folder: it decides the job's checklist slot in step 2), `offer` (job types / access methods / billing
+  types / regions, empty = every job), `fields` (each blank tagged with the job fact that fills it, for step 2) and a design
+  verdict `ok | dated` with reasons (for step 3). Word goes as its text. No key → the file waits as `unread`.
+  Test seam `TEMPLATE_READ_FAKE`. The live model read was NOT run locally (no key).
+* Guard: `tests/smoke_company_templates.py` (45 checks).
+
+### Schedule window rebuilt (Bookore, 2026-10-24)
+
+* Accepted prototype: https://claude.ai/artifact/HSKLWGfpYbD5YES2Jm9ook (row 2). One call: `GET /api/projects/<code>/schedule?start=`
+  (`project_schedule.py`) = job dates + days left + time used vs drops complete + pace, the two-week board (`lookahead.load_window`),
+  the job's tasks / events / meetings (`team_items`), site pin (weather flags from `/api/weather/week`), `has_drops`.
+* Desktop / tablet: timeline strip, ‹ two weeks ›, board grouped by drop with a **Blocks** pill (open schedule-impact RFIs), a
+  Job-wide group; tap a bar = edit sheet (page root, SSCDatePicker dates, Remove with a second tap); drag = move / right edge resize
+  with Undo. ≤860px: a day-by-day agenda. Jobs without drops: an empty state + Add activity / Set up Drop Plan.
+* **Drafting:** auto rows are re-projected on every load from THIS week's Monday through the viewed window, and RECONCILED (a still-
+  projected stage keeps its row id; a hand-edited stage is never drafted twice and later stages follow its finish). Past windows get
+  no invented bars. The old `?refresh=1` and Start field are gone.
+* **Security fix:** PATCH / DELETE `/api/lookahead/activities/<id>` now check the activity's job (`_projdoc_scope_err`); before, any
+  PM / super could edit or delete any job's activity by id.
+* Guard: `tests/smoke_project_schedule.py` (new, in the gate).
+### Projects table, PMs, addresses, Documents (Bookore, 2026-10-24)
+
+* Accepted prototype: https://claude.ai/artifact/HSKLWGfpYbD5YES2Jm9ook. **Open invoices** column removed from the Projects table
+  (the API keeps `open_value` / `overdue_value`: Claude and the "$ overdue" badge use them; no invoice data touched).
+* **PM column = PMs only.** `pm_project_assignment` also holds clients' / architects' / supers' / estimators' project ACCESS; the
+  column listed all of them (and inactive or ex-PMs), which is why #1's PM list looked wrong. `portal_projects._pms` and
+  `portal_calendar` now list active `role='pm'` users. Editor: pencil in the PM cell (bottom sheet on a phone) →
+  `GET/PUT /api/company/portal/projects/<code>/pms` (admin / C-suite). PUT sets the job's PMs; "outdated" rows (inactive account,
+  or role no longer scoped) stay unless removed; an active client / architect / super / estimator row is never touched (counts
+  only in the editor). **Project 1 cleanup is a click for Angela**: open #1's PM cell, Remove the outdated names, Save.
+* **Address autofill** in the New / Edit project form: `GET /api/address/suggest?q=` (`buildings.address_suggest`, NYC Planning
+  GeoSearch — the free, keyless service the app already used for Team addresses / 3D / compliance; no new dependency). A pick fills
+  borough (new jobs), a new **City / ZIP** field and the site pin when blank. Onboard stores `projects.city_zip` (+ the building's
+  city / state / ZIP). Outside NYC: no suggestions, typed as before.
+* **Documents:** the CONTRACTS checklist item `bond` became `pay_app` "Payment Application" (idempotent, `doc_intake._bond_to_pay_app`,
+  runs at boot); type `aia_g702` = "Payment Application (AIA G702/G703)" fills it; `bond` left the picker (legacy label kept, filed
+  bonds untouched). **Filed** shows only filed documents (no missing rows; tiles show "N filed"); what is missing is under
+  **Still needed for this job** (`suggestions`, origin `checklist`). Required items fit the job (`doc_suggest.applies` / `SCOPE`:
+  type, access methods, billing, drops) — no drop / rigging layout without suspended scaffold or drops; `job.not_asked` explains
+  what was left out. A second COI / pay app **files alongside** by default ("This replaces …" is an explicit tick).
+  **Additional documents**: `party` subcontractor / other → `additional` groups (one card per company), never filling our checklist.
+* Guards: `tests/smoke_project_pms.py` (new, in the gate), `smoke_doc_dropzone.py`, `smoke_doc_package_327.py` (bond left the package).
+
+### Projects tab: active jobs first, "Ready to start" for signed proposals (Bookore, 2026-10-23)
+
+* Accepted prototype: https://claude.ai/artifact/Sz6pFAL3nSVCav97gmPsDE. The #337 "addresses added without a project" banner is
+  gone (every proposal adds an address, so it grew with every bid). The list is now the first thing on the tab: a one-line
+  summary, Active / Closed / All with counts, client-side search, and a "Needs you" column (worst first: overdue invoice,
+  past end date, no daily report for 2+ workdays while crew is on, no PM, no crew, billing not set; else "On track").
+  At ≤860px the table becomes cards.
+* **Ready to start** (Projects only, not the Dashboard): `meta.ready_to_start` on `GET /api/company/portal/projects` =
+  signed proposals whose estimate is not converted, not marked "Not a project", and with no job made at that address on or
+  after the signing day. `meta.waiting_signature` = proposals sent/viewed. Panel (sheet on phones): Create project /
+  Not a project (`POST /api/company/portal/projects/ready/<proposal_id>/dismiss` → `proposal.project_dismissed_at/_by`,
+  ensured by `proposals.ensure_schema`).
+* Create project opens the shared form (`new_project_modal.js?v=1016`) filled from the proposal; `onboard()` takes
+  `from_proposal_id`: the job reuses the proposal's estimate (its code, type, region and client; no second estimate) and the
+  deposit invoice moves onto the job. Guard: `tests/smoke_projects_ready.py` (in the gate).
+
+### Inbox synced both ways with Gmail; one Claude draft per conversation (Bookore, 2026-10-23)
+
+* A reply sent from Gmail itself (or from the Inbox) closes the conversation: `inbox.close_thread` (called from `ingest` for every
+  outbound email) marks the earlier emails done and `withdraw_drafts` declines Claude's pending `reply_email` cards (decided_by NULL,
+  reason in `result`). An email already answered when Claude reaches it is sorted only; a sent email never gets a reply draft.
+  The newest draft replaces older ones in the thread (`_one_draft`); `suggest_prompt` lists what is already waiting; `today_cards`
+  shows one card per (thread, tool).
+* Gmail -> here: history also maps UNREAD and INBOX label changes (`apply_labels`); thread re-reads reconcile read / archived
+  (only with gmail.modify). Arrival keeps Gmail's state: `status='new'` only with UNREAD; `mail_message.archived_at` (new column,
+  idempotent in `ensure`) = out of Gmail's Inbox. List filter `inbox` (default; `all` is an alias) hides archived conversations.
+* Here -> Gmail (`gmail_modify`, `/messages/batchModify`, best effort, needs `MODIFY_SCOPE`): opening = read; **Done = Archive**
+  (whole thread; `done:false` = Move to Inbox); `POST /api/inbox/messages/<id>/unread`.
+* Live: no Refresh button. The page calls `GET /api/inbox/changes?sync=1` every 10 s and on tab focus (fingerprint + `kick`, a
+  background `sync_user` at most every 15 s per person); default `SSC_INBOX_SYNC_SECONDS` 30. Claude's passes run on their own
+  thread (`claude_round` / `_ai_loop`) so a slow pass never holds up sync. Google push (`GMAIL_PUBSUB_TOPIC`) still unverified on Render.
+* UI: tabs Email · My calendar · Team (same hashes), filters Inbox / Needs reply / Filed, live line "Up to date · synced …",
+  conversation bar Done / Delete / Mark unread / Open in Gmail. Prototype: `../docs/review-2026-10-23-inbox/`.
+* Guard: `tests/smoke_inbox_sync.py` (in the gate).
+
+### Documents tab: preview any document in the app (Bookore, 2026-10-23)
+
+* Filed rows have a **Preview** button (the title and History's "View" do the same); review cards preview from the
+  file icon or the file name. It opens the shared side panel `static/js/pdf_view.js` (now v=2): PDFs drawn page by
+  page with the vendored pdf.js (same on phone / tablet / desktop), pictures shown inline, anything else (XLSX, HEIC
+  in Chrome) gets a message + Download. Header: name · type · file name · size, "Open in new tab", Download, ✕ / Esc.
+* No framing change: the file routes stay `X-Frame-Options: DENY`; pdf.js fetches the bytes, nothing is iframed.
+* History entries now carry `mime` + `file_name` so a previous version previews like the current one.
+* Guard: `tests/smoke_doc_dropzone.py`.
+
+### Documents tab: no double uploads; rename + delete (Bookore, 2026-10-23)
+
+* **Double upload fixed.** A drop on the Documents tab was taken twice: the tab's own `window` drop listener AND
+  `static/js/file_drop.js` (document, bubble — fires first) which fed the same files into `#pd-cv-input`. The tab now
+  listens on `document` in the capture phase and `preventDefault()`s, so file_drop.js sees it handled. Server half:
+  `project_doc_intake.content_sha256`; the same file already waiting returns `200 {…, duplicate_of}` instead of a
+  second card (checked after insert, so racing drops end as one).
+* **Rename.** Each review card shows an editable name (Claude's title, else the file name); it is sent as `title` on
+  approve. Filed rows show the document's own title (no longer the checklist label) with a pencil: rename in place,
+  Enter saves, Esc cancels → `PATCH /api/documents/<id> {title}` (blank → 400).
+* **Delete.** Every filed row has a trash button with an inline confirm. `DELETE /api/documents/<id>` brings the
+  previous version back as current (still internal) and relinks History; clears shares/flags. PATCH and DELETE now
+  check the job scope (`_doc_actor_can_admin`) — before, any docs role could edit/delete any job's document.
+* Guard: `tests/smoke_doc_dropzone.py` (dedupe, rename, delete + restore, scope, capture-phase drop).
+
+### Claude can change a job: details, status, access methods (Bookore, 2026-10-22)
+
+* Angela asked Claude to "delete access method suspended scaffold" on FR-BX-001 and it said it couldn't. New write tool
+  `update_job` (admin / C-suite, any page): name, address, city / ZIP, client, start date, target completion, contract
+  value, status (active / closed) and access methods (`add_access_methods` / `remove_access_methods`). It is an approval
+  card like every other change: the card shows each new value with "Now: …" (access methods as "old → new"), editable
+  fields are what get saved, and **Undo** puts the old values back (`result.before`). It writes through
+  `project_details.update` / `project_setup.update` (the Edit project form's own validation) and the same status write
+  as `/api/projects/<code>/status`. `job_summary` now returns `job_setup` (status, job type, access methods) so Claude
+  sees what is set.
+* Adding a tool changes the `tools` prefix of every live chat, and current models bind replayed thinking to that prefix
+  (a 400 on accounts the check enforces). The Claude window now sends `thinking.block_binding.prefix_mismatch_behavior
+  = "drop_block"` (beta `thinking-binding-controls-2026-08-01`, `ai_models.agent_kwargs`) so stale blocks are dropped
+  and old chats keep working; if the API ever refuses that control, `call_model` retries once without it (log line
+  "claude thinking-binding control refused"). New tools can now be added without breaking open conversations.
+
+### Estimates & proposals revamp: latest only, delete / restore, pencils (Bookore, 2026-10-23)
+
+* Accepted prototype: https://claude.ai/artifact/8a8VUxBgrGSyRWXDMgzXvm. `company_portal.html` Proposals: a Proposals / Estimates /
+  Bids switch; status chips with counts; the number carries the status in color (amber draft, blue sent/opened, green signed,
+  grey declined/replaced/deleted); "Latest of each job" by default (older versions fold under the newest); a row opens a panel on
+  the right (`#proposals/<id>`; the old full page is `#proposals/<id>/page`). "+ New proposal" is gone: proposals start with
+  "✦ New proposal with Claude" / Proposal Studio (Estimates and Bids keep their + New).
+* **Delete** = `DELETE /api/proposals/<id>`: a draft is removed; a sent one is admin-only and HIDDEN (`status='deleted'`,
+  `deleted_from` / `deleted_at` / `deleted_by`), so every status filter (lists, counts, client portal, the client's link, Today
+  cards, Claude's tools, Studio's examples) leaves it out; pending revisions on it are withdrawn. Signed can't be deleted.
+  `POST /api/proposals/<id>/restore` (admin) puts it back; `?status=deleted` lists them (admin).
+* **Pencils** = `PATCH /api/proposals/<id>/record {field, value}`: number (every version of the job changes together; refused when
+  another job has it; editing it higher moves the next automatic number after it), title (drafts), recipient, valid-until
+  (drafts; sent/opened ones extend the client's link). Estimates / Bids list: address, amount, bid due, status (the allowed next
+  statuses, `est_public.next_statuses`).
+* Guard: `tests/smoke_proposal_revisions.py` group "keep only the latest + edit in place".
+
+### Proposals: one amount everywhere, admin-approved revisions, expiry follow-ups, reply in a thread (Bookore, 2026-10-22)
+
+* **One amount.** A Superstars-layout proposal's stored `price` is always its lines' total as the document prints it
+  (`proposals.sync_price`, called by every write and both send paths); a price sent apart from the lines is ignored.
+  `proposals.amounts(conn, r)` = {total, deposit, deposit_pct} is what the editor, portal, email, send review and PDF
+  show. A new proposal from an estimate gets the estimate's price as a "Base bid" line. **PDF:** `pdf_file` re-renders
+  when the drawn document's sha256 differs from `proposal.pdf_hash` (it used to compare second-resolution timestamps, so
+  an edit in the same second, or Download racing the autosave, served the old amount); Studio's Download flushes the
+  autosave first. A sent proposal keeps the fixed wording it went out with (`content.house`, `proposal_engine.freeze_house`).
+* **Revisions** (`proposal_revision`, `proposal.revision_of`): anyone on proposals asks (`POST /api/proposals/<id>/revisions`
+  {reason, price_review, proposed_price}); **only admins** approve/reject (`/api/proposals/revisions/<rid>/approve|reject`,
+  `requires_role('admin')` + `decide_revision` checks the role again). Approval drafts vN+1; the sent copy stays live for
+  the client, untouched, until the revision is sent (`supersede_predecessor`). A revision can't be sent if the client signed
+  the version it replaces. New version directly = admin only (recorded as an approved revision). Withdraw = the asker or an admin.
+* **Today › Needs you** (`today_feed.proposal_cards`): sent proposals 7 days before / 14 days after valid-until (the sender +
+  admins; Open proposal / Draft a follow-up = Claude window prefilled, nothing sent); pending revisions (admins); the
+  decision (the asker, 7 days). Studio shows an expiry banner with the same follow-up button.
+* **Send** (Studio): the pop-up loads the client's threads lazily (`/send-options`, `?q=` searches the inbox), previews a
+  reply's recipients/thread (`/send-preview`), then a Review step; `/send` refuses without `confirm: true` and when the
+  total differs from `expected_total`. Reply = `inbox.send_reply` with the reviewed To/Cc, In-Reply-To, linked to the proposal.
+  The portal's link-email Send modal points drafts to Studio's reply flow.
+* **Studio editor:** Exclude / Keep beside each note, exclusion and deliverable (and in the checklist); excluded paragraphs
+  are listed with Put back and Claude is told not to re-add them. Claude chat is first in a sticky right rail; on tablet it
+  slides in from the right, on a phone it is a bottom sheet (toolbar "✦ Claude"); the toolbar sticks under the header.
+* **Claude speed:** one shared Anthropic client (`assistant.client()`), the chat poll's card purge throttled to once a
+  minute, a turn reads each attached file once, the drawer polls at 0.7 s then 1.5 s and reads /status once per answer,
+  Studio's view no longer decrypts the inbox on every autosave, the clause library is read once per view, and the draft
+  progress shows the server's real step (it was a 5-second timer).
+* **Mark as sent** (a draft that went out another way): `POST /api/proposals/<id>/mark-sent` {sent_on, to_email, to_name, how} (`proposals.mark_sent_outside`: no client link, sent_at = that day at noon, supersedes a revised version). Buttons: Proposal Studio (Send pop-up and the Not-ready banner) and the portal's proposal page. Claude's `log_proposal_sent` no longer needs a Gmail email, and the proposals search finds the number people see ("1045", "Proposal No. 1045").
+* Guard: `tests/smoke_proposal_revisions.py` (in the gate). `smoke_proposals_307` now expects the line total as the price.
+  Not exercised locally: a real Gmail send and a real Chromium PDF (the suite fakes both).
+
+### Claude follows you: one conversation across pages, tabs and devices (Bookore, 2026-10-22)
+
+* Accepted prototype: https://claude.ai/artifact/7Z4s6fDgoiog8CHZb44tKE. Close Claude on the company dashboard, open it
+  on a job dashboard: same conversation ("Picked up from … · same conversation" under the title).
+* Drawer (`static/js/claude_drawer.js`, v=14): the open chat id is in **localStorage** `ssc.claude.chat` (every tab);
+  open/closed stays per tab (sessionStorage). Tabs tell each other on a send / switch / new chat / finished turn
+  (BroadcastChannel `ssc-claude`, receivers reload quietly). No stored id (new device) → `GET /api/claude/chats/latest`.
+* **Office-only rule** (Angela, 2026-10-22): a chat follows everywhere unless it has shown pay or email details.
+  `claude_chat.office_only` = 'pay' | 'email', set when `payroll_summary` / `search_email` / `email_detail` return data
+  (backfilled at boot from stored tool calls; Inbox mail chats count as 'email'). On a job dashboard such a chat is not
+  listed and GET/POST return 403 `{locked}`; the drawer shows "Start a new chat here / Open the company dashboard".
+  Tools + system prompt stay those of the surface the chat STARTED on (Opus 5.5 binds replayed thinking to an unchanged
+  prefix: never change a live chat's tools); `claude_chat.page_surface` (the page NOW) makes office-only tools refuse
+  on a job dashboard.
+* What Claude sees, in the message head: `[Page: …]` ("Claude sees" line, × hides it → `[Page: not shared]`),
+  `[Quoted from the page: …]` (select text → "Ask Claude about this"; emails/phones scrubbed), `[Points at: …]`
+  (@-mentions from `GET /api/claude/mentions` = the `find` tool's search; hints only, Claude looks them up with its
+  tools). The chat view returns `page` + `quote` per user message.
+* Not yet: workers as @-mentions (needs a new lookup tool; adding tools changes every live chat's prefix, so batch
+  it with other tool changes).
+
+### Claude budget + cost: monthly budget, per-person guard, cheaper calls (Bookore, 2026-10-22)
+
+* The $5/day company-wide cap is gone (it stopped Proposal Studio testing on 2026-10-21). `assistant.limit_reason(conn,
+  uid)` is checked before every model call (Proposals panel, Claude window, Proposal Studio, Inbox): a **monthly** company
+  budget `SSC_ASSISTANT_MONTHLY_BUDGET_USD` (default $100), a **per-person daily** guard `SSC_ASSISTANT_USER_DAILY_USD`
+  (default $10; spend billed by `assistant_message.billed_user_id` / `claude_chat.user_id`), and the old
+  `SSC_ASSISTANT_DAILY_CAP_USD` only if set (unset = no company daily cap). Budget 0 = Claude off. No dollar figure on any page.
+* `assistant.check_budget_alerts` emails every active admin once per month at 50 / 80 / 100% (`notification_log` kinds
+  `claude_budget_50|80|100`); runs after each recorded cost, never raises.
+* Caching (Proposals panel threads): system + ticked documents cached 1 h; the record (estimate / proposal) rides on the
+  newest message, the previous reply is the 5-min read point; no top-level auto cache. Before, the record sat in the system
+  prompt ahead of the documents, so each proposal edit re-wrote every document at the cache-write price. Proposal Studio /
+  engine one-shot calls: no top-level auto cache (pure surcharge on unique content); the engine's company material
+  (house, library, closest past proposals, prices) has its own 5-min breakpoint.
+* Models: the Claude window runs `SSC_CLAUDE_MODEL` (default = `SSC_ASSISTANT_MODEL`, Opus 5.5) at `SSC_CLAUDE_EFFORT`
+  (default **low**, was medium). Document / expense / cert scanners Sonnet 4.6 → **Sonnet 5.5** (`CERT_EXTRACT_MODEL` is new);
+  Gmail suggestions Haiku 4.5 → **Haiku 5.5** (thinking off, effort low); drawing trace Opus 5 → **Opus 5.5**.
+  `ai_models.py` holds the per-model request options (refusal fallback only where offered; the right "thinking off").
+* Not done yet (verify first, costs real calls): Haiku 5.5 for the scanners / Claude window; Claude window context
+  clearing (must stay append-only: Opus 5.5 checks replayed thinking blocks against an unchanged history).
+
+### Documents tab: several per item, whose record, suggested documents (Bookore, 2026-10-22)
+
+* **Several documents per checklist item.** Each item in `GET /api/projects/<code>/documents` now carries `docs` (every
+  current doc on it, newest first); `doc` stays as the one that sets the item's status (best standing). Before this, a
+  second COI (a sub's) vanished from the payload. Folder rows list each one.
+* **Whose record it is**: `project_documents.party` (`company` | `subcontractor` | `owner` | `other`, NULL = company) +
+  `party_name`. Claude's read returns `party` / `party_name`; the review card has a "Belongs to" picker; approve, upload
+  and PATCH accept it. "Newer version of" now only matches the same item **and** party, so a sub's COI files alongside ours.
+* **Suggested for this job** (`doc_suggest.py`, pure): rules (subcontract → that sub's COI + lien waiver, G702 → SOV +
+  lien waiver, BEST permit → rigging engineering, …), words in what Claude read ("performance bond", "after-hours"), and
+  Claude's new `related` scan field. Returned as `suggestions` on the documents payload. "Required · missing" only when it
+  fills a missing checklist item **and** the document would be ours; everything else is "May be needed". Upload from a
+  suggestion pre-sets the type + party; "Not needed" → `POST …/documents/suggestions/dismiss {key}` (`project_doc_suggest_dismissed`).
+* **Removed from the tab**: the Specifications table and the permits & insurance package card + send dialog. Their APIs
+  stay (`/document-specs`, `/documents/package`); the Company Portal job page still uses the package.
+* Guard: `tests/smoke_doc_dropzone.py` (12 groups). The live model read with the new `party` / `related` fields was NOT run
+  locally (no key).
+
+
+* The job's Documents tab is now: a big drop area (the whole tab takes drops; Choose files; Scan with camera on
+  phones) → one review card per file → **Approve** → filed. Below it, six folder tiles (the existing six categories)
+  replace the 28-row checklist; a tile opens its rows (same #270/#271 row: share, red-flag, Update/Replace, History)
+  plus the required items still missing. The permits & insurance package card moved under the folders.
+* **Intake** (`doc_intake.py`, routes in `server.py` next to the docs routes): `POST /api/projects/<code>/documents/intake`
+  saves the file at once (same `data_room/project_docs/<code>/` home), runs Claude's read, and keeps it in
+  `project_doc_intake` until approved, so a refresh never loses it. `GET …/intake` lists what's waiting;
+  `POST /api/documents/intake/<id>/approve {type_key, supersedes_id?}` files it (the tag decides folder + checklist
+  item; supersedes_id = "newer version of", same rules as Update); `DELETE /api/documents/intake/<id>` removes it.
+  No API key → the file still waits as `unread` and the user picks the type.
+* **Types** (`doc_types.py`, `GET /api/documents/types`): about 40 tags (PW2, CD-5, COI, AIA A101, G702/G703, SOV, change
+  order, TR1, SDS, lien waiver, …), each mapped to one category and, when it fulfils one, a checklist item.
+* **Claude's read** (`document_scanner.py`): the schema now also returns `type_key`, `summary`, `key_facts` and
+  `fields` (every label/value on the pages, capped at 80). Stored on the filed doc as `project_documents.ai_extract`
+  (+ `type_key`); shown as "Everything Claude found" on the card and "What Claude read" on the filed row.
+* Migration `apply_doc_intake.py` (dual-backend list); the app also ensures it at boot. Guard: `tests/smoke_doc_dropzone.py`
+  (in the gate). The live model read with the new schema was NOT exercised locally (no key); the seam-driven test covers
+  the pipeline. Check one real drop on production.
 ### Calendar reminders: 1 day + 1 hour before (Bookore, 2026-10-21)
 
 * `event_reminders.py`: a loop thread (every 60s; `SSC_REMINDERS=0` turns it off) emails everyone on an item 1 day and

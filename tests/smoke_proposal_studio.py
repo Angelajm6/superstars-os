@@ -155,7 +155,7 @@ def main() -> int:
                                                         "client_name": ORG, "building_address": "410 E 58th St, New York, NY"})
         assert r.status_code == 202, r.get_json()
         job = r.get_json()["data"]["job"]
-        assert len(r.get_json()["data"]["steps"]) == 5
+        assert len(r.get_json()["data"]["steps"]) == 6
         assert cs.get(f"/api/proposal-studio/jobs/{job}").status_code == 404, "another person's job"
         for _ in range(100):
             j = a.get(f"/api/proposal-studio/jobs/{job}").get_json()["data"]
@@ -219,7 +219,7 @@ def main() -> int:
         bad = dict(lines[-1], unit="bags")
         v = a.patch(f"/api/proposal-studio/{pid}", json={"content": {}, "lines": lines[:-1] + [bad]}).get_json()["data"]
         assert any(x["level"] == "block" and "unit" in x["text"] for x in v["checks"])
-        blocked = a.post(f"/api/proposal-studio/{pid}/send", json={"how": "new", "to": "x@y.example", "message": "x"})
+        blocked = a.post(f"/api/proposal-studio/{pid}/send", json={"how": "new", "to": "x@y.example", "message": "x", "confirm": True})
         assert blocked.status_code == 400 and "checklist" in blocked.get_json()["error"], "Send refuses a red checklist"
         v = a.patch(f"/api/proposal-studio/{pid}", json={"content": {}, "lines": lines}).get_json()["data"]
         assert not [x for x in v["checks"] if x["level"] == "block"]
@@ -228,6 +228,27 @@ def main() -> int:
         u = a.post(f"/api/proposal-studio/{pid}/undo", json={"before": r["before"]}).get_json()["data"]
         assert u["content"]["notes"] == r["before"]["notes"] and len(u["content"]["lines"]) == 5
         assert a.post(f"/api/proposal-studio/{pid}/revise", json={"instruction": ""}).status_code == 400
+        # Add Alternate (proposal 1040, 2026-10-28): its own table, never in the base bid / deposit; Claude talks back
+        import proposal_engine as _pe
+        hist = [{"role": "assistant", "text": "hi"}, {"role": "user", "text": "can we add an option?"}, {"role": "user", "text": "for the anchors"},
+                {"role": "assistant", "text": "Sure: what price?"}, "junk", {"role": "system", "text": "x"}]
+        assert [m["role"] for m in _pe._history(hist)] == ["user", "assistant"]
+        assert _pe._history(hist)[0]["content"] == "can we add an option?\n\nfor the anchors"
+        r = a.post(f"/api/proposal-studio/{pid}/revise", json={"instruction": "3000 lump sum, as an alternate", "history": hist}).get_json()["data"]
+        assert r["changed"] == ["alternates"] and "A1" in r["reply"], r
+        assert r["content"]["alternates"] == [{"lead": "Roof anchor pull test", "detail": "if required: pull test of existing roof anchors / tie-backs",
+                                               "qty": 1, "unit": "LS", "unit_price": 3000}]
+        assert float(r["proposal"]["price"]) == 38400 and r["amounts"]["total"] == 38400, "an alternate is never in the base bid"
+        for needle in ("Add Alternate", ">A1<", "Base Bid with Add Alternate A1", "$41,400.00", "data-ai='0'", "data-af='unit_price'",
+                       "50% deposit ($19,200.00) required to schedule"):
+            assert needle in r["html"], needle
+        q = a.post(f"/api/proposal-studio/{pid}/revise", json={"instruction": "what's the deposit?"}).get_json()["data"]
+        assert q["changed"] == [] and q["reply"] and len(q["content"]["alternates"]) == 1, "a question is answered, nothing saved"
+        alts = [dict(r["content"]["alternates"][0], unit_price=0)]
+        v = a.patch(f"/api/proposal-studio/{pid}", json={"content": {"alternates": alts}}).get_json()["data"]
+        assert any(x["level"] == "block" and "Alternate A1" in x["text"] for x in v["checks"]), v["checks"]
+        v = a.patch(f"/api/proposal-studio/{pid}", json={"content": {"alternates": []}}).get_json()["data"]
+        assert v["content"]["alternates"] == [] and "Add Alternate" not in v["html"] and not [x for x in v["checks"] if x["level"] == "block"]
         kept = u["new_clauses"][0]
         k = a.post(f"/api/proposal-studio/{pid}/keep", json={"text": kept}).get_json()["data"]
         assert kept not in k["new_clauses"], "an OK'd clause joins the library"
@@ -263,9 +284,14 @@ def main() -> int:
         proposals.pdf_file = lambda conn, i: pdf
         try:
             assert a.post(f"/api/proposal-studio/{pid}/send", json={"how": "new", "to": "Dana <dana@rosen-pst.example>",
-                                                                    "subject": "Proposal", "message": ""}).status_code == 400
+                                                                    "subject": "Proposal", "message": "", "confirm": True}).status_code == 400
+            # 2026-10-22: nothing goes out without the person's confirmation after the review
+            nc = a.post(f"/api/proposal-studio/{pid}/send", json={"how": "new", "to": "Dana <dana@rosen-pst.example>",
+                                                                  "subject": "Proposal for 410 E 58th", "message": "Hi Dana, attached."})
+            assert nc.status_code == 400 and "confirm" in nc.get_json()["error"] and not list(MAIL.glob("gmail-*.eml"))
             r = a.post(f"/api/proposal-studio/{pid}/send", json={"how": "new", "to": "Dana <dana@rosen-pst.example>",
-                                                                 "subject": "Proposal for 410 E 58th", "message": "Hi Dana, attached."})
+                                                                 "subject": "Proposal for 410 E 58th", "message": "Hi Dana, attached.",
+                                                                 "confirm": True})
             assert r.status_code == 200, r.get_json()
             again = a.post(f"/api/proposal-studio/{pid}/send", json={"how": "new", "to": "x@y.example", "message": "x"})
             assert again.status_code == 400 and "new version" in again.get_json()["error"]

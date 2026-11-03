@@ -188,6 +188,9 @@ def main() -> int:
     page_pm = pm.get(f"/projects/{A}").get_data(as_text=True)
     assert 'data-view="sov"' not in page_pm and 'data-group="financial"' not in page_pm \
         and 'id="ps-billing"' in page_pm, "pm: no money nav / SOV view, read-only billing in Settings"
+    assert 'id="dp-rates"' not in page_pm and 'id="sov-body"' not in page_pm and "window.DP_rates_load = function" not in page_pm, \
+        "pm: the drop-plan unit rates card is stripped from the Drop Plan tab"
+    assert 'id="dp-rates"' in page_a
     prof = pm.get(f"/api/projects/{L}/profile").get_json()["data"]
     assert prof["billing_label"] == "Lump sum" and len(prof["billing_options"]) == 4
     passed += 1; print("  list + page ok")

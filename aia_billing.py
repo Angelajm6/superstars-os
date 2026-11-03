@@ -257,6 +257,52 @@ def import_sov(conn, project_code: str) -> int:
     return n
 
 
+def signed_proposal(conn, project_code: str) -> Optional[dict]:
+    """The job's signed proposal (job <- estimate.converted_project_code <- proposal), the
+    latest signed one if there are several, with its priced lines; None when there is none.
+    Alternates never sit in proposal_line, so these lines are the base bid only."""
+    try:
+        p = _one(conn.execute(
+            "SELECT p.id, p.number, p.display_no, p.title, p.price, p.signed_at FROM proposal p "
+            "JOIN estimate e ON e.id = p.estimate_id "
+            "WHERE e.converted_project_code = ? AND p.status = 'signed' "
+            "ORDER BY p.signed_at DESC, p.id DESC LIMIT 1", (project_code,)))
+    except Exception:   # proposals not set up on this database
+        conn.rollback()
+        return None
+    if not p:
+        return None
+    lines = _rows(conn.execute("SELECT description, lead, amount FROM proposal_line WHERE proposal_id = ? "
+                               "ORDER BY sort, id", (p["id"],)))
+    priced = [li for li in lines if li.get("amount") not in (None, "") and _num(li["amount"]) != 0]
+    if not priced and _num(p.get("price")) > 0:   # one lump-sum price, no priced lines
+        priced = [{"description": p.get("title") or "Base contract", "lead": None, "amount": p["price"]}]
+    rows = [{"description": (str(li.get("lead") or "").strip() or str(li.get("description") or "").strip())[:500],
+             "scheduled_value": _r2(_num(li["amount"]))} for li in priced]
+    return {"id": p["id"], "number": str(p.get("display_no") or p.get("number") or ""),
+            "signed_at": (p.get("signed_at") or "")[:10], "price": _r2(_num(p.get("price"))),
+            "total": _r2(sum(r["scheduled_value"] for r in rows)), "rows": rows}
+
+
+def import_proposal_sov(conn, project_code: str) -> dict:
+    """Fill the base lines from the signed proposal's priced lines (change orders stay).
+    Refused once an application exists: what has been billed must not move under it."""
+    sp = signed_proposal(conn, project_code)
+    if not sp:
+        raise ValueError("this job has no signed proposal to start from")
+    if not sp["rows"]:
+        raise ValueError(f"proposal #{sp['number']} has no prices to bring in")
+    if _apps(conn, project_code):
+        raise ValueError("this job already has a pay application, so its base lines can't be replaced — "
+                         "edit them by hand instead")
+    cos = [r for r in sov_rows(conn, project_code) if r["kind"] == "change_order"]
+    base = [{"item_no": str(i + 1), "description": r["description"] or f"Line {i + 1}",
+             "scheduled_value": r["scheduled_value"], "kind": "base"} for i, r in enumerate(sp["rows"])]
+    rows = save_sov(conn, project_code, base + cos)
+    return {"rows": rows, "imported": len(base),
+            "proposal": {k: sp[k] for k in ("id", "number", "signed_at", "price", "total")}}
+
+
 # ---------------------------------------------------------------- applications
 def _app_row(conn, app_id: int) -> Optional[dict]:
     return _one(conn.execute(
@@ -390,7 +436,12 @@ def billing(conn, project_code: str) -> Optional[dict]:
     client = crm.get_org(conn, p["client_org_id"]) if p.get("client_org_id") else None
     return {"project": p, "client": ({"id": client["id"], "name": client["name"]} if client else None), "sov": sov,
             "applications": apps, "summary": summary, "next_number": (max([a["number"] for a in apps]) + 1) if apps else 1,
-            "retainage_default": RETAINAGE_DEFAULT}
+            "retainage_default": RETAINAGE_DEFAULT, "signed_proposal": _sp_summary(conn, project_code)}
+
+
+def _sp_summary(conn, project_code: str) -> Optional[dict]:
+    sp = signed_proposal(conn, project_code)
+    return ({k: sp[k] for k in ("id", "number", "signed_at", "price", "total")} | {"lines": len(sp["rows"])}) if sp else None
 
 
 def create_application(conn, project_code: str, fields: dict, *, created_by=None) -> dict:
@@ -673,6 +724,26 @@ def _api_sov_import(project_code):
 
 
 @requires_company
+def _api_sov_from_proposal(project_code):
+    conn = _conn()
+    try:
+        if not _project(conn, project_code):
+            return _err("project not found", 404)
+        import billing_type   # #356
+        blocked = billing_type.aia_blocked(conn, project_code)
+        if blocked:
+            return _err(blocked, 409)
+        try:
+            out = import_proposal_sov(conn, project_code)
+        except ValueError as e:
+            conn.rollback()
+            return _err(str(e), 400)
+        return jsonify({"data": out["rows"], "meta": {"imported": out["imported"], "proposal": out["proposal"]}})
+    finally:
+        conn.close()
+
+
+@requires_company
 def _api_app_create(project_code):
     body = request.get_json(silent=True) or {}
     conn = _conn()
@@ -777,6 +848,8 @@ def register(app) -> None:
     app.add_url_rule("/api/projects/<project_code>/billing", "aia_billing", _api_billing, methods=["GET"])
     app.add_url_rule("/api/projects/<project_code>/billing/sov", "aia_sov_put", _api_sov_put, methods=["PUT"])
     app.add_url_rule("/api/projects/<project_code>/billing/sov/import", "aia_sov_import", _api_sov_import, methods=["POST"])
+    app.add_url_rule("/api/projects/<project_code>/billing/sov/from-proposal", "aia_sov_from_proposal",
+                     _api_sov_from_proposal, methods=["POST"])
     app.add_url_rule("/api/projects/<project_code>/billing/applications", "aia_app_create", _api_app_create, methods=["POST"])
     app.add_url_rule("/api/billing/applications/<int:app_id>", "aia_app_get", _api_app_get, methods=["GET"])
     app.add_url_rule("/api/billing/applications/<int:app_id>", "aia_app_put", _api_app_put, methods=["PUT"])

@@ -15,3 +15,11 @@ Requirements for a swapped logo (so it renders legibly + never distorts):
 Brand COLOURS are theme tokens, not in these files — see brand.py (BRAND) and the
 :root tokens in static/css/widgets.css. Update those for a colourway change.
 The company NAME/wordmark text is brand.py COMPANY_NAME.
+
+logo-full.png — the full printed logo (star + SUPERSTARS / CONTRACTING INC), exactly as
+  supplied. It is the top-left brand in every app sidebar/top bar (.brand-full, widgets.css);
+  the star (mark.svg) stays for the collapsed icon rail, favicons and reports.
+
+favicon-32.png / apple-touch-icon.png — PNG renders of mark.svg for the
+  browser tab (Safari has no SVG favicons) and iPhone home screen (cream background, since iOS
+  fills transparency with black). /favicon.ico serves favicon-32.png. Re-render these if mark.svg changes.

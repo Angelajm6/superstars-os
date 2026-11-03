@@ -7,7 +7,7 @@ and the fake mail seam. Proves:
   * schema idempotent; migration script runs
   * gates: client -> 403 on the package; anon -> 401; super may READ but not SEND;
     unknown project -> 404
-  * package readiness: the COI / bond / permit requirements with missing / on_file /
+  * package readiness: the COI / permit requirements with missing / on_file /
     expiring / expired, keyed docs and un-keyed permit extras, no *_path anywhere
   * send: nothing on file -> 400; bad email -> 400; a document outside the package
     -> 400; default = every deliverable doc; the email in the fake dir lists the
@@ -202,17 +202,17 @@ def main() -> int:
     assert r.status_code == 400 and "nothing to send" in r.get_json()["error"]
     checks += 1
 
-    # ---- paper on file: COI (expiring), PW2 (valid), an old bond (expired), an un-keyed permit extra, a drawing (outside)
+    # ---- paper on file: COI (expiring), PW2 (valid), an old BEST permit (expired), an un-keyed permit extra, a drawing (outside)
     coi = _upload(admin, category="CONTRACTS", key="coi", title="Pkg327 COI 2026", expiry=D(12), name="coi.pdf", body=b"%PDF-1.4 COI-BYTES %%EOF")
     pw2 = _upload(admin, category="PERMITS", key="pw2", title="Pkg327 PW2", expiry=D(300), name="pw2.pdf", body=b"%PDF-1.4 PW2-BYTES %%EOF")
-    bond = _upload(admin, category="CONTRACTS", key="bond", title="Pkg327 Bond", expiry=D(-3), name="bond.pdf")
+    best = _upload(admin, category="PERMITS", key="best_permit", title="Pkg327 BEST permit", expiry=D(-3), name="best.pdf")
     extra = _upload(admin, category="PERMITS", key=None, title="Pkg327 Street variance letter", name="var.pdf")
     drawing = _upload(admin, category="DRAWINGS", key="approved_arch", title="Pkg327 Arch set", name="arch.pdf")
     j = admin.get(API).get_json()
     _no_paths(j, "package")
     d = j["data"]
     st = {it["requirement_key"]: it["status"] for it in d["items"]}
-    assert st["coi"] == "expiring" and st["pw2"] == "on_file" and st["bond"] == "expired" and st["sidewalk_shed"] == "missing", st
+    assert st["coi"] == "expiring" and st["pw2"] == "on_file" and st["best_permit"] == "expired" and st["sidewalk_shed"] == "missing", st
     assert d["summary"]["on_file"] == 1 and d["summary"]["attention"] == 2 and d["summary"]["missing"] == len(doc_packages.PACKAGE_KEYS) - 3
     assert [x["id"] for x in d["extras"]] == [extra], d["extras"]
     coi_item = [it for it in d["items"] if it["requirement_key"] == "coi"][0]
@@ -233,7 +233,7 @@ def main() -> int:
     assert n == 1 and "Attached is everything" in body and "Certificate of Insurance" in body and "Street variance" in body
     conn = _db()
     try:
-        for did in (coi, pw2, bond, extra):
+        for did in (coi, pw2, best, extra):
             assert visibility.is_shared(conn, "document", did, "client"), did
         assert not visibility.is_shared(conn, "document", drawing, "client")
         act = conn.execute("SELECT summary FROM crm_activity WHERE entity_type='organization' AND entity_id=? AND summary LIKE ?",

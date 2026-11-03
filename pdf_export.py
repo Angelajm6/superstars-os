@@ -43,6 +43,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -79,6 +80,22 @@ CHROME_WIN_PATHS = [
 ]
 
 ENGINES = ("edge", "chromium")
+
+CHROMIUM_CONTAINER_FLAGS = [
+    "--disable-dev-shm-usage",
+    "--no-zygote",
+    "--no-first-run",
+    "--disable-extensions",
+    "--disable-background-networking",
+    "--disable-component-update",
+    "--disable-default-apps",
+    "--disable-sync",
+    "--mute-audio",
+]
+
+# One browser at a time: on a small host two renders starve each other and both time out (a person
+# pressing Send again while the first PDF is still being made). The next render waits its turn.
+_RENDER_LOCK = threading.Lock()
 
 
 class PDFExportError(Exception):
@@ -151,8 +168,12 @@ def engine_flags(engine, profile_dir, pdf_path, budget_ms=5000):
               without the kernel privileges Chromium's sandbox wants; a PDF
               render of OUR OWN self-contained file:// HTML carries no
               untrusted content, so the sandbox buys nothing here.
+              The rest are the usual container flags (2026-10-26): Docker's 64MB
+              /dev/shm, the zygote and Chromium's own background fetches
+              (component updates, sync, variations) made a proposal render run
+              past 30s on the 0.5-CPU Render host, so Send failed.
     """
-    head = ["--headless=old"] if engine == "edge" else ["--headless", "--no-sandbox"]
+    head = ["--headless=old"] if engine == "edge" else ["--headless", "--no-sandbox"] + CHROMIUM_CONTAINER_FLAGS
     return head + [
         "--disable-gpu",
         "--no-pdf-header-footer",
@@ -209,9 +230,10 @@ def render_html_to_pdf(html_path, pdf_path, timeout_sec=60, engine=None):
         pdf_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=timeout_sec
-            )
+            with _RENDER_LOCK:
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=timeout_sec
+                )
         except subprocess.TimeoutExpired:
             return {"ok": False, "edge_path": str(browser), "engine": engine,
                     "error": f"{engine} timed out after {timeout_sec}s"}

@@ -87,6 +87,8 @@ _PUBLIC_PREFIXES = (
     "/api/p/",            # #307 — accept / decline from that page
     "/i/",                # #326 — a client's invoice link (the token IS the credential)
     "/d/",                # #327 — a client's permits & insurance package link
+    "/u/",                # a one-time upload link from the claude.ai connector (claude_connector.py): the token IS
+                          # the credential, used once, 15 minutes, adds files to one folder and reveals nothing
     "/auth/google/",      # #261 — Google OIDC login/callback must be reachable while
                           # logged OUT (that IS the login). When SSO is disabled (no
                           # GOOGLE_OAUTH_* env) the handlers themselves return 404.
@@ -104,6 +106,17 @@ _PUBLIC_EXACT = {
     "/api/worker-sign-in",
     "/worker-app-manifest.json",  # PWA shell (#248) — code/config, no data
     "/worker-app-sw.js",          # PWA shell (#248)
+    "/favicon.ico",               # brand star for the browser tab — no data
+    # Your own Claude, connected (claude_connector.py, off unless SSC_CLAUDE_CONNECTOR=1): these carry their
+    # OWN credential (a bearer token, a PKCE code, claude.ai's callback only). /oauth/consent/<id> is NOT
+    # public: the person signs in to the app there, like any page.
+    "/mcp",
+    "/oauth/register",
+    "/oauth/authorize",
+    "/oauth/token",
+    "/.well-known/oauth-protected-resource",
+    "/.well-known/oauth-protected-resource/mcp",
+    "/.well-known/oauth-authorization-server",
 }
 
 

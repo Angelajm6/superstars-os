@@ -10,7 +10,8 @@ a team item ASSIGNED TO THEM (so it reaches the team calendar and their Google C
 "Dismiss" hides it (Undo). PMs and supers add only to their own to-do.
 
 Least privilege + privacy
-  * Google scopes: openid, email, gmail.readonly — the app cannot send, delete or change mail.
+  * Google scopes: openid, email, gmail.readonly — for PMs / supers the app cannot send, delete or change mail. Admin / C-suite
+    (the Inbox) also grant gmail.send (replies they press Send on) and gmail.modify (Delete = Gmail's Trash).
   * Kept per suggestion, ENCRYPTED (secret_box): sender, subject, a short excerpt, the proposed
     title / address / reason. The full email is never stored. For mail judged "not a to-do"
     only the Gmail message id is kept (so it is not read twice), pruned after 14 days.
@@ -32,7 +33,7 @@ Least privilege + privacy
 Client: the same as Google Calendar (gcal_sync._client_pair: GOOGLE_APPS_CLIENT_ID/_SECRET, else
 the sign-in client). Redirect URI: GMAIL_REDIRECT_URI, else the SSO redirect's origin +
 /gmail/callback (register it on that OAuth client in Google Cloud). AI: ANTHROPIC_API_KEY; model GMAIL_SUGGEST_MODEL (default
-Haiku 4.5); cap GMAIL_AI_DAILY_CAP emails per day, company-wide (default 200).
+Haiku 5.5, thinking off); cap GMAIL_AI_DAILY_CAP emails per day, company-wide (default 200).
 """
 from __future__ import annotations
 
@@ -51,6 +52,7 @@ from typing import Optional
 
 from flask import jsonify, redirect, request
 
+import ai_models
 import db_layer
 import gcal_sync
 import secret_box
@@ -65,7 +67,7 @@ QUERY = "in:inbox category:primary -from:me newer_than:2d"
 MAX_PER_CHECK = 20
 POLL_SECONDS = 120   # every 2 minutes, no "Check now" needed (admin / C-suite mailboxes are synced live by inbox.py)
 STATE_COOKIE = "gmail_state"
-MODEL = os.environ.get("GMAIL_SUGGEST_MODEL", "claude-haiku-4-5-20251001")
+MODEL = os.environ.get("GMAIL_SUGGEST_MODEL", "claude-haiku-5-5")
 NOREPLY = re.compile(r"(no-?reply|do-?not-?reply|mailer-daemon|postmaster|notifications?@|bounce)", re.I)
 
 
@@ -256,8 +258,8 @@ def _ai(subject: str, sender: str, received: str, text: str, today: date) -> dic
         "time (HH:MM 24h, or ''); address (a street address it mentions, or ''); why (max 100 characters).\n\n"
         f"From: {sender}\nSubject: {subject}\n---\n{text[:1500]}\n---")
     client = anthropic.Anthropic()
-    resp = client.messages.create(model=MODEL, max_tokens=400,
-                                  output_config={"format": {"type": "json_schema", "schema": AI_SCHEMA}},
+    resp = client.messages.create(model=MODEL, max_tokens=400, **ai_models.thinking_off(MODEL),
+                                  output_config={"effort": "low", "format": {"type": "json_schema", "schema": AI_SCHEMA}},
                                   messages=[{"role": "user", "content": prompt}])
     raw = next((b.text for b in resp.content if getattr(b, "type", "") == "text"), "")
     m = re.search(r"\{.*\}", raw, re.S)
@@ -479,8 +481,8 @@ def _connect():
         return ("Not Found", 404)
     u = current_user() or {}
     nonce = secrets.token_urlsafe(24)
-    import inbox   # admin / C-suite also allow sending replies from the Inbox (every send needs their approval)
-    scope = SCOPES + (" " + inbox.SEND_SCOPE if u.get("role") in inbox.OFFICE_ROLES else "")
+    import inbox   # admin / C-suite also allow sending replies (every send needs their approval) and Delete (to Gmail's Trash)
+    scope = SCOPES + (" " + inbox.SEND_SCOPE + " " + inbox.MODIFY_SCOPE if u.get("role") in inbox.OFFICE_ROLES else "")
     params = {"client_id": gcal_sync._client_id(), "redirect_uri": redirect_uri(), "response_type": "code", "scope": scope,
               "state": nonce + "." + urllib.parse.quote(_safe_next(request.args.get("next")), safe=""),
               "access_type": "offline", "prompt": "consent", "include_granted_scopes": "false",

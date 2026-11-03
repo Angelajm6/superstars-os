@@ -48,7 +48,7 @@ Read agents/construction_specialist/ and act as the Construction Specialist —
 follow its rules (cite sources or flag as general-knowledge-unverified, never
 fabricate, route engineering/architect/legal/attestation out, W-#### only), answer
 <my question>, then log one provenance row via
-agents/construction_specialist/provenance.py.
+agents/construction_specialist/provenance.py --db <isolated.db>.
 ```
 
 Claude Code then reads this contract + the relevant corpus index, answers
@@ -71,10 +71,16 @@ Every substantive interaction → one row in `construction_agent_provenance`
 (migration: `apply_construction_agent_provenance_schema.py`). PII-safe: W-#### only,
 no names/PINs/rates. The anti-corruption meta-smoke
 (`tests/smoke_no_production_data_corruption.py`) snapshots the table as a backstop;
-the surface's own regression net is `tests/smoke_construction_agent.py`.
+the surface's own regression net is `tests/smoke_construction_agent.py` (a throwaway
+database; it also proves `db_guard` refuses the real `superstars.db`, in the gate).
+
+**Database guard (2026-10-26):** `db_guard.py` decides what the helper and the corpus
+builder may open: an explicit `--db` or `SSC_AGENT_DB` only, the file must exist, and
+the real `superstars.db` is refused by name or path. The Task subagent has no Bash; it
+hands back a PROVENANCE block for the calling session to log.
 
 ## Regenerate corpus / re-stamp version
 
 ```
-python agents/construction_specialist/corpus/build_corpus.py
+python agents/construction_specialist/corpus/build_corpus.py --db <isolated.db>
 ```

@@ -246,6 +246,25 @@ def run():
     ok("arch_elevation_list_scoped_to_A", r.status_code == 200 and listed is not None
        and eA in listed and eB not in listed, f"{r.status_code} ids={listed}")
 
+    print("\n-- per-job Drawings tab: ?project= lists that job only, never widens --")
+    def _listed(sess, code):
+        r = sess.get(f"{BASE}/api/elevations", params={"project": code}, **R)
+        rows = (r.json().get("data") or []) if r.status_code == 200 else None
+        return r.status_code, rows
+    st, rows = _listed(CS, PB)
+    ok("project_param_lists_only_that_job", st == 200 and rows is not None and rows
+       and all(e.get("project_code") == PB for e in rows) and eB in [e.get("id") for e in rows],
+       f"{st} codes={sorted({e.get('project_code') for e in rows or []})}")
+    st, rows = _listed(CS, "SMK280-NOPE")
+    ok("project_param_job_without_drawings_empty", st == 200 and rows == [], f"{st} n={len(rows or [])}")
+    st, rows = _listed(ARCH, PB)
+    ok("project_param_never_widens_scope", st == 200 and rows == [], f"{st} n={len(rows or [])}")
+    dash = (SCRIPT_DIR / "dashboard-static.html").read_text(encoding="utf-8")
+    ok("drawings_tab_frame_carries_job", 'src="/drawing-markup?project=__PROJECT_CODE__"' in dash)
+    mk = (SCRIPT_DIR / "templates" / "v2" / "drawing-markup.html").read_text(encoding="utf-8")
+    ok("markup_page_scopes_list_and_memory", "fetch('/api/elevations' + QS" in mk
+       and "LS_KEY = 'ssc.drawingMarkup.elevationId' + (PROJECT" in mk)
+
     print("\n-- writes: internal-only paint, transition validation, reason law --")
     r = ARCH.post(f"{BASE}/api/elevation/cell",
                   json={"cell_id": cells["dA1"][0], "status_key": "in_progress"}, **R)
