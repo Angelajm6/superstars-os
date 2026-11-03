@@ -257,7 +257,7 @@ def amount_mismatch(inv: dict, html: str) -> Optional[str]:
     return f"The design doesn't show {m}, the amount on invoice {inv['number']}. Check the numbers before sending it."
 
 
-def set_design(conn, invoice_id: int, doc_id: Optional[int], html: Optional[str]) -> dict:
+def set_design(conn, invoice_id: int, doc_id: Optional[int], html: Optional[str], *, render: bool = True) -> dict:
     """Use a Claude document as this invoice's document (html=None puts the standard layout back). The stored PDF is
     redrawn so the PDF button and the client's link match; if the PDF engine is down it is drawn on the next open."""
     inv = invoices.get(conn, invoice_id)
@@ -276,7 +276,7 @@ def set_design(conn, invoice_id: int, doc_id: Optional[int], html: Optional[str]
                  "pdf_rendered_at = NULL WHERE id = ?", (doc_id if html is not None else None, html,
                                                          _now() if html is not None else None, invoice_id))
     conn.commit()
-    if inv.get("pdf_path") or inv.get("token_hash"):
+    if render and (inv.get("pdf_path") or inv.get("token_hash")):
         render_pdf(conn, invoice_id)
     return {"id": invoice_id, "number": inv["number"],
             "warning": amount_mismatch(inv, html) if html is not None else None}
@@ -521,6 +521,8 @@ def _public_pdf(token):
         if _link_state(inv) != "open":
             return _gone("This invoice link is not valid.")
         p = pdf_file(conn, inv["id"])
+        if not p and render_pdf(conn, inv["id"]).get("ok"):   # a new design clears the stored PDF; draw it now
+            p = pdf_file(conn, inv["id"])
         if not p:
             return _gone("The PDF is not available right now — the invoice page is the reference copy.", 503)
         return _no_store(make_response(send_file(str(p), mimetype="application/pdf", as_attachment=True,

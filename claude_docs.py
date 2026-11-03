@@ -16,8 +16,9 @@ Saving again to a job that already has this document (2026-11-02) files a NEW VE
 moves to the document's History in the job, so the job never keeps showing the old design. `claude_doc_filing`
 remembers which job document each save made; Claude proposes the same update with save_document_to_job.
 
-An invoice's design (2026-11-02): when the document is one of the job's invoices (named on the save, or already that
-invoice's design; a number in the text only preselects it in the save bar), the save also makes it that invoice's document, so the
+An invoice's design (2026-11-02): when the document is one of the job's invoices (named on the save, already that
+invoice's design, or TITLED as that invoice, e.g. "Invoice INV-2026-0004 - 1160 River Ave"; a number only in the text
+preselects it in the save bar), every save (the save bar, Claude's card, the claude.ai connector) also makes it that invoice's document, so the
 Invoices & Payments tab's Preview / PDF and the client's link show the new design (invoice_docs.set_design).
   GET   /api/claude/docs/<id>/invoices?project_code=  -> the job's invoices, with the one this document matches
 
@@ -104,6 +105,7 @@ def ensure(conn) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_claude_doc_filing_doc ON claude_doc_filing(doc_id)")
     conn.commit()
     _backfill_filings(conn)
+    _backfill_invoices(conn)
 
 
 def _backfill_filings(conn) -> None:
@@ -480,8 +482,65 @@ def invoice_for(conn, did: int, project_code: str, invoice_id=None, suggest=Fals
     linked = [i["id"] for i in rows if i["linked"]]
     if linked:
         return linked[0]
+    titled = titled_invoice(conn, did, rows)
+    if titled:
+        return titled
     match = [i["id"] for i in rows if i["match"]]
     return match[0] if suggest and len(match) == 1 else None
+
+
+_INVOICE_TITLE = re.compile(r"^\W*(?:(?:deposit|progress|final|change[ -]order)\s+)?invoice\b", re.I)
+
+
+def titled_invoice(conn, did: int, rows: list) -> Optional[int]:
+    """The invoice this document is by its name: a title that starts as an invoice ("Invoice …", "Deposit invoice …")
+    and carries exactly one of the job's invoice numbers. A letter about an invoice is never titled that way."""
+    d = _one(conn, "SELECT title FROM claude_doc WHERE id = ?", (did,)) or {}
+    title = d.get("title") or ""
+    if not _INVOICE_TITLE.search(title):
+        return None
+    hits = [i["id"] for i in rows if i["number"]
+            and re.search(r"(?<![\w-])" + re.escape(i["number"]) + r"(?![\w-])", title, re.I)]
+    return hits[0] if len(hits) == 1 else None
+
+
+def filed(conn, did: int, project_code: str, project_doc_id: int, invoice_id=None, render: bool = True) -> Optional[dict]:
+    """After any save of a Claude document into a job (the save bar, Claude's card, the claude.ai connector): remember
+    the job copy, and when the document is one of the job's invoices make it that invoice's document."""
+    conn.execute("INSERT INTO claude_doc_filing (doc_id, project_code, project_doc_id, filed_at) VALUES (?,?,?,?)",
+                 (did, project_code, project_doc_id, _now()))
+    conn.commit()
+    inv_id = invoice_for(conn, did, project_code, invoice_id)
+    if not inv_id:
+        return None
+    import invoice_docs
+    d = _one(conn, "SELECT html FROM claude_doc WHERE id = ?", (did,))
+    try:
+        return invoice_docs.set_design(conn, inv_id, did, d["html"], render=render)
+    except ValueError as e:   # void, or an AIA pay application: the job copy is saved, the invoice keeps its own
+        log.info("claude doc %s not used for invoice %s: %s", did, inv_id, e)
+        return None
+
+
+def _backfill_invoices(conn) -> None:
+    """Invoice designs filed before every save linked them (2026-11-02): an invoice with no design whose job holds a
+    current Claude document titled as it takes that document. The PDF is drawn on the next open. Idempotent."""
+    try:
+        for f in _rows(conn, "SELECT f.doc_id, f.project_code FROM claude_doc_filing f "
+                             "JOIN project_documents p ON p.id = f.project_doc_id WHERE p.superseded = 0 "
+                             "ORDER BY f.filed_at, f.doc_id"):
+            inv_id = titled_invoice(conn, f["doc_id"], job_invoices(conn, f["doc_id"], f["project_code"]))
+            if not inv_id or _one(conn, "SELECT design_html FROM invoice WHERE id = ?", (inv_id,)).get("design_html"):
+                continue
+            import invoice_docs
+            d = _one(conn, "SELECT html FROM claude_doc WHERE id = ?", (f["doc_id"],))
+            try:
+                invoice_docs.set_design(conn, inv_id, f["doc_id"], d["html"], render=False)
+            except (ValueError, LookupError) as e:
+                log.info("invoice %s keeps its layout: %s", inv_id, e)
+    except Exception as e:   # no invoice / job documents tables (some test fixtures)
+        conn.rollback()
+        log.info("claude doc invoice backfill skipped: %s", type(e).__name__)
 
 
 def save_to_job(conn, uid, did: int, project_code: str, category: Optional[str] = None, replaces_id=None,
@@ -495,7 +554,7 @@ def save_to_job(conn, uid, did: int, project_code: str, category: Optional[str] 
         raise LookupError("not found")
     if not _one(conn, "SELECT project_code FROM projects WHERE project_code = ?", (project_code,)):
         raise ValueError("that job doesn't exist")
-    inv_id = invoice_for(conn, did, project_code, invoice_id)
+    invoice_for(conn, did, project_code, invoice_id)   # a named invoice must be on this job, before anything is filed
     old = replace_target(conn, did, project_code, replaces_id)
     category = (category or "").strip().upper() or (old or {}).get("category") or ""
     if category not in CATEGORIES:
@@ -515,13 +574,8 @@ def save_to_job(conn, uid, did: int, project_code: str, category: Optional[str] 
         conn.execute("UPDATE project_documents SET superseded = 1 WHERE id = ?", (old["id"],))
         for aud in visibility.audiences_for(conn, "document", old["id"]):
             visibility.unshare(conn, "document", old["id"], aud, uid)
-    conn.execute("INSERT INTO claude_doc_filing (doc_id, project_code, project_doc_id, filed_at) VALUES (?,?,?,?)",
-                 (did, project_code, new_id, _now()))
     conn.commit()
-    invoice = None
-    if inv_id:
-        import invoice_docs
-        invoice = invoice_docs.set_design(conn, inv_id, did, d["html"])
+    invoice = filed(conn, did, project_code, new_id, invoice_id)
     return {"id": new_id, "project_code": project_code, "replaced": old["id"] if old else None, "invoice": invoice}
 
 

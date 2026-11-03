@@ -4,6 +4,8 @@
    SSC_PDF.render(url, host)                  draws every page of the PDF at `url` into `host`
    SSC_PDF.panel({title, sub, url, links, kind, sheetUrl})  a side panel over the page; links = [{label, href, download?}]
                                               kind: 'pdf' (default) | 'image' | 'sheet' | 'other' (no preview, links only)
+                                              | 'page' (a same-origin HTML page, e.g. an invoice preview: drawn in a
+                                              frame with no scripts, scaled to the panel's width)
                                               'sheet' needs sheetUrl: JSON {sheets:[{name, rows, truncated, hidden}]}
                                               (the Documents tab's /sheet routes); without it a sheet falls back to 'other'
    SSC_PDF.kindOf(mime, name)                 'pdf' | 'image' | 'sheet' | 'other' for a stored file
@@ -23,6 +25,8 @@
     '.sscpdf-hd{display:flex;gap:8px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line,#eceef3);flex-wrap:wrap}' +
     '.sscpdf-hd b{font-size:15px}.sscpdf-hd small{color:var(--muted,#8c92a0);font-size:12.5px}.sscpdf-hd .sp{flex:1}' +
     '.sscpdf-panel .sscpdf-pages{flex:1}' +
+    '.sscpdf-frame{position:relative;flex:none;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.15);border-radius:2px;overflow:hidden}' +
+    '.sscpdf-frame iframe{border:0;display:block;transform-origin:0 0;background:#fff}' +
     '.sscpdf-pages img{max-width:100%;height:auto;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.15);border-radius:2px}' +
     '.sscpdf-hd>div:first-child{min-width:0;flex:1 1 220px}.sscpdf-hd b{display:block;overflow-wrap:anywhere}.sscpdf-hd br{display:none}' +
     '@media (max-width:640px){.sscpdf-hd>div:first-child{flex:1 1 calc(100% - 56px)}.sscpdf-hd .sp{display:none}' +
@@ -143,6 +147,26 @@
     draw();
   }
 
+  // an HTML page (invoice preview): laid out at paper width, then scaled down to fit a phone
+  function page(url, host) {
+    var W = 860;
+    host.innerHTML = '<div class="sscpdf-frame"><iframe sandbox="allow-same-origin" referrerpolicy="no-referrer" title="Preview"></iframe></div>';
+    var box = host.firstChild, f = box.firstChild;
+    function fit() {
+      var d = f.contentDocument, h = d && d.documentElement ? d.documentElement.scrollHeight : 1100;
+      var k = Math.min(1, (host.clientWidth - 28) / W);
+      f.style.width = W + 'px'; f.style.height = h + 'px'; f.style.transform = 'scale(' + k + ')';
+      box.style.width = Math.round(W * k) + 'px'; box.style.height = Math.round(h * k) + 'px';
+    }
+    f.onload = function () { fit(); setTimeout(fit, 300); };
+    window.addEventListener('resize', fit);
+    var mine = token;   // fetched, then shown as srcdoc: the page itself is never framable (X-Frame-Options DENY)
+    fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error('failed'); return r.text();
+    }).then(function (html) { if (mine === token) f.srcdoc = html; })
+      .catch(function () { if (mine === token) host.innerHTML = '<div class="sscpdf-msg">This preview couldn’t load. Use Open in new tab.</div>'; });
+  }
+
   function close() {
     token++;
     ['sscpdf-panel', 'sscpdf-scrim'].forEach(function (id) { var el = document.getElementById(id); if (el) el.remove(); });
@@ -163,6 +187,7 @@
     var host = p.querySelector('.sscpdf-pages');
     if (o.kind === 'image') image(o.url, host);
     else if (o.kind === 'sheet' && o.sheetUrl) sheet(o.sheetUrl, host);
+    else if (o.kind === 'page') page(o.url, host);
     else if (o.kind === 'other' || o.kind === 'sheet') { host.innerHTML = '<div class="sscpdf-msg">This kind of file can’t be previewed here. Use Download to open it.</div>'; }
     else render(o.url, host);
   }

@@ -22,7 +22,7 @@
 <script src="/files/static/js/inbox_schedule.js?v=5" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
-<script src="/files/static/js/pdf_view.js?v=3" defer></script>
+<script src="/files/static/js/pdf_view.js?v=4" defer></script>
 <script src="/files/static/js/company_templates.js?v=2"></script>
 <style>
   /* #302 Company Portal — tokens come from widgets.css :root (accent, ink, muted, line,
@@ -5888,7 +5888,7 @@
       foot.innerHTML = btn('inv-close', 'btn-ghost', 'Close') +
         (r.qb_invoice_id && QB.st && QB.st.open_url && r.qb_realm_id ? `<a class="btn-ghost" href="${esc(QB.st.open_url + encodeURIComponent(r.qb_invoice_id))}" target="_blank" rel="noopener" style="text-decoration:none">Open in QuickBooks ↗</a>` : '') +
         (qbOn && ['issued', 'paid'].includes(r.status) && !r.qb_invoice_id && r.qb_status !== 'pending' ? btn('inv-qb-push', 'btn-ghost', r.qb_status === 'error' ? 'Try QuickBooks again' : 'Send to QuickBooks') : '') +
-        `<a class="btn-ghost" href="/api/invoices/${r.id}/preview" target="_blank" rel="noopener" style="text-decoration:none">Preview</a>` +
+        `<a class="btn-ghost" href="/api/invoices/${r.id}/preview" target="_blank" rel="noopener" style="text-decoration:none" id="inv-preview">Preview</a>` +
         (r.status !== 'draft' ? `<a class="btn-ghost" href="/api/invoices/${r.id}/pdf" target="_blank" rel="noopener" style="text-decoration:none">PDF</a>` : '') +
         '<span style="flex:1"></span>' +
         (r.status === 'draft' ? btn('inv-del', 'btn-ghost', 'Delete draft') + btn('inv-issue', 'btn-primary', 'Issue invoice') : '') +
@@ -5905,6 +5905,13 @@
         closeOverlay('inv-view-overlay'); $('inv-mail-overlay').classList.add('open'); setTimeout(() => $('inv-mail-email').focus(), 30);
       });
       $('inv-close').addEventListener('click', () => closeOverlay('inv-view-overlay'));
+      $('inv-preview').addEventListener('click', e => {   // in the app's side panel, not a new window
+        if (!window.SSC_PDF) return;
+        e.preventDefault();
+        const url = '/api/invoices/' + r.id + '/preview';
+        SSC_PDF.panel({ title: 'Invoice ' + r.number, sub: (r.description || '') + (r.has_design ? ' · designed with Claude' : ''), url, kind: 'page',
+          links: (r.status !== 'draft' ? [{ label: 'PDF', href: '/api/invoices/' + r.id + '/pdf', newtab: true }] : []).concat([{ label: 'Open in new tab', href: url, newtab: true }]) });
+      });
       if ($('inv-qb-push')) $('inv-qb-push').addEventListener('click', async () => {
         $('inv-qb-push').disabled = true;
         try { await api('/quickbooks/invoices/' + r.id + '/push', { method: 'POST', body: '{}' }, true); toast(`${r.number} is in QuickBooks`); }

@@ -768,8 +768,11 @@ def _t_save(conn, user, inp):
             raise ValueError("that version was already replaced; replace the current one")
     made = claude_docs.create(conn, user["id"], None, None, str(inp.get("title") or ""), str(inp.get("html") or ""))
     saved = _save_pdf(conn, user, made["doc_id"], code, category, old["id"] if old else None)
+    inv = claude_docs.filed(conn, made["doc_id"], code, saved)   # an invoice's design becomes that invoice's document
     out = {"saved": True, "document_id": saved, "project_code": code, "folder": inp.get("folder"),
            "title": made["title"], "format": "PDF", "replaced_document_id": old["id"] if old else None,
+           "invoice": ({"number": inv["number"], "note": "Invoices & Payments, the invoice PDF and the client's link now "
+                        "use this design." + (" " + inv["warning"] if inv.get("warning") else "")} if inv else None),
            "open_in_app": f"{base_url()}/projects/{code}",
            "word_copy": f"{base_url()}/api/claude/docs/{made['doc_id']}/docx",
            "note": "Filed as a PDF marked Made with Claude. The Word copy downloads from the app (signed in)."}
@@ -1192,7 +1195,9 @@ TOOLS = [
     Tool("save_document", "Save a document to a job", "Save a finished document into a job's documents as a PDF marked "
          "Made with Claude. html is the document's content as clean HTML (headings, paragraphs, lists, tables); the "
          "company letterhead is added. To update a document, pass replaces_document_id: it is kept as the older version, "
-         "never overwritten. Only when the person asks to save.",
+         "never overwritten. An invoice's design: title it \"Invoice <its number> …\" (e.g. Invoice INV-2026-0004 - "
+         "1160 River Ave) and it also becomes that invoice's document in Invoices & Payments. Only when the person asks "
+         "to save.",
          {"project_code": _S, "folder": {"type": "string", "enum": list(FOLDERS)}, "title": _S, "html": _S,
           "replaces_document_id": _I}, ["project_code", "folder", "title", "html"], _t_save, write=True),
     Tool("upload_link", "File an attached document", "File a document the person attached in claude.ai (a PDF, photo or "
