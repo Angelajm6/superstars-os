@@ -1212,8 +1212,9 @@ def reply_recipients(m: dict, me: str, reply_all: bool = False) -> tuple:
         for n, a in _parse_recipients(", ".join(v for v in (m["to"], m["cc"]) if v)):
             if _ADDR_OK.match(a) and a.lower() not in primary and a.lower() not in seen:
                 seen.add(a.lower())
-                # A quoted name stays quoted: an open 'Smith, John <j@x.com>' reads as two people when it comes back
-                keep.append(('"' + n.replace("\\", "\\\\").replace('"', '\\"') + f'" <{a}>') if n else a)
+                # A name with a comma keeps its quotes: an open 'Smith, John <j@x.com>' reads as two people when it comes back
+                shown = n if re.fullmatch(r"[\w\s'-]*", n) else '"' + n.replace("\\", "\\\\").replace('"', '\\"') + '"'
+                keep.append(f"{shown} <{a}>" if n else a)
         cc = ", ".join(keep)
     return to, cc
 
