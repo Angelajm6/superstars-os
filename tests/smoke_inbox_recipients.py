@@ -5,6 +5,7 @@ Proves against an ISOLATED database (no Google; the test mail folder):
   * a reply with no recipients given still goes to the sender (the old behavior)
   * To / Cc / Bcc given: exactly those people, in the same thread (In-Reply-To), Bcc carried for Gmail to deliver
   * a typo is refused with the bad address named; no To is refused
+  * Reply all then a new Cc: names with commas, a space between addresses and hidden pasted characters all go through
   * Forward: "Fwd:" subject, the forwarded-message block, the email's own attachment along
   * people search: a client contact and a team member by name; pm gets 403
   * the page carries the recipients editor (reply type menu, chips, Cc / Bcc, subject)
@@ -15,6 +16,7 @@ from __future__ import annotations
 import os
 os.environ.setdefault("SSC_ALLOW_TEST_SEAMS", "1")
 import email
+import email.utils
 import json
 import shutil
 import sys
@@ -142,6 +144,31 @@ def main() -> int:
         none = a.post(f"/api/inbox/messages/{mid}/reply", json={"body": "x", "to": "", "cc": "sam@rcp-rosen.example"})
         assert none.status_code == 400 and "To" in none.get_json()["error"]
         passed += 1; print("  recipients ok")
+
+        # ---- Reply all, then add a Cc (2026-11-04): a correct address was refused with "check the Cc address"
+        raw = {"direction": "in", "from": "Dana <dana@rcp-rosen.example>", "to": '"Rcp, Admin" <admin@superstars.example>',
+               "cc": '"Rosen, Mark" <mark@rcp-eng.example>, "Rosen [PM], Sam" <sam@rcp-rosen.example>, lee@rcp-rosen.example'}
+        _to, prefilled = inbox.reply_recipients(raw, "me@superstars.example", True)
+        people = lambda v: [a for _n, a in email.utils.getaddresses([inbox.clean_recipients(v, "Cc")])]
+        everyone = ["admin@superstars.example", "mark@rcp-eng.example", "sam@rcp-rosen.example", "lee@rcp-rosen.example"]
+        assert people(prefilled) == everyone, people(prefilled)
+        for typed in (prefilled + ", new@rcp-rosen.example", prefilled + " new@rcp-rosen.example", prefilled + "; new@rcp-rosen.example",
+                      prefilled + ",\u00a0new@rcp-rosen.example\u200b"):
+            assert people(typed) == everyone + ["new@rcp-rosen.example"], typed
+        assert people("a@rcp.example b@rcp.example") == ["a@rcp.example", "b@rcp.example"]
+        assert inbox._parse_recipients("Rosen, Mark <mark@rcp-eng.example>") == [("Rosen, Mark", "mark@rcp-eng.example")]   # pasted from Outlook
+        r = a.post(f"/api/inbox/messages/{mid}/reply", json={"body": "Adding one", "to": "dana@rcp-rosen.example", "cc": prefilled + ", new@rcp-rosen.example"})
+        assert r.status_code == 200, r.get_json()
+        m = last_eml()
+        sent = [x for _n, x in email.utils.getaddresses([str(m["Cc"])])]
+        assert sent == everyone + ["new@rcp-rosen.example"], sent
+        for typo in ("jon.rcp-rosen.example, Pat <pat@rcp.example>", "jon, pat@rcp.example", "sam@typo", "Pat <pat@typo>"):   # typos are still refused
+            try:
+                inbox.clean_recipients(typo, "Cc")
+                raise AssertionError("typo let through: " + typo)
+            except ValueError as e:
+                assert "check the Cc address" in str(e)
+        passed += 1; print("  reply all + a new Cc ok")
 
         # ---- forward, with the email's own file
         r = a.post(f"/api/inbox/messages/{mid}/reply", json={"body": "FYI", "forward": True, "to": ["Luis <luis@superstars.example>"]})

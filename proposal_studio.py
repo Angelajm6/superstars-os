@@ -577,7 +577,7 @@ def send(conn, pid: int, uid, body: dict) -> dict:
         to = out.get("to") or ""
         inbox.link_record(conn, mid, "proposal", pid, uid)
     else:
-        to = str(body.get("to") or "").strip()
+        to = inbox.clean_recipients(str(body.get("to") or ""), "To")
         out = inbox.compose(conn, uid, to, str(body.get("cc") or ""), str(body.get("subject") or f"Proposal {r['number']}"),
                             message, attachments=att)
     addrs = getaddresses([to])
