@@ -122,6 +122,17 @@
   }
   .chat{display:flex;flex-direction:column;gap:8px;max-height:min(340px,42vh);overflow:auto}
   .inl button:disabled,.inl input:disabled{opacity:.6}
+  /* files Claude reads in this conversation (prototype accepted 2026-11-03: https://claude.ai/artifact/PhSDUVAeHQNcx8GGjKGHaf) */
+  .chat-tray{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px}.chat-tray:empty{display:none}
+  .chat-tray .att.busy{color:var(--muted)}
+  .chat-err{font-size:12px;color:var(--status-behind-deep,#A8382B);margin-bottom:6px}
+  .chat-clip{flex:none;width:36px;display:grid;place-items:center;border:1px solid var(--line);background:#fff;border-radius:10px;color:var(--ink-2);cursor:pointer;padding:0}
+  .chat-clip:hover:not(:disabled){border-color:var(--accent-edge);color:var(--ink)}
+  .chat-card.drop{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+  .msg .sent-files{display:flex;flex-wrap:wrap;gap:4px}
+  .msg .sent-files:not(:last-child){margin-bottom:5px}
+  .msg .att{background:#fff;font-size:11.5px;padding:3px 7px}
+  @media (max-width:640px){.chat-clip{width:40px}.chat-card .inl .fld{font-size:16px}}
   /* revisions (2026-10-22) */
   .rv{display:flex;flex-direction:column;gap:8px}
   .rv-item{border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:12.5px;line-height:1.45}
@@ -290,9 +301,11 @@
       <aside class="rail">
         <div class="chat-scrim" id="chat-scrim" hidden></div>
         <div class="card chat-card" id="chat-card" role="region" aria-label="Ask Claude to change the proposal"><div class="chat-h"><h3>Ask Claude to change it</h3><button class="x" type="button" id="chat-x" aria-label="Close">×</button></div>
-          <div class="chat" id="chat" aria-live="polite"><div class="msg c">Click any outlined text to edit it, or just talk to me: ask a question, or tell me what to change. I can add price lines and alternates and edit the notes, exclusions and terms. The fixed wording and the totals take care of themselves.</div></div>
+          <div class="chat" id="chat" aria-live="polite"><div class="msg c">Click any outlined text to edit it, or just talk to me: ask a question, or tell me what to change. I can add price lines and alternates and edit the notes, exclusions and terms. You can attach drawings, photos, bid forms or emails for me to read; they don't go in the proposal or the email.</div></div>
           <div class="quick"><button class="chip" type="button" data-ask="Add an alternate">+ Add alternate</button><button class="chip" type="button" data-ask="Add a 10% contingency line">+ 10% contingency</button><button class="chip" type="button" data-ask="Make the scope shorter">Shorter scope</button><button class="chip" type="button" data-ask="Split the work into two phases with their own lines">Two phases</button></div>
-          <form class="inl" id="chat-form"><input class="fld" id="chat-in" placeholder="Ask anything or say what to change" aria-label="Ask Claude about the proposal or what to change"><button class="btn-ghost btn-sm" type="submit" id="chat-go">Send</button></form>
+          <div class="chat-err" id="chat-err" role="alert" hidden></div>
+          <div class="chat-tray" id="chat-tray"></div>
+          <form class="inl" id="chat-form"><button class="chat-clip" type="button" id="chat-attach" aria-label="Attach files" title="Attach files"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.2-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button><input type="file" id="chat-file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.heic,.heif,.webp,.gif,.docx,.xlsx,.xlsm,.xls,.csv,.txt,.eml,.md" aria-label="Attach files"><input class="fld" id="chat-in" placeholder="Ask Claude anything" aria-label="Ask Claude about the proposal or what to change"><button class="btn-ghost btn-sm" type="submit" id="chat-go">Send</button></form>
         </div>
         <div class="card" id="rv-card" hidden><h3>Revisions</h3><div class="rv" id="rv"></div></div>
         <div class="card" id="ck-card" hidden><h3>Ready to send</h3><div class="ck" id="ck"></div>
@@ -436,9 +449,9 @@
   const money = n => '$' + (+n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   const money2 = n => '$' + (+n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtDate = iso => { if (!iso) return ''; const [y, m, d] = String(iso).slice(0, 10).split('-'); return `${m}/${d}/${y}`; };
-  const S = { id: null, v: null, job: null, files: [], how: 'new', send: null, preview: null, asking: false, chat: [] };
+  const S = { id: null, v: null, job: null, files: [], how: 'new', send: null, preview: null, asking: false, chat: [], chatFiles: [] };
   const STEPS = ['Loading your fixed wording', 'Finding your closest past proposals and prices', 'Looking up the client', 'Reading what you attached', 'Writing the proposal', 'Saving the draft'];
-  const GREET = 'Click any outlined text to edit it, or just talk to me: ask a question, or tell me what to change. I can add price lines and alternates and edit the notes, exclusions and terms. The fixed wording and the totals take care of themselves.';
+  const GREET = 'Click any outlined text to edit it, or just talk to me: ask a question, or tell me what to change. I can add price lines and alternates and edit the notes, exclusions and terms. You can attach drawings, photos, bid forms or emails for me to read; they don\'t go in the proposal or the email.';
   const LISTS = ['notes', 'deliverables', 'exclusions'], MULTI = ['submitted_to', 'project', 'reference'];
   const ssc = () => !!(S.v && S.v.layout === 'ssc');
   let tT = null;
@@ -568,7 +581,7 @@
   // ---------------- the proposal (no-scripts frame the page edits in place)
   async function openProposal(id, keep) {
     if (S.id === id && S.v && keep !== false) return;
-    if (S.id !== id) { S.chat = []; $('chat').innerHTML = '<div class="msg c">' + GREET + '</div>'; }   // each proposal has its own conversation
+    if (S.id !== id) { S.chat = []; S.chatFiles = []; chatErr(''); drawChatFiles(); $('chat').innerHTML = '<div class="msg c">' + GREET + '</div>'; }   // each proposal has its own conversation
     S.id = id;
     try { draw(await api('/proposal-studio/' + id)); }
     catch (e) { toast(e.message, true); S.id = null; location.hash = '#new'; }
@@ -615,8 +628,7 @@
     $('e-used').innerHTML = v.sources.map(s => `<div><i>✓</i>${esc(s)}</div>`).join('');
     $('e-valid').value = (p.valid_until || '').slice(0, 10); $('e-dep').value = p.deposit_pct != null ? p.deposit_pct : '';
     $('e-valid').disabled = $('e-dep').disabled = !v.editable;
-    $('chat-in').disabled = $('chat-go').disabled = !v.editable || S.asking;
-    $('chat-in').placeholder = v.editable ? 'Ask anything or say what to change' : 'Sent proposals don’t change. Make a new version to edit.';
+    chatSync();
     if (!lay) drawSecs(); paint(v.html, flash);
     document.querySelectorAll('[data-step="edit"]').forEach(b => b.disabled = false);
     bars();
@@ -903,17 +915,65 @@
   const LABEL = { heading: 'heading', job_type: 'job type', submitted_to: 'submitted to', project: 'project', reference: 'reference', overview: 'overview',
     notes: 'important notes', deliverables: 'deliverables', mobilization: 'mobilization', duration: 'duration', hours: 'hours', warranty: 'warranty',
     additional_insureds: 'insured names', accepted_by: 'accepted by', title: 'title', submitted_by: 'submitted by', prepared_for: 'prepared for', project_text: 'building', reference_text: 'reference', intro_text: 'opening', scope_summary: 'scope', schedule_text: 'schedule', exclusions_text: 'exclusions', terms_text: 'terms', deposit_pct: 'deposit', email_message: 'email', extra_sections: 'sections', lines: 'price lines', alternates: 'alternates' };
-  function asking(on) { S.asking = on; $('chat-go').disabled = $('chat-in').disabled = on || !(S.v && S.v.editable); $('chat-go').textContent = on ? 'Working…' : 'Send'; document.querySelectorAll('[data-ask]').forEach(b => b.disabled = on); }
+  function chatSync() {
+    const editable = !!(S.v && S.v.editable), off = S.asking || !editable;
+    $('chat-in').disabled = $('chat-attach').disabled = off;
+    $('chat-go').disabled = off || S.chatFiles.some(f => f.busy);   // an upload still running isn't in the message yet
+    $('chat-go').textContent = S.asking ? 'Working…' : 'Send';
+    document.querySelectorAll('[data-ask]').forEach(b => b.disabled = S.asking);
+    $('chat-in').placeholder = !editable ? 'Sent proposals don’t change. Make a new version to edit.' : 'Ask Claude anything';
+  }
+  function asking(on) { S.asking = on; chatSync(); }
+  // Files stay with this conversation and go with every message until removed, so "use page 2" works later on.
+  // Claude only reads them: they are not added to the proposal or its email.
+  const CHAT_MAX_FILES = 5, CHAT_MAX_BYTES = 20 * 1024 * 1024;
+  const fileExt = n => esc((n.split('.').pop() || '').toUpperCase().slice(0, 4));
+  function chatErr(t) { $('chat-err').textContent = t; $('chat-err').hidden = !t; }
+  function drawChatFiles() {
+    $('chat-tray').innerHTML = S.chatFiles.map((f, i) => `<span class="att${f.busy ? ' busy' : ''}"><i>${fileExt(f.name)}</i><span>${esc(f.name)}${f.busy ? ' · attaching…' : ''}</span><button type="button" data-rmc="${i}" aria-label="Remove ${esc(f.name)}">×</button></span>`).join('');
+    chatSync();
+  }
+  function addChatFiles(list) {
+    if (!S.v || !S.v.editable) return;
+    chatErr('');
+    Array.from(list || []).forEach(async file => {
+      if (S.chatFiles.length >= CHAT_MAX_FILES) { chatErr(`Up to ${CHAT_MAX_FILES} files at a time. Remove one to add another.`); return; }
+      if (file.size > CHAT_MAX_BYTES) { chatErr(file.name + ' is over 20 MB. Attach the pages you need.'); return; }
+      const f = { name: file.name || 'file', busy: true }, mine = S.chatFiles;
+      mine.push(f); drawChatFiles();
+      const fd = new FormData(); fd.append('file', file);
+      try {
+        const res = await fetch('/api/claude/files', { method: 'POST', body: fd, credentials: 'same-origin' });
+        const j = await res.json().catch(() => ({})); if (!res.ok) throw new Error(j.error || 'Upload failed');
+        f.id = (j.data || j).id; f.busy = false;
+        if (!mine.includes(f)) forgetChatFile(f);   // taken off while it was still uploading
+      } catch (x) { const i = mine.indexOf(f); if (i >= 0) mine.splice(i, 1); if (mine === S.chatFiles) chatErr(x.message); }
+      if (mine === S.chatFiles) drawChatFiles();
+    });
+  }
+  function forgetChatFile(f) { if (f.id) api('/claude/files/' + f.id, { method: 'DELETE' }).catch(() => {}); }
+  $('chat-attach').addEventListener('click', () => $('chat-file').click());
+  $('chat-file').addEventListener('change', e => { addChatFiles(e.target.files); e.target.value = ''; });
+  $('chat-tray').addEventListener('click', e => {
+    const b = e.target.closest('[data-rmc]'); if (!b || S.asking) return;
+    forgetChatFile(S.chatFiles.splice(+b.dataset.rmc, 1)[0]); chatErr(''); drawChatFiles();
+  });
+  $('chat-card').addEventListener('dragover', e => { e.preventDefault(); if (S.v && S.v.editable) $('chat-card').classList.add('drop'); });
+  $('chat-card').addEventListener('dragleave', e => { if (!$('chat-card').contains(e.relatedTarget)) $('chat-card').classList.remove('drop'); });
+  $('chat-card').addEventListener('drop', e => { e.preventDefault(); $('chat-card').classList.remove('drop'); addChatFiles(e.dataTransfer && e.dataTransfer.files); });
   async function ask(q) {
     if (!S.v || !S.v.editable) { toast('Make a new version first to change a sent proposal', true); return; }
     if (S.asking) return;   // one change at a time: a second request would race the first
-    asking(true);
+    if (S.chatFiles.some(f => f.busy)) { toast('Your file is still attaching. Try again in a moment.', true); return; }
+    const sent = S.chatFiles.slice(), shown = q;
+    if (!q) q = 'Read what I attached and tell me what matters for this proposal. Don\'t change anything yet.';
+    chatErr(''); asking(true);
     await flush(false);
-    say('u', esc(q)); const wait = say('c', 'Working on it…'), t0 = Date.now();
+    say('u', (sent.length ? `<div class="sent-files">${sent.map(f => `<span class="att"><i>${fileExt(f.name)}</i><span>${esc(f.name)}</span></span>`).join('')}</div>` : '') + (shown ? `<span>${esc(shown)}</span>` : '')); const wait = say('c', 'Working on it…'), t0 = Date.now();
     const tick = setInterval(() => { const n = Math.round((Date.now() - t0) / 1000); if (n >= 6) wait.textContent = `Working on it… ${n}s`; }, 1000);
     try {
       const history = (S.chat || []).slice(-12);   // the conversation so far, so "yes, do that" makes sense
-      const r = await api('/proposal-studio/' + S.id + '/revise', { method: 'POST', body: JSON.stringify({ instruction: q, history }) });
+      const r = await api('/proposal-studio/' + S.id + '/revise', { method: 'POST', body: JSON.stringify({ instruction: q, history, file_ids: sent.map(f => f.id) }) });
       clearInterval(tick); wait.remove(); asking(false);
       const reply = r.reply || (r.changed.length ? 'Changed the ' + r.changed.map(k => LABEL[k] || k).join(', ') + '.' : 'Tell me a bit more about what you\'d like.');
       S.chat = history.concat({ role: 'user', text: q }, { role: 'assistant', text: reply });
@@ -930,7 +990,7 @@
     } catch (x) { clearInterval(tick); wait.remove(); asking(false); say('c', '<span class="err">' + esc(x.message) + '</span>'); }
   }
   document.addEventListener('click', e => { const a = e.target.closest('[data-ask]'); if (a) ask(a.dataset.ask); });
-  $('chat-form').addEventListener('submit', e => { e.preventDefault(); const q = $('chat-in').value.trim(); if (q) { $('chat-in').value = ''; ask(q); } });
+  $('chat-form').addEventListener('submit', e => { e.preventDefault(); const q = $('chat-in').value.trim(); if (q || S.chatFiles.length) { $('chat-in').value = ''; ask(q); } });
 
   // ---------------- send (pop-up): reply in the client's thread or a new email, then a review, then Send now.
   // Nothing goes out until the person presses Send now (the server refuses a send without that confirmation).
