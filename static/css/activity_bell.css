@@ -1,0 +1,75 @@
+/* The activity bell + top-right banners (static/js/activity_bell.js). They render at the page root, so everything comes
+   from the global :root tokens. Sits under dialogs (9000+), over page content; the phone sheet also covers Ask Claude. */
+.ab-bell { position: relative; flex: none; width: 40px; height: 40px; padding: 0; display: inline-grid; place-items: center;
+  background: #fff; border: 1px solid var(--line, #eceef3); border-radius: 10px; color: var(--ink, #222633); cursor: pointer; }
+.ab-bell:hover, .ab-bell[aria-expanded="true"] { border-color: var(--accent-edge, rgba(67,100,220,.3)); color: var(--accent-ink, #3a5fd0); }
+.ab-bell svg { width: 20px; height: 20px; }
+.ab-bell.ab-ring svg { animation: ab-ring .6s ease; }
+@keyframes ab-ring { 20% { transform: rotate(14deg); } 45% { transform: rotate(-11deg); } 70% { transform: rotate(6deg); } }
+.ab-badge { position: absolute; top: -6px; right: -6px; min-width: 19px; height: 19px; padding: 0 5px; box-sizing: border-box;
+  display: grid; place-items: center; border-radius: 99px; border: 2px solid #fff; background: var(--brand-red, #B11E2E);
+  color: #fff; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.ab-ico { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+  background: var(--accent-soft, #ebf0fe); color: var(--accent-ink, #3a5fd0); }
+.ab-ico svg { width: 17px; height: 17px; }
+.ab-ico.ab-ok { background: #e7f6f0; color: #0c7a5f; }
+.ab-ico.ab-warn { background: #fff4e5; color: #9a5b00; }
+.ab-ico.ab-plain { background: #f2f3f7; color: #4d5362; }
+.ab-body { flex: 1; min-width: 0; display: block; }
+.ab-title { display: block; font-size: 14px; font-weight: 600; line-height: 1.35; color: var(--ink, #222633); overflow-wrap: anywhere; }
+.ab-sub { display: block; margin-top: 2px; font-size: 13px; line-height: 1.4; color: #4d5362; overflow-wrap: anywhere; }
+.ab-close { flex: none; width: 32px; height: 32px; padding: 0; display: grid; place-items: center; background: none; border: 0;
+  border-radius: 8px; color: #6f7584; cursor: pointer; }
+.ab-close:hover { background: #f2f3f7; color: var(--ink, #222633); }
+.ab-close svg { width: 15px; height: 15px; }
+.ab-link { background: none; border: 0; padding: 6px 8px; min-height: 36px; border-radius: 8px; font: inherit; font-size: 13px;
+  font-weight: 600; color: var(--accent-ink, #3a5fd0); white-space: nowrap; cursor: pointer; }
+.ab-link:hover { background: var(--accent-soft, #ebf0fe); }
+
+/* ---- banners, top right ---- */
+.ab-banners { position: fixed; right: max(14px, env(safe-area-inset-right, 0px)); width: 370px; max-width: calc(100vw - 28px);
+  display: grid; gap: 8px; z-index: 8900; pointer-events: none; }
+.ab-banner { pointer-events: auto; position: relative; display: flex; gap: 10px; padding: 12px; background: #fff;
+  border: 1px solid var(--line, #eceef3); border-radius: 14px; box-shadow: 0 12px 32px rgba(27,30,41,.18);
+  animation: ab-slide .28s cubic-bezier(.2,.8,.3,1) both; }
+@keyframes ab-slide { from { transform: translateX(24px); opacity: 0; } }
+.ab-banner .ab-title { padding-right: 26px; }
+.ab-banner > .ab-close { position: absolute; top: 6px; right: 6px; }
+.ab-note { margin-top: 6px; font-size: 13px; color: #4d5362; }
+.ab-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ab-acts .btn-primary, .ab-acts .btn-ghost { flex: 1 1 auto; min-height: 40px; box-sizing: border-box; text-decoration: none; }
+
+/* ---- bell panel ---- */
+.ab-scrim { display: none; }
+.ab-panel { position: fixed; right: max(14px, env(safe-area-inset-right, 0px)); width: 400px; max-width: calc(100vw - 28px);
+  max-height: min(70vh, 640px); z-index: 8950; display: flex; flex-direction: column; background: #fff;
+  border: 1px solid var(--line, #eceef3); border-radius: 14px; box-shadow: 0 12px 32px rgba(27,30,41,.18); }
+.ab-panel[hidden], .ab-scrim[hidden] { display: none; }
+.ab-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 8px 10px 14px;
+  border-bottom: 1px solid var(--line, #eceef3); }
+.ab-head h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink, #222633); }
+.ab-head-acts { display: flex; align-items: center; gap: 2px; }
+.ab-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 6px; }
+.ab-group { padding: 12px 14px 4px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6f7584; }
+.ab-item { display: flex; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line, #eceef3); text-decoration: none; color: inherit; }
+.ab-group + .ab-item { border-top: 0; }
+.ab-item:hover { background: var(--canvas, #fafbfd); }
+.ab-item .ab-ico { width: 30px; height: 30px; border-radius: 8px; }
+.ab-item .ab-ico svg { width: 15px; height: 15px; }
+.ab-item .ab-title { font-size: 13px; font-weight: 500; }
+.ab-item.ab-unread .ab-title { font-weight: 600; }
+.ab-item .ab-sub { font-size: 12px; color: #6f7584; }
+.ab-dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--accent, #4364dc); }
+.ab-empty { padding: 24px 16px; font-size: 13px; line-height: 1.5; color: #4d5362; text-align: center; }
+.ab-foot { flex: none; padding: 8px 14px; border-top: 1px solid var(--line, #eceef3); font-size: 12px; color: #6f7584; }
+
+@media (max-width: 640px) {
+  .ab-banners { left: max(10px, env(safe-area-inset-left, 0px)); right: max(10px, env(safe-area-inset-right, 0px)); width: auto; max-width: none; }
+  .ab-scrim:not([hidden]) { display: block; position: fixed; inset: 0; width: 100%; padding: 0; border: 0; background: rgba(27,30,41,.38); z-index: 10010; }
+  .ab-panel { z-index: 10020; left: 0; right: 0; top: auto; bottom: 0; width: auto; max-width: none; max-height: 82vh; border-radius: 18px 18px 0 0;   /* over Ask Claude, under dialogs */
+    padding-bottom: env(safe-area-inset-bottom, 0px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ab-bell.ab-ring svg, .ab-banner { animation: none; }
+}

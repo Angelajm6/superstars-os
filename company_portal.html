@@ -17,7 +17,7 @@
 <script src="/files/static/js/claude_drawer.js?v=18" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/new_project_modal.js?v=1026" defer></script>
-<script src="/files/static/js/auth_menu.js?v=1010" defer></script>
+<script src="/files/static/js/auth_menu.js?v=1011" defer></script>
 <script src="/files/static/js/gcal_connect.js?v=1017" defer></script>
 <script src="/files/static/js/inbox_schedule.js?v=5" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
@@ -2410,7 +2410,7 @@
     const d = TD.data; if (!d) return;
     const all = d.needs;   // weather lives in the top tile only
     const fresh = new Set();
-    if (TD.seen && live) all.forEach(c => { if (!TD.seen.has(c.key)) fresh.add(c.key); });
+    if (TD.seen && live) all.forEach(c => { if (!TD.seen.has(c.key) && c.pill !== 'Reopened by you') fresh.add(c.key); });   // a reopened card isn't new mail
     TD.seen = new Set(all.map(c => c.key).concat(Array.from(TD.seen || [])));
     TD.cards = all;
     const inCat = (c, f) => f === 'all' || (c.cat || '').split(' ').includes(f);
@@ -6774,6 +6774,7 @@
     // #343 — a job has one page: its dashboard. Every #projects/<code> link (the
     // Overview list, calendar bars and milestones, old bookmarks) forwards there.
     if (view === 'projects' && arg) { location.replace('/projects/' + arg); return; }
+    if (view === 'invoice' && arg) { location.replace('#finance'); openInvoice(arg); return; }   // from the bell
     const v = LOADERS[view] ? view : 'overview';
     state.view = v;
     SSC_track('company', v);   // redesign step 1: which views get opened (counts only)
@@ -6786,6 +6787,7 @@
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);
+  document.addEventListener('ssc:activity-changed', () => { if (state.view === 'overview') loadToday(true); });   // the bell saw news, or Undo reopened a card
   document.addEventListener('ssc:claude-changed', () => route());   // a change approved in the Claude window shows here at once
 
   // filters

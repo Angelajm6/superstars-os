@@ -243,6 +243,20 @@
     });
   }
 
+  // The activity bell + banners (activity_bell.js), admins first (accepted prototype, 2026-11-03)
+  function loadBell() {
+    if ($('ab-css')) return;
+    var css = document.createElement('link');
+    css.id = 'ab-css';
+    css.rel = 'stylesheet';
+    css.href = '/files/static/css/activity_bell.css?v=1';
+    document.head.appendChild(css);
+    var js = document.createElement('script');
+    js.src = '/files/static/js/activity_bell.js?v=1';
+    js.defer = true;
+    document.head.appendChild(js);
+  }
+
   function load() {
     var host = $('user-menu');
     if (!host) return;
@@ -268,6 +282,7 @@
         if (window.SSC_BOOT) window.SSC_BOOT.guardUser(body.user);  // #291
         render(host, body.user);
         document.dispatchEvent(new CustomEvent('ssc:user-loaded', { detail: body.user }));
+        if (body.user.role === 'admin') loadBell();   // UX only: /api/activity checks the role itself
       }
     }).catch(function () {
       // Quietly leave the placeholder; logging the URL would risk leaking

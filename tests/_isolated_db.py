@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # (table, column) pairs that point at users.id — order does not matter, every
 # delete is wrapped. Add here when a new table references users.
 USER_DEPENDENTS = (
-    ("needs_answer", "user_id"),
+    ("needs_answer", "user_id"), ("activity_seen", "user_id"),
     ("sessions", "user_id"), ("login_audit", "user_id"), ("password_reset_token", "user_id"),
     ("audit_log", "actor_user_id"), ("role_change_audit", "actor_user_id"), ("role_change_audit", "target_user_id"),
     ("pm_project_assignment", "user_id"), ("pm_project_assignment", "assigned_by"),
