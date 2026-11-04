@@ -1115,21 +1115,69 @@ def _forward_quote(m: dict) -> tuple:
     return html, text
 
 
+_ADDR_OK = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _recipient_pieces(text: str) -> list:
+    """Split at commas, semicolons and line breaks, but never inside "a quoted name" or <an address>."""
+    pieces, buf, quoted, angled = [], [], False, False
+    prev = ""
+    for ch in text:
+        if ch == '"' and prev != "\\" and not angled:
+            quoted = not quoted
+        elif ch == "<" and not quoted:
+            angled = True
+        elif ch == ">" and not quoted:
+            angled = False
+        if ch in ",;\r\n" and not quoted and not angled:
+            pieces.append("".join(buf).strip())
+            buf = []
+        else:
+            buf.append(ch)
+        prev = ch
+    pieces.append("".join(buf).strip())
+    return [p for p in pieces if p]
+
+
+def _parse_recipients(value) -> list:
+    """[(name, address)] from what people actually paste or type (2026-11-04): 'Smith, John <j@x.com>' with its comma
+    unquoted, addresses separated by only a space, hidden characters from a copied address. Something that can't be
+    read as an address comes back as ('', it), for the caller to refuse or skip."""
+    text = re.sub(r"[\u200b-\u200d\u2060\ufeff]", "", str(value or "")).replace("\u00a0", " ")
+    out, name_so_far = [], []
+    for piece in _recipient_pieces(text):
+        m = re.match(r"^(.*?)<([^<>]*)>\s*(.*)$", piece, flags=re.S)
+        if m:
+            name = re.sub(r'\\(.)', r"\1", m.group(1).strip().strip('"').strip())
+            # 'Smith, John <j@x.com>': the piece before the comma was the start of this name
+            out.append((", ".join(name_so_far + ([name] if name else [])), m.group(2).strip()))
+            name_so_far = []
+            out.extend(("", w) for w in m.group(3).split())
+            continue
+        # A word with no @ and no inner dot may be the first half of a name; 'jon.x.com' is a typo, never a name
+        if "@" not in piece and not re.fullmatch(r"\S+\.\S+", piece):
+            name_so_far.append(piece.strip('"').strip())
+            continue
+        out.extend(("", n) for n in name_so_far)
+        name_so_far = []
+        words = piece.split()
+        out.extend(("", w) for w in words) if all("@" in w for w in words) else out.append(("", piece))
+    out.extend(("", n) for n in name_so_far)
+    return out
+
+
 def clean_recipients(value, label: str) -> str:
     """'Name <a@b.c>, d@e.f' (a list or a string) -> the same, checked; raises ValueError naming the bad address."""
     if isinstance(value, (list, tuple)):
         value = ", ".join(str(v) for v in value if str(v or "").strip())
     out, seen = [], set()
-    for n, a in getaddresses([str(value or "")]):
-        a = (a or "").strip()
-        if not a:
-            continue
-        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", a):
+    for n, a in _parse_recipients(value):
+        if not _ADDR_OK.match(a):
             raise ValueError(f"check the {label} address: {a}")
         if a.lower() in seen:
             continue
         seen.add(a.lower())
-        out.append(formataddr((n.strip(), a)) if n.strip() else a)
+        out.append(formataddr((n, a)) if n else a)
     return ", ".join(out)
 
 
@@ -1161,10 +1209,11 @@ def reply_recipients(m: dict, me: str, reply_all: bool = False) -> tuple:
     if reply_all:
         primary = set(_addrs(to)) | {me}
         seen, keep = set(), []
-        for n, a in getaddresses([v for v in (m["to"], m["cc"]) if v]):
-            if a and a.lower() not in primary and a.lower() not in seen:
+        for n, a in _parse_recipients(", ".join(v for v in (m["to"], m["cc"]) if v)):
+            if _ADDR_OK.match(a) and a.lower() not in primary and a.lower() not in seen:
                 seen.add(a.lower())
-                keep.append(f"{n} <{a}>" if n else a)
+                # A quoted name stays quoted: an open 'Smith, John <j@x.com>' reads as two people when it comes back
+                keep.append(('"' + n.replace("\\", "\\\\").replace('"', '\\"') + f'" <{a}>') if n else a)
         cc = ", ".join(keep)
     return to, cc
 
@@ -1196,11 +1245,9 @@ def _deliver(conn, uid: int, em: EmailMessage, thread_id: Optional[str], label: 
 
 def compose(conn, uid: int, to: str, cc: str, subject: str, body_text: str, attachments: Optional[list] = None) -> dict:
     """A new email from the person's own Gmail (they wrote it and pressed Send). attachments: [(filename, bytes, mime)]."""
-    if not _addrs(to):
+    to, cc = clean_recipients(to, "To"), clean_recipients(cc, "Cc")
+    if not to:
         raise ValueError("add at least one recipient")
-    bad = [a for a in _addrs(to, cc) if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", a)]
-    if bad:
-        raise ValueError("check the email address: " + bad[0])
     if not (body_text or "").strip():
         raise ValueError("the message is empty")
     me = identity(conn, uid)
