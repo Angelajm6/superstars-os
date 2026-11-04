@@ -13,7 +13,7 @@ Send; Claude's changes are drafts with an Undo.
   GET   /api/proposal-studio/proposals            recent proposals for the start page
   GET   /api/proposal-studio/<pid>                the proposal + its document in edit mode + its total, revisions, expiry
   PATCH /api/proposal-studio/<pid>                {fields, lines?} -> saved; the document again
-  POST  /api/proposal-studio/<pid>/revise         {instruction} -> Claude's change saved; {changed, before}
+  POST  /api/proposal-studio/<pid>/revise         {instruction, history?, file_ids?} -> Claude's change saved; {changed, before}
   POST  /api/proposal-studio/<pid>/new-version    ADMIN: a sent proposal becomes v2 to edit (the sent copy stays the client's
                                                   until v2 is sent); everyone else asks for a revision (proposals.py)
   POST  /api/proposal-studio/<pid>/exclude        {text} a note / exclusion / deliverable that doesn't apply; /restore puts it back
@@ -503,7 +503,7 @@ def snapshot(conn, pid) -> dict:
     return d
 
 
-def revise(conn, pid: int, instruction: str, uid) -> dict:
+def revise(conn, pid: int, instruction: str, uid, files: Optional[list] = None) -> dict:
     import assistant
     before = snapshot(conn, pid)
     payload = {k: before.get(k) for k in REVISE_KEYS}
@@ -520,8 +520,10 @@ def revise(conn, pid: int, instruction: str, uid) -> dict:
         _claude_ready(conn, uid)
         st = house_style(conn)
         style = "\n".join(f"{i['label']}: {i['text']}" for i in st["items"] if i.get("text"))
-        text, res = _call(REVISE_PROMPT, [{"type": "text", "text": f"<house_style>\n{style}\n</house_style>\n<proposal>\n"
-                                                                   f"{json.dumps(payload, indent=1)}\n</proposal>\n<request>\n{instruction[:2000]}\n</request>"}])
+        import claude_files
+        blocks = [b for r in files or [] for b in claude_files.blocks(conn, r)]
+        text, res = _call(REVISE_PROMPT, blocks + [{"type": "text", "text": f"<house_style>\n{style}\n</house_style>\n<proposal>\n"
+                                                                            f"{json.dumps(payload, indent=1)}\n</proposal>\n<request>\n{instruction[:2000]}\n</request>"}])
         _usage(conn, uid, res, "Proposal Studio change")
         out = _json_from(text)
     new = {k: out[k] for k in REVISE_KEYS if k in out}
@@ -695,6 +697,10 @@ def register(app) -> None:
         if not ins:
             return err("Say what to change.")
         history = body.get("history") if isinstance(body.get("history"), list) else []   # this chat so far, for "yes, do that"
+        import claude_files
+        file_ids = [int(i) for i in body.get("file_ids") if str(i).isdigit()] if isinstance(body.get("file_ids"), list) else []
+        if len(file_ids) > claude_files.MAX_PER_MESSAGE:
+            return err(f"Up to {claude_files.MAX_PER_MESSAGE} files at a time. Remove one to add another.")
 
         def run(c):
             import proposals
@@ -703,11 +709,15 @@ def register(app) -> None:
                 raise LookupError()
             if r["status"] != "draft":
                 raise ValueError("This proposal was already sent. Make a new version to change it.")
+            try:
+                files = claude_files.owned(c, me["id"], file_ids)
+            except LookupError:   # another person's, or a day old and cleared away: not the proposal's "not found"
+                raise ValueError("One of the attached files is no longer available. Remove it and attach it again.")
             if r.get("layout") == "ssc":
                 import proposal_engine
-                out = proposal_engine.revise(c, pid, ins, me["id"], history)
+                out = proposal_engine.revise(c, pid, ins, me["id"], history, files)
             else:
-                out = revise(c, pid, ins, me["id"])
+                out = revise(c, pid, ins, me["id"], files)
             return dict(view(c, pid, me["id"], me["role"]), **out)
         try:
             return jsonify({"data": with_conn(run)})

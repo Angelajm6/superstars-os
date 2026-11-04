@@ -244,6 +244,36 @@ def main() -> int:
             assert needle in r["html"], needle
         q = a.post(f"/api/proposal-studio/{pid}/revise", json={"instruction": "what's the deposit?"}).get_json()["data"]
         assert q["changed"] == [] and q["reply"] and len(q["content"]["alternates"]) == 1, "a question is answered, nothing saved"
+        # Files in the chat (2026-11-03): Claude reads them ahead of the request; only the person's own, up to 5, nothing saved by arriving
+        import io as _io
+        def _attach(client, name, data):
+            return client.post("/api/claude/files", data={"file": (_io.BytesIO(data), name)}, content_type="multipart/form-data").get_json()["data"]["id"]
+        mine = _attach(a, "bid form.txt", b"Pst bid form: 640 SF of repointing")
+        revise_url = f"/api/proposal-studio/{pid}/revise"
+        assert a.post(revise_url, json={"instruction": "what's the deposit?", "file_ids": [mine]}).status_code == 200
+        theirs = a.post(revise_url, json={"instruction": "read it", "file_ids": [_attach(cs, "other.txt", b"someone else's")]})
+        assert theirs.status_code == 400 and "no longer available" in theirs.get_json()["error"], "another person's file is refused"
+        assert a.post(revise_url, json={"instruction": "read it", "file_ids": [mine] * 6}).status_code == 400, "up to 5 at a time"
+        assert a.post("/api/proposal-studio/99999999/revise", json={"instruction": "x", "file_ids": [mine]}).status_code == 404
+        real = assistant._fake, assistant._call_model, proposal_studio._claude_ready
+        seen = []
+        def _spy(system, messages, schema=None, auto_cache=True):
+            seen.append(messages)
+            return {"text": "", "model": "spy", "refused": False, "data": {"edit": False, "reply": "It shows 640 SF."},
+                    "usage": {"input_tokens": 1, "output_tokens": 1, "cache_read_tokens": 0, "cache_write_tokens": 0}}
+        assistant._fake, assistant._call_model, proposal_studio._claude_ready = (lambda: ""), _spy, (lambda conn, uid=None: None)
+        try:
+            read = a.post(revise_url, json={"instruction": "what does it show?", "file_ids": [mine],
+                                            "history": [{"role": "user", "text": "hi"}, {"role": "assistant", "text": "hello"}]}).get_json()["data"]
+        finally:
+            assistant._fake, assistant._call_model, proposal_studio._claude_ready = real
+        turn = seen[0][-1]["content"]
+        assert [m["role"] for m in seen[0]] == ["user", "assistant", "user"], "the file doesn't disturb the conversation"
+        assert turn[0]["type"] == "document" and "640 SF" in turn[0]["source"]["data"] and "<request>\nwhat does it show?" in turn[-1]["text"], turn
+        assert read["changed"] == [] and read["reply"] == "It shows 640 SF." and len(read["content"]["alternates"]) == 1, "reading a file saves nothing"
+        assert a.delete(f"/api/claude/files/{mine}").status_code == 200
+        gone = a.post(revise_url, json={"instruction": "read it", "file_ids": [mine]})
+        assert gone.status_code == 400 and "no longer available" in gone.get_json()["error"], "a removed file says so, not 'not found'"
         alts = [dict(r["content"]["alternates"][0], unit_price=0)]
         v = a.patch(f"/api/proposal-studio/{pid}", json={"content": {"alternates": alts}}).get_json()["data"]
         assert any(x["level"] == "block" and "Alternate A1" in x["text"] for x in v["checks"]), v["checks"]
@@ -408,7 +438,9 @@ def main() -> int:
                        'id="arch-m"', "data-amenu", "Edit details", "from before the app</span>",
                        'id="e-view"', "pdf_view.js",
                        # 2026-10-21 locked layout: job type + heading, the checklist, fixed wording + library, Claude-window drafts
-                       'id="a-type"', 'id="a-head"', 'id="ck"', 'id="v-wording"', "'/proposal-studio/house'", "/^job\\/([a-f0-9]+)$/"):
+                       'id="a-type"', 'id="a-head"', 'id="ck"', 'id="v-wording"', "'/proposal-studio/house'", "/^job\\/([a-f0-9]+)$/",
+                       # 2026-11-03: files in the Ask Claude panel
+                       'id="chat-attach"', 'id="chat-file"', 'id="chat-tray"', "file_ids: sent.map(f => f.id)", "$('chat-card').addEventListener('drop'"):
             assert needle in html, needle
         assert "allow-scripts" not in html, "the document frame never runs scripts"
         nav = (ROOT / "static/js/company_nav.js").read_text(encoding="utf-8")
