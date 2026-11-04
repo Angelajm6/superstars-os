@@ -35,6 +35,8 @@ grant, or elevation code.
   Undo, which is the existing Reopen.
 * `auth_menu.js` loads `static/js/activity_bell.js` + `static/css/activity_bell.css` for admins, so every staff page gets it. Bump `?v=` on those two in
   `auth_menu.js` when they change, and `auth_menu.js?v=` on the pages when it changes. `/company#invoice/<id>` opens an invoice over Finance.
+* Cloudflare caches /files/static for 4 hours by full URL, including the query string. Never fetch a new `?v=` while its deploy is still building: that stores the
+  old file under the new address (it happened here with `auth_menu.js?v=1011`, hence 1012).
 * Guard: `tests/smoke_activity_bell.py` (in the gate).
 
 ### Needs you clears itself when the team finishes the work (Bookore, 2026-11-03)
