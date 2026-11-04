@@ -21,6 +21,21 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### One-tap accepts in the bell (Bookore, 2026-11-04)
+
+* Phase 3 of 4 of the accepted prototype: https://claude.ai/artifact/UZ2YNWpwy6SmTYF2z9ReuR. Phase 4 (Claude spots more) is to be decided once 1-3 are in use.
+* `activity_accepts.py` works out what's waiting from the records: **client** (came with its first proposal within 5 minutes; Keep / Merge / Edit; one answer clears it for
+  all admins, including who made it), **project** (`portal_projects.ready_to_start`, so the same list as Ready to start; Create project / Not a project), **contact** (a named
+  sender on a client's mail or on the mail that started a proposal, not yet a contact; only the mailbox owner sees it; the address stays on the server until Add).
+* `activity_decision` holds answers the records can't, plus a `start` row: nothing from before go-live ever waits. `POST /api/activity/decide` re-reads what's waiting for that
+  person, so a page can't act on something it wasn't offered (409). `GET /api/activity/client-matches/<org>` feeds Merge and Edit.
+* **Merge** = `crm.merge_org`: moves `_ORG_MOVES` + activity, tasks and email links, deletes the emptied client; anything left behind keeps it, inactive. No undo, so the sheet
+  says so. Add a new table that names a client to `_ORG_MOVES` (and `_ORG_KEEPERS`).
+* Undo: Keep, Create project (deletes the job; refused once it has records; the deposit draft invoice stays, off the job), Not a project, Add contact. Edit and Merge have none.
+* Banners: decisions stay until answered or closed (closed ids in localStorage, so a page change doesn't bring them back); news never pushes a decision off.
+* `proposal_engine.create` reuses an active client of the same name (any case).
+* Guard: `tests/smoke_one_tap_accepts.py` (in the gate).
+
 ### Activity bell + top-right banners (Bookore, 2026-11-04)
 
 * Phase 2 of 4 of the accepted prototype: https://claude.ai/artifact/UZ2YNWpwy6SmTYF2z9ReuR. Next: 3 = one-tap accepts (Keep / Merge / Edit a new

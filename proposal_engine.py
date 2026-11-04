@@ -618,7 +618,8 @@ def create(conn, uid, req: dict, d: dict) -> int:
     import proposals
     org_id = req.get("client_org_id")
     if not org_id:
-        org_id = crm.create_org(conn, name=req["client_name"], relationship_type="client", created_by=uid)
+        twin = crm.find_org_by_name(conn, req["client_name"])   # 2026-11-04: the same name is the same client, never a second one
+        org_id = twin["id"] if twin and (twin.get("status") or "active") == "active" else crm.create_org(conn, name=req["client_name"], relationship_type="client", created_by=uid)
     et = EST_TYPE.get(d.get("job_type") or req.get("job_type"), "OTH")
     et = et if et in estimates.EST_TYPES else "FR"
     bo = str(d.get("borough") or "MN").upper()

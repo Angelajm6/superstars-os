@@ -433,6 +433,51 @@ def delete_org(conn, org_id) -> Optional[dict]:
     return {"deleted": True, "user_ids": sorted(users)}
 
 
+# (table, column) that name a client, for a merge. Keep beside _ORG_KEEPERS: a new table that names a client belongs here too.
+_ORG_MOVES = (("proposal", "client_org_id"), ("estimate", "client_org_id"), ("projects", "client_org_id"), ("invoice", "client_org_id"),
+              ("payable", "vendor_org_id"), ("document_package", "client_org_id"), ("building", "client_org_id"),
+              ("mail_message", "client_org_id"), ("crm_contact", "org_id"), ("qbo_customer", "org_id"))
+
+
+def merge_org(conn, org_id, into_id, *, actor=None) -> dict:
+    """Move everything a client has onto another client, in one transaction, then delete the emptied client (2026-11-04,
+    the bell's Merge). If anything still points at it the client stays, inactive, rather than losing the link. Anything
+    already sent keeps the name it went out with: PDFs are not redrawn. There is no undo, so the page asks first."""
+    org_id, into_id = int(org_id), int(into_id)
+    if org_id == into_id:
+        raise ValueError("Pick a different client.")
+    org, into = get_org(conn, org_id), get_org(conn, into_id)
+    if not org or not into:
+        raise LookupError("client not found")
+    if (into.get("status") or "active") != "active":
+        raise ValueError(f"{into['name']} is inactive. Pick an active client.")
+    moved = 0
+    try:
+        for table, col in _ORG_MOVES:
+            if _has_table(conn, table):
+                moved += conn.execute(f"UPDATE {table} SET {col} = ? WHERE {col} = ?", (into_id, org_id)).rowcount
+        for table in ("crm_activity", "crm_task"):
+            if _has_table(conn, table):
+                moved += conn.execute(f"UPDATE {table} SET entity_id = ? WHERE entity_type = 'organization' AND entity_id = ?",
+                                      (into_id, org_id)).rowcount
+        if _has_table(conn, "mail_link"):
+            conn.execute("DELETE FROM mail_link WHERE entity_type = 'client' AND entity_id = ? AND message_id IN "
+                         "(SELECT message_id FROM mail_link WHERE entity_type = 'client' AND entity_id = ?)", (str(org_id), str(into_id)))
+            conn.execute("UPDATE mail_link SET entity_id = ? WHERE entity_type = 'client' AND entity_id = ?", (str(into_id), str(org_id)))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    gone = delete_org(conn, org_id)
+    removed = bool(gone and gone.get("deleted"))
+    if not removed:
+        conn.execute("UPDATE crm_organization SET status = 'inactive' WHERE id = ?", (org_id,))
+        conn.commit()
+    add_activity(conn, entity_type="organization", entity_id=into_id, activity_type="system", author_user_id=actor,
+                 summary=f"{org['name']} was merged into this client")
+    return {"moved": moved, "removed": removed, "into_name": into["name"]}
+
+
 # ============================ contacts ============================
 
 def create_contact(conn, *, full_name, org_id=None, email=None, phone=None, title=None,
