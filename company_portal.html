@@ -1056,6 +1056,21 @@
           .td-sum button:hover{border-color:var(--ui)} .td-sum i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
           .td-sum .now i{background:var(--status-behind,#e9685a)} .td-sum .today i{background:#E0A82E}
           @media (max-width:560px){ .td-card{flex-wrap:wrap} .td-btns{width:100%;justify-content:flex-end} }
+          .td-compare{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px}
+          .td-compare div{border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:13px;color:var(--ink-2);background:var(--canvas);min-width:0}
+          .td-compare b{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+          .td-checked{margin-top:8px;display:flex;gap:7px;font-size:13px;color:var(--ink-2)}
+          .td-checked svg,.td-hrow>svg{width:16px;height:16px;flex:none;color:var(--status-complete-deep,#0c7a5f)}
+          .td-checked svg{margin-top:2px}
+          .td-handled-t{width:100%;margin-top:14px;background:none;border:0;padding:6px 2px;min-height:36px;display:flex;align-items:center;gap:8px;font:inherit;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--status-complete-deep,#0c7a5f);cursor:pointer}
+          .td-handled-t::after{content:"";flex:1;height:1px;background:var(--line)}
+          .td-handled-t i{font-style:normal;display:inline-block;transition:transform .15s}
+          .td-handled-t[aria-expanded="true"] i{transform:rotate(90deg)}
+          .td-hrow{display:flex;gap:10px;align-items:center;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;margin-bottom:6px}
+          .td-hrow>div{flex:1;min-width:0;font-size:13px;font-weight:500}
+          .td-hrow small{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:1px}
+          .td-hrow button{flex:none;border:0;background:none;color:var(--accent-ink);font:inherit;font-size:13px;font-weight:600;padding:6px 8px;min-height:36px;border-radius:8px;cursor:pointer}
+          .td-hrow button:hover{background:var(--accent-soft)}
           .td-empty{background:#fff;border:1px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--muted)}
           .td-sub{font-size:13px;margin-bottom:4px}
           .td-tl{list-style:none;margin:6px 0 0;padding:0;position:relative}
@@ -1263,7 +1278,7 @@
           <section class="td-needs-wrap" aria-label="Needs you">
             <div class="td-head">
               <div><h2>Needs you <span class="td-count" id="td-count"></span></h2>
-                <span class="td-live"><i></i>Live · Claude adds things here as they come in</span></div>
+                <span class="td-live"><i></i>Live · Claude adds things here and clears what your team finishes</span></div>
               <div class="td-chips" role="tablist" aria-label="Show">
                 <button type="button" class="on" data-td-f="all">All</button><button type="button" data-td-f="email">Emails</button><button type="button" data-td-f="money">Money</button><button type="button" data-td-f="doc">Documents</button><button type="button" data-td-f="crew">Field &amp; crew</button><button type="button" data-td-f="task">Tasks</button>
               </div>
@@ -2338,6 +2353,7 @@
   // Dashboard → the view behind each number (every target must be a real view: smoke_company_dashboard_links)
   const TD = { data: null, seen: null, f: 'all', timer: null, wx: null };
   const tdSvg = d => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const TD_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.7 2.7L16 9.5"/></svg>';
   const TD_ICON = {
     mail: tdSvg('<path d="M3 6h18v12H3z"/><path d="M3 6l9 7 9-7"/>'), task: tdSvg('<path d="M5 12l4 4 10-10"/>'),
     bill: tdSvg('<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>'), cash: tdSvg('<rect x="3" y="7" width="18" height="10" rx="1"/><circle cx="12" cy="12" r="2.5"/>'),
@@ -2410,18 +2426,24 @@
     const per = g => all.filter(c => c.urgency === g).length;
     $('td-sum').innerHTML = [['now', per('now') === 1 ? 'needs you now' : 'need you now'], ['today', 'due today'], ['week', 'later this week']].filter(([g]) => per(g))
       .map(([g, w]) => `<button type="button" class="${g}" data-td-jump="${g}"><i></i>${per(g)} ${w}</button>`).join('');
-    if (!shown.length) { $('td-needs').innerHTML = `<div class="td-empty">${all.length ? 'Nothing here under this filter.' : 'Nothing needs you right now. New emails, bills, expiring documents and crew sign-ins show up here as they happen.'}</div>`; return; }
+    if (!shown.length) { $('td-needs').innerHTML = `<div class="td-empty">${all.length ? 'Nothing here under this filter.' : 'Nothing needs you right now. New emails, bills, expiring documents and crew sign-ins show up here as they happen.'}</div>` + tdHandled(); return; }
     $('td-needs').innerHTML = TD_GROUPS.map(([g, label, sub]) => {
       const cs = shown.filter(c => c.urgency === g); if (!cs.length) return '';
       const cap = g === 'week' && !TD.allWeek ? TD_FOLD : cs.length;
       return `<div class="td-group ${g}" id="td-g-${g}">${label}${sub ? ` <small>· ${sub}</small>` : ''}</div>` + cs.slice(0, cap).map(c => tdCard(c, fresh.has(c.key))).join('') +
         (cs.length > cap ? `<button type="button" class="td-showmore" data-td-more>Show ${cs.length - cap} more</button>` : '');
-    }).join('');
+    }).join('') + tdHandled();
     if (fresh.size) {
       const first = all.find(c => fresh.has(c.key));
       toast('New: ' + first.title);
       setTimeout(() => document.querySelectorAll('.td-card.fresh').forEach(x => x.classList.remove('fresh')), 9000);
     }
+  }
+  function tdHandled() {   // what the team finished: it closed by itself and can come back (team_handled.py)
+    const h = (TD.data && TD.data.handled) || [];
+    if (!h.length || TD.f !== 'all') return '';
+    return `<button type="button" class="td-handled-t" data-td-handled aria-expanded="${!TD.handledShut}"><i aria-hidden="true">›</i>Handled by your team · ${h.length}</button>` +
+      (TD.handledShut ? '' : h.map(r => `<div class="td-hrow">${TD_CHECK}<div>${esc(r.title)}<small>${esc(r.note)}</small></div><button type="button" data-td-reopen="${esc(r.action_id)}">Reopen</button></div>`).join(''));
   }
   function tdCard(c, fresh) {
     const ico = TD_ICON[c.icon] || TD_ICON[(c.cat || '').split(' ')[0]] || TD_ICON.task;
@@ -2429,11 +2451,14 @@
     let draft = '';
     if (c.draft && c.draft.rows) draft = `<div class="td-draft"><b>${esc(c.draft.label)}</b><table>${c.draft.rows.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}<tr class="t"><td>Total</td><td>${esc(c.draft.total)}</td></tr></table></div>`;
     else if (c.draft && c.draft.text) draft = `<div class="td-draft"><b>${esc(c.draft.label)}</b><div class="txt">${esc(c.draft.text)}</div></div>`;
+    if (c.compare) draft += `<div class="td-compare">${c.compare.map(x => `<div><b>${esc(x.label)}</b>${esc(x.text)}</div>`).join('')}</div>`;
+    if (c.checked) draft += `<div class="td-checked">${TD_CHECK}<span>${esc(c.checked)}</span></div>`;
     const acts = c.actions || [];
     let main = acts.findIndex(a => a.primary); if (main < 0) main = acts.length ? 0 : -1;
     const mainBtn = main >= 0 ? `<button type="button" class="btn-primary btn-sm" data-td-act="${main}">${esc(acts[main].label)}</button>`
       : (c.href ? `<button type="button" class="btn-primary btn-sm" data-td-go>${esc(tdWhere(c))}</button>` : '');
-    const menu = acts.map((a, i) => i === main || a.type === 'open' ? '' : `<button type="button" role="menuitem" data-td-act="${i}">${esc(a.label)}</button>`).join('') +
+    const shownBtns = acts.map((a, i) => a.show ? `<button type="button" class="btn-ghost btn-sm" data-td-act="${i}">${esc(a.label)}</button>` : '').join('');
+    const menu = acts.map((a, i) => i === main || a.show || a.type === 'open' ? '' : `<button type="button" role="menuitem" data-td-act="${i}">${esc(a.label)}</button>`).join('') +
       (c.href && !(main < 0) ? `<button type="button" role="menuitem" data-td-go>${esc(tdWhere(c))}</button>` : '') +
       '<button type="button" role="menuitem" data-td-hide="later">Remind me later<small>Hidden for 4 hours</small></button>' +
       '<button type="button" role="menuitem" data-td-hide="good">Dismiss<small>Gone until something changes</small></button>';
@@ -2441,11 +2466,12 @@
       `<div class="td-ico ${esc(icoCls)}" aria-hidden="true">${ico}</div><div class="td-main"><div class="td-title">${esc(c.title)}</div>` +
       (c.why ? `<div class="td-why">${esc(c.why)}</div>` : '') +
       `<div class="td-src">${fresh ? '<span class="td-pill new">Just now</span>' : (c.pill ? `<span class="td-pill ${esc(c.urgency)}">${esc(c.pill)}</span>` : '')}<span>${esc(c.source || '')}</span></div>` +
-      draft + `</div><div class="td-btns">${mainBtn}<button type="button" class="td-more" data-td-menu aria-label="More options" aria-haspopup="menu" aria-expanded="false">⋯</button>` +
+      draft + `</div><div class="td-btns">${mainBtn}${shownBtns}<button type="button" class="td-more" data-td-menu aria-label="More options" aria-haspopup="menu" aria-expanded="false">⋯</button>` +
       `<div class="td-menu" role="menu" hidden>${menu}</div></div></article>`;
   }
   function tdWhere(c) {
     const h = c.href || '';
+    if (h.startsWith('/proposal-studio')) return 'Open in Proposal Studio';
     if (h.startsWith('#inbox')) return 'Open in Inbox';
     if (h.startsWith('#finance') || h.startsWith('#expenses')) return 'Open in Finance';
     if (h.startsWith('#workforce') || h === '/#hours') return 'Open in Workforce';
@@ -2468,6 +2494,14 @@
   });
   $('td-needs').addEventListener('click', async e => {
     if (e.target.closest('[data-td-more]')) { TD.allWeek = true; tdNeeds(); return; }
+    if (e.target.closest('[data-td-handled]')) { TD.handledShut = !TD.handledShut; tdNeeds(); return; }
+    const reopen = e.target.closest('[data-td-reopen]');
+    if (reopen) {
+      reopen.disabled = true;
+      try { await api('/today/handled', { method: 'POST', body: JSON.stringify({ action_id: +reopen.dataset.tdReopen, answer: 'reopen' }) }); toast('Back in Needs you'); loadToday(); }
+      catch (x) { toast(x.message, true); reopen.disabled = false; }
+      return;
+    }
     const card = e.target.closest('[data-td-key]'); if (!card) return;
     const c = (TD.cards || []).find(x => x.key === card.dataset.tdKey); if (!c) return;
     const tg = e.target.closest('[data-td-menu]');
@@ -2484,6 +2518,12 @@
     if (!act) { if (!e.target.closest('a, button')) tdGo(c); return; }
     const a = c.actions[+act.dataset.tdAct];
     if (a.type === 'open') tdGo(c);
+    else if (a.type === 'link') tdGo({ href: a.href });
+    else if (a.type === 'answer') {
+      act.disabled = true;
+      try { await api('/today/handled', { method: 'POST', body: JSON.stringify({ action_id: c.action_id, answer: a.answer }) }); toast(a.answer === 'yes' ? 'Closed. It’s under Handled.' : 'Kept open'); loadToday(); }
+      catch (x) { toast(x.message, true); act.disabled = false; }
+    }
     else if (a.type === 'studio') {   // approve the card: Proposal Studio writes it in the company layout and opens it
       act.disabled = true;
       try { const r = (await api('/claude/actions/' + c.action_id + '/approve', { method: 'POST', body: JSON.stringify({ values: {} }) }, true)).data;

@@ -5,6 +5,7 @@ One read for the top of /company#overview, admin / c_suite only (the company_por
   GET  /api/company/portal/today            -> {cards, day, needs}
   GET  /api/company/portal/today/weather    -> today's weather on the active job sites (slow: its own call)
   POST /api/company/portal/today/hide       -> {key, for: 'later' | 'good'} hides one "Needs you" card for this person
+  POST /api/company/portal/today/handled    -> {action_id, answer: 'yes' | 'no' | 'reopen'} (team_handled.py)
 
   cards  the four tiles: active jobs, on site now, weather (filled by the weather call), payments due
   day    "Your day": today in time order — this person's tasks / events / meetings, their private Google
@@ -601,7 +602,20 @@ def build(conn, uid, today: Optional[date] = None, now: Optional[datetime] = Non
     p = payments(conn, today)
     return {"as_of": today.isoformat(), "now": now.isoformat(timespec="minutes"), "cards": c,
             "day": your_day(conn, uid, today, p["_rows"]),
-            "needs": needs(conn, uid, today, now, p["_rows"], c["crew"])}
+            "needs": needs(conn, uid, today, now, p["_rows"], c["crew"]), "handled": _handled(conn, uid)}
+
+
+def _handled(conn, uid) -> list:
+    try:   # after needs(): what closed on this read is already on the list
+        import team_handled
+        return team_handled.handled(conn, uid) if uid else []
+    except Exception as e:
+        log.info("today_feed handled: %s", e)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return []
 
 
 # ------------------------------------------------------------------ routes
@@ -645,3 +659,24 @@ def register(app) -> None:
         else:
             _with_conn(lambda c: hide(c, uid, key, mode))
         return jsonify({"data": {"key": key, "for": mode}})
+
+    @app.route("/api/company/portal/today/handled", methods=["POST"])
+    @gate
+    def company_today_handled():
+        import team_handled
+        uid = (current_user() or {}).get("id")
+        body = request.get_json(silent=True) or {}
+        verb = body.get("answer")
+        try:
+            action_id = int(body.get("action_id") or 0)
+        except (TypeError, ValueError):
+            action_id = 0
+        if not action_id or verb not in ("yes", "no", "reopen"):
+            return jsonify({"error": "give a card and answer = yes, no or reopen"}), 400
+        try:
+            _with_conn(lambda c: team_handled.answer(c, uid, action_id, verb))
+        except LookupError:
+            return jsonify({"error": "not found"}), 404
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 409
+        return jsonify({"data": {"action_id": action_id, "answer": verb}})

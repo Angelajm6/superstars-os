@@ -144,7 +144,8 @@ def ensure(conn) -> None:
     conn.execute("CREATE TABLE IF NOT EXISTS mail_sendas (user_id INTEGER PRIMARY KEY, name_enc TEXT, signature_enc TEXT, "
                  "fetched_at TEXT)")   # the person's Gmail "send as" name + signature, as Gmail adds them
     # the email as written (2026-10-15); deleted = in Gmail's Trash (2026-10-22); archived = out of Gmail's Inbox (2026-10-23)
-    for col in ("body_html_enc", "body_full_enc", "trashed_at", "archived_at"):
+    # rfc_hash = the Message-ID's fingerprint, the same in every mailbox (team_handled.py, 2026-11-03)
+    for col in ("body_html_enc", "body_full_enc", "trashed_at", "archived_at", "rfc_hash"):
         if not _has_column(conn, "mail_message", col):
             conn.execute(f"ALTER TABLE mail_message ADD COLUMN {col} TEXT")
     import gmail_suggest
@@ -155,7 +156,11 @@ def ensure(conn) -> None:
         for col, typ in (("source", "TEXT"), ("mail_id", "INTEGER")):   # a mail's hidden Claude pass, kept out of History
             if not _has_column(conn, "claude_chat", col):
                 conn.execute(f"ALTER TABLE claude_chat ADD COLUMN {col} {typ}")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_mail_rfc_hash ON mail_message(rfc_hash)")
     conn.commit()
+    import team_handled
+    team_handled.ensure(conn)
+    team_handled.backfill(conn)
 
 
 def _conn():
@@ -332,6 +337,7 @@ def ingest(conn, uid: int, msg: dict, own_email: str = "", quiet: bool = False) 
     quiet: an earlier email of a conversation (sync_thread), kept so the thread reads as in Gmail: never sorted
     by Claude, never "needs action", already read."""
     import gmail_suggest
+    import team_handled
     if not msg.get("id") or _one(conn, "SELECT id FROM mail_message WHERE user_id = ? AND gmail_id = ?", (uid, msg["id"])):
         return None
     h = gmail_suggest._headers(msg.get("payload"))
@@ -348,10 +354,10 @@ def ingest(conn, uid: int, msg: dict, own_email: str = "", quiet: bool = False) 
     own_domain = own_email.split("@")[-1].lower() if "@" in own_email else ""
     m = match(conn, _addrs(h.get("from"), h.get("to"), h.get("cc")), (h.get("subject") or "") + "\n" + text, own_domain)
     conn.execute(
-        "INSERT INTO mail_message (user_id, gmail_id, thread_id, rfc_id_enc, direction, received_at, from_enc, to_enc, cc_enc, "
+        "INSERT INTO mail_message (user_id, gmail_id, thread_id, rfc_id_enc, rfc_hash, direction, received_at, from_enc, to_enc, cc_enc, "
         "subject_enc, body_enc, snippet_enc, attachments_enc, needs_action, status, ai_state, client_org_id, contact_id, "
-        "estimate_id, proposal_id, project_code, archived_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (uid, msg["id"], msg.get("threadId"), _enc(h.get("message-id")), direction, when, _enc(h.get("from")),
+        "estimate_id, proposal_id, project_code, archived_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (uid, msg["id"], msg.get("threadId"), _enc(h.get("message-id")), team_handled.fingerprint(h.get("message-id")), direction, when, _enc(h.get("from")),
          _enc(h.get("to")), _enc(h.get("cc")), _enc((h.get("subject") or "")[:300]), _enc(text),
          _enc((msg.get("snippet") or "")[:300]), _enc(json.dumps(atts)) if atts else None, 0, status,
          "triaged" if quiet else "pending",
@@ -827,6 +833,7 @@ def today_cards(conn, uid: int) -> list:
     if not uid:
         return []
     import claude_agent
+    import team_handled
     since = (datetime.now() - claude_agent.CARD_TTL).isoformat(timespec="seconds")
     rows = _rows(conn, "SELECT a.id, a.tool, a.input, a.summary, a.created_at, c.mail_id FROM claude_action a "
                        "JOIN claude_chat c ON c.id = a.chat_id WHERE a.user_id = ? AND a.status = 'pending' "
@@ -836,14 +843,18 @@ def today_cards(conn, uid: int) -> list:
         m = message(conn, a["mail_id"], uid) if a.get("mail_id") else None
         if not m or m["trashed_at"]:
             continue
-        key = (m["thread_id"] or m["gmail_id"], a["tool"])   # newest first: one card of each kind per conversation
-        if key in seen:
-            continue
-        seen.add(key)
         try:
             inp = json.loads(a["input"] or "{}")
         except ValueError:
             inp = {}
+        st = team_handled.safe_check(conn, uid, a, m, inp)   # before the one-per-conversation rule, so hidden older cards close too
+        if st["state"] == "closed":
+            team_handled.close(conn, a["id"], st["note"], (st.get("proposal") or {}).get("id"), "team")
+            continue
+        key = (m["thread_id"] or m["gmail_id"], a["tool"])   # newest first: one card of each kind per conversation
+        if key in seen:
+            continue
+        seen.add(key)
         who = parseaddr(m["from"])[0] or parseaddr(m["from"])[1] or "Someone"
         cat, urgency = TODAY_TOOLS.get(a["tool"], ("email", "today"))
         href = f"#inbox/{m['id']}"
@@ -866,6 +877,7 @@ def today_cards(conn, uid: int) -> list:
             card.update(title=(a.get("summary") or a["tool"].replace("_", " ").capitalize())[:160],
                         why=f"From {who}: {(m['subject'] or '')[:120]}", pill="Suggested",
                         actions=[{"type": "approve", "label": "Approve", "primary": True}, {"type": "open", "label": "Open the email"}])
+        team_handled.dress(card, st, m)
         out.append(card)
     return out
 
@@ -999,6 +1011,11 @@ def link_record(conn, mid: int, etype: str, eid, uid: int) -> None:
         conn.execute(f"UPDATE mail_message SET {col} = COALESCE({col}, ?) WHERE id = ?", (eid, mid))
         conn.commit()
     file_message(conn, mid, uid)
+    # an email that already names another proposal keeps that one in its column: this record still gets filed
+    if not _one(conn, "SELECT id FROM mail_link WHERE message_id = ? AND entity_type = ? AND entity_id = ?", (mid, etype, str(eid))):
+        conn.execute("INSERT INTO mail_link (message_id, entity_type, entity_id, linked_by, linked_at) VALUES (?,?,?,?,?)",
+                     (mid, etype, str(eid), uid, _now()))
+        conn.commit()
 
 
 # ------------------------------------------------------------------ sending and attachments (used by the cards)

@@ -21,6 +21,18 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Needs you clears itself when the team finishes the work (Bookore, 2026-11-03)
+
+* Accepted prototype: https://claude.ai/artifact/UZ2YNWpwy6SmTYF2z9ReuR. This is phase 1 of 4. Next: 2 = activity bell + top-right banners, 3 = one-tap accepts (new client Keep / Merge / Edit, Create project, Add contact), 4 = Claude spots more.
+* `team_handled.py` decides each time cards are read, from the records, so every send path and cards already waiting are covered. For `draft_proposal`: **closed** (a proposal from this conversation, in any mailbox, went out after the email; moves to "Handled by your team"), **writing** (still a draft; Now -> Today, "Being written", See the draft), **ask** (not linked: same building after the email, or a teammate replied; "Same request?" Yes / No), **open**. `reply_email` cards close when a teammate replied from their copy of the conversation.
+* `mail_message.rfc_hash` = sha256 of the Message-ID: thread ids differ per mailbox and the Message-ID is stored encrypted. Filled by `ingest`, backfilled at boot. Other people's mail is only compared, never shown.
+* **An older proposal at the same address never counts** (`_after`): it must be made or sent after the email. Mark as sent stores noon of that day, so same-day counts if it was made after the email.
+* A closed card is `declined` by nobody with `result.handled`. `POST /api/company/portal/today/handled` {action_id, answer: yes | no | reopen}, own cards only. `needs_answer` remembers No / Reopen, so that proposal never closes or asks on that card again. Approving a stale `draft_proposal` from anywhere returns 409 and creates nothing (`_decide`).
+* **Wording rule (Angela):** say what was done, never which teammate did it: "Proposal 1010 was sent to X client".
+* **Bug fixed:** `inbox.link_record` kept the proposal an email already named (COALESCE), so a Studio reply to an email mentioning an older proposal never linked the new one. It now always files the new record.
+* **Not built from the plan:** Claude does not compare scope on "Same request?". The card shows the email's request beside the proposal's scope and a person answers; no model call, no cost. Add it only if the question shows up too often. The prototype's "Claude uses your answer on the next one" isn't built either. The Inbox's "Needs reply" filter still lists an email a teammate answered.
+* Guard: `tests/smoke_needs_you_handled.py` (in the gate).
+
 ### Your own Claude, connected: a claude.ai connector (Bookore, 2026-10-29)
 
 * Accepted prototype: https://claude.ai/artifact/VdvZw7Dr3u4VB9H6kZHSJ3. The leadership team (Max plans) adds the app in
