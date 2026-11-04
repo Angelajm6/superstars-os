@@ -83,6 +83,8 @@ def _cleanup():
             m.ensure(conn)
         proposals.ensure_schema(conn)
         invoices.ensure_schema(conn)
+        conn.execute("DELETE FROM activity_decision WHERE kind <> 'start'")
+        conn.execute("UPDATE activity_decision SET decided_at = ? WHERE kind = 'start'", (datetime.now().isoformat(timespec="seconds"),))   # a shared database has an older one
         uids = [r["id"] for r in conn.execute("SELECT id FROM users WHERE email LIKE ?", (f"{TAG}.%",)).fetchall()]
         ph = lambda xs: ",".join("?" * len(xs)) or "NULL"  # noqa: E731
         mids = [r["id"] for r in conn.execute(f"SELECT id FROM mail_message WHERE user_id IN ({ph(uids)})", uids).fetchall()]

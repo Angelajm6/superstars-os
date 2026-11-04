@@ -20,6 +20,7 @@ import shutil
 import sys
 import tempfile
 import time
+import traceback
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -104,8 +105,8 @@ def _cleanup():
         purge(conn, "proposal_event", "proposal_id", pids)
         purge(conn, "proposal", "id", pids)
         purge(conn, "project_documents", "project_code", codes)
-        purge(conn, "project_modules", "project_code", codes)
-        purge(conn, "projects", "project_code", codes)
+        for code in codes:
+            project_delete.delete(conn, code)   # the real path: it clears what a new job sets up, which Postgres's foreign keys insist on
         purge(conn, "estimate_ira", "estimate_id", ests)
         purge(conn, "estimate", "id", ests)
         if orgs:
@@ -377,6 +378,9 @@ def main() -> int:
             assert "auth_menu.js?v=1012" not in t, page.name
         assert project_delete and estimates and date and aa
         passed += 1; print("  pages ok")
+    except BaseException:
+        traceback.print_exc()   # printed first: a failed cleanup below would otherwise hide what really went wrong
+        raise
     finally:
         conn.close()
         _cleanup()
