@@ -21,6 +21,22 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Activity bell + top-right banners (Bookore, 2026-11-04)
+
+* Phase 2 of 4 of the accepted prototype: https://claude.ai/artifact/UZ2YNWpwy6SmTYF2z9ReuR. Next: 3 = one-tap accepts (Keep / Merge / Edit a new
+  client, including `proposal_engine.create` making clients without checking names; Create project on signature; Add contact).
+* `activity_feed.py` works out what happened at read time from records that already say who and when: `proposal_event` (started / sent / signed /
+  declined), `crm_organization`, `projects` (who = the crm_activity row `convert_to_project` writes, matched on its exact summary: change that wording
+  and your own projects start showing), `project_documents` (one line per job per day), `invoice_payment`. No write path reports anything; no AI.
+* Admins only (`requires_role("admin")`); own actions left out; wording names no teammate. `activity_seen` keeps `read_at` (badge) and `banner_at`
+  (pop once); the first look starts at now, so going live sets nothing off.
+* Banners: sent, signed, declined, client, project; at most 3 (phone 1), 9 s, under 24 hours old. Bell only: started draft, uploads, payments, a proposal
+  filed from before the app. QuickBooks-created clients are left out. A sent banner runs `inbox.today_cards` first so it can say the card closed and offer
+  Undo, which is the existing Reopen.
+* `auth_menu.js` loads `static/js/activity_bell.js` + `static/css/activity_bell.css` for admins, so every staff page gets it. Bump `?v=` on those two in
+  `auth_menu.js` when they change, and `auth_menu.js?v=` on the pages when it changes. `/company#invoice/<id>` opens an invoice over Finance.
+* Guard: `tests/smoke_activity_bell.py` (in the gate).
+
 ### Needs you clears itself when the team finishes the work (Bookore, 2026-11-03)
 
 * Accepted prototype: https://claude.ai/artifact/UZ2YNWpwy6SmTYF2z9ReuR. This is phase 1 of 4. Next: 2 = activity bell + top-right banners, 3 = one-tap accepts (new client Keep / Merge / Edit, Create project, Add contact), 4 = Claude spots more.

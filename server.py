@@ -274,6 +274,8 @@ import inbox_schedule  # noqa: E402
 inbox_schedule.register(app)   # Inbox Mine (everyone) / All (admin + C-suite, server-checked): calendar + assigned work
 import today_feed  # noqa: E402
 today_feed.register(app)   # the Dashboard's Today: four cards, Your day, Needs you (live, each card opens its page)
+import activity_feed  # noqa: E402
+activity_feed.register(app)   # the bell + top-right banners: what the team did, from the records (admins)
 import proposal_template  # noqa: E402
 proposal_template.register(app)   # the company's own proposal layout, read once by Claude; every proposal PDF uses it
 import company_brand  # noqa: E402
