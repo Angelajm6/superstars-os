@@ -308,6 +308,7 @@ def main() -> int:
         passed += 1; print("  marks ok")
 
         # ---- old news doesn't pop; a later upload the same day counts again
+        seen("banners", feed()["latest"])   # the declined proposal above popped; only the upload is new from here
         time.sleep(1.1)
         _doc(conn, code, ids["mate"], "DRAWINGS")
         d = feed()
