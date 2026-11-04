@@ -2429,6 +2429,11 @@ def _decide(action_id, verb):
                 return _err("This card was already decided.", 409)
             if datetime.fromisoformat(a["created_at"]) < datetime.now() - CARD_TTL:
                 return _err("This card expired. Ask Claude again so it uses today's information.", 409)
+            if verb != "decline" and a["tool"] == "draft_proposal":
+                import team_handled
+                why = team_handled.done_already(conn, me["id"], a, chat.get("mail_id"))
+                if why:
+                    return _err(why, 409)
             if verb == "decline":
                 conn.execute("UPDATE claude_action SET status = 'declined', decided_by = ?, decided_at = ? WHERE id = ?",
                              (me["id"], _now(), action_id))
