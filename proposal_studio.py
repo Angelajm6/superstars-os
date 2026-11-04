@@ -18,7 +18,7 @@ Send; Claude's changes are drafts with an Undo.
                                                   until v2 is sent); everyone else asks for a revision (proposals.py)
   POST  /api/proposal-studio/<pid>/exclude        {text} a note / exclusion / deliverable that doesn't apply; /restore puts it back
   GET   /api/proposal-studio/<pid>/send-options   the client's people + email conversations (?q= searches), Gmail
-  POST  /api/proposal-studio/<pid>/send-preview   {how, mail_id} -> the recipients, thread, subject and PDF Send would use
+  POST  /api/proposal-studio/<pid>/send-preview   {how, mail_id, reply_all?} -> the recipients (Reply and Reply all), thread, subject and PDF Send would use
   POST  /api/proposal-studio/<pid>/send           {how: reply | new, mail_id, to, cc, subject, message, confirm: true,
                                                   expected_total} -> PDF + Gmail. Refused without confirm.
   GET / PUT /api/proposal-studio/house-style      what Claude follows (editable); POST .../learn reads the sent proposals
@@ -472,9 +472,11 @@ def send_preview(conn, pid: int, uid, body: dict) -> dict:
         if not m:
             raise ValueError("Pick the email to reply to.")
         link = _one(conn, "SELECT google_email FROM gmail_link WHERE user_id = ?", (uid,)) or {}
-        to, cc = inbox.reply_recipients(m, link.get("google_email") or "", bool(body.get("reply_all")))
+        me = link.get("google_email") or ""
+        to, cc = inbox.reply_recipients(m, me, bool(body.get("reply_all")))
         n = _one(conn, "SELECT COUNT(*) AS n FROM mail_message WHERE user_id = ? AND thread_id = ?", (uid, m["thread_id"])) if m["thread_id"] else None
-        out.update(to=to, cc=cc, subject="Re: " + re.sub(r"^\s*(re|fw|fwd)\s*:\s*", "", m["subject"] or "", flags=re.I).strip(),
+        out.update(to=to, cc=cc, reply_to=dict(zip(("to", "cc"), inbox.reply_recipients(m, me, False))),   # both, for the Reply / Reply all switch
+                   reply_all_to=dict(zip(("to", "cc"), inbox.reply_recipients(m, me, True))), subject="Re: " + re.sub(r"^\s*(re|fw|fwd)\s*:\s*", "", m["subject"] or "", flags=re.I).strip(),
                    thread={"id": m["id"], "subject": m["subject"] or "(no subject)", "from": m["from"], "received_at": m["received_at"],
                            "snippet": _clip(m.get("snippet") or m.get("body"), 280), "count": (n or {}).get("n") or 1})
     return out
