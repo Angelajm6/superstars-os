@@ -38,6 +38,7 @@ from typing import Optional
 
 from flask import jsonify, request, send_file
 
+import crm
 import db_layer
 from auth import SCRIPT_DIR, current_user, requires_section
 import invoices
@@ -356,19 +357,44 @@ def _safe_invoice_summary(conn, today) -> dict:
 
 # ============================ clients ============================
 
+# The Clients list holds who pays us (client) plus leads; everyone else around a job is the Directory.
+CLIENT_TYPES = ("client", "lead")
+
+
+def _search_sql(search: str) -> tuple:
+    """Match a client by its name, a person there, a building address, or a job number / name."""
+    s = "%" + search.lower() + "%"
+    return (" AND (LOWER(o.name) LIKE ?"
+            " OR EXISTS (SELECT 1 FROM crm_contact c WHERE c.org_id = o.id AND COALESCE(c.status,'active') <> 'inactive'"
+            "            AND LOWER(c.full_name) LIKE ?)"
+            " OR EXISTS (SELECT 1 FROM projects p WHERE p.client_org_id = o.id"
+            "            AND (LOWER(p.project_code) LIKE ? OR LOWER(COALESCE(p.name,'')) LIKE ?))"
+            " OR EXISTS (SELECT 1 FROM building b WHERE b.client_org_id = o.id AND LOWER(b.address_line) LIKE ?))",
+            [s, s, s, s, s])
+
+
 def list_clients(conn, *, search: Optional[str] = None, relationship_type: str = "client",
-                 include_inactive: bool = False) -> list:
-    sql = ("SELECT o.id, o.name, o.relationship_type, o.status, o.stage, o.function_tags, o.created_at "
+                 include_inactive: bool = False, today: Optional[date] = None) -> list:
+    """relationship_type: one type, "clients" (clients + leads), "directory" (everyone else) or "all"."""
+    sql = ("SELECT o.id, o.name, o.relationship_type, o.status, o.stage, o.function_tags, o.created_at, "
+           "o.client_kind, o.managing_agent_org_id, o.phone, o.email "
            "FROM crm_organization o WHERE 1=1")
     params: list = []
-    if relationship_type and relationship_type != "all":
+    if relationship_type == "clients":
+        sql += " AND o.relationship_type IN (?, ?)"
+        params += list(CLIENT_TYPES)
+    elif relationship_type == "directory":
+        sql += " AND (o.relationship_type IS NULL OR o.relationship_type NOT IN (?, ?))"
+        params += list(CLIENT_TYPES)
+    elif relationship_type and relationship_type != "all":
         sql += " AND o.relationship_type = ?"
         params.append(relationship_type)
     if not include_inactive:
         sql += " AND COALESCE(o.status,'active') = 'active'"
     if search:
-        sql += " AND LOWER(o.name) LIKE ?"
-        params.append("%" + search.lower() + "%")
+        where, sp = _search_sql(search)
+        sql += where
+        params += sp
     sql += " ORDER BY LOWER(o.name)"
     orgs = _rows(conn.execute(sql, params))
     if not orgs:
@@ -395,6 +421,33 @@ def list_clients(conn, *, search: Optional[str] = None, relationship_type: str =
         "SELECT entity_id, COUNT(1) AS n FROM crm_task "
         "WHERE entity_type = 'organization' AND status = 'open' GROUP BY entity_id"))}
     bmap = buildings_by_client(conn)
+    t = (today or _today()).isoformat()
+    money = {r["client_org_id"]: r for r in _rows(conn.execute(
+        "SELECT client_org_id, "
+        "  COALESCE(SUM(CASE WHEN status = 'issued' THEN amount - amount_paid ELSE 0 END),0) AS owed, "
+        "  COALESCE(SUM(CASE WHEN status = 'issued' AND due_at IS NOT NULL AND due_at < ? THEN amount - amount_paid ELSE 0 END),0) AS overdue, "
+        "  MIN(CASE WHEN status = 'issued' AND due_at IS NOT NULL AND due_at < ? AND amount > amount_paid THEN due_at END) AS oldest_due, "
+        "  COALESCE(SUM(CASE WHEN status IN ('issued','paid') THEN retainage ELSE 0 END),0) AS retainage "
+        "FROM invoice GROUP BY client_org_id", (t, t)))}
+    follow = {}
+    for r in _rows(conn.execute(
+            "SELECT entity_id, title, due_date FROM crm_task "
+            "WHERE entity_type = 'organization' AND status = 'open' ORDER BY due_date, id")):
+        f = follow.setdefault(r["entity_id"], {"next": None, "late": 0})
+        if r.get("due_date") and r["due_date"] < t:
+            f["late"] += 1
+        if f["next"] is None or (r.get("due_date") and not f["next"].get("due_date")):
+            f["next"] = {"title": r["title"], "due_date": r.get("due_date")}
+    people = {}
+    for c in _rows(conn.execute(
+            "SELECT org_id, full_name, title, phone, email, roles, COALESCE(is_primary,0) AS is_primary FROM crm_contact "
+            "WHERE org_id IS NOT NULL AND COALESCE(status,'active') <> 'inactive' ORDER BY LOWER(full_name)")):
+        cur = people.get(c["org_id"])
+        if cur is None or (c["is_primary"] and not cur["is_primary"]):
+            people[c["org_id"]] = c
+    agent_names = {r["id"]: r["name"] for r in _rows(conn.execute(
+        "SELECT a.id, a.name FROM crm_organization a WHERE a.id IN "
+        "(SELECT managing_agent_org_id FROM crm_organization WHERE managing_agent_org_id IS NOT NULL)"))}
 
     out = []
     for o in orgs:
@@ -402,6 +455,9 @@ def list_clients(conn, *, search: Optional[str] = None, relationship_type: str =
         p = projects.get(oid) or {}
         e = estimates.get(oid) or {}
         blds = bmap.get(oid) or []
+        m = money.get(oid) or {}
+        f = follow.get(oid) or {}
+        mc = people.get(oid)
         out.append({
             "id": oid, "name": o["name"], "relationship_type": o["relationship_type"],
             "status": o.get("status") or "active", "stage": o.get("stage"),
@@ -413,20 +469,63 @@ def list_clients(conn, *, search: Optional[str] = None, relationship_type: str =
             "estimates_won": int(e.get("won_n") or 0), "won_value": round(_num(e.get("won_v")), 2),
             "open_tasks": int(open_tasks.get(oid) or 0),
             "last_activity_at": last_activity.get(oid),
+            "client_kind": o.get("client_kind"), "kind_label": crm.CLIENT_KINDS.get(o.get("client_kind") or ""),
+            "managing_agent": agent_names.get(o.get("managing_agent_org_id")),
+            "owed": round(_num(m.get("owed")), 2), "overdue": round(_num(m.get("overdue")), 2),
+            "overdue_days": -_days_until(m["oldest_due"], today or _today()) if m.get("oldest_due") else 0,
+            "retainage_held": round(_num(m.get("retainage")), 2),
+            "next_followup": f.get("next"), "late_followups": int(f.get("late") or 0),
+            "main_contact": ({"name": mc["full_name"], "title": mc.get("title"), "phone": mc.get("phone"),
+                              "email": mc.get("email")} if mc else
+                             ({"name": o["name"], "phone": o.get("phone"), "email": o.get("email")}
+                              if (o.get("phone") or o.get("email")) else None)),
         })
     return out
+
+
+DIRECTORY_GROUPS = (("owner", "Owners we reach through someone else"),
+                    ("property_manager", "Managing agents and property managers"),
+                    ("architect", "Architects and engineers"), ("engineer", "Architects and engineers"),
+                    ("consultant", "Architects and engineers"), ("expeditor", "Expediters"),
+                    ("vendor", "Vendors"), ("sub", "Subcontractors and partners"), ("partner", "Subcontractors and partners"))
+
+
+def list_directory(conn, *, search: Optional[str] = None, include_inactive: bool = False) -> list:
+    """Everyone around our jobs who doesn't pay us: each with the jobs it's on (Project contacts) and,
+    for a managing agent, the boards it runs for us."""
+    rows = list_clients(conn, search=search, relationship_type="directory", include_inactive=include_inactive)
+    if not rows:
+        return []
+    jobs: dict = {}
+    for r in _rows(conn.execute(
+            "SELECT DISTINCT c.org_id, pc.project_code FROM project_contact pc JOIN crm_contact c ON c.id = pc.contact_id "
+            "WHERE pc.removed_at IS NULL AND c.org_id IS NOT NULL ORDER BY pc.project_code")):
+        jobs.setdefault(r["org_id"], []).append(r["project_code"])
+    manages: dict = {}
+    for r in _rows(conn.execute(
+            "SELECT managing_agent_org_id AS a, id, name FROM crm_organization "
+            "WHERE managing_agent_org_id IS NOT NULL AND COALESCE(status,'active') = 'active' ORDER BY LOWER(name)")):
+        manages.setdefault(r["a"], []).append({"id": r["id"], "name": r["name"]})
+    label = dict(DIRECTORY_GROUPS)
+    for r in rows:
+        r["group"] = label.get(r.get("relationship_type") or "", "Other")
+        r["jobs"] = jobs.get(r["id"], [])
+        r["manages"] = manages.get(r["id"], [])
+    order = list(dict.fromkeys(g for _, g in DIRECTORY_GROUPS)) + ["Other"]
+    rows.sort(key=lambda r: order.index(r["group"]))   # stable: names stay A-Z inside a group
+    return rows
 
 
 def client_detail(conn, org_id: int, today: Optional[date] = None) -> Optional[dict]:
     org = _one(conn.execute(
         "SELECT id, name, relationship_type, status, stage, function_tags, notes, created_at, "
-        "email, phone, website, address_line, city, state, zip "
+        "email, phone, website, address_line, city, state, zip, " + ", ".join(crm.CLIENT_PROFILE_FIELDS) + " "
         "FROM crm_organization WHERE id = ?", (org_id,)))
     if not org:
         return None
     today = today or _today()
     contacts = _rows(conn.execute(
-        "SELECT id, full_name, email, phone, title, relationship_type, status "
+        "SELECT id, full_name, email, phone, title, relationship_type, status, roles, COALESCE(is_primary,0) AS is_primary "
         "FROM crm_contact WHERE org_id = ? AND COALESCE(status, 'active') <> 'inactive' "   # removed contacts stay out
         "ORDER BY LOWER(full_name)", (org_id,)))
     buildings = (buildings_by_client(conn).get(org_id) or [])
@@ -1054,10 +1153,35 @@ def register(app) -> None:
     @gate
     def company_portal_clients():
         rt = (request.args.get("type") or "client").strip().lower()
-        rows = _with_conn(lambda c: list_clients(
-            c, search=(request.args.get("search") or "").strip() or None,
-            relationship_type=rt, include_inactive=request.args.get("inactive") == "1"))
+        search = (request.args.get("search") or "").strip() or None
+        inactive = request.args.get("inactive") == "1"
+        if rt == "directory":
+            return _wrap(_with_conn(lambda c: list_directory(c, search=search, include_inactive=inactive)))
+        rows = _with_conn(lambda c: list_clients(c, search=search, relationship_type=rt, include_inactive=inactive))
         return _wrap(rows)
+
+    @app.route("/api/company/portal/clients", methods=["POST"])
+    @gate
+    def company_portal_client_add():
+        """Add client (2026-10-28): kind, name, main contact with roles, managing agent, billing setup."""
+        d = request.get_json(silent=True) or {}
+        uid = (current_user() or {}).get("id")
+        conn = _conn()
+        try:
+            oid = crm.create_client(conn, name=d.get("name"), client_kind=d.get("client_kind"), lead=bool(d.get("lead")),
+                                    profile=d.get("billing") or {}, contact=d.get("contact") or {},
+                                    managing_agent_name=d.get("managing_agent"), created_by=uid)
+        except ValueError as e:
+            return _err(str(e), 409 if "already in" in str(e) else 400)
+        finally:
+            conn.close()
+        log.info("client added id=%s by user=%s", oid, uid)
+        return _wrap({"id": oid})
+
+    @app.route("/api/company/portal/client-kinds", methods=["GET"])
+    @gate
+    def company_portal_client_kinds():
+        return _wrap({"kinds": crm.CLIENT_KINDS, "roles": crm.CONTACT_ROLES, "defaults": crm.BILLING_DEFAULTS})
 
     @app.route("/api/company/portal/clients/<int:org_id>", methods=["GET"])
     @gate

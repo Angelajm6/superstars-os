@@ -49,8 +49,8 @@
     // Client portal lives under Clients: who can sign in to the client portal and what each one
     // sees sits next to the clients themselves (#360 made it a tab of its own; now a sub-tab).
     { key: 'clients', label: 'Clients', href: '/company#clients', roles: COMPANY,
-      at: [['/company', 'clients'], ['/company', 'portal']],
-      sub: [['All clients', '/company#clients'], ['Client portal', '/company#portal']] },
+      at: [['/company', 'clients'], ['/company', 'directory'], ['/company', 'portal']],
+      sub: [['All clients', '/company#clients'], ['Directory', '/company#directory'], ['Client portal', '/company#portal']] },
     { key: 'proposals', label: 'Proposals', href: '/company#proposals', roles: COMPANY.concat(['estimator']),
       hrefFor: { estimator: '/estimating' },
       at: [['/company', 'proposals'], ['/', 'estimates'], ['/estimating', null], ['/proposal-studio', null]],
