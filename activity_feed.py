@@ -11,6 +11,7 @@ to remember to report anything:
   invoice_payment       a payment was recorded; never a banner
 
 Wording says what was done, never which teammate did it. A person's own actions are left out. Admins only for now.
+What needs a decision comes from activity_accepts.py (phase 3).
 Nothing here reads anyone's email, and no AI runs. `activity_seen` keeps two marks per person: what they have read (the
 badge) and what has already popped up as a banner.
 """
@@ -45,6 +46,8 @@ def ensure(conn) -> None:
     """Idempotent."""
     conn.execute("CREATE TABLE IF NOT EXISTS activity_seen (user_id INTEGER PRIMARY KEY, read_at TEXT, banner_at TEXT)")
     conn.commit()
+    import activity_accepts
+    activity_accepts.ensure(conn)
 
 
 def _parse(at) -> Optional[datetime]:
@@ -249,6 +252,11 @@ def build(conn, uid: int, now: Optional[datetime] = None) -> dict:
                 conn.rollback()   # Postgres refuses every later statement until the failed one is rolled back
             except Exception:
                 pass
+    import activity_accepts
+    waiting = activity_accepts.waiting(conn, uid, now)
+    asked_clients = {w["id"] for w in waiting if w["kind"] == "client"}
+    asked_signed = {w["proposal_id"] for w in waiting if w["kind"] == "project"}
+    items = [i for i in items if i["id"] not in asked_clients and not (i["kind"] == "signed" and i.get("proposal_id") in asked_signed)]
     items.sort(key=lambda i: i["at"], reverse=True)
     items = items[:MAX_ITEMS]
     latest = items[0]["at"] if items else None
@@ -263,7 +271,10 @@ def build(conn, uid: int, now: Optional[datetime] = None) -> dict:
     banners = fresh[:MAX_BANNERS]
     if any(b["kind"] == "sent" for b in banners):
         _offer_undo(conn, uid, banners)
-    return {"items": items, "unread": sum(1 for i in items if i["unread"]), "banners": banners, "latest": latest}
+    for w in waiting:
+        w["when"] = _when(_parse(w["at"]) or now, now)
+    return {"items": items, "unread": sum(1 for i in items if i["unread"]), "banners": banners, "latest": latest,
+            "waiting": [activity_accepts.public(w) for w in waiting]}
 
 
 def _offer_undo(conn, uid: int, banners: list) -> None:
@@ -333,3 +344,30 @@ def register(app) -> None:
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
         return jsonify({"data": {"ok": True}})
+
+    @app.route("/api/activity/decide", methods=["POST"])
+    @gate
+    def activity_decide():
+        import activity_accepts
+        uid = (current_user() or {}).get("id")
+        body = request.get_json(silent=True) or {}
+        try:
+            data = _with_conn(lambda c: activity_accepts.decide(c, uid, str(body.get("id") or ""), str(body.get("action") or ""), body))
+        except activity_accepts.Stale as e:
+            return jsonify({"error": str(e)}), 409
+        except LookupError as e:
+            return jsonify({"error": str(e)}), 404
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        return jsonify({"data": data})
+
+    @app.route("/api/activity/client-matches/<int:org_id>", methods=["GET"])
+    @gate
+    def activity_client_matches(org_id):
+        import activity_accepts
+        import crm
+        try:
+            return jsonify({"data": {"clients": _with_conn(lambda c: activity_accepts.client_matches(c, org_id)),
+                                     "kinds": [{"code": k, "label": v} for k, v in crm.CLIENT_KINDS.items()]}})
+        except LookupError as e:
+            return jsonify({"error": str(e)}), 404

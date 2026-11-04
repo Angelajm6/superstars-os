@@ -22,9 +22,10 @@
     x: svg('<path d="M6 6l12 12M18 6 6 18"/>')
   };
   var TINT = { sent: 'ok', signed: 'ok', paid: 'ok', declined: 'warn', docs: 'warn', started: 'plain', project: 'plain' };
+  var CLOSED_KEY = 'ssc.bell.closed';
 
   var S = { data: null, open: false, failed: false, shown: {}, lastLoad: 0, stopped: false };
-  var bell, panel, scrim, banners;
+  var bell, panel, scrim, banners, sheetWrap, toastEl;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -38,7 +39,7 @@
     });
   }
   function icon(it) {
-    return '<span class="ab-ico ab-' + (TINT[it.kind] || 'blue') + '">' + (ICON[it.icon] || ICON.doc) + '</span>';
+    return '<span class="ab-ico ab-' + (it.tint || TINT[it.kind] || 'blue') + '">' + (ICON[it.icon] || ICON.doc) + '</span>';
   }
   function anchorTop() {   // right under the header, or the top of the screen once the header scrolled away
     return Math.max(12, Math.round(bell.getBoundingClientRect().bottom + 8));
@@ -46,7 +47,7 @@
 
   /* ------------------------------ bell + panel ------------------------------ */
   function renderBell() {
-    var n = S.data ? S.data.unread : 0;
+    var n = S.data ? S.data.unread + S.data.waiting.length : 0;
     bell.innerHTML = ICON.bell + (n ? '<span class="ab-badge">' + (n > 99 ? '99+' : n) + '</span>' : '');
     bell.setAttribute('aria-label', n ? 'Notifications, ' + n + ' new' : 'Notifications');
     bell.setAttribute('aria-expanded', S.open ? 'true' : 'false');
@@ -57,6 +58,16 @@
       '<span class="ab-sub">' + esc([it.sub, it.when].filter(Boolean).join(' · ')) + '</span></span>' +
       (it.unread ? '<span class="ab-dot" aria-label="New"></span>' : '') + '</a>';
   }
+  function actionButtons(w) {
+    return w.actions.map(function (a) {
+      return '<button type="button" class="' + (a.primary ? 'btn-primary' : 'btn-ghost') + '" data-ab="decide" data-id="' + esc(w.id) + '" data-act="' + esc(a.act) + '">' + esc(a.label) + '</button>';
+    }).join('');
+  }
+  function waitRow(w) {
+    return '<div class="ab-item ab-unread ab-wait">' + icon(w) + '<span class="ab-body"><a class="ab-title" href="' + esc(w.href) + '">' + esc(w.title) + '</a>' +
+      '<span class="ab-sub">' + esc(w.sub) + '</span>' + (w.note ? '<span class="ab-note">' + esc(w.note) + '</span>' : '') +
+      '<span class="ab-acts">' + actionButtons(w) + '</span></span></div>';
+  }
   function section(items, group, label) {
     var list = items.filter(function (i) { return i.group === group; });
     return list.length ? '<div class="ab-group">' + label + '</div>' + list.map(row).join('') : '';
@@ -66,23 +77,24 @@
     panel.hidden = !S.open;
     if (!S.open) return;
     panel.style.top = window.matchMedia(PHONE).matches ? '' : anchorTop() + 'px';
-    var items = S.data ? S.data.items : [];
+    var items = S.data ? S.data.items : [], asks = S.data ? S.data.waiting : [];
     var body;
     if (S.failed && !S.data) {
       body = '<div class="ab-empty">Notifications didn’t load. <button type="button" class="ab-link" data-ab="retry">Try again</button></div>';
     } else if (!S.data) {
       body = '<div class="ab-empty">Loading…</div>';
-    } else if (!items.length) {
+    } else if (!items.length && !asks.length) {
       body = '<div class="ab-empty">Nothing yet. When the team sends a proposal, adds a client or uploads documents, it shows up here.</div>';
     } else {
-      body = section(items, 'today', 'Today') + section(items, 'earlier', 'Earlier');
+      body = (asks.length ? '<div class="ab-group">Waiting for you</div>' + asks.map(waitRow).join('') : '') +
+        section(items, 'today', 'Today') + section(items, 'earlier', 'Earlier');
     }
     var unread = S.data && S.data.unread;
     panel.innerHTML = '<div class="ab-head"><h3>Notifications</h3><span class="ab-head-acts">' +
       (unread ? '<button type="button" class="ab-link" data-ab="read-all">Mark all read</button>' : '') +
       '<button type="button" class="ab-close" data-ab="close" aria-label="Close">' + ICON.x + '</button></span></div>' +
       '<div class="ab-list">' + body + '</div>' +
-      '<div class="ab-foot">Your own actions don’t appear here. Admins only for now.</div>';
+      '<div class="ab-foot">Your own actions don’t appear here, unless they’re waiting for a decision. Admins only for now.</div>';
   }
   function markRead() {
     if (!S.data || !S.data.unread || !S.data.latest) return;
@@ -119,13 +131,179 @@
     el.innerHTML = icon(it) + '<div class="ab-body"><div class="ab-title">' + esc(it.title) + '</div>' +
       (it.sub ? '<div class="ab-sub">' + esc(it.sub) + '</div>' : '') +
       (it.note ? '<div class="ab-note">' + esc(it.note) + '</div>' : '') +
-      '<div class="ab-acts"><a class="btn-primary" href="' + esc(it.href) + '">' + esc(it.open_label || 'Open') + '</a>' +
-      (it.undo_action_id ? '<button type="button" class="btn-ghost" data-ab="undo" data-action="' + esc(it.undo_action_id) + '">Undo</button>' : '') +
+      '<div class="ab-acts">' + (it.actions ? actionButtons(it) : '<a class="btn-primary" href="' + esc(it.href) + '">' + esc(it.open_label || 'Open') + '</a>' +
+      (it.undo_action_id ? '<button type="button" class="btn-ghost" data-ab="undo" data-action="' + esc(it.undo_action_id) + '">Undo</button>' : '')) +
       '</div></div><button type="button" class="ab-close" data-ab="banner-x" aria-label="Close. It stays in the bell.">' + ICON.x + '</button>';
+    if (it.actions) el.dataset.wait = '1';
     banners.prepend(el);
-    var limit = window.matchMedia(PHONE).matches ? 1 : 3;   // anything pushed off stays in the bell
-    Array.prototype.slice.call(banners.children, limit).forEach(dropBanner);
-    autoClose(el, BANNER_MS);
+    var limit = window.matchMedia(PHONE).matches ? 1 : 3;   // anything pushed off stays in the bell; news goes before a decision
+    while (banners.children.length > limit) {
+      var news = banners.querySelectorAll('.ab-banner:not([data-wait])');
+      dropBanner(news.length ? news[news.length - 1] : banners.lastElementChild);
+    }
+    if (!it.actions) autoClose(el, BANNER_MS);   // a decision stays until someone answers it or closes it
+  }
+  function closedIds() {
+    try { return JSON.parse(localStorage.getItem(CLOSED_KEY) || '[]'); } catch (e) { return []; }
+  }
+  function rememberClosed(id) {
+    try { localStorage.setItem(CLOSED_KEY, JSON.stringify(closedIds().concat([id]).slice(-100))); } catch (e) { /* it pops once more; no harm */ }
+  }
+  function syncWaitingBanners(d) {
+    var open = {};
+    d.waiting.forEach(function (w) { open[w.id] = true; });
+    Array.prototype.forEach.call(banners.querySelectorAll('.ab-banner[data-wait]'), function (el) {   // someone else answered it
+      if (!open[el.dataset.id]) dropBanner(el);
+    });
+    var closed = closedIds();
+    d.waiting.filter(function (w) { return w.pop && closed.indexOf(w.id) < 0; }).reverse().forEach(function (w) {
+      if (S.shown[w.id]) return;
+      showBanner(w);
+    });
+  }
+
+  /* ------------------------------ decisions ------------------------------ */
+  function findWaiting(id) {
+    return ((S.data && S.data.waiting) || []).filter(function (w) { return w.id === id; })[0];
+  }
+  function toast(msg, opts) {
+    opts = opts || {};
+    clearTimeout(S.toastTimer);
+    toastEl.innerHTML = '<span>' + esc(msg) + '</span>' +
+      (opts.href ? '<a href="' + esc(opts.href) + '">' + esc(opts.openLabel || 'Open') + '</a>' : '') +
+      (opts.undoId ? '<button type="button" data-ab="decide" data-id="' + esc(opts.undoId) + '" data-act="undo">Undo</button>' : '');
+    toastEl.hidden = false;
+    S.toastTimer = setTimeout(function () { toastEl.hidden = true; }, opts.undoId ? 7000 : 4000);
+  }
+  function answered(id) {
+    dropBanner(banners.querySelector('.ab-banner[data-id="' + id + '"]'));
+    delete S.shown[id];
+    closeSheet();
+    load();
+    document.dispatchEvent(new CustomEvent('ssc:claude-changed'));   // the page behind shows the change now
+    document.dispatchEvent(new CustomEvent('ssc:activity-changed'));
+  }
+  function send(id, action, extra) {
+    return post('/api/activity/decide', Object.assign({ id: id, action: action }, extra || {})).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (r.status === 409) { answered(id); toast(j.error || 'Someone already took care of this.'); return null; }
+        if (!r.ok) throw new Error(j.error || 'That didn’t go through. Try again.');
+        answered(id);
+        toast(j.data.message, { undoId: j.data.undo ? id : null, href: j.data.href, openLabel: j.data.open_label });
+        return j.data;
+      });
+    });
+  }
+  function decide(btn) {
+    var id = btn.dataset.id, act = btn.dataset.act;
+    if (act === 'merge') return mergeSheet(id);
+    if (act === 'edit') return editSheet(id);
+    if (act === 'create') return projectSheet(id);
+    btn.disabled = true;
+    send(id, act).catch(function (e) { btn.disabled = false; toast(e.message); });
+  }
+
+  /* ------------------------------ sheets ------------------------------ */
+  function openSheet(title, html, onSubmit) {
+    sheetWrap.innerHTML = '<form class="ab-sheet" role="dialog" aria-modal="true" aria-label="' + esc(title) + '" novalidate><h3>' + esc(title) + '</h3>' + html +
+      '<div class="ab-err" role="alert" hidden></div><div class="ab-sheet-foot"><button type="button" class="btn-ghost" data-ab="sheet-close">Cancel</button>' +
+      '<button type="submit" class="btn-primary">' + esc(onSubmit.label) + '</button></div></form>';
+    sheetWrap.hidden = false;
+    clearTimeout(S.toastTimer);
+    toastEl.hidden = true;   // never over the form
+    var form = sheetWrap.querySelector('form');
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var go = form.querySelector('[type=submit]'), err = form.querySelector('.ab-err');
+      err.hidden = true;
+      go.disabled = true;
+      Promise.resolve().then(function () { return onSubmit.run(form); }).catch(function (x) {
+        err.textContent = x.message;
+        err.hidden = false;
+        go.disabled = false;
+      });
+    });
+    var first = form.querySelector('input:not([type=radio]),select');
+    (first || form).focus && (first || form).focus();
+    return form;
+  }
+  function closeSheet() {
+    if (sheetWrap) { sheetWrap.hidden = true; sheetWrap.innerHTML = ''; }
+  }
+  function getJSON(path) {
+    return fetch(path, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } }).then(function (r) {
+      if (!r.ok) throw new Error('That didn’t load. Try again.');
+      return r.json();
+    }).then(function (j) { return j.data; });
+  }
+  function matches(id) { return getJSON('/api/activity/client-matches/' + encodeURIComponent(id.split(':')[1])); }
+  function mergeSheet(id) {
+    var w = findWaiting(id);
+    if (!w) return;
+    matches(id).then(function (d) {
+      function option(c, on) {
+        return '<label class="ab-opt"><input type="radio" name="into" value="' + esc(c.id) + '"' + (on ? ' checked' : '') + '><span><strong>' + esc(c.name) + '</strong>' +
+          '<small>' + c.projects + (c.projects === 1 ? ' project' : ' projects') + ' · ' + c.proposals + (c.proposals === 1 ? ' proposal' : ' proposals') + '</small></span></label>';
+      }
+      function list(q) {
+        var rows = q ? d.clients.filter(function (c) { return String(c.name).toLowerCase().indexOf(q) >= 0; }) : d.clients;
+        return rows.slice(0, 6).map(function (c, i) { return option(c, !q && i === 0 && c.score >= 0.8); }).join('') || '<p class="ab-sheet-p">No client by that name.</p>';
+      }
+      var form = openSheet('Merge ' + w.name,
+        '<p class="ab-sheet-p">Everything on ' + esc(w.name) + ' moves to the client you pick, and this name goes away. Anything already sent keeps the name it went out with. This can’t be undone.</p>' +
+        '<label class="ab-field">Find a client<input type="text" data-ab-find autocomplete="off"></label><div data-ab-list>' + list('') + '</div>',
+        { label: 'Merge', run: function (f) {
+          var pick = f.querySelector('input[name=into]:checked');
+          if (!pick) throw new Error('Pick the client to merge into.');
+          return send(id, 'merge', { into_id: +pick.value });
+        } });
+      form.querySelector('[data-ab-find]').addEventListener('input', function (e) {
+        form.querySelector('[data-ab-list]').innerHTML = list(e.target.value.trim().toLowerCase());
+      });
+    }).catch(function (e) { toast(e.message); });
+  }
+  function editSheet(id) {
+    var w = findWaiting(id);
+    if (!w) return;
+    matches(id).then(function (d) {
+      openSheet('Edit new client',
+        '<p class="ab-sheet-p">Fix anything that came through wrong. Its proposals follow the change.</p>' +
+        '<label class="ab-field">Client name<input type="text" name="name" value="' + esc(w.name) + '" maxlength="200"></label>' +
+        '<label class="ab-field">Kind<select name="kind"><option value="">Choose one</option>' +
+        d.kinds.map(function (k) { return '<option value="' + esc(k.code) + '">' + esc(k.label) + '</option>'; }).join('') + '</select></label>',
+        { label: 'Save', run: function (f) { return send(id, 'edit', { name: f.elements.name.value, client_kind: f.elements.kind.value }); } });
+    }).catch(function (e) { toast(e.message); });
+  }
+  function projectSheet(id) {
+    var w = findWaiting(id);
+    if (!w) return;
+    var p = w.project;
+    getJSON('/api/admin/projects/onboard-meta').then(function (m) {
+      function opts(list, cur) {
+        return list.map(function (o) { return '<option value="' + esc(o.code) + '"' + (o.code === cur ? ' selected' : '') + '>' + esc(o.label) + '</option>'; }).join('');
+      }
+      var form = openSheet('Create project',
+        '<p class="ab-sheet-p">Filled in from the signed proposal. Change anything before you create it. Crew, dates and billing are set on the project’s page.</p>' +
+        '<label class="ab-field">Project name<input type="text" name="name" value="' + esc(p.name) + '" maxlength="200"></label>' +
+        '<label class="ab-field">Address<input type="text" name="address" value="' + esc(p.address) + '"></label>' +
+        '<div class="ab-field">Client<div class="ab-static">' + esc(p.client) + '</div></div>' +
+        '<label class="ab-field">Job type<select name="est_type">' + opts(m.types, p.est_type) + '</select></label>' +
+        '<label class="ab-field" data-ab-other hidden>Describe the job type<input type="text" name="other" maxlength="80"></label>' +
+        '<label class="ab-field" data-ab-rope hidden>Rope access work<select name="rope"><option value="inspection">Inspection</option><option value="repair">Repair work</option></select></label>' +
+        '<label class="ab-field">Borough or region<select name="borough">' + opts(m.regions, p.borough) + '</select></label>',
+        { label: 'Create project', run: function (f) {
+          return send(id, 'create', { name: f.elements.name.value, address: f.elements.address.value, est_type: f.elements.est_type.value,
+            borough: f.elements.borough.value,
+            job_type_other: f.elements.est_type.value === 'OTH' ? f.elements.other.value : '',
+            rope_access_scope: f.elements.est_type.value === 'IRA' ? f.elements.rope.value : '' });
+        } });
+      function other() {
+        form.querySelector('[data-ab-other]').hidden = form.elements.est_type.value !== 'OTH';
+        form.querySelector('[data-ab-rope]').hidden = form.elements.est_type.value !== 'IRA';
+      }
+      form.elements.est_type.addEventListener('change', other);
+      other();
+    }).catch(function (e) { toast(e.message); });
   }
   function undo(btn) {
     var el = btn.closest('.ab-banner');
@@ -166,6 +344,7 @@
         void bell.offsetWidth;
         bell.classList.add('ab-ring');
       }
+      if (!document.hidden) syncWaitingBanners(d);
       if (d.banners.length && !document.hidden) {
         // newest ends up on top; one you can act on (Undo) goes last, so a phone's single banner is that one
         d.banners.slice().reverse().sort(function (a, b) { return (a.undo_action_id ? 1 : 0) - (b.undo_action_id ? 1 : 0); }).forEach(showBanner);
@@ -186,12 +365,18 @@
       if (what === 'close') toggle(false);
       else if (what === 'retry') load();
       else if (what === 'read-all') { markRead(); renderBell(); renderPanel(); }
-      else if (what === 'banner-x') dropBanner(b.closest('.ab-banner'));
+      else if (what === 'banner-x') {
+        var bn = b.closest('.ab-banner');
+        if (bn.dataset.wait) rememberClosed(bn.dataset.id);   // it stays in the bell and doesn't pop up again
+        dropBanner(bn);
+      }
+      else if (what === 'decide') decide(b);
+      else if (what === 'sheet-close') closeSheet();
       else if (what === 'undo') undo(b);
       return;
     }
-    var link = e.target.closest && e.target.closest('.ab-item, .ab-banner a');
-    if (link && link.classList.contains('ab-item')) {
+    var link = e.target.closest && e.target.closest('a.ab-item, .ab-wait a, .ab-banner a');
+    if (link && !link.closest('.ab-banner')) {
       markRead();
       S.open = false;
       renderBell();
@@ -230,12 +415,26 @@
     banners.setAttribute('role', 'status');
     banners.setAttribute('aria-live', 'polite');
 
-    [scrim, panel, banners].forEach(function (el) { document.body.appendChild(el); });
-    [panel, banners].forEach(function (el) { el.addEventListener('click', onClick); });
+    sheetWrap = document.createElement('div');
+    sheetWrap.className = 'ab-sheet-wrap';
+    sheetWrap.hidden = true;
+    sheetWrap.addEventListener('mousedown', function (e) { if (e.target === sheetWrap) closeSheet(); });
+
+    toastEl = document.createElement('div');
+    toastEl.className = 'ab-toast';
+    toastEl.hidden = true;
+    toastEl.setAttribute('role', 'status');
+
+    [scrim, panel, banners, sheetWrap, toastEl].forEach(function (el) { document.body.appendChild(el); });
+    [panel, banners, sheetWrap, toastEl].forEach(function (el) { el.addEventListener('click', onClick); });
     document.addEventListener('click', function (e) {
-      if (S.open && !panel.contains(e.target) && !bell.contains(e.target)) toggle(false);
+      if (S.open && !panel.contains(e.target) && !bell.contains(e.target) && !sheetWrap.contains(e.target) && !toastEl.contains(e.target)) toggle(false);
     });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.open) toggle(false); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      if (!sheetWrap.hidden) closeSheet();
+      else if (S.open) toggle(false);
+    });
 
     function placeBanners() { banners.style.top = anchorTop() + 'px'; }
     window.addEventListener('scroll', placeBanners, { passive: true, capture: true });

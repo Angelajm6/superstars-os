@@ -83,6 +83,8 @@ def _cleanup():
             m.ensure(conn)
         proposals.ensure_schema(conn)
         invoices.ensure_schema(conn)
+        conn.execute("DELETE FROM activity_decision WHERE kind <> 'start'")
+        conn.execute("UPDATE activity_decision SET decided_at = ? WHERE kind = 'start'", (datetime.now().isoformat(timespec="seconds"),))   # a shared database has an older one
         uids = [r["id"] for r in conn.execute("SELECT id FROM users WHERE email LIKE ?", (f"{TAG}.%",)).fetchall()]
         ph = lambda xs: ",".join("?" * len(xs)) or "NULL"  # noqa: E731
         mids = [r["id"] for r in conn.execute(f"SELECT id FROM mail_message WHERE user_id IN ({ph(uids)})", uids).fetchall()]
@@ -251,7 +253,7 @@ def main() -> int:
         d = feed()
         assert titled(d, f"was signed by {CLIENT}")[0]["kind"] == "signed"
         assert titled(d, f"Project {code} was created")[0]["href"] == f"/projects/{code}"
-        added = titled(d, "New client added: Abell Smoke Halden Group")[0]
+        added = [w for w in d["waiting"] if "New client added: Abell Smoke Halden Group" in w["title"]][0]   # it came with a proposal: it waits
         assert added["sub"].startswith("Added when Proposal ") and added["href"] == f"/company#clients/{org2}", added
         assert titled(d, "New client added: Abell Smoke Solo Owner")[0]["sub"] == "Added to your client list", org3
         assert not titled(d, "From Books"), "a QuickBooks sync can add dozens: not news"
@@ -360,7 +362,7 @@ def main() -> int:
         assert "view === 'invoice' && arg" in portal and "'ssc:activity-changed'" in portal
         for page in ROOT.glob("*.html"):
             t = page.read_text(encoding="utf-8")
-            assert "auth_menu.js?v=1010" not in t and "auth_menu.js?v=1011" not in t, f"{page.name} keeps a cached script without the bell"
+            assert not any(f"auth_menu.js?v={v}" in t for v in (1010, 1011, 1012)), f"{page.name} keeps a cached script without the bell"
         passed += 1; print("  pages ok")
     finally:
         conn.close()

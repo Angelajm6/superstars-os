@@ -41,6 +41,11 @@
 .ab-acts .btn-primary, .ab-acts .btn-ghost { flex: 1 1 auto; min-height: 40px; box-sizing: border-box; text-decoration: none; }
 
 /* ---- bell panel ---- */
+.ab-wait .ab-title { font-weight: 600; text-decoration: none; }
+.ab-wait a.ab-title:hover { color: var(--accent-ink, #3a5fd0); }
+.ab-wait .ab-acts .btn-primary, .ab-wait .ab-acts .btn-ghost { min-height: 36px; padding: 0 11px; font-size: 13px; }
+.ab-item .ab-note, .ab-banner .ab-note { display: block; margin-top: 8px; padding: 6px 9px; border-radius: 8px; background: #fff4e5; color: #9a5b00; font-size: 13px; }
+.ab-banner .ab-note:empty { display: none; }
 .ab-scrim { display: none; }
 .ab-panel { position: fixed; right: max(14px, env(safe-area-inset-right, 0px)); width: 400px; max-width: calc(100vw - 28px);
   max-height: min(70vh, 640px); z-index: 8950; display: flex; flex-direction: column; background: #fff;
@@ -64,7 +69,31 @@
 .ab-empty { padding: 24px 16px; font-size: 13px; line-height: 1.5; color: #4d5362; text-align: center; }
 .ab-foot { flex: none; padding: 8px 14px; border-top: 1px solid var(--line, #eceef3); font-size: 12px; color: #6f7584; }
 
+/* ---- sheets + toast: over everything but real dialogs ---- */
+.ab-sheet-wrap { position: fixed; inset: 0; z-index: 10040; display: grid; place-items: center; padding: 16px; background: rgba(27,30,41,.38); }
+.ab-sheet-wrap[hidden], .ab-toast[hidden] { display: none; }
+.ab-sheet { width: 440px; max-width: 100%; max-height: 100%; overflow-y: auto; box-sizing: border-box; padding: 18px; background: #fff; border-radius: 14px; box-shadow: 0 12px 32px rgba(27,30,41,.18); }
+.ab-sheet h3 { margin: 0; font-size: 17px; font-weight: 600; color: var(--ink, #222633); overflow-wrap: anywhere; }
+.ab-sheet-p { margin: 4px 0 0; font-size: 13px; line-height: 1.45; color: #4d5362; }
+.ab-field { display: grid; gap: 4px; margin-top: 12px; font-size: 13px; font-weight: 500; color: var(--ink, #222633); }
+.ab-field[hidden] { display: none; }
+.ab-field input, .ab-field select { width: 100%; box-sizing: border-box; min-height: 40px; padding: 0 11px; background: #fff; border: 1px solid var(--line, #eceef3); border-radius: 10px; font: inherit; font-size: 16px; font-weight: 400; color: inherit; }
+.ab-static { min-height: 40px; display: flex; align-items: center; padding: 0 11px; background: var(--canvas, #fafbfd); border: 1px solid var(--line, #eceef3); border-radius: 10px; font-weight: 400; }
+.ab-opt { display: flex; gap: 10px; align-items: center; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--line, #eceef3); border-radius: 10px; cursor: pointer; }
+.ab-opt:has(input:checked) { border-color: var(--accent, #4364dc); background: var(--accent-soft, #ebf0fe); }
+.ab-opt strong { display: block; font-size: 14px; font-weight: 600; color: var(--ink, #222633); overflow-wrap: anywhere; }
+.ab-opt small { display: block; font-size: 12px; color: #6f7584; }
+.ab-err { margin-top: 12px; padding: 7px 10px; border-radius: 8px; background: #fceeec; color: #a8382b; font-size: 13px; }
+.ab-err[hidden] { display: none; }
+.ab-sheet-foot { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.ab-toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 10050; display: flex; align-items: center; gap: 12px; width: max-content; max-width: calc(100vw - 24px); box-sizing: border-box; padding: 9px 14px; border-radius: 10px; background: var(--ink, #222633); color: #fff; font-size: 13px; box-shadow: 0 12px 32px rgba(27,30,41,.18); }
+.ab-toast a, .ab-toast button { flex: none; padding: 4px; background: none; border: 0; font: inherit; font-weight: 600; color: #a8c7fa; text-decoration: none; cursor: pointer; white-space: nowrap; }
+
 @media (max-width: 640px) {
+  .ab-sheet-wrap { place-items: end stretch; padding: 0; }
+  .ab-sheet { width: 100%; max-height: 88vh; border-radius: 18px 18px 0 0; padding-bottom: max(18px, env(safe-area-inset-bottom, 0px)); }
+  .ab-sheet-foot .btn-primary, .ab-sheet-foot .btn-ghost { flex: 1 1 auto; }
+  .ab-toast { bottom: 76px; }   /* clear of Ask Claude */
   .ab-banners { left: max(10px, env(safe-area-inset-left, 0px)); right: max(10px, env(safe-area-inset-right, 0px)); width: auto; max-width: none; }
   .ab-scrim:not([hidden]) { display: block; position: fixed; inset: 0; width: 100%; padding: 0; border: 0; background: rgba(27,30,41,.38); z-index: 10010; }
   .ab-panel { z-index: 10020; left: 0; right: 0; top: auto; bottom: 0; width: auto; max-width: none; max-height: 82vh; border-radius: 18px 18px 0 0;   /* over Ask Claude, under dialogs */
