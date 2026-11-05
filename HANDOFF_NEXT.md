@@ -132,6 +132,13 @@ grant, or elevation code.
   weeks with paid hours and a needs-approval dot (`GET /api/payroll/weeks`). Same file: approval list, cell badge, reason dialog.
 * Guard: `tests/smoke_payroll_rules.py` (new, in the gate). Migration `apply_hours_overtime.py` (boot-ensured).
 
+### The company invoice layout + Create invoice on a signed proposal (Bookore, 2026-11-04)
+
+* Accepted prototype: https://claude.ai/artifact/RtziQ74frRBr9pFwgnG1TL. Angela's design (made for INV-2026-0004) is now the standard layout: `invoice_docs._standard_document` draws every invoice without a Claude design, in Preview, PDF and the client's link, sent ones included. AIA keeps G702 / G703; a Claude design keeps priority.
+* Rows: Full Contract Balance = the proposal's total (change orders not added); Previously Invoiced = earlier invoices on the proposal, not void (a later one never changes the page); Paid to Date when part paid; Remaining = total - previous - this one. No proposal -> no contract rows. Deposits read Due Upon Receipt (stored due date still +7 so overdue works); a custom date shows as itself.
+* Stored PDFs: `invoice.pdf_layout` vs `invoice_docs.LAYOUT`; an older one is redrawn on its next open. **Bump LAYOUT whenever the layout changes.**
+* Create invoice: drawer button, ⋯ menu, full page. `GET /api/proposals/<id>/invoices` (contract, invoiced incl. drafts, left, rows; also the drawer's Invoices section), `POST` = always a draft, signed only, deposit / progress / final, one deposit per proposal; over the contract warns but is allowed. Settings > Company brand's Invoice example matches the layout. Guard: `smoke_invoices_315`.
+
 ### Invoice designs connect on every save + Preview inside the app (Bookore, 2026-11-02, second follow-up)
 
 * Angela's INV-2026-0004 design was in the job's Documents but Invoices & Payments still drew the standard layout: the

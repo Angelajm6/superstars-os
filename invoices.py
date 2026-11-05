@@ -405,17 +405,68 @@ def create_from_proposal(conn, proposal: dict, *, created_by=None) -> Optional[d
         "SELECT id FROM invoice WHERE proposal_id = ? AND kind = 'deposit' AND status <> 'void'", (proposal["id"],)))
     if existing:
         return get(conn, existing["id"])
-    label = (proposal.get("building_address_line") or proposal.get("building_address")
-             or proposal.get("client_name") or proposal.get("number"))
-    pct = proposal.get("deposit_pct")
-    pct_txt = f"{'%g' % float(pct)}% " if pct not in (None, "") else ""
     return create(conn, {
         "kind": "deposit", "client_org_id": proposal["client_org_id"],
         "project_code": proposal.get("converted_project_code") or proposal.get("project_code"),
         "building_id": proposal.get("building_id"), "estimate_id": proposal.get("estimate_id"),
         "proposal_id": proposal["id"], "source_doc": f"proposal:{proposal['id']}",
-        "description": f"Deposit {pct_txt}on proposal {_proposal_label(proposal)} — {label}",
+        "description": _deposit_text(conn, proposal, amt),
         "amount": amt,
+    }, created_by=created_by)
+
+
+def _deposit_text(conn, proposal: dict, amount: float) -> str:
+    """"Deposit: 50% of contract per Proposal No. 1051, facade repairs ($51,800.00 × 50%)"; the sum only when it is the amount."""
+    import proposals
+    pct, what = proposal.get("deposit_pct"), proposal.get("title")
+    text = f"Deposit: {'%g' % float(pct)}% of contract" if pct not in (None, "") else "Deposit"
+    text += f" per Proposal No. {_proposal_label(proposal)}" + (f", {what}" if what else "")
+    total = float(proposals.amounts(conn, proposal).get("total") or 0)
+    if pct not in (None, "") and total > 0 and abs(total * float(pct) / 100 - amount) < 0.005:
+        text += f" ({_money(total)} × {'%g' % float(pct)}%)"
+    return text
+
+
+def proposal_billing(conn, proposal_id: int) -> Optional[dict]:
+    """What a signed proposal has billed, drafts included so nothing gets billed twice: the Create invoice form and the proposal's panel."""
+    import proposals
+    p = proposals.get(conn, proposal_id)
+    if not p:
+        return None
+    a = proposals.amounts(conn, p)
+    rows = [r for r in list_invoices(conn, proposal_id=proposal_id) if r["status"] != "void"]
+    rows.sort(key=lambda r: r["id"])
+    contract = round(float(a.get("total") or 0), 2)
+    billed = round(sum(_num(r["amount"]) for r in rows), 2)
+    deposit = _num(a.get("deposit"))
+    return {"proposal_id": proposal_id, "label": _proposal_label(p), "title": p.get("title"), "status": p["status"],
+            "contract": contract, "invoiced": billed, "left": round(contract - billed, 2),
+            "has_deposit": any(r["kind"] == "deposit" for r in rows), "deposit_amount": deposit,
+            "deposit_text": _deposit_text(conn, p, deposit) if deposit > 0 else None,
+            "invoices": [{"id": r["id"], "number": r["number"], "kind": r["kind"], "status": r["status"], "amount": r["amount"],
+                          "balance": r["balance"], "overdue": r["overdue"]} for r in rows]}
+
+
+def create_for_proposal(conn, proposal_id: int, fields: dict, *, created_by=None) -> dict:
+    """Create invoice on a signed proposal: always a draft, with the client, job and proposal taken from the proposal.
+    Going over the contract is allowed (extra work gets agreed); the form warns first."""
+    import proposals
+    p = proposals.get(conn, proposal_id)
+    if not p:
+        raise LookupError("proposal not found")
+    if p["status"] != "signed":
+        raise ValueError("only a signed proposal can be invoiced")
+    kind = str(fields.get("kind") or "").strip().lower()
+    if kind not in ("deposit", "progress", "final"):
+        raise ValueError("kind must be deposit, progress or final")
+    if kind == "deposit" and _one(conn.execute("SELECT id FROM invoice WHERE proposal_id = ? AND kind = 'deposit' AND status <> 'void'", (proposal_id,))):
+        raise ValueError("this proposal already has a deposit invoice")
+    return create(conn, {
+        "kind": kind, "client_org_id": p["client_org_id"], "amount": fields.get("amount"),
+        "project_code": p.get("converted_project_code") or p.get("project_code"),
+        "building_id": p.get("building_id"), "estimate_id": p.get("estimate_id"),
+        "proposal_id": proposal_id, "source_doc": f"proposal:{proposal_id}",
+        "description": fields.get("description"), "due_at": fields.get("due_at"), "retainage": fields.get("retainage") or 0,
     }, created_by=created_by)
 
 
@@ -624,6 +675,30 @@ def _api_create():
         conn.close()
 
 
+def _api_proposal_billing(proposal_id):
+    conn = _conn()
+    try:
+        d = proposal_billing(conn, proposal_id)
+        return _wrap(d) if d else _err("proposal not found", 404)
+    finally:
+        conn.close()
+
+
+def _api_proposal_invoice(proposal_id):
+    body = request.get_json(silent=True) or {}
+    conn = _conn()
+    try:
+        try:
+            return _wrap(create_for_proposal(conn, proposal_id, body, created_by=_uid())), 201
+        except LookupError as e:
+            return _err(str(e), 404)
+        except ValueError as e:
+            msg = str(e)
+            return _err(msg, 409 if "signed" in msg or "already" in msg else 400)
+    finally:
+        conn.close()
+
+
 def _api_update(invoice_id):
     body = request.get_json(silent=True) or {}
     conn = _conn()
@@ -708,6 +783,8 @@ def register(app) -> None:
     gate = requires_section(SECTION)
     app.add_url_rule("/api/invoices", "invoices_list", gate(_api_list), methods=["GET"])
     app.add_url_rule("/api/invoices", "invoices_create", gate(_api_create), methods=["POST"])
+    app.add_url_rule("/api/proposals/<int:proposal_id>/invoices", "proposal_billing", gate(_api_proposal_billing), methods=["GET"])
+    app.add_url_rule("/api/proposals/<int:proposal_id>/invoices", "proposal_invoice_create", gate(_api_proposal_invoice), methods=["POST"])
     app.add_url_rule("/api/invoices/<int:invoice_id>", "invoices_get", gate(_api_get), methods=["GET"])
     app.add_url_rule("/api/invoices/<int:invoice_id>", "invoices_update", gate(_api_update), methods=["PATCH"])
     app.add_url_rule("/api/invoices/<int:invoice_id>", "invoices_delete", gate(_api_delete), methods=["DELETE"])

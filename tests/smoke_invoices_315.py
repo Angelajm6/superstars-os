@@ -380,6 +380,67 @@ def main() -> int:
         conn.close()
     checks += 1
 
+    # ---- Create invoice on a signed proposal + the company layout (2026-11-04)
+    conn = _db()
+    try:
+        import invoice_docs
+        pid = p["id"]
+        b = _j(admin.get(f"/api/proposals/{pid}/invoices"))["data"]
+        assert b["contract"] == 50000.0 and b["invoiced"] == 25000.0 and b["left"] == 25000.0 and b["has_deposit"], b
+        assert [i["id"] for i in b["invoices"]] == [dep["id"]]
+        assert _login(app, "pm").get(f"/api/proposals/{pid}/invoices").status_code == 403
+        assert _login(app, "pm").post(f"/api/proposals/{pid}/invoices", json={"kind": "progress", "amount": 1}).status_code == 403
+        # a second deposit, an odd kind, a zero amount and an unsigned proposal are refused
+        assert admin.post(f"/api/proposals/{pid}/invoices", json={"kind": "deposit", "amount": 5}).status_code == 409
+        assert admin.post(f"/api/proposals/{pid}/invoices", json={"kind": "other", "amount": 5}).status_code == 400
+        assert admin.post(f"/api/proposals/{pid}/invoices", json={"kind": "progress", "amount": 0}).status_code == 400
+        assert admin.get("/api/proposals/999999/invoices").status_code == 404
+        # a draft, with everything taken from the proposal
+        r = admin.post(f"/api/proposals/{pid}/invoices", json={"kind": "progress", "amount": 10000, "description": "Progress billing per the proposal"})
+        assert r.status_code == 201, r.get_data(as_text=True)
+        pr = _j(r)["data"]
+        assert pr["status"] == "draft" and pr["proposal_id"] == pid and pr["client_org_id"] == org and pr["project_code"] == "INV315-A" and not pr.get("sent_at")
+        # over the contract: allowed, the form warns first
+        over = _j(admin.post(f"/api/proposals/{pid}/invoices", json={"kind": "final", "amount": 20000, "description": "Final"}))["data"]
+        assert _j(admin.get(f"/api/proposals/{pid}/invoices"))["data"]["left"] == -5000.0
+        # the document: previously invoiced = earlier invoices only, a later one never changes it
+        html = invoice_docs.render_document(conn, invoices.get(conn, pr["id"]))
+        for needle in ("Full Contract Balance", "$50,000.00", "Previously Invoiced", "$25,000.00", "Amount Due", "$10,000.00",
+                       "Remaining Balance After This Invoice", "$15,000.00", "Payable to", "Note invoice no. " + pr["number"], "inv-flag\">DRAFT", "Thank you."):
+            assert needle in html, needle
+        assert "Set when issued" in html
+        invoices.void(conn, over["id"], reason="smoke")
+        assert _j(admin.get(f"/api/proposals/{pid}/invoices"))["data"]["left"] == 15000.0, "a void invoice stops counting"
+        issued = invoices.issue(conn, pr["id"])
+        invoices.record_payment(conn, pr["id"], amount=4000, method="check")
+        html = invoice_docs.render_document(conn, invoices.get(conn, pr["id"]))
+        assert "Paid to Date" in html and "−$4,000.00" in html and "$6,000.00" in html and "DRAFT" not in html and issued["due_at"] and "Due Upon Receipt" not in html
+        # the deposit reads Due Upon Receipt until it is paid; paid shows the green bar and no payment block
+        html = invoice_docs.render_document(conn, invoices.get(conn, dep["id"]))
+        assert "Paid in full on" in html and "Payable to" not in html and "<dt>Due</dt>" not in html and "$0.00" in html
+        assert invoice_docs._due_text({"kind": "deposit", "issued_at": "2026-11-01", "due_at": "2026-11-08"}) == "Due Upon Receipt"
+        assert invoice_docs._due_text({"kind": "deposit", "issued_at": "2026-11-01", "due_at": "2026-12-01"}) == "December 1, 2026"
+        assert invoice_docs._due_text({"kind": "progress", "issued_at": "2026-11-01", "due_at": "2026-12-01"}) == "December 1, 2026"
+        # no proposal: no contract rows; void: nothing to pay
+        html = invoice_docs.render_document(conn, invoices.get(conn, a["id"]))
+        assert "Full Contract Balance" not in html and "<dt>Contract</dt>" not in html
+        assert "void\">VOID" in invoice_docs.render_document(conn, invoices.get(conn, over["id"]))
+        # a PDF stored under an older layout isn't served: the caller redraws it
+        pdir = invoice_docs._pdf_dir(); pdir.mkdir(parents=True, exist_ok=True)
+        old = pdir / "layout-smoke.pdf"; old.write_bytes(b"%PDF-old")
+        import ssc_paths
+        conn.execute("UPDATE invoice SET pdf_path = ?, pdf_layout = 0 WHERE id = ?", (ssc_paths.store_rel(old), pr["id"])); conn.commit()
+        assert invoice_docs.pdf_file(conn, pr["id"]) is None
+        conn.execute("UPDATE invoice SET pdf_layout = ? WHERE id = ?", (invoice_docs.LAYOUT, pr["id"])); conn.commit()
+        assert invoice_docs.pdf_file(conn, pr["id"]) == old
+        # the proposal's screens offer it
+        page = (ROOT / "company_portal.html").read_text(encoding="utf-8")
+        for needle in ('data-prx-act="invoice"', 'data-m="invoice"', 'id="pr-inv-btn"', 'id="inv-prop-form"', 'id="prx-billing"'):
+            assert needle in page, needle
+    finally:
+        conn.close()
+    checks += 1
+
     print(f"PASS: #315 invoices & receivables — gates, numbering, draft→issued→paid, payments, overdue math, "
           f"void/delete rules, proposal-signed deposit draft, IRA flag, portal payloads ({checks} groups)")
     return 0

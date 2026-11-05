@@ -200,10 +200,10 @@ def main() -> int:
     r = admin.get(f"/api/invoices/{a['id']}/preview")
     assert r.status_code == 200 and r.mimetype == "text/html"
     html = r.get_data(as_text=True)
-    assert a["number"] in html and "$12,500.00" in html and "Balance due" in html and "How to pay" in html
+    assert a["number"] in html and "$12,500.00" in html and "Amount Due" in html and "Payable to" in html
     assert "Pay326 Owners" in html and "Progress billing #1" in html and "Draft" not in html
     r = admin.get(f"/api/invoices/{b['id']}/preview")
-    assert "Draft — not yet issued" in r.get_data(as_text=True)
+    assert "inv-flag\">DRAFT" in r.get_data(as_text=True)
     r = admin.get(f"/api/invoices/{a['id']}/pdf")
     assert r.status_code in (200, 503), r.status_code
     pdf_ok = r.status_code == 200
@@ -243,7 +243,7 @@ def main() -> int:
     r = anon.get(f"/i/{token1}")
     assert r.status_code == 200, r.status_code
     page = r.get_data(as_text=True)
-    assert a["number"] in page and "Download PDF" in page and "How to pay" in page and "noindex" in (r.headers.get("X-Robots-Tag") or "")
+    assert a["number"] in page and "Download PDF" in page and "Payable to" in page and "noindex" in (r.headers.get("X-Robots-Tag") or "")
     assert "Questions about this invoice" in page
     r = anon.get(f"/i/{token1}")
     assert r.status_code == 200

@@ -612,6 +612,18 @@
   .br-empty { flex: 1; min-height: 110px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; text-align: center; font-size: 14px; color: var(--muted); }
   .br-empty b { color: var(--ink); }
   .br-empty:hover b { color: var(--accent-ink, #3a5fd0); }
+  /* 2026-11-04: Create invoice on a signed proposal */
+  #inv-prop-overlay, #inv-view-overlay, #inv-pay-overlay, #inv-mail-overlay, #pr-sign-overlay, #pr-send-overlay, #pr-sent-overlay, #pr-rv-overlay, #pr-arch-overlay { z-index: 9100; }   /* these open from the proposal panel (z 9001) */
+  @media (max-width: 640px) { .prx-acts .btn-sm { min-height: 44px; display: inline-flex; align-items: center; } }
+  .ipf-kinds { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ipf-kinds button { font: inherit; font-size: 14px; font-weight: 600; min-height: 42px; padding: 0 16px; border-radius: 9px; border: 1px solid var(--line, #e3e6ed); background: #fff; color: var(--ink, #222633); cursor: pointer; }
+  .ipf-kinds button[aria-pressed="true"] { background: var(--accent-soft, #ebf0fe); border-color: var(--accent, #4364dc); color: var(--accent-ink, #3a5fd0); }
+  .ipf-sum { display: grid; gap: 4px; font-size: 14px; padding: 12px; border-radius: 9px; background: var(--canvas, #fafbfd); border: 1px solid var(--line, #eceef3); font-variant-numeric: tabular-nums; }
+  .ipf-sum div { display: flex; justify-content: space-between; gap: 12px; } .ipf-sum .k { font-weight: 700; }
+  .ipf-warn { margin: 0; padding: 10px 12px; border-radius: 9px; background: #fdf1dc; color: #8a5300; font-size: 14px; font-weight: 500; }
+  .prx-bill { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 8px; font-variant-numeric: tabular-nums; }
+  .prx-bill span { display: block; font-size: 12.5px; color: var(--muted, #6b7180); } .prx-bill b { font-weight: 600; font-size: 14px; }
+  .prx-bill-row { display: flex; width: 100%; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; min-height: 44px; align-items: center; padding: 6px 0; border: 0; border-top: 1px solid var(--line, #eceef3); background: none; font: inherit; font-size: 14px; color: inherit; text-align: left; cursor: pointer; font-variant-numeric: tabular-nums; }
   .br-p-name { font: 800 15px Inter, -apple-system, sans-serif; letter-spacing: .6px; text-transform: uppercase; }
   .br-sw { width: 150px; max-width: 100%; height: 84px; border-radius: 10px; display: grid; place-items: center; padding: 12px; border: 1px solid var(--line); }
   .br-sw.l { background: repeating-conic-gradient(#EEF0F4 0% 25%, #fff 0% 50%) 50% / 14px 14px; }
@@ -699,7 +711,7 @@
   .cp-form-err.show { display: block; }
 
   /* ---- toast ---- */
-  .cp-toast { position: fixed; right: 20px; bottom: 20px; background: var(--ink); color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 13px; box-shadow: 0 12px 32px rgba(0,0,0,.25); opacity: 0; transform: translateY(8px); transition: all .2s; pointer-events: none; z-index: 60; }
+  .cp-toast { position: fixed; right: 20px; bottom: 20px; background: var(--ink); color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 13px; box-shadow: 0 12px 32px rgba(0,0,0,.25); opacity: 0; transform: translateY(8px); transition: all .2s; pointer-events: none; z-index: 9200; }
   .cp-toast.show { opacity: 1; transform: none; }
   .cp-toast.err { background: #A8382B; }
   .cp-toast.show a, .cp-toast.show button { pointer-events: auto; }   /* Undo inside a toast */
@@ -1947,6 +1959,25 @@
       <div class="cp-form-err" id="inv-new-err" role="alert"></div>
     </div>
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="inv-new-cancel">Cancel</button><button class="btn-primary" type="submit" id="inv-new-go">Create draft</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="inv-prop-overlay" role="dialog" aria-modal="true" aria-labelledby="inv-prop-title">
+  <form class="cp-modal" id="inv-prop-form" novalidate>
+    <div class="cp-modal-head"><h2 id="inv-prop-title">New invoice</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">Creates a draft. Nothing goes to the client until you issue and send it.</p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><label id="inv-prop-kind-l">Kind</label><div class="ipf-kinds" id="inv-prop-kinds" role="group" aria-labelledby="inv-prop-kind-l"></div></div>
+      <div class="cp-field"><label for="inv-prop-amount">Amount (USD)</label><input id="inv-prop-amount" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
+      <div class="cp-field"><label for="inv-prop-due">Due date (optional)</label><input id="inv-prop-due" type="date"><span class="cp-muted" style="font-size:12.5px" id="inv-prop-due-hint"></span></div>
+      <div class="cp-field full"><label for="inv-prop-desc">Description of work billed</label><input id="inv-prop-desc" autocomplete="off"></div>
+      <div class="cp-field full"><div class="ipf-sum">
+        <div><span>Full contract</span><span id="inv-prop-s-contract"></span></div>
+        <div><span>Previously invoiced</span><span id="inv-prop-s-prev"></span></div>
+        <div class="k"><span>This invoice</span><span id="inv-prop-s-this"></span></div>
+        <div><span>Remaining after this invoice</span><span id="inv-prop-s-rem"></span></div></div></div>
+      <div class="cp-field full" id="inv-prop-warn-w" hidden><p class="ipf-warn" id="inv-prop-warn" role="status"></p></div>
+      <div class="cp-form-err" id="inv-prop-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="inv-prop-cancel">Cancel</button><button class="btn-primary" type="submit" id="inv-prop-go">Create draft</button></div>
   </form>
 </div>
 <div class="cp-overlay" id="inv-pay-overlay" role="dialog" aria-modal="true" aria-labelledby="inv-pay-title">
@@ -4616,6 +4647,7 @@
       `<button type="button" class="btn-ghost btn-sm" data-prx-act="pdf">PDF</button>`) +
       (p.status === 'draft' ? `<a class="btn-ghost btn-sm" href="${studio ? `/proposal-studio#p/${p.id}/send` : `#proposals/${p.id}/page`}">Send…</a><button type="button" class="btn-ghost btn-sm" data-prx-act="marksent">Mark as sent</button>` : '') +
       (prxSignable(p) ? `<button type="button" class="btn-ghost btn-sm" data-prx-act="marksigned">Mark signed…</button>` : '') +
+      (p.status === 'signed' ? `<button type="button" class="btn-primary btn-sm" data-prx-act="invoice">Create invoice</button>` : '') +
       (revisable && !pending ? `<button type="button" class="btn-ghost btn-sm" data-prx-act="${PRX.admin ? 'version' : 'revise'}">${PRX.admin ? 'New version' : 'Request a revision'}</button>` : '') +
       (canDel ? `<button type="button" class="btn-ghost btn-sm prx-danger" data-prx-askdel>Delete</button>` : '');
     const conf = PRX.confirm === p.id ? `<div class="prx-confirm" role="alert"><b>Delete proposal ${esc(prxNo(p))}?</b>
@@ -4642,6 +4674,7 @@
           <span>Total</span><div><span>${money2.format(a.total || 0)}</span><span class="prx-ro">from the price lines${p.status === 'draft' ? ' · change them in the document' : ''}</span></div>
           <span>Estimate</span><div><a class="cp-link" href="#proposals/estimate/${p.estimate_id}">${esc(p.estimate_code || '')}</a><span class="prx-ro">${esc(p.estimate_status || '')}</span></div>
         </div></div>
+        ${p.status === 'signed' ? `<div class="prx-sec"><h3>Invoices</h3><div id="prx-billing" aria-live="polite"></div></div>` : ''}
         ${rv.length ? `<div class="prx-sec"><h3>Revisions</h3>${rv.map(r => `<div class="prx-ver" style="cursor:default;flex-direction:column;align-items:stretch;gap:4px">
             <div style="display:flex;justify-content:space-between;gap:8px"><b>${r.price_review ? 'Price review' : 'Revision'}</b><span class="cp-pill ${RV_PILL[r.status] || ''}">${esc(RV_WORD[r.status] || r.status)}</span></div>
             <div>${esc(r.reason)}${r.proposed_price ? ` · proposed <b>${money2.format(r.proposed_price)}</b>` : ''}</div>
@@ -4651,7 +4684,17 @@
         <div class="prx-sec"><h3>Timeline</h3>${ev.length ? `<ul class="prx-tl">${ev.map(x => `<li><time>${fmtDate(x.at)}</time><span>${esc((x.event || '').replace(/_/g, ' '))}${x.detail ? ' · ' + esc(x.detail) : ''}</span></li>`).join('')}</ul>` : '<span class="prx-ro">Nothing yet</span>'}</div>
         <a class="cp-link" href="#proposals/${p.id}/page" style="font-size:13px">Full page: Claude conversations and emails about this proposal →</a>
       </div>`;
+    if (p.status === 'signed') prxBilling(p.id);
     prxFocus();
+  }
+  // the signed proposal's invoices in its panel (drafts count, so nothing gets billed twice)
+  async function prxBilling(id) {
+    try {
+      const { data: b } = await api('/proposals/' + id + '/invoices', null, true);
+      const host = $('prx-billing'); if (!host || !PRX.detail || PRX.detail.id !== id) return;
+      host.innerHTML = `<div class="prx-bill"><div><span>Contract</span><b>${money2.format(b.contract)}</b></div><div><span>Invoiced</span><b>${money2.format(b.invoiced)}</b></div><div><span>Left to bill</span><b>${money2.format(b.left)}</b></div></div>` +
+        (b.invoices.length ? b.invoices.map(i => `<button type="button" class="prx-bill-row" data-prx-invoice="${i.id}"><span>${esc(i.number)} · ${invKind(i.kind)} <span class="cp-pill ${i.overdue ? 'bad' : (INV_PILL[i.status] || '')}">${esc(i.overdue ? 'overdue' : i.status)}</span></span><span>${money2.format(i.amount)}</span></button>`).join('') : '<p class="cp-muted" style="margin:0;font-size:14px">No invoices on this proposal yet.</p>');
+    } catch (x) { /* the panel works without it */ }
   }
   // after a modal on the proposal changed it: the panel (or the full page) shows the new state
   function prAfter(id) { if (PRX.open != null && String(PRX.open) === String(id)) prxRefresh(id); else loadProposalDetail(id); }
@@ -4686,6 +4729,7 @@
     if (act === 'pdf') { prPdf(r); return; }
     if (act === 'open') { location.hash = '#proposals/' + id; return; }
     if (act === 'close') return;
+    if (act === 'invoice') { openProposalInvoice(r.id); return; }
     if (act === 'archsent' || act === 'archsigned') { prArchOpen(r, act === 'archsigned'); return; }
     if (act === 'marksigned') {
       const f = $('pr-sign-form'); f.dataset.id = r.id; f.dataset.from = 'list';
@@ -4740,6 +4784,7 @@
       `<button type="button" role="menuitem" data-m="pdf">View the PDF</button>` +
       (r.status === 'draft' ? `<button type="button" role="menuitem" data-m="marksent">Mark as sent</button>` : '') +
       (prxSignable(r) ? `<button type="button" role="menuitem" data-m="marksigned">Mark signed…</button>` : '') +
+      (r.status === 'signed' ? `<button type="button" role="menuitem" data-m="invoice">Create invoice…</button>` : '') +
       (revisable ? `<button type="button" role="menuitem" data-m="${PRX.admin ? 'version' : 'revise'}">${PRX.admin ? 'New version' : 'Request a revision'}</button>` : '') +
       (canDel ? `<hr><button type="button" role="menuitem" class="d" data-m="delete">Delete${r.status === 'draft' ? ' draft' : '…'}</button>` : '');
     document.body.appendChild(m);
@@ -4769,6 +4814,7 @@
     const pen = t.closest('[data-prx-pen]'); if (pen) { prxStartEdit(pen.dataset.id, pen.dataset.prxPen, pen.dataset.drawer === '1'); return; }
     const mb = t.closest('[data-prx-menu]'); if (mb) { prxMenu(mb, mb.dataset.prxMenu); return; }
     const old = t.closest('[data-prx-older]'); if (old) { const k = +old.dataset.prxOlder; PRX.openOld.has(k) ? PRX.openOld.delete(k) : PRX.openOld.add(k); prxDraw(); return; }
+    const piv = t.closest('[data-prx-invoice]'); if (piv) { openInvoice(piv.dataset.prxInvoice); return; }
     if (t.closest('[data-prx-stop]')) return;
     if (t.closest('[data-prx-close]') || t === $('prx-scrim')) { prxClose(); return; }
     if (t.closest('[data-prx-askdel]')) { PRX.confirm = PRX.detail.id; prxDrawer(); return; }
@@ -5188,6 +5234,7 @@
           ${canAsk ? `<button class="btn-ghost btn-sm" type="button" id="pr-rq-btn">Request a revision…</button>` : ''}
           ${p.status === 'draft' ? `<button class="btn-ghost btn-sm" type="button" id="pr-sent-btn">Mark as sent</button>` : ''}
           ${canSend ? `<button class="btn-ghost btn-sm" type="button" id="pr-sign-btn">Mark signed offline</button>` : ''}
+          ${p.status === 'signed' ? `<button class="btn-primary btn-sm" type="button" id="pr-inv-btn">Create invoice</button>` : ''}
           ${p.status === 'draft' ? `<button class="btn-ghost btn-sm" type="button" id="pr-del-btn" style="color:#A8382B">Delete draft</button>` : ''}</div>
         <div class="cp-card" style="padding:0;overflow:hidden;margin-bottom:14px"><div id="pr-pdf-pages" style="max-height:min(1100px,78vh)" aria-label="The proposal PDF"></div></div>
         <div class="cp-kpis">
@@ -5256,6 +5303,7 @@
       emailsCard($('pr-emails'), 'proposal', p.id);
       // #315: the deposit invoice drafted by the signature
       if (p.status === 'signed') {
+        $('pr-inv-btn').addEventListener('click', () => openProposalInvoice(p.id));
         try { const { data: inv } = await api('/invoices?proposal_id=' + p.id, null, true); const d = inv.find(i => i.kind === 'deposit' && i.status !== 'void');
           if (d) { const li = $('pr-deposit-inv'); li.hidden = false; li.innerHTML = `<span>Deposit invoice</span><strong><a class="cp-link" href="#finance">${esc(d.number)}</a> <span class="cp-pill ${d.overdue ? 'bad' : (INV_PILL[d.status] || '')}">${esc(d.overdue ? 'overdue' : d.status)}</span> <span class="cp-muted">${money2.format(d.amount)}</span></strong>`; } } catch (e) {}
       }
@@ -6303,6 +6351,50 @@
     catch (e) { ps.innerHTML = '<option value="">— none —</option>'; }
     setTimeout(() => $('inv-new-client').focus(), 30);
   }
+  // 2026-11-04: Create invoice on a signed proposal. The client, job and proposal come from the proposal; always a draft.
+  const IPF = { bill: null, kind: null };
+  const ipfNum = () => { const n = parseFloat($('inv-prop-amount').value.replace(/[$,\s]/g, '')); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+  function ipfCalc() {
+    const b = IPF.bill, a = ipfNum(), rem = Math.round((b.contract - b.invoiced - a) * 100) / 100;
+    $('inv-prop-s-contract').textContent = money2.format(b.contract); $('inv-prop-s-prev').textContent = money2.format(b.invoiced);
+    $('inv-prop-s-this').textContent = money2.format(a); $('inv-prop-s-rem').textContent = (rem < 0 ? '−' : '') + money2.format(Math.abs(rem));
+    $('inv-prop-warn-w').hidden = rem >= 0;
+    if (rem < 0) $('inv-prop-warn').textContent = `This goes ${money2.format(-rem)} over the contract. You can still create it, for example when extra work was agreed.`;
+  }
+  function ipfPick(kind) {
+    const b = IPF.bill; IPF.kind = kind;
+    const kinds = (b.has_deposit ? [] : [['deposit', 'Deposit']]).concat([['progress', 'Progress'], ['final', 'Final']]);
+    $('inv-prop-kinds').innerHTML = kinds.map(([k, l]) => `<button type="button" data-k="${k}" aria-pressed="${k === kind}">${l}</button>`).join('');
+    const amt = kind === 'deposit' ? b.deposit_amount : b.left;
+    $('inv-prop-amount').value = amt > 0 ? amt.toFixed(2) : '';
+    $('inv-prop-desc').value = kind === 'deposit' ? (b.deposit_text || `Deposit per Proposal No. ${b.label}`) : `${kind === 'final' ? 'Final invoice' : 'Progress billing'} per Proposal No. ${b.label}`;
+    $('inv-prop-due-hint').textContent = kind === 'deposit' ? 'Blank: due upon receipt.' : 'Blank: 30 days after it is issued.';
+    ipfCalc();
+  }
+  async function openProposalInvoice(id) {
+    try { IPF.bill = (await api('/proposals/' + id + '/invoices', null, true)).data; }
+    catch (x) { toast(x.message, true); return; }
+    $('inv-prop-title').textContent = `New invoice from proposal ${IPF.bill.label}`;
+    $('inv-prop-err').className = 'cp-form-err'; dateSet($('inv-prop-due'), '');
+    ipfPick(IPF.bill.has_deposit || !(IPF.bill.deposit_amount > 0) ? 'progress' : 'deposit');
+    $('inv-prop-overlay').classList.add('open');
+    setTimeout(() => $('inv-prop-amount').focus(), 30);
+  }
+  $('inv-prop-kinds').addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (b) ipfPick(b.dataset.k); });
+  $('inv-prop-amount').addEventListener('input', ipfCalc);
+  $('inv-prop-cancel').addEventListener('click', () => closeOverlay('inv-prop-overlay'));
+  $('inv-prop-form').addEventListener('submit', async (e) => {
+    e.preventDefault(); const err = $('inv-prop-err'), id = IPF.bill.proposal_id; err.className = 'cp-form-err';
+    if (ipfNum() <= 0) { err.textContent = 'Enter an amount above $0.'; err.className = 'cp-form-err show'; $('inv-prop-amount').focus(); return; }
+    $('inv-prop-go').disabled = true;
+    try {
+      const { data } = await api('/proposals/' + id + '/invoices', { method: 'POST', body: JSON.stringify({ kind: IPF.kind, amount: ipfNum(), description: $('inv-prop-desc').value, due_at: dateGet($('inv-prop-due')) || null }) }, true);
+      closeOverlay('inv-prop-overlay'); toast(`Draft ${data.number} created. Nothing went to the client`);
+      if ($('prx-billing')) prxBilling(id);
+      openInvoice(data.id);
+    } catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
+    finally { $('inv-prop-go').disabled = false; }
+  });
   $('inv-new').addEventListener('click', openNewInvoice);
   $('inv-new-cancel').addEventListener('click', () => closeOverlay('inv-new-overlay'));
   $('inv-new-form').addEventListener('submit', async (e) => {
@@ -6693,8 +6785,7 @@
     proposal: ['Proposal FR-MN-021-P1', `<div class="br-p-title">PROPOSAL</div><div class="br-p-meta"><span>No. <b>FR-MN-021-P1</b></span><span>Date <b>October 20, 2026</b></span><span>Prepared for <b>Sample Client LLC</b></span><span>Project <b>410 E 58th St</b></span></div>
       <div class="br-p-h">Scope of work</div><div>1. Sidewalk bridge and DOB permits.<br>2. Repoint the east elevation (approx. 1,850 sf).<br>3. Replace six (6) steel lintels per the FISP report.</div>
       <div class="br-p-h">Price</div><table><tr><th>Item</th><th class="r">Amount</th></tr><tr><td>Sidewalk bridge, permits, mobilization</td><td class="r">$6,400</td></tr><tr><td>Repoint east elevation · 1,850 sf</td><td class="r">$27,750</td></tr><tr><td>Steel lintels · 6 ea</td><td class="r">$14,400</td></tr><tr class="tot"><td>Total</td><td class="r">$48,550</td></tr></table>`],
-    invoice: ['Invoice INV-2026-0142', `<div class="br-p-title">INVOICE</div><div class="br-p-meta"><span>No. <b>INV-2026-0142</b></span><span>Date <b>October 20, 2026</b></span><span>Bill to <b>Sample Client LLC</b></span><span>Due <b>November 4, 2026</b></span></div>
-      <table><tr><th>Description</th><th class="r">Amount</th></tr><tr><td>Garage slab repairs · progress to Oct 15</td><td class="r">$34,480</td></tr><tr><td>Less 10% retainage</td><td class="r">−$3,448</td></tr><tr class="tot"><td>Amount due</td><td class="r">$31,032</td></tr></table>`],
+    invoice: ['Invoice INV-2026-0142', `<div class="br-p-title" style="font-weight:400;letter-spacing:.17em">INVOICE</div><div class="br-p-meta"><span>Invoice no. <b>INV-2026-0142</b></span><span>Date <b>October 20, 2026</b></span><span>Bill to <b>Sample Client LLC</b></span><span>Due <b style="color:#B11E2E">Due Upon Receipt</b></span></div><table><thead><tr><th>Description of work billed</th><th class="r">Amount</th></tr></thead><tbody><tr><td>Deposit: 50% of contract per Proposal No. 1042</td><td class="r">$24,600.00</td></tr><tr><td>Full Contract Balance</td><td class="r">$49,200.00</td></tr><tr><td>Previously Invoiced</td><td class="r">$0.00</td></tr><tr style="background:#B11E2E"><td style="color:#fff;border:0;font-weight:600">Amount Due</td><td class="r" style="color:#fff;border:0;font-weight:600">$24,600.00</td></tr><tr><td>Remaining Balance After This Invoice</td><td class="r">$24,600.00</td></tr></tbody></table><div class="br-p-h">Payment</div><div class="br-p-meta"><span>Method <b>Check</b></span><span>Payable to <b>Superstars Contracting Inc.</b></span></div>`],
     aia: ['G702 · Application No. 3', `<div class="br-p-title">APPLICATION FOR PAYMENT</div><div class="br-p-meta"><span>Application <b>No. 3</b></span><span>Period <b>Sep 16 – Oct 15, 2026</b></span><span>To owner <b>Sample Client LLC</b></span><span>Project <b>PG-MN-P2</b></span></div>
       <table><tr><td>Contract sum to date</td><td class="r">$186,200</td></tr><tr><td>Completed &amp; stored to date</td><td class="r">$112,480</td></tr><tr><td>Less retainage</td><td class="r">−$11,248</td></tr><tr class="tot"><td>Current payment due</td><td class="r">$31,032</td></tr></table>`]
   };

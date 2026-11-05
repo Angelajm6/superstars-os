@@ -17,7 +17,11 @@ invoices and email them straight to the client".
 
 Columns added to `invoice` (idempotent, both backends): sent_at, sent_to,
 sent_name, sent_count, viewed_at, view_count, pdf_path, pdf_rendered_at,
-token_hash, token_expires_at, last_message, design_doc_id, design_html, design_at.
+token_hash, token_expires_at, last_message, design_doc_id, design_html, design_at, pdf_layout.
+
+The company's invoice layout (2026-11-04, Angela's design): `render_document` draws every invoice that has no design of its
+own. Previously Invoiced = earlier invoices on the same proposal, not void, so a later invoice never changes this page.
+`LAYOUT` numbers the layout; a stored PDF from an older one is redrawn on its next open (`pdf_file`).
 
 A design made with Claude (2026-11-02): saving a Claude document to the job as an invoice's document
 (`claude_docs.save_to_job`) stores its HTML on the invoice (`set_design`); Preview, the PDF and the client's link then
@@ -61,7 +65,8 @@ DEFAULT_PAY_INSTRUCTIONS = ("Please remit by check payable to Superstars Contrac
 _COLUMNS = (("sent_at", "TEXT"), ("sent_to", "TEXT"), ("sent_name", "TEXT"), ("sent_count", "INTEGER DEFAULT 0"),
             ("viewed_at", "TEXT"), ("view_count", "INTEGER DEFAULT 0"), ("pdf_path", "TEXT"), ("pdf_rendered_at", "TEXT"),
             ("token_hash", "TEXT"), ("token_expires_at", "TEXT"), ("last_message", "TEXT"),
-            ("design_doc_id", "INTEGER"), ("design_html", "TEXT"), ("design_at", "TEXT"))
+            ("design_doc_id", "INTEGER"), ("design_html", "TEXT"), ("design_at", "TEXT"), ("pdf_layout", "INTEGER DEFAULT 0"))
+LAYOUT = 2   # bump when the invoice layout changes: stored PDFs from an older one are redrawn
 PRIVATE_KEYS = ("pdf_path", "token_hash", "design_html")
 
 
@@ -185,55 +190,200 @@ def render_document(conn, inv: dict) -> str:
         return aia_billing.render_document(conn, app, inv)
     if inv.get("design_html"):
         return _design_document(conn, inv)
-    from proposals import _DOC_CSS
+    return _standard_document(conn, inv)
+
+
+_INV_CSS = """
+*{box-sizing:border-box}body{margin:0;background:#FAF7F1;color:#14161C;font:13.5px/1.5 Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.inv{max-width:820px;margin:0 auto;background:#fff;padding:44px 48px 40px;overflow-wrap:anywhere}
+.inv-lh{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;padding-bottom:10px;border-bottom:3px solid #B11E2E}
+.inv-lh .brand-logo{display:block;max-height:58px;max-width:240px;object-fit:contain}
+.inv-name{font-size:15px;font-weight:800;letter-spacing:.6px;text-transform:uppercase}
+.inv-co{text-align:right;color:#5D6068;font-size:12.5px;min-width:0}.inv-co b{display:block;color:#14161C;font-size:13.5px;font-weight:600}
+.inv-top{display:grid;grid-template-columns:1fr 1.45fr;gap:20px;align-items:end;margin-top:44px;padding-bottom:12px;border-bottom:1px solid #DCDDE0}
+.inv-word{font-size:36px;font-weight:400;letter-spacing:.17em;line-height:1.1;margin:0}
+.inv-word::after{content:"";display:block;width:58px;height:3px;background:#B11E2E;margin-top:14px}
+.inv-flag{display:inline-block;margin-bottom:10px;padding:2px 9px;border:1.5px solid #B11E2E;border-radius:5px;color:#B11E2E;font-size:11px;font-weight:700;letter-spacing:.14em}
+.inv-flag.void{background:#B11E2E;color:#fff}
+.inv-meta{display:grid;grid-template-columns:auto 1fr;margin:0;min-width:0}.inv-meta>*{padding:4px 0;border-bottom:1px solid #DCDDE0}
+.inv-meta dt{color:#8D9096;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;padding-right:18px;text-align:right}
+.inv-meta dd{margin:0;text-align:right;font-size:12.5px}.inv-meta dd.no{font-weight:700}.inv-meta dd.due{font-weight:700;color:#B11E2E}
+.inv-parties{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #DCDDE0}.inv-parties>div{padding:24px 0 12px;min-width:0}
+.inv-parties>div+div{padding-left:22px;border-left:1px solid #DCDDE0}
+.inv-label{font-size:10.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#B11E2E;margin:0 0 8px}
+.inv-parties p.t{margin:0;color:#5D6068}.inv-parties p.s{margin:0 0 6px;color:#14161C;font-weight:600;font-size:14.5px}
+.inv-work{margin-top:30px}.inv-work .hd{display:flex;justify-content:space-between;gap:16px;padding:0 10px 8px;border-bottom:2.5px solid #14161C;color:#8D9096;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase}
+.inv-work .ln{display:flex;justify-content:space-between;gap:28px;padding:16px 10px;border-bottom:1px solid #DCDDE0}
+.inv-work .ln span:first-child{max-width:78%;min-width:0}.inv-work .ln span:last-child{white-space:nowrap}
+.inv-tot{margin-top:18px}.inv-tot .r{display:flex;justify-content:space-between;gap:16px;padding:8px 10px;border-bottom:1px solid #DCDDE0;font-size:14.5px}
+.inv-tot .r span:first-child{color:#5D6068;min-width:0}.inv-tot .r span:last-child{white-space:nowrap}
+.inv-tot .r.bar{background:#B11E2E;border-bottom:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.inv-tot .r.bar span{color:#fff}
+.inv-tot .r.bar.paid{background:#2E7D4F}
+.inv-pay{margin-top:32px}.inv-pay .inv-label{padding:0 10px;margin-bottom:6px}
+.inv-cols{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;border-top:2.5px solid #14161C;border-bottom:1px solid #DCDDE0}
+.inv-cols>div{padding:14px 10px;min-width:0}.inv-cols>div+div{border-left:1px solid #DCDDE0}
+.inv-cols small{display:block;color:#8D9096;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
+.inv-cols b{display:block;font-weight:600;font-size:14px}.inv-cols em{display:block;font-style:normal;color:#8D9096;font-size:12px;margin-top:5px}
+.inv-more{margin:12px 10px 0;color:#5D6068;font-size:12.5px;white-space:pre-line}
+.inv-notes{margin-top:24px;break-inside:avoid}.inv-notes .inv-label{padding:0 10px}
+.inv-thanks{margin-top:34px;padding-top:20px;border-top:1px solid #DCDDE0;text-align:center;break-inside:avoid}
+.inv-thanks h2{margin:0;font-size:21px;font-weight:400;letter-spacing:.05em}
+.inv-thanks h2::after{content:"";display:block;width:42px;height:3px;background:#B11E2E;margin:10px auto 12px}
+.inv-thanks p{margin:0;color:#5D6068;font-size:13px}.inv-thanks p+p{color:#8D9096;font-size:12px;margin-top:6px}
+@media (max-width:640px){
+  .inv{padding:24px 18px 26px}.inv-lh{align-items:center}.inv-lh .brand-logo{max-height:44px;max-width:130px}.inv-co{font-size:11.5px}
+  .inv-top{grid-template-columns:1fr;margin-top:26px;gap:22px}.inv-word{font-size:30px}
+  .inv-parties{grid-template-columns:1fr}.inv-parties>div+div{padding-left:0;border-left:0;border-top:1px solid #DCDDE0}
+  .inv-work .ln span:first-child{max-width:none}
+  .inv-cols{grid-auto-flow:row}.inv-cols>div+div{border-left:0;border-top:1px solid #DCDDE0}
+}
+@page{size:letter;margin:.4in .5in}
+@media print{body{background:#fff}.inv{max-width:none;padding:0}.inv-top{margin-top:24px}.inv-parties>div{padding-top:18px}.inv-work{margin-top:22px}.inv-tot{margin-top:12px}.inv-pay{margin-top:22px}.inv-cols>div{padding:10px}.inv-thanks{margin-top:20px;padding-top:14px}.inv-word::after,.inv-thanks h2::after,.inv-lh{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+"""
+
+
+def _city_line(*parts) -> str:
+    city, state, zip_code = (str(x or "").strip() for x in parts)
+    return ", ".join(x for x in (city, " ".join(y for y in (state, zip_code) if y)) if x)
+
+
+def _two_lines(address: str) -> list:
+    """A one-line address on two lines: "356 Wythe Ave, Suite 300, Brooklyn, NY 11249" -> street / city, state zip."""
+    bits = [x.strip() for x in (address or "").split(",") if x.strip()]
+    return [", ".join(bits[:-2]), ", ".join(bits[-2:])] if len(bits) >= 3 else ([address] if address else [])
+
+
+def _contract(conn, inv: dict) -> Optional[dict]:
+    """The signed proposal behind this invoice: its label, total, title and place, and what was invoiced before this one."""
+    if not inv.get("proposal_id"):
+        return None
+    try:
+        import proposal_engine
+        import proposals
+        p = proposals.get(conn, inv["proposal_id"])
+        if not p:
+            return None
+        total = float(proposals.amounts(conn, p).get("total") or 0)
+        prev = _one(conn.execute("SELECT COALESCE(SUM(amount), 0) AS v FROM invoice WHERE proposal_id = ? AND id < ? AND status <> 'void'",
+                                 (inv["proposal_id"], inv["id"])))["v"]
+    except Exception as ex:   # a document never fails over its contract rows
+        log.warning("contract rows skipped for invoice %s: %s", inv.get("id"), type(ex).__name__)
+        conn.rollback()
+        return None
+    return {"label": proposal_engine.label(p), "total": total, "prev": round(float(prev or 0), 2), "title": p.get("title"),
+            "signed_at": p.get("signed_at"), "street": p.get("building_address_line") or p.get("building_address"),
+            "city": _city_line(p.get("building_city"), p.get("building_state"), p.get("building_zip")) if p.get("building_address_line") else "",
+            "attn": p.get("recipient_name") or p.get("contact_name")}
+
+
+def _bill_to(conn, inv: dict, contract: Optional[dict]) -> list:
+    """Client name, Attn, address (street / city, state zip), each only when known."""
+    out = [inv.get("client_name") or ""]
+    attn = inv.get("sent_name") or (contract or {}).get("attn")
+    org = None
+    if inv.get("client_org_id"):
+        try:
+            org = crm.get_org(conn, inv["client_org_id"])
+            attn = attn or default_recipient(conn, inv).get("name")
+        except Exception as ex:
+            log.info("client details skipped for invoice %s: %s", inv.get("id"), type(ex).__name__)
+            conn.rollback()
+    if attn:
+        out.append(f"Attn: {attn}")
+    if org:
+        out += [x for x in (org.get("address_line"), _city_line(org.get("city"), org.get("state"), org.get("zip"))) if x]
+    return out
+
+
+def _project(conn, inv: dict, contract: Optional[dict]) -> tuple:
+    """(title, address lines, what the thank-you calls the place)."""
+    title = (contract or {}).get("title") or inv.get("project_name") or inv.get("project_code") or "—"
+    street, city = (contract or {}).get("street"), (contract or {}).get("city")
+    if not street:
+        street = inv.get("building_address")
+    if not street and inv.get("project_code"):
+        try:
+            r = _one(conn.execute("SELECT address FROM projects WHERE project_code = ?", (inv["project_code"],)))
+            street = (r or {}).get("address")
+        except Exception:
+            conn.rollback()
+    return title, [x for x in (street, city) if x], street or inv.get("project_name") or "this project"
+
+
+def _due_text(inv: dict) -> str:
+    """Deposits are due on receipt (the stored week only keeps "overdue" honest); a date on or before the issue date reads the same."""
+    due, issued = inv.get("due_at"), inv.get("issued_at")
+    if inv.get("kind") == "deposit" and (not due or (issued and due == (date.fromisoformat(str(issued)[:10]) + timedelta(days=invoices.DEPOSIT_NET_DAYS)).isoformat())):
+        return "Due Upon Receipt"
+    if not due:
+        return "Set when issued"
+    return "Due Upon Receipt" if issued and str(due)[:10] <= str(issued)[:10] else _fmt_date(due)
+
+
+def _standard_document(conn, inv: dict) -> str:
+    """The company's invoice: every invoice without a design of its own, in every situation (Angela's layout, 2026-11-04)."""
     e = _html.escape
     facts = _company_facts(conn)
     status = inv.get("status")
-    kind = KIND_LABEL.get(inv.get("kind"), "Invoice")
-    stamp = ""
+    number = e(inv["number"])
+    contract = _contract(conn, inv)
+    if contract and contract["total"] <= 0:
+        contract = None
+    bill = _bill_to(conn, inv, contract)
+    title, where, place = _project(conn, inv, contract)
+    uri = company_brand.logo_data_uri(conn)
+    mark = (f'<img class="brand-logo" alt="{COMPANY_NAME}" src="{uri}">' if uri else f'<div class="inv-name">{COMPANY_NAME}</div>')
+    lines = "".join("<br>" + e(x) for x in company_brand.letterhead_lines(facts))
+    flag = {"draft": '<span class="inv-flag">DRAFT</span>', "void": '<span class="inv-flag void">VOID</span>'}.get(status, "")
+    meta = f'<dt>Invoice no.</dt><dd class="no">{number}</dd><dt>Date</dt><dd>{e(_fmt_date(inv.get("issued_at")) if inv.get("issued_at") else "Not issued yet")}</dd>'
+    if status not in ("paid", "void"):
+        meta += f'<dt>Due</dt><dd class="due">{e(_due_text(inv))}</dd>'
+    if contract:
+        signed = f', signed {_fmt_date(contract["signed_at"])}' if contract.get("signed_at") else ""
+        meta += f'<dt>Contract</dt><dd>Proposal No. {e(contract["label"])}{e(signed)}</dd>'
+    rows = ""
+    if contract:
+        rows += (f'<div class="r"><span>Full Contract Balance (Proposal No. {e(contract["label"])})</span><span>{_money(contract["total"])}</span></div>'
+                 f'<div class="r"><span>Previously Invoiced</span><span>{_money(contract["prev"])}</span></div>')
+    if inv.get("retainage"):
+        rows += f'<div class="r"><span>Retainage Held</span><span>{_money(inv["retainage"])}</span></div>'
     if status == "paid":
-        stamp = f"<div class='sig keep'><div class='stamp'>Paid in full on {e(_fmt_date(inv.get('paid_at')))} — thank you.</div></div>"
+        rows += f'<div class="r bar paid"><span>Paid in full on {e(_fmt_date(inv.get("paid_at")))}</span><span>{_money(0)}</span></div>'
     elif status == "void":
-        stamp = "<div class='sig keep'><div class='stamp bad'>Void — this invoice was cancelled.</div></div>"
-    elif status == "draft":
-        stamp = "<div class='sig keep'><div class='stamp bad'>Draft — not yet issued.</div></div>"
-    pay_rows = ""
-    if inv.get("payments"):
-        pay_rows = "".join(
-            f"<tr><td>{e(_fmt_date(p.get('paid_on')))}</td><td>{e((p.get('method') or '').upper())}</td>"
-            f"<td>{e(p.get('reference') or '')}</td><td class='num'>{_money(p.get('amount'))}</td></tr>" for p in inv["payments"])
-        pay_rows = (f"<h2>Payments received</h2><table><thead><tr><th>Received</th><th>Method</th><th>Reference</th>"
-                    f"<th class='num'>Amount</th></tr></thead><tbody>{pay_rows}</tbody></table>")
-    retain = f"<tr><td>Retainage held</td><td class='num'>{_money(inv.get('retainage'))}</td></tr>" if inv.get("retainage") else ""
-    balance_label = "Balance due" if status != "paid" else "Balance"
-    instructions = facts.get("payment_instructions") or DEFAULT_PAY_INSTRUCTIONS
-    letter = " · ".join(x for x in (facts["company_address"], facts["company_phone"], facts["company_email"]) if x)
-    lic = f" · License {e(facts['company_license'])}" if facts["company_license"] else ""
-    where = inv.get("building_address") or inv.get("project_name") or inv.get("project_code") or ""
+        rows += f'<div class="r"><span>Amount Due</span><span>{_money(0)}</span></div>'
+    else:
+        if float(inv.get("amount_paid") or 0) > 0:
+            rows += f'<div class="r"><span>Paid to Date</span><span>−{_money(inv["amount_paid"])}</span></div>'
+        rows += f'<div class="r bar"><span>Amount Due</span><span>{_money(inv.get("balance"))}</span></div>'
+    if contract and status != "void":
+        rest = round(contract["total"] - contract["prev"] - float(inv.get("amount") or 0), 2)
+        rows += f'<div class="r"><span>Remaining Balance After This Invoice</span><span>{"−" if rest < 0 else ""}{_money(abs(rest))}</span></div>'
+    pay = ""
+    if status not in ("paid", "void"):
+        mail = _two_lines(facts["company_address"])
+        mail_col = f'<div><small>Mail to</small><b>{"<br>".join(e(x) for x in mail)}</b></div>' if mail else ""
+        more = f'<p class="inv-more">{e(facts["payment_instructions"])}</p>' if facts.get("payment_instructions") else ""
+        pay = (f'<div class="inv-pay"><p class="inv-label">Payment</p><div class="inv-cols">'
+               f'<div><small>Method</small><b>Check</b><em>Note invoice no. {number} on the memo line</em></div>'
+               f'<div><small>Payable to</small><b>Superstars Contracting Inc.</b></div>{mail_col}</div>{more}</div>')
+    notes = (f'<div class="inv-notes"><p class="inv-label">Notes</p><p class="inv-more" style="margin-top:0">{e(inv["notes"])}</p></div>'
+             if inv.get("notes") and status != "void" else "")
+    thanks = "" if status == "void" else (
+        f'<div class="inv-thanks"><h2>Thank you.</h2><p>We appreciate your business and the opportunity to work on {e(place)}.</p>'
+        + (f'<p>Questions? {e(facts["company_phone"])}</p>' if facts.get("company_phone") else "") + "</div>")
+    desc = inv.get("description") or KIND_LABEL.get(inv.get("kind"), "Invoice")
     return f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Invoice {e(inv['number'])} — {COMPANY_NAME}</title><style>{_DOC_CSS}{company_brand.BRAND_CSS}</style></head><body>
-<div class="sheet"><div class="bar"></div><div class="pad">
-  <div class="head">{company_brand.brand_block(conn, "Facade restoration · New York City")}
-    <div class="meta"><strong>{e(kind.upper())}</strong>{e(inv['number'])}<br>Issued {e(_fmt_date(inv.get('issued_at')))}<br>Due {e(_fmt_date(inv.get('due_at')))}</div></div>
-  <h1>{e(inv.get('description') or kind)}</h1>
-  <div class="two" style="margin-top:14px">
-    <div class="fact"><b>Bill to</b>{e(inv.get('client_name') or '')}{('<br>' + e(inv['sent_name'])) if inv.get('sent_name') else ''}{('<br>' + e(inv['sent_to'])) if inv.get('sent_to') else ''}</div>
-    <div class="fact"><b>Project</b>{e(where or '—')}{('<br>' + e(inv['project_code'])) if inv.get('project_code') and where != inv.get('project_code') else ''}{('<br>Proposal ' + e(inv['proposal_number'])) if inv.get('proposal_number') else ''}</div>
-  </div>
-  <h2>Amount</h2>
-  <table><tbody>
-    <tr><td>{e(inv.get('description') or kind)}</td><td class='num'>{_money(inv.get('amount'))}</td></tr>
-    {retain}
-    <tr><td>Paid to date</td><td class='num'>{_money(inv.get('amount_paid'))}</td></tr>
-    <tr class='total'><td>{balance_label}</td><td class='num'>{_money(inv.get('balance'))}</td></tr>
-  </tbody></table>
-  <div class="price keep"><div><b>{balance_label}</b><div class='d'>Due {e(_fmt_date(inv.get('due_at')))}</div></div><div class="v">{_money(inv.get('balance'))}</div></div>
-  {pay_rows}
-  <div class="keep"><h2>How to pay</h2><p>{e(instructions)}</p></div>
-  {('<div class="keep"><h2>Notes</h2><p>' + e(inv['notes']) + '</p></div>') if inv.get('notes') and status != 'void' else ''}
-  {stamp}
-  <div class="foot">{COMPANY_NAME}{(' · ' + e(letter)) if letter else ''}{lic} · Invoice {e(inv['number'])}</div>
-</div></div></body></html>"""
+<title>Invoice {number} — {COMPANY_NAME}</title><style>{_INV_CSS}</style></head><body>
+<div class="inv">
+  <div class="inv-lh">{mark}<div class="inv-co"><b>{COMPANY_NAME}</b>{lines[4:] if lines else ''}</div></div>
+  <div class="inv-top"><div>{flag}<h1 class="inv-word">INVOICE</h1></div><dl class="inv-meta">{meta}</dl></div>
+  <div class="inv-parties"><div><p class="inv-label">Bill to</p><p class="s">{e(bill[0])}</p><p class="t">{"<br>".join(e(x) for x in bill[1:])}</p></div>
+    <div><p class="inv-label">Project</p><p class="s">{e(title)}</p><p class="t">{"<br>".join(e(x) for x in where)}</p></div></div>
+  <div class="inv-work"><div class="hd"><span>Description of work billed</span><span>Amount</span></div>
+    <div class="ln"><span>{e(desc)}</span><span>{_money(inv.get("amount"))}</span></div></div>
+  <div class="inv-tot">{rows}</div>
+  {pay}{notes}{thanks}
+</div></body></html>"""
 
 
 def _design_document(conn, inv: dict) -> str:
@@ -304,8 +454,8 @@ def render_pdf(conn, invoice_id: int, *, actor=None) -> dict:
             pass
         if not res.get("ok"):
             return {"ok": False, "error": res.get("error") or "render failed"}
-        conn.execute("UPDATE invoice SET pdf_path = ?, pdf_rendered_at = ? WHERE id = ?",
-                     (ssc_paths.store_rel(pdf_path), _now(), invoice_id))
+        conn.execute("UPDATE invoice SET pdf_path = ?, pdf_rendered_at = ?, pdf_layout = ? WHERE id = ?",
+                     (ssc_paths.store_rel(pdf_path), _now(), LAYOUT, invoice_id))
         conn.commit()
         return {"ok": True, "size": pdf_path.stat().st_size, "engine": res.get("engine")}
     except Exception as e:   # missing browser, timeout, disk — the link is the reference copy
@@ -314,8 +464,8 @@ def render_pdf(conn, invoice_id: int, *, actor=None) -> dict:
 
 
 def pdf_file(conn, invoice_id: int) -> Optional[Path]:
-    r = _one(conn.execute("SELECT pdf_path FROM invoice WHERE id = ?", (invoice_id,)))
-    if not r or not r.get("pdf_path"):
+    r = _one(conn.execute("SELECT pdf_path, pdf_layout FROM invoice WHERE id = ?", (invoice_id,)))
+    if not r or not r.get("pdf_path") or int(r.get("pdf_layout") or 0) < LAYOUT:   # older layout: the caller redraws it
         return None
     p = ssc_paths.resolve_data_path(r["pdf_path"])
     if not (p.resolve().is_relative_to(_pdf_dir().resolve()) and p.exists()):

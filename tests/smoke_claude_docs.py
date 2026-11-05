@@ -262,10 +262,10 @@ def main() -> int:
                 inv = invoices.get(conn, inv1)
                 assert inv["design_doc_id"] == did and "Total $12,500.00" in inv["design_html"]
                 doc = invoice_docs.render_document(conn, inv)
-                assert "Total $12,500.00" in doc and "How to pay" not in doc and "<body>" in doc
+                assert "Total $12,500.00" in doc and "Payable to" not in doc and "<body>" in doc
                 pub = invoice_docs.public(inv)
                 assert pub["has_design"] and "design_html" not in pub
-                assert "How to pay" in invoice_docs.render_document(conn, invoices.get(conn, inv2))   # the other one: standard
+                assert "Payable to" in invoice_docs.render_document(conn, invoices.get(conn, inv2))   # the other one: standard
                 # a later save follows the invoice without naming it; a design without the amount is flagged
                 claude_docs.update(conn, ids["admin"], did, html="<h1>Invoice INV-2026-9901</h1><p>New look, total $9,000</p>")
                 r4 = claude_docs.save_to_job(conn, ids["admin"], did, JOB)
@@ -294,7 +294,7 @@ def main() -> int:
             try:
                 inv = invoices.get(conn, inv1)
                 assert not inv.get("design_html") and not inv.get("design_doc_id")
-                assert "How to pay" in invoice_docs.render_document(conn, inv)
+                assert "Payable to" in invoice_docs.render_document(conn, inv)
 
                 # titled as the invoice: every save path links it with nothing picked (Claude's card, the connector)
                 titled = claude_docs.create(conn, ids["admin"], chat, None, "Invoice INV-2026-9902 - Cdc job",
