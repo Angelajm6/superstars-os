@@ -21,6 +21,20 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Gmail labels (Bookore, 2026-11-09)
+
+* Stage 1 of 2 of the accepted prototype: https://claude.ai/artifact/AD3UWCWVrSTcdKFN1grgyk. Stage 2 (the owner brief: 7:00 AM Eastern weekdays for Arun, Angela reviews
+  and sends it from her Gmail; Arun's own login view is later, not now) is not built yet.
+* `gmail_labels.py`: the Inbox's sorting as plain Gmail labels (no "SSC/" prefix, no labels per job): the 9 kinds, "For <owner's first name>", "Needs reply", "FYI (cc)".
+  Off until the person switches it on (Settings > Account > Gmail labels, admin / C-suite, own mailbox only); needs the Inbox's gmail.modify scope.
+* Triage now sees Cc and how the mailbox was on the email (`mail_message.addressed`: from / to / cc / other) and answers `for_owner`. The owner is the person picked on the
+  card (`mail_label_pref.owner_user_id`). New columns on `mail_message`: addressed, from_team, business, triage_needs, for_owner, backfilled_at, gmail_labels (the keys this
+  app put on it; a change takes off exactly those). All ensured at boot by `inbox.ensure` → `gmail_labels.ensure`.
+* "Needs reply" comes off when this mailbox or a colleague (same domain) writes later in the conversation, on Done, or when archived in Gmail.
+* "Label my last 90 days": `ai_state = 'backfill'` rows are sorted by the small model only (no cards, `needs_action` 0 so the app's lists don't flood), after new mail in
+  `claude_round`; they get kind + FYI only. "Remove all labels" deletes the labels the app made and only takes a person's own same-name label off the app's emails.
+* Guard: `tests/smoke_gmail_labels.py` (in the gate).
+
 ### One-tap accepts in the bell (Bookore, 2026-11-04)
 
 * Phase 3 of 4 of the accepted prototype: https://claude.ai/artifact/UZ2YNWpwy6SmTYF2z9ReuR. Phase 4 (Claude spots more) is to be decided once 1-3 are in use.
