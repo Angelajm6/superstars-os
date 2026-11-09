@@ -200,10 +200,18 @@
   .pj-pm .old div.gone > span { text-decoration: line-through; color: var(--muted); }
   .pj-pm .note { font-size: 12px; color: var(--ink-2); background: var(--canvas); border-radius: 8px; padding: 8px 10px; }
   .pj-pm .ft { display: flex; justify-content: flex-end; gap: 8px; }
+  .pj-pm label .rl { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .pj-pm .add-btn { align-self: flex-start; background: none; border: 0; padding: 6px 0; color: var(--accent); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .pj-pm .add { border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .pj-pm .add h4 { margin: 0; font-size: 13px; font-weight: 600; }
+  .pj-pm .add input { width: 100%; box-sizing: border-box; min-height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; font: inherit; font-size: 14px; }
+  .pj-pm .add .row { display: flex; justify-content: flex-end; gap: 8px; }
+  .pj-pm .add .cp-form-err { margin: 0; }
   .pj-pmscrim { position: fixed; inset: 0; z-index: 9040; background: transparent; }
   @media (max-width: 860px) {
     .pj-pm { position: fixed; left: 0 !important; right: 0; bottom: 0; top: auto !important; width: auto; border-radius: 14px 14px 0 0; padding: 14px 18px calc(20px + env(safe-area-inset-bottom, 0px)); animation: pj-up .2s ease; }
     .pj-pm label { min-height: 48px; padding: 0 10px; font-size: 15px; }
+    .pj-pm .add input { min-height: 46px; font-size: 16px; } .pj-pm .add .row button, .pj-pm .add-btn { min-height: 44px; }
     .pj-pm .ft button { min-height: 46px; flex: 1; } .pj-pm .old button { min-height: 44px; flex: none; }
     .pj-pmscrim { background: rgba(34,38,51,.38); }
   }
@@ -3779,13 +3787,14 @@
   // ---------- a job's PMs (2026-10-23): GET / PUT /api/company/portal/projects/<code>/pms ----------
   // Only PM rows (and outdated ones: an inactive account, or someone who is no longer a PM) are
   // edited here; the job's clients / architects keep their access (shown as counts only).
-  const PM = { code: null, data: null, pick: new Set(), drop: new Set(), btn: null };
+  const PM = { code: null, data: null, pick: new Set(), drop: new Set(), btn: null, admin: false, adding: false, temp: null };
+  const PM_WHO = { admin: 'Admin', c_suite: 'C-suite', pm: 'PM' };   // access.PM_ROLES: who can run a job
   const PM_ROLE = { client: 'client', architect: 'architect', estimator: 'estimator', super: 'superintendent' };
   async function openPms(code, btn) {
-    PM.code = code; PM.btn = btn; PM.data = null;
+    PM.code = code; PM.btn = btn; PM.data = null; PM.adding = false; PM.temp = null;
     const box = $('pj-pm'); box.innerHTML = '<div class="cp-muted">Loading…</div>'; box.hidden = false; $('pj-pmscrim').hidden = false;
     placePms(); if (btn) btn.setAttribute('aria-expanded', 'true');
-    try { PM.data = (await api('/projects/' + encodeURIComponent(code) + '/pms')).data; }
+    try { [PM.data, PM.admin] = await Promise.all([api('/projects/' + encodeURIComponent(code) + '/pms').then(j => j.data), myRole().then(r => r === 'admin')]); }
     catch (e) { toast(e.message, true); closePms(); return; }
     PM.pick = new Set(PM.data.assigned.filter(u => !u.outdated).map(u => u.user_id)); PM.drop = new Set();
     drawPms(); placePms();
@@ -3800,14 +3809,21 @@
   }
   function drawPms() {
     const d = PM.data, row = PJ.rows.find(r => r.project_code === PM.code) || {};
-    const names = new Map(d.available.map(u => [u.user_id, u.name || u.email]));
-    d.assigned.filter(u => !u.outdated).forEach(u => names.set(u.user_id, u.name || u.email));
-    const opts = [...names].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
+    const names = new Map(d.available.map(u => [u.user_id, [u.name || u.email, u.role]]));
+    d.assigned.filter(u => !u.outdated).forEach(u => names.set(u.user_id, [u.name || u.email, u.role]));
+    const opts = [...names].map(([id, [n, r]]) => [id, n, r]).sort((a, b) => String(a[1]).localeCompare(String(b[1])));
     const old = d.assigned.filter(u => u.outdated);
-    const why = u => u.role === 'pm' ? 'account inactive' : ('now ' + (u.role === 'c_suite' ? 'C-suite' : u.role.charAt(0).toUpperCase() + u.role.slice(1)) + ', not a PM');
+    const why = u => PM_WHO[u.role] ? 'account inactive' : ('now ' + (u.role === 'c_suite' ? 'C-suite' : u.role.charAt(0).toUpperCase() + u.role.slice(1)) + ', not a PM');
     const others = Object.entries(d.others || {}).map(([k, n]) => n + ' ' + (PM_ROLE[k] || k) + (n > 1 ? 's' : ''));
     $('pj-pm').innerHTML = `<div><h3 id="pj-pm-h">Project managers</h3><div class="cp-muted" style="font-size:12px">${row.job_number != null ? '#' + row.job_number + ' · ' : ''}${esc(PM.code)} · pick one or more</div></div>
-      <div class="lst">${opts.length ? opts.map(([id, n]) => `<label class="${PM.pick.has(id) ? 'on' : ''}"><input type="checkbox" data-pm-u="${id}"${PM.pick.has(id) ? ' checked' : ''}>${esc(n)}</label>`).join('') : '<div class="cp-muted">No active PM accounts yet. Add one under Company › Users.</div>'}</div>
+      <div class="lst">${opts.length ? opts.map(([id, n, r]) => `<label class="${PM.pick.has(id) ? 'on' : ''}"><input type="checkbox" data-pm-u="${id}"${PM.pick.has(id) ? ' checked' : ''}>${esc(n)}${PM_WHO[r] ? `<span class="rl">${PM_WHO[r]}</span>` : ''}</label>`).join('') : `<div class="cp-muted">No one to pick yet.${PM.admin ? '' : ' An admin can add a project manager.'}</div>`}</div>
+      ${PM.temp ? `<div class="pa-temp"><div class="cp-muted" style="font-size:13px">${esc(PM.temp.name)} is added and ticked. One-time password, shown once. Give it to them securely; they choose their own at sign-in.</div><div class="tp">${esc(PM.temp.pw)}</div></div>` : ''}
+      ${PM.admin && PM.adding ? `<form class="add" data-pm-addform novalidate><h4>New project manager</h4>
+        <input id="pj-pm-nn" autocomplete="off" placeholder="Full name" aria-label="Full name">
+        <input id="pj-pm-ne" type="email" autocomplete="off" placeholder="Email" aria-label="Email">
+        <div class="cp-form-err" id="pj-pm-err" role="alert"></div>
+        <div class="row"><button type="button" class="btn-ghost btn-sm" data-pm-addcancel>Cancel</button><button type="submit" class="btn-primary btn-sm">Add</button></div></form>`
+        : PM.admin ? '<button type="button" class="add-btn" data-pm-add>+ New project manager</button>' : ''}
       ${old.length ? `<div class="old"><h4>Outdated · ${old.length}</h4>${old.map(u => `<div class="${PM.drop.has(u.user_id) ? 'gone' : ''}"><span>${esc(u.name || u.email)} <span class="cp-muted" style="font-size:12px">· ${esc(why(u))}</span></span><button type="button" class="btn-ghost btn-sm" data-pm-drop="${u.user_id}">${PM.drop.has(u.user_id) ? 'Keep' : 'Remove'}</button></div>`).join('')}</div>` : ''}
       ${others.length ? `<div class="note">Also on this job: ${esc(others.join(' · '))}. Their access is managed under Clients › Portal access and is not changed here.</div>` : ''}
       <div class="ft"><button type="button" class="btn-ghost" data-pm-cancel>Cancel</button><button type="button" class="btn-primary" data-pm-save>Save</button></div>`;
@@ -3831,9 +3847,23 @@
   function pmsClick(e) {
     const t = e.target;
     if (t.closest('[data-pm-cancel]')) { closePms(); return; }
+    if (t.closest('[data-pm-add]')) { PM.adding = true; drawPms(); $('pj-pm-nn').focus(); return; }
+    if (t.closest('[data-pm-addcancel]')) { PM.adding = false; drawPms(); return; }
     const s = t.closest('[data-pm-save]'); if (s) { savePms(s); return; }
     const d = t.closest('[data-pm-drop]');
     if (d) { const id = +d.dataset.pmDrop; PM.drop.has(id) ? PM.drop.delete(id) : PM.drop.add(id); drawPms(); return; }
+  }
+  // a new PM login, made from the picker (admin only; POST /admin/users checks again): the same
+  // one-time-password hand-off as Clients › Portal access. The new person is ticked; Save assigns.
+  async function addPm(form) {
+    const btn = form.querySelector('[type=submit]'), err = $('pj-pm-err'), name = $('pj-pm-nn').value.trim();
+    err.className = 'cp-form-err'; btn.disabled = true;
+    try {
+      const j = await api('/admin/users', { method: 'POST', body: JSON.stringify({ display_name: name, email: $('pj-pm-ne').value.trim(), role: 'pm' }) }, true);
+      PM.data = (await api('/projects/' + encodeURIComponent(PM.code) + '/pms')).data;
+      PM.pick.add(j.data.id); PM.adding = false; PM.temp = { name: name, pw: j.temp_password };
+      drawPms(); placePms(); toast('Project manager added. Save to put them on this job.');
+    } catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; btn.disabled = false; }
   }
   function pmsChange(e) {
     const c = e.target.closest('[data-pm-u]'); if (!c) return;
@@ -6897,6 +6927,7 @@
   ['pj-table', 'pj-cards'].forEach(id => $(id).addEventListener('click', e => { const b = e.target.closest('[data-pj-pm]'); if (b) { e.preventDefault(); openPms(b.dataset.pjPm, b); } }));
   $('pj-pm').addEventListener('click', pmsClick);
   $('pj-pm').addEventListener('change', pmsChange);
+  $('pj-pm').addEventListener('submit', e => { const f = e.target.closest('[data-pm-addform]'); if (f) { e.preventDefault(); addPm(f); } });
   $('pj-pm').addEventListener('keydown', e => { if (e.key === 'Escape') closePms(); });
   $('pj-pmscrim').addEventListener('click', closePms);
   window.addEventListener('resize', () => { if (!$('pj-pm').hidden) placePms(); });

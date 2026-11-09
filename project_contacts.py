@@ -30,6 +30,7 @@ from flask import jsonify, request
 
 import crm
 import db_layer
+from access import PM_ROLES_SQL
 from auth import current_user, requires_company, requires_section
 
 log = logging.getLogger("ssc.project_contacts")
@@ -80,7 +81,7 @@ def _pms(conn, code) -> list:
     try:
         return _rows(conn.execute(
             "SELECT u.id, COALESCE(u.display_name, u.full_name, u.email) AS name, u.email FROM pm_project_assignment a "
-            "JOIN users u ON u.id = a.user_id WHERE a.project_code = ? AND u.role = 'pm' AND COALESCE(u.is_active, 1) = 1 "
+            f"JOIN users u ON u.id = a.user_id WHERE a.project_code = ? AND u.role IN {PM_ROLES_SQL} AND COALESCE(u.is_active, 1) = 1 "
             "ORDER BY a.id", (code,)))
     except Exception:
         conn.rollback()

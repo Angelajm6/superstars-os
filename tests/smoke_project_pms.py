@@ -2,7 +2,8 @@
 """Projects table: the PM column lists PMs only and can be edited; the address lookup.
 
 Boots the real app (`import server`) on an ISOLATED database. Proves:
-  * the PM column (company portal Projects list) shows active users whose role is pm —
+  * the PM column (company portal Projects list) shows active users who can run a job
+    (access.PM_ROLES: admin, C-suite, pm; 2026-11-09) —
     not the job's clients / architects / supers (they share pm_project_assignment as
     their access scope), not deactivated PMs, not someone who stopped being a PM
   * GET /api/company/portal/projects/<code>/pms: assigned PMs, outdated rows (inactive
@@ -47,7 +48,8 @@ PW = "ProjectPmsSmoke2026"
 A, B = "PMS401-A", "PMS401-B"
 # key -> (role, active)
 PEOPLE = {"c_suite": ("c_suite", 1), "pm1": ("pm", 1), "pm2": ("pm", 1), "pm_gone": ("pm", 0),
-          "client": ("client", 1), "architect": ("architect", 1), "super": ("super", 1), "former": ("admin", 1)}
+          "client": ("client", 1), "architect": ("architect", 1), "super": ("super", 1), "former": ("vendor", 1),
+          "boss": ("admin", 1)}
 
 
 def _db():
@@ -71,7 +73,7 @@ def _seed() -> dict:
             conn.execute("DELETE FROM projects WHERE project_code = ?", (code,))
             conn.execute("INSERT INTO projects (project_code, name, address, status) VALUES (?, ?, '1 Pms401 St', 'active')",
                          (code, f"Pms401 {code}"))
-        # job A: one real PM, a deactivated PM, a former PM (now admin), and three people with access
+        # job A: one real PM, a deactivated PM, a former PM (now a vendor), and three people with access
         for key in ("pm1", "pm_gone", "former", "client", "architect", "super"):
             conn.execute("INSERT INTO pm_project_assignment (user_id, project_code, assigned_at) VALUES (?, ?, '2026-09-01')",
                          (ids[key], A))
@@ -138,6 +140,10 @@ def main() -> int:
     assert not assigned[ids["pm1"]]["outdated"] and assigned[ids["pm_gone"]]["outdated"] and assigned[ids["former"]]["outdated"]
     avail = {u["user_id"] for u in d["available"]}
     assert {ids["pm1"], ids["pm2"]} <= avail and ids["pm_gone"] not in avail and ids["client"] not in avail
+    assert {ids["boss"], ids["c_suite"]} <= avail, "admins and C-suite can run a job too"
+    assert ids["super"] not in avail and ids["former"] not in avail and ids["architect"] not in avail
+    roles = {u["user_id"]: u["role"] for u in d["available"]}
+    assert roles[ids["boss"]] == "admin" and roles[ids["c_suite"]] == "c_suite" and roles[ids["pm1"]] == "pm"
     assert d["others"] == {"client": 1, "architect": 1, "super": 1}, d["others"]   # counts only, no names
     assert "email" not in str(d["others"])
     checks += 1
@@ -147,6 +153,7 @@ def main() -> int:
     assert cs.put(url, json={"user_ids": "pm2"}).status_code == 400
     assert cs.put(url, json={"user_ids": ["x"]}).status_code == 400
     assert cs.put(url, json={"user_ids": [ids["client"]]}).status_code == 400      # only PMs here
+    assert cs.put(url, json={"user_ids": [ids["super"]]}).status_code == 400       # a foreman is not a PM
     assert cs.put(url, json={"user_ids": [ids["pm_gone"], 999999]}).status_code == 400   # nobody new but an active PM
     assert cs.put("/api/company/portal/projects/NOPE-404/pms", json={"user_ids": []}).status_code == 404
     conn = _db()
@@ -174,6 +181,11 @@ def main() -> int:
     assert cs.put(url, json={"user_ids": []}).status_code == 200                   # no PM at all is allowed
     rows = {r["project_code"]: r for r in cs.get("/api/company/portal/projects?status=all").get_json()["data"]}
     assert rows[A]["pms"] == [] and [p["user_id"] for p in rows[B]["pms"]] == [ids["pm1"]]
+    r = cs.put(url, json={"user_ids": [ids["boss"], ids["c_suite"]]})              # an admin / C-suite runs the job
+    assert r.status_code == 200 and {u["user_id"] for u in r.get_json()["data"]["assigned"] if not u["outdated"]} == {ids["boss"], ids["c_suite"]}
+    rows = {r["project_code"]: r for r in cs.get("/api/company/portal/projects?status=all").get_json()["data"]}
+    assert {p["user_id"] for p in rows[A]["pms"]} == {ids["boss"], ids["c_suite"]}, rows[A]["pms"]
+    assert cs.put(url, json={"user_ids": []}).status_code == 200
     conn = _db()
     try:
         assert _rows_for(conn, A) == {ids["client"], ids["architect"], ids["super"]}
@@ -213,8 +225,10 @@ def main() -> int:
     html = cs.get("/company").get_data(as_text=True)
     assert "label: 'Open invoices'" not in html, "the Projects table no longer shows open invoices"
     for needle in ('id="pj-pm"', 'id="pj-pmscrim"', "data-pj-pm=", "'/pms'", "user_ids: [...PM.pick, ...keep]",
-                   "Edit PMs", "Their access is managed under Clients"):
+                   "Edit PMs", "Their access is managed under Clients",
+                   "+ New project manager", "role: 'pm' })", "PM_WHO[r]"):
         assert needle in html, needle
+    assert "Company › Users" not in html, "the picker no longer sends people to a page they cannot find"
     js = cs.get("/files/static/js/new_project_modal.js").get_data(as_text=True)
     for needle in ("/api/address/suggest?q=", 'id="np-cityzip"', "city_zip: $('np-cityzip').value.trim() || null",
                    "city_zip: p.city_zip || ''", 'role="combobox"', "Filled from the address: ", "PM column on the Projects list"):
