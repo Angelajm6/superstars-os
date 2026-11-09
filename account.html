@@ -74,6 +74,30 @@
   .tf-codes{background:#F4F5F8;border-radius:8px;padding:10px 12px;font-size:13px;white-space:pre-wrap;user-select:all;}
   .tf-code{max-width:140px !important;letter-spacing:3px;font-size:16px;}
   .loading{color:var(--muted);font-size:13px;}
+  /* Gmail labels (gmail_labels.py; prototype accepted 2026-11-09) */
+  .lb-head{display:flex;align-items:center;gap:14px;justify-content:space-between;}
+  .lb-head b,.lb-sec > b,.lb-sec > label,.lb-sec > label b{font-size:15px;font-weight:600;color:var(--ink);}
+  .lb-switch{position:relative;width:46px;height:28px;flex:none;}
+  .lb-switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;width:100%;height:100%;}
+  .lb-switch span{position:absolute;inset:0;border-radius:999px;background:#D9DCE3;transition:background .15s;pointer-events:none;}
+  .lb-switch span::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s;}
+  .lb-switch input:checked + span{background:var(--accent);}
+  .lb-switch input:checked + span::after{transform:translateX(18px);}
+  .lb-switch input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px;}
+  .lb-switch input:disabled{cursor:default;}
+  .lb-chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .lb-chip{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;padding:2px 9px;border-radius:6px;background:#EEF1F7;color:var(--ink);}
+  .lb-chip::before{content:"";width:7px;height:7px;border-radius:2px;background:#6D9EEB;}
+  .lb-chip.owner{background:var(--accent-soft);color:var(--accent-ink);}
+  .lb-chip.owner::before{background:var(--accent);}
+  .lb-chip.reply::before{background:var(--status-behind,#e9685a);}
+  .lb-chip.fyi::before{background:#B7AE9C;}
+  .lb-bar{height:8px;border-radius:999px;background:#E6E9F0;overflow:hidden;max-width:420px;}
+  .lb-bar i{display:block;height:100%;background:var(--accent);transition:width .3s;}
+  .lb-sec{display:grid;gap:8px;padding-top:14px;border-top:1px solid var(--line);}
+  .lb-sec:first-child{padding-top:0;border-top:0;}
+  .lb-sec select{max-width:320px;}
+  .lb-confirm{background:#FFF4E5;border:1px solid #F2C98A;border-radius:10px;padding:12px 14px;display:grid;gap:10px;font-size:13px;color:#7A4A00;max-width:520px;}
   @media (max-width:860px){
     .wrap{padding:16px 16px 40px;}
     .ac-card{grid-template-columns:1fr;gap:12px;padding:16px;}
@@ -140,6 +164,11 @@
   <section class="ac-card" aria-labelledby="gg-h" id="gg-card" hidden>
     <div><h2 id="gg-h">Google</h2><div class="sub">Connect your own Google account. Only you see what comes from it.</div></div>
     <div class="list" id="gg-list"></div>
+  </section>
+
+  <section class="ac-card" aria-labelledby="lb-h" id="lb-card" hidden>
+    <div><h2 id="lb-h">Gmail labels</h2><div class="sub">The Inbox's sorting, as labels in your own Gmail on the web and on your phone. Labels only tag: nothing is archived, deleted or sent.</div></div>
+    <div class="rows" id="lb-body"><div class="loading">Loading…</div></div>
   </section>
 
   <section class="ac-card" aria-labelledby="dv-h">
@@ -374,6 +403,97 @@
     req('POST', GOOGLE[+b.getAttribute('data-gdis')].disconnect, {}).then(loadGoogle, loadGoogle);
   });
 
+  // ---------------------------------------------------------------- Gmail labels (gmail_labels.py)
+  var LB = null, LB_POLL = null, LB_CONFIRM = false;
+  function lbChip(l) {
+    var cls = l.key === 'owner' ? ' owner' : l.key === 'reply' ? ' reply' : l.key === 'fyi' ? ' fyi' : '';
+    return '<span class="lb-chip' + cls + '">' + esc(l.name) + '</span>';
+  }
+  function lbNum(n) { return Number(n || 0).toLocaleString('en-US'); }
+  function lbBackfill(b) {
+    if (b.state === 'listing') return { busy: true, pct: 4, text: 'Reading your last ' + b.days + ' days from Gmail\u2026 ' + lbNum(b.total) + ' emails so far' };
+    if (b.state === 'sorting') {
+      var pct = b.total ? Math.max(4, Math.round(100 * b.sorted / b.total)) : 4;
+      return { busy: true, pct: pct, text: 'Labeling\u2026 ' + lbNum(b.sorted) + ' of ' + lbNum(b.total) + '. You can leave this page.' };
+    }
+    if (b.state === 'done') return { busy: false, text: 'Done: ' + lbNum(b.total) + ' older emails sorted. ' + lbNum(b.fyi) + ' marked FYI (cc).' };
+    if (b.state === 'error') return { busy: false, text: b.problem || 'That did not finish. Try again.' };
+    return { busy: false, text: 'One time. Promotions and newsletters are skipped.' };
+  }
+  function drawLabels() {
+    var d = LB, b = $('lb-body');
+    if (!d.connected) {
+      b.innerHTML = '<div class="note">Connect Gmail under Google above first. Then you can turn labels on here.</div>';
+      return;
+    }
+    if (!d.can_label) {
+      b.innerHTML = '<div class="note">Connect Gmail again so the app may add labels. You only do this once.</div>' +
+        '<div class="actions"><a class="btn-sm" href="/gmail/connect">Connect Gmail again</a></div>';
+      return;
+    }
+    var bf = lbBackfill(d.backfill), opts = '<option value="">Pick a person</option>' + d.owner_choices.map(function (c) {
+      return '<option value="' + c.id + '"' + (d.owner && d.owner.id === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+    }).join('');
+    b.innerHTML =
+      '<div class="lb-sec"><div class="lb-head"><div><b>Put labels on my Gmail</b><div class="hint" style="margin-top:2px">New work email is labeled within about 30 seconds of arriving.</div></div>' +
+        '<label class="lb-switch"><input type="checkbox" id="lb-on"' + (d.enabled ? ' checked' : '') + ' aria-label="Put labels on my Gmail"><span></span></label></div>' +
+        '<div class="lb-chips">' + d.labels.map(lbChip).join('') + '</div>' +
+        '<div class="hint" style="margin-top:0">If you already have a label with one of these names, the app uses yours.</div></div>' +
+      '<div class="lb-sec"><label for="lb-owner"><b>Who gets the &ldquo;For&rdquo; label</b></label>' +
+        '<select class="ssc-field" id="lb-owner">' + opts + '</select>' +
+        '<div class="hint" style="margin-top:0">Email that needs this person\u2019s decision, approval, signature or payment OK is labeled &ldquo;' + esc(d.labels[0].name) + '&rdquo;.</div></div>' +
+      '<div class="lb-sec"><b>Label my older email</b>' +
+        '<div class="actions"><button class="btn-primary" type="button" id="lb-bf"' + (!d.enabled || bf.busy ? ' disabled' : '') + '>' +
+          (d.backfill.state === 'done' ? 'Label my last ' + d.backfill.days + ' days again' : 'Label my last ' + d.backfill.days + ' days') + '</button>' +
+          '<span class="hint" style="margin:0" id="lb-bf-text" aria-live="polite">' + esc(d.enabled ? bf.text : 'Turn labels on first.') + '</span></div>' +
+        (bf.busy ? '<div class="lb-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + bf.pct + '"><i style="width:' + bf.pct + '%"></i></div>' : '') +
+        '<div class="hint" style="margin-top:0">Older email gets its kind and FYI (cc). &ldquo;' + esc(d.labels[0].name) + '&rdquo; and &ldquo;Needs reply&rdquo; are for email from now on.</div></div>' +
+      '<div class="lb-sec"><b>Remove all labels</b><div class="hint" style="margin-top:0">Takes every label this app added off your Gmail. Your email stays where it is.</div>' +
+        (LB_CONFIRM ? '<div class="lb-confirm" role="alertdialog" aria-labelledby="lb-cf-t"><div id="lb-cf-t">Remove the app\u2019s labels from your Gmail? Labels you made yourself stay, and so does your email.</div>' +
+          '<div class="actions"><button class="btn-sm" type="button" id="lb-rm-no">Keep them</button><button class="btn-sm danger" type="button" id="lb-rm-yes">Remove labels</button></div></div>'
+          : '<div class="actions"><button class="btn-sm" type="button" id="lb-rm">Remove all labels\u2026</button></div>') +
+      '</div>' +
+      '<div class="actions"><span id="lb-msg" role="status"></span></div>';
+    clearTimeout(LB_POLL);
+    if (bf.busy) LB_POLL = setTimeout(loadLabels, 4000);
+  }
+  function loadLabels() {
+    req('GET', '/api/inbox/labels').then(function (r) {
+      if (!r.ok) return;   // not an office role
+      LB = r.j.data; $('lb-card').hidden = false; drawLabels();
+    });
+  }
+  function lbSave(body, okText) {
+    return req('PUT', '/api/inbox/labels', body).then(function (r) {
+      if (r.ok) { LB = r.j.data; drawLabels(); if (okText) say($('lb-msg'), okText, true); }
+      else { drawLabels(); say($('lb-msg'), r.j.error || 'Could not save. Try again.'); }
+    }, function () { drawLabels(); say($('lb-msg'), 'No connection. Try again.'); });
+  }
+  $('lb-body').addEventListener('change', function (e) {
+    if (e.target.id === 'lb-on') { e.target.disabled = true; lbSave({ enabled: e.target.checked }, e.target.checked ? 'Labels on' : 'Labels off: new email is no longer labeled'); }
+    if (e.target.id === 'lb-owner') lbSave({ owner_user_id: e.target.value || null }, 'Saved');
+  });
+  $('lb-body').addEventListener('click', function (e) {
+    var t = e.target.closest('button'); if (!t) return;
+    if (t.id === 'lb-bf') {
+      t.disabled = true;
+      req('POST', '/api/inbox/labels/backfill', {}).then(function (r) {
+        if (r.ok) { LB = r.j.data; drawLabels(); } else { drawLabels(); say($('lb-msg'), r.j.error || 'Could not start. Try again.'); }
+      });
+    }
+    if (t.id === 'lb-rm') { LB_CONFIRM = true; drawLabels(); var no = $('lb-rm-no'); if (no) no.focus(); }
+    if (t.id === 'lb-rm-no') { LB_CONFIRM = false; drawLabels(); }
+    if (t.id === 'lb-rm-yes') {
+      t.disabled = true;
+      req('POST', '/api/inbox/labels/remove', {}).then(function (r) {
+        LB_CONFIRM = false;
+        if (r.j && r.j.data) LB = r.j.data;
+        drawLabels();
+        say($('lb-msg'), r.ok ? 'Labels removed from your Gmail' : (r.j.error || 'Try again.'), r.ok);
+      });
+    }
+  });
+
   // ---------------------------------------------------------------- devices
   function loadDevices() {
     req('GET', '/api/account/sessions').then(function (r) {
@@ -413,6 +533,7 @@
     $('subtabs').hidden = !company;
     if (!company) document.querySelector('[data-nav-h1]').textContent = 'Your account';
     drawWho(); drawProfile(); loadEmailChange(); drawPassword(); drawTwoStep(); loadGoogle(); loadDevices();
+    if (company) loadLabels();
   });
 })();
 </script>
