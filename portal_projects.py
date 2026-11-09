@@ -30,6 +30,7 @@ from flask import jsonify, request
 
 import crm
 import db_layer
+from access import PM_ROLES, PM_ROLES_SQL
 from auth import current_user, requires_company, requires_section
 
 log = logging.getLogger("ssc.portal_projects")
@@ -77,7 +78,7 @@ _USER_NAME = "COALESCE(u.display_name, u.full_name, u.email)"
 
 
 def _pms(conn, codes: list) -> dict:
-    """The PM column: active users whose role IS pm. pm_project_assignment also holds the
+    """The PM column: active users whose role can run a job (access.PM_ROLES). pm_project_assignment also holds the
     job's clients / architects / supers / estimators (their access scope), so an unfiltered
     read listed those people — and anyone who used to be a PM — as the job's PMs."""
     if not codes:
@@ -86,7 +87,7 @@ def _pms(conn, codes: list) -> dict:
     out: dict = {}
     for r in _rows(conn.execute(
             f"SELECT a.project_code, u.id, {_USER_NAME} AS name, u.email FROM pm_project_assignment a "
-            f"JOIN users u ON u.id = a.user_id WHERE a.project_code IN ({marks}) AND u.role = 'pm' AND {_ACTIVE_USER} "
+            f"JOIN users u ON u.id = a.user_id WHERE a.project_code IN ({marks}) AND u.role IN {PM_ROLES_SQL} AND {_ACTIVE_USER} "
             f"ORDER BY LOWER({_USER_NAME})", codes)):
         out.setdefault(r["project_code"], []).append({"user_id": r["id"], "name": r["name"], "email": r["email"]})
     return out
@@ -111,14 +112,14 @@ def project_pms(conn, code: str) -> Optional[dict]:
             f"CASE WHEN {_ACTIVE_USER} THEN 1 ELSE 0 END AS active FROM pm_project_assignment a "
             f"JOIN users u ON u.id = a.user_id WHERE a.project_code = ? ORDER BY LOWER({_USER_NAME})", (code,))):
         active = bool(r["active"])
-        if active and r["role"] == "pm":
+        if active and r["role"] in PM_ROLES:
             assigned.append({"user_id": r["id"], "name": r["name"], "email": r["email"], "role": r["role"], "outdated": False})
         elif active and r["role"] in SCOPED_ROLES:
             others[r["role"]] = others.get(r["role"], 0) + 1
         else:
             assigned.append({"user_id": r["id"], "name": r["name"], "email": r["email"], "role": r["role"], "outdated": True})
-    available = [{"user_id": r["id"], "name": r["name"], "email": r["email"]} for r in _rows(conn.execute(
-        f"SELECT u.id, {_USER_NAME} AS name, u.email FROM users u WHERE u.role = 'pm' AND {_ACTIVE_USER} "
+    available = [{"user_id": r["id"], "name": r["name"], "email": r["email"], "role": r["role"]} for r in _rows(conn.execute(
+        f"SELECT u.id, {_USER_NAME} AS name, u.email, u.role FROM users u WHERE u.role IN {PM_ROLES_SQL} AND {_ACTIVE_USER} "
         f"AND COALESCE(u.is_system, 0) = 0 ORDER BY LOWER({_USER_NAME})"))]
     return {"project_code": code, "assigned": assigned, "available": available, "others": others}
 
@@ -141,7 +142,7 @@ def set_project_pms(conn, code: str, user_ids, actor=None) -> dict:
     ok = {u["user_id"] for u in cur["available"]} | {u["user_id"] for u in cur["assigned"] if u["outdated"]}
     bad = want - ok
     if bad:
-        raise ValueError("only active project managers can be assigned")
+        raise ValueError("only active office staff (admin, C-suite or PM) can be assigned")
     have = {u["user_id"] for u in cur["assigned"]}
     remove = sorted(have - want)
     add = sorted(want - have)

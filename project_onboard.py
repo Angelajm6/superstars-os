@@ -30,6 +30,7 @@ import project_modules
 import crm
 import db_layer
 import estimates
+from access import PM_ROLES_SQL
 from auth import current_user, requires_company
 
 log = logging.getLogger("ssc.project_onboard")
@@ -65,7 +66,7 @@ def meta(conn) -> dict:
     clients = [{"id": o["id"], "name": o["name"]} for o in crm.list_orgs(conn, relationship_type="client")
                if (o.get("status") or "active") == "active"]
     pms = _rows(conn.execute(
-        "SELECT id, display_name, full_name, email FROM users WHERE role = 'pm' AND COALESCE(is_active, 1) = 1 "
+        f"SELECT id, display_name, full_name, email FROM users WHERE role IN {PM_ROLES_SQL} AND COALESCE(is_active, 1) = 1 "
         "AND COALESCE(status, 'active') = 'active' AND COALESCE(is_system, 0) = 0 "   # same filter as the assignments list
         "ORDER BY LOWER(COALESCE(display_name, full_name, email))"))
     return {
@@ -297,10 +298,10 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
             pm_user_id = int(pm_user_id)
         except (TypeError, ValueError):
             raise ValueError("pm_user_id must be an integer")
-        pm = _one(conn.execute("SELECT id FROM users WHERE id = ? AND role = 'pm' AND COALESCE(is_active,1) = 1",
+        pm = _one(conn.execute(f"SELECT id FROM users WHERE id = ? AND role IN {PM_ROLES_SQL} AND COALESCE(is_active,1) = 1",
                                (pm_user_id,)))
         if not pm:
-            raise LookupError("that project manager is not an active PM user")
+            raise LookupError("that project manager is not active office staff (admin, C-suite or PM)")
     if p.get("client_org_id") not in (None, ""):
         try:
             if not crm.get_org(conn, int(p.get("client_org_id"))):

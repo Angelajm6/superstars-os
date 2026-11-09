@@ -67,6 +67,12 @@ SECTION_ACCESS = {
 # ROLE axis for "company vs project" — independent of the project-ASSIGNMENT axis.
 COMPANY_ROLES = frozenset({"admin", "c_suite"})
 
+# Who can be a job's project manager (2026-11-09): the office tier, not only the `pm` role.
+# The company runs its jobs from admin / C-suite accounts, so a pm-only list left the PM
+# picker empty. Admin / C-suite already see every job; the assignment row only names them.
+PM_ROLES = ("admin", "c_suite", "pm")
+PM_ROLES_SQL = "(" + ", ".join(f"'{r}'" for r in PM_ROLES) + ")"   # constant literals, for IN (...)
+
 
 def can_access_company(role) -> bool:
     """True iff `role` may reach the company overview console + company-level surfaces.

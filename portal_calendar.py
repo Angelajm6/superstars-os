@@ -22,6 +22,7 @@ from typing import Optional
 from flask import jsonify, request
 
 import db_layer
+from access import PM_ROLES_SQL
 from auth import current_user, requires_section
 
 log = logging.getLogger("ssc.portal_calendar")
@@ -94,7 +95,7 @@ def window(conn, start: date, end: date) -> dict:
         try:
             for r in _rows(conn.execute(
                     f"SELECT a.project_code, COALESCE(u.display_name, u.full_name, u.email) AS name FROM pm_project_assignment a "
-                    f"JOIN users u ON u.id = a.user_id WHERE a.project_code IN ({marks}) AND u.role = 'pm' "
+                    f"JOIN users u ON u.id = a.user_id WHERE a.project_code IN ({marks}) AND u.role IN {PM_ROLES_SQL} "
                     f"AND COALESCE(u.is_active, 1) = 1 AND COALESCE(u.status, 'active') = 'active' "
                     f"ORDER BY LOWER(COALESCE(u.display_name, u.full_name, u.email))", codes)):
                 pms.setdefault(r["project_code"], []).append(r["name"])
