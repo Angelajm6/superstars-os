@@ -167,7 +167,7 @@
   </section>
 
   <section class="ac-card" aria-labelledby="lb-h" id="lb-card" hidden>
-    <div><h2 id="lb-h">Gmail labels</h2><div class="sub">The Inbox's sorting, as labels in your own Gmail on the web and on your phone. Labels only tag: nothing is archived, deleted or sent.</div></div>
+    <div><h2 id="lb-h">Email labels</h2><div class="sub">Your Inbox sorts your work email into labels: what kind it is, what is only FYI, and what needs the owner. Only you see your email.</div></div>
     <div class="rows" id="lb-body"><div class="loading">Loading…</div></div>
   </section>
 
@@ -411,48 +411,51 @@
   }
   function lbNum(n) { return Number(n || 0).toLocaleString('en-US'); }
   function lbBackfill(b) {
-    if (b.state === 'listing') return { busy: true, pct: 4, text: 'Reading your last ' + b.days + ' days from Gmail\u2026 ' + lbNum(b.total) + ' emails so far' };
+    if (b.state === 'listing') return { busy: true, pct: 4, text: 'Reading your last ' + b.days + ' days from Gmail… ' + lbNum(b.total) + ' emails so far' };
     if (b.state === 'sorting') {
       var pct = b.total ? Math.max(4, Math.round(100 * b.sorted / b.total)) : 4;
-      return { busy: true, pct: pct, text: 'Labeling\u2026 ' + lbNum(b.sorted) + ' of ' + lbNum(b.total) + '. You can leave this page.' };
+      return { busy: true, pct: pct, text: 'Sorting… ' + lbNum(b.sorted) + ' of ' + lbNum(b.total) + '. You can leave this page.' };
     }
-    if (b.state === 'done') return { busy: false, text: 'Done: ' + lbNum(b.total) + ' older emails sorted. ' + lbNum(b.fyi) + ' marked FYI (cc).' };
+    if (b.state === 'done') return { busy: false, text: 'Done: ' + lbNum(b.total) + ' older emails sorted. ' + lbNum(b.fyi) + ' are FYI.' };
     if (b.state === 'error') return { busy: false, text: b.problem || 'That did not finish. Try again.' };
     return { busy: false, text: 'One time. Promotions and newsletters are skipped.' };
   }
   function drawLabels() {
     var d = LB, b = $('lb-body');
     if (!d.connected) {
-      b.innerHTML = '<div class="note">Connect Gmail under Google above first. Then you can turn labels on here.</div>';
+      b.innerHTML = '<div class="note">Connect Gmail under Google above first. Then your Inbox sorts your email into labels.</div>';
       return;
     }
-    if (!d.can_label) {
-      b.innerHTML = '<div class="note">Connect Gmail again so the app may add labels. You only do this once.</div>' +
-        '<div class="actions"><a class="btn-sm" href="/gmail/connect">Connect Gmail again</a></div>';
-      return;
-    }
+    var own = d.labels[0].name;
     var bf = lbBackfill(d.backfill), opts = '<option value="">Pick a person</option>' + d.owner_choices.map(function (c) {
       return '<option value="' + c.id + '"' + (d.owner && d.owner.id === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>';
     }).join('');
+    var gmail = d.can_label
+      ? '<div class="lb-sec"><div class="lb-head"><div><b>Put labels on my Gmail too</b><div class="hint" style="margin-top:2px">On the web and on your phone. New work email is labeled within about 30 seconds of arriving. Labels only tag: nothing is archived, deleted or sent.</div></div>' +
+          '<label class="lb-switch"><input type="checkbox" id="lb-on"' + (d.enabled ? ' checked' : '') + ' aria-label="Put labels on my Gmail too"><span></span></label></div>' +
+          '<div class="lb-chips">' + d.labels.map(lbChip).join('') + '</div>' +
+          '<div class="hint" style="margin-top:0">If you already have a label with one of these names, the app uses yours.</div></div>' +
+        '<div class="lb-sec"><b>Remove all labels from Gmail</b><div class="hint" style="margin-top:0">Takes every label this app added off your Gmail. Your email stays where it is, and the Inbox here keeps its labels.</div>' +
+          (LB_CONFIRM ? '<div class="lb-confirm" role="alertdialog" aria-labelledby="lb-cf-t"><div id="lb-cf-t">Remove the app’s labels from your Gmail? Labels you made yourself stay, and so does your email.</div>' +
+            '<div class="actions"><button class="btn-sm" type="button" id="lb-rm-no">Keep them</button><button class="btn-sm danger" type="button" id="lb-rm-yes">Remove labels</button></div></div>'
+            : '<div class="actions"><button class="btn-sm" type="button" id="lb-rm">Remove all labels…</button></div>') +
+        '</div>'
+      : '<div class="lb-sec"><b>Put labels on my Gmail too</b><div class="note">Connect Gmail again so the app may add labels in Gmail. You only do this once.</div>' +
+          '<div class="actions"><a class="btn-sm" href="/gmail/connect">Connect Gmail again</a></div></div>';
     b.innerHTML =
-      '<div class="lb-sec"><div class="lb-head"><div><b>Put labels on my Gmail</b><div class="hint" style="margin-top:2px">New work email is labeled within about 30 seconds of arriving.</div></div>' +
-        '<label class="lb-switch"><input type="checkbox" id="lb-on"' + (d.enabled ? ' checked' : '') + ' aria-label="Put labels on my Gmail"><span></span></label></div>' +
-        '<div class="lb-chips">' + d.labels.map(lbChip).join('') + '</div>' +
-        '<div class="hint" style="margin-top:0">If you already have a label with one of these names, the app uses yours.</div></div>' +
       '<div class="lb-sec"><label for="lb-owner"><b>Who gets the &ldquo;For&rdquo; label</b></label>' +
         '<select class="ssc-field" id="lb-owner">' + opts + '</select>' +
-        '<div class="hint" style="margin-top:0">Email that needs this person\u2019s decision, approval, signature or payment OK is labeled &ldquo;' + esc(d.labels[0].name) + '&rdquo;.</div></div>' +
-      '<div class="lb-sec"><b>Label my older email</b>' +
-        '<div class="actions"><button class="btn-primary" type="button" id="lb-bf"' + (!d.enabled || bf.busy ? ' disabled' : '') + '>' +
-          (d.backfill.state === 'done' ? 'Label my last ' + d.backfill.days + ' days again' : 'Label my last ' + d.backfill.days + ' days') + '</button>' +
-          '<span class="hint" style="margin:0" id="lb-bf-text" aria-live="polite">' + esc(d.enabled ? bf.text : 'Turn labels on first.') + '</span></div>' +
+        '<div class="hint" style="margin-top:0">' + (d.owner
+          ? 'Email that needs ' + esc(d.owner.name) + '’s decision, approval, signature or payment OK is labeled &ldquo;' + esc(own) + '&rdquo;'
+          : 'Email that needs a decision, approval, signature or payment OK is labeled &ldquo;' + esc(own) + '&rdquo;') +
+          (d.enabled ? ' in your Inbox and in Gmail.' : ' in your Inbox.') + '</div></div>' +
+      '<div class="lb-sec"><b>Sort my older email</b>' +
+        '<div class="actions"><button class="btn-primary" type="button" id="lb-bf"' + (bf.busy ? ' disabled' : '') + '>' +
+          (d.backfill.state === 'done' ? 'Sort my last ' + d.backfill.days + ' days again' : 'Sort my last ' + d.backfill.days + ' days') + '</button>' +
+          '<span class="hint" style="margin:0" id="lb-bf-text" aria-live="polite">' + esc(bf.text) + '</span></div>' +
         (bf.busy ? '<div class="lb-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + bf.pct + '"><i style="width:' + bf.pct + '%"></i></div>' : '') +
-        '<div class="hint" style="margin-top:0">Older email gets its kind and FYI (cc). &ldquo;' + esc(d.labels[0].name) + '&rdquo; and &ldquo;Needs reply&rdquo; are for email from now on.</div></div>' +
-      '<div class="lb-sec"><b>Remove all labels</b><div class="hint" style="margin-top:0">Takes every label this app added off your Gmail. Your email stays where it is.</div>' +
-        (LB_CONFIRM ? '<div class="lb-confirm" role="alertdialog" aria-labelledby="lb-cf-t"><div id="lb-cf-t">Remove the app\u2019s labels from your Gmail? Labels you made yourself stay, and so does your email.</div>' +
-          '<div class="actions"><button class="btn-sm" type="button" id="lb-rm-no">Keep them</button><button class="btn-sm danger" type="button" id="lb-rm-yes">Remove labels</button></div></div>'
-          : '<div class="actions"><button class="btn-sm" type="button" id="lb-rm">Remove all labels\u2026</button></div>') +
-      '</div>' +
+        '<div class="hint" style="margin-top:0">Older email gets its kind and FYI. &ldquo;' + esc(own) + '&rdquo; and &ldquo;Needs reply&rdquo; are for email from now on.</div></div>' +
+      gmail +
       '<div class="actions"><span id="lb-msg" role="status"></span></div>';
     clearTimeout(LB_POLL);
     if (bf.busy) LB_POLL = setTimeout(loadLabels, 4000);

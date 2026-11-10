@@ -95,7 +95,7 @@ CODE_RE = re.compile(r"\b((?:IRA|FR|IR|PG|OTH)-[A-Z]{2,3}-\d{3})(?:-P(\d+))?\b")
 KINDS = ("bid_invitation", "proposal_reply", "client_question", "scheduling", "documents", "payment", "permit_notice",
          "vendor", "internal", "other")
 KIND_LABEL = {"bid_invitation": "New bid", "proposal_reply": "Proposal reply", "client_question": "Client question",
-              "scheduling": "Scheduling", "documents": "Documents", "payment": "Payment", "permit_notice": "Permit / notice",
+              "scheduling": "Scheduling", "documents": "Documents", "payment": "Payment", "permit_notice": "Permit & notice",
               "vendor": "Vendor", "internal": "Internal", "other": "Other"}
 
 
@@ -440,7 +440,7 @@ def message(conn, mid: int, uid: Optional[int] = None) -> Optional[dict]:
     out = {k: r[k] for k in ("id", "user_id", "gmail_id", "thread_id", "direction", "received_at", "kind", "needs_action",
                              "status", "ai_state", "chat_id", "client_org_id", "contact_id", "estimate_id", "proposal_id",
                              "project_code", "trashed_at", "archived_at")}
-    for k in ("addressed", "from_team", "business", "triage_needs", "for_owner", "backfilled_at", "gmail_labels"):
+    for k in ("addressed", "from_team", "business", "triage_needs", "for_owner", "backfilled_at", "gmail_labels", "label_manual"):
         out[k] = r.get(k)
     out.update({"from": _dec(r["from_enc"]), "to": _dec(r["to_enc"]), "cc": _dec(r["cc_enc"]), "subject": _dec(r["subject_enc"]),
                 "body": _dec(r["body_enc"]), "snippet": _html_unescape(_dec(r["snippet_enc"]) or ""), "summary": _dec(r["summary_enc"]),
@@ -1029,7 +1029,13 @@ def process(conn, mid: int, force: bool = False, want_reply: bool = False) -> st
 
 
 def _store_triage(conn, mid: int, t: dict, kind: str, business: bool, needs: bool, state: str) -> None:
-    """The sorting's answers: the app's own list (needs_action) plus what the labels in Gmail are decided from."""
+    """The sorting's answers: the app's own list (needs_action) plus what the labels in Gmail are decided from.
+    A label someone fixed by hand (label_manual) stays: only the summary and the app's own list change."""
+    if (_one(conn, "SELECT label_manual FROM mail_message WHERE id = ?", (mid,)) or {}).get("label_manual"):
+        conn.execute("UPDATE mail_message SET summary_enc = ?, needs_action = ?, ai_state = ?, triage_needs = ? WHERE id = ?",
+                     (_enc(str(t.get("summary") or "")[:200]), 1 if needs else 0, state, 1 if t.get("needs_action") else 0, mid))
+        conn.commit()
+        return
     conn.execute("UPDATE mail_message SET kind = ?, summary_enc = ?, needs_action = ?, ai_state = ?, business = ?, "
                  "triage_needs = ?, for_owner = ? WHERE id = ?",
                  (kind, _enc(str(t.get("summary") or "")[:200]), 1 if needs else 0, state, 1 if business else 0,
@@ -1703,7 +1709,11 @@ def _public_row(conn, r: dict) -> dict:
     if m["project_code"]:
         tags.append(m["project_code"])
     filed = bool(_one(conn, "SELECT id FROM mail_link WHERE message_id = ? LIMIT 1", (m["id"],)))
-    return {"id": m["id"], "direction": m["direction"], "who": name, "subject": m["subject"] or "(no subject)",
+    import gmail_labels
+    lab = gmail_labels.app_labels(m)
+    lab["mid"] = m["id"] if m["direction"] == "in" else None
+    return {"labels": lab, "other_tags": tags[1:] if tags and m["kind"] and m["kind"] != "other" else tags,
+            "id": m["id"], "direction": m["direction"], "who": name, "subject": m["subject"] or "(no subject)",
             "summary": m["summary"] or m["snippet"], "received_at": m["received_at"], "status": m["status"],
             "needs_action": bool(m["needs_action"]) and m["status"] != "done", "pending_cards": pending, "tags": tags,
             "filed": filed, "ai_state": m["ai_state"], "has_attachments": bool(m["attachments"]), "snippet": m["snippet"]}
@@ -1783,8 +1793,11 @@ def _api_messages():
     try:
         import claude_agent
         claude_agent.purge_expired(conn)   # unanswered cards older than 48 h leave the counts too
+        import gmail_labels
+        label = request.args.get("label") or ""
         rows = _rows(conn, "SELECT id, COALESCE(thread_id, gmail_id) AS t, needs_action, status, received_at, direction, "
-                           "archived_at FROM mail_message "
+                           "archived_at, trashed_at, kind, business, for_owner, triage_needs, addressed, backfilled_at, "
+                           "label_manual FROM mail_message "
                            "WHERE user_id = ? AND trashed_at IS NULL ORDER BY received_at DESC, id DESC LIMIT 600", (me["id"],))
         filed = {r["message_id"] for r in _rows(conn, "SELECT l.message_id FROM mail_link l JOIN mail_message m ON m.id = l.message_id "
                                                       "WHERE m.user_id = ?", (me["id"],))}
@@ -1800,10 +1813,14 @@ def _api_messages():
             act = any(x["needs_action"] and x["status"] != "done" for x in msgs)
             ins = [x for x in msgs if x["direction"] == "in"]
             in_box = not ins or any(not x["archived_at"] for x in ins)   # archived here or in Gmail: out of the Inbox
+            lab = gmail_labels.thread_labels(msgs)
             if (f == "act" and not act) or (f == "filed" and not any(x["id"] in filed for x in msgs)) or \
-                    (f in ("inbox", "all") and not in_box):
+                    (f in ("inbox", "all") and not in_box) or (f == "own" and not lab["owner"]):
+                continue
+            if label and not (lab["fyi"] if label == "fyi" else lab["kind"] == label):
                 continue
             row = _public_row(conn, msgs[0])
+            row["labels"] = lab
             row.update(count=len(msgs), unread=any(x["status"] == "new" for x in msgs), needs_action=act, archived=not in_box,
                        filed=any(x["id"] in filed for x in msgs), people=_people_of(conn, msgs))
             if len(msgs) > 1:
@@ -1811,7 +1828,7 @@ def _api_messages():
             out.append(row)
             if len(out) >= 150:
                 break
-        return jsonify({"data": out})
+        return jsonify({"data": out, "label_names": gmail_labels.names(conn, me["id"])})
     finally:
         conn.close()
 
@@ -2085,6 +2102,10 @@ def _api_thread(mid):
             x["reply_to"] = dict(zip(("to", "cc"), reply_recipients(xm, link.get("google_email") or "", False)))
             x["reply_all_to"] = dict(zip(("to", "cc"), reply_recipients(xm, link.get("google_email") or "", True)))
         row = _public_row(conn, {"id": mid})
+        import gmail_labels
+        v.update({"labels": gmail_labels.thread_labels(_rows(conn, f"SELECT * FROM mail_message WHERE id IN ({','.join('?' * len(ids))}) "
+                                                                    "ORDER BY received_at DESC, id DESC", ids)),
+                  "label_names": gmail_labels.names(conn, me["id"]), "other_tags": row["other_tags"]})
         v.update({"id": mid, "last_id": ids[-1], "tags": row["tags"], "ai_state": last["ai_state"], "needs_action": any(
                       x["needs_action"] and x["status"] != "done" for x in _rows(conn, f"SELECT needs_action, status FROM mail_message "
                                                                                     f"WHERE id IN ({','.join('?' * len(ids))})", ids)),

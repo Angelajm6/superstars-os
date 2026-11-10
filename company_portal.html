@@ -404,6 +404,22 @@
   .ib-ic.s { width: 16px; height: 16px; }
   .ib-lbl { display: inline-block; font-size: 12px; font-weight: 500; padding: 0 6px; border-radius: 4px; background: #E8EAED; color: #3C4043; margin-right: 5px; line-height: 18px; vertical-align: 1px; }
   .ib-lbl.cl { background: #FBEFE9; color: #A84E2C; font-weight: 600; }
+  /* labels in the app (gmail_labels.app_labels; prototype accepted 2026-11-10): kind grey, FYI outlined, "For" solid */
+  .ib-lbl.own { background: var(--ui, #24418C); color: #fff; font-weight: 600; }
+  .ib-lbl.fyi { background: none; color: #6B7280; box-shadow: inset 0 0 0 1px #CBD1DA; }
+  #ib-mail .ib-filters { margin-left: 0; order: 3; width: 100%; flex-wrap: wrap; } .ib-filters button { white-space: nowrap; }
+  @media (max-width: 640px) { .ib-row .ib-lbl.fyi { display: none; } #ib-mail .ib-filters { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } }
+  .ib-lsel { margin-left: auto; font: 500 12.5px Inter, sans-serif; color: var(--ink, #202124); background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; max-width: 150px; }
+  .ib-lwrap { position: relative; display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: baseline; }
+  button.ib-lbl { border: 0; cursor: pointer; font-family: inherit; }
+  button.ib-lbl:hover { filter: brightness(.95); } button.ib-lbl:focus-visible { outline: 2px solid var(--ui, #24418C); outline-offset: 1px; }
+  .ib-lbl.add { background: none; color: var(--ui, #24418C); box-shadow: inset 0 0 0 1px #CBD1DA; }
+  .ib-lmenu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 6px; width: 240px; max-width: calc(100vw - 32px); box-shadow: 0 8px 24px rgba(20,30,50,.16); display: grid; }
+  .ib-lmenu .h { font-size: 12px; color: var(--muted); padding: 4px 8px; }
+  .ib-lmenu label { display: flex; gap: 8px; align-items: center; padding: 7px 8px; border-radius: 6px; font-size: 14px; cursor: pointer; }
+  .ib-lmenu label:hover { background: #F1F3F6; } .ib-lmenu label.on { background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); font-weight: 600; }
+  .ib-lmenu input { accent-color: var(--ui, #24418C); margin: 0; }
+  .ib-lmenu .sep { height: 1px; background: var(--line); margin: 4px 0; }
   .ib-pane { min-width: 0; overflow-y: auto; height: 100%; background: #fff; }
   .ib-empty { padding: 24px 16px; }
   .ib-tbar { position: sticky; top: 0; z-index: 2; background: #fff; display: flex; align-items: center; gap: 2px; padding: 6px 12px; min-height: 48px; border-bottom: 1px solid #EEF0F3; }
@@ -1688,7 +1704,8 @@
           <div class="ib-list">
             <div class="ib-lhead">
               <button type="button" class="btn-primary btn-sm" id="ib-new">✎ Compose</button>
-              <div class="ib-filters" role="group" aria-label="Show"><button type="button" data-ibf="inbox" aria-pressed="true">Inbox</button><button type="button" data-ibf="act" aria-pressed="false">Needs reply</button><button type="button" data-ibf="filed" aria-pressed="false">Filed</button></div>
+              <div class="ib-filters" role="group" aria-label="Show"><button type="button" data-ibf="inbox" aria-pressed="true">Inbox</button><button type="button" data-ibf="act" aria-pressed="false">Needs reply</button><button type="button" data-ibf="own" aria-pressed="false" id="ib-f-own">For the owner</button><button type="button" data-ibf="filed" aria-pressed="false">Filed</button></div>
+              <select class="ib-lsel" id="ib-lsel" aria-label="Label"><option value="">All labels</option></select>
             </div>
             <div class="ib-selbar" id="ib-selbar" hidden>
               <button type="button" class="ib-ibtn" id="ib-sel-x" title="Clear selection" aria-label="Clear selection"></button><b id="ib-sel-n"></b><span class="sp"></span>
@@ -3885,7 +3902,7 @@
   // Conversations as written (html in a locked-down frame), attachments, Reply / Reply all /
   // Compose from the person's own Gmail. Claude drafts a reply only where one is needed: it waits
   // in the reply box and goes out only when the person presses Send. Other suggestions are cards.
-  const IB = { filter: 'inbox', rows: [], open: null, cards: [], timer: null, thread: null, composer: null, sel: new Set() };
+  const IB = { filter: 'inbox', label: '', names: null, rows: [], open: null, cards: [], timer: null, thread: null, composer: null, sel: new Set() };
   const IB_COLORS = ['#24418C', '#0c7a5f', '#B11E2E', '#7A4FB3', '#C2603B', '#2C7A9B', '#8A6D1F'];
   function ibColor(s) { let h = 0; for (const c of String(s || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0; return IB_COLORS[h % IB_COLORS.length]; }
   function ibAgo(iso) {
@@ -4029,18 +4046,71 @@
   }
   const ibInitial = s => esc(String(s || '?').trim().replace(/^To:\s*/, '').charAt(0).toUpperCase() || '?');
   async function ibList() {
-    try { IB.rows = (await api('/inbox/messages?filter=' + IB.filter, null, true)).data; } catch (e) { $('ib-rows').innerHTML = empty('Could not load the inbox', e.message); return; }
+    try {
+      const j = await api('/inbox/messages?filter=' + IB.filter + (IB.label ? '&label=' + encodeURIComponent(IB.label) : ''), null, true);
+      IB.rows = j.data; ibNames(j.label_names);
+    } catch (e) { $('ib-rows').innerHTML = empty('Could not load the inbox', e.message); return; }
     document.querySelectorAll('[data-ibf]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.ibf === IB.filter)));
     IB.sel = new Set(IB.rows.map(r => r.id).filter(i => IB.sel.has(i)));   // a refresh keeps what is still there selected
     $('ib-rows').innerHTML = IB.rows.length ? IB.rows.map(r => `<div class="ib-row${r.id === IB.open ? ' on' : ''}${r.unread ? ' unread' : ''}${IB.sel.has(r.id) ? ' sel' : ''}" data-ib="${r.id}" tabindex="0">
       <input type="checkbox" class="ib-ck" data-ibck aria-label="Select"${IB.sel.has(r.id) ? ' checked' : ''}>
       <span class="ib-av" data-ibav style="background:${ibColor(r.who)}" aria-hidden="true">${ibInitial(r.who)}</span>
       <div class="ib-from">${esc(ibPeople(r))}${r.count > 1 ? `<span class="ib-n">${r.count}</span>` : ''}</div>
-      <div class="ib-line">${r.pending_cards ? '<span class="ib-lbl cl" title="Claude has a reply or a suggestion ready">✦ Claude</span>' : ''}<span class="ib-sub">${esc(r.subject)}</span></div>
-      <div class="ib-snip">${r.tags.slice(0, 1).map(t => `<span class="ib-lbl">${esc(t)}</span>`).join('')}${esc(r.snippet || '')}</div>
+      <div class="ib-line">${r.pending_cards ? '<span class="ib-lbl cl" title="Claude has a reply or a suggestion ready">✦ Claude</span>' : ''}${r.labels && r.labels.owner ? `<span class="ib-lbl own">${esc(ibName('owner'))}</span>` : ''}<span class="ib-sub">${esc(r.subject)}</span></div>
+      <div class="ib-snip">${ibRowChips(r)}${esc(r.snippet || '')}</div>
       <div class="ib-when"><span class="ib-wt">${r.has_attachments ? `<span aria-label="has attachments">${ibI('clip', 1)}</span>` : ''}${ibAgo(r.received_at)}</span><button type="button" class="ib-ibtn ib-rdel" data-ibdel title="Delete" aria-label="Delete">${ibI('del', 1)}</button></div></div>`).join('')
-      : `<div class="ib-empty">${empty(IB.filter === 'act' ? 'Nothing needs a reply' : 'No email yet', IB.filter === 'act' ? 'Emails that need an answer or a change show here.' : '')}</div>`;
+      : `<div class="ib-empty">${IB.label ? empty('Nothing labeled ' + ibName(IB.label === 'fyi' ? 'fyi' : IB.label) + ' here', 'Pick All labels to see everything.')
+          : IB.filter === 'own' ? empty('Nothing labeled ' + ibName('owner'), 'Email that needs a decision, an approval, a signature or a payment OK shows here.')
+          : empty(IB.filter === 'act' ? 'Nothing needs a reply' : 'No email yet', IB.filter === 'act' ? 'Emails that need an answer or a change show here.' : '')}</div>`;
     ibSelBar();
+  }
+  // labels (gmail_labels.app_labels): names come with the list; "For <owner>" is the person's own pick
+  const IB_KINDS = ['bid_invitation', 'proposal_reply', 'client_question', 'scheduling', 'documents', 'payment', 'permit_notice', 'vendor', 'internal'];
+  const ibName = k => (IB.names && IB.names[k]) || (k === 'owner' ? 'For the owner' : k === 'fyi' ? 'FYI (cc)' : k);
+  function ibNames(n) {
+    if (!n) return;
+    const first = !IB.names;
+    IB.names = n;
+    $('ib-f-own').textContent = n.owner;
+    if (first) $('ib-lsel').innerHTML = '<option value="">All labels</option>' + IB_KINDS.map(k => `<option value="${k}">${esc(n[k] || k)}</option>`).join('') +
+      `<option value="fyi">${esc(n.fyi || 'FYI (cc)')}</option>`;
+    $('ib-lsel').value = IB.label;
+  }
+  function ibRowChips(r) {
+    const l = r.labels || {};
+    const out = (l.kind ? `<span class="ib-lbl">${esc(ibName(l.kind))}</span>` : '') + (l.fyi ? '<span class="ib-lbl fyi" title="You were only copied; nothing is asked">FYI</span>' : '');
+    return out || (r.other_tags || []).slice(0, 1).map(t => `<span class="ib-lbl">${esc(t)}</span>`).join('');
+  }
+  function ibHeadLabels(v) {
+    const l = v.labels || {};
+    if (!l.mid) return (v.other_tags || v.tags || []).map(t => `<span class="ib-lbl">${esc(t)}</span>`).join('');
+    return `<span class="ib-lwrap" id="ib-lwrap">${l.owner ? `<span class="ib-lbl own">${esc(ibName('owner'))}</span>` : ''}` +
+      `<button type="button" class="ib-lbl${l.kind ? '' : ' add'}" id="ib-lbtn" aria-haspopup="true" aria-expanded="false" title="Change the label">${esc(l.kind ? ibName(l.kind) : 'Label')} ▾</button>` +
+      (l.fyi ? '<span class="ib-lbl fyi" title="You were only copied; nothing is asked">FYI</span>' : '') +
+      (v.other_tags || []).map(t => `<span class="ib-lbl">${esc(t)}</span>`).join('') + '</span>';
+  }
+  function ibLabelMenu(open) {
+    const old = $('ib-lmenu'); if (old) old.remove();
+    const btn = $('ib-lbtn'), v = IB.thread; if (!btn || !v) return;
+    btn.setAttribute('aria-expanded', String(!!open));
+    if (!open) return;
+    const l = v.labels, m = document.createElement('div');
+    m.className = 'ib-lmenu'; m.id = 'ib-lmenu'; m.setAttribute('role', 'group'); m.setAttribute('aria-label', 'Change the label');
+    m.innerHTML = '<div class="h">This email is…</div>' + IB_KINDS.concat(['other']).map(k =>
+      `<label class="${(l.kind || 'other') === k ? 'on' : ''}"><input type="radio" name="ib-lk" value="${k}"${(l.kind || 'other') === k ? ' checked' : ''}> ${esc(k === 'other' ? 'None of these' : ibName(k))}</label>`).join('') +
+      `<div class="sep"></div><label class="${l.owner ? 'on' : ''}"><input type="checkbox" id="ib-lown"${l.owner ? ' checked' : ''}> ${esc(ibName('owner'))}</label>`;
+    $('ib-lwrap').appendChild(m);
+    const pick = m.querySelector('input:checked') || m.querySelector('input'); if (pick) pick.focus();
+  }
+  async function ibSetLabel(body) {
+    const v = IB.thread; if (!v || !v.labels || !v.labels.mid) return;
+    ibLabelMenu(false);
+    try { v.labels = (await api('/inbox/messages/' + v.labels.mid + '/label', { method: 'POST', body: JSON.stringify(body) }, true)).data; }
+    catch (e) { toast(e.message, true); return; }
+    const head = document.querySelector('#ib-pane .ib-head');
+    if (head) head.innerHTML = `<h2>${esc(v.subject || '(no subject)')}</h2>${ibHeadLabels(v)}`;
+    toast('Label changed');
+    ibList();
   }
   function ibSelBar() {
     const n = IB.sel.size;
@@ -4182,7 +4252,7 @@
         <button type="button" class="ib-ibtn" id="ib-unread" title="Mark unread" aria-label="Mark unread">${ibI('unread')}</button>
         ${n > 1 ? `<button type="button" class="ib-ibtn" id="ib-expand" title="Expand all" aria-label="Expand all">${ibI('unfold')}</button>` : ''}
         <a class="ib-ibtn" href="${esc(v.gmail_url)}" target="_blank" rel="noopener" title="Open in Gmail" aria-label="Open in Gmail">${ibI('open')}</a></div>
-      <div class="ib-head"><h2>${esc(v.subject || '(no subject)')}</h2>${v.tags.map(t => `<span class="ib-lbl">${esc(t)}</span>`).join('')}</div>
+      <div class="ib-head"><h2>${esc(v.subject || '(no subject)')}</h2>${ibHeadLabels(v)}</div>
       <div id="ib-sugg"></div>
       <div class="ib-thread" id="ib-thread"></div>
       <div class="ib-replybar" id="ib-replybar"></div>`;
@@ -4422,6 +4492,16 @@
   });
   $('ib-rows').addEventListener('keydown', e => { if (e.key === 'Enter') { const r = e.target.closest('[data-ib]'); if (r) ibOpen(+r.dataset.ib); } });
   document.querySelectorAll('[data-ibf]').forEach(b => b.addEventListener('click', () => { IB.filter = b.dataset.ibf; ibList(); }));
+  $('ib-lsel').addEventListener('change', e => { IB.label = e.target.value; ibList(); });
+  $('ib-pane').addEventListener('click', e => {
+    if (e.target.closest('#ib-lbtn')) { ibLabelMenu(!$('ib-lmenu')); return; }
+    if ($('ib-lmenu') && !e.target.closest('#ib-lmenu')) ibLabelMenu(false);
+  });
+  $('ib-pane').addEventListener('change', e => {
+    if (e.target.name === 'ib-lk') ibSetLabel({ kind: e.target.value });
+    else if (e.target.id === 'ib-lown') ibSetLabel({ owner: e.target.checked });
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('ib-lmenu')) { ibLabelMenu(false); const b = $('ib-lbtn'); if (b) b.focus(); } });
   // a record's emails (client, estimate / bid, proposal): what someone filed from their Inbox
   async function emailsCard(host, type, id) {
     if (!host) return;
