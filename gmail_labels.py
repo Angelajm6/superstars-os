@@ -21,12 +21,20 @@ job; the mailbox is the company's, so a label needs no company name):
     only taken off the email this app put it on.
   * What was put on each email is kept (mail_message.gmail_labels), so a change takes off exactly what this app added.
 
+In the app too (prototype accepted 2026-11-10: https://claude.ai/artifact/AkGYSYCVVwKZQPxHiP8Ywt): every admin and
+C-suite person sees the kind, FYI and "For" labels on their own email in the Inbox tab, whether or not their Gmail gets
+them (app_labels / thread_labels). The Inbox list has a "For <owner>" filter and a Label menu; an open email's label can
+be fixed by hand (set_labels), and the sorting never changes a label someone fixed (mail_message.label_manual). A C-suite
+person who picked nobody sees "Needs my OK": the email that needs the owner's OK is email that needs theirs.
+"Sort my last 90 days" works with the Gmail switch off (the app's labels fill in; Gmail only when the switch is on).
+
 Logs carry ids and counts only, never names, subjects or addresses.
 
-  GET  /api/inbox/labels            switch, owner + choices, the labels, the 90-day pass's progress
-  PUT  /api/inbox/labels            {enabled?, owner_user_id?}
-  POST /api/inbox/labels/backfill   start "Label my last 90 days"
-  POST /api/inbox/labels/remove     take every label this app added off Gmail (and switch it off)
+  GET  /api/inbox/labels                  switch, owner + choices, the labels, the 90-day pass's progress
+  PUT  /api/inbox/labels                  {enabled?, owner_user_id?}
+  POST /api/inbox/labels/backfill         start "Sort my last 90 days"
+  POST /api/inbox/labels/remove           take every label this app added off Gmail (and switch it off)
+  POST /api/inbox/messages/<id>/label     {kind?, owner?}: fix a conversation's label by hand
 """
 from __future__ import annotations
 
@@ -83,8 +91,9 @@ def ensure(conn) -> None:
     # addressed: how this mailbox was on the email (from / to / cc / other); from_team: written by someone at Superstars;
     # business / triage_needs / for_owner: the sorting's answers as given (needs_action is the app's own list);
     # backfilled_at: came in through "Label my last 90 days"; gmail_labels: the label keys this app put on it in Gmail
+    # label_manual: someone fixed this email's label by hand; the sorting leaves kind / for_owner alone from then on
     for col, typ in (("addressed", "TEXT"), ("from_team", "INTEGER"), ("business", "INTEGER"), ("triage_needs", "INTEGER"),
-                     ("for_owner", "INTEGER"), ("backfilled_at", "TEXT"), ("gmail_labels", "TEXT")):
+                     ("for_owner", "INTEGER"), ("backfilled_at", "TEXT"), ("gmail_labels", "TEXT"), ("label_manual", "INTEGER")):
         if not _has_column(conn, "mail_message", col):
             conn.execute(f"ALTER TABLE mail_message ADD COLUMN {col} {typ}")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_mail_ai_state ON mail_message(ai_state)")
@@ -162,7 +171,10 @@ def owner_person(conn, uid: int) -> Optional[dict]:
 
 def owner_label(conn, uid: int) -> str:
     o = owner_person(conn, uid)
-    return f"For {o['first']}" if o and o["first"] else "For the owner"
+    if o and o["first"]:
+        return f"For {o['first']}"
+    u = _one(conn, "SELECT role FROM users WHERE id = ?", (uid,)) or {}
+    return "Needs my OK" if u.get("role") == "c_suite" else "For the owner"
 
 
 def owner_choices(conn, uid: int) -> list:
@@ -193,22 +205,70 @@ def _team_answered(conn, m: dict) -> bool:
                      (m["user_id"], m["thread_id"], m["id"], m.get("received_at") or "")))
 
 
+def app_labels(m: dict) -> dict:
+    """The labels one email shows, in the app and in Gmail ("Needs reply" aside): {kind, owner, fyi}."""
+    out = {"kind": None, "owner": False, "fyi": False}
+    if m.get("direction") != "in" or m.get("trashed_at") or m.get("kind") is None or m.get("business") == 0:
+        return out   # personal mail, receipts and automatic notices: no label
+    if m["kind"] in KIND_LABELS:
+        out["kind"] = m["kind"]
+    out["owner"] = bool(m.get("for_owner")) and (not m.get("backfilled_at") or bool(m.get("label_manual")))
+    asked = m.get("triage_needs") if m.get("triage_needs") is not None else m.get("needs_action")
+    out["fyi"] = m.get("addressed") in ("cc", "other") and not asked and not m.get("for_owner")
+    return out
+
+
+def thread_labels(msgs: list) -> dict:
+    """A conversation's labels (msgs newest first): the newest sorted kind, "For" when any email has it, FYI from the
+    newest email received. 'mid' is the email a fix by hand changes."""
+    ins = [x for x in msgs if x.get("direction") == "in" and not x.get("trashed_at")]
+    out = {"kind": None, "owner": False, "fyi": False, "mid": ins[0]["id"] if ins else None}
+    for x in ins:
+        lab = app_labels(x)
+        if lab["kind"] and not out["kind"]:
+            out["kind"] = lab["kind"]
+        out["owner"] = out["owner"] or lab["owner"]
+    if ins:
+        out["fyi"] = app_labels(ins[0])["fyi"] and not out["owner"]
+    return out
+
+
 def desired(conn, m: dict) -> set:
     """The label keys this email should carry in Gmail now."""
     if m.get("direction") != "in" or m.get("trashed_at") or m.get("kind") is None or m.get("business") == 0:
         return set()   # personal mail, receipts and automatic notices: no label
-    want = set()
-    if m["kind"] in KIND_LABELS:
-        want.add(m["kind"])
-    if not m.get("backfilled_at"):
-        if m.get("for_owner"):
-            want.add("owner")
-        if m.get("needs_action") and m.get("status") != "done" and not _team_answered(conn, m):
-            want.add("reply")
-    asked = m.get("triage_needs") if m.get("triage_needs") is not None else m.get("needs_action")
-    if m.get("addressed") in ("cc", "other") and not asked and not m.get("for_owner"):
-        want.add("fyi")
+    lab = app_labels(m)
+    want = {k for k in ("owner", "fyi") if lab[k]} | ({lab["kind"]} if lab["kind"] else set())
+    if not m.get("backfilled_at") and m.get("needs_action") and m.get("status") != "done" and not _team_answered(conn, m):
+        want.add("reply")
     return want
+
+
+def set_labels(conn, uid: int, mid: int, kind: Optional[str] = None, owner: Optional[bool] = None) -> Optional[dict]:
+    """Fix a conversation's label by hand. kind: one of KIND_LABELS, or 'other' (none of them); owner: "For" on / off.
+    The sorting leaves what was fixed alone. Gmail follows when the person's labels are on."""
+    m = _one(conn, "SELECT id, thread_id, gmail_id FROM mail_message WHERE id = ? AND user_id = ?", (mid, uid))
+    if not m:
+        return None
+    msgs = (_rows(conn, "SELECT * FROM mail_message WHERE user_id = ? AND thread_id = ? ORDER BY received_at DESC, id DESC",
+                  (uid, m["thread_id"])) if m["thread_id"] else _rows(conn, "SELECT * FROM mail_message WHERE id = ?", (mid,)))
+    target = thread_labels(msgs)["mid"]
+    if not target:
+        return None
+    t = next(x for x in msgs if x["id"] == target)
+    if kind is not None:
+        conn.execute("UPDATE mail_message SET kind = ?, business = 1, label_manual = 1 WHERE id = ?", (kind, target))
+    if owner:
+        conn.execute("UPDATE mail_message SET for_owner = 1, business = 1, kind = COALESCE(kind, 'other'), label_manual = 1 "
+                     "WHERE id = ?", (target,))
+    elif owner is not None:
+        ids = [x["id"] for x in msgs if x.get("direction") == "in"]
+        conn.execute(f"UPDATE mail_message SET for_owner = 0, label_manual = 1 WHERE id IN ({','.join('?' * len(ids))})", ids)
+    conn.commit()
+    relabel(conn, uid, [x["id"] for x in msgs])
+    log.info("labels fixed by hand user=%s message=%s kind=%s owner=%s", uid, t["id"], kind is not None, owner)
+    return thread_labels(_rows(conn, f"SELECT * FROM mail_message WHERE id IN ({','.join('?' * len(msgs))}) "
+                                     "ORDER BY received_at DESC, id DESC", [x["id"] for x in msgs]))
 
 
 def _have(m: dict) -> set:
@@ -389,7 +449,10 @@ def remove_all(conn, uid: int) -> dict:
 def backfill_counts(conn, uid: int) -> dict:
     total = conn.execute("SELECT COUNT(*) FROM mail_message WHERE user_id = ? AND backfilled_at IS NOT NULL", (uid,)).fetchone()[0]
     left = conn.execute("SELECT COUNT(*) FROM mail_message WHERE user_id = ? AND ai_state = 'backfill'", (uid,)).fetchone()[0]
-    fyi = conn.execute("SELECT COUNT(*) FROM mail_message WHERE user_id = ? AND gmail_labels LIKE ?", (uid, "%fyi%")).fetchone()[0]
+    fyi = sum(1 for m in _rows(conn, "SELECT direction, trashed_at, kind, business, for_owner, backfilled_at, label_manual, "
+                                     "triage_needs, needs_action, addressed FROM mail_message WHERE user_id = ? "
+                                     "AND backfilled_at IS NOT NULL AND addressed IN ('cc', 'other')", (uid,))
+              if app_labels(m)["fyi"])
     return {"total": total, "sorted": total - left, "left": left, "fyi": fyi}
 
 
@@ -426,13 +489,19 @@ def _backfill_run(uid: int) -> None:
         ids = ids[:BACKFILL_MAX]
         now = _now()
         stored = 0
-        for gid in ids:
-            if not pref(conn, uid).get("enabled"):   # switched off or removed meanwhile
+        for n, gid in enumerate(ids):
+            if n % 50 == 0 and not inbox._link(conn, uid):   # Gmail disconnected meanwhile
                 break
-            row = _one(conn, "SELECT id, kind, direction, ai_state FROM mail_message WHERE user_id = ? AND gmail_id = ?", (uid, gid))
+            row = _one(conn, "SELECT id, kind, direction, ai_state, addressed FROM mail_message WHERE user_id = ? AND gmail_id = ?",
+                       (uid, gid))
             if row:
                 if row["direction"] == "in" and row["kind"] is None and row["ai_state"] == "triaged":   # kept quietly (a thread)
                     conn.execute("UPDATE mail_message SET ai_state = 'backfill', backfilled_at = ? WHERE id = ?", (now, row["id"]))
+                    conn.commit()
+                if row["direction"] == "in" and not row["addressed"]:   # stored before labels: who it was for, from what is kept
+                    m = inbox.message(conn, row["id"])
+                    conn.execute("UPDATE mail_message SET addressed = ?, from_team = ? WHERE id = ?",
+                                 (addressed(own, m["from"], m["to"], m["cc"]), 1 if from_team(own, m["from"]) else 0, row["id"]))
                     conn.commit()
                 continue
             code, msg = inbox._gmail(conn, link, "GET", f"/messages/{inbox._q(gid)}?format=full")
@@ -561,9 +630,10 @@ def _api_put():
 def _api_backfill():
     me = _me()
     conn = _conn()
+    import inbox
     try:
-        if not can_label(conn, me["id"]):
-            return jsonify({"error": "Switch labels on first."}), 409
+        if not inbox._link(conn, me["id"]):   # the Gmail switch is not needed: the app's labels fill in either way
+            return jsonify({"error": "Connect Gmail first."}), 409
         if backfill_state(conn, me["id"]) in ("listing", "sorting"):
             return jsonify({"data": _view(conn, me["id"])})
         start_backfill(conn, me["id"])
@@ -587,6 +657,26 @@ def _api_remove():
         conn.close()
 
 
+@requires_role(*OFFICE_ROLES)
+def _api_label(mid):
+    me = _me()
+    d = request.get_json(silent=True) or {}
+    kind = d.get("kind")
+    if kind is not None and kind not in KIND_LABELS and kind != "other":
+        return jsonify({"error": "Pick a label from the list."}), 400
+    owner = None if d.get("owner") is None else d.get("owner") not in (False, "false", 0)
+    if kind is None and owner is None:
+        return jsonify({"error": "Pick a label from the list."}), 400
+    conn = _conn()
+    try:
+        got = set_labels(conn, me["id"], mid, kind=kind, owner=owner)
+        if got is None:
+            return jsonify({"error": "not found"}), 404
+        return jsonify({"data": got})
+    finally:
+        conn.close()
+
+
 def register(app) -> None:
     conn = _conn()
     try:
@@ -605,3 +695,4 @@ def register(app) -> None:
     app.add_url_rule("/api/inbox/labels", "inbox_labels_put", _api_put, methods=["PUT"])
     app.add_url_rule("/api/inbox/labels/backfill", "inbox_labels_backfill", _api_backfill, methods=["POST"])
     app.add_url_rule("/api/inbox/labels/remove", "inbox_labels_remove", _api_remove, methods=["POST"])
+    app.add_url_rule("/api/inbox/messages/<int:mid>/label", "inbox_message_label", _api_label, methods=["POST"])

@@ -14,7 +14,11 @@ Proves against an ISOLATED database with a fake Gmail (fictional people only):
     gets its kind + FYI but never "For ..." / "Needs reply"; new mail is sorted first; progress counts; then done
   * "Remove all labels": the labels the app made are deleted, the person's own label is only taken off the app's emails,
     nothing is left recorded, labels switch off
-  * routes are admin / C-suite only; the account page has the card
+  * in the app (prototype accepted 2026-11-10), with Gmail labels off: each conversation in the Inbox list carries its
+    kind / FYI / "For" labels; the "For" filter and the Label menu narrow the list; a label fixed by hand sticks (the
+    sorting leaves it) and reaches Gmail when labels are on; a C-suite person with nobody picked sees "Needs my OK";
+    "Sort my last 90 days" runs with the Gmail switch off and fills in who older stored email was for
+  * routes are admin / C-suite only; the account page has the card; the Inbox has the filter, menu and fix
 """
 from __future__ import annotations
 
@@ -399,6 +403,71 @@ def main() -> int:
         assert not [x for x in CALLS[n:] if x[1].startswith("/labels") or x[1] == "/messages/batchModify"]
         passed += 1; print("  remove all labels ok")
 
+        # ---- labels in the app (Gmail labels are off from here on)
+        def lst(q=""):
+            j = c.get("/api/inbox/messages?" + q).get_json()
+            return j, {r["id"]: r for r in j["data"]}
+        j, rows = lst("filter=all")
+        assert j["label_names"]["owner"] == "For Sam" and j["label_names"]["permit_notice"] == "Permit & notice"
+        rid = lambda gid: _row(gid)["id"]
+        b_row = rid("b2")                                                                       # the conversation's newest email
+        assert rows[rid("p1")]["labels"]["kind"] == "scheduling" and rows[rid("p1")]["labels"]["fyi"] is True
+        assert rows[b_row]["labels"]["owner"] is True and rows[b_row]["labels"]["kind"] == "proposal_reply"   # newest sorted email
+        assert rows[b_row]["labels"]["mid"] == b_row and rows[rid("o1")]["labels"]["owner"] is False   # older mail: never "For"
+        _j, own = lst("filter=own")
+        assert set(own) == {b_row, rid("n1")}, set(own)
+        _j, fyi = lst("filter=all&label=fyi")
+        assert {rid("p1"), rid("z1")} <= set(fyi) and b_row not in fyi
+        _j, sch = lst("filter=all&label=scheduling")
+        assert rid("a0") in sch and rid("p1") in sch and rid("b2") not in sch
+        n = len(CALLS)
+        assert c.post(f"/api/inbox/messages/{a0}/label", json={"kind": "nope"}).status_code == 400
+        assert c.post(f"/api/inbox/messages/{a0}/label", json={}).status_code == 400
+        assert c.post("/api/inbox/messages/999999/label", json={"kind": "payment"}).status_code == 404
+        r = c.post(f"/api/inbox/messages/{a0}/label", json={"kind": "payment"})
+        assert r.status_code == 200 and r.get_json()["data"]["kind"] == "payment"
+        assert _row("a0")["label_manual"] == 1 and _row("a0")["kind"] == "payment"
+        _plant("scheduling", True)
+        conn = _db()
+        try:
+            inbox.process(conn, a0, force=True)                                                 # Claude sorts it again
+        finally:
+            conn.close()
+        assert _row("a0")["kind"] == "payment"                                                   # the fix by hand stays
+        assert c.post(f"/api/inbox/messages/{a0}/label", json={"owner": True}).get_json()["data"]["owner"] is True
+        assert c.post(f"/api/inbox/messages/{b_row}/label", json={"owner": False}).get_json()["data"]["owner"] is False
+        _j, own = lst("filter=own")
+        assert set(own) == {rid("a0"), rid("n1")}, set(own)
+        assert not [x for x in CALLS[n:] if x[1].startswith("/labels") or x[1] == "/messages/batchModify"]   # Gmail off: untouched
+        t = c.get(f"/api/inbox/threads/{a0}").get_json()["data"]
+        assert t["labels"]["kind"] == "payment" and t["labels"]["owner"] is True and t["label_names"]["owner"] == "For Sam"
+        # "Sort my last 90 days" with the Gmail switch off: who older stored email was for is filled in
+        conn = _db()
+        try:
+            conn.execute("UPDATE mail_message SET addressed = NULL WHERE gmail_id = 'p1'")
+            conn.commit()
+        finally:
+            conn.close()
+        LIST_IDS[:] = ["p1"]
+        assert c.post("/api/inbox/labels/backfill").status_code == 202
+        for _ in range(50):
+            if not gl._RUNNING.get(uid):
+                break
+            time.sleep(0.1)
+        assert _row("p1")["addressed"] == "cc"
+        # with Gmail labels on, a fix by hand reaches Gmail
+        assert c.put("/api/inbox/labels", json={"enabled": True}).status_code == 200
+        time.sleep(0.6)
+        assert c.post(f"/api/inbox/messages/{a0}/label", json={"kind": "vendor"}).status_code == 200
+        assert "Vendor" in names_on("a0") and "Payment" not in names_on("a0"), names_on("a0")
+        # a C-suite person who picked nobody: "Needs my OK"
+        boss = app.test_client()
+        assert boss.post("/api/auth/login", json={"email": f"{TAG}.robin@superstarscontracting.com", "password": PW},
+                         environ_base={"REMOTE_ADDR": "10.98.1.5"}).status_code == 200
+        assert boss.get("/api/inbox/labels").get_json()["data"]["labels"][0]["name"] == "Needs my OK"
+        assert boss.post(f"/api/inbox/messages/{a0}/label", json={"kind": "payment"}).status_code == 404   # not their email
+        passed += 1; print("  labels in the app: list, filters, fix by hand, Needs my OK, sort with Gmail off ok")
+
         # ---- office only; the page
         pm = app.test_client()
         assert pm.post("/api/auth/login", json={"email": f"{TAG}.pm@superstarscontracting.com", "password": PW},
@@ -406,8 +475,13 @@ def main() -> int:
         assert pm.get("/api/inbox/labels").status_code == 403
         assert pm.post("/api/inbox/labels/backfill").status_code == 403
         page = (ROOT / "account.html").read_text(encoding="utf-8")
-        for s in ('id="lb-card"', "/api/inbox/labels", "Label my last", "Remove all labels", "Keep them", 'class="btn-primary"'):
+        for s in ('id="lb-card"', "/api/inbox/labels", "Sort my last", "Remove all labels", "Keep them", 'class="btn-primary"',
+                  "Email labels", "in your Inbox"):
             assert s in page, s
+        portal = (ROOT / "company_portal.html").read_text(encoding="utf-8")
+        for s in ('data-ibf="own"', 'id="ib-lsel"', "/label'", "ib-lmenu", "None of these", "ib-lbl own", "ib-lbl fyi"):
+            assert s in portal, s
+        assert pm.post(f"/api/inbox/messages/{a0}/label", json={"kind": "payment"}).status_code == 403
         passed += 1; print("  office only + account page ok")
     finally:
         inbox._gmail = real

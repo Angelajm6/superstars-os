@@ -34,6 +34,12 @@ grant, or elevation code.
 * "Label my last 90 days": `ai_state = 'backfill'` rows are sorted by the small model only (no cards, `needs_action` 0 so the app's lists don't flood), after new mail in
   `claude_round`; they get kind + FYI only. "Remove all labels" deletes the labels the app made and only takes a person's own same-name label off the app's emails.
 * Guard: `tests/smoke_gmail_labels.py` (in the gate).
+* Labels in the app (2026-11-10, prototype https://claude.ai/artifact/AkGYSYCVVwKZQPxHiP8Ywt): every admin / C-suite person sees kind, FYI and "For" on their own
+  email in the Inbox tab, Gmail switch on or off (`gmail_labels.app_labels` / `thread_labels`; the list row's `labels`, `label_names` on the list and thread).
+  Inbox list: a "For <owner>" filter (`filter=own`) and a Label menu (`label=<kind>|fyi`). An open email's label button fixes it by hand
+  (`POST /api/inbox/messages/<id>/label {kind?, owner?}`, sets `mail_message.label_manual`; `inbox._store_triage` then leaves kind / for_owner / business alone).
+  A C-suite person with nobody picked sees "Needs my OK". "Sort my last 90 days" runs with the Gmail switch off and fills `addressed` on older stored email.
+  Settings card renamed "Email labels". Stage 2 (Arun's 7 AM brief) still not built.
 
 ### One-tap accepts in the bell (Bookore, 2026-11-04)
 
