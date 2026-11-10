@@ -165,6 +165,9 @@ def ensure(conn) -> None:
     gmail_labels.ensure(conn)   # what the labels in Gmail are decided from (2026-11-09)
     import gmail_brief
     gmail_brief.ensure(conn)    # the owner's morning brief (2026-11-10)
+    if not _has_column(conn, "mail_message", "starred"):   # Gmail's star, both ways (2026-11-10)
+        conn.execute("ALTER TABLE mail_message ADD COLUMN starred INTEGER")
+        conn.commit()
 
 
 def _conn():
@@ -362,15 +365,16 @@ def ingest(conn, uid: int, msg: dict, own_email: str = "", quiet: bool = False, 
     conn.execute(
         "INSERT INTO mail_message (user_id, gmail_id, thread_id, rfc_id_enc, rfc_hash, direction, received_at, from_enc, to_enc, cc_enc, "
         "subject_enc, body_enc, snippet_enc, attachments_enc, needs_action, status, ai_state, client_org_id, contact_id, "
-        "estimate_id, proposal_id, project_code, archived_at, created_at, addressed, from_team, backfilled_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "estimate_id, proposal_id, project_code, archived_at, created_at, addressed, from_team, backfilled_at, starred) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (uid, msg["id"], msg.get("threadId"), _enc(h.get("message-id")), team_handled.fingerprint(h.get("message-id")), direction, when, _enc(h.get("from")),
          _enc(h.get("to")), _enc(h.get("cc")), _enc((h.get("subject") or "")[:300]), _enc(text),
          _enc((msg.get("snippet") or "")[:300]), _enc(json.dumps(atts)) if atts else None, 0, status,
          "triaged" if quiet else ("backfill" if backfill else "pending"),
          m["client_org_id"], m["contact_id"], m["estimate_id"], m["proposal_id"], m["project_code"], archived, _now(),
          gmail_labels.addressed(own_email, h.get("from"), h.get("to"), h.get("cc")),
-         1 if gmail_labels.from_team(own_email, h.get("from")) else 0, _now() if backfill and not quiet else None))
+         1 if gmail_labels.from_team(own_email, h.get("from")) else 0, _now() if backfill and not quiet else None,
+         1 if "STARRED" in labels else 0))
     conn.commit()
     mid = _one(conn, "SELECT id FROM mail_message WHERE user_id = ? AND gmail_id = ?", (uid, msg["id"]))["id"]
     store_view(conn, mid, msg.get("payload"))
@@ -539,7 +543,7 @@ def gmail_modify(conn, uid: int, gmail_ids, add=(), remove=()) -> bool:
     return code in (200, 204)
 
 
-def apply_labels(conn, uid: int, read: dict, inbox_: dict, undone: bool = True) -> None:
+def apply_labels(conn, uid: int, read: dict, inbox_: dict, undone: bool = True, starred: Optional[dict] = None) -> None:
     """Mirror what the person did in Gmail itself. read: gmail id -> read now; inbox_: gmail id -> in Gmail's Inbox now.
     Archived in Gmail = handled here too; moved back to the Inbox = needs attention again (undone=False when only
     reconciling a re-read conversation, so a Done pressed here without Gmail's permission is not undone)."""
@@ -557,6 +561,8 @@ def apply_labels(conn, uid: int, read: dict, inbox_: dict, undone: bool = True) 
     if undone:
         run("UPDATE mail_message SET archived_at = NULL, status = CASE WHEN status = 'done' THEN 'seen' ELSE status END "
             "WHERE archived_at IS NOT NULL AND user_id = ? AND gmail_id IN ({ph})", ids(inbox_, True))
+    for flag in (True, False):   # starred / unstarred in Gmail itself
+        run("UPDATE mail_message SET starred = %d WHERE user_id = ? AND gmail_id IN ({ph})" % (1 if flag else 0), ids(starred or {}, flag))
     conn.commit()
     gids = [g for g in inbox_ if g]
     if gids:   # archived in Gmail = done: "Needs reply" comes off (moved back: on again)
@@ -578,6 +584,7 @@ def sync_user(conn, uid) -> dict:
     try:
         ids, new_hist, trash = [], None, {}   # trash: gmail id -> in Gmail's Trash now (deleted / restored in Gmail itself)
         read, in_box = {}, {}                 # read / archived in Gmail itself (gmail id -> read now / in the Inbox now)
+        star = {}                             # starred / unstarred in Gmail itself (gmail id -> starred now)
         if st and st.get("history_id"):
             page = None
             while True:
@@ -603,6 +610,8 @@ def sync_user(conn, uid) -> dict:
                             read[gid] = False
                         if "INBOX" in lab:
                             in_box[gid] = True
+                        if "STARRED" in lab:
+                            star[gid] = True
                     for lr in h.get("labelsRemoved") or []:
                         gid, lab = (lr.get("message") or {}).get("id"), set(lr.get("labelIds") or [])
                         if "TRASH" in lab:
@@ -611,6 +620,8 @@ def sync_user(conn, uid) -> dict:
                             read[gid] = True
                         if "INBOX" in lab:
                             in_box[gid] = False
+                        if "STARRED" in lab:
+                            star[gid] = False
                     for md in h.get("messagesDeleted") or []:
                         trash[(md.get("message") or {}).get("id")] = True
                 new_hist = body.get("historyId") or new_hist
@@ -639,7 +650,7 @@ def sync_user(conn, uid) -> dict:
             sync_thread(conn, uid, tid, link)
         for flag in (True, False):
             _mark_trashed(conn, uid, [g for g, t in trash.items() if t is flag], flag)
-        apply_labels(conn, uid, read, in_box)
+        apply_labels(conn, uid, read, in_box, starred=star)
         now = _now()
         if _one(conn, "SELECT user_id FROM mail_sync WHERE user_id = ?", (uid,)):
             conn.execute("UPDATE mail_sync SET history_id = COALESCE(?, history_id), last_sync_at = ?, last_error = NULL "
@@ -701,7 +712,7 @@ def sync_thread(conn, uid: int, thread_id: str, link: Optional[dict] = None, for
             known = [m for m in stubs if m["id"] in have]
             apply_labels(conn, uid, {m["id"]: "UNREAD" not in (m.get("labelIds") or []) for m in known},
                          {m["id"]: False for m in known if "INBOX" not in (m.get("labelIds") or []) and "SENT" not in (m.get("labelIds") or [])},
-                         undone=False)
+                         undone=False, starred={m["id"]: "STARRED" in (m.get("labelIds") or []) for m in known})
         for stub in stubs:
             if stub["id"] in have or set(stub.get("labelIds") or []) & THREAD_SKIP:
                 continue
@@ -1604,7 +1615,8 @@ def sync_round() -> None:
                 import claude_agent
                 claude_agent.purge_expired(conn)
                 cutoff = (datetime.now() - timedelta(days=KEEP_DAYS)).isoformat(timespec="seconds")
-                conn.execute("DELETE FROM mail_message WHERE received_at < ? AND id NOT IN (SELECT message_id FROM mail_link)",
+                conn.execute("DELETE FROM mail_message WHERE received_at < ? AND COALESCE(starred, 0) = 0 "
+                             "AND id NOT IN (SELECT message_id FROM mail_link)",
                              (cutoff,))
                 conn.commit()
         finally:
@@ -1805,7 +1817,7 @@ def _api_messages():
         label = request.args.get("label") or ""
         rows = _rows(conn, "SELECT id, COALESCE(thread_id, gmail_id) AS t, needs_action, status, received_at, direction, "
                            "archived_at, trashed_at, kind, business, for_owner, triage_needs, addressed, backfilled_at, "
-                           "label_manual FROM mail_message "
+                           "label_manual, starred FROM mail_message "
                            "WHERE user_id = ? AND trashed_at IS NULL ORDER BY received_at DESC, id DESC LIMIT 600", (me["id"],))
         filed = {r["message_id"] for r in _rows(conn, "SELECT l.message_id FROM mail_link l JOIN mail_message m ON m.id = l.message_id "
                                                       "WHERE m.user_id = ?", (me["id"],))}
@@ -1823,12 +1835,14 @@ def _api_messages():
             in_box = not ins or any(not x["archived_at"] for x in ins)   # archived here or in Gmail: out of the Inbox
             lab = gmail_labels.thread_labels(msgs)
             if (f == "act" and not act) or (f == "filed" and not any(x["id"] in filed for x in msgs)) or \
-                    (f in ("inbox", "all") and not in_box) or (f == "own" and not lab["owner"]):
+                    (f in ("inbox", "all") and not in_box) or (f == "own" and not lab["owner"]) or \
+                    (f == "starred" and not any(x["starred"] for x in msgs)):
                 continue
             if label and not (lab["fyi"] if label == "fyi" else lab["kind"] == label):
                 continue
             row = _public_row(conn, msgs[0])
             row["labels"] = lab
+            row["starred"] = any(x["starred"] for x in msgs)
             row.update(count=len(msgs), unread=any(x["status"] == "new" for x in msgs), needs_action=act, archived=not in_box,
                        filed=any(x["id"] in filed for x in msgs), people=_people_of(conn, msgs))
             if len(msgs) > 1:
@@ -1921,6 +1935,33 @@ def _api_unread(mid):
         conn.close()
 
 
+@requires_role(*OFFICE_ROLES)
+def _api_star(mid):
+    """Gmail's star, here and in Gmail. On: the newest email of the conversation (as the Gmail app does). Off: every
+    starred email of it. Without Gmail's modify permission only this side changes (gmail: false)."""
+    me = _me()
+    on = (request.get_json(silent=True) or {}).get("starred", True) not in (False, "false", 0)
+    conn = _conn()
+    try:
+        m = message(conn, mid, me["id"])
+        if not m:
+            return _err("not found", 404)
+        rows = _rows(conn, "SELECT id, gmail_id, starred FROM mail_message WHERE user_id = ? AND trashed_at IS NULL AND "
+                           + ("thread_id = ?" if m["thread_id"] else "id = ?") + " ORDER BY received_at, id",
+                     (me["id"], m["thread_id"] or m["id"]))
+        pick = rows[-1:] if on else [r for r in rows if r["starred"]]
+        if pick:
+            conn.execute(f"UPDATE mail_message SET starred = ? WHERE id IN ({','.join('?' * len(pick))})",
+                         [1 if on else 0] + [r["id"] for r in pick])
+            conn.commit()
+        synced = gmail_modify(conn, me["id"], [r["gmail_id"] for r in pick], add=["STARRED"] if on else [],
+                              remove=[] if on else ["STARRED"]) if pick else True
+        log.info("inbox star user=%s message=%s on=%s emails=%s", me["id"], mid, on, len(pick))
+        return jsonify({"data": {"id": mid, "starred": on, "gmail": synced}})
+    finally:
+        conn.close()
+
+
 _KICKED: dict = {}   # user -> when an open Inbox last asked for a sync
 KICK_SECONDS = 15
 
@@ -1953,7 +1994,8 @@ def changes_sig(conn, uid: int) -> str:
     r = conn.execute(
         "SELECT COUNT(*), COALESCE(MAX(id), 0), SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END), "
         "SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END), COUNT(trashed_at), COUNT(archived_at), "
-        "SUM(CASE WHEN needs_action = 1 THEN 1 ELSE 0 END), SUM(CASE WHEN ai_state IN ('pending', 'asked') THEN 1 ELSE 0 END) "
+        "SUM(CASE WHEN needs_action = 1 THEN 1 ELSE 0 END), SUM(CASE WHEN ai_state IN ('pending', 'asked') THEN 1 ELSE 0 END), "
+        "SUM(CASE WHEN starred = 1 THEN id ELSE 0 END) "   # which emails, so a star moving from one to another counts
         "FROM mail_message WHERE user_id = ?", (uid,)).fetchone()
     c = conn.execute("SELECT COUNT(*), COALESCE(MAX(a.id), 0) FROM claude_action a JOIN claude_chat ch ON ch.id = a.chat_id "
                      "WHERE a.user_id = ? AND a.status = 'pending' AND ch.source = 'mail'", (uid,)).fetchone()
@@ -2113,7 +2155,8 @@ def _api_thread(mid):
         import gmail_labels
         v.update({"labels": gmail_labels.thread_labels(_rows(conn, f"SELECT * FROM mail_message WHERE id IN ({','.join('?' * len(ids))}) "
                                                                     "ORDER BY received_at DESC, id DESC", ids)),
-                  "label_names": gmail_labels.names(conn, me["id"]), "other_tags": row["other_tags"]})
+                  "label_names": gmail_labels.names(conn, me["id"]), "other_tags": row["other_tags"],
+                  "starred": bool(_one(conn, f"SELECT id FROM mail_message WHERE starred = 1 AND id IN ({','.join('?' * len(ids))}) LIMIT 1", ids))})
         v.update({"id": mid, "last_id": ids[-1], "tags": row["tags"], "ai_state": last["ai_state"], "needs_action": any(
                       x["needs_action"] and x["status"] != "done" for x in _rows(conn, f"SELECT needs_action, status FROM mail_message "
                                                                                     f"WHERE id IN ({','.join('?' * len(ids))})", ids)),
@@ -2357,6 +2400,7 @@ def register(app) -> None:
     app.add_url_rule("/api/inbox/messages/<int:mid>", "inbox_message", _api_message, methods=["GET"])
     app.add_url_rule("/api/inbox/messages/<int:mid>/done", "inbox_done", _api_done, methods=["POST"])
     app.add_url_rule("/api/inbox/messages/<int:mid>/unread", "inbox_unread", _api_unread, methods=["POST"])
+    app.add_url_rule("/api/inbox/messages/<int:mid>/star", "inbox_star", _api_star, methods=["POST"])
     app.add_url_rule("/api/inbox/changes", "inbox_changes", _api_changes, methods=["GET"])
     app.add_url_rule("/api/inbox/messages/<int:mid>/suggest", "inbox_suggest", _api_suggest, methods=["POST"])
     app.add_url_rule("/api/inbox/linked", "inbox_linked", _api_linked, methods=["GET"])

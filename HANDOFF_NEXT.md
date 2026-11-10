@@ -41,6 +41,15 @@ grant, or elevation code.
 * Not done: the other three pay forms (New invoice, Email, Payment) still sit inside the view, so on a phone Ask Claude can cover
   their buttons; same one-line fix if it comes up.
 
+### Starred in the Inbox (Bookore, 2026-11-10)
+
+* Prototype accepted: https://claude.ai/artifact/QBkCoZGgpPNGo2aT2k1EQk. Gmail's star on every email (desktop next to the checkbox, phone under the
+  time), a "Starred" filter after Inbox, and a star in the open email's bar. `mail_message.starred` (ensured in `inbox.ensure`); a conversation is
+  starred when any of its emails is. `POST /api/inbox/messages/<id>/star {starred}`: on = the newest email, off = every starred email of it, mirrored
+  to Gmail's STARRED label (`gmail_modify`, needs the modify scope; otherwise this side only). Starred / unstarred in Gmail comes back through history
+  (labelsAdded/Removed) and `sync_thread` (`apply_labels(..., starred=)`). Starred keeps an email after Done; the 90-day prune keeps starred email.
+  Guard: `tests/smoke_inbox_starred.py`.
+
 ### Gmail labels (Bookore, 2026-11-09)
 
 * Stage 1 of 2 of the accepted prototype: https://claude.ai/artifact/AD3UWCWVrSTcdKFN1grgyk. Stage 2 (the owner brief: 7:00 AM Eastern weekdays for Arun, Angela reviews
