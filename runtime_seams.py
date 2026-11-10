@@ -10,6 +10,7 @@ The app has deterministic test seams that replace real behaviour with planted da
   SSC_RESET_MAIL_FAKE_DIR    same, for password-reset mail (puts reset links on disk)
   SSC_ASSISTANT_FAKE         replace the Claude reply on estimates/proposals with planted text
   SSC_INBOX_TRIAGE_FAKE      replace the Inbox email sorting call with planted JSON
+  SSC_BRIEF_FAKE             replace the owner brief's line-writing call with planted JSON
   SSC_INBOX_ATTACHMENT_FAKE  replace Gmail attachment downloads with planted bytes
   SSC_CALENDAR_SORT_FAKE     replace the calendar work / personal sorting call with planted JSON
   SSC_MAIL_FAKE_SENDAS       planted Gmail "send as" name + signature (JSON) for the test mail folder
@@ -44,6 +45,7 @@ SEAM_VARS = (
     "SSC_RESET_MAIL_FAKE_DIR",
     "SSC_ASSISTANT_FAKE",
     "SSC_INBOX_TRIAGE_FAKE",
+    "SSC_BRIEF_FAKE",
     "SSC_INBOX_ATTACHMENT_FAKE",
     "SSC_CALENDAR_SORT_FAKE",
     "SSC_MAIL_FAKE_SENDAS",

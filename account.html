@@ -97,6 +97,8 @@
   .lb-sec{display:grid;gap:8px;padding-top:14px;border-top:1px solid var(--line);}
   .lb-sec:first-child{padding-top:0;border-top:0;}
   .lb-sec select{max-width:320px;}
+  .br-row{display:flex;flex-wrap:wrap;gap:10px 16px;}
+  .br-row label{display:grid;gap:4px;font-size:13px;color:var(--muted);font-weight:600;flex:1 1 160px;max-width:240px;}
   .lb-confirm{background:#FFF4E5;border:1px solid #F2C98A;border-radius:10px;padding:12px 14px;display:grid;gap:10px;font-size:13px;color:#7A4A00;max-width:520px;}
   @media (max-width:860px){
     .wrap{padding:16px 16px 40px;}
@@ -449,6 +451,7 @@
           ? 'Email that needs ' + esc(d.owner.name) + '’s decision, approval, signature or payment OK is labeled &ldquo;' + esc(own) + '&rdquo;'
           : 'Email that needs a decision, approval, signature or payment OK is labeled &ldquo;' + esc(own) + '&rdquo;') +
           (d.enabled ? ' in your Inbox and in Gmail.' : ' in your Inbox.') + '</div></div>' +
+      lbBriefSec(d) +
       '<div class="lb-sec"><b>Sort my older email</b>' +
         '<div class="actions"><button class="btn-primary" type="button" id="lb-bf"' + (bf.busy ? ' disabled' : '') + '>' +
           (d.backfill.state === 'done' ? 'Sort my last ' + d.backfill.days + ' days again' : 'Sort my last ' + d.backfill.days + ' days') + '</button>' +
@@ -460,10 +463,36 @@
     clearTimeout(LB_POLL);
     if (bf.busy) LB_POLL = setTimeout(loadLabels, 4000);
   }
+  // the owner's morning brief (gmail_brief.py): who it is for = who gets the "For" label
+  var BR = null;
+  function lbBriefSec(d) {
+    if (!BR) return '';
+    var who = d.owner ? d.owner.first : '';
+    var times = BR.ready_times.map(function (t) {
+      var h = +t.split(':')[0], m = t.split(':')[1];
+      return '<option value="' + t + '"' + (BR.ready_at === t ? ' selected' : '') + '>' + ((h % 12) || 12) + ':' + m + (h < 12 ? ' AM' : ' PM') + ' Eastern</option>';
+    }).join('');
+    return '<div class="lb-sec"><div class="lb-head"><div><b>' + (who ? esc(who) + '\u2019s daily brief' : 'Daily brief') + '</b>' +
+        '<div class="hint" style="margin-top:2px">' + (who
+          ? 'Every morning, what got &ldquo;' + esc(d.labels[0].name) + '&rdquo; since the last brief, in one short list. You review it in Inbox &gt; Brief, then send it to ' + esc(who) + ' from your Gmail. Nothing is sent by itself.'
+          : 'Pick who gets the &ldquo;For&rdquo; label first. The brief is for that person.') + '</div></div>' +
+        '<label class="lb-switch"><input type="checkbox" id="br-on"' + (BR.enabled ? ' checked' : '') + (who ? '' : ' disabled') + ' aria-label="Make a daily brief"><span></span></label></div>' +
+      (BR.enabled ? '<div class="br-row"><label><span>Ready at</span><select class="ssc-field" id="br-time">' + times + '</select></label>' +
+        '<label><span>Days</span><select class="ssc-field" id="br-days"><option value="weekdays"' + (BR.days === 'weekdays' ? ' selected' : '') + '>Weekdays</option>' +
+        '<option value="daily"' + (BR.days === 'daily' ? ' selected' : '') + '>Every day</option></select></label></div>' : '') +
+      '</div>';
+  }
+  function brSave(body, okText) {
+    return req('PUT', '/api/inbox/brief/settings', body).then(function (r) {
+      if (r.ok) { BR = r.j.data; drawLabels(); if (okText) say($('lb-msg'), okText, true); }
+      else { drawLabels(); say($('lb-msg'), r.j.error || 'Could not save. Try again.'); }
+    }, function () { drawLabels(); say($('lb-msg'), 'No connection. Try again.'); });
+  }
   function loadLabels() {
     req('GET', '/api/inbox/labels').then(function (r) {
       if (!r.ok) return;   // not an office role
       LB = r.j.data; $('lb-card').hidden = false; drawLabels();
+      req('GET', '/api/inbox/brief').then(function (b) { if (b.ok) { BR = b.j.data; drawLabels(); } });
     });
   }
   function lbSave(body, okText) {
@@ -474,7 +503,12 @@
   }
   $('lb-body').addEventListener('change', function (e) {
     if (e.target.id === 'lb-on') { e.target.disabled = true; lbSave({ enabled: e.target.checked }, e.target.checked ? 'Labels on' : 'Labels off: new email is no longer labeled'); }
-    if (e.target.id === 'lb-owner') lbSave({ owner_user_id: e.target.value || null }, 'Saved');
+    if (e.target.id === 'lb-owner') lbSave({ owner_user_id: e.target.value || null }, 'Saved').then(function () {
+      req('GET', '/api/inbox/brief').then(function (b) { if (b.ok) { BR = b.j.data; drawLabels(); } });
+    });
+    if (e.target.id === 'br-on') { e.target.disabled = true; brSave({ enabled: e.target.checked }, e.target.checked ? 'Daily brief on' : 'Daily brief off'); }
+    if (e.target.id === 'br-time') brSave({ ready_at: e.target.value }, 'Saved');
+    if (e.target.id === 'br-days') brSave({ days: e.target.value }, 'Saved');
   });
   $('lb-body').addEventListener('click', function (e) {
     var t = e.target.closest('button'); if (!t) return;

@@ -163,6 +163,8 @@ def ensure(conn) -> None:
     team_handled.backfill(conn)
     import gmail_labels
     gmail_labels.ensure(conn)   # what the labels in Gmail are decided from (2026-11-09)
+    import gmail_brief
+    gmail_brief.ensure(conn)    # the owner's morning brief (2026-11-10)
 
 
 def _conn():
@@ -1628,6 +1630,12 @@ def claude_round() -> None:
                     conn.execute("UPDATE mail_message SET ai_state = 'triaged' WHERE id = ?", (r["id"],))
                     conn.commit()
                     log.warning("inbox process %s failed: %s", r["id"], type(e).__name__)
+            try:   # the owner's morning brief, once its time comes (after the new mail is sorted)
+                import gmail_brief
+                gmail_brief.tick(conn)
+            except Exception as e:
+                conn.rollback()
+                log.warning("owner brief tick failed: %s", type(e).__name__)
             if len(pending) < 20:   # new mail first; then a few older emails for "Label my last 90 days"
                 import gmail_labels
                 gmail_labels.backfill_round(conn)
