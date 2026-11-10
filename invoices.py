@@ -201,7 +201,8 @@ def ensure_schema(conn) -> None:
     import invoice_docs                     # #326 — sent / viewed / pdf / link columns
     invoice_docs.ensure_columns(conn)
     # #316 1b: where the invoice came from (NULL = made here, 'quickbooks' = brought in) + its follow-up task
-    for col, ddl in (("source", "TEXT"), ("followup_item_id", "INTEGER")):
+    # edited_at: the last change made with Edit, so a row can say it changed after it was emailed
+    for col, ddl in (("source", "TEXT"), ("followup_item_id", "INTEGER"), ("edited_at", "TEXT")):
         if not invoice_docs._has_column(conn, "invoice", col):
             conn.execute(f"ALTER TABLE invoice ADD COLUMN {col} {ddl}")
     conn.commit()
@@ -470,28 +471,91 @@ def create_for_proposal(conn, proposal_id: int, fields: dict, *, created_by=None
     }, created_by=created_by)
 
 
+def edit_rules(conn, r: dict) -> dict:
+    """What the Edit form may change on this invoice (shown on the row, enforced in `update`).
+    editable: False for paid / void / brought in from QuickBooks. amount_locked: why the amount
+    (and retainage, kind) can't change — an AIA pay application's G702 sets it, or the invoice is
+    already in QuickBooks, which never takes an update from here. min_amount: what has been paid."""
+    if r.get("source") == "quickbooks" or r.get("status") not in ("draft", "issued"):
+        return {"editable": False, "amount_locked": None, "min_amount": 0}
+    locked = None
+    try:
+        import aia_billing
+        if aia_billing.for_invoice(conn, r["id"]):
+            locked = "Set by the progress billing form. Change it there."
+    except Exception:   # the pay-application table may not exist on a fresh DB
+        try:
+            conn.rollback()   # Postgres: a failed read aborts the transaction
+        except Exception:
+            pass
+    if not locked and r["status"] == "issued" and r.get("qb_invoice_id"):
+        locked = "This invoice is already in QuickBooks. Change the amount there."
+    return {"editable": True, "amount_locked": locked, "min_amount": round(_num(r.get("amount_paid")), 2)}
+
+
+_ISSUED_EDITABLE = ("kind", "description", "amount", "retainage", "due_at", "notes")
+_MONEY_FIELDS = ("kind", "amount", "retainage")
+
+
 def update(conn, invoice_id: int, fields: dict, *, actor=None) -> dict:
+    """Edit a draft or issued invoice. An issued one keeps its number, issue date and payments;
+    the stored PDF is dropped so the PDF button and the client's link redraw with the new values."""
     r = get(conn, invoice_id)
     if not r:
         raise LookupError("invoice not found")
     if r.get("source") == "quickbooks":
         raise ValueError(QB_OWNED)
-    if r["status"] == "draft":
-        f = _validate({k: v for k, v in fields.items() if k in EDITABLE}, partial=True)
-    elif r["status"] == "issued":
-        allowed = {k: v for k, v in fields.items() if k in ("due_at", "notes", "description", "qb_invoice_id", "qb_status")}
-        f = _validate({k: v for k, v in allowed.items() if k in ("due_at", "notes", "description")}, partial=True)
-        for k in ("qb_invoice_id", "qb_status"):
-            if k in allowed:
-                f[k] = (str(allowed[k]).strip()[:200] or None) if allowed[k] not in (None, "") else None
-    else:
+    if r["status"] not in ("draft", "issued"):
         raise ValueError(f"a {r['status']} invoice cannot be edited")
-    if not f:
+    rules = edit_rules(conn, r)
+    allowed_keys = EDITABLE if r["status"] == "draft" else _ISSUED_EDITABLE
+    wanted = {k: v for k, v in fields.items() if k in allowed_keys}
+    if rules["amount_locked"]:
+        for k in _MONEY_FIELDS:   # the form sends every field: an unchanged value is fine
+            if k not in wanted:
+                continue
+            same = ((str(wanted[k] or "").strip().lower() == (r.get(k) or "")) if k == "kind"
+                    else abs(_num(wanted[k]) - _num(r.get(k))) < 0.005)
+            if not same:
+                raise ValueError(rules["amount_locked"])
+            wanted.pop(k)
+    f = _validate(wanted, partial=True)
+    extra = {}
+    if r["status"] == "issued":
+        for k in ("qb_invoice_id", "qb_status"):
+            if k in fields:
+                v = fields[k]
+                extra[k] = (str(v).strip()[:200] or None) if v not in (None, "") else None
+        if "due_at" in f:
+            if not f["due_at"]:
+                raise ValueError("an issued invoice needs a due date")
+            if r.get("issued_at") and f["due_at"] < str(r["issued_at"])[:10]:
+                raise ValueError("the due date cannot be before the issue date")
+        if "amount" in f and f["amount"] < rules["min_amount"] - 0.005:
+            raise ValueError(f"{_money(rules['min_amount'])} has already been paid on this invoice, "
+                             f"so the amount can't be lower than that")
+    f = {k: v for k, v in f.items() if v != r.get(k)}
+    if not f and not extra:
         return r
+    f.update(extra)
+    if r["status"] == "issued" and "amount" in f and rules["min_amount"] > 0 and f["amount"] <= rules["min_amount"] + 0.005:
+        last = _one(conn.execute("SELECT MAX(paid_on) AS d FROM invoice_payment WHERE invoice_id = ?", (invoice_id,)))
+        f["status"], f["paid_at"] = "paid", (last or {}).get("d") or _today().isoformat()   # the payments now cover it
+    if set(f) - {"qb_invoice_id", "qb_status"}:
+        f["edited_at"] = _now()
     sets = ", ".join(f"{k} = ?" for k in f)
-    conn.execute(f"UPDATE invoice SET {sets}, updated_at = ? WHERE id = ?", (*f.values(), _now(), invoice_id))
+    conn.execute(f"UPDATE invoice SET {sets}, pdf_path = NULL, pdf_rendered_at = NULL, updated_at = ? WHERE id = ?",
+                 (*f.values(), _now(), invoice_id))
     conn.commit()
-    return get(conn, invoice_id)
+    out = get(conn, invoice_id)
+    if "amount" in f:
+        _activity(conn, r["client_org_id"],
+                  f"Invoice {r['number']} changed — amount {_money(r['amount'])} → {_money(out['amount'])}", actor=actor)
+    elif r["status"] == "issued" and set(f) - {"qb_invoice_id", "qb_status"}:
+        _activity(conn, r["client_org_id"], f"Invoice {r['number']} edited", actor=actor)
+    if out["status"] == "paid" and out["kind"] == "deposit":
+        _mark_ira_deposit(conn, out, out["paid_at"])
+    return out
 
 
 def issue(conn, invoice_id: int, *, issued_on=None, due_on=None, actor=None) -> dict:
@@ -704,7 +768,12 @@ def _api_update(invoice_id):
     conn = _conn()
     try:
         try:
-            return _wrap(update(conn, invoice_id, body, actor=_uid()))
+            r = update(conn, invoice_id, body, actor=_uid())
+            warning = None
+            if r.get("design_html") and "amount" in body:   # a Claude design carries its own copy of the amount
+                import invoice_docs
+                warning = invoice_docs.amount_mismatch(r, r["design_html"])
+            return _wrap(r, warning=warning)
         except LookupError as e:
             return _err(str(e), 404)
         except ValueError as e:

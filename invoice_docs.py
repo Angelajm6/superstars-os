@@ -596,7 +596,8 @@ def project_payments(conn, project_code: str, *, today: Optional[date] = None) -
                           (project_code,)))
     if not p:
         return None
-    rows = [public(r) for r in invoices.list_invoices(conn, project_code=project_code, today=today)]
+    rows = [dict(public(r), edit=invoices.edit_rules(conn, r))
+            for r in invoices.list_invoices(conn, project_code=project_code, today=today)]
     open_rows = [r for r in rows if r["status"] == "issued"]
     summary = {
         "invoiced_total": round(sum(r["amount"] for r in rows if r["status"] in ("issued", "paid")), 2),
