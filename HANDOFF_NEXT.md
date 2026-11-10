@@ -21,6 +21,26 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Edit invoices on a job (Bookore, 2026-11-10)
+
+* Accepted prototype: https://claude.ai/artifact/KUmj1EUwdHP4iut2v3YYTi. A job's **Invoices & Payments** rows have **Edit**
+  (draft or issued; not paid / void / brought in from QuickBooks) → a form with kind, amount, due date, retainage, description,
+  internal note → `PATCH /api/invoices/<id>`. The form sits on `document.body` (z-index 10002, above Ask Claude).
+* `invoices.update` now lets an **issued** invoice change kind / amount / retainage too. Limits: the amount can't go below what
+  has been paid (equal → it flips to paid on the last payment's day); an AIA pay application (G702 sets it) or an invoice
+  already in QuickBooks (`qb_invoice_id`; `qbo.push_invoice` never updates one) has amount / retainage / kind locked —
+  unchanged values in the payload are fine. Due date: required on an issued invoice, not before `issued_at`.
+  Number, issue date, client and job never change on an issued invoice.
+* Every edit clears `pdf_path` so the PDF button and the client's link redraw (it used to keep a stale PDF). New column
+  `invoice.edited_at` (boot-ensured in `invoices.ensure_schema`); `edited_at > sent_at` shows "Changed since sent · resend" on
+  the row, and the save toast offers **Resend**. Amount changes log "Invoice X changed — amount $A → $B" on the client.
+  A Claude-designed invoice returns `meta.warning` (`invoice_docs.amount_mismatch`) when its design no longer shows the amount.
+* `invoices.edit_rules(conn, r)` → {editable, amount_locked, min_amount}; `project_payments` rows carry it as `edit`.
+* Guard: `smoke_invoices_315` (issued edits, activity row, due-date rules, paid floor + flip, QuickBooks / AIA locks, PDF cleared,
+  page needles).
+* Not done: the other three pay forms (New invoice, Email, Payment) still sit inside the view, so on a phone Ask Claude can cover
+  their buttons; same one-line fix if it comes up.
+
 ### Gmail labels (Bookore, 2026-11-09)
 
 * Stage 1 of 2 of the accepted prototype: https://claude.ai/artifact/AD3UWCWVrSTcdKFN1grgyk. Stage 2 (the owner brief: 7:00 AM Eastern weekdays for Arun, Angela reviews

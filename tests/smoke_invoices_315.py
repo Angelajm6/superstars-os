@@ -249,10 +249,29 @@ def main() -> int:
     assert a["due_at"] == (TODAY + timedelta(days=invoices.NET_DAYS_DEFAULT)).isoformat()
     assert a["days_to_due"] == invoices.NET_DAYS_DEFAULT and a["overdue"] is False
     assert admin.post(f"/api/invoices/{a['id']}/issue", json={}).status_code == 409, "issue twice -> 409"
-    # issued: amount is not editable, due/notes are
-    r = admin.patch(f"/api/invoices/{a['id']}", json={"amount": 5, "notes": "call Friday", "due_at": "2099-01-01"})
-    assert r.status_code == 200 and _j(r)["data"]["amount"] == 2000 and _j(r)["data"]["notes"] == "call Friday"
-    assert _j(r)["data"]["due_at"] == "2099-01-01"
+    # issued: Edit changes the amount too (logged on the client), and due / notes
+    r = admin.patch(f"/api/invoices/{a['id']}", json={"amount": 2400, "notes": "call Friday", "due_at": "2099-01-01"})
+    assert r.status_code == 200 and _j(r)["data"]["amount"] == 2400 and _j(r)["data"]["notes"] == "call Friday"
+    assert _j(r)["data"]["due_at"] == "2099-01-01" and _j(r)["data"]["edited_at"] and _j(r)["data"]["status"] == "issued"
+    assert _j(r)["data"]["issued_at"] == TODAY.isoformat() and _j(r)["data"]["number"] == a["number"], "number + issue date stay"
+    conn = _db()
+    try:
+        n = conn.execute("SELECT COUNT(1) AS n FROM crm_activity WHERE entity_type='organization' AND entity_id=? AND summary = ?",
+                         (org, f"Invoice {a['number']} changed — amount $2,000.00 → $2,400.00")).fetchone()["n"]
+        assert n == 1, "an amount change writes one CRM activity row"
+    finally:
+        conn.close()
+    r = admin.patch(f"/api/invoices/{a['id']}", json={"amount": 2000, "kind": "final"})
+    assert r.status_code == 200 and _j(r)["data"]["amount"] == 2000 and _j(r)["data"]["kind"] == "final"
+    assert admin.patch(f"/api/invoices/{a['id']}", json={"kind": "progress"}).status_code == 200
+    r = admin.patch(f"/api/invoices/{a['id']}", json={"due_at": (TODAY - timedelta(days=1)).isoformat()})
+    assert r.status_code == 400 and "before the issue date" in _j(r)["error"]
+    r = admin.patch(f"/api/invoices/{a['id']}", json={"due_at": None})
+    assert r.status_code == 400 and "needs a due date" in _j(r)["error"]
+    r = admin.patch(f"/api/invoices/{a['id']}", json={"amount": 0})
+    assert r.status_code == 400 and "greater than zero" in _j(r)["error"]
+    r = admin.patch(f"/api/invoices/{a['id']}", json={"client_org_id": org2, "project_code": "ELSEWHERE"})
+    assert r.status_code == 200 and _j(r)["data"]["client_org_id"] == org, "an issued invoice keeps its client and job"
     r = admin.patch(f"/api/invoices/{a['id']}", json={"due_at": (TODAY + timedelta(days=10)).isoformat()})
     assert r.status_code == 200
     checks += 1
@@ -436,6 +455,60 @@ def main() -> int:
         # the proposal's screens offer it
         page = (ROOT / "company_portal.html").read_text(encoding="utf-8")
         for needle in ('data-prx-act="invoice"', 'data-m="invoice"', 'id="pr-inv-btn"', 'id="inv-prop-form"', 'id="prx-billing"'):
+            assert needle in page, needle
+    finally:
+        conn.close()
+    checks += 1
+
+    # ---- Edit: the PDF is redrawn, payments floor the amount, AIA / QuickBooks lock it, paid / void are closed
+    conn = _db()
+    try:
+        e1 = invoices.create(conn, {"client_org_id": org2, "amount": 1000, "kind": "change_order", "description": "Edit smoke"})
+        e1 = invoices.issue(conn, e1["id"])
+        conn.execute("UPDATE invoice SET pdf_path = 'invoices/x.pdf', sent_at = '2026-01-01T09:00:00' WHERE id = ?", (e1["id"],))
+        conn.commit()
+        rules = invoices.edit_rules(conn, invoices.get(conn, e1["id"]))
+        assert rules == {"editable": True, "amount_locked": None, "min_amount": 0}, rules
+        r = admin.patch(f"/api/invoices/{e1['id']}", json={"description": "Edit smoke, revised"})
+        assert r.status_code == 200 and not _j(r)["data"]["has_pdf"], "an edit drops the stored PDF so it is redrawn"
+        assert _j(r)["data"]["edited_at"] > _j(r)["data"]["sent_at"], "the row can say it changed after it was sent"
+        invoices.record_payment(conn, e1["id"], amount=300, paid_on="2026-01-05", method="check")
+        assert invoices.edit_rules(conn, invoices.get(conn, e1["id"]))["min_amount"] == 300
+        r = admin.patch(f"/api/invoices/{e1['id']}", json={"amount": 250})
+        assert r.status_code == 400 and "already been paid" in _j(r)["error"]
+        r = admin.patch(f"/api/invoices/{e1['id']}", json={"amount": 600})
+        assert r.status_code == 200 and _j(r)["data"]["balance"] == 300 and _j(r)["data"]["status"] == "issued"
+        r = admin.patch(f"/api/invoices/{e1['id']}", json={"amount": 300})   # the payments now cover it
+        assert r.status_code == 200 and _j(r)["data"]["status"] == "paid" and _j(r)["data"]["paid_at"] == "2026-01-05"
+        assert invoices.edit_rules(conn, invoices.get(conn, e1["id"]))["editable"] is False
+        assert admin.patch(f"/api/invoices/{e1['id']}", json={"notes": "x"}).status_code == 409, "paid -> closed"
+        # already in QuickBooks: the amount, retainage and kind are locked; words and dates are not
+        e2 = invoices.issue(conn, invoices.create(conn, {"client_org_id": org2, "amount": 800, "kind": "other"})["id"])
+        conn.execute("UPDATE invoice SET qb_invoice_id = '77' WHERE id = ?", (e2["id"],)); conn.commit()
+        assert "QuickBooks" in (invoices.edit_rules(conn, invoices.get(conn, e2["id"]))["amount_locked"] or "")
+        r = admin.patch(f"/api/invoices/{e2['id']}", json={"amount": 900})
+        assert r.status_code == 400 and "QuickBooks" in _j(r)["error"]
+        r = admin.patch(f"/api/invoices/{e2['id']}", json={"amount": "800.00", "retainage": "", "kind": "other", "notes": "same money"})
+        assert r.status_code == 200 and _j(r)["data"]["notes"] == "same money", "unchanged locked fields are fine"
+        # an AIA pay application: its G702 sets the amount
+        import aia_billing
+        real = aia_billing.for_invoice
+        aia_billing.for_invoice = lambda c, i: {"id": 1} if i == e2["id"] else None
+        try:
+            conn.execute("UPDATE invoice SET qb_invoice_id = NULL WHERE id = ?", (e2["id"],)); conn.commit()
+            assert "progress billing form" in invoices.edit_rules(conn, invoices.get(conn, e2["id"]))["amount_locked"]
+            r = admin.patch(f"/api/invoices/{e2['id']}", json={"retainage": 50})
+            assert r.status_code == 400 and "progress billing form" in _j(r)["error"]
+            assert admin.patch(f"/api/invoices/{e2['id']}", json={"description": "App #1"}).status_code == 200
+        finally:
+            aia_billing.for_invoice = real
+        invoices.void(conn, e2["id"], reason="smoke")
+        assert invoices.edit_rules(conn, invoices.get(conn, e2["id"]))["editable"] is False
+        # the job's Invoices & Payments rows carry the rules; the page has the Edit form
+        pay = invoice_docs.project_payments(conn, "INV315-A")
+        assert pay["invoices"] and all("edit" in x for x in pay["invoices"])
+        page = (ROOT / "dashboard-static.html").read_text(encoding="utf-8")
+        for needle in ('id="pay-edit-form"', 'data-edit="${r.id}"', "method: 'PATCH'", "Changed since sent"):
             assert needle in page, needle
     finally:
         conn.close()

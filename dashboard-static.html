@@ -5572,6 +5572,11 @@
           .pay-field input,.pay-field select,.pay-field textarea{width:100%;font:inherit;font-size:13px;padding:9px 10px;border:1px solid var(--line, #eceef3);border-radius:8px;background:#fff;color:var(--ink, #222633);box-sizing:border-box}
           .pay-err{grid-column:1 / -1;color:var(--status-behind-deep, #A8382B);background:var(--status-behind-soft, #fceeec);border-radius:8px;padding:8px 10px;font-size:13px;display:none} .pay-err.show{display:block}
           .pay-mfoot{padding:12px 20px 18px;display:flex;justify-content:flex-end;gap:8px}
+          #pay-edit-overlay{z-index:10002}   /* above the Ask Claude button */
+          .pay-hint{font-size:12px;color:var(--muted, #8c92a0);margin-top:5px;line-height:1.4}
+          .pay-note{background:var(--accent-soft, #ebf0fe);color:var(--ink, #222633);border-radius:8px;padding:9px 11px;font-size:13px;line-height:1.45}
+          .pay-field input[readonly],.pay-field select:disabled{background:var(--canvas, #fafbfd);color:var(--muted, #8c92a0);cursor:not-allowed}
+          .pay-changed{display:block;margin-top:3px;font-size:12px;font-weight:600;color:var(--status-warn, #9A5B00)}
           .pay-mbody.pay-mbody-5{grid-template-columns:repeat(5,1fr)}   /* #362 — was inline; now collapses */
           @media (max-width:1024px){ .pay-mbody.pay-mbody-5{grid-template-columns:repeat(3,1fr)} }
           @media (max-width:640px){ .pay-mbody, .pay-mbody.pay-mbody-5{grid-template-columns:1fr} }
@@ -5831,6 +5836,18 @@
             <div class="pay-field full"><label for="pay-new-desc">Description</label><input id="pay-new-desc" placeholder="e.g. Progress billing #2 — north elevation" autocomplete="off"></div>
             <div class="pay-err" id="pay-new-err"></div></div>
           <div class="pay-mfoot"><button type="button" class="pay-btn" id="pay-new-cancel">Cancel</button><button type="submit" class="pay-btn primary" id="pay-new-go">Create draft</button></div></form></div>
+        <div class="pay-overlay" id="pay-edit-overlay"><form class="pay-modal" id="pay-edit-form" novalidate>
+          <div class="pay-mhead"><h3 id="pay-edit-title">Edit invoice</h3><p id="pay-edit-sub"></p></div>
+          <div class="pay-mbody">
+            <div class="pay-note full" id="pay-edit-sent" hidden></div>
+            <div class="pay-field"><label for="pay-edit-kind">Kind</label><select id="pay-edit-kind"></select></div>
+            <div class="pay-field"><label for="pay-edit-amount">Amount (USD)</label><input id="pay-edit-amount" inputmode="decimal" autocomplete="off"><div class="pay-hint" id="pay-edit-amount-hint" hidden></div></div>
+            <div class="pay-field"><label for="pay-edit-due">Due date</label><input id="pay-edit-due" type="date"><div class="pay-hint" id="pay-edit-due-hint" hidden></div></div>
+            <div class="pay-field"><label for="pay-edit-ret">Retainage held (USD)</label><input id="pay-edit-ret" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
+            <div class="pay-field full"><label for="pay-edit-desc">Description</label><input id="pay-edit-desc" autocomplete="off"><div class="pay-hint">Shows on the invoice the client sees.</div></div>
+            <div class="pay-field full"><label for="pay-edit-notes">Internal note</label><textarea id="pay-edit-notes" rows="2" placeholder="Only the office sees this"></textarea></div>
+            <div class="pay-err" id="pay-edit-err"></div></div>
+          <div class="pay-mfoot"><button type="button" class="pay-btn" id="pay-edit-cancel">Cancel</button><button type="submit" class="pay-btn primary" id="pay-edit-go">Save changes</button></div></form></div>
         <div class="pay-overlay" id="pay-mail-overlay"><form class="pay-modal" id="pay-mail-form" novalidate>
           <div class="pay-mhead"><h3>Email invoice to the client</h3><p id="pay-mail-sub"></p></div>
           <div class="pay-mbody">
@@ -5867,7 +5884,9 @@
           }
           function pill(r) { if (r.overdue) return `<span class="pay-pill bad">overdue ${r.days_overdue}d</span>`; const c = { draft: '', issued: 'active', paid: 'ok', void: '' }[r.status] || ''; return `<span class="pay-pill ${c}">${esc(r.status)}</span>`; }
           function kpi(k, v, s, cls) { return `<div class="pay-kpi ${cls || ''}"><div class="k">${esc(k)}</div><div class="v">${v}</div><div class="s">${esc(s || '')}</div></div>`; }
-          function toast(msg, bad) { const t = document.createElement('div'); t.textContent = msg; t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:' + (bad ? '#A8382B' : '#14161C') + ';color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:99;box-shadow:0 6px 20px rgba(0,0,0,.2)'; document.body.appendChild(t); setTimeout(() => t.remove(), 3200); }
+          function toast(msg, bad, action) { const t = document.createElement('div'); t.setAttribute('role', 'status'); const m = document.createElement('span'); m.textContent = msg; t.appendChild(m);
+            if (action) { const b = document.createElement('button'); b.type = 'button'; b.textContent = action.label; b.style.cssText = 'font:inherit;font-weight:700;background:none;border:0;color:#9db1ff;cursor:pointer;padding:0;margin-left:12px'; b.addEventListener('click', () => { t.remove(); action.fn(); }); t.appendChild(b); }
+            t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:' + (bad ? '#A8382B' : '#14161C') + ';color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:10001;box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:calc(100vw - 32px)'; document.body.appendChild(t); setTimeout(() => t.remove(), action ? 6000 : 3200); }
           function render() {
             const d = S.data, s = d.summary;
             $p('pay-sub').textContent = (d.client ? d.client.name + ' · ' : '') + d.project.project_code + ' · invoices on this job';
@@ -5877,10 +5896,10 @@
             if (!rows.length) { $p('pay-table').innerHTML = '<tbody><tr><td class="pay-empty"><b>No invoices on this job yet.</b><br>Create one, or sign a proposal with deposit terms.</td></tr></tbody>'; return; }
             $p('pay-table').innerHTML = '<thead><tr><th>Invoice</th><th>Description</th><th class="num">Amount</th><th class="num">Open</th><th>Due</th><th>Status</th><th>Client</th><th></th></tr></thead><tbody>' + rows.map(r => `<tr>
               <td><span class="pay-id">${esc(r.number)}</span><div class="pay-muted">${esc(String(r.kind || '').replace('_',' '))}${r.proposal_number ? ' · ' + esc(r.proposal_number) : ''}${r.has_design ? ' · designed with Claude' : ''}</div></td>
-              <td>${esc(r.description || '—')}</td><td class="num">${money.format(r.amount)}</td><td class="num">${r.status === 'issued' ? '<b>' + money.format(r.balance) + '</b>' : '—'}</td>
+              <td>${esc(r.description || '—')}${r.status === 'issued' && r.sent_at && r.edited_at && r.edited_at > r.sent_at ? '<span class="pay-changed">Changed since sent · resend</span>' : ''}</td><td class="num">${money.format(r.amount)}</td><td class="num">${r.status === 'issued' ? '<b>' + money.format(r.balance) + '</b>' : '—'}</td>
               <td>${r.status === 'draft' ? '<span class="pay-muted">draft</span>' : fmtDate(r.due_at)}</td><td>${pill(r)}</td>
               <td class="pay-muted">${r.sent_at ? (r.viewed_at ? 'opened ' + fmtDate(r.viewed_at) : 'sent ' + fmtDate(r.sent_at)) + (r.sent_count > 1 ? ' · ×' + r.sent_count : '') : 'not sent'}</td>
-              <td><div class="pay-acts"><a class="pay-btn" href="/api/invoices/${r.id}/preview" target="_blank" rel="noopener" data-preview="${r.id}">Preview</a>${r.status !== 'draft' ? `<a class="pay-btn" href="/api/invoices/${r.id}/pdf" target="_blank" rel="noopener">PDF</a>` : ''}
+              <td><div class="pay-acts"><a class="pay-btn" href="/api/invoices/${r.id}/preview" target="_blank" rel="noopener" data-preview="${r.id}">Preview</a>${r.edit && r.edit.editable ? `<button type="button" class="pay-btn" data-edit="${r.id}">Edit</button>` : ''}${r.status !== 'draft' ? `<a class="pay-btn" href="/api/invoices/${r.id}/pdf" target="_blank" rel="noopener">PDF</a>` : ''}
                 ${r.status === 'draft' ? `<button type="button" class="pay-btn primary" data-issue="${r.id}">Issue</button>` : ''}
                 ${r.status === 'issued' ? `<button type="button" class="pay-btn primary" data-mail="${r.id}">${r.sent_at ? 'Resend' : 'Email client'}</button><button type="button" class="pay-btn" data-pay="${r.id}">Payment</button>` : ''}
                 ${r.status === 'paid' ? `<button type="button" class="pay-btn" data-mail="${r.id}">Email receipt</button>` : ''}
@@ -5901,6 +5920,7 @@
               try { await api('/api/invoices/' + r.id + '/design', { method: 'DELETE' }); toast(r.number + ' uses the standard layout'); load(); } catch (e) { toast(e.message, true); } }));
             $p('pay-table').querySelectorAll('[data-mail]').forEach(b => b.addEventListener('click', () => openMail(rows.find(x => String(x.id) === b.dataset.mail))));
             $p('pay-table').querySelectorAll('[data-pay]').forEach(b => b.addEventListener('click', () => openPay(rows.find(x => String(x.id) === b.dataset.pay))));
+            $p('pay-table').querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openEdit(rows.find(x => String(x.id) === b.dataset.edit))));
           }
           async function load() {
             // #317 fix — on the real /projects/<code> URL there is no ?project= and getProjectCode is not global: read the server-stamped code
@@ -5916,6 +5936,21 @@
             $p('pay-mail-name').value = r.sent_name || ''; $p('pay-mail-email').value = r.sent_to || '';
             if (!r.sent_to) { try { const { data } = await api('/api/invoices/' + r.id + '/recipient'); $p('pay-mail-email').value = data.email || ''; $p('pay-mail-name').value = data.name || ''; } catch (e) {} }
             $p('pay-mail-overlay').classList.add('open'); setTimeout(() => $p('pay-mail-email').focus(), 30);
+          }
+          function openEdit(r) {
+            const ov = $p('pay-edit-overlay'); if (ov.parentNode !== document.body) document.body.appendChild(ov);   // page root: a view's transformed ancestor would pin it under the header
+            const f = $p('pay-edit-form'), rule = r.edit || {}, locked = rule.amount_locked; f.dataset.id = r.id; $p('pay-edit-err').className = 'pay-err';
+            $p('pay-edit-title').textContent = 'Edit ' + r.number;
+            $p('pay-edit-sub').textContent = (r.status === 'draft' ? 'Draft' : 'Issued ' + fmtDate(r.issued_at)) + ' · ' + String(r.kind || '').replace('_', ' ') + (r.proposal_number ? ' · proposal ' + r.proposal_number : '');
+            const sent = $p('pay-edit-sent'); sent.hidden = !r.sent_at;
+            if (r.sent_at) sent.textContent = `The client was emailed this invoice on ${fmtDate(r.sent_at)}. Their link will show your changes right away. To send them a new email, use Resend after saving.`;
+            $p('pay-edit-kind').innerHTML = S.data.kinds.map(k => `<option value="${esc(k.code)}">${esc(k.label)}</option>`).join(''); $p('pay-edit-kind').value = r.kind; $p('pay-edit-kind').disabled = !!locked;
+            const amt = $p('pay-edit-amount'), ah = $p('pay-edit-amount-hint'); amt.value = Number(r.amount).toFixed(2); amt.readOnly = !!locked; $p('pay-edit-ret').readOnly = !!locked;
+            ah.hidden = !(locked || rule.min_amount > 0); ah.textContent = locked || (rule.min_amount > 0 ? `${money.format(rule.min_amount)} already paid. It can't go below that.` : '');
+            $p('pay-edit-ret').value = Number(r.retainage) ? Number(r.retainage).toFixed(2) : '';
+            dSet($p('pay-edit-due'), r.due_at || ''); const dh = $p('pay-edit-due-hint'); dh.hidden = !r.issued_at; dh.textContent = r.issued_at ? 'Not before the issue date, ' + fmtDate(r.issued_at) + '.' : '';
+            $p('pay-edit-desc').value = r.description || ''; $p('pay-edit-notes').value = r.notes || '';
+            $p('pay-edit-overlay').classList.add('open'); setTimeout(() => (locked ? $p('pay-edit-desc') : amt).focus(), 30);
           }
           function openPay(r) {
             $p('pay-pay-form').dataset.id = r.id; $p('pay-pay-sub').textContent = `${r.number} · ${money.format(r.balance)} open`; $p('pay-pay-err').className = 'pay-err';
@@ -5939,6 +5974,24 @@
             try { const { data } = await api('/api/invoices', { method: 'POST', body: JSON.stringify(payload) }); $p('pay-new-overlay').classList.remove('open'); toast('Draft ' + data.number + ' created'); load(); }
             catch (ex) { err.textContent = ex.message; err.className = 'pay-err show'; } finally { $p('pay-new-go').disabled = false; }
           });
+          $p('pay-edit-cancel').addEventListener('click', () => $p('pay-edit-overlay').classList.remove('open'));
+          $p('pay-edit-form').addEventListener('submit', async (e) => {
+            e.preventDefault(); const err = $p('pay-edit-err'); err.className = 'pay-err'; const id = $p('pay-edit-form').dataset.id;
+            const r = S.data.invoices.find(x => String(x.id) === id), locked = r.edit && r.edit.amount_locked;
+            const payload = { description: $p('pay-edit-desc').value, notes: $p('pay-edit-notes').value, due_at: dGet($p('pay-edit-due')) || null };
+            if (!locked) Object.assign(payload, { kind: $p('pay-edit-kind').value, amount: $p('pay-edit-amount').value.replace(/[$,]/g, ''), retainage: $p('pay-edit-ret').value.replace(/[$,]/g, '') || 0 });
+            if (r.status === 'issued' && !payload.due_at) { err.textContent = 'An issued invoice needs a due date.'; err.className = 'pay-err show'; return; }
+            $p('pay-edit-go').disabled = true;
+            try {
+              const j = await api('/api/invoices/' + id, { method: 'PATCH', body: JSON.stringify(payload) }), d = j.data;
+              $p('pay-edit-overlay').classList.remove('open');
+              const moved = Number(d.amount) !== Number(r.amount) ? ` · ${money.format(r.amount)} → ${money.format(d.amount)}` : '';
+              const warn = j.meta && j.meta.warning, resend = d.sent_at && d.status === 'issued';
+              await load();
+              const fresh = (S.data.invoices || []).find(x => String(x.id) === id);
+              toast(warn || (d.number + ' saved' + moved), !!warn, resend && fresh ? { label: 'Resend', fn: () => openMail(fresh) } : null);
+            } catch (ex) { err.textContent = ex.message; err.className = 'pay-err show'; } finally { $p('pay-edit-go').disabled = false; }
+          });
           $p('pay-mail-cancel').addEventListener('click', () => $p('pay-mail-overlay').classList.remove('open'));
           $p('pay-mail-form').addEventListener('submit', async (e) => {
             e.preventDefault(); const err = $p('pay-mail-err'); err.className = 'pay-err'; const id = $p('pay-mail-form').dataset.id; const email = $p('pay-mail-email').value.trim();
@@ -5955,7 +6008,7 @@
             try { const { data } = await api('/api/invoices/' + id + '/payments', { method: 'POST', body: JSON.stringify(payload) }); $p('pay-pay-overlay').classList.remove('open'); toast(data.status === 'paid' ? data.number + ' paid in full' : 'Payment recorded · ' + money.format(data.balance) + ' still open'); load(); }
             catch (ex) { err.textContent = ex.message; err.className = 'pay-err show'; } finally { $p('pay-pay-go').disabled = false; }
           });
-          document.querySelectorAll('#pay-new-overlay,#pay-mail-overlay,#pay-pay-overlay').forEach(o => o.addEventListener('click', ev => { if (ev.target === o) o.classList.remove('open'); }));
+          document.querySelectorAll('#pay-new-overlay,#pay-edit-overlay,#pay-mail-overlay,#pay-pay-overlay').forEach(o => o.addEventListener('click', ev => { if (ev.target === o) o.classList.remove('open'); }));
         })();
         </script>
       </section>
