@@ -387,7 +387,7 @@
   .ib-row.sel { background: #C2DBFF; }
   /* Gmail parity (2026-10-21): every email of a conversation, Gmail's folding (first · "N older" · last two),
      quoted text behind •••, per-email Reply / Reply all / Forward, details under "to me", phone = list then email */
-  .ib-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; grid-template-areas: "ck from when" "ck line line" "ck snip snip"; gap: 1px 8px; padding: 9px 14px; border-bottom: 1px solid #EEF0F3; cursor: pointer; font-size: 13px; color: #5F6368; background: #F6F8FC; }
+  .ib-row { display: grid; grid-template-columns: 22px 22px minmax(0, 1fr) auto; grid-template-areas: "ck st from when" "ck st line line" "ck st snip snip"; gap: 1px 8px; padding: 9px 14px; border-bottom: 1px solid #EEF0F3; cursor: pointer; font-size: 13px; color: #5F6368; background: #F6F8FC; }
   .ib-row.unread { background: #fff; color: #202124; }
   .ib-row:hover { box-shadow: inset 1px 0 0 #dadce0, inset -1px 0 0 #dadce0, 0 1px 2px rgba(60,64,67,.2); position: relative; }
   .ib-row.on { background: #E8EDF8; }
@@ -404,6 +404,10 @@
   .ib-ic.s { width: 16px; height: 16px; }
   .ib-lbl { display: inline-block; font-size: 12px; font-weight: 500; padding: 0 6px; border-radius: 4px; background: #E8EAED; color: #3C4043; margin-right: 5px; line-height: 18px; vertical-align: 1px; }
   .ib-lbl.cl { background: #FBEFE9; color: #A84E2C; font-weight: 600; }
+  /* Gmail's star (2026-11-10, prototype https://claude.ai/artifact/QBkCoZGgpPNGo2aT2k1EQk): same star here and in Gmail */
+  .ib-star { grid-area: st; align-self: start; border: 0; background: none; padding: 0; width: 26px; height: 26px; margin: -4px 0 0 -5px; border-radius: 50%; display: grid; place-items: center; color: #A8AFBB; cursor: pointer; }
+  .ib-star .ib-ic { width: 20px; height: 20px; } .ib-star:hover { background: rgba(68,71,70,.08); } .ib-star:focus-visible { outline: 2px solid var(--ui, #24418C); }
+  .ib-star[aria-pressed="true"], #ib-star[aria-pressed="true"] { color: #F4B400; }
   /* the owner's morning brief (gmail_brief.py; prototype accepted 2026-11-09): one card, phone first */
   .bf { max-width: 760px; }
   .bf-card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 14px; display: grid; gap: 16px; }
@@ -555,7 +559,8 @@
     .ib-list { border-right: 0; } .ib-wrap.reading .ib-list { display: none; } .ib-wrap.reading .ib-pane { display: block; }
     .ib-back { display: inline-grid; } .ib-tbar { padding: 4px 6px; } }
   @media (max-width: 900px) {
-    .ib-row { grid-template-columns: 40px minmax(0, 1fr) auto; grid-template-areas: "av from when" "av line line" "av snip snip"; column-gap: 12px; padding: 10px 14px; font-size: 14px; }
+    .ib-row { grid-template-columns: 40px minmax(0, 1fr) auto; grid-template-areas: "av from when" "av line line" "av snip st"; column-gap: 12px; padding: 10px 14px; font-size: 14px; }
+    .ib-star { justify-self: end; margin: -3px -5px -4px 0; width: 30px; height: 30px; }
     .ib-row .ib-av { display: grid; grid-area: av; align-self: start; margin-top: 2px; } .ib-from { font-size: 15px; }
     .ib-ck { display: none; } .ib-row.sel .ib-av { background: var(--ui, #24418C) !important; font-size: 0; } .ib-row.sel .ib-av::after { content: "✓"; font-size: 20px; }
     .ib-head { padding: 12px 16px 6px; } #ib-sugg:not(:empty) { margin-left: 16px; margin-right: 16px; }
@@ -1739,7 +1744,7 @@
           <div class="ib-list">
             <div class="ib-lhead">
               <button type="button" class="btn-primary btn-sm" id="ib-new">✎ Compose</button>
-              <div class="ib-filters" role="group" aria-label="Show"><button type="button" data-ibf="inbox" aria-pressed="true">Inbox</button><button type="button" data-ibf="act" aria-pressed="false">Needs reply</button><button type="button" data-ibf="own" aria-pressed="false" id="ib-f-own">For the owner</button><button type="button" data-ibf="filed" aria-pressed="false">Filed</button></div>
+              <div class="ib-filters" role="group" aria-label="Show"><button type="button" data-ibf="inbox" aria-pressed="true">Inbox</button><button type="button" data-ibf="starred" aria-pressed="false">Starred</button><button type="button" data-ibf="act" aria-pressed="false">Needs reply</button><button type="button" data-ibf="own" aria-pressed="false" id="ib-f-own">For the owner</button><button type="button" data-ibf="filed" aria-pressed="false">Filed</button></div>
               <select class="ib-lsel" id="ib-lsel" aria-label="Label"><option value="">All labels</option></select>
             </div>
             <div class="ib-selbar" id="ib-selbar" hidden>
@@ -4062,6 +4067,8 @@
     clip: 'M16.5 6v11.5a4 4 0 0 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6h-1.5z',
     done: 'M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
     flag: 'M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6z',
+    star: 'M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z',
+    staro: 'm22 9.24-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z',
     del: 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z',
     unread: 'M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z',
     x: 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'
@@ -4093,11 +4100,13 @@
     $('ib-rows').innerHTML = IB.rows.length ? IB.rows.map(r => `<div class="ib-row${r.id === IB.open ? ' on' : ''}${r.unread ? ' unread' : ''}${IB.sel.has(r.id) ? ' sel' : ''}" data-ib="${r.id}" tabindex="0">
       <input type="checkbox" class="ib-ck" data-ibck aria-label="Select"${IB.sel.has(r.id) ? ' checked' : ''}>
       <span class="ib-av" data-ibav style="background:${ibColor(r.who)}" aria-hidden="true">${ibInitial(r.who)}</span>
+      ${ibStarBtn(r.starred)}
       <div class="ib-from">${esc(ibPeople(r))}${r.count > 1 ? `<span class="ib-n">${r.count}</span>` : ''}</div>
       <div class="ib-line">${r.pending_cards ? '<span class="ib-lbl cl" title="Claude has a reply or a suggestion ready">✦ Claude</span>' : ''}${r.labels && r.labels.owner ? `<span class="ib-lbl own">${esc(ibName('owner'))}</span>` : ''}<span class="ib-sub">${esc(r.subject)}</span></div>
       <div class="ib-snip">${ibRowChips(r)}${esc(r.snippet || '')}</div>
       <div class="ib-when"><span class="ib-wt">${r.has_attachments ? `<span aria-label="has attachments">${ibI('clip', 1)}</span>` : ''}${ibAgo(r.received_at)}</span><button type="button" class="ib-ibtn ib-rdel" data-ibdel title="Delete" aria-label="Delete">${ibI('del', 1)}</button></div></div>`).join('')
       : `<div class="ib-empty">${IB.label ? empty('Nothing labeled ' + ibName(IB.label === 'fyi' ? 'fyi' : IB.label) + ' here', 'Pick All labels to see everything.')
+          : IB.filter === 'starred' ? empty('No starred email', 'Tap the star on an email to keep it here. Stars match Gmail.')
           : IB.filter === 'own' ? empty('Nothing labeled ' + ibName('owner'), 'Email that needs a decision, an approval, a signature or a payment OK shows here.')
           : empty(IB.filter === 'act' ? 'Nothing needs a reply' : 'No email yet', IB.filter === 'act' ? 'Emails that need an answer or a change show here.' : '')}</div>`;
     ibSelBar();
@@ -4249,6 +4258,18 @@
     try { await api('/inbox/brief/' + BF.v.today.id + '/items', { method: 'POST', body: JSON.stringify({ text: t }) }, true); toast('Added'); await bfLoad(); $('bf-add-in') && $('bf-add-in').focus(); }
     catch (err) { toast(err.message, true); }
   });
+  // Gmail's star: here and in Gmail, both ways (inbox._api_star); the star shows at once, the server catches up
+  const ibStarBtn = on => `<button type="button" class="ib-star" data-ibstar aria-pressed="${!!on}" aria-label="${on ? 'Starred' : 'Not starred'}" title="${on ? 'Starred' : 'Not starred'}">${ibI(on ? 'star' : 'staro')}</button>`;
+  async function ibStar(id, on) {
+    const row = IB.rows.find(r => r.id === id);
+    if (row) row.starred = on;
+    if (IB.thread && IB.open === id) IB.thread.starred = on;
+    document.querySelectorAll(`[data-ib="${id}"] [data-ibstar]`).forEach(b => { b.outerHTML = ibStarBtn(on); });
+    const tb = $('ib-star'); if (tb && IB.open === id) { tb.setAttribute('aria-pressed', String(on)); tb.title = on ? 'Starred' : 'Not starred'; tb.setAttribute('aria-label', tb.title); tb.innerHTML = ibI(on ? 'star' : 'staro'); }
+    try { await api('/inbox/messages/' + id + '/star', { method: 'POST', body: JSON.stringify({ starred: on }) }, true); toast(on ? 'Starred' : 'Star removed'); }
+    catch (e) { toast(e.message, true); }
+    if (IB.filter === 'starred' && !on) ibList();
+  }
   function ibSelBar() {
     const n = IB.sel.size;
     $('ib-selbar').hidden = !n; document.querySelector('#ib-mail .ib-lhead').hidden = !!n;
@@ -4384,6 +4405,7 @@
     IB.thread = v;
     const n = v.messages.length;
     pane.innerHTML = `<div class="ib-tbar"><button type="button" class="ib-ibtn ib-back" id="ib-back" title="Back to Inbox" aria-label="Back to Inbox">${ibI('back')}</button><span class="sp"></span>
+        <button type="button" class="ib-ibtn" id="ib-star" aria-pressed="${!!v.starred}" title="${v.starred ? 'Starred' : 'Not starred'}" aria-label="${v.starred ? 'Starred' : 'Not starred'}">${ibI(v.starred ? 'star' : 'staro')}</button>
         <button type="button" class="ib-ibtn" id="ib-done" title="Done (archives it in Gmail too)" aria-label="Done">${ibI('done')}</button>
         <button type="button" class="ib-ibtn" id="ib-del" title="Delete" aria-label="Delete">${ibI('del')}</button>
         <button type="button" class="ib-ibtn" id="ib-unread" title="Mark unread" aria-label="Mark unread">${ibI('unread')}</button>
@@ -4438,6 +4460,7 @@
     $('ib-del').addEventListener('click', () => ibTrash([id]));
     $('ib-done').addEventListener('click', () => ibDone(id, v));
     $('ib-unread').addEventListener('click', () => ibUnread(id, v));
+    $('ib-star').addEventListener('click', () => ibStar(id, !IB.thread.starred));
     ibReplyBar(v);
     pane.scrollTop = 0;
   }
@@ -4614,6 +4637,7 @@
     const id = +r.dataset.ib;
     if (e.target.closest('[data-ibck]')) { ibSelect(id, e.target.checked); return; }
     if (e.target.closest('[data-ibdel]')) { ibTrash([id]); return; }
+    if (e.target.closest('[data-ibstar]')) { const row = IB.rows.find(x => x.id === id); ibStar(id, !(row && row.starred)); return; }
     if (e.target.closest('[data-ibav]') && ibPhone() || IB.sel.size && ibPhone()) { ibSelect(id, !IB.sel.has(id)); return; }   // Gmail app: tap the picture to select
     ibOpen(id);
   });
