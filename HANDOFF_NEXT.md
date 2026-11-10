@@ -59,7 +59,15 @@ grant, or elevation code.
   Inbox list: a "For <owner>" filter (`filter=own`) and a Label menu (`label=<kind>|fyi`). An open email's label button fixes it by hand
   (`POST /api/inbox/messages/<id>/label {kind?, owner?}`, sets `mail_message.label_manual`; `inbox._store_triage` then leaves kind / for_owner / business alone).
   A C-suite person with nobody picked sees "Needs my OK". "Sort my last 90 days" runs with the Gmail switch off and fills `addressed` on older stored email.
-  Settings card renamed "Email labels". Stage 2 (Arun's 7 AM brief) still not built.
+  Settings card renamed "Email labels".
+* Stage 2, the owner's morning brief (2026-11-10, `gmail_brief.py`): Settings > Account > Email labels > "<owner>'s daily brief" (on/off, 6:30-8:00 AM
+  Eastern, weekdays / every day; the brief is for the "For" person). `inbox.claude_round` calls `gmail_brief.tick` and builds it once a day at the ready time:
+  one item per conversation with `for_owner` since the last brief (never backfilled or personal mail), lines / groups / deadlines from the small model
+  (one call, counted; seam `SSC_BRIEF_FAKE`), FYI counted. Inbox > "<owner>'s brief" tab: Note, Tomorrow, Remove / "<owner> answered" (take "For" off
+  via `gmail_labels.set_labels`), Undo, add your own item, then "Review email" (editable subject + text) and Send from the person's Gmail (`inbox.compose`).
+  Next morning: open items come back under "Still waiting" (when the brief was sent), held ones in their group; an item closes when the owner writes in the
+  thread. The bell shows "<owner>'s brief is ready" until sent. Text encrypted at rest (`mail_brief_item.*_enc`). Guard: `tests/smoke_owner_brief.py`.
+  Not built: the owner's own login view of the brief.
 
 ### One-tap accepts in the bell (Bookore, 2026-11-04)
 

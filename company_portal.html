@@ -404,6 +404,39 @@
   .ib-ic.s { width: 16px; height: 16px; }
   .ib-lbl { display: inline-block; font-size: 12px; font-weight: 500; padding: 0 6px; border-radius: 4px; background: #E8EAED; color: #3C4043; margin-right: 5px; line-height: 18px; vertical-align: 1px; }
   .ib-lbl.cl { background: #FBEFE9; color: #A84E2C; font-weight: 600; }
+  /* the owner's morning brief (gmail_brief.py; prototype accepted 2026-11-09): one card, phone first */
+  .bf { max-width: 760px; }
+  .bf-card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 14px; display: grid; gap: 16px; }
+  .bf-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ui, #24418C); }
+  .bf-head h2 { margin: 4px 0 2px; font-size: 22px; font-weight: 600; }
+  .bf-sub { color: var(--muted); font-size: 14px; }
+  .bf-tally { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .bf-tally span { font-size: 12.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--ui-soft, #E8EDF8); color: var(--ui, #24418C); }
+  .bf-tally span.dead { background: #FDF0E6; color: #9A4A12; } .bf-tally span.fyi { background: #F1F3F6; color: var(--muted); }
+  .bf-group { display: grid; gap: 8px; }
+  .bf-group h3 { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+  .bf-group h3 .n { font-weight: 600; background: #F1F3F6; border-radius: 999px; padding: 0 7px; letter-spacing: 0; }
+  .bf-item { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 6px; }
+  .bf-t { font-size: 15px; line-height: 1.45; color: var(--ink, #202124); overflow-wrap: anywhere; }
+  .bf-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 12.5px; color: var(--muted); align-items: center; }
+  .bf-meta .code { font-weight: 600; color: var(--ink, #202124); background: #F1F3F6; border-radius: 4px; padding: 0 6px; }
+  .bf-meta .due { font-weight: 600; color: #9A4A12; }
+  .bf-note { font-size: 13.5px; background: #FFFBEA; border-left: 3px solid #E8C547; padding: 6px 10px; border-radius: 4px; overflow-wrap: anywhere; }
+  .bf-noteedit { display: flex; gap: 6px; } .bf-noteedit input { flex: 1; min-width: 0; }
+  .bf-acts { display: flex; flex-wrap: wrap; gap: 2px 4px; align-items: center; margin: 2px -6px -4px; }
+  .bf-acts .lnk { border: 0; background: none; color: var(--ui, #24418C); font: 600 13px Inter, sans-serif; padding: 6px; border-radius: 6px; cursor: pointer; text-decoration: none; }
+  .bf-acts .lnk:hover { background: var(--ui-soft, #E8EDF8); } .bf-acts .sp { flex: 1; }
+  .bf-off summary { cursor: pointer; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .bf-off .row { display: flex; gap: 8px; align-items: baseline; font-size: 13.5px; padding: 6px 0; border-top: 1px solid #F1F3F6; }
+  .bf-off .row .t { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--muted); } .bf-off .row b { font-size: 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+  .bf-add { display: flex; gap: 6px; } .bf-add input { flex: 1; min-width: 0; }
+  .bf-foot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; border-top: 1px solid var(--line); padding-top: 14px; }
+  .bf-foot .sent { font-size: 13px; color: #0c7a5f; font-weight: 600; }
+  .bf-mail { display: grid; gap: 10px; } .bf-mail .f { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; align-items: center; font-size: 14px; }
+  .bf-mail .f b { color: var(--muted); font-weight: 600; font-size: 13px; }
+  #ib-brief .bf-mail textarea { width: 100%; min-height: 360px; font: 14px/1.55 Arial, Helvetica, sans-serif; box-sizing: border-box; }
+  .bf-mail input { width: 100%; box-sizing: border-box; }
+  @media (max-width: 640px) { .bf-card { padding: 14px 12px 12px; } .bf-foot .btn-primary { flex: 1 1 100%; } }
   /* labels in the app (gmail_labels.app_labels; prototype accepted 2026-11-10): kind grey, FYI outlined, "For" solid */
   .ib-lbl.own { background: var(--ui, #24418C); color: #fff; font-weight: 600; }
   .ib-lbl.fyi { background: none; color: #6B7280; box-shadow: inset 0 0 0 1px #CBD1DA; }
@@ -1697,8 +1730,10 @@
           <a class="ssc-subtab" role="tab" href="#inbox" data-ibtab="mail">Email</a>
           <a class="ssc-subtab" role="tab" href="#inbox/mine" data-ibtab="mine">My calendar</a>
           <a class="ssc-subtab" role="tab" href="#inbox/all" data-ibtab="all" title="Everyone's tasks, events and meetings">Team</a>
+          <a class="ssc-subtab" role="tab" href="#inbox/brief" data-ibtab="brief" id="ib-tab-brief" hidden>Brief</a>
         </div>
         <div id="ib-sched" hidden></div>
+        <div id="ib-brief" class="bf" hidden></div>
         <div class="cp-card ib-conn" id="ib-conn"></div>
         <div class="cp-card ib-wrap" id="ib-mail">
           <div class="ib-list">
@@ -3915,9 +3950,12 @@
   function ibKB(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
   async function loadInbox(arg) {
     clearTimeout(IB.timer);
-    IB.sub = arg === 'mine' || arg === 'all' ? arg : 'mail';
+    IB.sub = arg === 'mine' || arg === 'all' || arg === 'brief' ? arg : 'mail';
     document.querySelectorAll('[data-ibtab]').forEach(a => { const on = a.dataset.ibtab === IB.sub; a.classList.toggle('active', on); a.setAttribute('aria-selected', String(on)); });
-    $('ib-sched').hidden = IB.sub === 'mail'; $('ib-conn').hidden = IB.sub !== 'mail'; $('ib-mail').hidden = IB.sub !== 'mail';
+    $('ib-sched').hidden = IB.sub === 'mail' || IB.sub === 'brief'; $('ib-conn').hidden = IB.sub !== 'mail'; $('ib-mail').hidden = IB.sub !== 'mail';
+    $('ib-brief').hidden = IB.sub !== 'brief';
+    bfTab();
+    if (IB.sub === 'brief') { bfLoad(); return; }
     if (IB.sub !== 'mail') {
       if (!window.SSC_SCHEDULE) { $('ib-sched').innerHTML = empty('Loading', ''); setTimeout(() => loadInbox(arg), 300); return; }
       if (!IB.sched) {   // one mount; switching Mine / All re-reads
@@ -4112,6 +4150,105 @@
     toast('Label changed');
     ibList();
   }
+  // ---------- the owner's morning brief (gmail_brief.py): review, then send from your own Gmail ----------
+  const BF = { v: null, mail: false, noteFor: null, busy: false };
+  const BF_GROUPS = [['decide', 'Decide'], ['approve', 'Approve / sign'], ['money', 'Money'], ['dead', 'Deadlines'], ['wait', 'Still waiting on']];
+  const BF_STATE = { tomorrow: 'Tomorrow', removed: 'Removed', answered: 'Answered' };
+  async function bfTab() {   // the Brief tab shows once the brief is on (or there is one today)
+    try { const v = (await api('/inbox/brief', null, true)).data; BF.v = v; $('ib-tab-brief').hidden = !(v.enabled || v.today); if (v.owner) $('ib-tab-brief').textContent = v.owner.first + '’s brief'; } catch (e) { /* not an office role */ }
+  }
+  async function bfLoad() {
+    try { BF.v = (await api('/inbox/brief', null, true)).data; } catch (e) { $('ib-brief').innerHTML = empty('Could not load the brief', e.message); return; }
+    bfDraw();
+  }
+  function bfWhen(iso) { const d = new Date(iso); if (isNaN(d)) return ''; const now = new Date(); return d.toDateString() === now.toDateString() ? 'Today ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : d.toLocaleDateString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }); }
+  function bfItem(i, who) {
+    const note = BF.noteFor === i.id
+      ? `<div class="bf-noteedit"><input class="cp-input" type="text" id="bf-note-in" maxlength="300" placeholder="Your note for ${esc(who)}" value="${esc(i.note)}" aria-label="Your note"><button type="button" class="btn-primary btn-sm" data-bf="save" data-id="${i.id}">Save</button></div>`
+      : (i.note ? `<div class="bf-note">${esc(i.note)}</div>` : '');
+    const firstIn = i.group === 'wait' && i.first_in ? `First in ${esc(bfWhen(i.first_in))}` : esc(bfWhen(i.received_at));
+    return `<div class="bf-item" data-id="${i.id}"><div class="bf-t">${esc(i.line)}</div>
+      <div class="bf-meta">${i.code ? `<span class="code">${esc(i.code)}</span>` : ''}${i.from ? `<span>${esc(i.from)}</span>` : i.message_id ? '' : '<span>Added by you</span>'}<span>· ${firstIn}</span>${i.due ? `<span class="due">${esc(i.due)}</span>` : ''}</div>
+      ${note}<div class="bf-acts">${i.message_id ? `<a class="lnk" href="#inbox/${i.message_id}">Open email</a>` : ''}
+        <button type="button" class="lnk" data-bf="note" data-id="${i.id}">${i.note ? 'Edit note' : 'Note'}</button>
+        <button type="button" class="lnk" data-bf="tomorrow" data-id="${i.id}" title="Holds it for tomorrow's brief">Tomorrow</button>
+        <button type="button" class="lnk" data-bf="remove" data-id="${i.id}" title="Not for ${esc(who)}: the email loses the For label">Remove</button>
+        <span class="sp"></span><button type="button" class="btn-ghost btn-sm" data-bf="answered" data-id="${i.id}">${esc(who)} answered</button></div></div>`;
+  }
+  function bfDraw() {
+    const v = BF.v, host = $('ib-brief');
+    if (!v.owner) { host.innerHTML = `<div class="bf-card">${empty('Pick who the brief is for', 'In Settings > Account > Email labels, choose who gets the “For” label. The brief gathers what got that label.')}<div><a class="btn-primary btn-sm" href="/account#lb-card">Open Settings</a></div></div>`; return; }
+    const who = v.owner.first;
+    if (!v.today) {
+      host.innerHTML = `<div class="bf-card"><div class="bf-head"><div class="bf-eyebrow">For ${esc(who)}</div><h2>${esc(v.today_label)}</h2>
+        <div class="bf-sub">${v.enabled ? `${esc(who)}’s brief is ready ${esc(v.next_label)}.` : `The daily brief is off. Turn it on in Settings > Account.`}</div></div>
+        <div class="bf-foot"><button type="button" class="btn-primary" data-bf="build">Make today’s brief now</button>${v.enabled ? '' : '<a class="btn-ghost btn-sm" href="/account#lb-card">Settings</a>'}</div></div>`;
+      return;
+    }
+    const b = v.today, live = b.items.filter(i => i.state === 'open'), off = b.items.filter(i => i.state !== 'open');
+    if (BF.mail) { bfDrawMail(); return; }
+    const dead = live.filter(i => i.group === 'dead').length;
+    const groups = BF_GROUPS.map(([k, n]) => { const its = live.filter(i => i.group === k); return its.length ? `<div class="bf-group"><h3>${esc(k === 'wait' ? n + ' ' + who : n)} <span class="n">${its.length}</span></h3>${its.map(i => bfItem(i, who)).join('')}</div>` : ''; }).join('');
+    host.innerHTML = `<div class="bf-card"><div class="bf-head"><div class="bf-eyebrow">For ${esc(who)} · ready ${esc(b.ready_label)}</div><h2>${esc(b.date_label)}</h2>
+        <div class="bf-sub">From your email since ${esc(b.since_label)}</div>
+        <div class="bf-tally"><span>${live.length} for ${esc(who)}</span>${dead ? `<span class="dead">${dead} deadline${dead === 1 ? '' : 's'}</span>` : ''}<span class="fyi">${b.fyi} FYI, nothing needed</span></div></div>
+      ${groups || empty('Nothing for ' + who + ' right now', 'Add an item below if you have one.')}
+      ${off.length ? `<details class="bf-off"><summary>${off.length} taken off today’s brief</summary>${off.map(i => `<div class="row"><b>${esc(BF_STATE[i.state] || i.state)}</b><span class="t">${esc(i.line)}</span><button type="button" class="btn-ghost btn-sm" data-bf="undo" data-id="${i.id}">Undo</button></div>`).join('')}</details>` : ''}
+      <form class="bf-add" id="bf-add"><input class="cp-input" type="text" id="bf-add-in" maxlength="240" placeholder="Add an item for ${esc(who)}" aria-label="Add an item"><button type="submit" class="btn-ghost btn-sm">Add</button></form>
+      <div class="bf-foot"><button type="button" class="btn-primary" data-bf="review">${b.sent_at ? 'Send again' : 'Review email to ' + esc(who)} (${live.length})</button>
+        ${b.sent_at ? `<span class="sent">Sent ${esc(bfWhen(b.sent_at))}</span>` : ''}</div></div>`;
+    const ni = $('bf-note-in'); if (ni) { ni.focus(); ni.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); bfAct(BF.noteFor, 'note', ni.value); } if (e.key === 'Escape') { BF.noteFor = null; bfDraw(); } }); }
+  }
+  function bfDrawMail() {
+    const v = BF.v, b = v.today, m = b.email;
+    $('ib-brief').innerHTML = `<div class="bf-card bf-mail"><div class="bf-eyebrow">Email to ${esc(v.owner.first)}</div>
+      <div class="f"><b>To</b><span>${esc(m.to_name)}</span></div><div class="f"><b>From</b><span>You (your Gmail)</span></div>
+      <div class="f"><b><label for="bf-subj">Subject</label></b><input class="cp-input" id="bf-subj" type="text" value="${esc(m.subject)}"></div>
+      <textarea class="cp-input" id="bf-body" aria-label="Message">${esc(m.body)}</textarea>
+      <div class="bf-sub">Change anything before you send. It goes from your own Gmail${v.can_send ? '' : ' (connect Gmail again first so the app may send)'}.</div>
+      <div class="bf-foot"><button type="button" class="btn-ghost" data-bf="back">Back to the brief</button><button type="button" class="btn-primary" data-bf="send"${v.can_send ? '' : ' disabled'}>Send to ${esc(v.owner.first)}</button></div></div>`;
+    $('bf-body').focus(); $('bf-body').setSelectionRange(0, 0);
+  }
+  async function bfAct(id, action, note) {
+    if (BF.busy) return; BF.busy = true;
+    try {
+      await api('/inbox/brief/items/' + id, { method: 'POST', body: JSON.stringify({ action, note: note || '' }) }, true);
+      if (action === 'note') BF.noteFor = null;
+      const who = BF.v.owner ? BF.v.owner.first : '';
+      if (action === 'tomorrow') toast('Moved to tomorrow’s brief');
+      if (action === 'remove') toast('Removed. The email loses “For ' + who + '”');
+      if (action === 'answered') toast('Done. The email loses “For ' + who + '”');
+      if (action === 'undo') toast('Back on the brief');
+      await bfLoad();
+    } catch (e) { toast(e.message, true); } finally { BF.busy = false; }
+  }
+  $('ib-brief').addEventListener('click', async e => {
+    const b = e.target.closest('[data-bf]'); if (!b) return;
+    const a = b.dataset.bf, id = +b.dataset.id;
+    if (a === 'note') { BF.noteFor = id; bfDraw(); return; }
+    if (a === 'save') { bfAct(id, 'note', ($('bf-note-in') || {}).value || ''); return; }
+    if (['tomorrow', 'remove', 'answered', 'undo'].includes(a)) { bfAct(id, a); return; }
+    if (a === 'review') { BF.mail = true; bfDraw(); window.scrollTo(0, 0); return; }
+    if (a === 'back') { BF.mail = false; bfDraw(); return; }
+    if (a === 'build') {
+      b.disabled = true; b.textContent = 'Making the brief…';
+      try { BF.v = (await api('/inbox/brief/build', { method: 'POST', body: '{}' }, true)).data; bfDraw(); bfTab(); } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = 'Make today’s brief now'; }
+      return;
+    }
+    if (a === 'send') {
+      b.disabled = true; b.textContent = 'Sending…';
+      try {
+        BF.v = (await api('/inbox/brief/' + BF.v.today.id + '/send', { method: 'POST', body: JSON.stringify({ subject: $('bf-subj').value, body: $('bf-body').value }) }, true)).data;
+        BF.mail = false; bfDraw(); toast('Sent to ' + BF.v.owner.first + ' from your Gmail');
+      } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = 'Send to ' + BF.v.owner.first; }
+    }
+  });
+  $('ib-brief').addEventListener('submit', async e => {
+    if (e.target.id !== 'bf-add') return; e.preventDefault();
+    const t = $('bf-add-in').value.trim(); if (!t || !BF.v.today) return;
+    try { await api('/inbox/brief/' + BF.v.today.id + '/items', { method: 'POST', body: JSON.stringify({ text: t }) }, true); toast('Added'); await bfLoad(); $('bf-add-in') && $('bf-add-in').focus(); }
+    catch (err) { toast(err.message, true); }
+  });
   function ibSelBar() {
     const n = IB.sel.size;
     $('ib-selbar').hidden = !n; document.querySelector('#ib-mail .ib-lhead').hidden = !!n;

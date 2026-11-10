@@ -211,6 +211,12 @@ def _payment_items(conn, uid: int, since: str) -> list:
     return out
 
 
+def _brief_items(conn, uid: int, since: str) -> list:
+    """The owner's morning brief is ready (until it is sent)."""
+    import gmail_brief
+    return gmail_brief.bell_items(conn, uid, since)
+
+
 def _closed_cards(conn, uid: int) -> dict:
     """proposal id -> this person's Needs you card that closed because of it, while Reopen still works."""
     import claude_agent
@@ -243,7 +249,7 @@ def build(conn, uid: int, now: Optional[datetime] = None) -> dict:
     read_at, banner_at = _marks(conn, uid, now)
     since = _stamp(now - timedelta(days=WINDOW_DAYS))
     items = []
-    for source in (_proposal_items, _client_items, _project_items, _document_items, _payment_items):
+    for source in (_proposal_items, _client_items, _project_items, _document_items, _payment_items, _brief_items):
         try:
             items += [i for i in source(conn, uid, since) if i]
         except Exception as e:   # one source failing must not take the bell down; no record contents in the log

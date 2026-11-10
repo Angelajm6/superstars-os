@@ -268,6 +268,8 @@ import inbox  # noqa: E402
 inbox.register(app)   # admin / C-suite email live in the software: matched, sorted, Claude's cards (approval for every change and send)
 import gmail_labels  # noqa: E402
 gmail_labels.register(app)   # the Inbox's sorting as labels in each person's own Gmail (off until they switch it on)
+import gmail_brief  # noqa: E402
+gmail_brief.register(app)    # the owner's morning brief from the "For" label (reviewed and sent by the person)
 import calendar_import  # noqa: E402
 calendar_import.register(app)   # each person's main Google Calendar, copied privately for them (only they see it)
 import event_reminders  # noqa: E402
