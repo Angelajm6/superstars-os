@@ -468,7 +468,7 @@ def main() -> int:
         conn.execute("UPDATE invoice SET pdf_path = 'invoices/x.pdf', sent_at = '2026-01-01T09:00:00' WHERE id = ?", (e1["id"],))
         conn.commit()
         rules = invoices.edit_rules(conn, invoices.get(conn, e1["id"]))
-        assert rules == {"editable": True, "amount_locked": None, "min_amount": 0}, rules
+        assert rules == {"editable": True, "amount_locked": None, "min_amount": 0, "aia": False}, rules
         r = admin.patch(f"/api/invoices/{e1['id']}", json={"description": "Edit smoke, revised"})
         assert r.status_code == 200 and not _j(r)["data"]["has_pdf"], "an edit drops the stored PDF so it is redrawn"
         assert _j(r)["data"]["edited_at"] > _j(r)["data"]["sent_at"], "the row can say it changed after it was sent"

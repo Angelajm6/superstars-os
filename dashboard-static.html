@@ -5564,6 +5564,17 @@
           .pay-pill.ok{background:var(--status-complete-soft, #e7f6f0);color:var(--status-complete-deep, #0c7a5f)} .pay-pill.active{background:var(--accent-soft, #ebf0fe);color:var(--accent-ink, #3a5fd0)} .pay-pill.bad{background:var(--status-behind-soft, #fceeec);color:var(--status-behind-deep, #A8382B)} .pay-pill.warn{background:var(--status-warn-soft, #FFF4E5);color:var(--status-warn, #9A5B00)}
           .pay-acts{display:flex;gap:6px;flex-wrap:wrap} .pay-acts .pay-btn{padding:5px 9px;font-size:13px}
           .pay-empty{text-align:center;color:var(--muted, #8c92a0);padding:26px 10px}
+          /* phone (2026-11-11): each invoice is a card, so Download / Edit stay on screen instead of off to the right */
+          @media (max-width:640px){
+            #pay-table thead{display:none} #pay-table,#pay-table tbody{display:block}
+            #pay-table tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 12px;padding:12px 2px;border-bottom:1px solid var(--line, #eceef3)}
+            #pay-table td{display:block;padding:0;border:0;min-width:0} #pay-table tbody tr:hover td{background:none}
+            #pay-table td:nth-child(1){grid-column:1;grid-row:1} #pay-table td:nth-child(3){grid-column:2;grid-row:1;font-weight:700}
+            #pay-table td:nth-child(2){grid-column:1 / -1} #pay-table td:nth-child(4){display:none}
+            #pay-table td:nth-child(5){grid-column:1} #pay-table td:nth-child(6){grid-column:2;text-align:right}
+            #pay-table td:nth-child(7){grid-column:1 / -1} #pay-table td:nth-child(8){grid-column:1 / -1;margin-top:8px}
+            #pay-table td.pay-empty{grid-column:1 / -1}
+          }
           .pay-overlay{position:fixed;inset:0;background:rgba(20,22,28,.45);display:none;align-items:center;justify-content:center;z-index:60;padding:16px} .pay-overlay.open{display:flex}
           .pay-modal{background:#fff;border-radius:14px;width:100%;max-width:var(--modal-md);box-shadow:0 24px 64px rgba(20,22,28,.25);max-height:92vh;overflow:auto}
           .pay-mhead{padding:18px 20px 6px} .pay-mhead h3{margin:0;font-size:18px;font-weight:600} .pay-mhead p{margin:6px 0 0;font-size:13px;color:var(--muted, #8c92a0)}
@@ -5899,7 +5910,7 @@
               <td>${esc(r.description || '—')}${r.status === 'issued' && r.sent_at && r.edited_at && r.edited_at > r.sent_at ? '<span class="pay-changed">Changed since sent · resend</span>' : ''}</td><td class="num">${money.format(r.amount)}</td><td class="num">${r.status === 'issued' ? '<b>' + money.format(r.balance) + '</b>' : '—'}</td>
               <td>${r.status === 'draft' ? '<span class="pay-muted">draft</span>' : fmtDate(r.due_at)}</td><td>${pill(r)}</td>
               <td class="pay-muted">${r.sent_at ? (r.viewed_at ? 'opened ' + fmtDate(r.viewed_at) : 'sent ' + fmtDate(r.sent_at)) + (r.sent_count > 1 ? ' · ×' + r.sent_count : '') : 'not sent'}</td>
-              <td><div class="pay-acts"><a class="pay-btn" href="/api/invoices/${r.id}/preview" target="_blank" rel="noopener" data-preview="${r.id}">Preview</a>${r.edit && r.edit.editable ? `<button type="button" class="pay-btn" data-edit="${r.id}">Edit</button>` : ''}${r.status !== 'draft' ? `<a class="pay-btn" href="/api/invoices/${r.id}/pdf" target="_blank" rel="noopener">PDF</a>` : ''}
+              <td><div class="pay-acts"><a class="pay-btn" href="/api/invoices/${r.id}/preview" target="_blank" rel="noopener" data-preview="${r.id}">Preview</a>${r.edit && r.edit.editable ? (r.edit.aia ? `<button type="button" class="pay-btn" data-edit="${r.id}">Edit</button>` : `<a class="pay-btn" href="/invoices/${r.id}/edit" data-edit-full="${r.id}">Edit</a>`) : (r.source !== 'quickbooks' ? `<a class="pay-btn" href="/invoices/${r.id}/edit">View</a>` : '')}<a class="pay-btn" href="/api/invoices/${r.id}/pdf?download=1" data-dl="${r.id}">Download</a>
                 ${r.status === 'draft' ? `<button type="button" class="pay-btn primary" data-issue="${r.id}">Issue</button>` : ''}
                 ${r.status === 'issued' ? `<button type="button" class="pay-btn primary" data-mail="${r.id}">${r.sent_at ? 'Resend' : 'Email client'}</button><button type="button" class="pay-btn" data-pay="${r.id}">Payment</button>` : ''}
                 ${r.status === 'paid' ? `<button type="button" class="pay-btn" data-mail="${r.id}">Email receipt</button>` : ''}
@@ -5913,8 +5924,17 @@
               e.preventDefault();
               const r = rows.find(x => String(x.id) === b.dataset.preview), url = '/api/invoices/' + r.id + '/preview';
               SSC_PDF.panel({ title: 'Invoice ' + r.number, sub: (r.description || '') + (r.has_design ? ' · designed with Claude' : ''), url, kind: 'page',
-                links: (r.status !== 'draft' ? [{ label: 'PDF', href: '/api/invoices/' + r.id + '/pdf', newtab: true }] : []).concat([{ label: 'Open in new tab', href: url, newtab: true }]) });
+                links: [{ label: 'Download', href: '/api/invoices/' + r.id + '/pdf?download=1', newtab: true }, { label: 'Open in new tab', href: url, newtab: true }] });
             }));
+            // Download saves the PDF on every invoice, drafts included (2026-11-11); a missing PDF engine says so instead of saving an error
+            $p('pay-table').querySelectorAll('[data-dl]').forEach(b => b.addEventListener('click', async e => {
+              e.preventDefault(); const r = rows.find(x => String(x.id) === b.dataset.dl);
+              try {
+                const res = await fetch('/api/invoices/' + r.id + '/pdf?download=1', { credentials: 'same-origin' });
+                if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'The PDF could not be made. Try again in a minute.'); }
+                const url = URL.createObjectURL(await res.blob()), a = document.createElement('a');
+                a.href = url; a.download = r.number + '.pdf'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+              } catch (ex) { toast(ex.message, true); } }));
             $p('pay-table').querySelectorAll('[data-standard]').forEach(b => b.addEventListener('click', async () => {
               const r = rows.find(x => String(x.id) === b.dataset.standard); if (!confirm(`Show ${r.number} in the standard invoice layout again? The design made with Claude stays in the job's documents.`)) return;
               try { await api('/api/invoices/' + r.id + '/design', { method: 'DELETE' }); toast(r.number + ' uses the standard layout'); load(); } catch (e) { toast(e.message, true); } }));
@@ -6941,6 +6961,8 @@
 </div>
 
 <script>
+// #payments opens Invoices & Payments (the invoice editor's back link, 2026-11-11)
+document.addEventListener('DOMContentLoaded', () => { if (location.hash === '#payments') setTimeout(() => { const l = document.querySelector('.nav-link[data-view=payments]');   // unquoted: a pm's page (Money stripped) must not carry the quoted name if (l && !l.hidden) l.click(); }, 0); });
 // the view a job page opens on counts as opened (redesign step 1)
 document.addEventListener('DOMContentLoaded', () => { const a = document.querySelector('.nav-link.active[data-view]'); if (a) SSC_track('job', a.getAttribute('data-view')); });
 // Sidebar navigation - view switching

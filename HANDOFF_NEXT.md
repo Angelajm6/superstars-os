@@ -42,6 +42,29 @@ grant, or elevation code.
 * Guard: `tests/smoke_job_v2_preview.py` rewritten (default-on, `?ui=1` / kill switch byte-identical, pm gets no Money views,
   scope, drift between the sidebar and the six sections, labels / icons, look).
 
+### The invoice editor + Download on every invoice (Bookore, 2026-11-11)
+
+* Accepted prototype: https://claude.ai/artifact/VZXCMLF9QNLbqiVpNmxkur. Angela: download an invoice from the job and edit the
+  full invoice like a proposal; "the invoices all have the same new template". **`/invoices/<id>/edit`** (`invoice_editor.py` +
+  `invoice_editor.html`, admin / C-suite): the company template (`invoice_docs._standard_document`) drawn with `edit=True` in a
+  no-scripts frame, like Proposal Studio. Click any text: bill to, project, each work line (description + amount, × to remove),
+  payment details, client note, thank-you line; + Add a line / + Change order line / + Note for the client; side panel = Ask Claude
+  (Undo), Details (type, due date, retainage $, office note), History. Autosaves through `PATCH /api/invoices/<id>` (the #201 rules).
+* **One template, several lines:** `invoice.lines_json` ([{description, amount}]; NULL = one line from description / amount, so every
+  older invoice draws the same) + `bill_to_text`, `project_text` (line 1 = project, then address), `pay_text`, `thanks_text`,
+  `doc_notes` (blank = the standard wording). Saving lines sets `amount` = their sum and `description` = the first line. The old
+  one-amount form still edits a one-line invoice and is refused on several. Several lines add a "Total This Invoice" row. `LAYOUT` 3.
+* **`invoice.notes` no longer prints** (#201's form calls it an office-only note); the document's Notes block is `doc_notes`.
+* Modes (`invoice_editor.mode_of`): AIA (G702 / G703 stays; `edit_rules` now returns `aia`) and paid / void / QuickBooks are
+  read-only; an invoice with a Claude design asks **Use the company template** first (DELETE …/design). A sent invoice stays editable
+  until paid, with "Resend so they also get the new PDF".
+* **Download:** `/api/invoices/<id>/pdf?download=1` = attachment. Job's Invoices & Payments rows: Download on every invoice (drafts
+  too), Edit → the editor (AIA rows keep the small form), View on locked ones; Company → Finance invoice panel: Download + Edit invoice.
+  `/projects/<code>#payments` opens that tab (the editor's back link). Phone: the job's invoice rows are cards.
+* Claude: `POST /api/invoices/<id>/editor/revise` {instruction} reuses Proposal Studio's budget check / model call / usage row; never
+  invents a price. Guard: `tests/smoke_invoice_editor.py` (in the gate).
+* Open question for Angela: retainage on a plain invoice is still informational (Amount Due = the lines, not lines − retainage).
+
 ### Edit invoices on a job (Bookore, 2026-11-10)
 
 * Accepted prototype: https://claude.ai/artifact/KUmj1EUwdHP4iut2v3YYTi. A job's **Invoices & Payments** rows have **Edit**

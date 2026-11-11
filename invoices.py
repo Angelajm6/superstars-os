@@ -30,6 +30,7 @@ Access: every endpoint sits behind `requires_section('company_portal')`
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 from datetime import date, datetime, timedelta
@@ -55,8 +56,11 @@ STATUSES = ("draft", "issued", "paid", "void")
 NET_DAYS_DEFAULT = 30          # progress / final / change_order / other
 DEPOSIT_NET_DAYS = 7           # deposits are due on receipt; a week keeps "overdue" honest
 METHODS = ("check", "ach", "wire", "card", "cash", "quickbooks", "other")
+# 2026-11-11 full editor: the words on the invoice itself. Blank = the standard wording (client / job / company settings).
+DOC_TEXT = ("bill_to_text", "project_text", "pay_text", "thanks_text", "doc_notes")
+MAX_LINES = 60
 EDITABLE = ("kind", "client_org_id", "project_code", "building_id", "estimate_id", "proposal_id",
-            "description", "amount", "retainage", "due_at", "notes", "source_doc")
+            "description", "amount", "retainage", "due_at", "notes", "source_doc") + DOC_TEXT
 
 
 # ---------------------------------------------------------------- helpers
@@ -202,7 +206,9 @@ def ensure_schema(conn) -> None:
     invoice_docs.ensure_columns(conn)
     # #316 1b: where the invoice came from (NULL = made here, 'quickbooks' = brought in) + its follow-up task
     # edited_at: the last change made with Edit, so a row can say it changed after it was emailed
-    for col, ddl in (("source", "TEXT"), ("followup_item_id", "INTEGER"), ("edited_at", "TEXT")):
+    # lines_json + DOC_TEXT: the full editor (2026-11-11); NULL = one line from description / amount
+    for col, ddl in (("source", "TEXT"), ("followup_item_id", "INTEGER"), ("edited_at", "TEXT"),
+                     ("lines_json", "TEXT")) + tuple((k, "TEXT") for k in DOC_TEXT):
         if not invoice_docs._has_column(conn, "invoice", col):
             conn.execute(f"ALTER TABLE invoice ADD COLUMN {col} {ddl}")
     conn.commit()
@@ -239,6 +245,7 @@ def get(conn, invoice_id: int, *, today: Optional[date] = None) -> Optional[dict
     if not r:
         return None
     r = _decorate(r, today)
+    r["lines"] = lines_of(r)
     r["payments"] = _rows(conn.execute(
         "SELECT id, amount, paid_on, method, reference, notes, created_by, created_at "
         "FROM invoice_payment WHERE invoice_id = ? ORDER BY paid_on, id", (invoice_id,)))
@@ -357,7 +364,7 @@ def _validate(fields: dict, *, partial: bool = False) -> dict:
         if r < 0:
             raise ValueError("retainage cannot be negative")
         out["retainage"] = r
-    for k in ("project_code", "description", "notes", "source_doc"):
+    for k in ("project_code", "description", "notes", "source_doc") + DOC_TEXT:
         if k in fields:
             v = fields.get(k)
             out[k] = (str(v).strip()[:2000] or None) if v not in (None, "") else None
@@ -471,18 +478,58 @@ def create_for_proposal(conn, proposal_id: int, fields: dict, *, created_by=None
     }, created_by=created_by)
 
 
+def lines_of(r: dict) -> list:
+    """The work billed, one row per line: [{description, amount}]. An invoice saved before the full editor
+    (or never edited line by line) is one line: its description and its amount."""
+    try:
+        rows = json.loads(r.get("lines_json") or "null")
+    except (TypeError, ValueError):
+        rows = None
+    if isinstance(rows, list) and rows:
+        return [{"description": str(x.get("description") or ""), "amount": round(_num(x.get("amount")), 2)}
+                for x in rows if isinstance(x, dict)]
+    return [{"description": r.get("description") or "", "amount": round(_num(r.get("amount")), 2)}]
+
+
+def clean_lines(v) -> list:
+    """Lines from the editor: a list of {description, amount}. Fully blank lines are dropped; a credit line may be
+    negative, but the invoice itself must come to more than zero."""
+    if not isinstance(v, list):
+        raise ValueError("lines must be a list")
+    out = []
+    for x in v:
+        if not isinstance(x, dict):
+            raise ValueError("each line needs a description and an amount")
+        d = str(x.get("description") or "").strip()[:2000]
+        raw = x.get("amount")
+        try:
+            a = round(float(str(raw).replace("$", "").replace(",", "").strip() or 0), 2)
+        except (TypeError, ValueError):
+            raise ValueError(f"{raw!r} isn't an amount")
+        if not d and not a:
+            continue
+        out.append({"description": d, "amount": a})
+    if not out:
+        raise ValueError("an invoice needs at least one line")
+    if len(out) > MAX_LINES:
+        raise ValueError(f"an invoice can have up to {MAX_LINES} lines")
+    if round(sum(x["amount"] for x in out), 2) <= 0:
+        raise ValueError("the lines must add up to more than zero")
+    return out
+
+
 def edit_rules(conn, r: dict) -> dict:
     """What the Edit form may change on this invoice (shown on the row, enforced in `update`).
     editable: False for paid / void / brought in from QuickBooks. amount_locked: why the amount
     (and retainage, kind) can't change — an AIA pay application's G702 sets it, or the invoice is
     already in QuickBooks, which never takes an update from here. min_amount: what has been paid."""
     if r.get("source") == "quickbooks" or r.get("status") not in ("draft", "issued"):
-        return {"editable": False, "amount_locked": None, "min_amount": 0}
-    locked = None
+        return {"editable": False, "amount_locked": None, "min_amount": 0, "aia": False}
+    locked, aia = None, False
     try:
         import aia_billing
         if aia_billing.for_invoice(conn, r["id"]):
-            locked = "Set by the progress billing form. Change it there."
+            locked, aia = "Set by the progress billing form. Change it there.", True
     except Exception:   # the pay-application table may not exist on a fresh DB
         try:
             conn.rollback()   # Postgres: a failed read aborts the transaction
@@ -490,10 +537,10 @@ def edit_rules(conn, r: dict) -> dict:
             pass
     if not locked and r["status"] == "issued" and r.get("qb_invoice_id"):
         locked = "This invoice is already in QuickBooks. Change the amount there."
-    return {"editable": True, "amount_locked": locked, "min_amount": round(_num(r.get("amount_paid")), 2)}
+    return {"editable": True, "amount_locked": locked, "min_amount": round(_num(r.get("amount_paid")), 2), "aia": aia}
 
 
-_ISSUED_EDITABLE = ("kind", "description", "amount", "retainage", "due_at", "notes")
+_ISSUED_EDITABLE = ("kind", "description", "amount", "retainage", "due_at", "notes") + DOC_TEXT
 _MONEY_FIELDS = ("kind", "amount", "retainage")
 
 
@@ -508,6 +555,9 @@ def update(conn, invoice_id: int, fields: dict, *, actor=None) -> dict:
     if r["status"] not in ("draft", "issued"):
         raise ValueError(f"a {r['status']} invoice cannot be edited")
     rules = edit_rules(conn, r)
+    if rules["aia"] and ("lines" in fields or any(k in fields for k in DOC_TEXT)):
+        raise ValueError("This invoice is a progress billing form (G702 / G703). Change it on the form.")
+    fields, lines = _with_lines(r, fields)
     allowed_keys = EDITABLE if r["status"] == "draft" else _ISSUED_EDITABLE
     wanted = {k: v for k, v in fields.items() if k in allowed_keys}
     if rules["amount_locked"]:
@@ -535,6 +585,10 @@ def update(conn, invoice_id: int, fields: dict, *, actor=None) -> dict:
             raise ValueError(f"{_money(rules['min_amount'])} has already been paid on this invoice, "
                              f"so the amount can't be lower than that")
     f = {k: v for k, v in f.items() if v != r.get(k)}
+    if lines is not None:
+        stored = json.dumps(lines, separators=(",", ":"))
+        if stored != (r.get("lines_json") or json.dumps(lines_of(r), separators=(",", ":"))):
+            f["lines_json"] = stored
     if not f and not extra:
         return r
     f.update(extra)
@@ -556,6 +610,27 @@ def update(conn, invoice_id: int, fields: dict, *, actor=None) -> dict:
     if out["status"] == "paid" and out["kind"] == "deposit":
         _mark_ira_deposit(conn, out, out["paid_at"])
     return out
+
+
+def _with_lines(r: dict, fields: dict) -> tuple:
+    """Lines and the old single amount / description stay one truth: saving lines sets the amount (their sum) and the
+    description (the first line, which lists show); the one-amount Edit form still works on a one-line invoice."""
+    fields = dict(fields)
+    if "lines" in fields:
+        lines = clean_lines(fields.pop("lines"))
+        fields["amount"] = round(sum(x["amount"] for x in lines), 2)
+        fields["description"] = next((x["description"] for x in lines if x["description"]), "")
+        return fields, lines
+    if not r.get("lines_json") or not ({"amount", "description"} & set(fields)):
+        return fields, None
+    cur = lines_of(r)
+    if len(cur) == 1:
+        one = {"description": str(fields.get("description", cur[0]["description"]) or "").strip()[:2000],
+               "amount": round(_num(fields.get("amount", cur[0]["amount"])), 2)}
+        return fields, [one]
+    if "amount" in fields and abs(_num(fields["amount"]) - _num(r.get("amount"))) >= 0.005:
+        raise ValueError(f"This invoice has {len(cur)} lines. Change their amounts on the invoice itself.")
+    return fields, None
 
 
 def issue(conn, invoice_id: int, *, issued_on=None, due_on=None, actor=None) -> dict:

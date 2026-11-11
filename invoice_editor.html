@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=1008">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
+<script src="/files/static/js/company_nav.js?v=1028"></script>
+<script src="/files/static/js/claude_drawer.js?v=18" defer></script>
+<script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
+<script src="/files/static/js/shell.js?v=1007" defer></script>
+<script src="/files/static/js/auth_menu.js?v=1015" defer></script>
+<script src="/files/static/js/datepicker.js?v=1007" defer></script>
+<title>Invoice · Superstars Contracting</title>
+<link rel="icon" type="image/svg+xml" href="/files/static/brand/mark.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/files/static/brand/favicon-32.png">
+<link rel="apple-touch-icon" href="/files/static/brand/apple-touch-icon.png">
+<!-- The invoice editor (prototype accepted 2026-11-11: https://claude.ai/artifact/VZXCMLF9QNLbqiVpNmxkur): the company's
+     invoice template drawn in edit mode in a no-scripts frame this page edits, one side panel, like Proposal Studio.
+     Served by invoice_editor.py (/invoices/<id>/edit) to admin / C-suite. -->
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+  [hidden]{display:none!important}
+  .brand-mark{object-fit:contain}
+  .ie{padding:16px 28px 60px}
+  @media (max-width:760px){.ie{padding:12px 16px 60px}}
+  .crumb{font-size:12.5px;margin-bottom:6px}.crumb a{color:var(--accent-ink);text-decoration:none}.crumb a:hover{text-decoration:underline}
+  .muted{color:var(--muted);font-size:12.5px}
+  .pill{font-size:11px;font-weight:600;border-radius:99px;padding:2px 9px;white-space:nowrap;background:var(--fill);color:var(--ink-2)}
+  .pill.draft{background:var(--status-warn-soft,#FFF4E5);color:var(--status-warn,#9A5B00)}
+  .pill.issued{background:var(--accent-soft);color:var(--accent-ink)}
+  .pill.paid{background:var(--status-complete-soft,#e7f6f0);color:var(--status-complete-deep,#0c7a5f)}
+  .pill.overdue{background:#fdecea;color:var(--status-behind-deep,#A8382B)}
+  .pill.void{background:var(--fill);color:var(--muted)}
+  .ed-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .ed-top h2{margin:0;font-size:17px}
+  .ed-top .meta{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;margin-top:2px}
+  .ed-acts{display:flex;gap:8px;flex-wrap:wrap}
+  .ed-acts .sm{display:none}
+  .saved{display:inline-flex;align-items:center;gap:5px}.saved i{width:7px;height:7px;border-radius:50%;background:var(--status-complete,#15a07e);display:inline-block}
+  .saved.busy i{background:var(--oat,#cabfad)}.saved.bad i{background:var(--status-behind,#e9685a)}
+  .banner{background:var(--accent-soft);border:1px solid var(--accent-edge);border-radius:10px;padding:10px 14px;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .banner.warn{background:var(--status-warn-soft,#FFF4E5);border-color:rgba(154,91,0,.25)}
+  .banner.lock{background:var(--fill);border-color:var(--line)}
+  .banner .sp{flex:1}
+  .ed{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+  @media (max-width:1100px){.ed{grid-template-columns:minmax(0,1fr)}}
+  .desk{background:#E4E7EE;border-radius:14px;padding:18px;min-width:0}
+  @media (max-width:640px){.desk{padding:6px;border-radius:10px;margin:0 -8px}}
+  .doc{display:block;width:100%;max-width:860px;margin:0 auto;border:0;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.18);height:900px}
+  .doc-tools{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+  .rail{display:flex;flex-direction:column;gap:10px;position:sticky;top:70px}
+  @media (max-width:1100px){.rail{position:static}}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-width:0}
+  .card h3{margin:0 0 8px;font-size:13.5px}
+  .lbl{display:block;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);font-weight:600;margin:10px 0 4px}
+  .lbl:first-child{margin-top:0}
+  .fld{width:100%;border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 10px;font:inherit;font-size:13px;color:var(--ink)}
+  .fld:disabled{background:var(--fill);color:var(--muted)}
+  .hint{font-size:12px;color:var(--muted);margin-top:4px}
+  .chat{display:flex;flex-direction:column;gap:8px;max-height:min(300px,40vh);overflow:auto;margin-bottom:8px}
+  .msg{font-size:13px;line-height:1.5;padding:8px 11px;border-radius:10px;max-width:92%;white-space:pre-wrap}
+  .msg.c{background:var(--accent-soft);align-self:flex-start}.msg.u{background:var(--fill);align-self:flex-end}
+  .msg button{margin-top:6px}
+  .quick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:99px;padding:5px 11px;font:inherit;font-size:12px;cursor:pointer;color:var(--ink)}
+  .chip:hover{border-color:var(--accent-edge)}
+  .inl{display:flex;gap:6px}.inl .fld{flex:1;min-width:0}
+  .inl button:disabled,.inl input:disabled{opacity:.6}
+  .hist{display:flex;flex-direction:column;gap:7px;font-size:12.5px}
+  .hist div{display:flex;justify-content:space-between;gap:10px}.hist span{color:var(--muted);white-space:nowrap}
+  .ie-toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,16px);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:all .2s;z-index:9200;pointer-events:none;max-width:calc(100% - 32px)}
+  .ie-toast.on{opacity:1;transform:translate(-50%,0)}.ie-toast.act{pointer-events:auto;display:flex;align-items:center;gap:12px}
+  .ie-toast button{border:0;background:none;color:#fff;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;padding:4px 2px;min-height:32px}.ie-toast.err{background:var(--status-behind-deep,#A8382B)}
+  .ov{position:fixed;inset:0;background:rgba(20,24,36,.32);z-index:10002;display:none;align-items:center;justify-content:center;padding:16px}
+  .ov.open{display:flex}
+  .modal{background:#fff;border-radius:16px;width:min(480px,100%);max-height:calc(100vh - 32px);overflow:auto;box-shadow:0 20px 60px rgba(20,24,36,.25)}
+  .modal .mh{padding:18px 20px 6px}.modal .mh h3{margin:0;font-size:16px}.modal .mh p{margin:4px 0 0;color:var(--muted);font-size:13px}
+  .modal .mb{padding:8px 20px 4px}.modal .mf{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px 18px}
+  .err{color:var(--status-behind-deep,#A8382B);font-size:12.5px;margin-top:8px;min-height:1em}
+  @media (max-width:1100px){#clx-fab{display:none}}
+  @media (max-width:640px){
+    .ed-acts{flex-wrap:nowrap;gap:6px;width:100%}
+    .ed-acts>.btn-sm{flex:1 1 auto;min-width:0;justify-content:center;text-align:center;padding-left:6px;padding-right:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ed-acts .lg{display:none}.ed-acts .sm{display:inline}
+    .ed-top h2{font-size:15px}
+    .fld{font-size:16px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="ssc-shell">
+<aside class="ssc-side" aria-label="Company navigation">
+  <div class="brand">
+    <img class="brand-mark" width="34" height="34" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
+    <img class="brand-full" src="/files/static/brand/logo-full.png" width="320" height="189" alt="Superstars Contracting Inc">
+  </div>
+  <nav class="ssc-nav" id="ssc-nav" data-company-nav></nav>
+  <script>SSC_NAV.mount();</script>
+</aside>
+<div class="ssc-main">
+<header class="ssc-top">
+  <div class="ssc-top-title"><h1>Invoice</h1></div>
+  <div class="ssc-top-right"><div id="user-menu" aria-live="polite"></div></div>
+</header>
+<main class="ie" aria-label="Invoice editor">
+  <div class="crumb"><a id="e-back" href="/company#finance">← Invoices &amp; Payments</a></div>
+  <div class="banner lock" id="e-loading">Loading the invoice…</div>
+  <section id="v-edit" hidden>
+    <div class="ed-top">
+      <div><h2 id="e-title">Invoice</h2>
+        <div class="muted meta"><span id="e-where"></span><span class="pill" id="e-status"></span><b id="e-total" style="color:var(--ink)"></b><span class="saved" id="e-saved"><i></i><span>Saved</span></span><span id="e-hint">· click any text to edit it</span></div></div>
+      <div class="ed-acts">
+        <button class="btn-ghost btn-sm" type="button" id="e-claude-btn" hidden><span class="lg">✦ Ask Claude</span><span class="sm">✦ Claude</span></button>
+        <a class="btn-ghost btn-sm" id="e-preview" href="#" target="_blank" rel="noopener">Preview</a>
+        <a class="btn-ghost btn-sm" id="e-dl" href="#"><span class="lg">Download PDF</span><span class="sm">Download</span></a>
+        <button class="btn-primary btn-sm" type="button" id="e-main">Issue…</button>
+      </div>
+    </div>
+    <div class="banner" id="b-confirm" hidden><span id="b-confirm-t"></span><span class="sp"></span><button class="btn-ghost btn-sm" type="button" id="b-no">Cancel</button><button class="btn-primary btn-sm" type="button" id="b-yes">Issue</button></div>
+    <div class="banner warn" id="b-sent" hidden><span id="b-sent-t"></span><span class="sp"></span><button class="btn-ghost btn-sm" type="button" id="b-resend">Resend to client</button></div>
+    <div class="banner warn" id="b-design" hidden><span id="b-design-t"></span><span class="sp"></span><button class="btn-primary btn-sm" type="button" id="b-standard">Use the company template</button></div>
+    <div class="banner lock" id="b-lock" hidden><span id="b-lock-t"></span></div>
+    <div class="ed">
+      <div style="min-width:0">
+        <div class="desk"><iframe class="doc" id="doc" title="The invoice: click any text to edit it" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe></div>
+        <div class="doc-tools" id="tools"><button class="btn-ghost btn-sm" type="button" id="t-line">+ Add a line</button><button class="btn-ghost btn-sm" type="button" id="t-co">+ Change order line</button><button class="btn-ghost btn-sm" type="button" id="t-note">+ Note for the client</button></div>
+      </div>
+      <aside class="rail">
+        <div class="card" id="c-claude" role="region" aria-label="Ask Claude to change the invoice">
+          <h3>Ask Claude to change it</h3>
+          <div class="chat" id="chat" aria-live="polite"><div class="msg c">Click any outlined text to edit it, or tell me what to change. Totals add themselves up.</div></div>
+          <div class="quick" id="quick"></div>
+          <form class="inl" id="chat-form" autocomplete="off"><input class="fld" id="chat-in" placeholder="e.g. “add the extra lintel at $2,600”" aria-label="Ask Claude to change the invoice"><button class="btn-ghost btn-sm" type="submit" id="chat-go">Send</button></form>
+        </div>
+        <div class="card" id="c-details">
+          <h3>Details</h3>
+          <label class="lbl" for="d-kind">Type</label><select class="fld" id="d-kind"></select>
+          <label class="lbl" for="d-due">Due date</label><input class="fld" id="d-due" type="date"><div class="hint" id="d-due-hint"></div>
+          <label class="lbl" for="d-ret">Retainage held ($)</label><input class="fld" id="d-ret" inputmode="decimal" placeholder="0.00" autocomplete="off">
+          <div class="hint" id="d-lock" hidden></div>
+          <label class="lbl" for="d-office">Office note</label><textarea class="fld" id="d-office" rows="2" placeholder="Only the office sees this"></textarea>
+        </div>
+        <div class="card"><h3>History</h3><div class="hist" id="hist"></div></div>
+      </aside>
+    </div>
+  </section>
+</main>
+</div>
+</div>
+
+<div class="ov" id="mail-ov" role="dialog" aria-modal="true" aria-labelledby="mail-title"><form class="modal" id="mail-form" novalidate>
+  <div class="mh"><h3 id="mail-title">Email the invoice</h3><p id="mail-sub"></p></div>
+  <div class="mb">
+    <label class="lbl" for="mail-email">To (email)</label><input class="fld" id="mail-email" type="email" autocomplete="off">
+    <label class="lbl" for="mail-name">Name</label><input class="fld" id="mail-name" autocomplete="off">
+    <label class="lbl" for="mail-msg">Message (optional)</label><textarea class="fld" id="mail-msg" rows="3" placeholder="A short note above the invoice details"></textarea>
+    <div class="hint">The email carries a private link where the client views the invoice, downloads the PDF and sees how to pay. Each send makes a fresh link; the old one stops working.</div>
+    <div class="err" id="mail-err"></div>
+  </div>
+  <div class="mf"><button class="btn-ghost" type="button" id="mail-cancel">Cancel</button><button class="btn-primary" type="submit" id="mail-go">Send</button></div>
+</form></div>
+<div class="ie-toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+  const num = s => { const n = parseFloat(String(s == null ? '' : s).replace(/[$,\s]/g, '').replace(/^\((.*)\)$/, '-$1').replace('−', '-')); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+  const fmtDate = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return ''; return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
+  const ID = +(location.pathname.match(/\/invoices\/(\d+)/) || [])[1];
+  const S = { v: null, base: {}, pend: {}, linesDirty: false, saving: null, undo: null };
+  let tT, saveT;
+
+  function toast(m, bad, act) {
+    const t = $('toast'); t.textContent = m; t.className = 'ie-toast on' + (bad ? ' err' : '') + (act ? ' act' : '');
+    if (act) { const b = document.createElement('button'); b.type = 'button'; b.textContent = act.label; b.onclick = () => { t.classList.remove('on', 'act'); act.run(); }; t.appendChild(b); }
+    clearTimeout(tT); tT = setTimeout(() => t.classList.remove('on', 'act'), act ? 8000 : 3200);
+  }
+  async function api(path, opts) {
+    const res = await fetch('/api' + path, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' } }, opts || {}));
+    const j = await res.json().catch(() => ({}));
+    if (res.status === 401) { location.href = '/login?next=' + encodeURIComponent(location.pathname); throw new Error('Sign in again'); }
+    if (!res.ok) throw new Error((j && j.error) || ('Request failed (' + res.status + ')'));
+    return j;
+  }
+  const dGet = el => { const p = window.SSCDatePicker; if (p && typeof p.getISO === 'function') { const v = p.getISO(el); if (v !== undefined && v !== null) return v; } return el.value || ''; };
+  const dSet = (el, iso) => { const p = window.SSCDatePicker; if (p && typeof p.setISO === 'function') { try { p.setISO(el, iso || ''); return; } catch (e) {} } el.value = iso || ''; };
+  function saved(state, msg) { const s = $('e-saved'); s.className = 'saved' + (state === 'busy' ? ' busy' : state === 'bad' ? ' bad' : ''); s.lastChild.textContent = msg; }
+
+  // ---------------- load + draw
+  async function load(flash) {
+    try { const j = await api('/invoices/' + ID + '/editor'); S.v = j.data; }
+    catch (e) { $('e-loading').textContent = e.message; return; }
+    $('e-loading').hidden = true; $('v-edit').hidden = false;
+    draw(); paint(S.v.html, flash);
+  }
+  const editable = () => S.v && S.v.mode === 'edit';
+  function draw() {
+    const v = S.v, r = v.invoice, ed = editable(), locked = !!(v.rules && v.rules.amount_locked);
+    document.title = 'Invoice ' + r.number + ' · Superstars Contracting';
+    $('e-back').href = v.back;
+    $('e-title').textContent = 'Invoice ' + r.number;
+    $('e-where').textContent = [r.client_name, r.project_code].filter(Boolean).join(' · ') + ' ·';
+    const st = r.overdue ? 'overdue' : r.status; $('e-status').className = 'pill ' + st; $('e-status').textContent = r.overdue ? 'overdue' : (r.status === 'issued' ? 'sent' : r.status);
+    $('e-total').textContent = money.format(r.amount);
+    $('e-hint').hidden = !ed; $('tools').hidden = !ed; $('c-claude').hidden = !ed; $('e-claude-btn').hidden = true;
+    $('e-preview').href = '/api/invoices/' + r.id + '/preview';
+    $('e-dl').href = '/api/invoices/' + r.id + '/pdf?download=1';
+    $('e-main').hidden = !(r.status === 'draft' || r.status === 'issued' || r.status === 'paid') || v.mode === 'aia' || r.source === 'quickbooks';
+    $('e-main').textContent = r.status === 'draft' ? 'Issue…' : r.status === 'issued' ? (r.sent_at ? 'Resend…' : 'Email client…') : 'Email receipt…';
+    $('b-confirm').hidden = true;
+    $('b-sent').hidden = !(r.status === 'issued' && r.sent_at && ed);
+    if (r.sent_at) $('b-sent-t').innerHTML = `<b>Sent to ${esc(r.sent_name || r.sent_to || 'the client')} on ${esc(fmtDate(r.sent_at))}.</b> Your changes show on their invoice link right away. Resend so they also get the new PDF.`;
+    $('b-design').hidden = v.mode !== 'design'; $('b-design-t').textContent = v.mode === 'design' ? v.reason : '';
+    $('b-lock').hidden = !(v.mode === 'locked' || v.mode === 'aia'); $('b-lock-t').textContent = v.reason || '';
+    // details
+    $('d-kind').innerHTML = v.kinds.map(k => `<option value="${esc(k.code)}">${esc(k.label)}</option>`).join(''); $('d-kind').value = r.kind;
+    dSet($('d-due'), r.due_at || ''); $('d-due-hint').textContent = r.issued_at ? 'Issued ' + fmtDate(r.issued_at) + '. Not before that.' : (r.status === 'draft' ? 'Blank = set when you issue it.' : '');
+    $('d-ret').value = Number(r.retainage) ? Number(r.retainage).toFixed(2) : '';
+    $('d-office').value = r.notes || '';
+    $('d-kind').disabled = !ed || locked; $('d-ret').disabled = !ed || locked; $('d-due').disabled = !ed; $('d-office').disabled = !ed;
+    $('d-lock').hidden = !(ed && locked); $('d-lock').textContent = locked ? v.rules.amount_locked : '';
+    $('quick').innerHTML = ed ? ['Hold 10% retainage', 'Split the first line into two lines', 'Shorter line descriptions'].map(q => `<button class="chip" type="button" data-ask="${esc(q)}">${esc(q)}</button>`).join('') : '';
+    $('quick').querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', () => ask(b.dataset.ask)));
+    // history from the invoice's own dates
+    const h = [];
+    if (r.paid_at) h.push(['Paid in full', r.paid_at]);
+    if (r.viewed_at) h.push(['Opened by the client' + (r.view_count > 1 ? ' (' + r.view_count + '×)' : ''), r.viewed_at]);
+    if (r.edited_at) h.push(['Last changed', r.edited_at]);
+    if (r.sent_at) h.push(['Emailed to ' + (r.sent_to || 'the client') + (r.sent_count > 1 ? ' (' + r.sent_count + ' sends)' : ''), r.sent_at]);
+    if (r.issued_at) h.push(['Issued', r.issued_at]);
+    if (r.voided_at) h.push(['Voided', r.voided_at]);
+    h.push(['Drafted', r.created_at]);
+    h.sort((a, b) => String(b[1]).localeCompare(String(a[1])));
+    $('hist').innerHTML = h.map(([a, d]) => `<div>${esc(a)}<span>${esc(fmtDate(d))}</span></div>`).join('');
+  }
+
+  const txt = el => (el.innerText || '').replace(/ /g, ' ').split('\n').map(x => x.trim()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  function paint(html, flash) {
+    const f = $('doc');
+    f.onload = () => {
+      const d = f.contentDocument; if (!d) return;
+      const fit = () => { f.style.height = Math.max(500, Math.ceil(d.documentElement.scrollHeight) + 8) + 'px'; };
+      fit(); setTimeout(fit, 300); S.fit = fit;
+      S.base = {}; d.querySelectorAll('[data-f]').forEach(el => { S.base[el.dataset.f] = txt(el); });
+      if (!editable()) return;
+      d.addEventListener('input', e => {
+        fit(); const el = e.target.closest ? e.target.closest('[data-f], [data-lf]') : null; if (!el) return;
+        if (el.dataset.f) S.pend[el.dataset.f] = true; else S.linesDirty = true;
+        saved('busy', 'Editing…'); saveSoon(900);
+      });
+      d.addEventListener('focusout', e => {
+        const el = e.target.closest ? e.target.closest('[data-lf]') : null;
+        if (el && el.dataset.lf === 'amount') { el.textContent = money.format(num(el.innerText)); if (S.linesDirty) saveSoon(30, true); }
+      });
+      d.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && e.target.closest && e.target.closest('[data-lf]')) { e.preventDefault(); e.target.blur(); }
+      });
+      d.addEventListener('focusin', e => {   // a fresh amount is selected whole, so typing replaces it
+        const el = e.target.closest ? e.target.closest('[data-lf="amount"]') : null;
+        if (el && num(el.innerText) === 0) { const rg = d.createRange(); rg.selectNodeContents(el); const sel = d.getSelection(); sel.removeAllRanges(); sel.addRange(rg); }
+      });
+      d.addEventListener('click', e => {
+        const b = e.target.closest ? e.target.closest('[data-del]') : null; if (!b) return;
+        const rows = d.querySelectorAll('[data-li]');
+        if (rows.length <= 1) { toast('An invoice needs at least one line.'); return; }
+        b.closest('[data-li]').remove(); S.linesDirty = true; saveSoon(10, true); toast('Line removed');
+      });
+      (flash || []).forEach(sel => { const el = d.querySelector(sel); if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); } });
+    };
+    f.srcdoc = html;
+  }
+  function readLines() {
+    const d = $('doc').contentDocument;
+    return Array.from(d.querySelectorAll('[data-li]')).map(row => ({
+      description: txt(row.querySelector('[data-lf="description"]')), amount: num(row.querySelector('[data-lf="amount"]').innerText) }));
+  }
+  function body() {
+    const d = $('doc').contentDocument, out = {};
+    Object.keys(S.pend).forEach(k => { const el = d.querySelector(`[data-f="${k}"]`); if (el) { const t = txt(el); if (t !== S.base[k]) out[k] = t; } });
+    if (S.linesDirty) out.lines = readLines().filter(x => x.description || x.amount);
+    return out;
+  }
+  function saveSoon(ms, redraw) { clearTimeout(saveT); saveT = setTimeout(() => flush(redraw), ms); }
+  async function flush(redraw) {
+    clearTimeout(saveT);
+    if (S.saving) { await S.saving; }
+    if (!editable()) return;
+    const b = body(); S.pend = {}; S.linesDirty = false;
+    if (!Object.keys(b).length) { saved('', 'Saved'); return; }
+    if (b.lines && !b.lines.length) { saved('bad', 'Not saved'); toast('An invoice needs at least one line with an amount.', true); return; }
+    const changedMoney = !!b.lines;
+    S.saving = (async () => {
+      saved('busy', 'Saving…');
+      try {
+        const j = await api('/invoices/' + ID, { method: 'PATCH', body: JSON.stringify(b) });
+        Object.keys(b).forEach(k => { if (k !== 'lines') S.base[k] = b[k]; });
+        S.v.invoice = Object.assign(S.v.invoice, j.data); saved('', 'Saved'); $('e-total').textContent = money.format(j.data.amount);
+        if (j.meta && j.meta.warning) toast(j.meta.warning, true);
+        if (redraw || changedMoney) await load();
+      } catch (e) { saved('bad', 'Not saved'); toast(e.message, true); await load(); }
+    })();
+    try { await S.saving; } finally { S.saving = null; }
+  }
+  async function patch(fields, msg) {
+    await flush();
+    saved('busy', 'Saving…');
+    try { await api('/invoices/' + ID, { method: 'PATCH', body: JSON.stringify(fields) }); saved('', 'Saved'); await load(); if (msg) toast(msg); return true; }
+    catch (e) { saved('bad', 'Not saved'); toast(e.message, true); await load(); return false; }
+  }
+
+  // ---------------- doc tools
+  function addLine(text) {
+    const d = $('doc').contentDocument, rows = d.querySelectorAll('[data-li]'), last = rows[rows.length - 1]; if (!last) return;
+    const row = last.cloneNode(true); row.dataset.li = rows.length;
+    row.querySelector('[data-lf="description"]').textContent = text || '';
+    row.querySelector('[data-lf="amount"]').textContent = money.format(0);
+    row.querySelector('[data-del]').dataset.del = rows.length;
+    last.after(row); S.fit && S.fit();
+    const el = row.querySelector('[data-lf="description"]'); el.focus();
+    if (text) { const rg = d.createRange(); rg.selectNodeContents(el); rg.collapse(false); const sel = d.getSelection(); sel.removeAllRanges(); sel.addRange(rg); }
+  }
+  $('t-line').addEventListener('click', () => addLine(''));
+  $('t-co').addEventListener('click', () => {
+    const n = readLines().filter(x => /^change order/i.test(x.description)).length + 1;
+    addLine('Change order #' + n + ': ');
+  });
+  $('t-note').addEventListener('click', () => { const el = $('doc').contentDocument.querySelector('[data-f="doc_notes"]'); if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); } });
+
+  // ---------------- details
+  $('d-kind').addEventListener('change', e => patch({ kind: e.target.value }));
+  $('d-due').addEventListener('change', () => { const v = dGet($('d-due')); if (v === (S.v.invoice.due_at || '')) return; patch({ due_at: v || null }); });
+  $('d-ret').addEventListener('change', e => patch({ retainage: num(e.target.value) }));
+  $('d-office').addEventListener('change', e => patch({ notes: e.target.value }, 'Office note saved'));
+
+  // ---------------- header actions
+  $('e-dl').addEventListener('click', async e => {
+    e.preventDefault(); await flush();
+    const r = S.v.invoice;
+    try {
+      const res = await fetch('/api/invoices/' + r.id + '/pdf?download=1', { credentials: 'same-origin' });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'The PDF could not be made. Try again in a minute.'); }
+      const url = URL.createObjectURL(await res.blob()), a = document.createElement('a');
+      a.href = url; a.download = r.number + '.pdf'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (ex) { toast(ex.message, true); }
+  });
+  $('e-preview').addEventListener('click', async e => { if (S.pend && (Object.keys(S.pend).length || S.linesDirty)) { e.preventDefault(); await flush(); window.open($('e-preview').href, '_blank', 'noopener'); } });
+  $('e-main').addEventListener('click', async () => {
+    await flush(); const r = S.v.invoice;
+    if (r.status === 'draft') { $('b-confirm').hidden = false; $('b-confirm-t').innerHTML = `Issue <b>${esc(r.number)}</b> for <b>${esc(money.format(r.amount))}</b>? It becomes money owed to us${r.due_at ? ', due ' + esc(fmtDate(r.due_at)) : ''}. You can still edit it until it is paid.`; return; }
+    openMail();
+  });
+  $('b-no').addEventListener('click', () => { $('b-confirm').hidden = true; });
+  $('b-yes').addEventListener('click', async () => {
+    $('b-yes').disabled = true;
+    try { await api('/invoices/' + ID + '/issue', { method: 'POST', body: '{}' }); await load(); toast(S.v.invoice.number + ' issued', false, { label: 'Email client', run: openMail }); }
+    catch (e) { toast(e.message, true); } finally { $('b-yes').disabled = false; }
+  });
+  $('b-resend').addEventListener('click', async () => { await flush(); openMail(); });
+  $('b-standard').addEventListener('click', async () => {
+    try { await api('/invoices/' + ID + '/design', { method: 'DELETE' }); await load(); toast('This invoice now uses the company template'); }
+    catch (e) { toast(e.message, true); }
+  });
+
+  // ---------------- email
+  async function openMail() {
+    const r = S.v.invoice; $('mail-err').textContent = '';
+    $('mail-title').textContent = r.status === 'paid' ? 'Email the receipt' : 'Email the invoice';
+    $('mail-sub').textContent = r.number + ' · ' + money.format(r.balance) + ' open';
+    $('mail-email').value = r.sent_to || ''; $('mail-name').value = r.sent_name || ''; $('mail-msg').value = '';
+    $('mail-ov').classList.add('open'); setTimeout(() => $('mail-email').focus(), 30);
+    if (!r.sent_to) { try { const j = await api('/invoices/' + r.id + '/recipient'); $('mail-email').value = j.data.email || ''; $('mail-name').value = j.data.name || ''; } catch (e) {} }
+  }
+  $('mail-cancel').addEventListener('click', () => $('mail-ov').classList.remove('open'));
+  $('mail-ov').addEventListener('click', e => { if (e.target === $('mail-ov')) $('mail-ov').classList.remove('open'); });
+  $('mail-form').addEventListener('submit', async e => {
+    e.preventDefault(); const email = $('mail-email').value.trim();
+    if (!email) { $('mail-err').textContent = 'Add the email address it goes to.'; return; }
+    $('mail-go').disabled = true;
+    try { await api('/invoices/' + ID + '/send', { method: 'POST', body: JSON.stringify({ to_email: email, to_name: $('mail-name').value.trim(), message: $('mail-msg').value }) });
+      $('mail-ov').classList.remove('open'); toast(S.v.invoice.number + ' emailed to ' + email); await load(); }
+    catch (ex) { $('mail-err').textContent = ex.message; } finally { $('mail-go').disabled = false; }
+  });
+
+  // ---------------- Claude
+  function say(text, who, undo) {
+    const m = document.createElement('div'); m.className = 'msg ' + who; m.textContent = text;
+    if (undo) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn-ghost btn-sm'; b.textContent = '↶ Undo'; b.addEventListener('click', async () => { b.disabled = true; if (await patch(undo, 'Change undone')) b.remove(); else b.disabled = false; }); m.appendChild(document.createElement('br')); m.appendChild(b); }
+    $('chat').appendChild(m); $('chat').scrollTop = $('chat').scrollHeight;
+  }
+  async function ask(q) {
+    q = (q || '').trim(); if (!q) return;
+    await flush(); say(q, 'u'); $('chat-in').value = ''; $('chat-in').disabled = $('chat-go').disabled = true;
+    const wait = document.createElement('div'); wait.className = 'msg c'; wait.textContent = 'Working on it…'; $('chat').appendChild(wait);
+    try {
+      const j = await api('/invoices/' + ID + '/editor/revise', { method: 'POST', body: JSON.stringify({ instruction: q }) });
+      wait.remove(); const d = j.data;
+      say(d.note || (d.changed.length ? 'Done.' : 'Nothing changed.'), 'c', d.changed.length ? d.before : null);
+      S.v = d.view; draw(); paint(S.v.html);
+    } catch (e) { wait.remove(); say(e.message, 'c'); }
+    finally { $('chat-in').disabled = $('chat-go').disabled = false; }
+  }
+  $('chat-form').addEventListener('submit', e => { e.preventDefault(); ask($('chat-in').value); });
+
+  window.addEventListener('beforeunload', e => { if (Object.keys(S.pend).length || S.linesDirty) { flush(); e.preventDefault(); e.returnValue = ''; } });
+  if (!ID) { $('e-loading').textContent = 'No invoice in this address.'; return; }
+  load();
+})();
+</script>
+</body>
+</html>
