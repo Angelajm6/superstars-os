@@ -248,7 +248,7 @@ def main() -> int:
         # ---- the pages
         html = (ROOT / "proposal_studio.html").read_text(encoding="utf-8")
         for needle in ('id="e-rvw"', 'id="rr-m"', "data-rvw=\"approve\"", "'/review' + path", "Send for review", "s-revwarn", "review_cc",
-                       "esc(rv.reviewer.name)"):
+                       "esc(rv.reviewer.name)", "Send for review needs another admin to ask"):
             assert needle in html, needle
         js = (ROOT / "static/js/activity_bell.js").read_text(encoding="utf-8")
         assert "it.sticky" in js and "group === 'review'" in js
