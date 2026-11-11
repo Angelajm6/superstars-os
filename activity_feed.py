@@ -12,6 +12,10 @@ to remember to report anything:
 
 Wording says what was done, never which teammate did it. A person's own actions are left out. Admins only for now.
 What needs a decision comes from activity_accepts.py (phase 3).
+
+"For you" (accepted prototype 2026-11-11: https://claude.ai/artifact/E3AZ6ytnir14NxaBCnQgK6): the bell's first tab is
+this person's day, the same cards as Needs you on the dashboard (today_feed.needs), so the two always match. The badge
+counts For you plus what waits for a decision. Once a day the first page shows a morning banner with the day's counts.
 Nothing here reads anyone's email, and no AI runs. `activity_seen` keeps two marks per person: what they have read (the
 badge) and what has already popped up as a banner.
 """
@@ -46,8 +50,23 @@ def ensure(conn) -> None:
     """Idempotent."""
     conn.execute("CREATE TABLE IF NOT EXISTS activity_seen (user_id INTEGER PRIMARY KEY, read_at TEXT, banner_at TEXT)")
     conn.commit()
+    if not _has_column(conn, "activity_seen", "morning_on"):   # the day the morning banner last showed (local date)
+        conn.execute("ALTER TABLE activity_seen ADD COLUMN morning_on TEXT")
+        conn.commit()
     import activity_accepts
     activity_accepts.ensure(conn)
+
+
+def _has_column(conn, table: str, column: str) -> bool:
+    try:
+        conn.execute(f"SELECT {column} FROM {table} WHERE 1 = 0")
+        return True
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return False
 
 
 def _parse(at) -> Optional[datetime]:
@@ -233,6 +252,69 @@ def _closed_cards(conn, uid: int) -> dict:
     return out
 
 
+# ------------------------------------------------------------------ For you: this person's day
+MORNING_FROM_HOUR = 5          # the morning banner never shows for a page left open overnight before this
+FOR_YOU_MAX = 30
+_FOR_YOU_ICON = (("crew", "person"), ("money", "money"), ("bill", "money"), ("cash", "money"), ("doc", "doc"),
+                 ("task", "check"), ("email", "mail"), ("mail", "mail"), ("field", "build"))
+
+
+def _local_href(href: str) -> str:
+    """Needs you links are written for the dashboard (#finance); the bell is on every page."""
+    href = str(href or "")
+    return "/company" + href if href.startswith("#") else (href or "/company#overview")
+
+
+def _for_you_item(c: dict) -> dict:
+    claude = bool(c.get("action_id"))
+    group = "claude" if claude else ("today" if c.get("urgency") in ("now", "today") else "soon")
+    cat = f"{c.get('cat') or ''} {c.get('icon') or ''}"
+    icon = "spark" if claude else next((ic for k, ic in _FOR_YOU_ICON if k in cat), "doc")
+    tint = "blue" if claude else ("bad" if c.get("urgency") == "now" else ("warn" if group == "today" else "plain"))
+    why = str(c.get("why") or "")
+    return {"id": "you:" + str(c.get("key")), "kind": "you", "group": group, "icon": icon, "tint": tint,
+            "title": str(c.get("title") or ""), "sub": why[:160] + ("…" if len(why) > 160 else ""),
+            "pill": c.get("pill"), "href": _local_href(c.get("href")), "urgency": c.get("urgency")}
+
+
+def for_you(conn, uid: int, now: datetime) -> list:
+    """The same cards as Needs you (today_feed.needs): what wants this person today, Claude's drafts, what's coming up.
+    Cards hidden on the dashboard (Later / Good) stay hidden here."""
+    import today_feed
+    today = now.date()
+    pay = today_feed.payments(conn, today)["_rows"]
+    crew = today_feed.crew(conn, today, now)
+    cards = today_feed.needs(conn, uid, today, now, pay, crew)
+    order = {"today": 0, "claude": 1, "soon": 2}
+    items = [_for_you_item(c) for c in cards if c.get("key") and c.get("title")]
+    items.sort(key=lambda i: order[i["group"]])   # stable: Needs you's own order inside each group
+    return items[:FOR_YOU_MAX]
+
+
+def _first_name(conn, uid: int) -> str:
+    r = conn.execute("SELECT full_name FROM users WHERE id = ?", (uid,)).fetchone()
+    return (str((r["full_name"] if r else "") or "").split() or [""])[0]
+
+
+def morning(conn, uid: int, now: datetime, you: list) -> Optional[dict]:
+    """Once a day, on the first page after 5 AM: the day's counts. Nothing to say, nothing shows."""
+    if now.hour < MORNING_FROM_HOUR or not you:
+        return None
+    r = conn.execute("SELECT morning_on FROM activity_seen WHERE user_id = ?", (uid,)).fetchone()
+    if r and str(r["morning_on"] or "") == now.date().isoformat():
+        return None
+    count = lambda g: sum(1 for i in you if i["group"] == g)  # noqa: E731
+    lines = []
+    for n, one, many in ((count("today"), "thing due today or late", "things due today or late"),
+                         (count("claude"), "suggestion from Claude to review", "suggestions from Claude to review"),
+                         (count("soon"), "coming up this week", "coming up this week")):
+        if n:
+            lines.append({"n": n, "label": one if n == 1 else many})
+    name = _first_name(conn, uid)
+    return {"id": "morning:" + now.date().isoformat(), "day": now.date().isoformat(),
+            "title": "Good morning" + (", " + name if name else ""), "lines": lines}
+
+
 def _marks(conn, uid: int, now: datetime) -> tuple:
     """(read_at, banner_at). The first look starts from now, so turning this on doesn't set off two weeks of news."""
     r = conn.execute("SELECT read_at, banner_at FROM activity_seen WHERE user_id = ?", (uid,)).fetchone()
@@ -279,8 +361,23 @@ def build(conn, uid: int, now: Optional[datetime] = None) -> dict:
         _offer_undo(conn, uid, banners)
     for w in waiting:
         w["when"] = _when(_parse(w["at"]) or now, now)
+    try:
+        you = for_you(conn, uid, now)
+    except Exception as e:   # the day's list failing must not take the news down
+        log.warning("activity for-you skipped: %s", type(e).__name__)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        you = []
+    try:
+        good_morning = morning(conn, uid, now, you)
+    except Exception as e:
+        log.warning("activity morning skipped: %s", type(e).__name__)
+        good_morning = None
     return {"items": items, "unread": sum(1 for i in items if i["unread"]), "banners": banners, "latest": latest,
-            "waiting": [activity_accepts.public(w) for w in waiting]}
+            "waiting": [activity_accepts.public(w) for w in waiting], "for_you": you, "morning": good_morning,
+            "badge": len(you) + len(waiting)}
 
 
 def _offer_undo(conn, uid: int, banners: list) -> None:
@@ -306,9 +403,16 @@ def _offer_undo(conn, uid: int, banners: list) -> None:
 def mark(conn, uid: int, what: str, through: str, now: Optional[datetime] = None) -> None:
     """Moves a mark forward only, never past now."""
     now = now or datetime.now().replace(microsecond=0)
+    if what == "morning":   # through = the day it showed (local date); only today counts
+        if str(through or "") != now.date().isoformat():
+            raise ValueError("give the day the morning banner showed")
+        _marks(conn, uid, now)
+        conn.execute("UPDATE activity_seen SET morning_on = ? WHERE user_id = ?", (now.date().isoformat(), uid))
+        conn.commit()
+        return
     at = _parse(through)
     if not at or what not in ("read", "banners"):
-        raise ValueError("give what = read or banners, and a time")
+        raise ValueError("give what = read, banners or morning, and a time")
     at = min(at, now)
     read_at, banner_at = _marks(conn, uid, now)
     if what == "read" and at > read_at:

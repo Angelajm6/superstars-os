@@ -2,6 +2,10 @@
  *
  * auth_menu.js loads this for admins only, next to #user-menu on every staff page. The server checks the role again on
  * every call; this is display. Polls once a minute while the tab is visible, so a hidden tab never pops banners.
+ *
+ * Two tabs (accepted prototype 2026-11-11, https://claude.ai/artifact/E3AZ6ytnir14NxaBCnQgK6): For you = this person's
+ * day (the dashboard's Needs you cards, plus decisions waiting), What happened = the team's news. The badge counts For
+ * you; unread news shows as a dot on its tab. Once a day the first page pops the morning banner.
  */
 (function () {
   'use strict';
@@ -18,13 +22,17 @@
     doc: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'),
     person: svg('<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>'),
     build: svg('<path d="M4 21V6l8-3 8 3v15"/><path d="M9 21v-5h6v5M9 9h.01M15 9h.01M9 12.5h.01M15 12.5h.01"/>'),
+    check: svg('<path d="M20 6 9 17l-5-5"/>'),
+    mail: svg('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'),
+    spark: svg('<path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/>'),
+    sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
     money: svg('<path d="M12 3v18M16.5 7.5C16 6 14.3 5 12 5 9.5 5 7.5 6.3 7.5 8.3c0 4.5 9 2.7 9 7.4 0 2-2 3.3-4.5 3.3-2.5 0-4.3-1-5-2.7"/>'),
     x: svg('<path d="M6 6l12 12M18 6 6 18"/>')
   };
   var TINT = { sent: 'ok', signed: 'ok', paid: 'ok', declined: 'warn', docs: 'warn', started: 'plain', project: 'plain' };
   var CLOSED_KEY = 'ssc.bell.closed';
 
-  var S = { data: null, open: false, failed: false, shown: {}, lastLoad: 0, stopped: false };
+  var S = { data: null, open: false, failed: false, shown: {}, lastLoad: 0, stopped: false, tab: 'you', sawNews: false };
   var bell, panel, scrim, banners, sheetWrap, toastEl;
 
   function esc(s) {
@@ -46,11 +54,21 @@
   }
 
   /* ------------------------------ bell + panel ------------------------------ */
+  function badgeCount() {
+    if (!S.data) return 0;
+    return S.data.badge != null ? S.data.badge : S.data.unread + S.data.waiting.length;
+  }
   function renderBell() {
-    var n = S.data ? S.data.unread + S.data.waiting.length : 0;
-    bell.innerHTML = ICON.bell + (n ? '<span class="ab-badge">' + (n > 99 ? '99+' : n) + '</span>' : '');
-    bell.setAttribute('aria-label', n ? 'Notifications, ' + n + ' new' : 'Notifications');
+    var n = badgeCount(), news = S.data ? S.data.unread : 0;
+    bell.innerHTML = ICON.bell + (n ? '<span class="ab-badge">' + (n > 99 ? '99+' : n) + '</span>' : (news ? '<span class="ab-badge ab-badge-dot" aria-hidden="true"></span>' : ''));
+    bell.setAttribute('aria-label', n ? 'Notifications, ' + n + ' for you' : (news ? 'Notifications, ' + news + ' new' : 'Notifications'));
     bell.setAttribute('aria-expanded', S.open ? 'true' : 'false');
+  }
+  function youRow(it) {
+    return '<a class="ab-item ab-you" href="' + esc(it.href) + '">' + icon(it) +
+      '<span class="ab-body"><span class="ab-title">' + esc(it.title) + '</span>' +
+      (it.sub ? '<span class="ab-sub">' + esc(it.sub) + '</span>' : '') +
+      (it.pill ? '<span class="ab-pill ab-pill-' + esc(it.tint || 'plain') + '">' + esc(it.pill) + '</span>' : '') + '</span></a>';
   }
   function row(it) {
     return '<a class="ab-item' + (it.unread ? ' ab-unread' : '') + '" href="' + esc(it.href) + '">' + icon(it) +
@@ -72,29 +90,48 @@
     var list = items.filter(function (i) { return i.group === group; });
     return list.length ? '<div class="ab-group">' + label + '</div>' + list.map(row).join('') : '';
   }
+  var YOU_GROUPS = [['today', 'Today'], ['claude', 'From Claude'], ['soon', 'Coming up']];
+  function youBody() {
+    var you = S.data.for_you || [], asks = S.data.waiting || [];
+    if (!you.length && !asks.length) return '<div class="ab-empty">Nothing needs you right now. What’s due, expiring or drafted by Claude shows up here.</div>';
+    return (asks.length ? '<div class="ab-group">Waiting on you</div>' + asks.map(waitRow).join('') : '') +
+      YOU_GROUPS.map(function (g) {
+        var list = you.filter(function (i) { return i.group === g[0]; });
+        return list.length ? '<div class="ab-group">' + g[1] + '</div>' + list.map(youRow).join('') : '';
+      }).join('');
+  }
+  function newsBody() {
+    var items = S.data.items;
+    if (!items.length) return '<div class="ab-empty">Nothing yet. When the team sends a proposal, adds a client or uploads documents, it shows up here.</div>';
+    return section(items, 'today', 'Today') + section(items, 'earlier', 'Earlier');
+  }
   function renderPanel() {
     scrim.hidden = !S.open;
     panel.hidden = !S.open;
     if (!S.open) return;
     panel.style.top = window.matchMedia(PHONE).matches ? '' : anchorTop() + 'px';
-    var items = S.data ? S.data.items : [], asks = S.data ? S.data.waiting : [];
+    if (S.tab === 'news') S.sawNews = true;
     var body;
     if (S.failed && !S.data) {
       body = '<div class="ab-empty">Notifications didn’t load. <button type="button" class="ab-link" data-ab="retry">Try again</button></div>';
     } else if (!S.data) {
       body = '<div class="ab-empty">Loading…</div>';
-    } else if (!items.length && !asks.length) {
-      body = '<div class="ab-empty">Nothing yet. When the team sends a proposal, adds a client or uploads documents, it shows up here.</div>';
     } else {
-      body = (asks.length ? '<div class="ab-group">Waiting for you</div>' + asks.map(waitRow).join('') : '') +
-        section(items, 'today', 'Today') + section(items, 'earlier', 'Earlier');
+      body = S.tab === 'news' ? newsBody() : youBody();
     }
-    var unread = S.data && S.data.unread;
-    panel.innerHTML = '<div class="ab-head"><h3>Notifications</h3><span class="ab-head-acts">' +
-      (unread ? '<button type="button" class="ab-link" data-ab="read-all">Mark all read</button>' : '') +
+    var unread = S.data && S.data.unread, n = badgeCount();
+    function tab(key, label, extra) {
+      return '<button type="button" role="tab" class="ab-tab' + (S.tab === key ? ' ab-on' : '') + '" aria-selected="' + (S.tab === key) + '" data-ab="tab" data-tab="' + key + '">' + label + extra + '</button>';
+    }
+    panel.innerHTML = '<div class="ab-head"><div class="ab-tabs" role="tablist" aria-label="Notifications">' +
+      tab('you', 'For you', n ? '<span class="ab-count">' + n + '</span>' : '') +
+      tab('news', 'What happened', unread ? '<span class="ab-tabdot" aria-label="' + unread + ' new"></span>' : '') +
+      '</div><span class="ab-head-acts">' +
+      (S.tab === 'news' && unread ? '<button type="button" class="ab-link" data-ab="read-all">Mark all read</button>' : '') +
       '<button type="button" class="ab-close" data-ab="close" aria-label="Close">' + ICON.x + '</button></span></div>' +
-      '<div class="ab-list">' + body + '</div>' +
-      '<div class="ab-foot">Your own actions don’t appear here, unless they’re waiting for a decision. Admins only for now.</div>';
+      '<div class="ab-list" role="tabpanel">' + body + '</div>' +
+      '<div class="ab-foot">' + (S.tab === 'news' ? 'Your own actions don’t appear here, unless they’re waiting for a decision. Admins only for now.'
+        : 'The same list as Needs you on the dashboard. Tap one to open it.') + '</div>';
   }
   function markRead() {
     if (!S.data || !S.data.unread || !S.data.latest) return;
@@ -102,10 +139,12 @@
     S.data.unread = 0;
     S.data.items.forEach(function (i) { i.unread = false; });
   }
-  function toggle(open) {
-    if (S.open === open) return;
+  function toggle(open, tab) {
+    if (tab) S.tab = tab;
+    if (S.open === open) { if (open) renderPanel(); return; }
     S.open = open;
-    if (!open) markRead();   // the dots stay while the list is open, so you can see what was new
+    if (open) S.sawNews = false;
+    if (!open && S.sawNews) markRead();   // the dots stay while the list is open, so you can see what was new
     renderBell();
     renderPanel();
     if (open) { var c = panel.querySelector('.ab-close'); if (c) c.focus(); } else bell.focus({ preventScroll: true });
@@ -142,6 +181,25 @@
       dropBanner(news.length ? news[news.length - 1] : banners.lastElementChild);
     }
     if (!it.actions) autoClose(el, BANNER_MS);   // a decision stays until someone answers it or closes it
+  }
+  function showMorning(m) {
+    if (!m || S.shown[m.id]) return;
+    S.shown[m.id] = true;
+    var el = document.createElement('div');
+    el.className = 'ab-banner ab-morning';
+    el.dataset.id = m.id;
+    el.dataset.wait = '1';   // stays until closed or opened, like a decision
+    el.innerHTML = '<span class="ab-ico ab-day">' + ICON.sun + '</span><div class="ab-body"><div class="ab-title">' + esc(m.title) + '</div>' +
+      '<div class="ab-day-lines">' + m.lines.map(function (l) { return '<div><b>' + esc(l.n) + '</b>' + esc(l.label) + '</div>'; }).join('') + '</div>' +
+      '<div class="ab-acts"><button type="button" class="btn-primary" data-ab="see-today">See today</button></div></div>' +
+      '<button type="button" class="ab-close" data-ab="banner-x" aria-label="Close. It stays in the bell.">' + ICON.x + '</button>';
+    banners.prepend(el);
+    var limit = window.matchMedia(PHONE).matches ? 1 : 3;
+    while (banners.children.length > limit) {
+      var news = banners.querySelectorAll('.ab-banner:not([data-wait])');
+      dropBanner(news.length ? news[news.length - 1] : banners.lastElementChild);
+    }
+    post('/api/activity/seen', { what: 'morning', through: m.day }).catch(function () { });
   }
   function closedIds() {
     try { return JSON.parse(localStorage.getItem(CLOSED_KEY) || '[]'); } catch (e) { return []; }
@@ -329,7 +387,7 @@
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     }).then(function (j) {
-      var d = j.data, before = S.data ? S.data.unread : null;
+      var d = j.data, before = S.data ? S.data.unread : null, beforeBadge = S.data ? badgeCount() : null;
       if (S.open && S.data) {   // what you are looking at keeps its dots until you close the list
         var was = {};
         S.data.items.forEach(function (i) { if (i.unread) was[i.id] = true; });
@@ -339,12 +397,13 @@
       S.failed = false;
       renderBell();
       if (S.open) renderPanel();
-      if (before !== null && d.unread > before) {
+      if ((before !== null && d.unread > before) || (beforeBadge !== null && badgeCount() > beforeBadge)) {
         bell.classList.remove('ab-ring');
         void bell.offsetWidth;
         bell.classList.add('ab-ring');
       }
       if (!document.hidden) syncWaitingBanners(d);
+      if (!document.hidden && d.morning && !S.open) showMorning(d.morning);
       if (d.banners.length && !document.hidden) {
         // newest ends up on top; one you can act on (Undo) goes last, so a phone's single banner is that one
         d.banners.slice().reverse().sort(function (a, b) { return (a.undo_action_id ? 1 : 0) - (b.undo_action_id ? 1 : 0); }).forEach(showBanner);
@@ -365,6 +424,8 @@
       if (what === 'close') toggle(false);
       else if (what === 'retry') load();
       else if (what === 'read-all') { markRead(); renderBell(); renderPanel(); }
+      else if (what === 'tab') { S.tab = b.dataset.tab; renderPanel(); var t = panel.querySelector('.ab-tab.ab-on'); if (t) t.focus(); }
+      else if (what === 'see-today') { dropBanner(b.closest('.ab-banner')); toggle(true, 'you'); }
       else if (what === 'banner-x') {
         var bn = b.closest('.ab-banner');
         if (bn.dataset.wait) rememberClosed(bn.dataset.id);   // it stays in the bell and doesn't pop up again
@@ -377,7 +438,7 @@
     }
     var link = e.target.closest && e.target.closest('a.ab-item, .ab-wait a, .ab-banner a');
     if (link && !link.closest('.ab-banner')) {
-      markRead();
+      if (S.sawNews) markRead();
       S.open = false;
       renderBell();
       renderPanel();
@@ -393,7 +454,7 @@
     bell.id = 'ab-bell';
     bell.className = 'ab-bell';
     bell.setAttribute('aria-haspopup', 'true');
-    bell.addEventListener('click', function () { toggle(!S.open); });
+    bell.addEventListener('click', function () { toggle(!S.open, S.open ? null : 'you'); });
     bell.addEventListener('animationend', function () { bell.classList.remove('ab-ring'); });
     host.parentNode.insertBefore(bell, host);
 
@@ -428,6 +489,7 @@
     [scrim, panel, banners, sheetWrap, toastEl].forEach(function (el) { document.body.appendChild(el); });
     [panel, banners, sheetWrap, toastEl].forEach(function (el) { el.addEventListener('click', onClick); });
     document.addEventListener('click', function (e) {
+      if (!e.target.isConnected) return;   // a tab or button inside the panel re-drew it: that click was inside
       if (S.open && !panel.contains(e.target) && !bell.contains(e.target) && !sheetWrap.contains(e.target) && !toastEl.contains(e.target)) toggle(false);
     });
     document.addEventListener('keydown', function (e) {
