@@ -372,7 +372,7 @@ def main() -> int:
         for needle in ("'/api/activity/decide'", "Waiting on you", "esc(w.title)", "esc(w.note)", "This can’t be undone", "rememberClosed", "ssc:claude-changed"):
             assert needle in js, needle
         am = (ROOT / "static/js/auth_menu.js").read_text(encoding="utf-8")
-        assert "activity_bell.js?v=3" in am and "activity_bell.css?v=3" in am
+        assert "activity_bell.js?v=4" in am and "activity_bell.css?v=4" in am
         for page in ROOT.glob("*.html"):
             t = page.read_text(encoding="utf-8")
             assert "auth_menu.js?v=1012" not in t, page.name

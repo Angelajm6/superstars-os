@@ -29,7 +29,7 @@
     money: svg('<path d="M12 3v18M16.5 7.5C16 6 14.3 5 12 5 9.5 5 7.5 6.3 7.5 8.3c0 4.5 9 2.7 9 7.4 0 2-2 3.3-4.5 3.3-2.5 0-4.3-1-5-2.7"/>'),
     x: svg('<path d="M6 6l12 12M18 6 6 18"/>')
   };
-  var TINT = { sent: 'ok', signed: 'ok', paid: 'ok', declined: 'warn', docs: 'warn', started: 'plain', project: 'plain' };
+  var TINT = { review: 'blue', sent: 'ok', signed: 'ok', paid: 'ok', declined: 'warn', docs: 'warn', started: 'plain', project: 'plain' };
   var CLOSED_KEY = 'ssc.bell.closed';
 
   var S = { data: null, open: false, failed: false, shown: {}, lastLoad: 0, stopped: false, tab: 'you', sawNews: false };
@@ -94,7 +94,8 @@
   function youBody() {
     var you = S.data.for_you || [], asks = S.data.waiting || [];
     if (!you.length && !asks.length) return '<div class="ab-empty">Nothing needs you right now. What’s due, expiring or drafted by Claude shows up here.</div>';
-    return (asks.length ? '<div class="ab-group">Waiting on you</div>' + asks.map(waitRow).join('') : '') +
+    var reviews = you.filter(function (i) { return i.group === 'review'; });
+    return (asks.length || reviews.length ? '<div class="ab-group">Waiting on you</div>' + reviews.map(youRow).join('') + asks.map(waitRow).join('') : '') +
       YOU_GROUPS.map(function (g) {
         var list = you.filter(function (i) { return i.group === g[0]; });
         return list.length ? '<div class="ab-group">' + g[1] + '</div>' + list.map(youRow).join('') : '';
@@ -173,14 +174,14 @@
       '<div class="ab-acts">' + (it.actions ? actionButtons(it) : '<a class="btn-primary" href="' + esc(it.href) + '">' + esc(it.open_label || 'Open') + '</a>' +
       (it.undo_action_id ? '<button type="button" class="btn-ghost" data-ab="undo" data-action="' + esc(it.undo_action_id) + '">Undo</button>' : '')) +
       '</div></div><button type="button" class="ab-close" data-ab="banner-x" aria-label="Close. It stays in the bell.">' + ICON.x + '</button>';
-    if (it.actions) el.dataset.wait = '1';
+    if (it.actions || it.sticky) el.dataset.wait = '1';   // a decision or a review stays until opened or closed
     banners.prepend(el);
     var limit = window.matchMedia(PHONE).matches ? 1 : 3;   // anything pushed off stays in the bell; news goes before a decision
     while (banners.children.length > limit) {
       var news = banners.querySelectorAll('.ab-banner:not([data-wait])');
       dropBanner(news.length ? news[news.length - 1] : banners.lastElementChild);
     }
-    if (!it.actions) autoClose(el, BANNER_MS);   // a decision stays until someone answers it or closes it
+    if (!it.actions && !it.sticky) autoClose(el, BANNER_MS);   // a decision stays until someone answers it or closes it
   }
   function showMorning(m) {
     if (!m || S.shown[m.id]) return;

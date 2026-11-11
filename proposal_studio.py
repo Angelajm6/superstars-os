@@ -19,6 +19,10 @@ Send; Claude's changes are drafts with an Undo.
   POST  /api/proposal-studio/<pid>/exclude        {text} a note / exclusion / deliverable that doesn't apply; /restore puts it back
   GET   /api/proposal-studio/<pid>/send-options   the client's people + email conversations (?q= searches), Gmail
   POST  /api/proposal-studio/<pid>/send-preview   {how, mail_id, reply_all?} -> the recipients (Reply and Reply all), thread, subject and PDF Send would use
+  POST  /api/proposal-studio/<pid>/review         {reviewer_id, note, email} -> ask someone to review the draft (proposal_review)
+  POST  /api/proposal-studio/<pid>/review/answer  {answer: approve | changes, note} -> the reviewer only
+  POST  /api/proposal-studio/<pid>/review/cancel  the person who asked, or the reviewer
+  POST  /api/proposal-studio/<pid>/review/remind  the person who asked: it pops up for the reviewer again
   POST  /api/proposal-studio/<pid>/send           {how: reply | new, mail_id, to, cc, subject, message, confirm: true,
                                                   expected_total} -> PDF + Gmail. Refused without confirm.
   GET / PUT /api/proposal-studio/house-style      what Claude follows (editable); POST .../learn reads the sent proposals
@@ -389,7 +393,22 @@ def view(conn, pid: int, uid, role: Optional[str] = None) -> Optional[dict]:
             "sources": proposals._json_list(r.get("sources")) if st.get("show_sources", True) else [],
             "lines": [{"description": li["description"], "qty": li["qty"], "unit": li["unit"], "unit_price": li["unit_price"]} for li in lis],
             "html": proposals.render_document(conn, r, mode="edit", known=known),
-            "template": proposal_template.public(conn), "editable": r["status"] == "draft", **extra}
+            "template": proposal_template.public(conn), "editable": r["status"] == "draft",
+            **_review_state(conn, pid, uid), **extra}
+
+
+def _review_state(conn, pid: int, uid) -> dict:
+    """The open review and who can be asked; a review problem never breaks the editor."""
+    try:
+        import proposal_review
+        return proposal_review.state(conn, pid, uid)
+    except Exception as e:
+        log.info("proposal review state unavailable: %s", type(e).__name__)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return {"review": None, "reviewers": []}
 
 
 # ------------------------------------------------------------------ who and where to send it (the Send pop-up)
@@ -445,7 +464,15 @@ def send_options(conn, pid: int, uid, q: Optional[str] = None) -> dict:
     import inbox
     return {"contacts": contacts, "threads": threads, "gmail": link.get("google_email") if link.get("status") == "active" else None,
             "can_send": inbox.can_send(link) if link.get("status") == "active" else False,
-            "attachment": attachment_name(r), "amounts": proposals.amounts(conn, r)}
+            "attachment": attachment_name(r), "amounts": proposals.amounts(conn, r), "review_cc": _review_cc(conn, pid, uid)}
+
+
+def _review_cc(conn, pid: int, uid) -> str:
+    try:
+        import proposal_review
+        return proposal_review.cc_for(conn, pid, uid)
+    except Exception:
+        return ""
 
 
 def attachment_name(r: dict) -> str:
@@ -589,6 +616,11 @@ def send(conn, pid: int, uid, body: dict) -> dict:
     conn.commit()
     proposals._event(conn, pid, "sent", actor=uid, detail="PDF sent from Gmail (" + ("reply in the thread" if how == "reply" else "new email") + ")")
     conn.commit()
+    try:   # an open review closes: the proposal went out
+        import proposal_review
+        proposal_review.close_on_send(conn, pid, uid)
+    except Exception as e:
+        log.warning("proposal review not closed on send: %s", type(e).__name__)
     r = proposals.get(conn, pid)
     proposals.supersede_predecessor(conn, r, actor=uid)
     proposals._activity(conn, r, f"Proposal {proposal_engine.label(r)} sent as a PDF from Gmail", actor=uid)
@@ -616,6 +648,60 @@ def register(app) -> None:
 
     def err(msg, code=400):
         return jsonify({"error": msg}), code
+
+    try:
+        import proposal_review
+        with_conn(proposal_review.ensure)
+    except Exception as e:
+        log.warning("proposal_review schema ensure skipped: %s", e)
+
+    def review_call(pid, fn):
+        """The review routes: each answers with the editor's view, so the page redraws from one source."""
+        me = _me()
+
+        def run(c):
+            extra = fn(c, me) or {}
+            return dict(view(c, pid, me["id"], me["role"]), **extra)
+        try:
+            v = with_conn(run)
+        except LookupError:
+            return err("not found", 404)
+        except PermissionError as e:
+            return err(str(e), 403)
+        except ValueError as e:
+            return err(str(e))
+        return jsonify({"data": v})
+
+    @app.route("/api/proposal-studio/<int:pid>/review", methods=["POST"])
+    @gate
+    def proposal_studio_review(pid):
+        import proposal_review
+        body = request.get_json(silent=True) or {}
+
+        def go(c, me):
+            row = proposal_review.request(c, pid, me["id"], body.get("reviewer_id"), body.get("note"))
+            mail = proposal_review.email_reviewer(c, pid, me["id"], row) if body.get("email", True) else {"sent": False, "why": None}
+            return {"review_email": mail}
+        return review_call(pid, go)
+
+    @app.route("/api/proposal-studio/<int:pid>/review/answer", methods=["POST"])
+    @gate
+    def proposal_studio_review_answer(pid):
+        import proposal_review
+        body = request.get_json(silent=True) or {}
+        return review_call(pid, lambda c, me: proposal_review.answer(c, pid, me["id"], str(body.get("answer") or ""), body.get("note")) and None)
+
+    @app.route("/api/proposal-studio/<int:pid>/review/cancel", methods=["POST"])
+    @gate
+    def proposal_studio_review_cancel(pid):
+        import proposal_review
+        return review_call(pid, lambda c, me: proposal_review.cancel(c, pid, me["id"]))
+
+    @app.route("/api/proposal-studio/<int:pid>/review/remind", methods=["POST"])
+    @gate
+    def proposal_studio_review_remind(pid):
+        import proposal_review
+        return review_call(pid, lambda c, me: proposal_review.remind(c, pid, me["id"]))
 
     @app.route("/proposal-studio", methods=["GET"])
     @gate
