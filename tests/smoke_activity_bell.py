@@ -396,7 +396,7 @@ def main() -> int:
         assert "view === 'invoice' && arg" in portal and "'ssc:activity-changed'" in portal
         for page in ROOT.glob("*.html"):
             t = page.read_text(encoding="utf-8")
-            assert not any(f"auth_menu.js?v={v}" in t for v in (1010, 1011, 1012, 1013)), f"{page.name} keeps a cached script without the bell"
+            assert not any(f"auth_menu.js?v={v}" in t for v in (1010, 1011, 1012, 1013, 1014)), f"{page.name} keeps a cached script without the bell"
         passed += 1; print("  pages ok")
     finally:
         conn.close()

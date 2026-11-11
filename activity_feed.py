@@ -277,7 +277,7 @@ def _for_you_item(c: dict) -> dict:
             "pill": c.get("pill"), "href": _local_href(c.get("href")), "urgency": c.get("urgency")}
 
 
-def for_you(conn, uid: int, now: datetime) -> list:
+def for_you(conn, uid: int, now: datetime, first: Optional[list] = None) -> list:
     """The same cards as Needs you (today_feed.needs): what wants this person today, Claude's drafts, what's coming up.
     Cards hidden on the dashboard (Later / Good) stay hidden here."""
     import today_feed
@@ -288,7 +288,7 @@ def for_you(conn, uid: int, now: datetime) -> list:
     order = {"today": 0, "claude": 1, "soon": 2}
     items = [_for_you_item(c) for c in cards if c.get("key") and c.get("title")]
     items.sort(key=lambda i: order[i["group"]])   # stable: Needs you's own order inside each group
-    return items[:FOR_YOU_MAX]
+    return (list(first or []) + items)[:FOR_YOU_MAX]   # first: proposal reviews waiting on this person
 
 
 def _first_name(conn, uid: int) -> str:
@@ -305,7 +305,8 @@ def morning(conn, uid: int, now: datetime, you: list) -> Optional[dict]:
         return None
     count = lambda g: sum(1 for i in you if i["group"] == g)  # noqa: E731
     lines = []
-    for n, one, many in ((count("today"), "thing due today or late", "things due today or late"),
+    for n, one, many in ((count("review"), "proposal waiting on you", "proposals waiting on you"),
+                         (count("today"), "thing due today or late", "things due today or late"),
                          (count("claude"), "suggestion from Claude to review", "suggestions from Claude to review"),
                          (count("soon"), "coming up this week", "coming up this week")):
         if n:
@@ -340,6 +341,17 @@ def build(conn, uid: int, now: Optional[datetime] = None) -> dict:
                 conn.rollback()   # Postgres refuses every later statement until the failed one is rolled back
             except Exception:
                 pass
+    reviews_you = []
+    try:   # proposal reviews: a request for the reviewer, the answer for the person who asked (they name each other)
+        import proposal_review
+        rv_items, reviews_you = proposal_review.bell(conn, uid, since)
+        items += rv_items
+    except Exception as e:
+        log.warning("activity reviews skipped: %s", type(e).__name__)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
     import activity_accepts
     waiting = activity_accepts.waiting(conn, uid, now)
     asked_clients = {w["id"] for w in waiting if w["kind"] == "client"}
@@ -362,7 +374,7 @@ def build(conn, uid: int, now: Optional[datetime] = None) -> dict:
     for w in waiting:
         w["when"] = _when(_parse(w["at"]) or now, now)
     try:
-        you = for_you(conn, uid, now)
+        you = for_you(conn, uid, now, reviews_you)
     except Exception as e:   # the day's list failing must not take the news down
         log.warning("activity for-you skipped: %s", type(e).__name__)
         try:

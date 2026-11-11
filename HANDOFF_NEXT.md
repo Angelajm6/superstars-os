@@ -78,6 +78,24 @@ grant, or elevation code.
   thread. The bell shows "<owner>'s brief is ready" until sent. Text encrypted at rest (`mail_brief_item.*_enc`). Guard: `tests/smoke_owner_brief.py`.
   Not built: the owner's own login view of the brief.
 
+### Proposals: Send for review, before it goes to the client (Bookore, 2026-11-11)
+
+* Accepted prototype: https://claude.ai/artifact/E3AZ6ytnir14NxaBCnQgK6 (with the bell upgrade below). Optional: a draft can always be sent without one.
+* `proposal_review.py`, table `proposal_review` (one open per proposal): pending → approved | changes; approved → pending when a price or a line
+  changed (`fingerprint` = lines + total, compared when anyone reads it: `state` from the Studio view, `bell` from the activity poll, so every edit path is
+  covered). Closed as replaced (asked again), cancelled, or sent (`proposal_studio.send` calls `close_on_send`). Events: review_requested / _approved /
+  _changes / _reopened / _cancelled / _closed in `proposal_event` (not in the activity feed's list, so they never show as team news).
+* Reviewers = other active **admins** (the bell is admin-only); the one you asked last comes first. Only the reviewer answers (403); asker or reviewer cancels;
+  the asker reminds (pops again). Routes: `POST /api/proposal-studio/<pid>/review` {reviewer_id, note, email} and `/review/answer|cancel|remind`; each
+  answers with the editor's view (`review`, `reviewers` keys on every view).
+* The review email goes from the asker's own Gmail to the reviewer (PDF if it renders, a link to the Studio); best effort, the request stands in the app.
+* Bell: a request / reminder / reopen pops for the reviewer only, the answer for the asker only (they name each other, by first name; team news still never
+  names a teammate). Those banners are `sticky` (stay until opened or closed). For you gets them first, under "Waiting on you"; the morning banner counts them.
+* Each person sends from their own Gmail. Sending someone else's reviewed proposal prefills Cc with the asker (`send_options.review_cc`, new-email mode).
+  The Send pop-up warns when the review is still open; sending closes it.
+* Studio: the strip above the proposal (`#e-rvw`), the status pill (In review · <name> / Changes asked / Approved by <name>), the Send for review pop-up (`#rr-m`).
+* Guard: `tests/smoke_proposal_review.py` (in the gate).
+
 ### The bell is your day: For you + What happened, morning banner (Bookore, 2026-11-11)
 
 * Accepted prototype: https://claude.ai/artifact/E3AZ6ytnir14NxaBCnQgK6 (with the proposal review flow, which ships next on top of this).
@@ -89,7 +107,7 @@ grant, or elevation code.
 * **Morning banner**: once a day, after 5 AM, on the first page with something in For you: "Good morning, <first name>" + counts, See today
   opens the bell. Stays until closed. `activity_seen.morning_on` (local date; `POST /api/activity/seen {what: 'morning', through: <today>}`).
 * Fixed: a click that re-draws the panel (a tab, Mark all read) counted as a click outside and closed it.
-* `activity_bell.js` / `.css` are `?v=3`, `auth_menu.js?v=1014` on every page. Guards: `tests/smoke_activity_bell.py` (for you + morning groups),
+* `activity_bell.js` / `.css` are `?v=4`, `auth_menu.js?v=1015` on every page (v=3 / 1014 shipped with the bell upgrade). Guards: `tests/smoke_activity_bell.py` (for you + morning groups),
   `tests/smoke_one_tap_accepts.py` (heading now "Waiting on you").
 
 ### One-tap accepts in the bell (Bookore, 2026-11-04)

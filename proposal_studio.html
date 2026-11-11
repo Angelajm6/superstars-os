@@ -11,7 +11,7 @@
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
-<script src="/files/static/js/auth_menu.js?v=1014" defer></script>
+<script src="/files/static/js/auth_menu.js?v=1015" defer></script>
 <script src="/files/static/js/pdf_view.js?v=4" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <title>Proposal Studio · Superstars Contracting</title>
@@ -80,6 +80,24 @@
   .banner.warn{background:var(--status-warn-soft,#FFF4E5);border-color:rgba(154,91,0,.25)}
   .banner.bad{background:#fdecea;border-color:rgba(168,56,43,.25)}
   .banner .sp{flex:1}
+  /* review before it goes (accepted prototype 2026-11-11: https://claude.ai/artifact/E3AZ6ytnir14NxaBCnQgK6) */
+  .rvw{border:1px solid var(--line);background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px;font-size:13px}
+  .rvw.ask{background:var(--accent-soft);border-color:var(--accent-edge)}
+  .rvw.ok{background:var(--status-complete-soft,#e7f6f0);border-color:transparent}
+  .rvw.chg{background:#fdecea;border-color:transparent}
+  .rvw.quiet{flex-direction:row;align-items:center;flex-wrap:wrap;gap:10px}
+  .rvw h4{margin:0;font-size:14px}
+  .rvw p{margin:0;line-height:1.5;color:var(--ink-2)}
+  .rvw .rv-note{background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;line-height:1.5;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
+  .rvw .rv-note small{display:block;color:var(--muted);font-size:11.5px;margin-bottom:2px;white-space:normal}
+  .rvw .rv-acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .rvw .rv-acts .sp{flex:1}
+  .rvw .warnline{background:var(--status-warn-soft,#FFF4E5);color:var(--status-warn,#9A5B00);border-radius:8px;padding:7px 10px;line-height:1.45}
+  .linkbtn{border:0;background:none;color:var(--accent-ink);font:inherit;font-weight:600;padding:6px 2px;min-height:36px;cursor:pointer}
+  .pill.review{background:var(--accent-soft);color:var(--accent-ink)}
+  .pill.changes{background:#fdecea;color:var(--status-behind-deep,#A8382B)}
+  .pill.approvedr{background:var(--status-complete-soft,#e7f6f0);color:var(--status-complete-deep,#0c7a5f)}
+  @media (max-width:640px){.rvw .rv-acts .btn-primary,.rvw .rv-acts .btn-ghost{flex:1 1 auto}}
   /* not ready to send (2026-10-22): the reason is on screen, the checklist leads the rail, and Send says why when pressed */
   .btn-primary.blocked{opacity:.55}
   .rail.blocked #ck-card{order:-1;border-color:rgba(168,56,43,.35)}
@@ -291,6 +309,7 @@
     <div class="banner bad" id="e-notready" hidden><span id="e-notready-t"></span><span class="sp"></span><button class="btn-ghost btn-sm" type="button" id="e-showck">Show the checklist</button><button class="btn-ghost btn-sm" type="button" data-marksent>Already sent it? Mark as sent…</button></div>
     <div class="banner" id="e-revises" hidden></div>
     <div class="banner warn" id="e-expiry" hidden><span id="e-expiry-t"></span><span class="sp"></span><button class="btn-ghost btn-sm" type="button" id="e-follow">Draft a follow-up</button></div>
+    <div class="rvw" id="e-rvw" hidden aria-live="polite"></div>
     <div class="banner" id="e-locked" hidden><span id="e-locked-t"></span><span class="sp"></span><button class="btn-ghost btn-sm" type="button" id="e-review-rv" hidden>Review the request</button><button class="btn-ghost btn-sm" type="button" id="e-request">Request a revision…</button><button class="btn-ghost btn-sm" type="button" id="e-version">Make a new version</button></div>
     <div class="ed">
       <div>
@@ -383,6 +402,7 @@
 <div class="scrim" id="send-m" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="s-h">
     <h3 id="s-h">Send the proposal</h3>
+    <div class="banner warn" id="s-revwarn" hidden style="margin:0"></div>
     <div id="s-step1" style="display:flex;flex-direction:column;gap:10px">
       <div class="seg" id="s-how" role="tablist" aria-label="How to send it"><button type="button" data-how="reply">Reply in a client's email thread</button><button type="button" data-how="new">New email</button></div>
       <div id="s-reply-box" style="display:flex;flex-direction:column;gap:8px">
@@ -432,6 +452,17 @@
     <div class="mfoot"><button class="btn-ghost" type="button" id="rq-cancel">Cancel</button><button class="btn-primary" type="submit" id="rq-go">Ask an admin</button></div>
   </form>
 </div>
+<div class="scrim" id="rr-m" hidden>
+  <form class="modal" id="rr-f" role="dialog" aria-modal="true" aria-labelledby="rr-h" autocomplete="off">
+    <h3 id="rr-h">Send for review</h3>
+    <div class="muted">They get a pop-up in the app and can approve it or ask for changes. Nothing goes to the client.</div>
+    <div><label class="lbl" for="rr-who">Who should review it</label><select class="fld" id="rr-who"></select></div>
+    <div><label class="lbl" for="rr-note">A note for them (optional)</label><textarea class="fld" id="rr-note" rows="3" maxlength="1000" placeholder="e.g. Can you check the parapet allowance before this goes out?"></textarea></div>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="rr-mail" checked> Also email it to them from my Gmail, with the PDF</label>
+    <div class="err" id="rr-err" role="alert"></div>
+    <div class="mfoot"><button class="btn-ghost" type="button" id="rr-cancel">Cancel</button><button class="btn-primary" type="submit" id="rr-go">Send for review</button></div>
+  </form>
+</div>
 <div class="scrim" id="dc-m" hidden>
   <form class="modal" id="dc-f" role="dialog" aria-modal="true" aria-labelledby="dc-h" autocomplete="off">
     <h3 id="dc-h">Approve the revision</h3>
@@ -476,7 +507,7 @@
   }
   async function route() {
     const h = location.hash.replace(/^#/, '');
-    ['send-m', 'rq-m', 'dc-m', 'arch-m', 'ms-m'].forEach(id => { $(id).hidden = true; }); chatPanel(false);
+    ['send-m', 'rq-m', 'dc-m', 'arch-m', 'ms-m', 'rr-m'].forEach(id => { $(id).hidden = true; }); chatPanel(false);
     const m = /^p\/(\d+)(\/send)?$/.exec(h);
     if (m) { await openProposal(+m[1]); show('edit'); if (m[2]) openSend(); return; }
     if (h === 'past' || h === 'style') { show('past'); loadPast(); return; }
@@ -595,8 +626,11 @@
     $('ck-card').hidden = !lay; $('e-head-row').hidden = !lay; $('e-legacy-row').hidden = lay; $('e-secs-row').hidden = lay; $('e-addsec').hidden = lay; $('e-addalt').hidden = !lay;
     document.querySelectorAll('[data-addlist]').forEach(b => b.hidden = !lay);
     if (lay) { drawChecks(v); document.querySelectorAll('[data-head]').forEach(b => { b.classList.toggle('on', b.dataset.head === (v.content.heading || 'ESTIMATE')); b.disabled = !v.editable; }); }
-    const st = p.display_status || p.status;
-    $('e-status').textContent = st[0].toUpperCase() + st.slice(1); $('e-status').className = 'pill ' + p.status;
+    const st = p.display_status || p.status, rv = v.review;
+    const rvPill = v.editable && rv ? (rv.status === 'pending' ? ['review', 'In review · ' + rv.reviewer.name] : rv.status === 'changes' ? ['changes', 'Changes asked']
+      : rv.status === 'approved' ? ['approvedr', 'Approved by ' + rv.reviewer.name] : null) : null;
+    $('e-status').textContent = rvPill ? rvPill[1] : st[0].toUpperCase() + st.slice(1); $('e-status').className = 'pill ' + (rvPill ? rvPill[0] : p.status);
+    drawReview(v);
     $('e-pdf').href = `/api/proposals/${p.id}/pdf`;
     $('e-hint').hidden = !v.editable;
     $('e-send').hidden = !v.editable;
@@ -633,6 +667,90 @@
     document.querySelectorAll('[data-step="edit"]').forEach(b => b.disabled = false);
     bars();
   }
+  // ---------------- review before it goes: optional; the person asked approves or asks for changes (proposal_review.py)
+  function drawReview(v) {
+    const box = $('e-rvw'), rv = v.review, ppl = v.reviewers || [];
+    if (!v.editable || (!rv && !ppl.length)) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    const note = (label, t) => t ? `<div class="rv-note"><small>${esc(label)}</small>${esc(t)}</div>` : '';
+    const total = money2(v.amounts.total);
+    let cls = '', h = '';
+    if (!rv) {
+      cls = 'quiet';
+      h = `<span>Want someone to check it before it goes out?</span><span class="sp" style="flex:1"></span><button class="btn-ghost btn-sm" type="button" data-rvw="ask">Send for review…</button>`;
+    } else if (rv.status === 'pending' && rv.mine_to_answer) {
+      cls = 'ask';
+      h = `<h4>${rv.reopened ? 'It changed after you approved it: review it again' : esc(rv.requested_by.name) + ' asked you to review this'}</h4>` +
+        (rv.reopened && rv.total != null ? `<div class="warnline">You approved ${money2(rv.total)}. It's now ${total}.</div>` : '') +
+        note(rv.requested_by.name + "'s note", rv.note) +
+        `<div><label class="lbl" for="rv-chg">Changes to ask for (only for Ask for changes)</label><textarea class="fld" id="rv-chg" rows="2" maxlength="1000"></textarea></div>` +
+        `<div class="rv-acts"><button class="btn-primary btn-sm" type="button" data-rvw="approve">Approve</button><button class="btn-ghost btn-sm" type="button" data-rvw="changes">Ask for changes</button><span class="sp"></span><button class="linkbtn" type="button" data-rvw="approve-send">Approve and send</button></div>`;
+    } else if (rv.status === 'pending') {
+      cls = 'ask';
+      h = `<h4>Waiting on ${esc(rv.reviewer.name)}</h4>` +
+        (rv.reopened ? `<div class="warnline">The price changed after ${esc(rv.reviewer.name)} approved, so it's back for another look.</div>` : '') +
+        note(rv.i_asked ? 'Your note' : rv.requested_by.name + "'s note", rv.note) +
+        `<p>${esc(rv.reviewer.name)} has it in the bell${rv.reminded_at ? ' (reminded ' + fmtDate(rv.reminded_at) + ')' : ''}. You can keep editing, and you can still send it.</p>` +
+        `<div class="rv-acts">${rv.i_asked ? '<button class="btn-ghost btn-sm" type="button" data-rvw="remind">Remind ' + esc(rv.reviewer.name) + '</button>' : ''}<button class="linkbtn" type="button" data-rvw="cancel">Cancel review</button></div>`;
+    } else if (rv.status === 'changes') {
+      cls = 'chg';
+      h = rv.i_asked ? `<h4>${esc(rv.reviewer.name)} asked for changes</h4>` + note(rv.reviewer.name + "'s note", rv.answer_note) +
+          `<p>Edit the proposal, then send it back.</p><div class="rv-acts"><button class="btn-primary btn-sm" type="button" data-rvw="again">Send for review again</button><button class="linkbtn" type="button" data-rvw="cancel">Cancel review</button></div>`
+        : `<h4>${rv.reviewer.id === (v.me || {}).id ? 'You asked' : esc(rv.reviewer.name) + ' asked'} for changes</h4>` + note('Note', rv.answer_note) +
+          `<p>It goes back to ${rv.reviewer.id === (v.me || {}).id ? 'you' : esc(rv.reviewer.name)} when ${esc(rv.requested_by.name)} sends it again.</p>`;
+    } else {
+      cls = 'ok';
+      h = `<h4>Approved by ${rv.reviewer.id === (v.me || {}).id ? 'you' : esc(rv.reviewer.name)}</h4>` + note('Note', rv.answer_note) +
+        `<p>Approved at <b class="num">${money2(rv.total)}</b>. If a price or line changes, it goes back for another look.</p>` +
+        `<div class="rv-acts"><button class="btn-primary btn-sm" type="button" data-rvw="send">Send to client…</button></div>`;
+    }
+    box.className = 'rvw ' + cls; box.innerHTML = h;
+  }
+  function openAsk() {
+    const v = S.v, ppl = v.reviewers || [];
+    if (!ppl.length) { toast('There is no one to ask: reviewers are the other admins.', true); return; }
+    $('rr-who').innerHTML = ppl.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+    if (v.review) $('rr-who').value = String(v.review.reviewer.id);
+    $('rr-note').value = ''; $('rr-err').textContent = ''; $('rr-mail').checked = true;
+    $('rr-m').hidden = false; setTimeout(() => $('rr-note').focus(), 30);
+  }
+  async function reviewCall(path, body, done) {
+    try { const v = await api('/proposal-studio/' + S.id + '/review' + path, { method: 'POST', body: JSON.stringify(body || {}) }); draw(v); if (done) done(v); return v; }
+    catch (x) { toast(x.message, true); return null; }
+  }
+  $('e-rvw').addEventListener('click', async e => {
+    const b = e.target.closest('[data-rvw]'); if (!b || !S.v) return;
+    const k = b.dataset.rvw;
+    if (k === 'ask' || k === 'again') { await flush(true); openAsk(); return; }
+    if (k === 'send') { $('e-send').click(); return; }
+    b.disabled = true;
+    if (k === 'approve' || k === 'approve-send') {
+      await flush(true);
+      await reviewCall('/answer', { answer: 'approve', note: ($('rv-chg') || {}).value || '' }, () => { if (k === 'approve-send') $('e-send').click(); else toast('Approved. ' + S.v.review.requested_by.name + ' gets a pop-up'); });
+    } else if (k === 'changes') {
+      const t = (($('rv-chg') || {}).value || '').trim();
+      if (!t) { b.disabled = false; toast('Write what should change first', true); $('rv-chg').focus(); return; }
+      await reviewCall('/answer', { answer: 'changes', note: t }, v => toast('Sent back to ' + v.review.requested_by.name + ' with your note'));
+    } else if (k === 'remind') {
+      await reviewCall('/remind', {}, v => toast('Reminded ' + v.review.reviewer.name));
+    } else if (k === 'cancel') {
+      await reviewCall('/cancel', {}, () => toast('Review cancelled'));
+    }
+    b.disabled = false;
+  });
+  $('rr-cancel').addEventListener('click', () => { $('rr-m').hidden = true; });
+  $('rr-m').addEventListener('click', e => { if (e.target === $('rr-m')) $('rr-m').hidden = true; });
+  $('rr-f').addEventListener('submit', async e => {
+    e.preventDefault(); const go = $('rr-go'); go.disabled = true; $('rr-err').textContent = ''; go.textContent = $('rr-mail').checked ? 'Making the PDF and sending…' : 'Sending…';
+    try {
+      const v = await api('/proposal-studio/' + S.id + '/review', { method: 'POST', body: JSON.stringify({ reviewer_id: +$('rr-who').value, note: $('rr-note').value, email: $('rr-mail').checked }) });
+      $('rr-m').hidden = true; draw(v);
+      const m = v.review_email || {}, name = v.review ? v.review.reviewer.name : 'them';
+      toast(!$('rr-mail').checked ? 'Sent to ' + name + ' for review' : m.sent ? 'Sent to ' + name + ' for review, with an email from your Gmail' : 'Sent to ' + name + ' in the app. The email didn\u2019t go: ' + (m.why || 'try again later'), !m.sent && $('rr-mail').checked);
+    } catch (x) { $('rr-err').textContent = x.message; }
+    finally { go.disabled = false; go.textContent = 'Send for review'; }
+  });
+
   const RV_WORD = { pending: 'Waiting for an admin', approved: 'Approved', rejected: 'Rejected', withdrawn: 'Withdrawn' };
   function drawRevisions(v) {
     const list = v.revisions || [], p = v.proposal, me = v.me || {};
@@ -1004,6 +1122,10 @@
     $('s-from').textContent = 'Loading…'; $('s-thread').innerHTML = '<option>Loading your emails with this client…</option>';
     $('s-msg').value = p.email_message || `Hi,\n\nAttached is our proposal ${no} for ${p.title || 'the work'}.\n\nBest,`;
     $('s-file').textContent = '…'; $('s-amt').textContent = money2(v.amounts.total);
+    const rv = v.review;
+    $('s-revwarn').hidden = !(rv && rv.status !== 'approved');
+    if (rv && rv.status === 'pending') $('s-revwarn').textContent = `${rv.reviewer.name} hasn't approved this yet. You can still send it; the review closes.`;
+    else if (rv && rv.status === 'changes') $('s-revwarn').textContent = `${rv.reviewer.name} asked for changes. You can still send it; the review closes.`;
     $('send-m').hidden = false;
     try { S.send = await api('/proposal-studio/' + S.id + '/send-options'); }
     catch (x) { $('s-err').textContent = x.message; S.send = { threads: [], contacts: [], amounts: v.amounts, attachment: '' }; }
@@ -1030,7 +1152,7 @@
     $('s-reply-box').hidden = how !== 'reply';
     const p = S.v.proposal;
     if (how === 'new') {
-      $('s-to').value = S.newTo || ''; $('s-cc').value = '';
+      $('s-to').value = S.newTo || ''; $('s-cc').value = (S.send && S.send.review_cc) || '';   // sending someone else's reviewed proposal: they're copied
       $('s-subject').value = `Proposal ${S.v.label || p.number} · ${p.title || ''}`; return;
     }
     if (noThreads()) { $('s-thr').hidden = true; $('s-rall').hidden = true; $('s-to').value = ''; $('s-cc').value = ''; return; }
@@ -1141,7 +1263,7 @@
   });
   $('s-cancel').addEventListener('click', () => { $('send-m').hidden = true; });
   $('send-m').addEventListener('click', e => { if (e.target === $('send-m')) $('send-m').hidden = true; });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { ['send-m', 'arch-m', 'rq-m', 'dc-m', 'ms-m'].forEach(id => { $(id).hidden = true; }); chatPanel(false); closeMenu(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { ['send-m', 'arch-m', 'rq-m', 'dc-m', 'ms-m', 'rr-m'].forEach(id => { $(id).hidden = true; }); chatPanel(false); closeMenu(); } });
   $('s-send').addEventListener('click', async () => {
     const b = $('s-send'); b.disabled = true; $('s-back').disabled = true; b.textContent = 'Making the PDF and sending…'; $('s-err').textContent = '';
     try {
