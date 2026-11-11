@@ -1,21 +1,24 @@
-"""Job dashboard — v2 preview overlay (opt-in, additive).
+"""Project page — the redesigned tabs (default for staff since 2026-11-11).
 
-The job dashboard (dashboard-static.html) is ~9,800 lines of working screens. Rather than fork a
-second copy, the v2 preview re-presents it: when a request resolves to UI v2 (ui_version.current()
-== 2 — `?ui=2` for one request, or the user's saved preference) the served page gets
+The project page (dashboard-static.html) is ~11,000 lines of working screens. Rather than fork a
+second copy, the redesign re-presents it. On a project's own page, for a staff role, the served page gets
 
-  * <body class="jv2">                       scopes every v2 rule
-  * /files/static/v2/job.css                 one font family + one type scale, top navigation,
-                                             calmer cards, phone layout
-  * /files/static/v2/job.js                  five top tabs over the existing nav links, an
-                                             attention list + quick links on the Overview
-  * /files/static/v2/switch-back.js          the "You're on the new interface · Switch back" bar
+  * <body class="jv2">                       scopes every rule
+  * /files/static/v2/job.css                 app bar, project header, six colored sections, pills,
+                                             the shared look every tab picks up, phone layout
+  * /files/static/v2/job.js                  sections + pills over the existing nav links, Jump to
+                                             (Ctrl/Cmd+K), + New, "Needs you" on the Overview
 
-Scope: ONLY a project's own dashboard (/projects/<code>, and /portal/<code> for internal roles) —
-never the company console, the projects list, admin pages, login, the worker app or the legacy
-/dashboard entry (no project). Anything else — v1 requests, the SSC_UI_FORCE_V1 kill switch,
-external roles — is returned BYTE-FOR-BYTE unchanged. Nothing is renamed: every label comes from the existing nav links.
-Hiding / re-grouping navigation is presentation only; the endpoints keep their own role checks.
+Accepted prototype: https://claude.ai/artifact/VGzVhPeig191nXeUsPybgZ
+
+Scope: ONLY a project's own page (/projects/<code>, and /portal/<code> for staff roles). Never
+the company console, the projects list, admin pages, login, the worker app or the legacy
+/dashboard entry (no project), and never an external role.
+
+The way back to the classic page (served BYTE-FOR-BYTE unchanged):
+  * `?ui=1` on one request
+  * the SSC_UI_FORCE_V1 kill switch (everyone, every request)
+Hiding / regrouping navigation is presentation only; the endpoints keep their own role checks.
 """
 from __future__ import annotations
 
@@ -24,7 +27,7 @@ from pathlib import Path
 
 import ui_version
 
-# roles served the internal job dashboard (external roles get the portal shell, never this page)
+# roles served the internal project page (external roles get the portal shell, never this page)
 INTERNAL_ROLES = frozenset({"admin", "c_suite", "pm", "super"})
 
 _STATIC = Path(__file__).resolve().parent / "static" / "v2"
@@ -38,10 +41,23 @@ def _asset_version() -> str:
         return "0"
 
 
+def _classic_requested() -> bool:
+    """`?ui=1` on this request asks for the classic page (never stored)."""
+    try:
+        from flask import has_request_context, request
+        return has_request_context() and (request.args.get("ui") or "").strip() == "1"
+    except Exception:   # noqa: BLE001 — outside a request: no override
+        return False
+
+
 def active(role, project_code) -> bool:
-    """True when this request should get the v2 job dashboard: a specific project's own page,
-    for an internal role, on a request that resolves to UI v2. Nothing else is ever touched."""
-    return bool(project_code) and role in INTERNAL_ROLES and ui_version.current() == 2
+    """True when this request gets the redesigned project page: a specific project's own page,
+    for a staff role, unless the kill switch is on or this request asked for ?ui=1."""
+    if not project_code or role not in INTERNAL_ROLES:
+        return False
+    if ui_version.force_v1() or _classic_requested():
+        return False
+    return True
 
 
 def apply(html: str, role, project_code=None) -> str:
@@ -52,6 +68,5 @@ def apply(html: str, role, project_code=None) -> str:
         return html   # unexpected shape: serve the classic page rather than a half-applied one
     v = _asset_version()
     out = out.replace("</head>", '<link rel="stylesheet" href="/files/static/v2/job.css?v=%s">\n</head>' % v, 1)
-    out = out.replace("</body>", '<script src="/files/static/v2/job.js?v=%s" defer></script>\n'
-                                 '<script src="/files/static/v2/switch-back.js" defer></script>\n</body>' % v, 1)
+    out = out.replace("</body>", '<script src="/files/static/v2/job.js?v=%s" defer></script>\n</body>' % v, 1)
     return out

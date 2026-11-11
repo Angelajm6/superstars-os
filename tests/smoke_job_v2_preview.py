@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Job dashboard v2 preview (job_v2.py) — behavioral + drift guard.
+"""Project page redesign (job_v2.py) — behavioral + drift guard.
 
 Boots the real app (`import server`) on an ISOLATED database. Proves:
-  * default (v1) requests are byte-identical: no v2 markup, no v2 assets
-  * `?ui=2` serves the preview (body.jv2 + job.css + job.js + the switch-back bar) to company roles
-    and a pm, and NOT to anonymous or when the SSC_UI_FORCE_V1 kill switch is set
-  * SCOPE: only a project's own dashboard is ever previewed — 9 other pages (console, admin,\n    login, worker app, legacy /dashboard ...) and the pm projects list never are\n  * the v2 assets are served; JS parses (node --check when node exists)
-  * drift guard: every sidebar view belongs to exactly one top tab (or is Settings), and every tab
-    view exists in the sidebar — a new nav item cannot silently vanish from the preview
-  * one font family and one type scale are declared in job.css (no Archivo, no second family)
+  * the redesign is the DEFAULT for staff (c_suite, pm) on a project's own page; a pm never
+    receives the Money views; anonymous is refused
+  * the way back: `?ui=1` (one request) and the SSC_UI_FORCE_V1 kill switch serve the classic
+    page byte-for-byte
+  * SCOPE: 9 other pages (console, admin, login, worker app, legacy /dashboard ...) and the pm
+    projects list never pick it up; only job_v2.py injects the assets
+  * drift guard: every sidebar view sits in exactly one of the six sections (or is Settings), every
+    section view exists in the sidebar, every view has a label + icon
+  * + New / Jump to only offer pages this person can open; phone bottom bar + round + New
+  * look: Inter + Archivo, six section colors, primary buttons stay the accent, every selector scoped
 Run:  venv/bin/python tests/smoke_job_v2_preview.py
 """
 from __future__ import annotations
@@ -128,61 +131,56 @@ def main() -> int:
         finally:
             conn.close()
 
-        # ---- v1 stays byte-identical
-        v1 = cs.get(f"/projects/{code}").get_data(as_text=True)
-        ok("default request has no v2 markup", "jv2" not in v1 and "/static/v2/job" not in v1 and "switch-back" not in v1)
-        ok("?ui=1 is the classic page too", cs.get(f"/projects/{code}?ui=1").get_data(as_text=True) == v1)
+        # ---- the redesign is the default for staff on a project's own page
+        page = cs.get(f"/projects/{code}").get_data(as_text=True)
+        ok("default request: body is scoped to jv2", re.search(r"<body[^>]*class=\"jv2\"", page) is not None)
+        ok("default request: job.css + job.js are loaded (no switch-back bar)",
+           "/files/static/v2/job.css" in page and "/files/static/v2/job.js" in page and "switch-back" not in page)
+        ok("the classic sidebar is still in the page (the sections drive it)", 'class="sidebar"' in page and 'data-view="payments"' in page)
+        ok("?ui=2 is the same redesigned page", 'class="jv2"' in cs.get(f"/projects/{code}?ui=2").get_data(as_text=True))
+        pv2 = pm.get(f"/projects/{code}").get_data(as_text=True)
+        ok("a pm gets it too", 'class="jv2"' in pv2)
+        ok("pm keeps its own back link", 'class="bl-projects"' in pv2 and 'href="/projects"' in pv2)
+        ok("pm never receives the Money section's views", 'data-view="payments"' not in pv2 and 'data-view="sov"' not in pv2)
+        ok("anonymous is refused (auth gate), never the page", anon.get(f"/projects/{code}").status_code in (302, 401))
 
-        # ---- ?ui=2 serves the preview
-        v2 = cs.get(f"/projects/{code}?ui=2").get_data(as_text=True)
-        ok("?ui=2: body is scoped to jv2", re.search(r"<body[^>]*class=\"jv2\"", v2) is not None)
-        ok("?ui=2: stylesheet + script + switch-back are loaded",
-           "/files/static/v2/job.css" in v2 and "/files/static/v2/job.js" in v2 and "/files/static/v2/switch-back.js" in v2)
-        ok("?ui=2: the classic sidebar is still in the page (tabs drive it)", 'class="sidebar"' in v2 and 'data-view="payments"' in v2)
-        pv2 = pm.get(f"/projects/{code}?ui=2").get_data(as_text=True)
-        ok("pm can preview too", 'class="jv2"' in pv2)
-        ok("pm keeps its own back link in the preview", 'class="bl-projects"' in pv2 and 'href="/projects"' in pv2)
-        ok("anonymous is refused (auth gate), never a v2 page", anon.get(f"/projects/{code}?ui=2").status_code in (302, 401))
-        loc = anon.get(f"/projects/{code}?ui=2").headers.get("Location", "")
-        ok("the real app's login redirect keeps ?ui=2 (so signing in lands on the preview)", "next=" in loc and "%3Fui%3D2" in loc)
+        # ---- the way back: ?ui=1 for one request, the kill switch for everyone
+        classic = cs.get(f"/projects/{code}?ui=1").get_data(as_text=True)
+        ok("?ui=1 serves the classic page (no jv2 markup or assets)", "jv2" not in classic and "/static/v2/job" not in classic)
+        os.environ["SSC_UI_FORCE_V1"] = "1"
+        try:
+            ks = cs.get(f"/projects/{code}").get_data(as_text=True)
+        finally:
+            os.environ.pop("SSC_UI_FORCE_V1", None)
+        ok("SSC_UI_FORCE_V1 forces the classic page", "jv2" not in ks)
+        ok("the classic page is byte-identical either way", ks == classic)
 
-        # ---- SCOPE: the preview is for a project's own dashboard ONLY
-        pv = cs.get(f"/portal/{code}?ui=2", follow_redirects=True).get_data(as_text=True)
-        ok("/portal/<code> (internal role) is the same project dashboard, so it previews", 'class="jv2"' in pv)
+        # ---- SCOPE: only a project's own page
+        pv = cs.get(f"/portal/{code}", follow_redirects=True).get_data(as_text=True)
+        ok("/portal/<code> (internal role) is the same project page, so it is redesigned", 'class="jv2"' in pv)
         others = ["/company", "/admin/projects", "/admin/users", "/admin/labor-rates", "/estimating", "/login", "/worker-app",
                   "/dashboard", "/files/static/js/company_nav.js"]
         leaked = []
         for path in others:
             for c_, who in ((cs, "c_suite"), (anon, "anon")):
-                resp = c_.get(path + "?ui=2", follow_redirects=True)
-                body = resp.get_data(as_text=True)
+                body = c_.get(path, follow_redirects=True).get_data(as_text=True)
                 if "jv2" in body or "/static/v2/job." in body:
                     leaked.append(f"{who}:{path}")
-        ok("no other page picks up the preview (?ui=2 on 9 pages, signed in and out)", not leaked)
+        ok("no other page picks up the redesign (9 pages, signed in and out)", not leaked)
         if leaked:
             print("    leaked on:", leaked)
-        pm_list = pm.get("/projects?ui=2", follow_redirects=True).get_data(as_text=True)
-        ok("the pm's projects list is not previewed", "jv2" not in pm_list)
-        ok("legacy /dashboard (no specific project) is not previewed", "jv2" not in cs.get("/dashboard?ui=2", follow_redirects=True).get_data(as_text=True))
+        ok("the pm's projects list is not redesigned", "jv2" not in pm.get("/projects", follow_redirects=True).get_data(as_text=True))
         import job_v2 as _jv
         ok("apply() refuses a page with no project code", _jv.apply("<html><head></head><body></body></html>", "c_suite", None) == "<html><head></head><body></body></html>")
+        ok("apply() refuses an external role", _jv.apply("<html><head></head><body></body></html>", "client", "X-1") == "<html><head></head><body></body></html>")
         refs = []
         for pth in list(ROOT.glob("*.html")) + list((ROOT / "templates").rglob("*.html")) + list((ROOT / "static").rglob("*.js")) + list((ROOT / "static").rglob("*.css")):
             if pth.name in ("job.js", "job.css"):
                 continue
-            if "v2/job.css" in pth.read_text(encoding="utf-8", errors="ignore") or "v2/job.js" in pth.read_text(encoding="utf-8", errors="ignore"):
+            t = pth.read_text(encoding="utf-8", errors="ignore")
+            if "v2/job.css" in t or "v2/job.js" in t:
                 refs.append(pth.name)
-        ok("no page or script references the preview assets (only job_v2.py injects them)", not refs)
-        if refs:
-            print("    referenced by:", refs)
-
-        # ---- the kill switch wins over ?ui=2
-        os.environ["SSC_UI_FORCE_V1"] = "1"
-        try:
-            ks = cs.get(f"/projects/{code}?ui=2").get_data(as_text=True)
-        finally:
-            os.environ.pop("SSC_UI_FORCE_V1", None)
-        ok("SSC_UI_FORCE_V1 forces the classic page", "jv2" not in ks)
+        ok("no page or script references the assets (only job_v2.py injects them)", not refs)
 
         # ---- assets
         css = cs.get("/files/static/v2/job.css"); js = cs.get("/files/static/v2/job.js")
@@ -193,34 +191,38 @@ def main() -> int:
             import subprocess
             ok("job.js parses (node --check)", subprocess.run(["node", "--check", str(ROOT / "static" / "v2" / "job.js")], capture_output=True).returncode == 0)
 
-        # ---- drift guard: every nav view is in exactly one tab (or Settings)
+        # ---- drift guard: every nav view is in exactly one section (or Settings)
         dash = (ROOT / "dashboard-static.html").read_text(encoding="utf-8")
         nav_views = re.findall(r'<a class="nav-link[^"]*"[^>]*?\bdata-view="([^"]+)"', dash)
         tabs_src = job_js[job_js.index("var TABS = ["): job_js.index("];", job_js.index("var TABS = ["))]
         tab_views = re.findall(r"'([a-z-]+)'", " ".join(re.findall(r"views: \[([^\]]*)\]", tabs_src)))
-        ok("every sidebar view is placed in a tab (or Settings)", set(nav_views) - {"settings"} <= set(tab_views))
-        ok("every tab view exists in the sidebar", set(tab_views) <= set(nav_views))
-        ok("no view is in two tabs", len(tab_views) == len(set(tab_views)))
-        ok("six tabs", len(re.findall(r"\{ key: '[a-z]+', label: '[A-Za-z]+', views:", tabs_src)) == 6)
-        ok("Today tab holds the daily report, photos and toolbox talks", "key: 'today', label: 'Today', views: ['daily-report', 'field-photos', 'toolbox-talks']" in tabs_src)
-        ok("labels come from the nav links except the named merges", "function label(view)" in job_js and "l.textContent" in job_js and "var RENAME =" in job_js)
-        ok("merged views stay reachable (only violations and templates lose their pill)", "var NO_PILL = ['violations', 'templates']" in job_js)
-        ok("+ New menu offers daily report, photo, delivery, RFI, expense, blank form", all(f"'{v}'" in job_js[job_js.index("var NEW_ITEMS"):job_js.index("var QUICK")] for v in ("daily-report", "field-photos", "materials", "rfis", "expenses", "templates")))
+        ok("every sidebar view is placed in a section (or Settings)", set(nav_views) - {"settings"} <= set(tab_views))
+        ok("every section view exists in the sidebar", set(tab_views) <= set(nav_views))
+        ok("no view is in two sections", len(tab_views) == len(set(tab_views)))
+        keys = re.findall(r"\{ key: '([a-z]+)', label: '[A-Za-z]+', icon: '[a-z]+', views:", tabs_src)
+        ok("six sections: Overview, Today, Work, Documents, Money, Team", keys == ["overview", "today", "work", "documents", "money", "team"])
+        ok("Today holds the daily report, photos and toolbox talks", "key: 'today', label: 'Today', icon: 'sun', views: ['daily-report', 'field-photos', 'toolbox-talks']" in tabs_src)
+        ok("every view has a label and an icon", all(f"'{v}':" in job_js[job_js.index("var LABEL"):job_js.index("var ICON")] for v in tab_views)
+           and all(f"'{v}':" in job_js[job_js.index("var ICON"):job_js.index("var NO_PILL")] for v in tab_views))
+        ok("+ New offers daily report, photo, delivery, RFI, document, expense, sign or form",
+           all(f"'{v}'" in job_js[job_js.index("var NEW_ITEMS"):job_js.index("var last")] for v in ("daily-report", "field-photos", "materials", "rfis", "documents", "expenses", "templates")))
+        ok("+ New only offers what this person can open", "NEW_ITEMS.filter(function (i) { return visible(i[1]); })" in job_js)
+        ok("Jump to (Ctrl/Cmd+K) lists only visible pages", "openJump" in job_js and "e.metaKey || e.ctrlKey" in job_js and "visibleViews(t).forEach" in job_js)
         ok("superintendents land on Today (once, never over a deep link)", "u.role === 'super'" in job_js and "!location.hash" in job_js)
-        ok("phone bottom bar exists (four tabs + More past five)", "jv2-bottom" in job_js and "#jv2-bottom" in job_css and "max-width: 860px" in job_css)
+        ok("phone: bottom section bar + round + New", "jv2-bottom" in job_js and "#jv2-bottom" in job_css and "jv2-fab" in job_css and "max-width: 860px" in job_css)
+        ok("the + New button steps aside for a Daily Report step", "body.jv2.ds-active .jv2-fab { display: none; }" in job_css)
+        ok("the Needs you list never invents money for a pm (reads S.money only when sent)", "M = S.money" in job_js and "if (M)" in job_js)
 
-        # ---- one family, one scale
-        ok("one font family declared", job_css.count("--jv-font:") == 1 and "'Inter'" in job_css and "Archivo" not in job_css)
-        ok("the family is forced across the page", "font-family: var(--jv-font) !important" in job_css)
-        ok("the type scale is 12 / 14 / 16 / 20 / 28", all(f"--jv-t{n}: {n}px" in job_css for n in (12, 14, 16, 20, 28)))
-        sizes = set(re.findall(r"font-size:\s*(\d+)px", job_css))
-        ok("no raw font-size outside the scale", sizes <= {"12", "14", "16", "20", "28"})
-        ok("only weights 400/500/600", set(re.findall(r"font-weight:\s*(\d+)", job_css)) <= {"400", "500", "600"})
+        # ---- look: fonts, colors, primary button
+        ok("Inter for text, Archivo for titles (both self-hosted)", "--jv-font: 'Inter'" in job_css and "--jv-display: 'Archivo'" in job_css)
+        ok("six section colors defined once", all(f"--jv-c-{k}:" in job_css for k in ("overview", "today", "work", "documents", "money", "team")))
+        ok("primary buttons stay the one accent (DESIGN_SYSTEM §2)", "--jv-accent: var(--accent" in job_css and "background: var(--jv-accent)" in job_css
+           and not re.search(r"btn-primary[^{}]*\{[^}]*background\s*:", job_css))
         css_nocomment = re.sub(r"/\*.*?\*/", "", job_css, flags=re.S)
         unscoped = []
         for sel in re.findall(r"([^{}]+)\{", css_nocomment):
             sel = sel.strip()
-            if sel.startswith("@media"):
+            if sel.startswith("@"):
                 continue
             parts, depth, cur = [], 0, ""
             for ch in sel:                      # split on commas that are not inside (...)
@@ -233,7 +235,7 @@ def main() -> int:
             for part in parts:
                 if "jv2" not in part:
                     unscoped.append(part.strip()[:60])
-        ok("every CSS selector is scoped to the preview (body.jv2 / #jv2-top / .jv2-*)", not unscoped)
+        ok("every CSS selector is scoped (body.jv2 / #jv2-* / .jv2-*)", not unscoped)
         if unscoped:
             print("    unscoped selectors:", unscoped[:5])
     finally:
@@ -242,7 +244,7 @@ def main() -> int:
     if FAILS:
         print(f"FAIL: {len(FAILS)} check(s) failed")
         return 1
-    print("PASS: job dashboard v2 preview")
+    print("PASS: project page redesign")
     return 0
 
 
