@@ -66,7 +66,7 @@ _COLUMNS = (("sent_at", "TEXT"), ("sent_to", "TEXT"), ("sent_name", "TEXT"), ("s
             ("viewed_at", "TEXT"), ("view_count", "INTEGER DEFAULT 0"), ("pdf_path", "TEXT"), ("pdf_rendered_at", "TEXT"),
             ("token_hash", "TEXT"), ("token_expires_at", "TEXT"), ("last_message", "TEXT"),
             ("design_doc_id", "INTEGER"), ("design_html", "TEXT"), ("design_at", "TEXT"), ("pdf_layout", "INTEGER DEFAULT 0"))
-LAYOUT = 2   # bump when the invoice layout changes: stored PDFs from an older one are redrawn
+LAYOUT = 3   # 3 = several work lines + the editor's own wording (2026-11-11). Bump when the invoice layout changes: stored PDFs from an older one are redrawn
 PRIVATE_KEYS = ("pdf_path", "token_hash", "design_html")
 
 
@@ -178,7 +178,7 @@ def _link_state(inv: dict) -> str:
 
 
 # ---------------------------------------------------------------- document
-def render_document(conn, inv: dict) -> str:
+def render_document(conn, inv: dict, *, edit: bool = False) -> str:
     # #317 — an invoice born from an AIA application IS the G702 + G703
     try:
         import aia_billing
@@ -188,6 +188,8 @@ def render_document(conn, inv: dict) -> str:
         app = None
     if app:
         return aia_billing.render_document(conn, app, inv)
+    if edit:   # the editor always edits the standard layout (invoice_editor refuses AIA and asks before dropping a design)
+        return _standard_document(conn, inv, edit=True)
     if inv.get("design_html"):
         return _design_document(conn, inv)
     return _standard_document(conn, inv)
@@ -211,10 +213,10 @@ _INV_CSS = """
 .inv-parties{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #DCDDE0}.inv-parties>div{padding:24px 0 12px;min-width:0}
 .inv-parties>div+div{padding-left:22px;border-left:1px solid #DCDDE0}
 .inv-label{font-size:10.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#B11E2E;margin:0 0 8px}
-.inv-parties p.t{margin:0;color:#5D6068}.inv-parties p.s{margin:0 0 6px;color:#14161C;font-weight:600;font-size:14.5px}
+.inv-parties .t{margin:0;color:#5D6068}.inv-parties .s{margin:0 0 6px;color:#14161C;font-weight:600;font-size:14.5px}
 .inv-work{margin-top:30px}.inv-work .hd{display:flex;justify-content:space-between;gap:16px;padding:0 10px 8px;border-bottom:2.5px solid #14161C;color:#8D9096;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase}
 .inv-work .ln{display:flex;justify-content:space-between;gap:28px;padding:16px 10px;border-bottom:1px solid #DCDDE0}
-.inv-work .ln span:first-child{max-width:78%;min-width:0}.inv-work .ln span:last-child{white-space:nowrap}
+.inv-work .ln>span:first-child{max-width:78%;min-width:0;white-space:pre-line}.inv-work .ln>span:last-child{white-space:nowrap}
 .inv-tot{margin-top:18px}.inv-tot .r{display:flex;justify-content:space-between;gap:16px;padding:8px 10px;border-bottom:1px solid #DCDDE0;font-size:14.5px}
 .inv-tot .r span:first-child{color:#5D6068;min-width:0}.inv-tot .r span:last-child{white-space:nowrap}
 .inv-tot .r.bar{background:#B11E2E;border-bottom:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.inv-tot .r.bar span{color:#fff}
@@ -234,12 +236,29 @@ _INV_CSS = """
   .inv{padding:24px 18px 26px}.inv-lh{align-items:center}.inv-lh .brand-logo{max-height:44px;max-width:130px}.inv-co{font-size:11.5px}
   .inv-top{grid-template-columns:1fr;margin-top:26px;gap:22px}.inv-word{font-size:30px}
   .inv-parties{grid-template-columns:1fr}.inv-parties>div+div{padding-left:0;border-left:0;border-top:1px solid #DCDDE0}
-  .inv-work .ln span:first-child{max-width:none}
+  .inv-work .ln>span:first-child{max-width:none}
   .inv-cols{grid-auto-flow:row}.inv-cols>div+div{border-left:0;border-top:1px solid #DCDDE0}
 }
 @page{size:letter;margin:.4in .5in}
 @media print{body{background:#fff}.inv{max-width:none;padding:0}.inv-top{margin-top:24px}.inv-parties>div{padding-top:18px}.inv-work{margin-top:22px}.inv-tot{margin-top:12px}.inv-pay{margin-top:22px}.inv-cols>div{padding:10px}.inv-thanks{margin-top:20px;padding-top:14px}.inv-word::after,.inv-thanks h2::after,.inv-lh{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 """
+
+
+# The editor's affordance (same as Proposal Studio): outlined on hover, solid while typing, a hint when empty.
+_EDIT_CSS = """
+[contenteditable]{outline:1px dashed transparent;outline-offset:3px;border-radius:3px;cursor:text;transition:outline-color .12s,background .12s}
+[contenteditable]:hover{outline-color:#9fb0ea;background:#f6f8ff}
+[contenteditable]:focus{outline:2px solid #4364dc;background:#f6f8ff}
+[contenteditable]:empty::before{content:attr(data-ph);color:#a9acb3}
+.inv-work .ln>span:last-child{display:flex;align-items:flex-start;gap:6px}
+.ed-x{border:0;background:none;color:#a0a4ae;cursor:pointer;font-size:16px;line-height:1;padding:0 3px;border-radius:5px}
+.ed-x:hover{color:#B11E2E;background:#fceeec}
+.ed-opt{opacity:.75}
+"""
+
+
+def _text_lines(v) -> list:
+    return [x.strip() for x in str(v or "").replace("\r", "").split("\n") if x.strip()]
 
 
 def _city_line(*parts) -> str:
@@ -320,8 +339,10 @@ def _due_text(inv: dict) -> str:
     return "Due Upon Receipt" if issued and str(due)[:10] <= str(issued)[:10] else _fmt_date(due)
 
 
-def _standard_document(conn, inv: dict) -> str:
-    """The company's invoice: every invoice without a design of its own, in every situation (Angela's layout, 2026-11-04)."""
+def _standard_document(conn, inv: dict, *, edit: bool = False) -> str:
+    """The company's invoice: every invoice without a design of its own, in every situation (Angela's layout, 2026-11-04).
+    Since 2026-11-11 it carries several work lines and the wording typed in the editor (blank = the standard wording);
+    edit=True is the editor's copy, every word the client reads outlined to click and change."""
     e = _html.escape
     facts = _company_facts(conn)
     status = inv.get("status")
@@ -329,8 +350,17 @@ def _standard_document(conn, inv: dict) -> str:
     contract = _contract(conn, inv)
     if contract and contract["total"] <= 0:
         contract = None
-    bill = _bill_to(conn, inv, contract)
+
+    def ce(key, inner, tag="div", cls="", ph="Type here"):
+        c = f' class="{cls}"' if cls else ""
+        return f'<{tag}{c} data-f="{key}" contenteditable="true" data-ph="{e(ph)}">{inner}</{tag}>' if edit else f"<{tag}{c}>{inner}</{tag}>"
+
+    bill = _text_lines(inv.get("bill_to_text")) or _bill_to(conn, inv, contract)
     title, where, place = _project(conn, inv, contract)
+    own = _text_lines(inv.get("project_text"))
+    if own:
+        title, where = own[0], own[1:]
+        place = where[0] if where else title
     uri = company_brand.logo_data_uri(conn)
     mark = (f'<img class="brand-logo" alt="{COMPANY_NAME}" src="{uri}">' if uri else f'<div class="inv-name">{COMPANY_NAME}</div>')
     lines = "".join("<br>" + e(x) for x in company_brand.letterhead_lines(facts))
@@ -345,6 +375,9 @@ def _standard_document(conn, inv: dict) -> str:
     if contract:
         rows += (f'<div class="r"><span>Full Contract Balance (Proposal No. {e(contract["label"])})</span><span>{_money(contract["total"])}</span></div>'
                  f'<div class="r"><span>Previously Invoiced</span><span>{_money(contract["prev"])}</span></div>')
+    work = invoices.lines_of(inv)
+    if len(work) > 1:
+        rows += f'<div class="r"><span>Total This Invoice</span><span>{_money(inv.get("amount"))}</span></div>'
     if inv.get("retainage"):
         rows += f'<div class="r"><span>Retainage Held</span><span>{_money(inv["retainage"])}</span></div>'
     if status == "paid":
@@ -362,28 +395,65 @@ def _standard_document(conn, inv: dict) -> str:
     if status not in ("paid", "void"):
         mail = _two_lines(facts["company_address"])
         mail_col = f'<div><small>Mail to</small><b>{"<br>".join(e(x) for x in mail)}</b></div>' if mail else ""
-        more = f'<p class="inv-more">{e(facts["payment_instructions"])}</p>' if facts.get("payment_instructions") else ""
+        how = inv.get("pay_text") if inv.get("pay_text") is not None else facts.get("payment_instructions")
+        more = (ce("pay_text", e(how or ""), "p", "inv-more", "Add payment details, e.g. ACH instructions (optional)")
+                if edit else (f'<p class="inv-more">{e(how)}</p>' if how else ""))
         pay = (f'<div class="inv-pay"><p class="inv-label">Payment</p><div class="inv-cols">'
                f'<div><small>Method</small><b>Check</b><em>Note invoice no. {number} on the memo line</em></div>'
                f'<div><small>Payable to</small><b>Superstars Contracting Inc.</b></div>{mail_col}</div>{more}</div>')
-    notes = (f'<div class="inv-notes"><p class="inv-label">Notes</p><p class="inv-more" style="margin-top:0">{e(inv["notes"])}</p></div>'
-             if inv.get("notes") and status != "void" else "")
+    note = inv.get("doc_notes")   # invoice.notes is the office's own note: it never prints
+    if edit:
+        notes = (f'<div class="inv-notes{"" if note else " ed-opt"}"><p class="inv-label">Notes</p>'
+                 + ce("doc_notes", e(note or ""), "p", "inv-more", "Add a note for the client (optional; left off when empty)") + "</div>")
+    else:
+        notes = (f'<div class="inv-notes"><p class="inv-label">Notes</p><p class="inv-more" style="margin-top:0">{e(note)}</p></div>'
+                 if note and status != "void" else "")
+    thanks_line = inv.get("thanks_text") or f"We appreciate your business and the opportunity to work on {place}."
     thanks = "" if status == "void" else (
-        f'<div class="inv-thanks"><h2>Thank you.</h2><p>We appreciate your business and the opportunity to work on {e(place)}.</p>'
+        f'<div class="inv-thanks"><h2>Thank you.</h2>{ce("thanks_text", e(thanks_line), "p")}'
         + (f'<p>Questions? {e(facts["company_phone"])}</p>' if facts.get("company_phone") else "") + "</div>")
-    desc = inv.get("description") or KIND_LABEL.get(inv.get("kind"), "Invoice")
+    fallback = KIND_LABEL.get(inv.get("kind"), "Invoice")
+    if edit:
+        work_html = "".join(
+            f'<div class="ln" data-li="{i}"><span data-lf="description" contenteditable="true" data-ph="What was done">{e(x["description"])}</span>'
+            f'<span><span data-lf="amount" contenteditable="true" data-ph="$0.00">{_money(x["amount"])}</span>'
+            f'<button class="ed-x" type="button" data-del="{i}" aria-label="Remove this line" title="Remove this line">×</button></span></div>'
+            for i, x in enumerate(work))
+    else:
+        work_html = "".join(f'<div class="ln"><span>{e(x["description"] or fallback)}</span><span>{_money(x["amount"])}</span></div>'
+                            for x in work)
+    bill_html = f'<div class="s">{e(bill[0] if bill else "")}</div><div class="t">{"<br>".join(e(x) for x in bill[1:])}</div>'
+    proj_html = f'<div class="s">{e(title)}</div><div class="t">{"<br>".join(e(x) for x in where)}</div>'
     return f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Invoice {number} — {COMPANY_NAME}</title><style>{_INV_CSS}</style></head><body>
+<title>Invoice {number} — {COMPANY_NAME}</title><style>{_INV_CSS}{_EDIT_CSS if edit else ""}</style></head><body>
 <div class="inv">
   <div class="inv-lh">{mark}<div class="inv-co"><b>{COMPANY_NAME}</b>{lines[4:] if lines else ''}</div></div>
   <div class="inv-top"><div>{flag}<h1 class="inv-word">INVOICE</h1></div><dl class="inv-meta">{meta}</dl></div>
-  <div class="inv-parties"><div><p class="inv-label">Bill to</p><p class="s">{e(bill[0])}</p><p class="t">{"<br>".join(e(x) for x in bill[1:])}</p></div>
-    <div><p class="inv-label">Project</p><p class="s">{e(title)}</p><p class="t">{"<br>".join(e(x) for x in where)}</p></div></div>
+  <div class="inv-parties"><div><p class="inv-label">Bill to</p>{ce("bill_to_text", bill_html, ph="Client name, then the address")}</div>
+    <div><p class="inv-label">Project</p>{ce("project_text", proj_html, ph="Project, then its address")}</div></div>
   <div class="inv-work"><div class="hd"><span>Description of work billed</span><span>Amount</span></div>
-    <div class="ln"><span>{e(desc)}</span><span>{_money(inv.get("amount"))}</span></div></div>
+    {work_html}</div>
   <div class="inv-tot">{rows}</div>
   {pay}{notes}{thanks}
 </div></body></html>"""
+
+
+def doc_texts(conn, inv: dict) -> dict:
+    """The wording the invoice shows right now, own or standard: what the editor and Claude start from."""
+    contract = _contract(conn, inv)
+    if contract and contract["total"] <= 0:
+        contract = None
+    bill = _text_lines(inv.get("bill_to_text")) or _bill_to(conn, inv, contract)
+    title, where, place = _project(conn, inv, contract)
+    own = _text_lines(inv.get("project_text"))
+    if own:
+        title, where = own[0], own[1:]
+        place = where[0] if where else title
+    facts = _company_facts(conn)
+    return {"bill_to_text": "\n".join(x for x in bill if x), "project_text": "\n".join([title] + list(where)),
+            "pay_text": inv.get("pay_text") if inv.get("pay_text") is not None else (facts.get("payment_instructions") or ""),
+            "thanks_text": inv.get("thanks_text") or f"We appreciate your business and the opportunity to work on {place}.",
+            "doc_notes": inv.get("doc_notes") or ""}
 
 
 def _design_document(conn, inv: dict) -> str:
@@ -717,8 +787,8 @@ def _api_pdf(invoice_id):
             p = pdf_file(conn, invoice_id) if res.get("ok") else None
         if not p:
             return _err("the PDF engine is not available — use Preview", 503)
-        resp = make_response(send_file(str(p), mimetype="application/pdf", as_attachment=False,
-                                       download_name=f"{inv['number']}.pdf"))
+        resp = make_response(send_file(str(p), mimetype="application/pdf", as_attachment=request.args.get("download") == "1",
+                                       download_name=f"{inv['number']}.pdf"))   # ?download=1 saves the file (Download buttons)
         resp.headers["Cache-Control"] = "no-store"
         return resp
     finally:

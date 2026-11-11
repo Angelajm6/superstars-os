@@ -588,7 +588,8 @@ def main():
                   "company_portal.html",   # #302 C-suite company portal (company-document modal)
                   "forgot_password.html", "reset_password.html",  # #301 self-service password reset
                   "account.html",          # Settings > Account (each person's own account)
-                  "proposal_studio.html"}  # Proposal Studio (ask Claude, edit, send the PDF)
+                  "proposal_studio.html",  # Proposal Studio (ask Claude, edit, send the PDF)
+                  "invoice_editor.html"}   # the invoice editor (edit the whole invoice in place, 2026-11-11)
     # #283 — surfaces that live OUTSIDE the repo root still get the structural
     # sweep. drawing-markup is served from templates/v2 (the #279 v2 tree), so the
     # root glob above cannot see it; registering it by path keeps the "guard never

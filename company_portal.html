@@ -6555,7 +6555,8 @@
         (r.qb_invoice_id && QB.st && QB.st.open_url && r.qb_realm_id ? `<a class="btn-ghost" href="${esc(QB.st.open_url + encodeURIComponent(r.qb_invoice_id))}" target="_blank" rel="noopener" style="text-decoration:none">Open in QuickBooks ↗</a>` : '') +
         (qbOn && ['issued', 'paid'].includes(r.status) && !r.qb_invoice_id && r.qb_status !== 'pending' ? btn('inv-qb-push', 'btn-ghost', r.qb_status === 'error' ? 'Try QuickBooks again' : 'Send to QuickBooks') : '') +
         (qbOwned ? '' : `<a class="btn-ghost" href="/api/invoices/${r.id}/preview" target="_blank" rel="noopener" style="text-decoration:none" id="inv-preview">Preview</a>`) +
-        (r.status !== 'draft' && !qbOwned ? `<a class="btn-ghost" href="/api/invoices/${r.id}/pdf" target="_blank" rel="noopener" style="text-decoration:none">PDF</a>` : '') +
+        (!qbOwned ? `<a class="btn-ghost" href="/api/invoices/${r.id}/pdf?download=1" download="${esc(r.number)}.pdf" style="text-decoration:none">Download</a>` : '') +
+        (!qbOwned ? `<a class="btn-ghost" href="/invoices/${r.id}/edit" style="text-decoration:none">${['draft', 'issued'].includes(r.status) ? 'Edit invoice' : 'Open invoice'}</a>` : '') +
         '<span style="flex:1"></span>' +
         (r.status === 'draft' ? btn('inv-del', 'btn-ghost', 'Delete draft') + btn('inv-issue', 'btn-primary', 'Issue invoice') : '') +
         (r.status === 'issued' && QB.st ? btn('inv-fu', 'btn-ghost', 'Add follow-up…') : '') +
