@@ -17,6 +17,7 @@ Run:  venv/bin/python tests/smoke_billing_type_356.py
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -181,10 +182,10 @@ def main() -> int:
     assert rows[A]["billing_type"] == "aia_sov" and rows[A]["billing_short"] == "AIA"
     assert rows[L]["billing_label"] == "Lump sum" and rows[N]["billing_type"] is None and rows[N]["billing_short"] == "Not set"
     page_l = cs.get(f"/projects/{L}").get_data(as_text=True)
-    assert '<body data-billing-type="lump_sum">' in page_l
+    assert re.search(r'<body[^>]*\bdata-billing-type="lump_sum"', page_l)   # the project page may also carry class="jv2"
     assert '<a class="nav-link" data-view="sov" hidden>' in page_l, "the SOV link hides on a lump-sum job"
     page_a = cs.get(f"/projects/{A}").get_data(as_text=True)
-    assert '<body data-billing-type="aia_sov">' in page_a and '<a class="nav-link" data-view="sov">' in page_a
+    assert re.search(r'<body[^>]*\bdata-billing-type="aia_sov"', page_a) and '<a class="nav-link" data-view="sov">' in page_a
     page_pm = pm.get(f"/projects/{A}").get_data(as_text=True)
     assert 'data-view="sov"' not in page_pm and 'data-group="financial"' not in page_pm \
         and 'id="ps-billing"' in page_pm, "pm: no money nav / SOV view, read-only billing in Settings"

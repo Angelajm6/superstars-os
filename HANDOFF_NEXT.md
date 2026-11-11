@@ -21,6 +21,26 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Project page redesign: six colored sections, the default for staff (Bookore, 2026-11-11)
+
+* Accepted prototype: https://claude.ai/artifact/VGzVhPeig191nXeUsPybgZ. The old `?ui=2` overlay (`job_v2.py`,
+  `static/v2/job.css|js`) was rebuilt to it and is now **on by default** for admin / C-suite / PM / super on a project's own page
+  (`/projects/<code>`, `/portal/<code>`). Way back: `?ui=1` (one request) or `SSC_UI_FORCE_V1` (everyone). The switch-back bar is
+  no longer injected (`static/v2/switch-back.js` is unused). External roles and every other page are untouched.
+* No sidebar: app bar (back · code · **Jump to** Ctrl/Cmd+K · **+ New** · account menu), a project header tinted with the open
+  section's color (code, status chips, client, address, dates, Edit project, stats: drops done ring / days left / billed — billed
+  only when `money` is in the payload), six sections **Overview · Today · Work · Documents · Money · Team** each with its own color
+  and an attention badge, sub-tab pills (counts on RFIs, violations, behind drops, crew cards). Settings = the gear.
+* Every tab's own title gets a colored icon tile + sentence-case name (`dressViews` finds the first h1/h2; the subtitle and
+  buttons stay). Shared look (all CSS, scoped `body.jv2`): KPI tiles with the first one in the section color, cards, tables,
+  active filter chips, empty states with a tinted tile. Primary buttons stay `--accent`.
+* Overview: **Needs you** list (overdue RFIs, behind drops, violations, expired / expiring cards, overdue money, unissued report
+  with crew on site, no contract / billing / contacts) built from the `JX_render` payload; the old hero is hidden.
+* Phone (≤860px): bottom section bar, round **+ New** bottom-right (hidden during a Daily Report step), Ask Claude moved to the
+  bottom-left. Checked: all 21 tabs at 1440 and 390 wide, no sideways scroll, no page errors.
+* Guard: `tests/smoke_job_v2_preview.py` rewritten (default-on, `?ui=1` / kill switch byte-identical, pm gets no Money views,
+  scope, drift between the sidebar and the six sections, labels / icons, look).
+
 ### Edit invoices on a job (Bookore, 2026-11-10)
 
 * Accepted prototype: https://claude.ai/artifact/KUmj1EUwdHP4iut2v3YYTi. A job's **Invoices & Payments** rows have **Edit**
