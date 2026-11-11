@@ -6962,7 +6962,8 @@
 
 <script>
 // #payments opens Invoices & Payments (the invoice editor's back link, 2026-11-11)
-document.addEventListener('DOMContentLoaded', () => { if (location.hash === '#payments') setTimeout(() => { const l = document.querySelector('.nav-link[data-view=payments]');   // unquoted: a pm's page (Money stripped) must not carry the quoted name if (l && !l.hidden) l.click(); }, 0); });
+// (the selector is unquoted on purpose: a pm's page, Money stripped, must not carry the quoted view name)
+document.addEventListener('DOMContentLoaded', () => { if (location.hash === '#payments') setTimeout(() => { const l = document.querySelector('.nav-link[data-view=payments]'); if (l && !l.hidden) l.click(); }, 0); });
 // the view a job page opens on counts as opened (redesign step 1)
 document.addEventListener('DOMContentLoaded', () => { const a = document.querySelector('.nav-link.active[data-view]'); if (a) SSC_track('job', a.getAttribute('data-view')); });
 // Sidebar navigation - view switching
