@@ -20,9 +20,9 @@ body.jv2 {
   background: var(--jv-bg); color: var(--jv-ink); -webkit-font-smoothing: antialiased;
 }
 
-/* ---- the classic chrome steps aside (still in the page: the sections drive it) ---- */
-body.jv2 .sidebar, body.jv2 .ssc-top.proj-top, body.jv2 #ov-back, body.jv2 .content-corner, body.jv2 .jx-head { display: none !important; }
-body.jv2 .app-shell, body.jv2 .main { display: block; min-height: 0; margin: 0; }
+/* ---- the left sidebar stays on desktop / tablet (Angela, 2026-11-11); the rest of the classic chrome steps aside ---- */
+body.jv2 .ssc-top.proj-top, body.jv2 #ov-back, body.jv2 .content-corner, body.jv2 .jx-head { display: none !important; }
+body.jv2 .main { display: block; min-height: 0; margin: 0; }
 body.jv2 .views-container { overflow: visible; }
 body.jv2 .view { max-width: var(--jv-max); margin: 0 auto; padding: 18px var(--jv-gutter) 72px; }
 body.jv2 .view[data-view="drawings"] { padding: 0; max-width: none; }
@@ -201,10 +201,20 @@ body.jv2 .jv2-pal input { width: 100%; border: 0; border-bottom: 1px solid var(-
 .jv2-pit small { margin-left: auto; font-size: 12px; color: var(--jv-muted); }
 .jv2-pit.on, .jv2-pit:hover { background: var(--jv-fill); }
 
+/* ---- tablet: the sidebar takes room, so the section tabs tighten ---- */
+@media (max-width: 1180px) {
+  .jv2-tabs { gap: 2px; }
+  .jv2-tab { gap: 7px; padding: 5px 10px 5px 5px; font-size: 13px; }
+  .jv2-tile { width: 28px; height: 28px; }
+  .jv2-jump { min-width: 0; }
+  .jv2-jump-t { display: none; }
+}
+
 /* ---- phone: bottom section bar + round + New ---- */
 #jv2-bottom, .jv2-fab { display: none; }
 @media (max-width: 860px) {
   body.jv2 { --jv-gutter: 16px; padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  body.jv2 .sidebar { display: none !important; }   /* phones: the bottom section bar replaces the sidebar's Menu strip */
   .jv2-bar .jv2-in { height: 54px; gap: 8px; }
   .jv2-back-t, .jv2-jump-t, .jv2-jump kbd, .jv2-newwrap { display: none; }
   .jv2-crumb::before { display: none; }
