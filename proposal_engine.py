@@ -738,13 +738,17 @@ def revise(conn, pid: int, instruction: str, uid, history: Optional[list] = None
                      history=_history(history))
     reply = str(out.get("reply") or "").strip()[:4000]
     if not out.get("edit"):
-        return {"reply": reply or "Tell me a bit more about what you'd like.", "changed": [], "before": before}
+        return {"reply": reply or "Tell me a bit more about what you'd like.", "changed": [], "before": before, "version_id": None}
     patch = {k: out[k] for k in out if k not in ("lines", "reply", "edit")}
     save(conn, pid, patch, out.get("lines") if "lines" in out else None, actor=uid)
     after = snapshot(conn, pid)
     changed = [k for k in list(CONTENT_PROPS) + ["email_message"]
                if json.dumps(before.get(k), sort_keys=True, default=str) != json.dumps(after.get(k), sort_keys=True, default=str)]
-    return {"reply": reply or "Done.", "changed": changed, "before": before}
+    vid = None
+    if changed:   # kept so it can be undone after a reload, or gone back to later (History)
+        import proposal_history
+        vid = proposal_history.record(conn, pid, uid, before, proposal_history.summary_of(reply, changed), "claude")
+    return {"reply": reply or "Done.", "changed": changed, "before": before, "version_id": vid}
 
 
 def undo(conn, pid: int, before: dict, uid) -> dict:

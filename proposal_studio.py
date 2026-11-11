@@ -376,7 +376,8 @@ def view(conn, pid: int, uid, role: Optional[str] = None) -> Optional[dict]:
     known = proposal_engine.library_words(conn) if ssc else None
     if ssc:
         extra.update({"layout": "ssc", "content": proposal_engine.snapshot(conn, pid), "checks": proposal_engine.checks(conn, r, known),
-                      "new_clauses": proposal_engine.new_clauses(conn, proposal_engine.content(r), known), "house": proposal_engine.house(conn)})
+                      "new_clauses": proposal_engine.new_clauses(conn, proposal_engine.content(r), known), "house": proposal_engine.house(conn),
+                      "versions": _versions(conn, pid)})
     prev = proposals.get(conn, r["revision_of"]) if r.get("revision_of") else None
     return {"proposal": dict({k: r.get(k) for k in ("id", "number", "version", "status", "title", "client_org_id", "client_name",
                                                      "price", "valid_until", "recipient_email", "recipient_name", "sent_at",
@@ -395,6 +396,20 @@ def view(conn, pid: int, uid, role: Optional[str] = None) -> Optional[dict]:
             "html": proposals.render_document(conn, r, mode="edit", known=known),
             "template": proposal_template.public(conn), "editable": r["status"] == "draft",
             **_review_state(conn, pid, uid), **extra}
+
+
+def _versions(conn, pid: int) -> list:
+    """Claude's changes, newest first (proposal_history); a history problem never breaks the editor."""
+    try:
+        import proposal_history
+        return proposal_history.listing(conn, pid)
+    except Exception as e:
+        log.info("proposal history unavailable: %s", type(e).__name__)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return []
 
 
 def _review_state(conn, pid: int, uid) -> dict:
@@ -650,6 +665,11 @@ def register(app) -> None:
         return jsonify({"error": msg}), code
 
     try:
+        import proposal_history
+        with_conn(proposal_history.ensure)
+    except Exception as e:
+        log.warning("proposal_history schema ensure skipped: %s", e)
+    try:
         import proposal_review
         with_conn(proposal_review.ensure)
     except Exception as e:
@@ -815,11 +835,20 @@ def register(app) -> None:
     @app.route("/api/proposal-studio/<int:pid>/undo", methods=["POST"])
     @gate
     def proposal_studio_undo(pid):
-        """Back to the snapshot a Claude change returned as `before`."""
+        """{version_id}: back to before that Claude change (History). {before}: the older proposals' snapshot."""
         me = _me()
-        before = (request.get_json(silent=True) or {}).get("before") or {}
+        body = request.get_json(silent=True) or {}
+        before = body.get("before") or {}
+        try:
+            vid = int(body.get("version_id") or 0)
+        except (TypeError, ValueError):
+            vid = 0
 
         def run(c):
+            if vid:   # History / Undo: back to before that change, kept as a step itself (proposal_history)
+                import proposal_history
+                out = proposal_history.restore(c, pid, vid, me["id"])
+                return dict(view(c, pid, me["id"], me["role"]), went_back=out)
             import proposal_engine
             proposal_engine.undo(c, pid, before, me["id"])
             return view(c, pid, me["id"], me["role"])

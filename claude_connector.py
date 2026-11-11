@@ -1074,7 +1074,22 @@ def _t_edit_proposal(conn, user, inp):
     conn.execute("INSERT INTO claude_connector_snapshot (proposal_id, user_id, at, before) VALUES (?,?,?,?)",
                  (r["id"], user["id"], _iso(_now()), json.dumps(before, default=str)))
     pe.save(conn, r["id"], patch, lines, actor=user["id"])
+    parts = list(patch) + (["lines"] if lines is not None else [])
+    _keep_version(conn, r["id"], user["id"], before, "Changed in claude.ai: " + ", ".join(k.replace("_", " ") for k in parts), "claude_ai")
     return _proposal_out(conn, r, "Changed. undo_proposal_change puts back the version before this change.")
+
+
+def _keep_version(conn, pid, uid, before, summary, source):
+    """The Studio's History lists this change too (proposal_history); it never blocks the change itself."""
+    try:
+        import proposal_history
+        proposal_history.record(conn, pid, uid, before, summary, source)
+    except Exception as e:
+        log.info("proposal history not kept: %s", type(e).__name__)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
 
 def _t_undo_proposal(conn, user, inp):
@@ -1085,9 +1100,11 @@ def _t_undo_proposal(conn, user, inp):
         raise ValueError("there's no change from Claude to undo on this proposal")
     if r["status"] != "draft":
         raise ValueError(f"No. {pe.label(r)} is {r['status']} now, so it can't be changed back")
+    now = pe.snapshot(conn, r["id"])
     pe.undo(conn, r["id"], json.loads(s["before"]), user["id"])
     conn.execute("DELETE FROM claude_connector_snapshot WHERE proposal_id = ?", (r["id"],))
     conn.commit()
+    _keep_version(conn, r["id"], user["id"], now, "Undid the last change from claude.ai", "back")
     return _proposal_out(conn, r, "Put back the version before Claude's last change.")
 
 

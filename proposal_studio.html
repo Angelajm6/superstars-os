@@ -172,6 +172,21 @@
   .rev .msg-pre{white-space:pre-wrap;background:var(--fill);border-radius:8px;padding:8px 10px;max-height:180px;overflow:auto}
   .msg{font-size:13px;line-height:1.5;padding:8px 11px;border-radius:10px;max-width:92%;white-space:pre-wrap}
   .msg.c{background:var(--accent-soft);align-self:flex-start}.msg.u{background:var(--fill);align-self:flex-end}
+  /* Claude's changes, kept (prototype accepted 2026-11-11: https://claude.ai/artifact/SJpPbUkDHenqQ9BfHECvnT) */
+  .hist-b{margin-left:auto;display:inline-flex;gap:6px;align-items:center}
+  .hist-b .cnt{background:var(--accent-soft);color:var(--accent-ink);border-radius:99px;font-size:11px;padding:0 7px;line-height:18px}
+  .chat-card.hist-on>:not(.chat-h):not(.hist){display:none!important}
+  .hist{display:flex;flex-direction:column;gap:2px;max-height:min(420px,52vh);overflow:auto}
+  @media (max-width:1100px){.hist{max-height:none;flex:1;min-height:0}}
+  .hist .row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:8px 6px;border-radius:8px;align-items:center}
+  .hist .row:hover{background:var(--fill)}
+  .hist .w{font-size:13px;line-height:1.4;overflow-wrap:anywhere}.hist .m{font-size:11.5px;color:var(--muted)}
+  .hist .row>button{grid-row:1/span 2;grid-column:2}
+  .hist .now .w::after{content:'Current';margin-left:6px;font-size:10.5px;font-weight:700;color:var(--accent-ink);background:var(--accent-soft);border-radius:99px;padding:1px 7px}
+  .hist .ask{grid-column:1/-1;background:var(--status-warn-soft,#FFF4E5);border-radius:8px;padding:8px 10px;font-size:12.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
+  .hist .empty{font-size:12.5px;color:var(--muted);padding:6px}
+  .hist-foot{margin:8px 6px 0}
+  .msg .done{color:var(--muted);font-size:12px;margin-left:6px}
   .msg .undo{border:0;background:none;color:var(--accent-ink);font:inherit;font-weight:600;font-size:12px;padding:0;margin-left:6px;text-decoration:underline;cursor:pointer}
   .quick{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
   .chip{border:1px solid var(--line);background:#fff;border-radius:99px;padding:4px 11px;font:inherit;font-size:12px;color:var(--ink-2);cursor:pointer}
@@ -303,7 +318,7 @@
   <section id="v-edit" hidden>
     <div class="ed-top" id="ed-top">
       <div><h2 id="e-title">Proposal</h2><div class="muted"><span id="e-num"></span> · <span class="pill" id="e-status"></span> · <span id="e-total" class="num"></span> · <span id="e-saved">Saved</span><span id="e-hint"> · click any text to edit it</span></div></div>
-      <div class="ed-acts"><button class="btn-ghost btn-sm" type="button" id="e-claude" aria-controls="chat-card" aria-expanded="false" aria-label="Ask Claude"><span class="lg">✦ Ask Claude</span><span class="sm">✦ Claude</span></button><button class="btn-ghost btn-sm" type="button" id="e-view">View PDF</button><a class="btn-ghost btn-sm" id="e-pdf" href="#" download aria-label="Download PDF"><span class="lg">Download PDF</span><span class="sm">Download</span></a><button class="btn-primary btn-sm" type="button" id="e-send">Send…</button></div>
+      <div class="ed-acts"><button class="btn-ghost btn-sm" type="button" id="e-undo" hidden aria-label="Undo Claude's last change"><span class="lg">↶ Undo Claude's change</span><span class="sm">↶ Undo</span></button><button class="btn-ghost btn-sm" type="button" id="e-claude" aria-controls="chat-card" aria-expanded="false" aria-label="Ask Claude"><span class="lg">✦ Ask Claude</span><span class="sm">✦ Claude</span></button><button class="btn-ghost btn-sm" type="button" id="e-view">View PDF</button><a class="btn-ghost btn-sm" id="e-pdf" href="#" download aria-label="Download PDF"><span class="lg">Download PDF</span><span class="sm">Download</span></a><button class="btn-primary btn-sm" type="button" id="e-send">Send…</button></div>
     </div>
     <div class="banner bad" id="e-problem" hidden role="alert"></div>
     <div class="banner bad" id="e-notready" hidden><span id="e-notready-t"></span><span class="sp"></span><button class="btn-ghost btn-sm" type="button" id="e-showck">Show the checklist</button><button class="btn-ghost btn-sm" type="button" data-marksent>Already sent it? Mark as sent…</button></div>
@@ -319,7 +334,8 @@
       </div>
       <aside class="rail">
         <div class="chat-scrim" id="chat-scrim" hidden></div>
-        <div class="card chat-card" id="chat-card" role="region" aria-label="Ask Claude to change the proposal"><div class="chat-h"><h3>Ask Claude to change it</h3><button class="x" type="button" id="chat-x" aria-label="Close">×</button></div>
+        <div class="card chat-card" id="chat-card" role="region" aria-label="Ask Claude to change the proposal"><div class="chat-h"><h3 id="chat-ttl">Ask Claude to change it</h3><button class="btn-ghost btn-sm hist-b" type="button" id="chat-hist" aria-controls="hist" aria-expanded="false" hidden>History <span class="cnt" id="hist-n"></span></button><button class="x" type="button" id="chat-x" aria-label="Close">×</button></div>
+          <div class="hist" id="hist" hidden><div id="hist-rows"></div><p class="muted hist-foot">Each change Claude makes is kept with the proposal, so you can undo it after a reload or another day. Your own typing isn't listed.</p></div>
           <div class="chat" id="chat" aria-live="polite"><div class="msg c">Click any outlined text to edit it, or just talk to me: ask a question, or tell me what to change. I can add price lines and alternates and edit the notes, exclusions and terms. You can attach drawings, photos, bid forms or emails for me to read; they don't go in the proposal or the email.</div></div>
           <div class="quick"><button class="chip" type="button" data-ask="Add an alternate">+ Add alternate</button><button class="chip" type="button" data-ask="Add a 10% contingency line">+ 10% contingency</button><button class="chip" type="button" data-ask="Make the scope shorter">Shorter scope</button><button class="chip" type="button" data-ask="Split the work into two phases with their own lines">Two phases</button></div>
           <div class="chat-err" id="chat-err" role="alert" hidden></div>
@@ -657,6 +673,7 @@
     $('e-problem').hidden = !v.revision_problem; $('e-problem').textContent = v.revision_problem || '';
     drawRevisions(v);
     drawExcluded(v);
+    drawHistory(v);
     $('doc-tools').hidden = !v.editable;
     $('e-used-box').hidden = !v.sources.length;
     $('e-used').innerHTML = v.sources.map(s => `<div><i>✓</i>${esc(s)}</div>`).join('');
@@ -809,7 +826,8 @@
         });
         td.appendChild(b);
       });
-      if (S.v.editable && ssc()) paraTools(d);
+      if (S.v.editable && ssc()) { paraTools(d); optionalRows(d, fit); }
+      else d.querySelectorAll('.ssc-adds').forEach(x => x.remove());
       (flash || []).forEach(k => {
         const els = k === 'lines' ? d.querySelectorAll('tr[data-li]') : k === 'alternates' ? d.querySelectorAll('tr[data-ai]') : d.querySelectorAll(`[data-f="${k}"]`);
         els.forEach(x => { x.classList.add('ssc-flash'); setTimeout(() => x.classList.remove('ssc-flash'), 1800); });
@@ -818,6 +836,30 @@
       if (!flash) try { f.contentWindow.scrollTo(0, y); } catch (e) {}
     };
     f.srcdoc = html;
+  }
+  // optional Schedule & Terms rows (Warranty, 2026-11-11): "+ Warranty" opens the hidden row, "× Remove" empties it,
+  // and an empty row is left out of the PDF and hidden here.
+  const ROW_LABEL = { warranty: 'Warranty' };
+  function optionalRows(d, fit) {
+    d.querySelectorAll('tr[data-row]').forEach(tr => {
+      const k = tr.dataset.row, td = tr.lastElementChild; if (!td) return;
+      const b = d.createElement('button'); b.type = 'button'; b.className = 'ssc-rm'; b.textContent = '× Remove';
+      b.setAttribute('aria-label', 'Remove the ' + (ROW_LABEL[k] || k) + ' row');
+      b.addEventListener('click', async () => {
+        await flushNow();
+        const was = ((S.v.content || {})[k]) || '';
+        if (!was) { tr.hidden = true; draw(S.v); return; }
+        await save({ [k]: '' }, null, true);
+        toast((ROW_LABEL[k] || k) + ' removed from this proposal', false, { label: 'Undo', run: () => save({ [k]: was }, null, true, [k]) });
+      });
+      td.appendChild(b);
+    });
+    d.querySelectorAll('[data-addrow]').forEach(b => b.addEventListener('click', () => {
+      const tr = d.querySelector(`tr[data-row="${b.dataset.addrow}"]`); if (!tr) return;
+      tr.hidden = false; const box = b.parentElement; b.remove(); if (box && !box.children.length) box.remove();
+      const el = tr.querySelector('[data-f]'); if (el) el.focus();
+      fit();
+    }));
   }
   // paragraph controls (2026-10-22): beside the note / exclusion / deliverable being pointed at or edited, "Exclude" takes
   // it out of this proposal (listed under Excluded paragraphs, so it can be put back) and, for wording Claude wrote that
@@ -1104,6 +1146,7 @@
       draw(r, r.changed);
       const m = say('c', esc(reply) + ' <button class="undo" type="button">Undo</button>');
       m.querySelector('.undo').addEventListener('click', async ev => {
+        if (ssc() && r.version_id) { undoVersion(r.version_id, ev.target); return; }
         ev.target.remove(); const b = r.before;
         if (ssc()) { try { draw(await api('/proposal-studio/' + S.id + '/undo', { method: 'POST', body: JSON.stringify({ before: b }) })); say('c', 'Undone.'); } catch (x) { toast(x.message, true); } return; }
         await save({ title: b.title, submitted_by: b.submitted_by, prepared_for: b.prepared_for, project_text: b.project_text, reference_text: b.reference_text, intro_text: b.intro_text, scope_summary: b.scope_summary,
@@ -1113,6 +1156,56 @@
     } catch (x) { clearInterval(tick); wait.remove(); asking(false); say('c', '<span class="err">' + esc(x.message) + '</span>'); }
   }
   document.addEventListener('click', e => { const a = e.target.closest('[data-ask]'); if (a) ask(a.dataset.ask); });
+
+  // ---------------- Claude's changes, kept (proposal_history): Undo after a reload, or go back to any earlier version.
+  // Going back is a step in the list itself, so it can be undone too.
+  const VSRC = { claude: 'Claude', claude_ai: 'Claude in claude.ai' };
+  const fmtWhen = iso => { const t = new Date(iso); if (isNaN(t)) return ''; const d = new Date(), same = t.toDateString() === d.toDateString();
+    return (same ? 'today ' : fmtDate(iso) + ' ') + t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
+  function histOpen(on) {
+    $('chat-card').classList.toggle('hist-on', on); $('hist').hidden = !on;
+    $('chat-hist').setAttribute('aria-expanded', String(on)); $('chat-hist').classList.toggle('on', on);
+    $('chat-ttl').textContent = on ? "Claude's changes" : 'Ask Claude to change it';
+    $('chat-hist').firstChild.textContent = on ? 'Back to chat ' : 'History ';
+  }
+  function drawHistory(v) {
+    const vs = (ssc() && v.editable && v.versions) || [];
+    if (S.histFor !== v.proposal.id) { S.histFor = v.proposal.id; histOpen(false); }
+    $('chat-hist').hidden = !vs.length; $('hist-n').textContent = vs.length;
+    if (!vs.length && !$('hist').hidden) histOpen(false);
+    const top = vs[0];
+    $('e-undo').hidden = !top; if (top) $('e-undo').title = 'Undo: ' + top.summary;
+    $('hist-rows').innerHTML = vs.length ? vs.map((x, i) => `<div class="row${i ? '' : ' now'}"><span class="w">${esc(x.summary)}</span>` +
+      `<span class="m">${esc(x.source === 'back' ? (x.who || 'You') : VSRC[x.source] || 'Claude')} · ${esc(fmtWhen(x.at))}</span>` +
+      `<button class="btn-ghost btn-sm" type="button" data-vback="${x.id}" data-later="${x.later}">${i ? 'Go back' : 'Undo'}</button></div>`).join('')
+      : '<div class="empty">Nothing yet. When Claude changes the proposal, each change shows up here.</div>';
+  }
+  async function goBack(id) {
+    if (S.asking) { toast('Claude is still working. Try again in a moment.', true); return; }
+    try {
+      await flushNow();
+      const v = await api('/proposal-studio/' + S.id + '/undo', { method: 'POST', body: JSON.stringify({ version_id: id }) });
+      draw(v); const w = v.went_back || {};
+      say('c', w.undid > 1 ? esc(`Went back. That undid ${w.undid} changes. Undo is in History if you change your mind.`) : 'Undone. It\'s back to how it was before that change.');
+      toast(w.undid > 1 ? 'Went back to an earlier version' : 'Undone');
+    } catch (x) { toast(x.message, true); }
+  }
+  function askBack(btn) {   // more than the last change: say how many go, and ask
+    const n = +btn.dataset.later, row = btn.closest('.row'); if (!n) return goBack(+btn.dataset.vback);
+    if (row.querySelector('.ask')) return;
+    row.insertAdjacentHTML('beforeend', `<div class="ask">This also undoes ${n} later change${n > 1 ? 's' : ''}. <button class="btn-primary btn-sm" type="button" data-yes>Go back</button><button class="btn-ghost btn-sm" type="button" data-no>Cancel</button></div>`);
+    row.querySelector('[data-yes]').onclick = () => goBack(+btn.dataset.vback);
+    row.querySelector('[data-no]').onclick = () => row.querySelector('.ask').remove();
+  }
+  function undoVersion(id, link) {   // the Undo beside Claude's reply: the latest goes straight back; an older one asks in History
+    const vs = (S.v && S.v.versions) || [], i = vs.findIndex(x => x.id === id);
+    if (i < 0) { toast('That change is no longer in the history.', true); return; }
+    if (i === 0) { if (link) link.outerHTML = '<span class="done">Undone</span>'; goBack(id); return; }
+    histOpen(true); const b = $('hist-rows').querySelector(`[data-vback="${id}"]`); if (b) { askBack(b); b.scrollIntoView({ block: 'nearest' }); }
+  }
+  $('chat-hist').addEventListener('click', () => histOpen($('hist').hidden));
+  $('hist-rows').addEventListener('click', e => { const b = e.target.closest('[data-vback]'); if (b) askBack(b); });
+  $('e-undo').addEventListener('click', () => { const top = ((S.v && S.v.versions) || [])[0]; if (top) goBack(top.id); });
   $('chat-form').addEventListener('submit', e => { e.preventDefault(); const q = $('chat-in').value.trim(); if (q || S.chatFiles.length) { $('chat-in').value = ''; ask(q); } });
 
   // ---------------- send (pop-up): reply in the client's thread or a new email, then a review, then Send now.

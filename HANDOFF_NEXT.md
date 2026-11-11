@@ -99,6 +99,20 @@ grant, or elevation code.
   thread. The bell shows "<owner>'s brief is ready" until sent. Text encrypted at rest (`mail_brief_item.*_enc`). Guard: `tests/smoke_owner_brief.py`.
   Not built: the owner's own login view of the brief.
 
+### Proposals: undo Claude's changes after a reload, History, optional Warranty (Bookore, 2026-11-11)
+
+* Accepted prototype: https://claude.ai/artifact/SJpPbUkDHenqQ9BfHECvnT. Company layout (ssc) only; older proposals keep the in-page Undo.
+* `proposal_history.py`, table `proposal_version` (proposal_id, user_id, at, source claude | claude_ai | back, summary, before = the whole
+  `proposal_engine.snapshot` before the change); KEEP 40 per proposal, the view lists 25 (`versions`, newest first, `later` = how many go with it).
+* Kept by `proposal_engine.revise` (Studio panel; returns `version_id`) and the connector's `edit_proposal`; its `undo_proposal_change` is a `back` step.
+* `POST /api/proposal-studio/<pid>/undo {version_id}` → `restore`: puts back `before`, keeps the present as a `back` step (so Undo is undoable),
+  drafts only. `{before}` still works for the older layout.
+* Page: History in the Claude panel (Undo on the newest, Go back + "This also undoes N later changes" on older), a top-bar "↶ Undo Claude's change",
+  and the Undo beside each reply now goes by version (works after a reload).
+* Warranty: `proposal_layout.OPTIONAL_ROWS`; in the editor a blank row renders `hidden` with "+ Warranty" under Schedule & Terms, and the page adds
+  "× Remove" (empties it, toast Undo). The PDF already left a blank warranty out. Duration unchanged (still shows blank in the editor).
+* Guard: `tests/smoke_proposal_history.py` (8 groups).
+
 ### Proposals: Send for review, before it goes to the client (Bookore, 2026-11-11)
 
 * Accepted prototype: https://claude.ai/artifact/E3AZ6ytnir14NxaBCnQgK6 (with the bell upgrade below). Optional: a draft can always be sent without one.
