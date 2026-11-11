@@ -16,6 +16,9 @@
 .ab-ico.ab-ok { background: #e7f6f0; color: #0c7a5f; }
 .ab-ico.ab-warn { background: #fff4e5; color: #9a5b00; }
 .ab-ico.ab-plain { background: #f2f3f7; color: #4d5362; }
+.ab-ico.ab-bad { background: #fceeec; color: #a8382b; }
+.ab-ico.ab-day { background: var(--ink, #222633); color: #fff; }
+.ab-badge.ab-badge-dot { min-width: 12px; width: 12px; height: 12px; padding: 0; top: -3px; right: -3px; background: var(--accent, #4364dc); }
 .ab-body { flex: 1; min-width: 0; display: block; }
 .ab-title { display: block; font-size: 14px; font-weight: 600; line-height: 1.35; color: var(--ink, #222633); overflow-wrap: anywhere; }
 .ab-sub { display: block; margin-top: 2px; font-size: 13px; line-height: 1.4; color: #4d5362; overflow-wrap: anywhere; }
@@ -40,7 +43,23 @@
 .ab-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .ab-acts .btn-primary, .ab-acts .btn-ghost { flex: 1 1 auto; min-height: 40px; box-sizing: border-box; text-decoration: none; }
 
+/* ---- morning banner ---- */
+.ab-day-lines { display: grid; gap: 3px; margin-top: 6px; font-size: 13px; color: #4d5362; }
+.ab-day-lines b { display: inline-block; min-width: 18px; color: var(--ink, #222633); font-variant-numeric: tabular-nums; }
+
 /* ---- bell panel ---- */
+.ab-tabs { display: flex; gap: 18px; align-self: stretch; }
+.ab-tab { position: relative; background: none; border: 0; padding: 4px 1px; min-height: 40px; font: inherit; font-size: 14px;
+  font-weight: 600; color: #6f7584; border-bottom: 2px solid transparent; margin-bottom: -11px; cursor: pointer; white-space: nowrap; }
+.ab-tab.ab-on { color: var(--ink, #222633); border-bottom-color: var(--accent, #4364dc); }
+.ab-tab:focus-visible { outline: 2px solid var(--accent, #4364dc); outline-offset: 2px; border-radius: 4px; }
+.ab-count { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 99px; background: var(--brand-red, #B11E2E);
+  color: #fff; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; vertical-align: 1px; }
+.ab-tabdot { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--accent, #4364dc); vertical-align: 2px; }
+.ab-pill { display: inline-block; margin-top: 5px; padding: 1px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; background: #f2f3f7; color: #4d5362; }
+.ab-pill-bad { background: #fceeec; color: #a8382b; }
+.ab-pill-warn { background: #fff4e5; color: #9a5b00; }
+.ab-pill-blue { background: var(--accent-soft, #ebf0fe); color: var(--accent-ink, #3a5fd0); }
 .ab-wait .ab-title { font-weight: 600; text-decoration: none; }
 .ab-wait a.ab-title:hover { color: var(--accent-ink, #3a5fd0); }
 .ab-wait .ab-acts .btn-primary, .ab-wait .ab-acts .btn-ghost { min-height: 36px; padding: 0 11px; font-size: 13px; }

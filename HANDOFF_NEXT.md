@@ -78,6 +78,20 @@ grant, or elevation code.
   thread. The bell shows "<owner>'s brief is ready" until sent. Text encrypted at rest (`mail_brief_item.*_enc`). Guard: `tests/smoke_owner_brief.py`.
   Not built: the owner's own login view of the brief.
 
+### The bell is your day: For you + What happened, morning banner (Bookore, 2026-11-11)
+
+* Accepted prototype: https://claude.ai/artifact/E3AZ6ytnir14NxaBCnQgK6 (with the proposal review flow, which ships next on top of this).
+* The bell has two tabs. **For you** = `activity_feed.for_you`: the same cards as Needs you (`today_feed.needs`, so Later / Good on the
+  dashboard hide them in the bell too), grouped Today (urgency now / today), From Claude (cards with `action_id`), Coming up (week); decisions
+  from `activity_accepts` lead under "Waiting on you". Links written for the dashboard (`#finance`) become `/company#finance` (`_local_href`).
+  **What happened** = the old feed, unchanged; reading it is what clears its unread marks now (closing the bell from For you leaves them).
+* The badge counts For you + waiting decisions (`badge` in `/api/activity`); unread news shows as a blue dot on the bell and its tab.
+* **Morning banner**: once a day, after 5 AM, on the first page with something in For you: "Good morning, <first name>" + counts, See today
+  opens the bell. Stays until closed. `activity_seen.morning_on` (local date; `POST /api/activity/seen {what: 'morning', through: <today>}`).
+* Fixed: a click that re-draws the panel (a tab, Mark all read) counted as a click outside and closed it.
+* `activity_bell.js` / `.css` are `?v=3`, `auth_menu.js?v=1014` on every page. Guards: `tests/smoke_activity_bell.py` (for you + morning groups),
+  `tests/smoke_one_tap_accepts.py` (heading now "Waiting on you").
+
 ### One-tap accepts in the bell (Bookore, 2026-11-04)
 
 * Phase 3 of 4 of the accepted prototype: https://claude.ai/artifact/UZ2YNWpwy6SmTYF2z9ReuR. Phase 4 (Claude spots more) is to be decided once 1-3 are in use.

@@ -10,6 +10,8 @@ Proves against an ISOLATED database (fictional people only):
   * a send closes your card and offers Undo; Undo reopens it through the existing Reopen; a send with no card offers nothing
   * admins only: PM 403, signed out 401
   * the page: auth_menu loads the bell for admins, and no script writes a teammate's name
+  * For you = the dashboard's Needs you cards (same keys, Later hides both), links work from any page, the badge counts them
+  * the morning banner: once a day, after 5 AM, only with something to say, first name only
 """
 from __future__ import annotations
 
@@ -352,17 +354,49 @@ def main() -> int:
         assert mate.post("/api/company/portal/today/handled", json={"action_id": aid, "answer": "reopen"}).status_code == 404, "someone else's card"
         passed += 1; print("  card closes, Undo reopens ok")
 
+        # ---- For you: the same cards as Needs you, linked from any page; the badge counts them; hidden stays hidden
+        d = feed()
+        needs = me.get("/api/company/portal/today").get_json()["data"]["needs"]
+        assert {i["id"] for i in d["for_you"]} == {"you:" + c["key"] for c in needs[:af.FOR_YOU_MAX]}, (d["for_you"], needs)
+        mine_card = [i for i in d["for_you"] if i["id"] == f"you:claude:{aid}"]
+        assert mine_card and mine_card[0]["group"] == "claude" and mine_card[0]["href"].startswith("/company#inbox/"), mine_card
+        assert d["badge"] == len(d["for_you"]) + len(d["waiting"]), d["badge"]
+        groups = [i["group"] for i in d["for_you"]]
+        assert groups == sorted(groups, key={"today": 0, "claude": 1, "soon": 2}.get), groups
+        assert af._local_href("#finance") == "/company#finance" and af._local_href("/projects/X") == "/projects/X"
+        assert not [i for i in feed(mate)["for_you"] if i["id"] == f"you:claude:{aid}"], "someone else's Claude card is theirs only"
+        assert me.post("/api/company/portal/today/hide", json={"key": f"claude:{aid}", "for": "later"}).status_code == 200
+        assert not [i for i in feed()["for_you"] if i["id"] == f"you:claude:{aid}"], "Later on the dashboard hides it in the bell too"
+        me.post("/api/company/portal/today/hide", json={"key": f"claude:{aid}", "for": "undo"})
+        assert [i for i in feed()["for_you"] if i["id"] == f"you:claude:{aid}"]
+        passed += 1; print("  for you ok")
+
+        # ---- the morning banner: once a day, after 5 AM, only with something to say
+        nine = datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
+        m = af.build(conn, ids["me"], now=nine)["morning"]
+        assert m and m["title"] == "Good morning, Abell" and m["day"] == nine.date().isoformat(), m
+        assert sum(l["n"] for l in m["lines"]) == len(af.build(conn, ids["me"], now=nine)["for_you"]), m
+        assert af.morning(conn, ids["me"], nine.replace(hour=4), [{"group": "today"}]) is None, "not before 5 AM"
+        assert af.morning(conn, ids["me"], nine, []) is None, "nothing to say, nothing shows"
+        assert seen("morning", "2020-01-01").status_code == 400, "only today"
+        assert seen("morning", date.today().isoformat()).status_code == 200
+        assert af.build(conn, ids["me"], now=nine)["morning"] is None, "once a day"
+        assert af.build(conn, ids["me"], now=nine + timedelta(days=1))["morning"], "and back the next day"
+        assert MATE_NAME not in json.dumps(m)
+        passed += 1; print("  morning banner ok")
+
         # ---- the pages
         am = (ROOT / "static/js/auth_menu.js").read_text(encoding="utf-8")
         assert "body.user.role === 'admin') loadBell()" in am and "activity_bell.js?v=" in am and "activity_bell.css?v=" in am
         js = (ROOT / "static/js/activity_bell.js").read_text(encoding="utf-8")
-        for needle in ("'/api/activity'", "'/api/activity/seen'", "esc(it.title)", "esc(it.href)", "Your own actions don’t appear here", "document.hidden"):
+        for needle in ("'/api/activity'", "'/api/activity/seen'", "esc(it.title)", "esc(it.href)", "Your own actions don’t appear here", "document.hidden",
+                       "'For you'", "'What happened'", "what: 'morning'", "S.data.for_you", "data-ab=\"see-today\""):
             assert needle in js, needle
         portal = (ROOT / "company_portal.html").read_text(encoding="utf-8")
         assert "view === 'invoice' && arg" in portal and "'ssc:activity-changed'" in portal
         for page in ROOT.glob("*.html"):
             t = page.read_text(encoding="utf-8")
-            assert not any(f"auth_menu.js?v={v}" in t for v in (1010, 1011, 1012)), f"{page.name} keeps a cached script without the bell"
+            assert not any(f"auth_menu.js?v={v}" in t for v in (1010, 1011, 1012, 1013)), f"{page.name} keeps a cached script without the bell"
         passed += 1; print("  pages ok")
     finally:
         conn.close()
