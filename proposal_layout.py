@@ -100,6 +100,9 @@ def exclusions_with_first(doc: dict, house: dict) -> list:
     return [house["first_exclusion"]] + rest
 
 
+OPTIONAL_ROWS = {"warranty": "Warranty"}   # rows the editor shows only once they're added
+
+
 def schedule_rows(doc: dict, house: dict, show_empty: bool = False) -> list:
     """[(label, text, field or None)] — field is the editable doc key; None = computed / house wording.
     show_empty (editing) keeps the Duration and Warranty rows so they can be filled in."""
@@ -266,7 +269,16 @@ def render(doc: dict, house: Optional[dict] = None, *, mode: str = "pdf", logo_u
                      f"<tbody>{bid_rows(alts, 'a', lambda i: f'A{i + 1}')}</tbody><tfoot>{with_rows}</tfoot></table>")
 
     deliv = doc.get("deliverables") or []
-    sched = "".join(f"<tr><td>{e(lbl)}</td><td>{ed(key, t(txt)) if key else t(txt)}</td></tr>" for lbl, txt, key in schedule_rows(doc, house, edit))
+    # Warranty is optional (2026-11-11): blank, its row stays hidden in the editor until "+ Warranty" opens it, and the
+    # PDF and the client's page leave it out. A filled one gets "× Remove" (added by the Studio page).
+    def sched_row(lbl, txt, key) -> str:
+        if edit and key in OPTIONAL_ROWS:
+            return (f"<tr data-row=\"{key}\"{'' if txt else ' hidden'}><td>{e(lbl)}</td><td>{ed(key, t(txt))}</td></tr>")
+        return f"<tr><td>{e(lbl)}</td><td>{ed(key, t(txt)) if key else t(txt)}</td></tr>"
+    sched = "".join(sched_row(*row) for row in schedule_rows(doc, house, edit))
+    sched_add = ("".join(f"<button type=\"button\" class=\"ssc-add\" data-addrow=\"{k}\">+ {e(lbl)}</button>"
+                         for k, lbl in OPTIONAL_ROWS.items() if not doc.get(k)) if edit else "")
+    sched_add = f"<div class=\"ssc-adds\">{sched_add}</div>" if sched_add else ""
     accepted = (doc.get("accepted_by") or "").upper()
     if signed:
         when = signed.get("at") or ""
@@ -303,7 +315,7 @@ def render(doc: dict, house: Optional[dict] = None, *, mode: str = "pdf", logo_u
   <div style="height:14px"></div>
   <div class="notes"><h3>Important Notes</h3><ul>{bullets("notes", notes_with_withdraw(doc, house), True)}</ul></div>
   {f'<div class="keep"><h2>Deliverables</h2><ul class="cols">{bullets("deliverables", deliv)}</ul></div>' if deliv else ''}
-  <div class="keep"><h2>Schedule &amp; Terms</h2><table class="st">{sched}</table></div>
+  <div class="keep"><h2>Schedule &amp; Terms</h2><table class="st">{sched}</table>{sched_add}</div>
   <div class="keep"><h2>Exclusions</h2><ul class="cols">{bullets("exclusions", exclusions_with_first(doc, house), True)}</ul></div>
   <div class="keep"><h2>Acceptance</h2>
     <div class="acc"><div class="s">{e(house["acceptance"])}</div>{sig}</div></div>
@@ -312,7 +324,13 @@ def render(doc: dict, house: Optional[dict] = None, *, mode: str = "pdf", logo_u
             f"<style>{_css(doc, house)}{EDIT_CSS if edit else ''}</style></head><body>{body}</body></html>")
 
 
-EDIT_CSS = ("[data-f],[data-lf],[data-af]{border-radius:3px;outline:none;cursor:text;transition:background .3s}"
+EDIT_CSS = ("[hidden]{display:none!important}"
+            ".ssc-adds{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}"
+            ".ssc-add{border:1px dashed #c5cbe0;background:none;color:#3a5fd0;font:600 11.5px Inter,Arial,sans-serif;"
+            "border-radius:99px;padding:4px 11px;cursor:pointer}.ssc-add:hover{background:#eef1fb}"
+            ".ssc-rm{border:0;background:none;color:#8c92a0;font:600 11px Inter,Arial,sans-serif;cursor:pointer;"
+            "padding:2px 5px;margin-left:6px;border-radius:4px;white-space:nowrap}.ssc-rm:hover{color:#A8382B;background:#fbeceb}"
+            "[data-f],[data-lf],[data-af]{border-radius:3px;outline:none;cursor:text;transition:background .3s}"
             "span[data-f],span[data-lf],span[data-af]{display:inline-block;min-width:2ch}"
             "span[data-lf=lead],span[data-lf=detail],span[data-af=lead],span[data-af=detail]{display:inline}"
             "[data-f]:hover,[data-lf]:hover,[data-af]:hover{box-shadow:0 0 0 1px rgba(67,100,220,.45)}"
