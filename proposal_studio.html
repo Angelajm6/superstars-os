@@ -670,8 +670,13 @@
   // ---------------- review before it goes: optional; the person asked approves or asks for changes (proposal_review.py)
   function drawReview(v) {
     const box = $('e-rvw'), rv = v.review, ppl = v.reviewers || [];
-    if (!v.editable || (!rv && !ppl.length)) { box.hidden = true; box.innerHTML = ''; return; }
+    if (!v.editable) { box.hidden = true; box.innerHTML = ''; return; }
     box.hidden = false;
+    if (!rv && !ppl.length) {   // never silently missing: say why there's no one to ask
+      box.className = 'rvw quiet';
+      box.innerHTML = '<span>Send for review needs another admin to ask. Reviewers are the other active admins (Settings › Users).</span>';
+      return;
+    }
     const note = (label, t) => t ? `<div class="rv-note"><small>${esc(label)}</small>${esc(t)}</div>` : '';
     const total = money2(v.amounts.total);
     let cls = '', h = '';
