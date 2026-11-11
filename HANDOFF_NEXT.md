@@ -28,7 +28,7 @@ grant, or elevation code.
   (`/projects/<code>`, `/portal/<code>`). Way back: `?ui=1` (one request) or `SSC_UI_FORCE_V1` (everyone). The switch-back bar is
   no longer injected (`static/v2/switch-back.js` is unused). External roles and every other page are untouched.
 * **Left sidebar kept** on desktop / tablet (Angela, same day, after #208 hid it); hidden only ≤860px where the bottom section bar
-  replaces its Menu strip. Section tabs tighten ≤1180px. In the main column: app bar (back · code · **Jump to** Ctrl/Cmd+K · **+ New** · account menu), a project header tinted with the open
+  replaces its Menu strip. Section tabs tighten ≤1180px. **Full width** (same day): no max-width on the tabs (`--jv-max: none`, 28px gutters). In the main column: app bar (back · code · **Jump to** Ctrl/Cmd+K · **+ New** · account menu), a project header tinted with the open
   section's color (code, status chips, client, address, dates, Edit project, stats: drops done ring / days left / billed — billed
   only when `money` is in the payload), six sections **Overview · Today · Work · Documents · Money · Team** each with its own color
   and an attention badge, sub-tab pills (counts on RFIs, violations, behind drops, crew cards). Settings = the gear.

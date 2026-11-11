@@ -15,7 +15,7 @@ body.jv2 {
   --jv-ok: #15a07e; --jv-act: #4364dc; --jv-bad: #e9685a; --jv-warn: #d48a1c;
   --jv-c-overview: #2c3a66; --jv-c-today: #0a96c9; --jv-c-work: #7656dc; --jv-c-documents: #b0479b; --jv-c-money: #0c8a83; --jv-c-team: #4364dc;
   --jv-shadow: 0 1px 2px rgba(20, 24, 40, .05), 0 6px 18px rgba(20, 24, 40, .06);
-  --jv-r: 14px; --jv-max: 1280px; --jv-gutter: 24px;
+  --jv-r: 14px; --jv-max: none; --jv-gutter: 28px;
   --sec: var(--jv-c-overview);
   background: var(--jv-bg); color: var(--jv-ink); -webkit-font-smoothing: antialiased;
 }
