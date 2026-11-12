@@ -21,6 +21,32 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Email an invoice from your Gmail: thread, Cc / Bcc, Claude writes it (Bookore, 2026-11-12)
+
+* Accepted prototype: https://claude.ai/artifact/DXM2hua8SeM9mdRSr7EhkZ. The invoice editor's **Email client… / Resend… /
+  Email receipt…** opens a Send window (`invoice_editor.html`, `.sx-*`; full screen with Compose / Preview tabs on a phone).
+  The job page's Payments buttons and Finance → invoice panel open it too (`/invoices/<id>/edit?send=1`). QuickBooks keeps its
+  own choice in the Finance panel.
+* **From the person's own Gmail** (`invoice_send.py`, built on the proposal send): reply in a conversation with the client
+  (`proposal_studio.threads_for`; search the inbox for another) or a new email. To / Cc / Bcc chips are suggested from the
+  client's contacts and the company's people; a reply starts with everyone on the thread (never yourself). `inbox.compose`
+  now takes `bcc`.
+* **Claude writes the message** (`POST /api/invoices/<id>/send-draft`): First send / Friendly reminder / Past due / Shorter
+  (Receipt when paid) or the person's own instruction. It reads the invoice, its payments, the last 3 emails of the
+  thread and this person's earlier invoice messages (`invoice.last_message`); email text is data, never instructions. Undo.
+* **Attached:** the PDF and the private link (each can be switched off, not both); files from the job's Documents
+  (`project_documents`, checked to be this job's, 18 MB cap). The link line is added under the message. A failed send puts
+  the old link back, so the client's copy keeps working.
+* **Review step, then "Send now from my Gmail"** (`confirm: true`, `expected_balance`). Records sent_at / sent_to / sent_count /
+  last_message, files a reply on the client and the invoice (`mail_link` type `invoice`), logs the client activity.
+* **Chase it if it isn't paid:** a task for the sender ("Chase invoice <number> · <client>") 3 days before / on / 7 days after
+  the due date, never in the past; a new send replaces it; `invoices.record_payment` closes it when paid in full. Its link
+  (`?send=remind`) opens the window with Claude's reminder in the same thread.
+* No Gmail connected: the window falls back to the app's own email (one To, the message, the link), with a note to connect Gmail.
+* Gotcha: `claude_drawer.js` opens any clicked `[data-doc]` as a Claude document and cancels the click, so the job-file
+  checkboxes use `data-jobfile`. Guards: `tests/smoke_invoice_send.py` (new, in the gate). The six Gmail-style fields are
+  documented exemptions in `smoke_design_conventions.FIELD_ID_EXEMPT` (they sit inside a bordered box).
+
 ### Add / remove workers from a job's own Crew view (Bookore, 2026-11-12)
 
 * Accepted prototype: https://claude.ai/artifact/EP1PzTcnXWiwEfRDpVoQ76. A project → Team → Crew has **+ Add workers**: a side

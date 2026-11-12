@@ -6030,7 +6030,7 @@
             $p('pay-table').querySelectorAll('[data-standard]').forEach(b => b.addEventListener('click', async () => {
               const r = rows.find(x => String(x.id) === b.dataset.standard); if (!confirm(`Show ${r.number} in the standard invoice layout again? The design made with Claude stays in the job's documents.`)) return;
               try { await api('/api/invoices/' + r.id + '/design', { method: 'DELETE' }); toast(r.number + ' uses the standard layout'); load(); } catch (e) { toast(e.message, true); } }));
-            $p('pay-table').querySelectorAll('[data-mail]').forEach(b => b.addEventListener('click', () => openMail(rows.find(x => String(x.id) === b.dataset.mail))));
+            $p('pay-table').querySelectorAll('[data-mail]').forEach(b => b.addEventListener('click', () => { location.href = '/invoices/' + encodeURIComponent(b.dataset.mail) + '/edit?send=1'; }));   // 2026-11-12: one Send window (Gmail, thread, Cc, Claude)
             $p('pay-table').querySelectorAll('[data-pay]').forEach(b => b.addEventListener('click', () => openPay(rows.find(x => String(x.id) === b.dataset.pay))));
             $p('pay-table').querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openEdit(rows.find(x => String(x.id) === b.dataset.edit))));
           }

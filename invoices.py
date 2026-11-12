@@ -701,6 +701,13 @@ def record_payment(conn, invoice_id: int, *, amount, paid_on=None, method=None, 
               actor=actor)
     if fully and r["kind"] == "deposit":
         _mark_ira_deposit(conn, r, paid)
+    if fully:   # 2026-11-12: a "Chase invoice …" task from the Send window has nothing left to chase
+        try:
+            import invoice_send
+            invoice_send.close_chase(conn, r["number"])
+        except Exception as e:
+            conn.rollback()
+            log.info("chase task not closed: %s", type(e).__name__)
     if not qb_payment_id:
         _quickbooks("paid_here", invoice_id)
     return r

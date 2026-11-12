@@ -2101,7 +2101,7 @@
       <div class="cp-field"><label for="inv-mail-email">Recipient email</label><input id="inv-mail-email" type="email" autocomplete="off"></div>
       <div class="cp-field full qb-via" id="inv-mail-via" role="radiogroup" aria-label="How to send" hidden>
         <label><input type="radio" name="inv-mail-via" id="inv-mail-via-qb" value="qb"><span>Send from QuickBooks<small>The client gets QuickBooks' email with a Pay now button (card or ACH, when QuickBooks Payments is on). The payment comes back here by itself.</small></span></label>
-        <label><input type="radio" name="inv-mail-via" id="inv-mail-via-app" value="app" checked><span>Send from the app<small>Our own email with the private invoice link and PDF.</small></span></label>
+        <label><input type="radio" name="inv-mail-via" id="inv-mail-via-app" value="app" checked><span>Send from your Gmail<small>Opens the invoice's Send window: reply in a thread with the client, Cc, the PDF attached, and Claude writes the message.</small></span></label>
       </div>
       <div class="cp-field full" id="inv-mail-msg-field"><label for="inv-mail-msg">Message (optional)</label><textarea id="inv-mail-msg" placeholder="A short note above the invoice details"></textarea></div>
       <div class="cp-note full" id="inv-mail-note">The email carries a private link where the client views the invoice, downloads the PDF, and sees how to pay. Each send mints a fresh link; the previous one stops working.</div>
@@ -6565,6 +6565,7 @@
         (r.status === 'paid' && !qbOwned ? btn('inv-send', 'btn-ghost', 'Email receipt…') : '');
       if (r.sent_at) body.insertAdjacentHTML('beforeend', `<div class="cp-note" style="margin-top:12px">Emailed to ${esc(r.sent_name ? r.sent_name + ' · ' : '')}${esc(r.sent_to || '')} on ${fmtWhen(r.sent_at)}${r.sent_count > 1 ? ' (' + r.sent_count + ' sends)' : ''}${r.viewed_at ? ' · opened ' + fmtWhen(r.viewed_at) : ' · not opened yet'}</div>`);
       if ($('inv-send')) $('inv-send').addEventListener('click', async () => {
+        if (!(qbOn && r.status === 'issued')) { location.href = '/invoices/' + r.id + '/edit?send=1'; return; }   // 2026-11-12: the invoice's Send window (Gmail, thread, Cc, Claude)
         $('inv-mail-form').dataset.id = r.id; $('inv-mail-sub').textContent = `${r.number} · ${money2.format(r.balance)} open`;
         $('inv-mail-err').className = 'cp-form-err'; $('inv-mail-msg').value = '';
         $('inv-mail-name').value = r.sent_name || ''; $('inv-mail-email').value = r.sent_to || '';
@@ -6701,9 +6702,7 @@
       finally { $('inv-mail-go').disabled = false; }
       return;
     }
-    try { const { data } = await api('/invoices/' + id + '/send', { method: 'POST', body: JSON.stringify({ to_email: email, to_name: $('inv-mail-name').value.trim(), message: $('inv-mail-msg').value }) }, true); closeOverlay('inv-mail-overlay'); toast(`${data.number} emailed to ${email}`); await reloadInvoices(); }
-    catch (ex) { err.textContent = ex.message; err.className = 'cp-form-err show'; }
-    finally { $('inv-mail-go').disabled = false; }
+    location.href = '/invoices/' + encodeURIComponent(id) + '/edit?send=1';   // from the app = the invoice's Send window (Gmail, thread, Cc, Claude)
   });
   ['inv-status', 'inv-kind'].forEach(id => $(id).addEventListener('change', () => renderInvoices()));
   $('inv-search').addEventListener('input', () => debounce(() => renderInvoices()));

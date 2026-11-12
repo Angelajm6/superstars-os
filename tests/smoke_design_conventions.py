@@ -235,7 +235,15 @@ FIELD_TYPE_EXEMPT = {"checkbox", "radio", "file", "hidden", "button", "submit",
                      "reset", "range", "color", "image"}
 # deliberate per-id exceptions — keep SHORT, every entry carries its why
 FIELD_ID_EXEMPT = {
-    # (none — the day one lands, document the reason right here)
+    # The invoice Send window (2026-11-12, accepted prototype https://claude.ai/artifact/DXM2hua8SeM9mdRSr7EhkZ) is built
+    # like Gmail's composer: these fields draw no border of their own because each sits INSIDE a bordered box that is the
+    # visible field: the recipients box (.sx-rc, one row each for To / Cc / Bcc, with the chips), the Subject row
+    # (.sx-subj) and the Claude card (.sx-cl: the instruction line and the message). A border on the input as well would
+    # draw a box inside the box.
+    **{i: "Send window: inside the bordered recipients box (.sx-rc)" for i in ("sx-in-to", "sx-in-cc", "sx-in-bcc")},
+    "sx-subj": "Send window: inside the bordered Subject row (.sx-subj)",
+    "sx-ask-in": "Send window: inside the bordered Claude card (.sx-cl)",
+    "sx-msg": "Send window: the message body of the bordered Claude card (.sx-cl)",
 }
 _VOID_TAGS = {"input", "br", "img", "hr", "meta", "link", "source", "wbr", "area",
               "base", "col", "embed", "track", "param"}
