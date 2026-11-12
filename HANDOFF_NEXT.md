@@ -21,6 +21,22 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Add / remove workers from a job's own Crew view (Bookore, 2026-11-12)
+
+* Accepted prototype: https://claude.ai/artifact/EP1PzTcnXWiwEfRDpVoQ76. A project → Team → Crew has **+ Add workers**: a side
+  panel (desktop) / bottom sheet (phone) listing the active roster not on this job, with search, trade chips, and an "On
+  FR-…" tag for people already on another open job (they can be on both). Tick several → **Add N workers** → toast with
+  **Undo**. Each crew row's ⋯ → **Remove from this job…** (confirm inside the menu) → toast with Undo. Phone: rows are cards.
+* `POST /api/admin/projects/<code>/crew/change` {add: [...], remove: [...]} (`project_onboard.change_crew`, `@requires_company`).
+  It does not resend the whole crew (the PUT would off-roll an assigned worker who has since left the active roster).
+  Remove = off-rolled with today's end date, except an assignment that started today with no sign-ins on the job, which is
+  deleted (a same-day mistake / Undo never shows in worker history). Add of someone off-rolled from this job today reopens
+  that same assignment (Undo of a remove keeps the original start). The crew GET now gives each worker `other_jobs`.
+* Admin / C-suite only: the button, the ⋯ column and the panel are in `COMPANYLINK` blocks (stripped server-side for pm and
+  every other role); a PM sees the crew read-only as before.
+* Guard: `tests/smoke_crew_sites_325.py` (gates, add / idempotent / same-day delete / off-roll / reopen, `other_jobs`, PM page
+  has no controls).
+
 ### Project page redesign: six colored sections, the default for staff (Bookore, 2026-11-11)
 
 * Accepted prototype: https://claude.ai/artifact/VGzVhPeig191nXeUsPybgZ. The old `?ui=2` overlay (`job_v2.py`,

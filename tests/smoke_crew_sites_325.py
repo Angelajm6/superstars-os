@@ -247,8 +247,65 @@ def main() -> int:
         conn.close()
     checks += 1
 
+    # ---- add / remove in place from the job's Crew view (POST .../crew/change, 2026-11-12)
+    for role in ("pm", "client"):
+        assert _login(role).post(f"{API}/CRW325-N/crew/change", json={"add": ["E-93252"]}).status_code == 403, role
+    assert server.app.test_client().post(f"{API}/CRW325-N/crew/change", json={"add": ["E-93252"]}).status_code == 401
+    assert cs.post(f"{API}/CRW325-NOPE/crew/change", json={"add": ["E-93252"]}).status_code == 404
+    assert cs.post(f"{API}/CRW325-N/crew/change", json={}).status_code == 400
+    assert cs.post(f"{API}/CRW325-N/crew/change", json={"add": "E-93252"}).status_code == 400
+    assert cs.post(f"{API}/CRW325-N/crew/change", json={"add": ["E-93252"], "remove": ["E-93252"]}).status_code == 400
+    assert cs.post(f"{API}/CRW325-N/crew/change", json={"add": ["E-93253"]}).status_code == 404, "retired -> refused"
+    W = {w["employee_id"]: w for w in cs.get(f"{API}/CRW325-N/crew").get_json()["data"]["workers"]}
+    assert W["E-93251"]["other_jobs"] == ["CRW325-A", "CRW325-B"], W["E-93251"]   # the closed job is not listed
+    assert W["E-93252"]["other_jobs"] == []
+    r = cs.post(f"{API}/CRW325-N/crew/change", json={"add": ["E-93252"]})
+    assert r.status_code == 200 and r.get_json()["data"]["change"] == {"added": ["E-93252"], "removed": []}, r.get_json()
+    assert r.get_json()["data"]["assigned_count"] == 1
+    assert cs.post(f"{API}/CRW325-N/crew/change", json={"add": ["E-93252"]}).get_json()["data"]["change"]["added"] == [], "idempotent"
+    # Undo the same day, no sign-ins -> the row is gone (no zero-day stint in the worker's history)
+    r = cs.post(f"{API}/CRW325-N/crew/change", json={"remove": ["E-93252"]})
+    assert r.status_code == 200 and r.get_json()["data"]["change"]["removed"] == ["E-93252"]
+    conn = _db()
+    try:
+        assert not conn.execute("SELECT 1 FROM project_assignments WHERE project_code = 'CRW325-N'").fetchone()
+        # an older assignment is off-rolled, never deleted
+        conn.execute("INSERT INTO project_assignments (project_code, employee_id, start_date, status) "
+                     "VALUES ('CRW325-N', 'E-93252', ?, 'active')", (D(-3),))
+        conn.commit()
+    finally:
+        conn.close()
+    r = cs.post(f"{API}/CRW325-N/crew/change", json={"remove": ["E-93252"]})
+    assert r.status_code == 200 and r.get_json()["data"]["change"]["removed"] == ["E-93252"]
+    conn = _db()
+    try:
+        rows = conn.execute("SELECT status, end_date FROM project_assignments WHERE project_code = 'CRW325-N'").fetchall()
+        assert [(x["status"], x["end_date"]) for x in rows] == [("off-rolled", D(0))], [dict(x) for x in rows]
+    finally:
+        conn.close()
+    # Undo of that removal reopens the same assignment (original start), no new row
+    r = cs.post(f"{API}/CRW325-N/crew/change", json={"add": ["E-93252"]})
+    assert r.status_code == 200 and r.get_json()["data"]["change"]["added"] == ["E-93252"]
+    conn = _db()
+    try:
+        rows = conn.execute("SELECT status, start_date, end_date FROM project_assignments WHERE project_code = 'CRW325-N'").fetchall()
+        assert [(x["status"], x["start_date"], x["end_date"]) for x in rows] == [("active", D(-3), None)], [dict(x) for x in rows]
+        conn.execute("DELETE FROM project_assignments WHERE project_code = 'CRW325-N'")   # E-93252 stays unassigned for the login checks
+        conn.commit()
+    finally:
+        conn.close()
+    # the Crew view's controls are company-only (COMPANYLINK blocks, stripped server-side for other roles)
+    import access
+    page = (ROOT / "dashboard-static.html").read_text(encoding="utf-8")
+    assert 'id="ec-add"' in page and 'id="ecp-go"' in page and "'/change'" in page
+    pm_page, admin_page = access.render_role_nav(page, "pm"), access.render_role_nav(page, "admin")
+    assert 'id="ec-add"' not in pm_page and 'id="ecp"' not in pm_page and '<th class="ec-more"' not in pm_page, \
+        "a PM never gets the add / remove controls"
+    assert 'id="ec-add"' in admin_page and 'id="ecp"' in admin_page
+    checks += 1
+
     # ---- onboarding with crew + site
-    base = {"client_org_id": ids["org"], "est_type": "FR", "borough": "BK", "address": "9 Crew325 Lane", "name": "Crew325 onboarded"}
+    base ={"client_org_id": ids["org"], "est_type": "FR", "borough": "BK", "address": "9 Crew325 Lane", "name": "Crew325 onboarded"}
     assert cs.post(f"{API}/onboard", json={**base, "crew": ["E-93253"]}).status_code == 404
     assert cs.post(f"{API}/onboard", json={**base, "site_lat": "abc", "site_lng": 1}).status_code == 400
     assert cs.post(f"{API}/onboard", json={**base, "crew": "E-93251"}).status_code == 400

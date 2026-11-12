@@ -1658,6 +1658,38 @@
           .ec-empty{padding:30px;text-align:center;color:var(--muted, #8c92a0)}
           .ec-note{font-size:13px;color:var(--muted, #8c92a0);margin-top:12px}
           .ec-note a{color:var(--brand-red, #B11E2E);font-weight:600}
+          /* Add / remove workers in place (accepted prototype 2026-11-12) */
+          .ec-add{height:38px;border:0;border-radius:10px;padding:0 14px;background:var(--accent, #4364dc);color:#fff;font:inherit;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+          .ec-more{width:48px;text-align:right;position:relative}
+          table.ec-table td.ec-more{vertical-align:middle;padding:6px 10px}
+          .ec-dots{width:34px;height:34px;border:0;background:none;border-radius:8px;cursor:pointer;color:var(--muted, #8c92a0);font-size:18px;line-height:1}
+          .ec-dots:hover{background:var(--fill, #F4F5F8);color:var(--ink, #222633)}
+          .ec-menu{position:absolute;right:8px;top:42px;z-index:5;background:#fff;border:1px solid var(--line, #eceef3);border-radius:14px;box-shadow:0 12px 32px rgba(34,38,51,.16);padding:6px;min-width:240px;text-align:left;white-space:normal}
+          .ec-menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:9px 10px;border-radius:8px;cursor:pointer;font:inherit;font-size:14px;color:var(--ink, #222633)}
+          .ec-menu button:hover{background:var(--fill, #F4F5F8)}
+          .ec-menu .ec-danger{color:var(--status-behind-deep, #A8382B)}
+          .ec-menu p{margin:4px 10px 8px;font-size:13px;color:#5b6272}
+          .ec-menu .ec-acts{display:flex;gap:8px;padding:0 4px 4px}
+          .ec-menu .ec-acts button{flex:1;text-align:center;border:1px solid var(--line, #eceef3)}
+          .ec-menu .ec-acts .ec-yes{background:var(--status-behind-deep, #A8382B);color:#fff;border-color:transparent}
+          tr.ec-fresh td{background:var(--accent-soft, #ebf0fe)}
+          .ec-empty-add{margin-top:12px}
+          @media (max-width:640px){
+            .ec-tools{width:100%}
+            .ec-search{flex:1;min-width:0}
+            .ec-add{width:100%;height:44px;order:-1}
+            table.ec-table thead{display:none}
+            table.ec-table, table.ec-table tbody, table.ec-table tr, table.ec-table td{display:block;width:100%}
+            table.ec-table tr{position:relative;padding:12px 14px;border-top:1px solid var(--line, #eceef3)}
+            table.ec-table tr:first-child{border-top:0}
+            table.ec-table td{border:0;padding:2px 0;white-space:normal}
+            table.ec-table td.ec-more{position:absolute;right:6px;top:8px;width:auto;padding:0}
+            table.ec-table td.ec-c-trade::before{content:"Trade · ";color:var(--muted, #8c92a0)}
+            table.ec-table td.ec-c-role::before{content:"Role · ";color:var(--muted, #8c92a0)}
+            table.ec-table td.ec-c-lic{margin-top:6px}
+            table.ec-table .ec-lic span{white-space:normal}
+            table.ec-table td.ec-c-who{padding-right:40px}
+          }
         </style>
         <div class="ec-wrap">
           <div class="ec-head">
@@ -1665,17 +1697,77 @@
             <div class="ec-tools">
               <input class="ec-search" id="ec-search" type="search" placeholder="Search name, Worker ID or license" aria-label="Search the crew">
               <select class="ec-sel" id="ec-trade" aria-label="Trade"><option value="">All trades</option></select>
+              <!-- COMPANYLINK:start --><button type="button" class="ec-add btn-primary" id="ec-add">+ Add workers</button><!-- COMPANYLINK:end -->
             </div>
           </div>
           <div class="ec-table-wrap">
             <table class="ec-table">
-              <thead><tr><th>Worker</th><th>Trade</th><th>Role on this job</th><th>Licenses</th></tr></thead>
-              <tbody id="ec-table-body"><tr><td colspan="4" class="ec-empty">Loading the crew…</td></tr></tbody>
+              <thead><tr><th>Worker</th><th>Trade</th><th>Role on this job</th><th>Licenses</th><!-- COMPANYLINK:start --><th class="ec-more" aria-label="Actions"></th><!-- COMPANYLINK:end --></tr></thead>
+              <tbody id="ec-table-body"><tr><td colspan="5" class="ec-empty">Loading the crew…</td></tr></tbody>
             </table>
           </div>
           <div class="ec-legend"><span><i style="background:var(--status-complete-deep, #0c7a5f)"></i>valid</span><span><i style="background:var(--status-warn, #9A5B00)"></i>expires within 30 days</span><span><i style="background:var(--status-behind-deep, #A8382B)"></i>expired</span></div>
-          <div class="ec-note">The office assigns workers to the job and adds their licenses<!-- COMPANYLINK:start --> under <a href="/#workforce">Workforce</a><!-- COMPANYLINK:end -->.</div>
+          <div class="ec-note">The office assigns workers to the job and adds their licenses<!-- COMPANYLINK:start -->. Add or remove workers here; licenses and new hires are under <a href="/#workforce">Workforce</a><!-- COMPANYLINK:end -->.</div>
         </div>
+        <!-- COMPANYLINK:start -->
+        <style>
+          /* The picker is moved to <body> on first open (overlays render at the page root, DESIGN_SYSTEM §1/§3). */
+          .ecp-scrim{position:fixed;inset:0;background:rgba(20,24,34,.38);z-index:10070;opacity:0;transition:opacity .2s}
+          .ecp-scrim.show{opacity:1}
+          .ecp{position:fixed;background:#fff;color:var(--ink, #222633);display:flex;flex-direction:column;box-shadow:0 12px 32px rgba(34,38,51,.16);transition:transform .25s ease;font-size:14px;z-index:10071}
+          @media (min-width:861px){.ecp{top:0;right:0;bottom:0;width:440px;max-width:100vw;transform:translateX(100%)}.ecp.show{transform:none}.ecp-grab{display:none}}
+          @media (max-width:860px){.ecp{left:0;right:0;bottom:0;max-height:88vh;border-radius:14px 14px 0 0;transform:translateY(100%)}.ecp.show{transform:none}
+            .ecp-grab{width:40px;height:4px;border-radius:4px;background:var(--line, #eceef3);margin:8px auto 0}}
+          @media (prefers-reduced-motion:reduce){.ecp,.ecp-scrim{transition:none}}
+          .ecp-head{padding:14px 18px 10px;display:flex;align-items:flex-start;gap:10px}
+          .ecp-head h3{margin:0;font-size:17px;font-weight:600}
+          .ecp-sub{color:var(--muted, #8c92a0);font-size:13px}
+          .ecp-x{margin-left:auto;width:34px;height:34px;border:0;background:var(--fill, #F4F5F8);border-radius:999px;cursor:pointer;flex:none;font-size:14px;color:var(--ink, #222633)}
+          .ecp-tools{padding:0 18px 10px;display:grid;gap:10px}
+          .ecp-q{width:100%;height:42px;border:1px solid var(--line, #eceef3);border-radius:10px;padding:0 12px;font:inherit;font-size:15px;background:#fff;color:var(--ink, #222633)}
+          .ecp-chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+          .ecp-chip{flex:none;border:1px solid var(--line, #eceef3);background:#fff;border-radius:999px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer;color:#5b6272}
+          .ecp-chip.on{background:var(--accent-soft, #ebf0fe);border-color:transparent;color:var(--accent-ink, #3a5fd0);font-weight:600}
+          .ecp-list{overflow-y:auto;flex:1;min-height:120px;padding:0 8px;border-top:1px solid var(--line, #eceef3)}
+          .ecp-grp{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted, #8c92a0);padding:12px 10px 4px;font-weight:600}
+          .ecp-w{display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;cursor:pointer;min-height:56px}
+          .ecp-w:hover{background:var(--fill, #F4F5F8)}
+          .ecp-w input{width:20px;height:20px;accent-color:var(--accent, #4364dc);flex:none;margin:0}
+          .ecp-who{min-width:0;flex:1}
+          .ecp-nm{font-weight:600}
+          .ecp-meta{font-size:12.5px;color:var(--muted, #8c92a0)}
+          .ecp-tag{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap;background:var(--fill, #F4F5F8);color:#5b6272}
+          .ecp-empty{padding:30px 10px;text-align:center;color:var(--muted, #8c92a0)}
+          .ecp-err{color:var(--status-behind-deep, #A8382B);font-size:13px;padding:0 18px 8px}
+          .ecp-foot{border-top:1px solid var(--line, #eceef3);padding:12px 18px calc(12px + env(safe-area-inset-bottom, 0px));display:flex;gap:10px}
+          .ecp-foot button{height:46px;border-radius:10px;font:inherit;font-size:15px;cursor:pointer}
+          .ecp-cancel{border:1px solid var(--line, #eceef3);background:#fff;color:var(--ink, #222633);padding:0 16px;font-weight:500}
+          .ecp-go{flex:1;border:0;background:var(--accent, #4364dc);color:#fff;font-weight:600}
+          .ecp-go:disabled{opacity:.45;cursor:default}
+          .ecp-toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);background:var(--ink, #222633);color:#fff;padding:10px 14px;border-radius:14px;display:flex;gap:14px;align-items:center;box-shadow:0 12px 32px rgba(34,38,51,.2);max-width:calc(100vw - 32px);font-size:14px;z-index:10072}
+          .ecp-toast button{border:0;background:none;color:#b9c8ff;font:inherit;font-weight:700;cursor:pointer}
+          .ecp-toast[hidden],.ecp[hidden],.ecp-scrim[hidden]{display:none}
+        </style>
+        <div class="ecp-scrim" id="ecp-scrim" hidden></div>
+        <aside class="ecp" id="ecp" role="dialog" aria-modal="true" aria-labelledby="ecp-title" hidden>
+          <div class="ecp-grab" aria-hidden="true"></div>
+          <div class="ecp-head">
+            <div><h3 id="ecp-title">Add workers</h3><div class="ecp-sub" id="ecp-sub"></div></div>
+            <button type="button" class="ecp-x" id="ecp-close" aria-label="Close">&#10005;</button>
+          </div>
+          <div class="ecp-tools">
+            <input class="ecp-q" id="ecp-q" type="search" placeholder="Search name or W-####" aria-label="Search workers">
+            <div class="ecp-chips" id="ecp-chips"></div>
+          </div>
+          <div class="ecp-list" id="ecp-list"></div>
+          <div class="ecp-err" id="ecp-err" hidden></div>
+          <div class="ecp-foot">
+            <button type="button" class="ecp-cancel" id="ecp-cancel">Cancel</button>
+            <button type="button" class="ecp-go btn-primary" id="ecp-go" disabled>Pick workers to add</button>
+          </div>
+        </aside>
+        <div class="ecp-toast" id="ecp-toast" role="status" hidden><span id="ecp-tmsg"></span><button type="button" id="ecp-undo">Undo</button></div>
+        <!-- COMPANYLINK:end -->
       </section>
       <!-- SECTION:internal_ops:end -->
 
@@ -7674,24 +7766,143 @@ document.querySelectorAll('.nav-link').forEach(link => {
     const tail = c.expiration_date ? (sd === 'expired' ? ' · expired ' : ' · exp ') + ecMDY(c.expiration_date) : '';
     return '<span class="' + cls + '">' + ecEsc(c.cert_name) + ecEsc(tail) + '</span>';
   }
+  // Add / remove workers in place (accepted prototype 2026-11-12). The controls exist only for
+  // admin / c_suite: they sit in COMPANYLINK blocks the server strips for every other role, and
+  // /api/admin/projects/<code>/crew* is @requires_company server-side.
+  const ecCanEdit = () => !!document.getElementById('ec-add');
+  const ecCols = () => ecCanEdit() ? 5 : 4;
+  EC.menu = null; EC.confirm = null; EC.fresh = new Set();
   function ecRow(w){
-    const lic = (w.certs || []);
-    return '<tr><td><span class="ec-wid">' + ecEsc(w.worker_id || '—') + '</span> — ' + ecEsc(w.name || '') + '</td>'
-      + '<td>' + ecEsc(w.trade || '—') + '</td><td>' + ecEsc(w.role_on_project || '—') + '</td>'
-      + '<td>' + (lic.length ? '<div class="ec-lic">' + lic.map(ecLicense).join('') + '</div>' : '<span style="color:var(--muted, #8c92a0)">None on file</span>') + '</td></tr>';
+    const lic = (w.certs || []), id = w.employee_id;
+    let more = '';
+    if (ecCanEdit()) {
+      let m = '';
+      if (EC.menu === id) {
+        m = EC.confirm === id
+          ? '<div class="ec-menu" role="menu"><p>Take <b>' + ecEsc(w.name || id) + '</b> off ' + ecEsc(PROJECT_CODE) + '? Their hours and sign-ins stay on the job.</p><div class="ec-acts"><button type="button" data-ec-keep>Keep</button><button type="button" class="ec-yes" data-ec-rm="' + ecEsc(id) + '">Remove</button></div></div>'
+          : '<div class="ec-menu" role="menu"><button type="button" class="ec-danger" data-ec-ask="' + ecEsc(id) + '">Remove from this job…</button></div>';
+      }
+      more = '<td class="ec-more"><button type="button" class="ec-dots" aria-label="More for ' + ecEsc(w.name || id) + '" aria-haspopup="true" aria-expanded="' + (EC.menu === id) + '" data-ec-menu="' + ecEsc(id) + '">&#8943;</button>' + m + '</td>';
+    }
+    return '<tr' + (EC.fresh.has(id) ? ' class="ec-fresh"' : '') + '><td class="ec-c-who"><span class="ec-wid">' + ecEsc(w.worker_id || '—') + '</span> — ' + ecEsc(w.name || '') + '</td>'
+      + '<td class="ec-c-trade">' + ecEsc(w.trade || '—') + '</td><td class="ec-c-role">' + ecEsc(w.role_on_project || '—') + '</td>'
+      + '<td class="ec-c-lic">' + (lic.length ? '<div class="ec-lic">' + lic.map(ecLicense).join('') + '</div>' : '<span style="color:var(--muted, #8c92a0)">None on file</span>') + '</td>' + more + '</tr>';
   }
   function ecRender(){
     const tb = document.getElementById('ec-table-body'); if (!tb) return;
     const q = EC.q.toLowerCase().trim();
     const rows = EC.data.filter(w => (!EC.trade || w.trade === EC.trade) && (!q || [w.name, w.worker_id, w.trade, w.role_on_project]
       .concat((w.certs || []).map(c => c.cert_name)).some(v => String(v || '').toLowerCase().includes(q))));
-    tb.innerHTML = rows.length ? rows.map(ecRow).join('')
-      : '<tr><td colspan="4" class="ec-empty">' + (EC.data.length ? 'No one matches.' : 'No one is assigned to this job yet.') + '</td></tr>';
+    const empty = EC.data.length ? 'No one matches.'
+      : 'No one is assigned to this job yet.' + (ecCanEdit() ? '<div class="ec-empty-add"><button type="button" class="ec-add btn-primary" data-ec-open>+ Add workers</button></div>' : '');
+    tb.innerHTML = rows.length ? rows.map(ecRow).join('') : '<tr><td colspan="' + ecCols() + '" class="ec-empty">' + empty + '</td></tr>';
+  }
+
+  // ---- the picker
+  const ECP = { roster: [], pick: new Set(), trade: '', busy: false, moved: false, undo: null, timer: null };
+  const ecp$ = id => document.getElementById(id);
+  const ecPlural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+  async function ecCrewApi(method, body){
+    const r = await fetch('/api/admin/projects/' + encodeURIComponent(PROJECT_CODE) + '/crew' + (body ? '/change' : ''), {
+      method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' });
+    let j = {}; try { j = await r.json(); } catch (e) {}
+    if (!r.ok) throw new Error(j.error || ('Could not save (' + r.status + '). Try again.'));
+    return j.data || {};
+  }
+  function ecpFree(){ return ECP.roster.filter(w => !w.assigned); }
+  function ecpRender(){
+    const q = (ecp$('ecp-q').value || '').trim().toLowerCase();
+    const free = ecpFree();
+    const trades = [...new Set(free.map(w => w.trade).filter(Boolean))].sort();
+    if (ECP.trade && trades.indexOf(ECP.trade) === -1) ECP.trade = '';
+    ecp$('ecp-chips').innerHTML = [''].concat(trades).map(t => '<button type="button" class="ecp-chip' + (ECP.trade === t ? ' on' : '') + '" data-ecp-trade="' + ecEsc(t) + '">' + ecEsc(t || 'All') + '</button>').join('');
+    const list = free.filter(w => (!ECP.trade || w.trade === ECP.trade) && (!q || ((w.name || '') + ' ' + (w.worker_id || '')).toLowerCase().includes(q)));
+    const row = w => '<label class="ecp-w"><input type="checkbox" data-ecp-pick="' + ecEsc(w.employee_id) + '"' + (ECP.pick.has(w.employee_id) ? ' checked' : '') + '>'
+      + '<div class="ecp-who"><div class="ecp-nm">' + ecEsc(w.name || w.employee_id) + '</div><div class="ecp-meta">' + ecEsc([w.worker_id, w.trade].filter(Boolean).join(' · ')) + '</div></div>'
+      + ((w.other_jobs || []).length ? '<span class="ecp-tag">On ' + ecEsc(w.other_jobs.slice(0, 2).join(', ')) + (w.other_jobs.length > 2 ? ' +' + (w.other_jobs.length - 2) : '') + '</span>' : '') + '</label>';
+    const avail = list.filter(w => !(w.other_jobs || []).length), busy = list.filter(w => (w.other_jobs || []).length);
+    let html = '';
+    if (avail.length) html += '<div class="ecp-grp">Not on a job</div>' + avail.map(row).join('');
+    if (busy.length) html += '<div class="ecp-grp">On another job · can be on both</div>' + busy.map(row).join('');
+    if (!list.length) html = '<div class="ecp-empty">' + (free.length ? 'No one matches. Try another name or trade.' : 'Everyone on the active roster is already on this job.') + '</div>';
+    ecp$('ecp-list').innerHTML = html;
+    ecp$('ecp-sub').textContent = ecPlural(free.length, 'worker') + ' on the roster not on this job';
+    const go = ecp$('ecp-go');
+    go.disabled = ECP.busy || !ECP.pick.size;
+    go.textContent = ECP.busy ? 'Adding…' : (ECP.pick.size ? 'Add ' + ecPlural(ECP.pick.size, 'worker') : 'Pick workers to add');
+  }
+  function ecpErr(msg){ const e = ecp$('ecp-err'); e.textContent = msg || ''; e.hidden = !msg; }
+  async function ecpOpen(){
+    const sheet = ecp$('ecp'), scrim = ecp$('ecp-scrim'); if (!sheet) return;
+    if (!ECP.moved) { document.body.appendChild(scrim); document.body.appendChild(sheet); document.body.appendChild(ecp$('ecp-toast')); ECP.moved = true; }
+    ECP.pick.clear(); ECP.trade = ''; ecp$('ecp-q').value = ''; ecpErr('');
+    ecp$('ecp-title').textContent = 'Add workers to ' + PROJECT_CODE;
+    ecp$('ecp-list').innerHTML = '<div class="ecp-empty">Loading the roster…</div>';
+    scrim.hidden = false; sheet.hidden = false;
+    requestAnimationFrame(() => { scrim.classList.add('show'); sheet.classList.add('show'); });
+    try { ECP.roster = (await ecCrewApi('GET')).workers || []; ecpRender(); ecp$('ecp-q').focus({ preventScroll: true }); }
+    catch (e) { ecp$('ecp-list').innerHTML = ''; ecpErr(e.message); }
+  }
+  function ecpClose(){
+    const sheet = ecp$('ecp'), scrim = ecp$('ecp-scrim'); if (!sheet || sheet.hidden) return;
+    scrim.classList.remove('show'); sheet.classList.remove('show');
+    setTimeout(() => { scrim.hidden = true; sheet.hidden = true; }, 250);
+    const b = document.getElementById('ec-add'); if (b) b.focus({ preventScroll: true });
+  }
+  function ecToast(msg, undo){
+    ecp$('ecp-tmsg').textContent = msg; ECP.undo = undo || null; ecp$('ecp-undo').hidden = !undo;
+    const t = ecp$('ecp-toast'); t.hidden = false; clearTimeout(ECP.timer); ECP.timer = setTimeout(() => { t.hidden = true; ECP.undo = null; }, 7000);
+  }
+  async function ecChange(body, msg, undoBody, undoMsg){
+    await ecCrewApi('POST', body);
+    await loadCrew();
+    ecToast(msg, undoBody ? async () => {
+      try { await ecCrewApi('POST', undoBody); EC.fresh.clear(); await loadCrew(); ecToast(undoMsg); }
+      catch (e) { ecToast(e.message); }
+    } : null);
+  }
+  async function ecpAdd(){
+    if (ECP.busy || !ECP.pick.size) return;
+    const ids = [...ECP.pick]; ECP.busy = true; ecpErr(''); ecpRender();
+    try {
+      EC.fresh = new Set(ids);
+      await ecChange({ add: ids }, ecPlural(ids.length, 'worker') + ' added to ' + PROJECT_CODE, { remove: ids }, 'Undone. ' + ecPlural(ids.length, 'worker') + ' taken off');
+      ECP.busy = false; ecpClose();
+      setTimeout(() => { EC.fresh.clear(); document.querySelectorAll('#ec-table-body tr.ec-fresh').forEach(r => r.classList.remove('ec-fresh')); }, 2500);
+    } catch (e) { ECP.busy = false; EC.fresh.clear(); ecpErr(e.message); ecpRender(); }
+  }
+  async function ecRemove(id){
+    const w = EC.data.find(x => x.employee_id === id) || {};
+    EC.menu = EC.confirm = null;
+    try { await ecChange({ remove: [id] }, (w.name || id) + ' removed from ' + PROJECT_CODE, { add: [id] }, 'Undone. ' + (w.name || id) + ' is back on the job'); }
+    catch (e) { ecRender(); ecToast(e.message); }
   }
   function ecWire(){
     if (EC.wired) return; EC.wired = true;
     const s = document.getElementById('ec-search'); if (s) s.addEventListener('input', () => { EC.q = s.value; ecRender(); });
     const t = document.getElementById('ec-trade'); if (t) t.addEventListener('change', () => { EC.trade = t.value; ecRender(); });
+    if (!ecCanEdit()) return;
+    document.addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (EC.menu && !(b && b.closest('#ec-table-body'))) { EC.menu = EC.confirm = null; ecRender(); }
+      if (!b) return;
+      if (b.id === 'ec-add' || b.hasAttribute('data-ec-open')) return ecpOpen();
+      if (b.id === 'ecp-close' || b.id === 'ecp-cancel') return ecpClose();
+      if (b.id === 'ecp-go') return ecpAdd();
+      if (b.hasAttribute('data-ecp-trade')) { ECP.trade = b.getAttribute('data-ecp-trade'); return ecpRender(); }
+      if (b.id === 'ecp-undo') { const u = ECP.undo; ECP.undo = null; ecp$('ecp-toast').hidden = true; if (u) u(); return; }
+      if (b.hasAttribute('data-ec-menu')) { const id = b.getAttribute('data-ec-menu'); EC.menu = EC.menu === id ? null : id; EC.confirm = null; return ecRender(); }
+      if (b.hasAttribute('data-ec-ask')) { EC.confirm = b.getAttribute('data-ec-ask'); return ecRender(); }
+      if (b.hasAttribute('data-ec-keep')) { EC.menu = EC.confirm = null; return ecRender(); }
+      if (b.hasAttribute('data-ec-rm')) return ecRemove(b.getAttribute('data-ec-rm'));
+    });
+    document.addEventListener('change', e => {
+      const c = e.target.closest('[data-ecp-pick]'); if (!c) return;
+      const id = c.getAttribute('data-ecp-pick'); c.checked ? ECP.pick.add(id) : ECP.pick.delete(id); ecpRender();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!ecp$('ecp').hidden) ecpClose(); else if (EC.menu) { EC.menu = EC.confirm = null; ecRender(); } } });
+    const sc = ecp$('ecp-scrim'); if (sc) sc.addEventListener('click', ecpClose);
+    const q = ecp$('ecp-q'); if (q) q.addEventListener('input', ecpRender);
   }
   async function loadCrew(){
     ecWire();
@@ -7705,7 +7916,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
       ecRender();
     } catch (e) {
       console.warn('[crew] load failed:', e);
-      const tb = document.getElementById('ec-table-body'); if (tb) tb.innerHTML = '<tr><td colspan="4" class="ec-empty">Could not load the crew. Refresh to try again.</td></tr>';
+      const tb = document.getElementById('ec-table-body'); if (tb) tb.innerHTML = '<tr><td colspan="' + ecCols() + '" class="ec-empty">Could not load the crew. Refresh to try again.</td></tr>';
     }
   }
   // Keep the existing view trigger + any lingering callers working.
