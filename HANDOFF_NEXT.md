@@ -42,6 +42,15 @@ grant, or elevation code.
 * Guard: `tests/smoke_job_v2_preview.py` rewritten (default-on, `?ui=1` / kill switch byte-identical, pm gets no Money views,
   scope, drift between the sidebar and the six sections, labels / icons, look).
 
+### Guard: every script the app serves must parse (Bookore, 2026-11-12)
+
+* Why: PR #212 put a `//` comment mid-line in `dashboard-static.html`; the rest of the line became a comment, the browser
+  stopped at the syntax error and the job page's tabs did nothing in production (fixed in #213). No test ran page JavaScript.
+* `tests/smoke_inline_js.py` (in the gate): Node parses every inline `<script>` in every root page and `templates/v2` page,
+  each page also as each role is served it (`access.render_sections` + `render_role_nav`), plus `static/js`, `static/v2` and the
+  worker service worker (files with top-level import / export parse as modules; JSON / template blocks skipped). A self-test
+  feeds it the #212 line. Node comes with GitHub's ubuntu runners; without Node it fails in CI and skips on a laptop.
+
 ### The invoice editor + Download on every invoice (Bookore, 2026-11-11)
 
 * Accepted prototype: https://claude.ai/artifact/VZXCMLF9QNLbqiVpNmxkur. Angela: download an invoice from the job and edit the
