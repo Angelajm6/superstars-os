@@ -111,6 +111,8 @@ import invoice_docs  # noqa: E402
 invoice_docs.register(app)   # #326 — invoice documents, email, public link, project Payments
 import invoice_editor  # noqa: E402
 invoice_editor.register(app)   # 2026-11-11 — edit the whole invoice in place, like Proposal Studio
+import invoice_send  # noqa: E402
+invoice_send.register(app)   # 2026-11-12 — email an invoice from your Gmail: thread, Cc, Claude draft, job files
 import doc_packages  # noqa: E402
 doc_packages.register(app)   # #327 — permits & insurance package, send to client
 import aia_billing

@@ -1346,9 +1346,10 @@ def _deliver(conn, uid: int, em: EmailMessage, thread_id: Optional[str], label: 
     return {"sent": True}
 
 
-def compose(conn, uid: int, to: str, cc: str, subject: str, body_text: str, attachments: Optional[list] = None) -> dict:
+def compose(conn, uid: int, to: str, cc: str, subject: str, body_text: str, attachments: Optional[list] = None,
+            bcc: str = "") -> dict:
     """A new email from the person's own Gmail (they wrote it and pressed Send). attachments: [(filename, bytes, mime)]."""
-    to, cc = clean_recipients(to, "To"), clean_recipients(cc, "Cc")
+    to, cc, bcc = clean_recipients(to, "To"), clean_recipients(cc, "Cc"), clean_recipients(bcc or "", "Bcc")
     if not to:
         raise ValueError("add at least one recipient")
     if not (body_text or "").strip():
@@ -1358,6 +1359,8 @@ def compose(conn, uid: int, to: str, cc: str, subject: str, body_text: str, atta
     em["To"], em["Subject"] = to, (subject or "").strip()
     if cc and _addrs(cc):
         em["Cc"] = cc
+    if bcc and _addrs(bcc):
+        em["Bcc"] = bcc   # Gmail delivers to Bcc and never shows it to the others
     if me["email"]:
         em["From"] = _from(me)
     _gmail_body(em, body_text, me)
