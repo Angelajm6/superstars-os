@@ -171,8 +171,15 @@ def crew(conn, code: str) -> Optional[dict]:
     assigned = {r["employee_id"] for r in _rows(conn.execute(
         "SELECT employee_id FROM project_assignments WHERE project_code = ? AND status = 'active'", (code,)))}
     workers = active_workers(conn)
+    other = {}   # the worker's OTHER active jobs (open ones only), so the picker can say "On FR-MN-003"
+    for r in _rows(conn.execute(
+            "SELECT a.employee_id, a.project_code FROM project_assignments a LEFT JOIN projects p ON p.project_code = a.project_code "
+            "WHERE a.status = 'active' AND a.project_code <> ? AND COALESCE(p.status, 'active') = 'active' "
+            "ORDER BY a.project_code", (code,))):
+        other.setdefault(r["employee_id"], []).append(r["project_code"])
     for w in workers:
         w["assigned"] = w["employee_id"] in assigned
+        w["other_jobs"] = other.get(w["employee_id"], [])
     return {"project": p, "workers": workers, "assigned_count": len(assigned),
             "site": {"site_lat": p.get("site_lat"), "site_lng": p.get("site_lng"),
                      "geofence_m": p.get("geofence_m") or GEOFENCE_DEFAULT},
@@ -202,6 +209,63 @@ def set_crew(conn, code: str, payload: dict, *, actor=None) -> dict:
     change = _apply_crew(conn, code, ids) if ids is not None else {"added": [], "removed": []}
     out = crew(conn, code)
     out["change"] = change
+    return out
+
+
+def _id_list(v, name: str) -> list:
+    if v is None:
+        return []
+    if not isinstance(v, list):
+        raise ValueError(f"{name} must be a list of employee ids")
+    return sorted({str(i).strip() for i in v if str(i).strip()})
+
+
+def change_crew(conn, code: str, payload: dict, *, today: Optional[str] = None) -> dict:
+    """Add and/or take workers off ONE job from the job's own Crew view, without resending the
+    whole crew (a full PUT would off-roll an assigned worker who has since left the active roster).
+    Added workers must be on the active roster. A removed assignment is off-rolled with an end
+    date, except one that started today with no sign-ins on this job: that was a same-day
+    mistake (or an Undo) and is deleted so it never shows in the worker's history."""
+    p = payload or {}
+    if not _one(conn.execute("SELECT project_code FROM projects WHERE project_code = ?", (code,))):
+        raise LookupError("project not found")
+    add, remove = _id_list(p.get("add"), "add"), _id_list(p.get("remove"), "remove")
+    if not add and not remove:
+        raise ValueError("pick at least one worker to add or remove")
+    if set(add) & set(remove):
+        raise ValueError("a worker cannot be added and removed at once")
+    if add:
+        active = {w["employee_id"] for w in active_workers(conn)}
+        if any(i not in active for i in add):
+            raise LookupError("crew includes a worker who is not on the active roster")
+    today = today or date.today().isoformat()
+    current = {r["employee_id"]: r for r in _rows(conn.execute(
+        "SELECT id, employee_id, start_date FROM project_assignments WHERE project_code = ? AND status = 'active'", (code,)))}
+    added = [i for i in add if i not in current]
+    removed = [i for i in remove if i in current]
+    for eid in added:
+        # Undo of a removal: someone taken off this job TODAY gets that same assignment back
+        # (original start date and role), not a new stint starting today.
+        back = _one(conn.execute("SELECT id FROM project_assignments WHERE project_code = ? AND employee_id = ? "
+                                 "AND status = 'off-rolled' AND end_date = ? ORDER BY id DESC LIMIT 1", (code, eid, today)))
+        if back:
+            conn.execute("UPDATE project_assignments SET status = 'active', end_date = NULL, updated_at = CURRENT_TIMESTAMP "
+                         "WHERE id = ?", (back["id"],))
+        else:
+            conn.execute("INSERT INTO project_assignments (project_code, employee_id, role_on_project, start_date, status) "
+                         "VALUES (?,?,?,?,'active')", (code, eid, None, today))
+    for eid in removed:
+        row = current[eid]
+        signed_in = _one(conn.execute("SELECT 1 AS x FROM sign_in_log WHERE project_code = ? AND employee_id = ? LIMIT 1",
+                                      (code, eid)))
+        if str(row.get("start_date") or "")[:10] == today and not signed_in:
+            conn.execute("DELETE FROM project_assignments WHERE id = ?", (row["id"],))
+        else:
+            conn.execute("UPDATE project_assignments SET status = 'off-rolled', end_date = ?, updated_at = CURRENT_TIMESTAMP "
+                         "WHERE id = ?", (today, row["id"]))
+    conn.commit()
+    out = crew(conn, code)
+    out["change"] = {"added": added, "removed": removed}
     return out
 
 
@@ -495,6 +559,21 @@ def _api_crew_set(project_code):
         conn.close()
 
 
+@requires_company
+def _api_crew_change(project_code):
+    body = request.get_json(silent=True) or {}
+    conn = db_layer.connect()
+    try:
+        try:
+            return jsonify({"data": change_crew(conn, project_code, body)})
+        except LookupError as e:
+            return jsonify({"error": str(e)}), 404
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+    finally:
+        conn.close()
+
+
 def register(app) -> None:
     conn = db_layer.connect()
     try:
@@ -510,3 +589,4 @@ def register(app) -> None:
     app.add_url_rule("/api/admin/projects/onboard", "projects_onboard", _api_onboard, methods=["POST"])
     app.add_url_rule("/api/admin/projects/<project_code>/crew", "projects_crew_get", _api_crew_get, methods=["GET"])
     app.add_url_rule("/api/admin/projects/<project_code>/crew", "projects_crew_set", _api_crew_set, methods=["PUT"])
+    app.add_url_rule("/api/admin/projects/<project_code>/crew/change", "projects_crew_change", _api_crew_change, methods=["POST"])
