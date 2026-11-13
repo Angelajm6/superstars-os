@@ -1220,6 +1220,9 @@ def _on_signed(conn, r: dict) -> None:
                                  estimate_code=r.get("estimate_code"), path="/company#proposals/" + str(r["id"]))
     except Exception as e:
         log.info("#307 VP notification skipped: %s", e)
+    if est and est.get("converted_project_code"):   # signed on a job that already exists: file it in its Contracts
+        import signed_contracts
+        signed_contracts.file_signed_proposal(conn, r["id"], project_code=est["converted_project_code"])
 
 
 def decline(conn, r: dict, *, reason: Optional[str] = None, ip=None) -> dict:

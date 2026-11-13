@@ -5416,6 +5416,8 @@ def api_project_documents(project_code):
     conn = db()
     try:
         ctx = _projdoc_job_ctx(conn, project_code)
+        import signed_contracts   # 2026-11-13: a job started before signed proposals were filed gets them now
+        signed_contracts.ensure_filed(conn, project_code)
         today = date.today()
         today_iso = today.isoformat()
         d30_iso = (today + timedelta(days=30)).isoformat()
