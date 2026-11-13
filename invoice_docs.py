@@ -59,6 +59,7 @@ LINK_DAYS = 180
 KIND_LABEL = {"deposit": "Deposit invoice", "progress": "Progress invoice", "final": "Final invoice",
               "change_order": "Change order invoice", "other": "Invoice"}
 EMAIL_SUBJECT = "Invoice {number} from " + COMPANY_NAME
+ZELLE_TO = "arun@superstarscontracting.com"   # every invoice offers Zelle here unless the invoice's zelle_off is set
 DEFAULT_PAY_INSTRUCTIONS = ("Please remit by check payable to Superstars Contracting Inc., or ask us for ACH details. "
                             "Reference the invoice number on your payment.")
 
@@ -67,7 +68,7 @@ _COLUMNS = (("sent_at", "TEXT"), ("sent_to", "TEXT"), ("sent_name", "TEXT"), ("s
             ("token_hash", "TEXT"), ("token_expires_at", "TEXT"), ("last_message", "TEXT"),
             ("design_doc_id", "INTEGER"), ("design_html", "TEXT"), ("design_at", "TEXT"), ("pdf_layout", "INTEGER DEFAULT 0"),
             ("sent_how", "TEXT"))   # sent_how (2026-11-13): app | gmail, or how someone marked it sent outside the app
-LAYOUT = 3   # 3 = several work lines + the editor's own wording (2026-11-11). Bump when the invoice layout changes: stored PDFs from an older one are redrawn
+LAYOUT = 4   # 3 = several work lines + the editor's own wording (2026-11-11); 4 = Zelle under Check (2026-11-13). Bump when the invoice layout changes: stored PDFs from an older one are redrawn
 PRIVATE_KEYS = ("pdf_path", "token_hash", "design_html")
 
 
@@ -227,6 +228,7 @@ _INV_CSS = """
 .inv-cols>div{padding:14px 10px;min-width:0}.inv-cols>div+div{border-left:1px solid #DCDDE0}
 .inv-cols small{display:block;color:#8D9096;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
 .inv-cols b{display:block;font-weight:600;font-size:14px}.inv-cols em{display:block;font-style:normal;color:#8D9096;font-size:12px;margin-top:5px}
+.inv-cols.zelle{border-top:0}.inv-cols b{overflow-wrap:break-word}
 .inv-more{margin:12px 10px 0;color:#5D6068;font-size:12.5px;white-space:pre-line}
 .inv-notes{margin-top:24px;break-inside:avoid}.inv-notes .inv-label{padding:0 10px}
 .inv-thanks{margin-top:34px;padding-top:20px;border-top:1px solid #DCDDE0;text-align:center;break-inside:avoid}
@@ -238,7 +240,7 @@ _INV_CSS = """
   .inv-top{grid-template-columns:1fr;margin-top:26px;gap:22px}.inv-word{font-size:30px}
   .inv-parties{grid-template-columns:1fr}.inv-parties>div+div{padding-left:0;border-left:0;border-top:1px solid #DCDDE0}
   .inv-work .ln>span:first-child{max-width:none}
-  .inv-cols{grid-auto-flow:row}.inv-cols>div+div{border-left:0;border-top:1px solid #DCDDE0}
+  .inv-cols{grid-auto-flow:row}.inv-cols>div+div{border-left:0;border-top:1px solid #DCDDE0}.inv-cols>div:empty{display:none}.inv-cols.zelle{border-top:1px solid #DCDDE0}
 }
 @page{size:letter;margin:.4in .5in}
 @media print{body{background:#fff}.inv{max-width:none;padding:0}.inv-top{margin-top:24px}.inv-parties>div{padding-top:18px}.inv-work{margin-top:22px}.inv-tot{margin-top:12px}.inv-pay{margin-top:22px}.inv-cols>div{padding:10px}.inv-thanks{margin-top:20px;padding-top:14px}.inv-word::after,.inv-thanks h2::after,.inv-lh{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
@@ -399,9 +401,12 @@ def _standard_document(conn, inv: dict, *, edit: bool = False) -> str:
         how = inv.get("pay_text") if inv.get("pay_text") is not None else facts.get("payment_instructions")
         more = (ce("pay_text", e(how or ""), "p", "inv-more", "Add payment details, e.g. ACH instructions (optional)")
                 if edit else (f'<p class="inv-more">{e(how)}</p>' if how else ""))
+        zelle = ("" if inv.get("zelle_off") else
+                 f'<div class="inv-cols zelle"><div><small>Method</small><b>Zelle</b><em>Note invoice no. {number} in the memo</em></div>'
+                 f'<div><small>Send to</small><b>{e(ZELLE_TO).replace("@", "@<wbr>")}</b></div>{"<div></div>" if mail_col else ""}</div>')
         pay = (f'<div class="inv-pay"><p class="inv-label">Payment</p><div class="inv-cols">'
                f'<div><small>Method</small><b>Check</b><em>Note invoice no. {number} on the memo line</em></div>'
-               f'<div><small>Payable to</small><b>Superstars Contracting Inc.</b></div>{mail_col}</div>{more}</div>')
+               f'<div><small>Payable to</small><b>Superstars Contracting Inc.</b></div>{mail_col}</div>{zelle}{more}</div>')
     note = inv.get("doc_notes")   # invoice.notes is the office's own note: it never prints
     if edit:
         notes = (f'<div class="inv-notes{"" if note else " ed-opt"}"><p class="inv-label">Notes</p>'

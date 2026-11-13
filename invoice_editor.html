@@ -60,6 +60,8 @@
   .fld{width:100%;border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 10px;font:inherit;font-size:13px;color:var(--ink)}
   .fld:disabled{background:var(--fill);color:var(--muted)}
   .hint{font-size:12px;color:var(--muted);margin-top:4px}
+  .chk{display:flex;align-items:center;gap:10px;min-height:44px;margin-top:8px;font-size:14px;cursor:pointer;overflow-wrap:anywhere}
+  .chk input{width:20px;height:20px;flex:none;accent-color:var(--accent, #B11E2E)}
   .chat{display:flex;flex-direction:column;gap:8px;max-height:min(300px,40vh);overflow:auto;margin-bottom:8px}
   .msg{font-size:13px;line-height:1.5;padding:8px 11px;border-radius:10px;max-width:92%;white-space:pre-wrap}
   .msg.c{background:var(--accent-soft);align-self:flex-start}.msg.u{background:var(--fill);align-self:flex-end}
@@ -290,6 +292,7 @@
           <label class="lbl" for="d-due">Due date</label><input class="fld" id="d-due" type="date"><div class="hint" id="d-due-hint"></div>
           <label class="lbl" for="d-ret">Retainage held ($)</label><input class="fld" id="d-ret" inputmode="decimal" placeholder="0.00" autocomplete="off">
           <div class="hint" id="d-lock" hidden></div>
+          <label class="chk" for="d-zelle"><input type="checkbox" id="d-zelle"> Offer Zelle (arun@superstarscontracting.com)</label>
           <label class="lbl" for="d-office">Office note</label><textarea class="fld" id="d-office" rows="2" placeholder="Only the office sees this"></textarea>
         </div>
         <div class="card"><h3>History</h3><div class="hist" id="hist"></div></div>
@@ -426,6 +429,7 @@
     dSet($('d-due'), r.due_at || ''); $('d-due-hint').textContent = r.issued_at ? 'Issued ' + fmtDate(r.issued_at) + '. Not before that.' : (r.status === 'draft' ? 'Blank = set when you issue it.' : '');
     $('d-ret').value = Number(r.retainage) ? Number(r.retainage).toFixed(2) : '';
     $('d-office').value = r.notes || '';
+    $('d-zelle').checked = !Number(r.zelle_off); $('d-zelle').disabled = !ed;
     $('d-kind').disabled = !ed || locked; $('d-ret').disabled = !ed || locked; $('d-due').disabled = !ed; $('d-office').disabled = !ed;
     $('d-lock').hidden = !(ed && locked); $('d-lock').textContent = locked ? v.rules.amount_locked : '';
     $('quick').innerHTML = ed ? ['Hold 10% retainage', 'Split the first line into two lines', 'Shorter line descriptions'].map(q => `<button class="chip" type="button" data-ask="${esc(q)}">${esc(q)}</button>`).join('') : '';
@@ -539,6 +543,7 @@
   $('d-kind').addEventListener('change', e => patch({ kind: e.target.value }));
   $('d-due').addEventListener('change', () => { const v = dGet($('d-due')); if (v === (S.v.invoice.due_at || '')) return; patch({ due_at: v || null }); });
   $('d-ret').addEventListener('change', e => patch({ retainage: num(e.target.value) }));
+  $('d-zelle').addEventListener('change', e => patch({ zelle_off: e.target.checked ? 0 : 1 }, e.target.checked ? 'Zelle is on this invoice' : 'Zelle is off this invoice'));
   $('d-office').addEventListener('change', e => patch({ notes: e.target.value }, 'Office note saved'));
 
   // ---------------- header actions

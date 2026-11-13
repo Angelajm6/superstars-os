@@ -120,7 +120,7 @@ def main() -> int:
     ids = _seed()
     admin = _login(app, "admin")
     checks = 0
-    assert invoice_docs.LAYOUT == 3
+    assert invoice_docs.LAYOUT == 4
 
     conn = _db()
     try:
@@ -192,6 +192,16 @@ def main() -> int:
         assert admin.patch(f"/api/invoices/{iid}", json={"bill_to_text": "", "thanks_text": ""}).status_code == 200
         pv = admin.get(f"/api/invoices/{iid}/preview").get_data(as_text=True)
         assert "InvEdit Harbor Owners" in pv and "We appreciate your business" in pv
+        checks += 1
+
+        # ---- Zelle: on every invoice by default, off per invoice, back on
+        assert "arun@<wbr>superstarscontracting.com" in pv and "<b>Zelle</b>" in pv and "Payable to" in pv
+        assert 'id="d-zelle"' in admin.get(f"/invoices/{iid}/edit").get_data(as_text=True)
+        assert admin.patch(f"/api/invoices/{iid}", json={"zelle_off": True}).status_code == 200
+        pv = admin.get(f"/api/invoices/{iid}/preview").get_data(as_text=True)
+        assert "<b>Zelle</b>" not in pv and "arun@" not in pv and "Payable to" in pv, "Zelle off leaves Check alone"
+        assert admin.patch(f"/api/invoices/{iid}", json={"zelle_off": 0}).status_code == 200
+        assert "<b>Zelle</b>" in admin.get(f"/api/invoices/{iid}/preview").get_data(as_text=True)
         checks += 1
 
         # ---- Ask Claude (fake model) + Undo
