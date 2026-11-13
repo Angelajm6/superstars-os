@@ -777,6 +777,90 @@ def _api_update(est_id):
         conn.close()
 
 
+# ---------- merge a duplicate into the estimate you keep (2026-11-13) ----------
+# Proposal Studio opens an estimate per draft, so one job can end up with several. Merge
+# moves the duplicate's record (hidden proposals, documents, emails, walkthroughs, IRA,
+# invoices, Claude chats) onto the kept estimate, drops its drafting leftovers (unsent
+# drafts and their PDFs, like DELETE) and deletes it. A LIVE proposal (sent / opened /
+# declined / signed / replaced) is refused: moved under the kept estimate it would count as
+# a "newer version" and the client's link to the kept proposal would say it was replaced.
+_MOVE_REFS = (("estimate_document", "estimate_id"), ("walkthrough_visit", "estimate_id"),
+              ("walkthrough_report", "estimate_id"), ("ira_job", "estimate_id"), ("invoice", "estimate_id"),
+              ("mail_message", "estimate_id"), ("assistant_thread", "estimate_id"),
+              ("claude_connector_upload", "estimate_id"))
+
+
+def merge_estimates(conn, src_id, into_id, *, actor=None) -> dict:
+    """Move src into into; delete src. Raises LookupError / ValueError (plain words)."""
+    from apply_crm_266 import _table_exists
+    src, into = get_estimate(conn, src_id), get_estimate(conn, into_id)
+    if not src or not into:
+        raise LookupError("not found")
+    if src_id == into_id:
+        raise ValueError("Choose a different estimate to keep.")
+    if src["status"] == "converted":
+        raise ValueError(f"{src['code']} became a project, so it stays. Merge the other one into it instead.")
+    if src["client_org_id"] != into["client_org_id"]:
+        raise ValueError("Both estimates must be for the same client.")
+    has_prop = _table_exists(conn, "proposal")
+    if has_prop:
+        live = conn.execute("SELECT COUNT(*) AS n FROM proposal WHERE estimate_id=? AND status NOT IN ('draft','deleted')",
+                            (src_id,)).fetchone()["n"]
+        if live:
+            raise ValueError(f"{src['code']} has {_n(live, 'live proposal', 'live proposals')} (sent, signed or declined). "
+                             "Delete it first, or keep this estimate and merge the other one into it.")
+    lo = _draft_leftovers(conn, src_id)
+    lo["threads"] = []   # Claude chats move with the record instead of being deleted
+    _remove_leftovers(conn, src_id, lo)
+    moved = {}
+    if has_prop:   # hidden proposals: after the kept estimate's versions, so (estimate_id, version) stays unique
+        top = conn.execute("SELECT COALESCE(MAX(version), 0) AS v FROM proposal WHERE estimate_id=?",
+                           (into_id,)).fetchone()["v"]
+        rows = conn.execute("SELECT id FROM proposal WHERE estimate_id=? ORDER BY version", (src_id,)).fetchall()
+        for i, r in enumerate(rows, 1):
+            conn.execute("UPDATE proposal SET estimate_id=?, version=? WHERE id=?", (into_id, int(top) + i, r["id"]))
+        moved["proposals"] = len(rows)
+    for table, col in _MOVE_REFS:
+        if _table_exists(conn, table):
+            n = conn.execute(f"SELECT COUNT(*) AS n FROM {table} WHERE {col}=?", (src_id,)).fetchone()["n"]
+            if n:
+                conn.execute(f"UPDATE {table} SET {col}=? WHERE {col}=?", (into_id, src_id))
+                moved[table] = n
+    if _table_exists(conn, "mail_link"):   # an email filed on both keeps one link
+        conn.execute("DELETE FROM mail_link WHERE entity_type='estimate' AND entity_id=? AND message_id IN "
+                     "(SELECT message_id FROM mail_link WHERE entity_type='estimate' AND entity_id=?)",
+                     (str(src_id), str(into_id)))
+        conn.execute("UPDATE mail_link SET entity_id=? WHERE entity_type='estimate' AND entity_id=?",
+                     (str(into_id), str(src_id)))
+    note = f"Merged in {src['code']} (duplicate) on {date.today().isoformat()}."
+    conn.execute("UPDATE estimate SET notes=?, updated_at=? WHERE id=?",
+                 (((into.get("notes") or "").rstrip() + "\n" + note).strip(), _now(), into_id))
+    conn.execute("DELETE FROM estimate_ira WHERE estimate_id=?", (src_id,))
+    conn.execute("DELETE FROM estimate WHERE id=?", (src_id,))
+    conn.commit()
+    return {"merged": src["code"], "into": into["code"], "into_id": into_id, "moved": moved}
+
+
+@requires_section('estimates')
+def _api_merge(est_id):
+    """POST /api/estimates/<id>/merge {into_id} — the ⋯ menu's "Merge into…"."""
+    d = request.get_json(silent=True) or {}
+    try:
+        into_id = int(d.get("into_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Choose the estimate to keep."}), 400
+    conn = _db()
+    try:
+        return jsonify({"data": merge_estimates(conn, est_id, into_id, actor=_uid())})
+    except LookupError:
+        return jsonify({"error": "not found"}), 404
+    except ValueError as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 409
+    finally:
+        conn.close()
+
+
 @requires_section('estimates')
 def _api_delete(est_id):
     """DELETE — mistake correction ONLY. Refused once converted or once anything hangs
@@ -948,6 +1032,7 @@ def register(app) -> None:
     app.add_url_rule("/api/estimates/<int:est_id>", "estimates_detail", _api_detail, methods=["GET"])
     app.add_url_rule("/api/estimates/<int:est_id>", "estimates_update", _api_update, methods=["PUT"])
     app.add_url_rule("/api/estimates/<int:est_id>", "estimates_delete", _api_delete, methods=["DELETE"])
+    app.add_url_rule("/api/estimates/<int:est_id>/merge", "estimates_merge", _api_merge, methods=["POST"])
     app.add_url_rule("/api/estimates/<int:est_id>/status", "estimates_status", _api_status, methods=["POST"])
     app.add_url_rule("/api/estimates/<int:est_id>/convert", "estimates_convert", _api_convert, methods=["POST"])
     app.add_url_rule("/api/estimates/<int:est_id>/ira", "estimates_ira_put", _api_ira_put, methods=["PUT"])

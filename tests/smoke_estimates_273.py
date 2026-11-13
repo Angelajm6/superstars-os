@@ -426,6 +426,61 @@ def main():
            and _q("SELECT COUNT(*) FROM estimate_document WHERE estimate_id=?", (clean_id,)) == 0
            and _q("SELECT COUNT(*) FROM assistant_thread WHERE estimate_id=?", (clean_id,)) == 0)
 
+        # ---------- (d3) Merge into… (2026-11-13): a Studio duplicate moves onto the estimate you keep ----------
+        def _new_est():
+            stx, b = _sc(cs, "POST", "/api/estimates", json={"est_type": "IR", "borough": "SI", "client_org_id": org_id})
+            return ((b or {}).get("data") or {}).get("id")
+
+        def _exec(sql, args):
+            c = db_layer.connect()
+            try:
+                c.execute(sql, args); c.commit()
+            finally:
+                c.close()
+
+        keep_id, dup_id = _new_est(), _new_est()
+        st, body = _sc(cs, "POST", "/api/proposals", json={"estimate_id": keep_id})
+        keep_prop = ((body or {}).get("data") or {}).get("id")
+        st, body = _sc(cs, "POST", "/api/proposals", json={"estimate_id": dup_id})
+        hidden_prop = ((body or {}).get("data") or {}).get("id")
+        _exec("UPDATE proposal SET status='deleted', deleted_from='sent' WHERE id=?", (hidden_prop,))
+        st, body = _sc(cs, "POST", "/api/proposals", json={"estimate_id": dup_id})
+        dup_draft = ((body or {}).get("data") or {}).get("id")
+        dd_doc = _pdf_doc(dup_id)
+        _exec("UPDATE proposal SET pdf_doc_id=? WHERE id=?", (dd_doc, dup_draft))
+        st, body = _sc(cs, "POST", f"/api/estimates/{dup_id}/documents",
+                       files={"file": ("smk273-dup.pdf", pdf, "application/pdf")}, data={"category": "bid_file", "title": "dup upload"})
+        up_doc = ((body or {}).get("data") or {}).get("id")
+        if _q("SELECT COUNT(*) FROM sqlite_master WHERE name='mail_link'" if not db_layer.is_postgres() else
+              "SELECT COUNT(*) FROM information_schema.tables WHERE table_name='mail_link'", ()):
+            _exec("INSERT INTO mail_link (message_id, entity_type, entity_id, linked_at) VALUES (987654, 'estimate', ?, ?)", (str(dup_id), now))
+        st, body = _sc(cs, "DELETE", f"/api/estimates/{dup_id}")
+        ok("dup_with_upload_cannot_delete", st == 409)
+        st, body = _sc(cs, "POST", f"/api/estimates/{ira_id}/merge", json={"into_id": keep_id})
+        ok("merge_converted_source_409", st == 409)
+        st, body = _sc(cs, "POST", f"/api/estimates/{dup_id}/merge", json={"into_id": dup_id})
+        ok("merge_into_itself_409", st == 409)
+        live = _new_est()
+        st, body = _sc(cs, "POST", "/api/proposals", json={"estimate_id": live})
+        _exec("UPDATE proposal SET status='sent' WHERE id=?", (((body or {}).get("data") or {}).get("id"),))
+        st, body = _sc(cs, "POST", f"/api/estimates/{live}/merge", json={"into_id": keep_id})
+        ok("merge_live_proposal_409", st == 409 and "live proposal" in str((body or {}).get("error")))
+        for role, sess in (("pm", pm), ("super", su)):
+            ok(f"merge_{role}_403", _sc(sess, "POST", f"/api/estimates/{dup_id}/merge", json={"into_id": keep_id})[0] == 403)
+        st, body = _sc(cs, "POST", f"/api/estimates/{dup_id}/merge", json={"into_id": keep_id})
+        ok("merge_200", st == 200, str(body)[:200])
+        ok("merged_dup_gone", _sc(cs, "GET", f"/api/estimates/{dup_id}")[0] == 404)
+        ok("merge_moves_upload", _q("SELECT estimate_id FROM estimate_document WHERE id=?", (up_doc,)) == keep_id)
+        ok("merge_moves_hidden_proposal_after_versions",
+           _q("SELECT estimate_id FROM proposal WHERE id=?", (hidden_prop,)) == keep_id
+           and _q("SELECT version FROM proposal WHERE id=?", (hidden_prop,)) > _q("SELECT version FROM proposal WHERE id=?", (keep_prop,)))
+        ok("merge_drops_draft_and_its_pdf", _q("SELECT COUNT(*) FROM proposal WHERE id=?", (dup_draft,)) == 0
+           and _q("SELECT COUNT(*) FROM estimate_document WHERE id=?", (dd_doc,)) == 0)
+        ok("merge_keeps_kept_proposal", _q("SELECT status FROM proposal WHERE id=?", (keep_prop,)) == "draft")
+        ok("merge_note_on_kept", "Merged in" in str(_q("SELECT notes FROM estimate WHERE id=?", (keep_id,))))
+        ok("merge_moves_mail_link", _q("SELECT COUNT(*) FROM mail_link WHERE entity_type='estimate' AND entity_id=?", (str(dup_id),)) == 0)
+        _exec("DELETE FROM mail_link WHERE message_id=987654", ())
+
         # ---------- (g) forbidden keys across everything seen ----------
         found = []
         _forbidden_keys(SEEN_PAYLOADS, found)

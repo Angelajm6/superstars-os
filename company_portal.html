@@ -1947,6 +1947,17 @@
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="est-ed-cancel">Cancel</button><button class="btn-primary" type="submit" id="est-ed-go">Save</button></div>
   </form>
 </div>
+<div class="cp-overlay" id="est-mg-overlay" role="dialog" aria-modal="true" aria-labelledby="est-mg-title">
+  <form class="cp-modal" id="est-mg-form" novalidate>
+    <div class="cp-modal-head"><h2 id="est-mg-title">Merge into another estimate</h2><p class="cp-muted" id="est-mg-sub" style="margin:6px 0 0;font-size:13px"></p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><label for="est-mg-into">Keep this one</label><select id="est-mg-into"></select></div>
+      <p class="cp-muted full" id="est-mg-what" style="margin:0;font-size:13px"></p>
+      <div class="cp-form-err" id="est-mg-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="est-mg-cancel">Cancel</button><button class="btn-primary" type="submit" id="est-mg-go">Merge</button></div>
+  </form>
+</div>
 <div class="cp-overlay" id="pr-send-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-send-title">
   <form class="cp-modal" id="pr-send-form" novalidate>
     <div class="cp-modal-head"><h2 id="pr-send-title">Send proposal</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px" id="pr-send-sub"></p></div>
@@ -2423,7 +2434,7 @@
     const res = await fetch((absolute ? '/api' : API) + path, Object.assign({ credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' } }, opts || {}));
     const j = await res.json().catch(() => ({}));
     if (res.status === 401) { window.location.href = '/login?next=' + encodeURIComponent('/company'); throw new Error('unauthenticated'); }
-    if (!res.ok) throw new Error((j && j.error) || ('Request failed (' + res.status + ')'));
+    if (!res.ok) { const er = new Error((j && j.error) || ('Request failed (' + res.status + ')')); er.status = res.status; throw er; }
     return j;
   }
   // who is signed in (2026-10-22: admin-only buttons; the server checks the role again on every call)
@@ -5380,7 +5391,7 @@
     prxCloseMenu(); const r = estFind(id); if (!r) return;
     const m = document.createElement('div'); m.className = 'prx-menu'; m.setAttribute('role', 'menu'); m.dataset.est = id;
     m.innerHTML = `<button type="button" role="menuitem" data-em="open">Open</button><button type="button" role="menuitem" data-em="preview">Preview</button>` +
-      (r.status === 'converted' ? '' : `<button type="button" role="menuitem" data-em="edit">Edit…</button>`) +
+      (r.status === 'converted' ? '' : `<button type="button" role="menuitem" data-em="edit">Edit…</button><button type="button" role="menuitem" data-em="merge">Merge into…</button>`) +
       `<hr><button type="button" role="menuitem" class="d" data-em="askdel">Delete…</button>`;
     document.body.appendChild(m);
     const b = btn.getBoundingClientRect();
@@ -5404,7 +5415,8 @@
       toast(`${r ? r.code : 'It'} deleted`); delete ESTV.byId[id]; estClose(true);
       if (estOnPage(id)) location.hash = '#proposals/' + (r && r.inquiry_kind === 'bid' ? 'bids' : 'estimates');
       else await loadEstimateList(PRK.kind);
-    } catch (x) {   // e.g. a document was filed a moment ago: show the server's reason in place
+    } catch (x) {   // a 409 is the server's reason (e.g. a document was filed a moment ago); anything else is a hiccup
+      if (x.status !== 409) { toast(`Couldn't delete it just now (${x.status ? 'error ' + x.status : 'no connection'}). Try again in a moment.`, true); prxCloseMenu(); return; }
       if (r) r.delete_blocker = x.message;
       const m = document.querySelector('.prx-menu[data-est]');
       if (m) m.innerHTML = estDelConfirmHtml(r || { id, code: '' }, 'em');
@@ -5507,6 +5519,7 @@
       if (a === 'open') location.hash = '#proposals/estimate/' + id;
       else if (a === 'preview') estPreview(id);
       else if (a === 'edit') openEstEdit(id);
+      else if (a === 'merge') openEstMerge(id);
       return;
     }
     const pe = t.closest('[data-est-edit]'); if (pe) { openEstEdit(pe.dataset.estEdit); return; }
@@ -5527,6 +5540,38 @@
   });
   window.addEventListener('hashchange', () => { if (ESTV.open) estClose(); });
 
+  // Merge into…: a duplicate (Proposal Studio opens an estimate per draft) moves onto the one you keep, then goes
+  const ESTMG = { src: null };
+  async function openEstMerge(id) {
+    estClose(true); prxCloseMenu();
+    let all;
+    try { all = ((await api('/estimates', null, true)).data || {}).estimates || []; } catch (x) { toast(x.message, true); return; }
+    const src = all.find(e => String(e.id) === String(id)); if (!src) { toast('It is gone already.', true); return; }
+    const keep = all.filter(e => e.id !== src.id && e.client_org_id === src.client_org_id)
+      .sort((a, b) => (a.status === 'converted' ? 0 : 1) - (b.status === 'converted' ? 0 : 1) || String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+    ESTMG.src = src;
+    $('est-mg-title').textContent = 'Merge ' + src.code + ' into…';
+    $('est-mg-sub').textContent = [src.building_address, src.org_name].filter(Boolean).join(' · ');
+    $('est-mg-err').className = 'cp-form-err';
+    $('est-mg-into').innerHTML = keep.length ? keep.map(e => `<option value="${e.id}">${esc(e.code)} · ${esc(e.building_address || '—')} · ${esc(EST_LABEL[e.status] || e.status)}</option>`).join('')
+      : '<option value="">No other estimate for this client</option>';
+    $('est-mg-what').textContent = `Its documents, emails, walkthroughs, Claude chats and deleted proposals move to the one you keep, with a note saying so. Unsent drafts and their PDFs are dropped. Then ${src.code} is deleted.`;
+    $('est-mg-go').disabled = !keep.length; $('est-mg-go').textContent = 'Merge and delete ' + src.code;
+    $('est-mg-overlay').classList.add('open'); $('est-mg-into').focus();
+  }
+  $('est-mg-cancel').addEventListener('click', () => closeOverlay('est-mg-overlay'));
+  $('est-mg-overlay').addEventListener('click', e => { if (e.target === $('est-mg-overlay')) closeOverlay('est-mg-overlay'); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('est-mg-overlay').classList.contains('open')) closeOverlay('est-mg-overlay'); });
+  $('est-mg-form').addEventListener('submit', async ev => {
+    ev.preventDefault(); const src = ESTMG.src, into = $('est-mg-into').value; if (!src || !into) return;
+    $('est-mg-go').disabled = true; $('est-mg-err').className = 'cp-form-err';
+    try {
+      const { data } = await api('/estimates/' + src.id + '/merge', { method: 'POST', body: JSON.stringify({ into_id: Number(into) }) }, true);
+      closeOverlay('est-mg-overlay'); toast(`${data.merged} merged into ${data.into}`);
+      location.hash = '#proposals/estimate/' + data.into_id;
+    } catch (x) { formErr('est-mg-err', x.status && x.status !== 409 ? `Couldn't merge just now (error ${x.status}). Try again in a moment.` : x.message); }
+    finally { $('est-mg-go').disabled = false; }
+  });
   // ---------- Claude, next to each estimate, bid and proposal (assistant.py) ----------
   // Conversations are saved on the estimate, so every version of its proposal shows them too.
   const CL = { estimateId: null, proposalId: null, editable: false, what: 'estimate', threadId: null, msgs: [], docs: [], pendingDocs: [], status: null, busy: false };
@@ -6542,7 +6587,7 @@
   async function apiForm(path, fd) {   // multipart (bill file / statement) — no JSON content-type
     const res = await fetch('/api/company/portal' + path, { method: 'POST', credentials: 'same-origin', body: fd });
     const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error((j && j.error) || ('Request failed (' + res.status + ')'));
+    if (!res.ok) { const er = new Error((j && j.error) || ('Request failed (' + res.status + ')')); er.status = res.status; throw er; }
     return j;
   }
   const VF = { id: null, d: null, tab: 'mileage' };
