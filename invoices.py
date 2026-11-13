@@ -60,7 +60,7 @@ METHODS = ("check", "ach", "wire", "card", "cash", "quickbooks", "other")
 DOC_TEXT = ("bill_to_text", "project_text", "pay_text", "thanks_text", "doc_notes")
 MAX_LINES = 60
 EDITABLE = ("kind", "client_org_id", "project_code", "building_id", "estimate_id", "proposal_id",
-            "description", "amount", "retainage", "due_at", "notes", "source_doc") + DOC_TEXT
+            "description", "amount", "retainage", "due_at", "notes", "source_doc", "zelle_off") + DOC_TEXT
 
 
 # ---------------------------------------------------------------- helpers
@@ -208,7 +208,7 @@ def ensure_schema(conn) -> None:
     # edited_at: the last change made with Edit, so a row can say it changed after it was emailed
     # lines_json + DOC_TEXT: the full editor (2026-11-11); NULL = one line from description / amount
     for col, ddl in (("source", "TEXT"), ("followup_item_id", "INTEGER"), ("edited_at", "TEXT"),
-                     ("lines_json", "TEXT")) + tuple((k, "TEXT") for k in DOC_TEXT):
+                     ("lines_json", "TEXT"), ("zelle_off", "INTEGER DEFAULT 0")) + tuple((k, "TEXT") for k in DOC_TEXT):
         if not invoice_docs._has_column(conn, "invoice", col):
             conn.execute(f"ALTER TABLE invoice ADD COLUMN {col} {ddl}")
     conn.commit()
@@ -364,6 +364,8 @@ def _validate(fields: dict, *, partial: bool = False) -> dict:
         if r < 0:
             raise ValueError("retainage cannot be negative")
         out["retainage"] = r
+    if "zelle_off" in fields:   # 2026-11-13: 1 = leave the Zelle option off this invoice (it shows by default)
+        out["zelle_off"] = 1 if fields.get("zelle_off") in (True, 1, "1", "true", "on") else 0
     for k in ("project_code", "description", "notes", "source_doc") + DOC_TEXT:
         if k in fields:
             v = fields.get(k)
@@ -540,7 +542,7 @@ def edit_rules(conn, r: dict) -> dict:
     return {"editable": True, "amount_locked": locked, "min_amount": round(_num(r.get("amount_paid")), 2), "aia": aia}
 
 
-_ISSUED_EDITABLE = ("kind", "description", "amount", "retainage", "due_at", "notes") + DOC_TEXT
+_ISSUED_EDITABLE = ("kind", "description", "amount", "retainage", "due_at", "notes", "zelle_off") + DOC_TEXT
 _MONEY_FIELDS = ("kind", "amount", "retainage")
 
 
