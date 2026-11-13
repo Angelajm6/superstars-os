@@ -2198,6 +2198,25 @@
             <button class="pd-bb-clear" id="pd-bb-clear" type="button">Clear</button>
           </div>
           <div id="pd-checklist"></div>
+          <!-- 2026-11-13 Specs revamp: the products on this job (Company → Specs → "Add to job"), each with its data
+               sheet; hidden until the job has one. Compact on purpose: the old Specifications table left this tab
+               on 2026-10-22. Logic: the PD_loadSpecs script below. -->
+          <section class="pd-specs" id="pd-specs" hidden aria-labelledby="pd-specs-t">
+            <style>
+              .pd-specs .pd-sp-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) auto;gap:12px;align-items:center;padding:11px 16px;border-top:1px solid var(--pd-line,#eceef3)}
+              .pd-specs .pd-sp-row:first-child{border-top:0}
+              .pd-specs .pd-sp-n{font-weight:600;font-size:14px}
+              .pd-specs .pd-sp-m{color:var(--pd-muted,#8c92a0);font-size:12.5px}
+              .pd-specs .pd-sp-w{color:var(--ink-2,#4A4F59);font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+              .pd-specs .pd-sp-a{display:flex;gap:10px;align-items:center;white-space:nowrap}
+              .pd-specs a{color:var(--accent,#4364dc);font-weight:600;font-size:13px;text-decoration:none}
+              .pd-specs .pd-sp-miss{font-size:12px;font-weight:600;color:var(--status-warn,#9A5B00);background:var(--status-warn-soft,#FFF4E5);border-radius:999px;padding:2px 8px}
+              .pd-specs .pd-sp-h{display:flex;gap:14px;align-items:center}
+              @media (max-width:640px){.pd-specs .pd-sp-row{grid-template-columns:minmax(0,1fr) auto}.pd-specs .pd-sp-w{grid-column:1/-1;order:3;white-space:normal}}
+            </style>
+            <div class="pd-sec"><b id="pd-specs-t">Products &amp; data sheets</b><span class="pd-sp-h" id="pd-specs-acts"></span></div>
+            <div class="pd-clist" id="pd-specs-list"></div>
+          </section>
         </div>
         <div class="pd-veil" id="pd-veil"><div>Drop to have Claude read them</div></div>
         <div class="pd-tagov" id="pd-tagov" role="dialog" aria-modal="true" aria-labelledby="pd-tag-h">
@@ -9514,6 +9533,35 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
 </script>
 
 <script>
+/* 2026-11-13 Specs revamp — Documents tab → "Products & data sheets": what Company → Specs put on this job.
+   Read-only here; admin / C-suite get a link to manage it. Files through the job-scoped gated route. */
+(function(){
+  var ROLE=null;
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
+  async function role(){if(ROLE!==null)return ROLE;try{var r=await fetch('/api/auth/me',{credentials:'include'});var j=await r.json();ROLE=((j&&j.user)||{}).role||'';}catch(e){ROLE='';}return ROLE;}
+  window.PD_loadSpecs=async function(code){
+    var sec=document.getElementById('pd-specs');if(!sec||!code)return;
+    try{
+      var r=await fetch('/api/projects/'+encodeURIComponent(code)+'/document-specs',{credentials:'include'});
+      var j=await r.json();var items=(r.ok&&j&&j.data)||[];
+      if(!items.length){sec.hidden=true;return;}
+      var q=encodeURIComponent(code),rl=await role();
+      document.getElementById('pd-specs-acts').innerHTML='<a href="/api/projects/'+q+'/document-specs/submittal.pdf" target="_blank" rel="noopener">Submittal package</a>'
+        +((rl==='admin'||rl==='c_suite')?'<a href="/#specs">Manage in Specs</a>':'');
+      document.getElementById('pd-specs-list').innerHTML=items.map(function(p){
+        var f=p.files||{};
+        return '<div class="pd-sp-row"><div style="min-width:0"><div class="pd-sp-n">'+esc(p.product_name)+'</div><div class="pd-sp-m">'+esc([p.manufacturer,p.product_line].filter(Boolean).join(' · '))+'</div></div>'
+          +'<div class="pd-sp-w">'+esc(p.where||p.description||'')+'</div>'
+          +'<div class="pd-sp-a">'+(f.tds?'<a href="'+esc(f.tds.file_url)+'" target="_blank" rel="noopener">Data sheet</a>':'<span class="pd-sp-miss">No data sheet</span>')
+          +(f.sds?'<a href="'+esc(f.sds.file_url)+'" target="_blank" rel="noopener">SDS</a>':'')+'</div></div>';
+      }).join('');
+      document.getElementById('pd-specs-t').textContent='Products & data sheets ('+items.length+')';
+      sec.hidden=false;
+    }catch(e){sec.hidden=true;}
+  };
+})();
+</script>
+<script>
 /* #229 — Project Documents (Batch A): compliance checklist + readiness hero + upload
    (single modal flipping to a bulk tray on multi-file). Reuses /api/projects/<code>/documents.
    NO *_path is ever read from the API (file_url is the gated route). LOCAL dates (MM/DD/YYYY). */
@@ -9551,6 +9599,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       var j=await jget('/api/projects/'+encodeURIComponent(PROJECT_CODE)+'/documents');
       PD.data=(j&&j.data)||{categories:[],readiness:{}};
       dzWire(); renderStats(); renderSuggest(); renderFolders(); renderChecklist();
+      if(window.PD_loadSpecs)window.PD_loadSpecs(PROJECT_CODE);   // 2026-11-13 — the job's products + data sheets
       if(!DZ.loaded){DZ.loaded=true; dzLoadTypes().then(dzLoadIntake);} else renderTray();
     }catch(e){console.warn('[projdocs] load failed',e);var h=$('pd-folders');if(h)h.innerHTML='<div class="pd-empty">Could not load documents.</div>';}
   }

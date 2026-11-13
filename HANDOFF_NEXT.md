@@ -21,6 +21,34 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Company → Specs revamp: go-to list, data sheets, products per job, submittal package (Bookore, 2026-11-13)
+
+* Accepted prototype: https://claude.ai/artifact/9WFt7rm2HWsV8Rp41MisNc. The old 7-column table (attach dropdown per row,
+  "890-core only") is gone. **Catalog**: one search by name *or by the work* ("spall", "window joint", "rebar": category
+  and line keywords in `static/js/spec_library.js`, own-word matches ranked first), category chips with counts, filters
+  Our go-to / On a job / Data sheet on file, rows grouped by category (by product line inside one). A row's **+** ticks jobs
+  (Undo toast). A product opens a side panel (bottom sheet on a phone): what it is, our notes (autosave), Data sheet (TDS) +
+  Safety data sheet (SDS) PDFs, the manufacturer page, the jobs it's on with "where it's used", Ask Claude.
+  **By job**: a job's products, editable "where it's used", missing-data-sheet flags, + Add products (add mode on the
+  catalog), **Submittal package** (one PDF: branded cover sheet with the list, then every TDS / SDS on file, via
+  `pdf_export` + pypdf). **+ Add product**: drop a data sheet and Claude fills the form (structured output); the sheet is
+  saved as the TDS.
+* `spec_library.py` (registered in server.py; the old routes left server.py). It ensures `spec_products` /
+  `project_document_specs` on both backends (they came from a SQLite-only legacy script), seeds the Sika catalog when
+  empty, adds `is_favorite`, `notes`, `created_by`, fills each Sika line's one-line `description`, and adds
+  `spec_product_file` (one current file per kind, under `data_room/spec_library/<id>/`, read only through gated routes;
+  no `file_path` in any payload). Catalog routes are `@requires_company`; `/api/projects/<code>/document-specs…` stay
+  project-scoped by the #263 hook; writes there need admin / c_suite / pm (they had no role gate before).
+* The job's **Documents** tab shows a compact "Products & data sheets" block (hidden when empty: the old Specifications
+  table left that tab on 2026-10-22 on purpose). Clients / architects do not see it in the portal yet.
+* Claude (in-app): read tools `spec_products` (search the library) and `spec_datasheet` (text of the TDS / SDS on file,
+  cite pages), admin / C-suite.
+* Same `.panel > .ssc-subtabs > .section` frame as the other Company tabs: measured 264 / 28 px desktop, 16 / 16 px phone,
+  identical to Documents & vehicles, Templates and Compliance. Gotcha: the search box's left padding needs the id
+  selector (`#spx-q`); the global `unify.css` input rules win over a class.
+* Local PDF renders on a Mac need `SSC_PDF_ENGINE=chromium SSC_CHROMIUM_PATH=".../Google Chrome"` (prod sets both).
+  Guard: `tests/smoke_spec_library.py` (in the gate).
+
 ### Mark an invoice as sent + the ⋯ menu on the job's invoice rows (Bookore, 2026-11-13)
 
 * Accepted prototype: https://claude.ai/artifact/CSYZKHDEipWfsF69Nb3xmG. Asked for after an invoice had to go out from the
