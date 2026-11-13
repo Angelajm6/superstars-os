@@ -259,8 +259,8 @@ def main() -> int:
 
     # ---- page needles
     job = (ROOT / "dashboard-static.html").read_text(encoding="utf-8")
-    for needle in ("data-dl=\"${r.id}\"", "/pdf?download=1", "href=\"/invoices/${r.id}/edit\"", "location.hash === '#payments'",
-                   'data-edit="${r.id}"'):
+    for needle in ("['Download PDF', 'download']", "/pdf?download=1", "'/invoices/' + encodeURIComponent(r.id) + '/edit'",
+                   "location.hash === '#payments'", 'data-menu="${r.id}"', "openEdit(r)"):   # 2026-11-13: row actions in one ⋯ menu
         assert needle in job, needle
     portal = (ROOT / "company_portal.html").read_text(encoding="utf-8")
     assert "Edit invoice" in portal and "/pdf?download=1" in portal and "/invoices/${r.id}/edit" in portal
