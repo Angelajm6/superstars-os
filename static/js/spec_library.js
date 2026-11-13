@@ -415,4 +415,8 @@
   }
 
   window.SPECS_loadCatalog = function () { wire(); return load(); };
+  // This file is deferred: the page's first hash check (setTimeout 0) can open #specs before it arrives, when
+  // SPECS_loadCatalog did not exist yet. If the Specs tab is already showing, start now.
+  var pnl = document.querySelector('.panel[data-panel="specs"]');
+  if (pnl && pnl.classList.contains('active')) window.SPECS_loadCatalog();
 })();
