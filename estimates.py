@@ -454,6 +454,8 @@ def convert_to_project(conn, est_id, *, actor_user_id=None) -> dict:
             ira.ensure_job(conn, code, est_id)
         except ImportError:
             pass   # #273-only deployment — the #274 migration backfills later
+    import signed_contracts   # 2026-11-13: the signed proposal is the job's contract → Documents → Contracts
+    signed_contracts.file_for_estimate(conn, est_id, code, actor=actor_user_id)
     return {"already": False, "project_code": code, "estimate": get_estimate(conn, est_id)}
 
 
