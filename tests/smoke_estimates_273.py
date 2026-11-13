@@ -116,6 +116,11 @@ def _cleanup():
                     conn.execute("DELETE FROM ira_job WHERE project_code=?", (r[1],))
                 if _table_exists(conn, "assistant_thread"):   # the delete-guard check below plants one
                     conn.execute("DELETE FROM assistant_thread WHERE estimate_id=?", (r[0],))
+                if _table_exists(conn, "proposal"):   # ...and draft / sent proposals
+                    for (pid,) in conn.execute("SELECT id FROM proposal WHERE estimate_id=?", (r[0],)).fetchall():
+                        conn.execute("DELETE FROM proposal_line WHERE proposal_id=?", (pid,))
+                        conn.execute("DELETE FROM proposal_event WHERE proposal_id=?", (pid,))
+                    conn.execute("DELETE FROM proposal WHERE estimate_id=?", (r[0],))
                 conn.execute("DELETE FROM estimate_document WHERE estimate_id=?", (r[0],))
                 conn.execute("DELETE FROM estimate_ira WHERE estimate_id=?", (r[0],))
                 conn.execute("DELETE FROM estimate WHERE id=?", (r[0],))
@@ -348,26 +353,78 @@ def main():
         st, body = _sc(cs, "GET", "/api/estimates")
         row = next((r for r in ((body or {}).get("data") or {}).get("estimates", []) if r["id"] == clean_id), {})
         ok("list_clean_no_blocker", bool(clean_id) and "delete_blocker" in row and row["delete_blocker"] is None)
-        conn = db_layer.connect()
-        try:
-            planted = _table_exists(conn, "assistant_thread")
-            if planted:
-                conn.execute("INSERT INTO assistant_thread (estimate_id, title, source, created_at, updated_at) "
-                             "VALUES (?, 'smk273', 'office', ?, ?)", (clean_id, now, now))
-                conn.commit()
-        finally:
-            conn.close()
-        if planted:
-            st, body = _sc(cs, "DELETE", f"/api/estimates/{clean_id}")
-            ok("delete_with_claude_thread_409", st == 409 and "Claude conversation" in str((body or {}).get("error")))
-            conn = db_layer.connect()
+        def _pdf_doc(est):   # a proposal PDF the app drew (same row shape as proposals.render_pdf)
+            c = db_layer.connect()
             try:
-                conn.execute("DELETE FROM assistant_thread WHERE estimate_id=?", (clean_id,)); conn.commit()
+                c.execute("INSERT INTO estimate_document (estimate_id, category, title, doc_type, file_path, file_name, "
+                          "file_size, mime, uploaded_by, uploaded_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                          (est, "proposal", "Proposal smk273", "PDF", "proposals/smk273.pdf", "smk273.pdf", 10,
+                           "application/pdf", None, now))
+                did = c.execute("SELECT MAX(id) FROM estimate_document").fetchone()[0]
+                c.commit()
+                return did
             finally:
-                conn.close()
+                c.close()
+
+        def _q(sql, args):
+            c = db_layer.connect()
+            try:
+                return c.execute(sql, args).fetchone()[0]
+            finally:
+                c.close()
+
+        # the 24 John Street case: a Studio draft was deleted and its PDF stayed on the estimate,
+        # another draft is still there with its PDF, and Claude drafted it -> all of that goes with it
+        _pdf_doc(clean_id)   # orphan: its draft is long gone
+        st, body = _sc(cs, "POST", "/api/proposals", json={"estimate_id": clean_id})
+        draft_id = ((body or {}).get("data") or {}).get("id")
+        ok("draft_created", st in (200, 201) and bool(draft_id), f"status {st}")
+        d_doc = _pdf_doc(clean_id)
+        c = db_layer.connect()
+        try:
+            c.execute("UPDATE proposal SET pdf_doc_id=? WHERE id=?", (d_doc, draft_id))
+            if _table_exists(c, "assistant_thread"):
+                c.execute("INSERT INTO assistant_thread (estimate_id, title, source, created_at, updated_at) "
+                          "VALUES (?, 'smk273', 'office', ?, ?)", (clean_id, now, now))
+            c.commit()
+        finally:
+            c.close()
+        st, body = _sc(cs, "GET", f"/api/estimates/{clean_id}")
+        d = (body or {}).get("data") or {}
+        ok("leftovers_do_not_block", d.get("delete_blocker") is None, str(d.get("delete_blocker")))
+        ok("delete_note_lists_leftovers", "1 unsent draft proposal" in str(d.get("delete_note"))
+           and "2 proposal PDFs" in str(d.get("delete_note")), str(d.get("delete_note")))
+        # deleting a draft now takes its PDF with it (it used to stay as a "document")
+        st, body = _sc(cs, "POST", "/api/proposals", json={"estimate_id": fr_id})
+        d2 = ((body or {}).get("data") or {}).get("id")
+        d2_doc = _pdf_doc(fr_id)
+        c = db_layer.connect()
+        try:
+            c.execute("UPDATE proposal SET pdf_doc_id=? WHERE id=?", (d2_doc, d2)); c.commit()
+        finally:
+            c.close()
+        st, _ = _sc(cs, "DELETE", f"/api/proposals/{d2}")
+        ok("draft_delete_takes_its_pdf", st == 200 and _q("SELECT COUNT(*) FROM estimate_document WHERE id=?", (d2_doc,)) == 0)
+        ok("draft_delete_keeps_uploads", _q("SELECT COUNT(*) FROM estimate_document WHERE estimate_id=? AND category<>'proposal'", (fr_id,)) >= 1)
+        # a SENT proposal is real: it blocks
+        c = db_layer.connect()
+        try:
+            c.execute("UPDATE proposal SET status='sent' WHERE id=?", (draft_id,)); c.commit()
+        finally:
+            c.close()
+        st, body = _sc(cs, "DELETE", f"/api/estimates/{clean_id}")
+        ok("sent_proposal_blocks_409", st == 409 and "sent or signed proposal" in str((body or {}).get("error")))
+        c = db_layer.connect()
+        try:
+            c.execute("UPDATE proposal SET status='draft' WHERE id=?", (draft_id,)); c.commit()
+        finally:
+            c.close()
         st, _ = _sc(cs, "DELETE", f"/api/estimates/{clean_id}")
-        ok("delete_clean_200", st == 200)
+        ok("delete_with_leftovers_200", st == 200)
         ok("deleted_is_gone_404", _sc(cs, "GET", f"/api/estimates/{clean_id}")[0] == 404)
+        ok("leftovers_removed", _q("SELECT COUNT(*) FROM proposal WHERE estimate_id=?", (clean_id,)) == 0
+           and _q("SELECT COUNT(*) FROM estimate_document WHERE estimate_id=?", (clean_id,)) == 0
+           and _q("SELECT COUNT(*) FROM assistant_thread WHERE estimate_id=?", (clean_id,)) == 0)
 
         # ---------- (g) forbidden keys across everything seen ----------
         found = []

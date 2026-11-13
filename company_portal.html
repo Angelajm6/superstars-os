@@ -5281,7 +5281,7 @@
       const draft = live.find(p => p.status === 'draft');
       const fact = (k, v) => v == null || v === '' ? '' : `<li><span class="cp-muted">${esc(k)}</span><span style="text-align:right">${v}</span></li>`;
       const docs = d.documents || [];
-      ESTV.byId[e.id] = Object.assign({}, e, { delete_blocker: d.delete_blocker });
+      ESTV.byId[e.id] = Object.assign({}, e, { delete_blocker: d.delete_blocker, delete_note: d.delete_note || null });
       host.innerHTML = `<div id="est-del-conf"></div>
         <div class="cp-toolbar"><a class="cp-link" href="#proposals/${isBid ? 'bids' : 'estimates'}">← All ${word}s</a>${estPill(e)}<span class="cp-muted" style="font-size:13px">${esc(e.type_label)}${isBid ? ' · bid' : ''}</span><span style="flex:1"></span>
           <button class="btn-ghost btn-sm" type="button" data-est-edit="${e.id}">Edit</button>
@@ -5392,7 +5392,7 @@
     const word = estWord(r);
     if (r.delete_blocker) return `<div class="prx-mconf no" role="alert"><b>${esc(r.code)} can't be deleted</b><span>${esc(r.delete_blocker)}</span></div>` +
       (where === 'em' ? `<button type="button" role="menuitem" data-em="close">OK</button>` : `<span class="b"><button type="button" class="btn-ghost btn-sm" data-ed="noconf">OK</button></span>`);
-    const msg = `<b>Delete ${esc(r.code)}?</b><span>The ${word} is removed for good and its number can be used again. Use this only for one entered by mistake.</span>`;
+    const msg = `<b>Delete ${esc(r.code)}?</b><span>The ${word} is removed for good and its number can be used again. ${r.delete_note ? esc(r.delete_note) + ' ' : ''}Use this only for one entered by mistake or a duplicate.</span>`;
     return where === 'em'
       ? `<div class="prx-mconf" role="alert">${msg}</div><button type="button" role="menuitem" class="d" data-em="delgo">Delete ${esc(r.code)}</button><button type="button" role="menuitem" data-em="close">Keep it</button>`
       : `<div class="prx-confirm" role="alert">${msg.replace('<span>', '<span style="color:inherit">')}<span class="b"><button type="button" class="btn-primary btn-sm" style="background:#A8382B;border-color:#A8382B" data-ed="delgo" data-id="${r.id}">Delete ${esc(r.code)}</button><button type="button" class="btn-ghost btn-sm" data-ed="noconf">Keep it</button></span></div>`;
@@ -5419,7 +5419,7 @@
     try {
       const [{ data: d }, { data: props }] = await Promise.all([api('/estimates/' + encodeURIComponent(id), null, true), api('/proposals?estimate_id=' + encodeURIComponent(id), null, true)]);
       if (ESTV.open !== String(id)) return;
-      const e = d.estimate, word = estWord(e); ESTV.byId[e.id] = Object.assign({}, e, { delete_blocker: d.delete_blocker });
+      const e = d.estimate, word = estWord(e); ESTV.byId[e.id] = Object.assign({}, e, { delete_blocker: d.delete_blocker, delete_note: d.delete_note || null });
       const live = props.filter(p => p.status !== 'superseded'), draft = live.find(p => p.status === 'draft');
       const f = (k, v) => v == null || v === '' ? '' : `<span>${esc(k)}</span><div>${v}</div>`;
       const docs = d.documents || [];
@@ -5489,13 +5489,19 @@
     } catch (x) { formErr('est-ed-err', x.message); }
     finally { $('est-ed-go').disabled = false; }
   });
-  document.addEventListener('click', e => {
+  document.addEventListener('click', async e => {
     const t = e.target;
     const mb = t.closest('[data-est-menu]'); if (mb) { estMenu(mb, mb.dataset.estMenu); return; }
     const mi = t.closest('.prx-menu[data-est] [data-em]');
     if (mi) {
       const m = mi.parentNode, id = m.dataset.est, a = mi.dataset.em, r = estFind(id);
-      if (a === 'askdel') { m.innerHTML = estDelConfirmHtml(r, 'em'); m.style.left = Math.max(8, Math.min(parseFloat(m.style.left) || 8, window.scrollX + document.documentElement.clientWidth - m.offsetWidth - 8)) + 'px'; m.querySelector('button').focus(); return; }
+      if (a === 'askdel') {
+        if (r && r.delete_note === undefined && !r.delete_blocker) {   // what goes with it (drafts, their PDFs, Claude chats) is on the detail
+          mi.disabled = true;
+          try { const d = (await api('/estimates/' + encodeURIComponent(id), null, true)).data; r.delete_note = d.delete_note || null; r.delete_blocker = d.delete_blocker; } catch (x) { r.delete_note = null; }
+          if (!document.body.contains(m)) return;
+        }
+        m.innerHTML = estDelConfirmHtml(r, 'em'); m.style.left = Math.max(8, Math.min(parseFloat(m.style.left) || 8, window.scrollX + document.documentElement.clientWidth - m.offsetWidth - 8)) + 'px'; m.querySelector('button').focus(); return; }
       if (a === 'delgo') { estDelete(id); return; }
       prxCloseMenu();
       if (a === 'open') location.hash = '#proposals/estimate/' + id;

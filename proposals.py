@@ -697,6 +697,10 @@ def delete_draft(conn, proposal_id: int) -> None:
         raise ValueError("only a draft can be deleted")
     conn.execute("DELETE FROM proposal_line WHERE proposal_id = ?", (proposal_id,))
     conn.execute("DELETE FROM proposal_event WHERE proposal_id = ?", (proposal_id,))
+    if r.get("pdf_doc_id"):   # the PDF the app drew for this draft (it stayed on the estimate as a "document")
+        conn.execute("DELETE FROM estimate_document WHERE id = ? AND estimate_id = ? AND category = 'proposal' "
+                     "AND NOT EXISTS (SELECT 1 FROM proposal p WHERE p.pdf_doc_id = estimate_document.id AND p.id <> ?)",
+                     (r["pdf_doc_id"], r["estimate_id"], proposal_id))
     conn.execute("DELETE FROM proposal WHERE id = ?", (proposal_id,))
     conn.commit()
 
