@@ -1007,188 +1007,194 @@
     </div>
   </div>
 
-  <!-- SPECS LIBRARY (manufacturer-agnostic specifications catalog) -->
+  <!-- SPECS LIBRARY (2026-11-13 revamp, accepted prototype https://claude.ai/artifact/9WFt7rm2HWsV8Rp41MisNc):
+       search by name or by the work, go-to list, data sheets on file, the jobs each product is on, a job's
+       product list + submittal package. Logic: static/js/spec_library.js. Same panel > sub-tabs > .section
+       frame as every Company tab, so the margins match. -->
   <div class="panel" data-panel="specs">
     <div class="ssc-subtabs" data-subtabs="company"></div>
-    <div class="section">
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap;gap:12px;">
-        <div>
-          <h2 data-i18n="p-specs-title">Specifications Library</h2>
-          <div class="h2-sub" data-i18n="p-specs-sub">Manufacturer specs catalog. Each row links to the official TDS; the "Attach to Project" action puts the spec under that project's Project Documents (Specifications subsection).</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <select id="specs-mfr" style="padding:6px 10px;border:1px solid #E8E4DD;border-radius:var(--r-inner, 10px);font-size:13px;font-family:inherit;background:white;">
-            <option value="Sika" selected>Sika</option>
-            <option value="">All manufacturers</option>
-          </select>
-          <select id="specs-category" style="padding:6px 10px;border:1px solid #E8E4DD;border-radius:var(--r-inner, 10px);font-size:13px;font-family:inherit;background:white;min-width:220px;">
-            <option value="">All categories</option>
-          </select>
-          <input type="text" id="specs-search" placeholder="Search name / code…" style="padding:6px 10px;border:1px solid #E8E4DD;border-radius:var(--r-inner, 10px);font-size:13px;font-family:inherit;min-width:200px;">
-          <label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;color:#76777E;text-transform:uppercase;letter-spacing:0.04em;font-weight:600;cursor:pointer;">
-            <input type="checkbox" id="specs-core-only"> 890-core only
-          </label>
+    <div class="section spx">
+      <style>
+        .spx-head{display:flex;justify-content:space-between;align-items:flex-start;gap:0 14px;flex-wrap:wrap}
+        .spx-acts{display:flex;gap:8px;flex-wrap:wrap}
+        .spx .btn-sm{padding:6px 11px;font-size:13px;border-radius:8px}
+        .spx-seg{display:inline-flex;background:var(--fill,#F4F5F8);border-radius:10px;padding:3px;margin-bottom:14px}
+        .spx-seg button{border:0;background:none;padding:7px 16px;border-radius:8px;cursor:pointer;color:var(--ink-2,#4A4F59);font:inherit;font-size:13.5px}
+        .spx-seg button.on{background:#fff;color:var(--ink,#222633);font-weight:600;box-shadow:0 1px 3px rgba(20,22,28,.08)}
+        .spx-search{position:relative;margin-bottom:10px}
+        .section.spx .spx-search input[type="search"]{width:100%;border:1px solid #dfe2ea;background:#fff;border-radius:var(--r-inner,10px);padding:12px 14px 12px 42px;font:inherit;font-size:15px;color:var(--ink,#222633)}
+        .section.spx .spx-search input[type="search"]:focus{outline:none;border-color:var(--accent,#4364dc);box-shadow:0 0 0 3px var(--accent-soft,#ebf0fe)}
+        .spx-search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted,#8c92a0)}
+        /* the global input rules (unify.css) set padding-left after this sheet; the id outranks them */
+        body .spx-search input#spx-q{padding-left:42px}
+        .spx-hint{font-size:12.5px;color:var(--muted,#8c92a0);margin:0 0 12px}
+        .spx-hint button{border:0;background:none;padding:0;font:inherit;color:var(--ink-2,#4A4F59);font-weight:600;cursor:pointer;border-bottom:1px dotted var(--muted,#8c92a0)}
+        .spx-chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;margin-bottom:8px}
+        .spx-chips::-webkit-scrollbar{display:none}
+        .spx-chip{flex:none;border:1px solid #dfe2ea;background:#fff;border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap;color:var(--ink-2,#4A4F59)}
+        .spx-chip .n{color:var(--muted,#8c92a0);margin-left:5px;font-variant-numeric:tabular-nums}
+        .spx-chip.on{background:var(--ink,#222633);border-color:var(--ink,#222633);color:#fff}
+        .spx-chip.on .n{color:inherit;opacity:.7}
+        .spx-chip.tog.on{background:var(--accent-soft,#ebf0fe);border-color:var(--accent-edge,rgba(67,100,220,.3));color:var(--accent-ink,#3a5fd0)}
+        .spx-meta{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--muted,#8c92a0);margin:8px 0 10px;gap:10px}
+        .spx-meta button{border:0;background:none;color:var(--accent,#4364dc);cursor:pointer;font:inherit;font-size:12.5px}
+        .spx-group{margin-bottom:18px}
+        .spx-gh{display:flex;align-items:baseline;gap:8px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted,#8c92a0);margin:0 2px 6px}
+        .spx-gh span{font-weight:500;text-transform:none;letter-spacing:0}
+        .spx-list{background:#fff;border:1px solid var(--line,#eceef3);border-radius:14px;overflow:hidden}
+        .spx-row{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line,#eceef3);cursor:pointer}
+        .spx-row:first-child{border-top:0}
+        .spx-row:hover{background:var(--fill,#F4F5F8)}
+        .spx-row.sel{background:var(--accent-soft,#ebf0fe)}
+        .spx-star{border:0;background:none;cursor:pointer;color:#cfd3dc;padding:3px;display:grid;place-items:center;border-radius:6px}
+        .spx-star.on,.spx-star:hover{color:var(--accent,#4364dc)}
+        .spx-pn{font-weight:600;font-size:14px;color:var(--ink,#222633)}
+        .spx-pd{color:var(--muted,#8c92a0);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .spx-rt{display:flex;gap:6px;align-items:center}
+        .spx-tag{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--accent-soft,#ebf0fe);color:var(--accent-ink,#3a5fd0);white-space:nowrap}
+        .spx-tag.doc{background:var(--fill,#F4F5F8);color:var(--ink-2,#4A4F59)}
+        .spx-tag.ok{background:var(--status-complete-soft,#e7f6f0);color:var(--status-complete-deep,#0c7a5f)}
+        .spx-tag.miss{background:var(--status-warn-soft,#FFF4E5);color:var(--status-warn,#9A5B00)}
+        .spx-plus{border:1px solid #dfe2ea;background:#fff;border-radius:8px;width:32px;height:32px;cursor:pointer;display:grid;place-items:center;color:var(--ink-2,#4A4F59)}
+        .spx-plus:hover{border-color:var(--accent,#4364dc);color:var(--accent,#4364dc)}
+        .spx-empty{padding:34px 18px;text-align:center;color:var(--muted,#8c92a0)}
+        .spx-empty b{display:block;color:var(--ink,#222633);font-size:15px;margin-bottom:4px}
+        .spx-banner{background:var(--accent-soft,#ebf0fe);border:1px solid var(--accent-edge,rgba(67,100,220,.3));color:var(--accent-ink,#3a5fd0);border-radius:var(--r-inner,10px);padding:10px 14px;display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px;font-size:13.5px;flex-wrap:wrap}
+        .spx-jobhead{border:1px solid var(--line,#eceef3);border-radius:14px;padding:16px;margin-bottom:14px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:center}
+        .spx-jobhead .t{font-weight:650;font-size:16px}
+        .spx-jobhead .s{color:var(--muted,#8c92a0);font-size:13px}
+        .spx-stats{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--ink-2,#4A4F59)}
+        .spx-stats b{font-variant-numeric:tabular-nums}
+        .spx-jrow{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) auto auto;gap:12px;align-items:center;padding:10px 14px;border-top:1px solid var(--line,#eceef3)}
+        .spx-jrow:first-child{border-top:0}
+        .spx-where{border:1px solid transparent;background:none;border-radius:8px;padding:6px 8px;font:inherit;font-size:13px;color:var(--ink-2,#4A4F59);width:100%}
+        .spx-where:hover{border-color:#dfe2ea}
+        .spx-where:focus{outline:none;border-color:var(--accent,#4364dc);background:#fff}
+        .spx-lnk{border:0;background:none;color:var(--accent,#4364dc);cursor:pointer;font:inherit;font-size:13px;font-weight:600;padding:4px;text-decoration:none;white-space:nowrap}
+        .spx-lnk.red{color:var(--brand-red,#B11E2E)}
+        .spx-note{font-size:12.5px;color:var(--muted,#8c92a0);margin-top:10px}
+        .spx-pop{position:fixed;z-index:1600;background:#fff;border:1px solid var(--line,#eceef3);border-radius:var(--r-card,14px);box-shadow:0 12px 40px rgba(20,22,28,.16);padding:6px;width:270px;max-height:60vh;overflow:auto}
+        .spx-pop h4{margin:4px 8px 6px;font-size:12px;color:var(--muted,#8c92a0);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+        .spx-pop label{display:flex;gap:10px;align-items:center;padding:8px;border-radius:8px;cursor:pointer;font-size:13.5px}
+        .spx-pop label:hover{background:var(--fill,#F4F5F8)}
+        .spx-pop small{color:var(--muted,#8c92a0);display:block;font-size:12px}
+        .spx-pop input{accent-color:var(--accent,#4364dc);width:16px;height:16px}
+        .spx-scrim{position:fixed;inset:0;background:rgba(20,22,28,.32);z-index:1490;opacity:0;pointer-events:none;transition:opacity .18s}
+        .spx-scrim.on{opacity:1;pointer-events:auto}
+        .spx-panel{position:fixed;top:0;right:0;bottom:0;width:min(460px,100%);background:#fff;z-index:1500;box-shadow:0 12px 40px rgba(20,22,28,.16);transform:translateX(102%);transition:transform .22s var(--ssc-ease,ease);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+        .spx-panel.on{transform:none}
+        .spx-ph{padding:18px 20px 14px;border-bottom:1px solid var(--line,#eceef3);display:flex;gap:10px;align-items:flex-start}
+        .spx-ph .eb{font-size:12px;color:var(--muted,#8c92a0)}
+        .spx-ph h3{margin:2px 0 0;font-size:19px;font-weight:650;text-wrap:balance}
+        .spx-x{margin-left:auto;border:0;background:var(--fill,#F4F5F8);border-radius:8px;width:34px;height:34px;cursor:pointer;flex:none;font-size:19px;line-height:1;color:var(--ink-2,#4A4F59)}
+        .spx-pb{overflow-y:auto;padding:4px 20px 24px;flex:1}
+        .spx-sec{padding:16px 0;border-bottom:1px solid var(--line,#eceef3)}
+        .spx-sec:last-child{border-bottom:0}
+        .spx-sec h4{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted,#8c92a0);margin:0 0 10px;display:flex;justify-content:space-between}
+        .spx-sec h4 span{text-transform:none;letter-spacing:0;font-weight:500}
+        .spx-for{font-size:14px;color:var(--ink-2,#4A4F59);margin:0 0 10px}
+        .spx-lbl{display:block;font-size:12px;color:var(--muted,#8c92a0);margin-bottom:4px;font-weight:500}
+        .spx textarea.ssc-field,.spx-panel textarea.ssc-field,.spx-modal textarea.ssc-field{min-height:64px;resize:vertical;width:100%}
+        .spx-saved{font-size:12px;color:var(--status-complete-deep,#0c7a5f);min-height:16px}
+        .spx-doc{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line,#eceef3);border-radius:var(--r-inner,10px);margin-bottom:8px}
+        .spx-doc .ic{width:34px;height:40px;border-radius:6px;background:var(--fill,#F4F5F8);display:grid;place-items:center;font-size:10px;font-weight:700;color:var(--ink-2,#4A4F59);flex:none}
+        .spx-doc .ic.pdf{background:var(--brand-red,#B11E2E);color:#fff}
+        .spx-doc .dt{flex:1;min-width:0}
+        .spx-doc .dt b{display:block;font-size:13.5px;font-weight:600}
+        .spx-doc .dt span{font-size:12px;color:var(--muted,#8c92a0);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .spx-doc.drop{border-style:dashed;border-color:#d6dae4;cursor:pointer}
+        .spx-doc.drop:hover,.spx-doc.drop.over{border-color:var(--accent,#4364dc);background:var(--accent-soft,#ebf0fe)}
+        .spx-jr{display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line,#eceef3)}
+        .spx-jr:first-child{border-top:0}
+        .spx-jr .jc{font-weight:600;font-size:13.5px;white-space:nowrap}
+        .spx-jr .jw{flex:1;min-width:0;font-size:13px;color:var(--muted,#8c92a0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .spx-adder{background:var(--fill,#F4F5F8);border-radius:var(--r-inner,10px);padding:12px;display:grid;gap:8px;margin-top:8px}
+        .spx-adder .r{display:flex;gap:8px}
+        .spx-adder .r select{flex:0 0 46%;min-width:0}
+        .spx-ask{display:flex;flex-wrap:wrap;gap:6px}
+        .spx-ask button{border:1px solid var(--accent-edge,rgba(67,100,220,.3));background:var(--accent-soft,#ebf0fe);color:var(--accent-ink,#3a5fd0);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+        .spx-modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-48%);width:min(520px,calc(100% - 32px));max-height:calc(100% - 48px);overflow:auto;background:#fff;border-radius:var(--r-card,14px);box-shadow:0 18px 60px rgba(0,0,0,.28);z-index:1510;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
+        .spx-modal.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%)}
+        .spx-modal .mh{padding:18px 20px 4px;font-size:17px;font-weight:650;margin:0}
+        .spx-modal .mb{padding:10px 20px;display:grid;gap:12px}
+        .spx-modal .mf{padding:14px 20px 18px;display:flex;justify-content:flex-end;gap:8px}
+        .spx-modal .err{color:var(--brand-red,#B11E2E);font-size:13px;min-height:0}
+        .spx-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+        .spx-two > div{min-width:0}
+        .spx-modal .ssc-field,.spx-panel .ssc-field{width:100%}
+        .spx-toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:var(--ink,#222633);color:#fff;border-radius:var(--r-card,14px);padding:11px 14px 11px 16px;display:flex;gap:14px;align-items:center;font-size:13.5px;z-index:1700;opacity:0;pointer-events:none;transition:all .2s;max-width:calc(100% - 32px)}
+        .spx-toast.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+        .spx-toast button{border:0;background:none;color:#c9d5ff;font:inherit;font-weight:700;cursor:pointer}
+        @media (max-width:860px){
+          .spx-acts #spx-ask{display:none}
+          .spx-jrow{grid-template-columns:minmax(0,1fr) auto;gap:2px 10px}
+          .spx-jrow .spx-where{grid-column:1/-1;order:3;padding-left:0;padding-right:0}
+          .spx-jrow .jdoc{display:none}
+        }
+        @media (max-width:640px){
+          .spx-panel{top:auto;left:0;right:0;width:100%;height:88%;border-radius:var(--r-card,14px) var(--r-card,14px) 0 0;transform:translateY(102%)}
+          .spx-panel::before{content:"";width:40px;height:4px;border-radius:4px;background:#dfe2ea;margin:8px auto 0;flex:none}
+          .spx-ph{padding-top:10px}
+          .spx-rt .spx-tag.doc{display:none}
+          .spx-two{grid-template-columns:1fr}
+          .section.spx .spx-search input[type="search"]{font-size:16px}
+          .spx-acts{margin-bottom:14px}
+        }
+        @media (prefers-reduced-motion:reduce){.spx-panel,.spx-modal,.spx-toast,.spx-scrim{transition:none}}
+      </style>
+      <div class="spx-head">
+        <div><h2 data-i18n="p-specs-title">Specs</h2><div class="h2-sub" id="spx-sub">The products we use, their data sheets, and the jobs they're on.</div></div>
+        <div class="spx-acts">
+          <button type="button" class="btn-ghost" id="spx-ask">Ask Claude what to use</button>
+          <button type="button" class="btn-primary" id="spx-add">+ Add product</button>
         </div>
       </div>
-      <div id="specs-status" style="font-size:13px;color:#76777E;min-height:18px;margin-bottom:8px;"></div>
-      <table class="roster">
-        <thead>
-          <tr><th>Manufacturer</th><th>Category</th><th>Line</th><th>Product</th><th>Tags</th><th>TDS</th><th>Attach to project</th></tr>
-        </thead>
-        <tbody id="specs-tbody">
-          <tr><td colspan="7" style="padding:20px;text-align:center;color:#76777E;">Loading…</td></tr>
-        </tbody>
-      </table>
+      <div class="spx-seg" role="tablist" aria-label="Specs view">
+        <button type="button" class="on" data-spxview="catalog" role="tab">Catalog</button>
+        <button type="button" data-spxview="job" role="tab">By job</button>
+      </div>
+      <div id="spx-catalog">
+        <div id="spx-banner"></div>
+        <div class="spx-search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="spx-q" type="search" placeholder="Search by name, or by the work: crack, joint, coating, anchor…" aria-label="Search products" autocomplete="off">
+        </div>
+        <div class="spx-hint">Try <button type="button" data-spxq="spall">spall</button> · <button type="button" data-spxq="window joint">window joint</button> · <button type="button" data-spxq="water repellent">water repellent</button> · <button type="button" data-spxq="rebar">rebar</button> · <button type="button" data-spxq="carbon fiber">carbon fiber</button></div>
+        <div class="spx-chips" id="spx-cats"></div>
+        <div class="spx-chips" id="spx-togs"></div>
+        <div class="spx-meta"><span id="spx-count">Loading…</span><button type="button" id="spx-clear" hidden>Clear filters</button></div>
+        <div id="spx-results"></div>
+      </div>
+      <div id="spx-job" hidden>
+        <div class="spx-chips" id="spx-jobchips"></div>
+        <div id="spx-jobbody"></div>
+      </div>
     </div>
   </div>
-  <script>
-  (function() {
-    // ---- Specs Library — browse / search / attach ------------------
-    const $  = (id) => document.getElementById(id);
-    const esc = (s) => (s == null ? '' : String(s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'));
-    let _categoriesLoaded = false;
-    let _projectsList = [];
-
-    async function loadProjects() {
-      // Project list for the per-row attach dropdown. Cached.
-      if (_projectsList.length) return _projectsList;
-      try {
-        const r = await fetch('/api/projects');
-        const j = await r.json();
-        _projectsList = (j && j.data) || [];
-      } catch (_) { _projectsList = []; }
-      return _projectsList;
-    }
-
-    function setStatus(msg, color) {
-      const el = $('specs-status'); if (!el) return;
-      el.textContent = msg || ''; el.style.color = color || '#76777E';
-    }
-
-    function rowHTML(s, projects) {
-      const tds = s.spec_url
-        ? `<a href="${esc(s.spec_url)}" target="_blank" rel="noopener" style="color:var(--ui);font-weight:600;text-decoration:none;">TDS →</a>`
-        : '<span style="color:#76777E;">—</span>';
-      const tagBadge = s.tags
-        ? `<span class="badge-pill warn" style="font-size:13px;">${esc(s.tags)}</span>`
-        : '<span style="color:#76777E;">—</span>';
-      const projOpts = projects.map(p =>
-        `<option value="${esc(p.project_code)}">${esc(p.project_code)}</option>`
-      ).join('');
-      const attach = `
-        <span style="display:inline-flex;gap:4px;align-items:center;">
-          <select class="specs-attach-proj" data-spec-id="${s.id}" style="font-size:13px;padding:3px 6px;border:1px solid #E8E4DD;border-radius:3px;">
-            <option value="">— project —</option>${projOpts}
-          </select>
-          <button type="button" class="specs-attach-btn" data-spec-id="${s.id}"
-                  style="font-size:13px;font-weight:700;padding:3px 8px;border:none;border-radius:3px;background:var(--ui);color:white;cursor:pointer;letter-spacing:0.04em;">ATTACH</button>
-        </span>
-      `;
-      return `<tr data-spec-id="${s.id}">
-        <td style="font-weight:600;">${esc(s.manufacturer)}</td>
-        <td style="font-size:13px;color:#76777E;">${esc(s.category)}</td>
-        <td style="font-size:13px;">${esc(s.product_line || '—')}</td>
-        <td style="font-weight:600;">${esc(s.product_name)}</td>
-        <td>${tagBadge}</td>
-        <td>${tds}</td>
-        <td>${attach}</td>
-      </tr>`;
-    }
-
-    function loadCategoriesOnce(items) {
-      // Build the category dropdown once from the first payload so the
-      // filter reflects what's actually in the catalog (no hard-coded list).
-      if (_categoriesLoaded) return;
-      _categoriesLoaded = true;
-      const sel = $('specs-category');
-      const cats = Array.from(new Set(items.map(s => s.category))).sort();
-      sel.innerHTML = '<option value="">All categories</option>' +
-        cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
-    }
-
-    async function load() {
-      setStatus('Loading…');
-      const params = new URLSearchParams();
-      const mfr = $('specs-mfr').value;
-      const cat = $('specs-category').value;
-      const search = $('specs-search').value.trim();
-      const coreOnly = $('specs-core-only').checked;
-      params.set('manufacturer', mfr || '');
-      if (cat)    params.set('category', cat);
-      if (search) params.set('search', search);
-      if (coreOnly) params.set('tag', '890-core');
-      try {
-        const [resp, projects] = await Promise.all([
-          fetch('/api/spec-products?' + params.toString()).then(r => r.json()),
-          loadProjects(),
-        ]);
-        const data = (resp && resp.data) || null;
-        if (!data) { setStatus('No data', '#B11E2E'); return; }
-        const items = data.items || [];
-        loadCategoriesOnce(items);
-        const tbody = $('specs-tbody');
-        if (!items.length) {
-          tbody.innerHTML = '<tr><td colspan="7" style="padding:18px;text-align:center;color:#76777E;">No specs match the current filter.</td></tr>';
-        } else {
-          tbody.innerHTML = items.map(s => rowHTML(s, projects)).join('');
-        }
-        setStatus(`${items.length} product(s)`, '#2F7C57');
-      } catch (e) {
-        console.warn('[specs] load failed:', e);
-        setStatus('Network error', '#B11E2E');
-      }
-    }
-
-    document.addEventListener('click', async (e) => {
-      const btn = e.target.closest('.specs-attach-btn');
-      if (!btn) return;
-      const specId = btn.dataset.specId;
-      const row = btn.closest('tr');
-      const projSel = row.querySelector('.specs-attach-proj');
-      const project = projSel.value;
-      if (!project) { alert('Pick a project first.'); return; }
-      btn.disabled = true; btn.textContent = '…';
-      try {
-        const resp = await fetch('/api/projects/' + encodeURIComponent(project) + '/document-specs', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({spec_product_id: parseInt(specId, 10)}),
-        });
-        if (resp.status === 201) {
-          btn.textContent = 'ATTACHED';
-          btn.style.background = '#2F7C57';
-        } else if (resp.status === 200) {
-          btn.textContent = 'ALREADY';
-          btn.style.background = '#B68838';
-        } else {
-          const j = await resp.json().catch(() => ({}));
-          btn.textContent = 'FAILED';
-          alert('Attach failed: ' + ((j && j.error) || ('HTTP ' + resp.status)));
-        }
-      } catch (err) {
-        btn.textContent = 'ERR';
-        alert('Network error: ' + (err && err.message));
-      }
-      setTimeout(() => {
-        btn.disabled = false; btn.textContent = 'ATTACH';
-        btn.style.background = 'var(--ui)';
-      }, 2500);
-    });
-
-    ['specs-mfr', 'specs-category', 'specs-core-only'].forEach(id => {
-      $(id).addEventListener('change', load);
-    });
-    let _searchTimer = null;
-    $('specs-search').addEventListener('input', () => {
-      clearTimeout(_searchTimer);
-      _searchTimer = setTimeout(load, 200);
-    });
-
-    // #339 — the hash router (activatePanel) loads the catalog on first entry
-    window.SPECS_loadCatalog = load;
-  })();
-  </script>
+  <div class="spx-scrim" id="spx-scrim"></div>
+  <aside class="spx-panel" id="spx-panel" role="dialog" aria-modal="true" aria-label="Product"></aside>
+  <div class="spx-modal" id="spx-modal" role="dialog" aria-modal="true" aria-labelledby="spx-m-title">
+    <h3 class="mh" id="spx-m-title">Add a product</h3>
+    <div class="mb">
+      <div class="spx-doc drop" id="spx-m-drop" tabindex="0" role="button"><div class="ic">PDF</div><div class="dt"><b id="spx-m-drop-t">Drop the data sheet here</b><span id="spx-m-drop-s">or tap to choose. Claude reads it and fills in the form.</span></div></div>
+      <input type="file" id="spx-m-file" accept="application/pdf,.pdf" hidden>
+      <div class="spx-two">
+        <div><label class="spx-lbl" for="spx-m-mfr">Manufacturer</label><input class="ssc-field" id="spx-m-mfr" list="spx-mfrs" value="Sika" autocomplete="off"><datalist id="spx-mfrs"></datalist></div>
+        <div><label class="spx-lbl" for="spx-m-name">Product name</label><input class="ssc-field" id="spx-m-name" placeholder="e.g. Sikaflex-11 FC+" autocomplete="off"></div>
+      </div>
+      <div class="spx-two">
+        <div><label class="spx-lbl" for="spx-m-cat">Category</label><select class="ssc-field" id="spx-m-cat"></select></div>
+        <div><label class="spx-lbl" for="spx-m-line">Product line (optional)</label><input class="ssc-field" id="spx-m-line" placeholder="e.g. Sikaflex" autocomplete="off"></div>
+      </div>
+      <div><label class="spx-lbl" for="spx-m-desc">What it is</label><input class="ssc-field" id="spx-m-desc" placeholder="e.g. Polyurethane joint sealant" autocomplete="off"></div>
+      <div><label class="spx-lbl" for="spx-m-url">Manufacturer page (optional)</label><input class="ssc-field" id="spx-m-url" placeholder="https://" autocomplete="off" inputmode="url"></div>
+      <div class="err" id="spx-m-err"></div>
+    </div>
+    <div class="mf"><button type="button" class="btn-ghost" id="spx-m-cancel">Cancel</button><button type="button" class="btn-primary" id="spx-m-save">Add product</button></div>
+  </div>
+  <input type="file" id="spx-file" accept="application/pdf,.pdf" hidden>
+  <div class="spx-toast" id="spx-toast" role="status" aria-live="polite"><span id="spx-toast-t"></span><button type="button" id="spx-toast-u" hidden>Undo</button></div>
+  <script src="/files/static/js/spec_library.js?v=1" defer></script>
 
   <!-- LABOR RATE TRACKER (check-cutting sheet) -->
   <!--
@@ -1638,7 +1644,7 @@ const I18N = {
     'tab-estimates': 'Estimates',
     'tab-labor-rate': 'Weekly Payroll',
     'tab-specs': 'Specs Library',
-    'p-specs-title': 'Specifications Library',
+    'p-specs-title': 'Specs',
     'p-specs-sub': 'Manufacturer specs catalog. Each row links to the official TDS; the "Attach to Project" action files the spec under Project Documents (Specifications subsection) for that project.',
     'tab-settings': 'Settings',
     'p-active-projects-title': 'Active Projects',
@@ -1798,7 +1804,7 @@ const I18N = {
     'tab-estimates': 'Presupuestos',
     'tab-labor-rate': 'Nómina Semanal',
     'tab-specs': 'Especificaciones',
-    'p-specs-title': 'Biblioteca de Especificaciones',
+    'p-specs-title': 'Especificaciones',
     'p-specs-sub': 'Catálogo de especificaciones del fabricante. Cada fila enlaza a la TDS oficial; la acción "Adjuntar a Proyecto" añade la especificación a los Documentos del Proyecto.',
     'tab-settings': 'Ajustes',
     'p-active-projects-title': 'Proyectos Activos',
