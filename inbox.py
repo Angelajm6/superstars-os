@@ -58,6 +58,7 @@ import re
 import secrets
 import threading
 import time
+import urllib.parse
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 from html import unescape as _html_unescape
@@ -2191,7 +2192,11 @@ def _api_attachment(mid, n):
         name = re.sub(r'[\r\n"\\]', "", a["name"] or "attachment")[:150]
         inline = (a.get("mime") or "").startswith(("image/", "application/pdf")) and request.args.get("download") != "1"
         resp = Response(data, mimetype=a.get("mime") or "application/octet-stream")
-        resp.headers["Content-Disposition"] = ("inline" if inline else "attachment") + f'; filename="{name}"'
+        # a name past Latin-1 (an en dash, curly quote, emoji, Chinese ...) cannot go in a header as-is: waitress refused the
+        # whole response with a bare 500 page (2026-11-13). Plain-ASCII name for old browsers + the exact name, UTF-8 encoded.
+        plain = name.encode("ascii", "ignore").decode().strip() or "attachment"
+        resp.headers["Content-Disposition"] = (("inline" if inline else "attachment") + f'; filename="{plain}"'
+                                               + "; filename*=UTF-8''" + urllib.parse.quote(name, safe=""))
         resp.headers["Cache-Control"] = "private, no-store"
         resp.headers["X-Content-Type-Options"] = "nosniff"
         resp.headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
