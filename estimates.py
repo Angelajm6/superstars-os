@@ -118,6 +118,51 @@ def _has_276(conn) -> bool:
     return "division" in _columns(conn, "estimate")
 
 
+# What still hangs off an estimate. DELETE is mistake correction only: it runs when
+# nothing does, so no proposal, document, visit, email or Claude chat is left pointing
+# at a missing (or later re-used) id, and no Postgres foreign key turns it into a 500.
+# (table, column, what one is called, many); mail_link keys the id as text.
+_DELETE_REFS = (
+    ("proposal", "estimate_id", "proposal", "proposals"),
+    ("estimate_document", "estimate_id", "document", "documents"),
+    ("walkthrough_visit", "estimate_id", "walkthrough", "walkthroughs"),
+    ("walkthrough_report", "estimate_id", "walkthrough report", "walkthrough reports"),
+    ("ira_job", "estimate_id", "IRA job", "IRA jobs"),
+    ("assistant_thread", "estimate_id", "Claude conversation", "Claude conversations"),
+    ("mail_message", "estimate_id", "email", "emails"),
+)
+
+
+def delete_blockers(conn, est_ids) -> dict:
+    """{estimate id: plain-language reason it can't be deleted} for the ids that can't.
+    Grouped counts, one query per table, so the list can carry it for every row."""
+    from apply_crm_266 import _table_exists
+    ids = [int(i) for i in est_ids]
+    if not ids:
+        return {}
+    found = {i: [] for i in ids}
+    marks = ",".join("?" * len(ids))
+    for table, col, one, many in _DELETE_REFS:
+        if not _table_exists(conn, table):
+            continue
+        for r in conn.execute(f"SELECT {col} AS eid, COUNT(*) AS n FROM {table} "
+                              f"WHERE {col} IN ({marks}) GROUP BY {col}", ids).fetchall():
+            if r["eid"] in found and r["n"]:
+                found[r["eid"]].append(f"{r['n']} {one if r['n'] == 1 else many}")
+    if _table_exists(conn, "mail_link"):
+        for r in conn.execute(f"SELECT entity_id AS eid, COUNT(*) AS n FROM mail_link WHERE entity_type='estimate' "
+                              f"AND entity_id IN ({marks}) GROUP BY entity_id", [str(i) for i in ids]).fetchall():
+            k = int(r["eid"])
+            if k in found and r["n"] and not any(x.endswith(("email", "emails")) for x in found[k]):
+                found[k].append(f"{r['n']} {'email' if r['n'] == 1 else 'emails'}")
+    out = {}
+    for i, parts in found.items():
+        if parts:
+            out[i] = "It has " + (", ".join(parts[:-1]) + " and " + parts[-1] if len(parts) > 1 else parts[0]) + \
+                ". Mark it Lost instead."
+    return out
+
+
 _DIVISIONS = ("facade", "rope_access", "interior", "parking_garage", "other")
 _INQUIRY_KINDS = ("bid", "po", "undetermined")
 _RA_SUBTYPES = ("inspection", "work")
@@ -508,6 +553,10 @@ def _api_list():
                 r["pipe"] = _estimating.pipe_state(d)
                 r["age_days"] = _estimating.lead_age_days(d)
                 r["overdue"] = _estimating.lead_overdue(d)
+        blocked = delete_blockers(conn, [r["id"] for r in out])
+        for r in out:   # the ⋯ menu on Estimates & proposals says up front when Delete can't run
+            r["delete_blocker"] = ("It became a project, so it stays on record." if r["status"] == "converted"
+                                   else blocked.get(r["id"]))
         counts = {}
         for r in out:
             counts[r["status"]] = counts.get(r["status"], 0) + 1
@@ -572,6 +621,8 @@ def _api_detail(est_id):
             "client_activity": acts,
             "allowed_transitions": allowed_transitions(est["status"]),
             "convertible": est["status"] == "approved",
+            "delete_blocker": ("It became a project, so it stays on record." if est["status"] == "converted"
+                               else delete_blockers(conn, [est_id]).get(est_id)),
         }})
     finally:
         conn.close()
@@ -668,20 +719,19 @@ def _api_update(est_id):
 
 @requires_section('estimates')
 def _api_delete(est_id):
-    """DELETE — mistake correction ONLY. Refused once documents exist (nothing
-    hard-deletes then) or once converted. MAX+1 allocation means deleting the highest
+    """DELETE — mistake correction ONLY. Refused once converted or once anything hangs
+    off it (delete_blockers: documents, proposals, walkthroughs, IRA, emails, Claude). MAX+1 allocation means deleting the highest
     seq frees its number — same accepted behavior as worker ids."""
     conn = _db()
     try:
         est = get_estimate(conn, est_id)
         if not est:
             return jsonify({"error": "not found"}), 404
-        ndocs = conn.execute("SELECT COUNT(*) AS n FROM estimate_document WHERE estimate_id=?",
-                             (est_id,)).fetchone()["n"]
-        if ndocs:
-            return jsonify({"error": "estimate has documents — nothing hard-deletes once documents exist"}), 409
         if est["status"] == "converted":
-            return jsonify({"error": "a converted estimate cannot be deleted"}), 409
+            return jsonify({"error": "It became a project, so it stays on record."}), 409
+        why = delete_blockers(conn, [est_id]).get(est_id)
+        if why:   # documents, proposals, visits, emails or Claude chats still point at it
+            return jsonify({"error": why}), 409
         conn.execute("DELETE FROM estimate_ira WHERE estimate_id=?", (est_id,))
         conn.execute("DELETE FROM estimate WHERE id=?", (est_id,))
         conn.commit()

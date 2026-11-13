@@ -266,6 +266,11 @@
   .prx-no.signed { background: var(--status-complete-soft, #e7f6f0); color: var(--status-complete-deep, #0c7a5f); }
   .prx-mconf { display: grid; gap: 4px; padding: 8px 10px 6px; max-width: 260px; font-size: 13px; }
   .prx-mconf span { color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+  /* estimates / bids: the ⋯ menu stays in reach while the table scrolls sideways on a phone (2026-11-13) */
+  #pr-table tr > :last-child:not([colspan]) { position: sticky; right: 0; background: var(--card, #fff); width: 44px; padding-left: 4px; padding-right: 8px; text-align: right; }
+  .prx-more.est-more { width: 36px; height: 36px; }
+  #est-drawer .prx-acts a { text-decoration: none; }
+  .prx-menu .prx-mconf.no b { color: var(--ink, #222633); }
   .prx-hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .prx-hint.ok { color: var(--status-complete, #15a07e); } .prx-hint.new { color: var(--accent-ink); }
   .prx-approve { grid-column: 1 / -1; border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 12px; }
@@ -341,7 +346,7 @@
   .prx-tl time { color: var(--muted, #8c92a0); font-size: 12px; font-variant-numeric: tabular-nums; }
   .prx-confirm { border: 1px solid #A8382B; background: #fdecea; border-radius: 10px; padding: 12px 14px; font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
   .prx-confirm .b { display: flex; gap: 6px; flex-wrap: wrap; }
-  .btn-ghost.prx-danger { color: #A8382B; }
+  .btn-ghost.prx-danger, body .ssc-main .btn-ghost.prx-danger:not(.btn-primary) { color: #A8382B; }   /* beats the shared .btn-sm:not(.btn-primary) */
   @media (min-width: 761px) { .prx-meta { display: none; } }
   @media (max-width: 760px) {
     .prx-row.head { display: none; }
@@ -1882,6 +1887,8 @@
 <!-- proposal modals (#307) -->
 <div class="prx-scrim" id="prx-scrim" hidden></div>
 <aside class="prx-drawer" id="prx-drawer" hidden aria-label="Proposal"></aside>
+<div class="prx-scrim" id="est-scrim" hidden></div>
+<aside class="prx-drawer" id="est-drawer" hidden role="dialog" aria-modal="true" aria-label="Estimate preview"></aside>
 <!-- Projects → Ready to start: signed proposals not yet a project (a sheet from the bottom on phones) -->
 <div class="prx-scrim" id="pj-scrim" hidden></div>
 <div class="pj-pmscrim" id="pj-pmscrim" hidden></div>
@@ -1921,6 +1928,23 @@
       <div class="cp-form-err" id="est-new-err" role="alert"></div>
     </div>
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="est-new-cancel">Cancel</button><button class="btn-primary" type="submit" id="est-new-go">Create</button></div>
+  </form>
+</div>
+<div class="cp-overlay" id="est-ed-overlay" role="dialog" aria-modal="true" aria-labelledby="est-ed-title">
+  <form class="cp-modal" id="est-ed-form" novalidate>
+    <div class="cp-modal-head"><h2 id="est-ed-title">Edit estimate</h2><p class="cp-muted" id="est-ed-sub" style="margin:6px 0 0;font-size:13px"></p></div>
+    <div class="cp-modal-body">
+      <div class="cp-field full"><label for="est-ed-org">Client</label><select id="est-ed-org"><option value="">— choose a client —</option></select></div>
+      <div class="cp-field full"><label for="est-ed-addr">Building address</label><input id="est-ed-addr" autocomplete="off" placeholder="Street address"></div>
+      <div class="cp-field"><label for="est-ed-kind">It is</label><select id="est-ed-kind"><option value="undetermined">An estimate</option><option value="bid">A bid</option><option value="po">A purchase order</option></select></div>
+      <div class="cp-field"><label for="est-ed-status">Status</label><select id="est-ed-status"></select></div>
+      <div class="cp-field"><label for="est-ed-amount">Amount</label><input id="est-ed-amount" inputmode="decimal" autocomplete="off" placeholder="$0.00"></div>
+      <div class="cp-field"><label for="est-ed-qb">QuickBooks estimate #</label><input id="est-ed-qb" autocomplete="off"></div>
+      <div class="cp-field" id="est-ed-due-wrap"><label for="est-ed-due">Bid due</label><input id="est-ed-due" type="date"></div>
+      <div class="cp-field full"><label for="est-ed-notes">Notes</label><textarea id="est-ed-notes" style="min-height:70px"></textarea></div>
+      <div class="cp-form-err" id="est-ed-err" role="alert"></div>
+    </div>
+    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="est-ed-cancel">Cancel</button><button class="btn-primary" type="submit" id="est-ed-go">Save</button></div>
   </form>
 </div>
 <div class="cp-overlay" id="pr-send-overlay" role="dialog" aria-modal="true" aria-labelledby="pr-send-title">
@@ -5227,7 +5251,7 @@
       const rows = mine.filter(e => st === 'all' ? true : st ? e.status === st : !['lost', 'converted'].includes(e.status))
         .filter(e => !q || [e.code, e.org_name, e.building_address, e.type_label].join(' ').toLowerCase().includes(q));
       const word = kind === 'bid' ? 'bid' : 'estimate';
-      EST.rows = rows; EST.kind = kind; EST.cc = cc;
+      EST.rows = rows; EST.kind = kind; EST.cc = cc; ESTV.byId = {};
       EST.draw = () => table($('pr-table'), [
         { key: 'code', label: kind === 'bid' ? 'Bid' : 'Estimate', render: r => `<a class="cp-link cp-id" href="#proposals/estimate/${r.id}">${esc(r.code)}</a>` },
         { key: 'org_name', label: 'Client', render: r => `<a class="cp-link" href="#clients/${r.client_org_id}">${esc(r.org_name || '')}</a>` },
@@ -5238,6 +5262,7 @@
         { key: 'final_amount', label: 'Amount', num: true, render: r => estEditable(r, 'final_amount', r.final_amount != null ? money.format(r.final_amount) : '—') },
         { key: 'updated_at', label: 'Updated', render: r => fmtDate(r.updated_at) },
         { key: 'claude', label: '', render: r => claudeChip(cc, r.id), sortVal: r => cc[r.id] || 0 },
+        { key: 'more', label: '', sortVal: () => 0, render: r => `<button type="button" class="prx-more est-more" data-est-menu="${r.id}" aria-label="Actions for ${esc(r.code)}" aria-haspopup="menu">⋯</button>` },
       ], rows, { defaultSort: kind === 'bid' ? { key: 'bid_due_date', dir: 'asc' } : { key: 'updated_at', dir: 'desc' },
         emptyTitle: st || q ? `No ${word}s match` : `No open ${word}s`, emptySub: `Use "${PRK_NEW[kind]}" to add one.`,
         onRow: r => { if (!EST.edit) location.hash = '#proposals/estimate/' + r.id; } });
@@ -5256,12 +5281,15 @@
       const draft = live.find(p => p.status === 'draft');
       const fact = (k, v) => v == null || v === '' ? '' : `<li><span class="cp-muted">${esc(k)}</span><span style="text-align:right">${v}</span></li>`;
       const docs = d.documents || [];
-      host.innerHTML = `
+      ESTV.byId[e.id] = Object.assign({}, e, { delete_blocker: d.delete_blocker });
+      host.innerHTML = `<div id="est-del-conf"></div>
         <div class="cp-toolbar"><a class="cp-link" href="#proposals/${isBid ? 'bids' : 'estimates'}">← All ${word}s</a>${estPill(e)}<span class="cp-muted" style="font-size:13px">${esc(e.type_label)}${isBid ? ' · bid' : ''}</span><span style="flex:1"></span>
-          <a class="btn-ghost btn-sm" href="/#estimates/${e.id}">Edit in Estimating</a>
+          <button class="btn-ghost btn-sm" type="button" data-est-edit="${e.id}">Edit</button>
+          <a class="btn-ghost btn-sm" href="/#estimates/${e.id}" title="Upload documents and schedule walkthroughs">Documents &amp; walkthroughs</a>
+          <button class="btn-ghost btn-sm prx-danger" type="button" data-est-del="${e.id}">Delete…</button>
           ${draft ? `<a class="btn-primary btn-sm" href="#proposals/${draft.id}">Open draft proposal</a>` : (e.status === 'converted' ? '' : `<button class="btn-primary btn-sm" type="button" id="est-propose">Create proposal</button>`)}</div>
         <div class="cp-kpis">
-          ${kpi('Amount', e.final_amount != null ? money.format(e.final_amount) : '—', e.qb_estimate_ref ? 'QuickBooks ' + e.qb_estimate_ref : 'not priced yet')}
+          ${kpi('Amount', e.final_amount != null ? money.format(e.final_amount) : '—', e.qb_estimate_ref ? 'QuickBooks ' + e.qb_estimate_ref : (e.final_amount != null ? '' : 'not priced yet'))}
           ${isBid ? kpi('Bid due', fmtDate(e.bid_due_date), (() => { const n = daysUntil(e.bid_due_date); return n == null ? 'no date' : n < 0 ? Math.abs(n) + ' days ago' : n === 0 ? 'today' : 'in ' + n + ' days'; })(), daysUntil(e.bid_due_date) != null && daysUntil(e.bid_due_date) < 0 && !['submitted', 'approved', 'lost', 'converted'].includes(e.status) ? 'warn' : '')
                   : kpi('Stage', esc(EST_LABEL[e.status] || e.status), e.est_stage ? e.est_stage.replace(/_/g, ' ') : '')}
           ${kpi('In this stage', e.age_days != null ? num.format(e.age_days) + ' d' : '—', 'since ' + fmtDate(e.status_changed_at))}
@@ -5340,6 +5368,158 @@
     } catch (ex) { formErr('est-new-err', ex.message); }
     finally { $('est-new-go').disabled = false; }
   });
+
+  // ---------- one estimate or bid: ⋯ menu, preview, edit, delete (2026-11-13) ----------
+  // The list and its page get what proposals have. Delete is mistake correction only: the
+  // server says why it can't (documents, proposals, emails…) and the menu shows that first.
+  const ESTV = { byId: {}, open: null, busy: false };
+  const estFind = id => ESTV.byId[id] || EST.rows.find(r => String(r.id) === String(id));   // the page / preview copy is the fresher one
+  const estWord = r => r && r.inquiry_kind === 'bid' ? 'bid' : 'estimate';
+  const estOnPage = id => location.hash === '#proposals/estimate/' + id;
+  function estMenu(btn, id) {
+    prxCloseMenu(); const r = estFind(id); if (!r) return;
+    const m = document.createElement('div'); m.className = 'prx-menu'; m.setAttribute('role', 'menu'); m.dataset.est = id;
+    m.innerHTML = `<button type="button" role="menuitem" data-em="open">Open</button><button type="button" role="menuitem" data-em="preview">Preview</button>` +
+      (r.status === 'converted' ? '' : `<button type="button" role="menuitem" data-em="edit">Edit…</button>`) +
+      `<hr><button type="button" role="menuitem" class="d" data-em="askdel">Delete…</button>`;
+    document.body.appendChild(m);
+    const b = btn.getBoundingClientRect();
+    m.style.top = (window.scrollY + b.bottom + 4) + 'px';
+    m.style.left = Math.max(8, Math.min(window.scrollX + b.right - m.offsetWidth, window.scrollX + document.documentElement.clientWidth - m.offsetWidth - 8)) + 'px';
+    m.querySelector('button').focus();
+  }
+  function estDelConfirmHtml(r, where) {   // where: 'em' (menu) or 'ed' (drawer / page)
+    const word = estWord(r);
+    if (r.delete_blocker) return `<div class="prx-mconf no" role="alert"><b>${esc(r.code)} can't be deleted</b><span>${esc(r.delete_blocker)}</span></div>` +
+      (where === 'em' ? `<button type="button" role="menuitem" data-em="close">OK</button>` : `<span class="b"><button type="button" class="btn-ghost btn-sm" data-ed="noconf">OK</button></span>`);
+    const msg = `<b>Delete ${esc(r.code)}?</b><span>The ${word} is removed for good and its number can be used again. Use this only for one entered by mistake.</span>`;
+    return where === 'em'
+      ? `<div class="prx-mconf" role="alert">${msg}</div><button type="button" role="menuitem" class="d" data-em="delgo">Delete ${esc(r.code)}</button><button type="button" role="menuitem" data-em="close">Keep it</button>`
+      : `<div class="prx-confirm" role="alert">${msg.replace('<span>', '<span style="color:inherit">')}<span class="b"><button type="button" class="btn-primary btn-sm" style="background:#A8382B;border-color:#A8382B" data-ed="delgo" data-id="${r.id}">Delete ${esc(r.code)}</button><button type="button" class="btn-ghost btn-sm" data-ed="noconf">Keep it</button></span></div>`;
+  }
+  async function estDelete(id) {
+    if (ESTV.busy) return; const r = estFind(id); ESTV.busy = true;
+    try {
+      await api('/estimates/' + encodeURIComponent(id), { method: 'DELETE' }, true);
+      toast(`${r ? r.code : 'It'} deleted`); delete ESTV.byId[id]; estClose(true);
+      if (estOnPage(id)) location.hash = '#proposals/' + (r && r.inquiry_kind === 'bid' ? 'bids' : 'estimates');
+      else await loadEstimateList(PRK.kind);
+    } catch (x) {   // e.g. a document was filed a moment ago: show the server's reason in place
+      if (r) r.delete_blocker = x.message;
+      const m = document.querySelector('.prx-menu[data-est]');
+      if (m) m.innerHTML = estDelConfirmHtml(r || { id, code: '' }, 'em');
+      else { const h = ESTV.open === id ? $('est-dconf') : $('est-del-conf'); if (h) h.innerHTML = estDelConfirmHtml(r || { id, code: '' }, 'ed'); else toast(x.message, true); }
+    } finally { ESTV.busy = false; }
+  }
+  // Preview: the estimate in a panel on the right, the list stays where it was
+  function estClose(quiet) { ESTV.open = null; $('est-drawer').hidden = $('est-scrim').hidden = true; $('est-drawer').innerHTML = ''; }
+  async function estPreview(id) {
+    const dr = $('est-drawer'); ESTV.open = String(id);
+    dr.hidden = $('est-scrim').hidden = false; dr.innerHTML = '<div class="prx-db"><p class="cp-muted">Loading…</p></div>';
+    try {
+      const [{ data: d }, { data: props }] = await Promise.all([api('/estimates/' + encodeURIComponent(id), null, true), api('/proposals?estimate_id=' + encodeURIComponent(id), null, true)]);
+      if (ESTV.open !== String(id)) return;
+      const e = d.estimate, word = estWord(e); ESTV.byId[e.id] = Object.assign({}, e, { delete_blocker: d.delete_blocker });
+      const live = props.filter(p => p.status !== 'superseded'), draft = live.find(p => p.status === 'draft');
+      const f = (k, v) => v == null || v === '' ? '' : `<span>${esc(k)}</span><div>${v}</div>`;
+      const docs = d.documents || [];
+      dr.innerHTML = `<div class="prx-dh">
+          <div class="r1"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b class="cp-id">${esc(e.code)}</b>${estPill(e)}<span class="prx-ro">${esc(e.type_label)}${word === 'bid' ? ' · bid' : ''}</span></div>
+            <button type="button" class="prx-close" data-ed="close" aria-label="Close">×</button></div>
+          <h2>${esc(e.building_address || e.org_name || word)}</h2>
+          <div class="prx-acts"><a class="btn-primary btn-sm" href="#proposals/estimate/${e.id}" data-ed="go">Open</a>${e.status === 'converted' ? '' : `<button type="button" class="btn-ghost btn-sm" data-ed="edit" data-id="${e.id}">Edit</button>`}${draft ? `<a class="btn-ghost btn-sm" href="#proposals/${draft.id}" data-ed="go">Open draft proposal</a>` : ''}<button type="button" class="btn-ghost btn-sm prx-danger" data-ed="askdel" data-id="${e.id}">Delete…</button></div>
+        </div>
+        <div class="prx-db">
+          <div id="est-dconf"></div>
+          <div class="prx-total"><span class="prx-sub" style="font-size:13px">${e.qb_estimate_ref ? 'QuickBooks ' + esc(e.qb_estimate_ref) : 'Amount'}</span><b>${e.final_amount != null ? money.format(e.final_amount) : '—'}</b></div>
+          <div class="prx-sec"><h3>Details</h3><div class="prx-fields">
+            ${f('Client', `<a class="cp-link" href="#clients/${e.client_org_id}" data-ed="go">${esc(e.org_name || '')}</a>`)}${f('Contact', esc(e.contact_name || ''))}
+            ${f('Address', esc(e.building_address || ''))}${f('Status', `${estPill(e)}<span class="prx-ro">${e.age_days != null ? num.format(e.age_days) + ' d in this stage' : ''}</span>`)}
+            ${word === 'bid' ? f('Bid due', e.bid_due_date ? fmtDate(e.bid_due_date) : '') : ''}${f('Walkthrough', e.walkthrough_date ? fmtDate(e.walkthrough_date) : '')}
+            ${f('Submitted', e.submitted_date ? fmtDate(e.submitted_date) : '')}${f('Decided', e.decided_date ? fmtDate(e.decided_date) : '')}
+            ${f('Project', e.converted_project_code ? `<a class="cp-link" href="/projects/${encodeURIComponent(e.converted_project_code)}">${esc(e.converted_project_code)}</a>` : '')}
+            ${f('Notes', esc(e.notes || ''))}
+          </div></div>
+          <div class="prx-sec"><h3>Documents</h3>${docs.length ? `<ul class="cp-list">${docs.map(x => `<li><a class="cp-link" href="${esc(x.file_url)}" target="_blank" rel="noopener">${esc(x.title || x.file_name || 'Document')}</a><span class="cp-muted">${fmtDate(x.uploaded_at)}</span></li>`).join('')}</ul>` : '<p class="prx-ro" style="margin:0">None yet</p>'}</div>
+          <div class="prx-sec"><h3>Proposals</h3>${props.length ? `<ul class="cp-list">${props.map(p => `<li><a class="cp-link cp-id" href="#proposals/${p.id}" data-ed="go">${esc(p.label || p.number)}</a><span>${prPill(p)} ${p.price != null ? money.format(p.price) : ''}</span></li>`).join('')}</ul>` : '<p class="prx-ro" style="margin:0">None yet</p>'}</div>
+        </div>`;
+      const c = dr.querySelector('.prx-close'); if (c) c.focus();
+    } catch (x) { if (ESTV.open === String(id)) dr.innerHTML = `<div class="prx-dh"><div class="r1"><b>Could not load it</b><button type="button" class="prx-close" data-ed="close" aria-label="Close">×</button></div></div><div class="prx-db"><p class="cp-muted">${esc(x.message)}</p></div>`; }
+  }
+  // Edit: the working fields in one window (PUT /api/estimates/<id>; status moves through its own route)
+  async function openEstEdit(id) {
+    estClose(true); prxCloseMenu();
+    const ov = $('est-ed-overlay'); $('est-ed-err').className = 'cp-form-err'; $('est-ed-form').dataset.id = id;
+    let e;
+    try { e = (await api('/estimates/' + encodeURIComponent(id), null, true)).data.estimate; } catch (x) { toast(x.message, true); return; }
+    if (e.status === 'converted') { toast('It became a project, so it is read-only. Change the job instead.', true); return; }
+    $('est-ed-form').dataset.status = e.status;
+    $('est-ed-title').textContent = 'Edit ' + e.code; $('est-ed-sub').textContent = e.type_label + ' · ' + (e.org_name || '');
+    $('est-ed-addr').value = e.building_address || ''; $('est-ed-amount').value = e.final_amount != null ? e.final_amount : '';
+    $('est-ed-qb').value = e.qb_estimate_ref || ''; $('est-ed-notes').value = e.notes || '';
+    const kind = $('est-ed-kind'); kind.value = e.inquiry_kind || 'undetermined'; if (kind.value !== (e.inquiry_kind || 'undetermined')) kind.value = 'undetermined';
+    $('est-ed-status').innerHTML = `<option value="">${esc(EST_LABEL[e.status] || e.status)} (now)</option>` + (e.next_statuses || []).filter(x => x !== 'converted').map(x => `<option value="${x}">${esc(EST_LABEL[x] || x)}</option>`).join('');
+    const dueWrap = () => { $('est-ed-due-wrap').hidden = kind.value !== 'bid'; }; kind.onchange = dueWrap; dueWrap();
+    ov.classList.add('open'); dateSet($('est-ed-due'), e.bid_due_date || '');
+    const org = $('est-ed-org'); org.innerHTML = '<option value="">— choose a client —</option>';
+    await clientOptions(org, String(e.client_org_id));
+    if (!org.value) { org.insertAdjacentHTML('beforeend', `<option value="${e.client_org_id}">${esc(e.org_name || 'Current client')}</option>`); org.value = String(e.client_org_id); }
+    $('est-ed-addr').focus();
+  }
+  $('est-ed-cancel').addEventListener('click', () => closeOverlay('est-ed-overlay'));
+  $('est-ed-overlay').addEventListener('click', e => { if (e.target === $('est-ed-overlay')) closeOverlay('est-ed-overlay'); });
+  $('est-ed-form').addEventListener('submit', async ev => {
+    ev.preventDefault(); $('est-ed-err').className = 'cp-form-err';
+    const id = $('est-ed-form').dataset.id, amt = $('est-ed-amount').value.replace(/[$,\s]/g, '');
+    if (!$('est-ed-org').value) return formErr('est-ed-err', 'Choose the client.');
+    if (amt && !(Number(amt) >= 0)) return formErr('est-ed-err', 'The amount must be a number, like 42000 or 42,000.00.');
+    const kind = $('est-ed-kind').value, st = $('est-ed-status').value;
+    const body = { client_org_id: Number($('est-ed-org').value), building_address: $('est-ed-addr').value.trim() || null, final_amount: amt || null,
+      qb_estimate_ref: $('est-ed-qb').value.trim() || null, inquiry_kind: kind, bid_due_date: kind === 'bid' ? (dateGet($('est-ed-due')) || null) : null,
+      notes: $('est-ed-notes').value.trim() || null };
+    $('est-ed-go').disabled = true;
+    try {
+      await api('/estimates/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) }, true);
+      if (st) {
+        try { await api('/estimates/' + encodeURIComponent(id) + '/status', { method: 'POST', body: JSON.stringify({ status: st }) }, true); }
+        catch (x) { formErr('est-ed-err', 'The details were saved, but the status did not change: ' + x.message); return; }
+      }
+      closeOverlay('est-ed-overlay'); toast('Saved');
+      if (estOnPage(id)) loadEstimateDetail(id); else { setKind(kind === 'bid' ? 'bid' : 'estimate'); await loadEstimateList(PRK.kind); }
+    } catch (x) { formErr('est-ed-err', x.message); }
+    finally { $('est-ed-go').disabled = false; }
+  });
+  document.addEventListener('click', e => {
+    const t = e.target;
+    const mb = t.closest('[data-est-menu]'); if (mb) { estMenu(mb, mb.dataset.estMenu); return; }
+    const mi = t.closest('.prx-menu[data-est] [data-em]');
+    if (mi) {
+      const m = mi.parentNode, id = m.dataset.est, a = mi.dataset.em, r = estFind(id);
+      if (a === 'askdel') { m.innerHTML = estDelConfirmHtml(r, 'em'); m.style.left = Math.max(8, Math.min(parseFloat(m.style.left) || 8, window.scrollX + document.documentElement.clientWidth - m.offsetWidth - 8)) + 'px'; m.querySelector('button').focus(); return; }
+      if (a === 'delgo') { estDelete(id); return; }
+      prxCloseMenu();
+      if (a === 'open') location.hash = '#proposals/estimate/' + id;
+      else if (a === 'preview') estPreview(id);
+      else if (a === 'edit') openEstEdit(id);
+      return;
+    }
+    const pe = t.closest('[data-est-edit]'); if (pe) { openEstEdit(pe.dataset.estEdit); return; }
+    const pd = t.closest('[data-est-del]'); if (pd) { const r = estFind(pd.dataset.estDel); if (r && $('est-del-conf')) { $('est-del-conf').innerHTML = estDelConfirmHtml(r, 'ed'); $('est-del-conf').scrollIntoView({ block: 'nearest' }); } return; }
+    if (t === $('est-scrim')) { estClose(); return; }
+    const d = t.closest('[data-ed]'); if (!d) return;
+    const a = d.dataset.ed;
+    if (a === 'close' || a === 'go') { estClose(); return; }
+    if (a === 'edit') { openEstEdit(d.dataset.id); return; }
+    if (a === 'askdel') { const r = estFind(d.dataset.id); if (r && $('est-dconf')) $('est-dconf').innerHTML = estDelConfirmHtml(r, 'ed'); return; }
+    if (a === 'noconf') { const h = d.closest('#est-dconf, #est-del-conf'); if (h) h.innerHTML = ''; return; }
+    if (a === 'delgo') { estDelete(d.dataset.id); return; }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if ($('est-ed-overlay').classList.contains('open')) { closeOverlay('est-ed-overlay'); return; }
+    if (!$('est-drawer').hidden) estClose();
+  });
+  window.addEventListener('hashchange', () => { if (ESTV.open) estClose(); });
 
   // ---------- Claude, next to each estimate, bid and proposal (assistant.py) ----------
   // Conversations are saved on the estimate, so every version of its proposal shows them too.
