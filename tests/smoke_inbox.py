@@ -367,7 +367,7 @@ def main() -> int:
                       {"mimeType": "image/png", "filename": "", "headers": [{"name": "Content-ID", "value": "<logo123>"},
                                                                             {"name": "Content-Disposition", "value": "inline"}],
                        "body": {"attachmentId": "att-logo", "size": 900}},
-                      {"mimeType": "application/pdf", "filename": "scaffold.pdf", "body": {"attachmentId": "att-scf", "size": 4096}}]}}
+                      {"mimeType": "application/pdf", "filename": "Scaffold – rev 2 ✓.pdf", "body": {"attachmentId": "att-scf", "size": 4096}}]}}
         m9 = gmsg("m9", frm="Lee Ibx <lee@tishman-ibx.example>", to=f"{TAG}.admin@superstarscontracting.com, Dana Ibx <{CONTACT}>",
                   subject="Re: Ibx scaffold drawings", text="Can you confirm the start date?", when="1792000200000")
         m9["threadId"] = "thr-site"
@@ -376,7 +376,7 @@ def main() -> int:
             i8 = inbox.ingest(conn, me, m8, f"{TAG}.admin@superstarscontracting.com")
             i9 = inbox.ingest(conn, me, m9, f"{TAG}.admin@superstarscontracting.com")
             full8 = inbox.message(conn, i8, me)
-            assert [a["name"] for a in full8["attachments"]] == ["scaffold.pdf"] and len(full8["inline_images"]) == 1
+            assert [a["name"] for a in full8["attachments"]] == ["Scaffold – rev 2 ✓.pdf"] and len(full8["inline_images"]) == 1
             conn.execute("UPDATE mail_message SET ai_state = 'triaged' WHERE id IN (?, ?)", (i8, i9))
             conn.commit()
         finally:
@@ -395,11 +395,14 @@ def main() -> int:
         assert "<script" not in doc and "alert(1)" not in doc and "onclick" not in doc and "javascript:" not in doc and "<iframe" not in doc
         assert "cid:logo123" not in doc and f"/api/inbox/messages/{i8}/attachments/0" in doc              # picture inside the email: loads as shown
         assert "img-src 'self'" in doc and a.get(f"/api/inbox/messages/{i8}/attachments/0").status_code == 200
-        assert [x["name"] for x in t["messages"][0]["attachments"]] == ["scaffold.pdf"]
+        assert [x["name"] for x in t["messages"][0]["attachments"]] == ["Scaffold – rev 2 ✓.pdf"]
         n = t["messages"][0]["attachments"][0]["n"]
         r = a.get(f"/api/inbox/messages/{i8}/attachments/{n}")
         assert r.status_code == 200 and r.data.startswith(b"%PDF") and r.headers["Content-Disposition"].startswith("inline")
         assert "sandbox" in r.headers["Content-Security-Policy"]
+        cd = r.headers["Content-Disposition"]                    # a name past Latin-1: waitress answered a bare 500 (2026-11-13)
+        cd.encode("latin-1")
+        assert 'filename="Scaffold  rev 2 .pdf"' in cd and "filename*=UTF-8''Scaffold%20%E2%80%93%20rev%202%20%E2%9C%93.pdf" in cd
         assert a.get(f"/api/inbox/messages/{i8}/attachments/{n}?download=1").headers["Content-Disposition"].startswith("attachment")
         assert cs.get(f"/api/inbox/messages/{i8}/attachments/{n}").status_code == 404
         assert t["reply_to"]["to"].endswith("lee@tishman-ibx.example>") and t["reply_to"]["cc"] == ""
