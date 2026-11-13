@@ -119,18 +119,30 @@ def _has_276(conn) -> bool:
 
 
 # What still hangs off an estimate. DELETE is mistake correction only: it runs when
-# nothing does, so no proposal, document, visit, email or Claude chat is left pointing
+# nothing real does, so no proposal, document, visit, email or invoice is left pointing
 # at a missing (or later re-used) id, and no Postgres foreign key turns it into a 500.
+# Drafting leftovers are NOT real and go with the estimate (_draft_leftovers): unsent
+# draft proposals, the proposal PDFs the app drew for drafts (also ones whose draft was
+# deleted before — delete_draft used to leave the PDF behind) and its Claude chats.
 # (table, column, what one is called, many); mail_link keys the id as text.
 _DELETE_REFS = (
-    ("proposal", "estimate_id", "proposal", "proposals"),
-    ("estimate_document", "estimate_id", "document", "documents"),
     ("walkthrough_visit", "estimate_id", "walkthrough", "walkthroughs"),
     ("walkthrough_report", "estimate_id", "walkthrough report", "walkthrough reports"),
     ("ira_job", "estimate_id", "IRA job", "IRA jobs"),
-    ("assistant_thread", "estimate_id", "Claude conversation", "Claude conversations"),
+    ("invoice", "estimate_id", "invoice", "invoices"),
     ("mail_message", "estimate_id", "email", "emails"),
 )
+# a proposal-category document is a drafting leftover unless a kept (non-draft) proposal uses it as its PDF
+_KEPT_DOC = ("(d.category <> 'proposal' OR EXISTS (SELECT 1 FROM proposal p WHERE p.pdf_doc_id = d.id "
+             "AND p.status <> 'draft'))")
+
+
+def _n(n, one, many):
+    return f"{n} {one if n == 1 else many}"
+
+
+def _join(parts):
+    return ", ".join(parts[:-1]) + " and " + parts[-1] if len(parts) > 1 else parts[0]
 
 
 def delete_blockers(conn, est_ids) -> dict:
@@ -142,26 +154,73 @@ def delete_blockers(conn, est_ids) -> dict:
         return {}
     found = {i: [] for i in ids}
     marks = ",".join("?" * len(ids))
+
+    def add(sql, params, one, many):
+        for r in conn.execute(sql, params).fetchall():
+            k = int(r["eid"])
+            if k in found and r["n"]:
+                found[k].append(_n(r["n"], one, many))
+
+    has_prop = _table_exists(conn, "proposal")
+    if has_prop:
+        add(f"SELECT estimate_id AS eid, COUNT(*) AS n FROM proposal WHERE estimate_id IN ({marks}) "
+            f"AND status <> 'draft' GROUP BY estimate_id", ids, "sent or signed proposal", "sent or signed proposals")
+    add(f"SELECT d.estimate_id AS eid, COUNT(*) AS n FROM estimate_document d WHERE d.estimate_id IN ({marks}) "
+        + (f"AND {_KEPT_DOC} " if has_prop else "") + "GROUP BY d.estimate_id", ids, "document", "documents")
     for table, col, one, many in _DELETE_REFS:
-        if not _table_exists(conn, table):
-            continue
-        for r in conn.execute(f"SELECT {col} AS eid, COUNT(*) AS n FROM {table} "
-                              f"WHERE {col} IN ({marks}) GROUP BY {col}", ids).fetchall():
-            if r["eid"] in found and r["n"]:
-                found[r["eid"]].append(f"{r['n']} {one if r['n'] == 1 else many}")
+        if _table_exists(conn, table):
+            add(f"SELECT {col} AS eid, COUNT(*) AS n FROM {table} WHERE {col} IN ({marks}) GROUP BY {col}",
+                ids, one, many)
     if _table_exists(conn, "mail_link"):
         for r in conn.execute(f"SELECT entity_id AS eid, COUNT(*) AS n FROM mail_link WHERE entity_type='estimate' "
                               f"AND entity_id IN ({marks}) GROUP BY entity_id", [str(i) for i in ids]).fetchall():
             k = int(r["eid"])
             if k in found and r["n"] and not any(x.endswith(("email", "emails")) for x in found[k]):
-                found[k].append(f"{r['n']} {'email' if r['n'] == 1 else 'emails'}")
-    out = {}
-    for i, parts in found.items():
-        if parts:
-            out[i] = "It has " + (", ".join(parts[:-1]) + " and " + parts[-1] if len(parts) > 1 else parts[0]) + \
-                ". Mark it Lost instead."
+                found[k].append(_n(r["n"], "email", "emails"))
+    return {i: f"It has {_join(parts)}. Mark it Lost instead." for i, parts in found.items() if parts}
+
+
+def _draft_leftovers(conn, est_id) -> dict:
+    """What goes with the estimate when it's deleted: ids + a sentence for the confirm step."""
+    from apply_crm_266 import _table_exists
+    out = {"drafts": [], "docs": [], "threads": [], "note": None}
+    if _table_exists(conn, "proposal"):
+        out["drafts"] = [r["id"] for r in conn.execute(
+            "SELECT id FROM proposal WHERE estimate_id=? AND status='draft'", (est_id,)).fetchall()]
+        out["docs"] = [r["id"] for r in conn.execute(
+            f"SELECT d.id FROM estimate_document d WHERE d.estimate_id=? AND NOT {_KEPT_DOC}", (est_id,)).fetchall()]
+    if _table_exists(conn, "assistant_thread"):
+        out["threads"] = [r["id"] for r in conn.execute(
+            "SELECT id FROM assistant_thread WHERE estimate_id=?", (est_id,)).fetchall()]
+    parts = []
+    if out["drafts"]:
+        parts.append(_n(len(out["drafts"]), "unsent draft proposal", "unsent draft proposals"))
+    if out["docs"]:
+        parts.append(_n(len(out["docs"]), "proposal PDF the app drew", "proposal PDFs the app drew"))
+    if out["threads"]:
+        parts.append(_n(len(out["threads"]), "Claude conversation", "Claude conversations"))
+    if parts:
+        out["note"] = f"Its {_join(parts)} go with it."
     return out
 
+
+def _remove_leftovers(conn, est_id, lo) -> None:
+    """Delete the drafting leftovers (DB rows only; the PDF files stay on disk, unlisted). No commit."""
+    from apply_crm_266 import _table_exists
+    for pid in lo["drafts"]:
+        for t in ("proposal_line", "proposal_event", "proposal_revision", "proposal_version", "proposal_review",
+                  "needs_answer", "claude_connector_snapshot"):
+            if _table_exists(conn, t):
+                conn.execute(f"DELETE FROM {t} WHERE proposal_id=?", (pid,))
+        conn.execute("DELETE FROM proposal WHERE id=? AND status='draft'", (pid,))
+    for did in lo["docs"]:
+        conn.execute("DELETE FROM estimate_document WHERE id=? AND estimate_id=?", (did, est_id))
+    for tid in lo["threads"]:
+        if _table_exists(conn, "assistant_message"):
+            conn.execute("DELETE FROM assistant_message WHERE thread_id=?", (tid,))
+        conn.execute("DELETE FROM assistant_thread WHERE id=?", (tid,))
+    if _table_exists(conn, "claude_connector_upload"):   # unused upload links that would file into it
+        conn.execute("DELETE FROM claude_connector_upload WHERE estimate_id=?", (est_id,))
 
 _DIVISIONS = ("facade", "rope_access", "interior", "parking_garage", "other")
 _INQUIRY_KINDS = ("bid", "po", "undetermined")
@@ -623,6 +682,7 @@ def _api_detail(est_id):
             "convertible": est["status"] == "approved",
             "delete_blocker": ("It became a project, so it stays on record." if est["status"] == "converted"
                                else delete_blockers(conn, [est_id]).get(est_id)),
+            "delete_note": _draft_leftovers(conn, est_id)["note"],   # what goes with it, for the confirm step
         }})
     finally:
         conn.close()
@@ -720,7 +780,7 @@ def _api_update(est_id):
 @requires_section('estimates')
 def _api_delete(est_id):
     """DELETE — mistake correction ONLY. Refused once converted or once anything hangs
-    off it (delete_blockers: documents, proposals, walkthroughs, IRA, emails, Claude). MAX+1 allocation means deleting the highest
+    off it (delete_blockers); drafting leftovers go with it (_draft_leftovers). MAX+1 allocation means deleting the highest
     seq frees its number — same accepted behavior as worker ids."""
     conn = _db()
     try:
@@ -730,8 +790,9 @@ def _api_delete(est_id):
         if est["status"] == "converted":
             return jsonify({"error": "It became a project, so it stays on record."}), 409
         why = delete_blockers(conn, [est_id]).get(est_id)
-        if why:   # documents, proposals, visits, emails or Claude chats still point at it
+        if why:   # uploaded documents, sent proposals, visits, invoices or emails still point at it
             return jsonify({"error": why}), 409
+        _remove_leftovers(conn, est_id, _draft_leftovers(conn, est_id))   # drafts, their PDFs, Claude chats
         conn.execute("DELETE FROM estimate_ira WHERE estimate_id=?", (est_id,))
         conn.execute("DELETE FROM estimate WHERE id=?", (est_id,))
         conn.commit()
