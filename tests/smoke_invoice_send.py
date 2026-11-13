@@ -198,6 +198,13 @@ def main() -> int:
         assert [x["id"] for x in o["documents"]] == [ids["doc"]] and "file_path" not in o["documents"][0]
         assert o["attachment"].startswith(f"Invoice {inv['number']}") and o["attachment"].endswith(".pdf")
         assert not cs.get(f"/api/invoices/{iid}/send-options").get_json()["data"]["gmail"]["can_send"]
+        # the preview shows the sender as Gmail does: their name and their own signature
+        os.environ["SSC_MAIL_FAKE_SENDAS"] = json.dumps({"displayName": "Invsnd Admin Name", "signature": "<b>Invsnd Admin</b><br>Project Manager"})
+        g = a.get(f"/api/invoices/{iid}/send-options").get_json()["data"]["gmail"]
+        os.environ.pop("SSC_MAIL_FAKE_SENDAS")
+        assert g["name"] == "Invsnd Admin Name", g.get("name")
+        assert "Project Manager" in g["signature_doc"] and "Content-Security-Policy" in g["signature_doc"]
+        checks += 1
         t = a.get(f"/api/invoices/{iid}/send-thread/{ids['mid']}").get_json()["data"]
         assert "dana@invsnd-harbor.example" in t["to"] and "ap@invsnd-harbor.example" in t["cc"] and TAG not in t["to"] + t["cc"]
         assert t["subject"] == "Re: Roof probes: access Tuesday?"
