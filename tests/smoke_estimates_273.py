@@ -114,6 +114,8 @@ def _cleanup():
                 if has_ira:
                     conn.execute("DELETE FROM ira_visit WHERE project_code=?", (r[1],))
                     conn.execute("DELETE FROM ira_job WHERE project_code=?", (r[1],))
+                if _table_exists(conn, "assistant_thread"):   # the delete-guard check below plants one
+                    conn.execute("DELETE FROM assistant_thread WHERE estimate_id=?", (r[0],))
                 conn.execute("DELETE FROM estimate_document WHERE estimate_id=?", (r[0],))
                 conn.execute("DELETE FROM estimate_ira WHERE estimate_id=?", (r[0],))
                 conn.execute("DELETE FROM estimate WHERE id=?", (r[0],))
@@ -332,6 +334,40 @@ def main():
         ok("delete_with_docs_409", st == 409)
         st, _ = _sc(cs, "DELETE", f"/api/estimates/{ira_id}")
         ok("delete_converted_409", st == 409)
+
+        # ---------- (d2) Estimates & proposals ⋯ menu (2026-11-13): the list and the page say
+        # up front why Delete can't run; a clean one deletes; anything pointing at it blocks ----------
+        st, body = _sc(cs, "GET", "/api/estimates")
+        rows = {r["id"]: r for r in ((body or {}).get("data") or {}).get("estimates", [])}
+        ok("list_blocker_documents", "document" in str((rows.get(fr_id) or {}).get("delete_blocker") or ""))
+        ok("list_blocker_converted", "project" in str((rows.get(ira_id) or {}).get("delete_blocker") or ""))
+        st, body = _sc(cs, "GET", f"/api/estimates/{fr_id}")
+        ok("detail_blocker_documents", "document" in str(((body or {}).get("data") or {}).get("delete_blocker") or ""))
+        st, body = _sc(cs, "POST", "/api/estimates", json={"est_type": "IR", "borough": "SI", "client_org_id": org_id})
+        clean_id = ((body or {}).get("data") or {}).get("id")
+        st, body = _sc(cs, "GET", "/api/estimates")
+        row = next((r for r in ((body or {}).get("data") or {}).get("estimates", []) if r["id"] == clean_id), {})
+        ok("list_clean_no_blocker", bool(clean_id) and "delete_blocker" in row and row["delete_blocker"] is None)
+        conn = db_layer.connect()
+        try:
+            planted = _table_exists(conn, "assistant_thread")
+            if planted:
+                conn.execute("INSERT INTO assistant_thread (estimate_id, title, source, created_at, updated_at) "
+                             "VALUES (?, 'smk273', 'office', ?, ?)", (clean_id, now, now))
+                conn.commit()
+        finally:
+            conn.close()
+        if planted:
+            st, body = _sc(cs, "DELETE", f"/api/estimates/{clean_id}")
+            ok("delete_with_claude_thread_409", st == 409 and "Claude conversation" in str((body or {}).get("error")))
+            conn = db_layer.connect()
+            try:
+                conn.execute("DELETE FROM assistant_thread WHERE estimate_id=?", (clean_id,)); conn.commit()
+            finally:
+                conn.close()
+        st, _ = _sc(cs, "DELETE", f"/api/estimates/{clean_id}")
+        ok("delete_clean_200", st == 200)
+        ok("deleted_is_gone_404", _sc(cs, "GET", f"/api/estimates/{clean_id}")[0] == 404)
 
         # ---------- (g) forbidden keys across everything seen ----------
         found = []
