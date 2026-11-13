@@ -191,6 +191,7 @@
   .sx-mail .bd{padding:4px 15px 10px 57px;white-space:pre-wrap;line-height:1.55;font-size:13px;overflow-wrap:anywhere}
   .sx-mail .bd .lk{color:var(--accent-ink)}
   .sx-mail .sg{padding:0 15px 10px 57px;color:var(--muted);font-size:12px}
+  .sx-mail .sg iframe{display:block;width:100%;border:0;height:24px;background:#fff}
   .sx-mail .fs{display:flex;flex-wrap:wrap;gap:7px;padding:9px 15px 14px 57px;border-top:1px dashed var(--line)}
   .sx-mail .f{display:flex;gap:7px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:11.5px;max-width:100%}
   .sx-mail .f span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -687,16 +688,37 @@
   function mailHTML() {
     const names = l => l.map(nameOf).join(', ');
     const files = M.gmail ? [M.pdf && { n: M.o.attachment, img: false }].concat(M.docs.map(id => { const d = (M.o.documents || []).find(x => x.id === id) || {}; return { n: d.file_name || d.title, img: /^image\//.test(d.mime || '') }; })).filter(Boolean) : [];
-    const from = M.gmail ? M.o.gmail.email : 'Superstars Contracting (the app\'s address)';
+    const from = M.gmail ? (M.o.gmail.name || M.o.gmail.email) : 'Superstars Contracting (the app\'s address)';
+    const addr = M.gmail && M.o.gmail.name ? ` <small>&lt;${esc(M.o.gmail.email)}&gt;</small>` : '';
     const link = (!M.gmail || M.link) ? `\n\n<span class="lk">View the invoice and how to pay: ${esc(location.origin)}/i/••••••</span>` : '';
-    return `<div class="s">${esc((M.gmail ? $('sx-subj').value : 'Invoice ' + inv().number + ' from Superstars Contracting') || '(no subject)')}</div>
+    const top = `<div class="s">${esc((M.gmail ? $('sx-subj').value : 'Invoice ' + inv().number + ' from Superstars Contracting') || '(no subject)')}</div>
       ${M.how === 'reply' && M.thr ? `<div class="th">↳ joins “${esc(M.thr.subject.replace(/^Re:\s*/i, ''))}”, ${M.thr.count} earlier email${M.thr.count === 1 ? '' : 's'}</div>` : ''}
-      <div class="hd"><span class="av">${esc(ini(from))}</span><div style="min-width:0"><div class="wh">${esc(from)}</div>
+      <div class="hd"><span class="av">${esc(ini(from))}</span><div style="min-width:0"><div class="wh">${esc(from)}${addr}</div>
       <div class="tt">to ${esc(names(M.to) || 'nobody yet')}${M.cc.length ? ' · cc ' + esc(names(M.cc)) : ''}${M.bcc.length ? ' · bcc ' + esc(names(M.bcc)) : ''}</div></div></div>
       <div class="bd">${esc($('sx-msg').value || 'Your message shows here.')}${link}</div>
-      ${M.gmail ? '<div class="sg">+ your Gmail signature</div>' : '<div class="sg">The app adds the amount, the due date and a View the invoice button.</div>'}
-      ${files.length ? `<div class="fs">${files.map(f => `<span class="f"><span class="sx-fi${f.img ? ' img' : ''}">${f.img ? 'IMG' : 'PDF'}</span><span>${esc(f.n)}</span></span>`).join('')}</div>` : ''}`;
+      `, sig = M.gmail ? '' : '<div class="sg">The app adds the amount, the due date and a View the invoice button.</div>',
+      fs = files.length ? `<div class="fs">${files.map(f => `<span class="f"><span class="sx-fi${f.img ? ' img' : ''}">${f.img ? 'IMG' : 'PDF'}</span><span>${esc(f.n)}</span></span>`).join('')}</div>` : '';
+    return { top, sig, fs };
   }
+  function sigFrame(doc) {   // the Gmail signature exactly as it goes out; a locked-down frame, no scripts run
+    const f = document.createElement('iframe');
+    f.title = 'Your Gmail signature'; f.setAttribute('sandbox', 'allow-same-origin allow-popups allow-popups-to-escape-sandbox');
+    f.setAttribute('referrerpolicy', 'no-referrer'); f.srcdoc = doc;
+    f.fit = () => { try { const d = f.contentDocument; f.style.height = '1px'; f.style.height = Math.max(24, d.documentElement.scrollHeight, d.body.scrollHeight) + 'px'; } catch (e) {} };
+    f.addEventListener('load', () => { f.fit(); setTimeout(f.fit, 400); setTimeout(f.fit, 1500); });
+    return f;
+  }
+  function renderMail(el) {   // the signature frame is built once per window, so typing doesn't reload it
+    if (!el._top) { el.innerHTML = '<div></div><div class="sg"></div><div></div>'; [el._top, el._sig, el._fs] = el.children; el._doc = undefined; }
+    const m = mailHTML(), doc = M.gmail ? (M.o.gmail.signature_doc || '') : null;
+    el._top.innerHTML = m.top; el._fs.innerHTML = m.fs;
+    if (el._doc !== doc) {
+      el._doc = doc; el._sig.innerHTML = m.sig;
+      if (doc) el._sig.appendChild(sigFrame(doc));
+      else if (M.gmail) el._sig.textContent = 'No Gmail signature found. Add one in Gmail settings and it goes out here too.';
+    }
+  }
+  function fitSig() { document.querySelectorAll('.sx-mail .sg iframe').forEach(f => f.fit && f.fit()); }
   function problems() {
     const out = [], n = M.to.length + M.cc.length + M.bcc.length, msg = $('sx-msg').value.trim(), r = inv();
     out.push(M.to.length ? [true, `${n} ${n === 1 ? 'person' : 'people'}: ${M.to.length} To${M.cc.length ? ', ' + M.cc.length + ' Cc' : ''}${M.bcc.length ? ', ' + M.bcc.length + ' Bcc' : ''}`] : [false, 'Add someone in To.']);
@@ -710,7 +732,7 @@
     return out;
   }
   function renderPreview() {
-    $('sx-mail').innerHTML = mailHTML();
+    renderMail($('sx-mail'));
     $('sx-pv-mode').textContent = M.how === 'reply' ? 'as a reply in the thread' : 'as a new email';
     const ps = problems();
     $('sx-ck').innerHTML = ps.map(([ok, t]) => `<div class="${ok === false ? 'bad' : ''}"><i>${ok === true ? '✓' : '!'}</i>${esc(t)}</div>`).join('');
@@ -746,13 +768,13 @@
     $('sx-body').dataset.tab = 'compose'; document.querySelectorAll('[data-sxtab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.sxtab === 'compose')));
     $('sx-pres').innerHTML = (paidMode() ? [['receipt', 'Thank you + receipt'], ['short', 'Shorter']] : STYLES).map(([k, l]) => `<button class="sx-pre" type="button" data-style="${k}" aria-pressed="false">${esc(l)}</button>`).join(' ');
     $('sx-pres').querySelectorAll('.sx-pre').forEach(b => b.addEventListener('click', () => write(b.dataset.style)));
-    $('sx-mail').innerHTML = '<div class="muted" style="padding:14px">Loading…</div>'; $('sx-ck').innerHTML = '';
+    $('sx-mail')._top = null; $('sx-mail2')._top = null; $('sx-mail').innerHTML = '<div class="muted" style="padding:14px">Loading…</div>'; $('sx-ck').innerHTML = '';
     $('mail-ov').classList.add('open');
     try { M.o = (await api('/invoices/' + ID + '/send-options')).data; }
     catch (e) { $('mail-err').textContent = e.message; return; }
     M.gmail = !!(M.o.gmail && M.o.gmail.can_send);
-    $('sx-from').hidden = !M.gmail; if (M.gmail) $('sx-from').innerHTML = `<i>${esc(ini(M.o.gmail.email))}</i>From ${esc(M.o.gmail.email)}`;
-    $('sx-from').title = 'Sent from your own Gmail: it shows in your Sent folder and their reply comes back to you';
+    $('sx-from').hidden = !M.gmail; if (M.gmail) $('sx-from').innerHTML = `<i>${esc(ini(M.o.gmail.name || M.o.gmail.email))}</i>From ${esc(M.o.gmail.name || M.o.gmail.email)}`;
+    $('sx-from').title = (M.gmail ? M.o.gmail.email + ' · ' : '') + 'Sent from your own Gmail: it shows in your Sent folder and their reply comes back to you';
     $('sx-nogmail').hidden = M.gmail;
     ['sx-where', 'sx-cc-row', 'sx-subj-row', 'sx-att-sec'].forEach(id => { $(id).hidden = !M.gmail; });
     $('sx-fu-sec').hidden = !M.gmail || paidMode();
@@ -783,7 +805,7 @@
       ['Amount', paidMode() ? 'Paid in full · ' + esc(money.format(r.amount)) : '<b>' + esc(money.format(r.balance)) + '</b> open' + (r.due_at ? ' · due ' + esc(fmtDate(r.due_at)) : '')],
       M.gmail && !paidMode() && ['Follow-up', $('sx-fu').value ? 'A task to chase it, ' + esc($('sx-fu').selectedOptions[0].text.toLowerCase()) + ', if it\'s still open' : 'None']].filter(Boolean);
     $('sx-dl').innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
-    $('sx-mail2').innerHTML = mailHTML();
+    renderMail($('sx-mail2')); setTimeout(fitSig, 30);
     $('sx-rv-note').innerHTML = M.gmail ? 'Goes out from <b>your Gmail</b>: it lands in your Sent folder and their reply comes back to you.' : 'Goes out from the app\'s address.';
     $('sx-review').hidden = false;
   }
@@ -813,7 +835,7 @@
   ['to', 'cc', 'bcc'].forEach(wireInput);
   document.querySelectorAll('[data-how]').forEach(b => b.addEventListener('click', () => setHow(b.dataset.how)));
   document.querySelectorAll('[data-sxtab]').forEach(b => b.addEventListener('click', () => {
-    document.querySelectorAll('[data-sxtab]').forEach(x => x.setAttribute('aria-selected', String(x === b))); $('sx-body').dataset.tab = b.dataset.sxtab; }));
+    document.querySelectorAll('[data-sxtab]').forEach(x => x.setAttribute('aria-selected', String(x === b))); $('sx-body').dataset.tab = b.dataset.sxtab; fitSig(); }));
   $('sx-find').addEventListener('submit', async e => {
     e.preventDefault(); const q = $('sx-q').value.trim();
     try { const j = await api('/invoices/' + ID + '/send-options' + (q ? '?q=' + encodeURIComponent(q) : '')); M.o.threads = j.data.threads; renderThreads(); if (!q && M.o.threads.length && !M.mid) pickThread(M.o.threads[0].id); }

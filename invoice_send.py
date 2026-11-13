@@ -143,6 +143,7 @@ def _people(conn, inv: dict, uid) -> dict:
 
 
 def options(conn, invoice_id: int, uid, q: Optional[str] = None) -> dict:
+    import inbox
     import proposal_studio
     inv = _invoice(conn, invoice_id)
     rec = invoice_docs.default_recipient(conn, inv)
@@ -155,7 +156,16 @@ def options(conn, invoice_id: int, uid, q: Optional[str] = None) -> dict:
         threads = []
     open_chase = _one(conn, "SELECT due_date FROM crm_task WHERE status = 'open' AND title LIKE ? ORDER BY id DESC LIMIT 1",
                       (f"{CHASE_PREFIX}{inv['number']} %",))
-    return {"invoice": invoice_docs.public(inv), **_people(conn, inv, uid), "threads": threads, "gmail": _gmail(conn, uid),
+    gm = _gmail(conn, uid)
+    if gm["can_send"]:   # the name and signature Gmail puts on it, so the preview shows the email as it goes out
+        try:
+            me = inbox.identity(conn, uid)
+            gm.update({"name": me["name"], "signature_doc": inbox.render_doc(conn, uid, {"html": me["signature"], "inline_images": []})
+                       if me["signature"] else None})
+        except Exception as e:
+            conn.rollback()
+            log.info("invoice send: sender name / signature not read (%s)", type(e).__name__)
+    return {"invoice": invoice_docs.public(inv), **_people(conn, inv, uid), "threads": threads, "gmail": gm,
             "recipient": rec, "attachment": attachment_name(inv), "subject": default_subject(inv),
             "documents": documents(conn, inv.get("project_code")), "chase": open_chase}
 
