@@ -175,15 +175,24 @@ def _project_exists(conn, code) -> bool:
 def _list_assignments():
     """GET /api/admin/pm-assignments — the assignment matrix for the admin screen:
     every project (with status) + every real, active pm and their assigned codes."""
+    import project_setup   # the job's calendar color + number, same as the Projects tab
     conn = _db()
     try:
-        projects = [
-            {"project_code": r["project_code"], "name": r["name"],
-             "status": (r["status"] or "active")}
-            for r in conn.execute(
-                "SELECT project_code, name, status FROM projects "
-                "ORDER BY (status='closed'), name").fetchall()
-        ]
+        # job_number / color_index / address are added by later migrations; select only what exists
+        extra = [c for c in ("job_number", "color_index", "address")
+                 if project_setup._has_column(conn, "projects", c)]
+        projects = []
+        for r in conn.execute(
+                "SELECT project_code, name, status" + "".join(", " + c for c in extra) + " FROM projects "
+                "ORDER BY (status='closed'), name").fetchall():
+            row = {"project_code": r["project_code"], **{c: r[c] for c in extra}}
+            projects.append({
+                "project_code": r["project_code"], "name": r["name"],
+                "status": (r["status"] or "active"),
+                "job_number": row.get("job_number"),
+                "address": row.get("address") or "",
+                "color": project_setup.color_hex(row),
+            })
         pms = []
         for u in conn.execute(
             "SELECT id, email, display_name, full_name FROM users "
