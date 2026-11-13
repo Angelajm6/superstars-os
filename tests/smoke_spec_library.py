@@ -253,6 +253,8 @@ def main() -> int:
         for there in ("window.SPECS_loadCatalog", "submittal.pdf", "/read-datasheet", "SSC_CLAUDE", "data-spxstar"):
             assert there in js, there
         assert "toISOString" not in js   # local dates only (CLAUDE.md)
+        # the deferred script starts itself when #specs opened before it loaded (2026-11-13: stuck on "Loading…")
+        assert "classList.contains('active')) window.SPECS_loadCatalog()" in js
         dash = (ROOT / "dashboard-static.html").read_text(encoding="utf-8")
         assert 'id="pd-specs"' in dash and "window.PD_loadSpecs" in dash and "PD_loadSpecs(PROJECT_CODE)" in dash
         checks += 1
