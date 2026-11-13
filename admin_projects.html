@@ -80,6 +80,68 @@
   .btn-ghost-sm{font-size:13px;font-weight:700;padding:5px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;}
   .btn-ghost-sm:hover{border-color:var(--accent-edge);background:var(--accent-soft);color:var(--accent-ink);}
   .btn-ghost-sm:disabled{opacity:.5;cursor:not-allowed;}
+  /* Nov 13 — Projects table: toolbar + job colors (mirrors the Projects tab) */
+  .pa-card{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;}
+  .pa-card table{border:none;border-radius:0;}
+  .pa-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);}
+  .pa-seg{display:inline-flex;background:#eef0f4;border-radius:9px;padding:3px;gap:2px;}
+  .pa-seg button{font:inherit;font-size:13px;font-weight:600;border:none;background:transparent;color:var(--ink-2,#4A4F59);padding:6px 12px;border-radius:7px;cursor:pointer;min-height:32px;}
+  .pa-seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(20,22,28,.12);}
+  .pa-seg .c{color:var(--muted);margin-left:3px;font-variant-numeric:tabular-nums;}
+  .pa-search{font:inherit;font-size:13px;padding:8px 10px 8px 32px;border:1px solid var(--line);border-radius:8px;background:#fff no-repeat 10px center;color:var(--ink);outline:none;min-width:240px;min-height:36px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238c92a0' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");}
+  .pa-search:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  /* out-rank unify.css's shared input rule (it resets padding + background) */
+  body .ssc-main #pa-search{padding:0 12px 0 34px;background-color:#fff;background-repeat:no-repeat;background-position:11px center;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238c92a0' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");}
+  .pa-cnt{margin-left:auto;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .pa-twrap{overflow-x:auto;}
+  #proj-table tbody tr:hover td{background:#f6f7fa;}
+  #proj-table td.no{color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;width:1%;}
+  .pa-job{display:flex;gap:10px;align-items:flex-start;min-width:200px;}
+  .pa-sw{width:12px;height:12px;border-radius:4px;flex:none;margin-top:3px;}
+  .pa-job .s{font-size:13px;color:var(--muted);margin-top:2px;}
+  .pa-job .pill{display:none;margin-top:5px;}
+  #proj-table tr.is-closed .pa-sw{opacity:.4;}
+  #proj-table tr.is-closed .nm{color:var(--ink-2,#4A4F59);}
+  #proj-table td.acts{white-space:nowrap;}
+  #proj-table mark{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 1px;}
+  #proj-table td.pa-empty{padding:30px 16px;text-align:center;color:var(--muted);}
+  #proj-table td.pa-empty b{display:block;color:var(--ink);font-size:14px;margin-bottom:3px;}
+  .proj-checks .pa-sw{width:10px;height:10px;border-radius:3px;margin-top:0;}
+  .proj-checks label.is-closed .pa-sw{opacity:.4;}
+  :is(.pa-seg button,.btn-sm,.cf-go):focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  /* close confirmation */
+  .np-overlay#cf-overlay{align-items:center;z-index:9002;}   /* above the Ask Claude button (9000) */
+  .np-modal.cf-modal{max-width:440px;}
+  .cf-in{padding:20px 22px 8px;display:flex;flex-direction:column;gap:14px;}
+  .cf-in h2{font-size:17px;font-weight:700;margin:0;text-wrap:balance;}
+  .cf-job{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;}
+  .cf-job .pa-sw{margin-top:0;}
+  .cf-job .t{font-weight:700;font-size:14px;} .cf-job .s{font-size:13px;color:var(--muted);}
+  .cf-in ul{margin:0;padding-left:18px;font-size:14px;color:var(--ink-2,#4A4F59);line-height:1.6;}
+  .cf-modal .np-foot{border-top:none;}
+  .cf-go{font-size:13px;font-weight:700;padding:8px 14px;border-radius:8px;border:none;background:#c8483a;color:#fff;cursor:pointer;min-height:38px;}
+  .cf-go:hover{background:#a23b30;}
+  .cf-go:disabled{opacity:.55;cursor:not-allowed;}
+  @media (max-width:640px){
+    #proj-table th.code,#proj-table td.code,#proj-table th.st,#proj-table td.st{display:none;}
+    .pa-job .pill{display:inline-block;}
+    .pa-search{flex:1 1 100%;min-width:0;}
+    .pa-cnt{margin-left:0;}
+    #proj-table th,#proj-table td{padding:11px 10px;}
+    .pa-job{min-width:0;}
+    #proj-table td.acts{white-space:normal;}
+    #proj-table td.acts .btn-sm{display:block;width:100%;}
+    #proj-table td.acts .btn-sm + .btn-sm{margin-top:6px;}
+  }
+  @media (min-width:641px){ .pa-job .m-code{display:none;} }
+  @media (max-width:600px){
+    .np-overlay#cf-overlay{align-items:flex-end;padding:0;}
+    .np-modal.cf-modal{border-radius:14px 14px 0 0;max-height:90vh;}
+    .cf-modal .np-foot{flex-direction:column-reverse;padding-bottom:max(16px,env(safe-area-inset-bottom,0px));}
+    .cf-modal .np-foot button{width:100%;min-height:44px;}
+  }
   .ph-build{text-align:center;color:#9aa3ae;font-size:13px;margin-top:30px;}
   .brand-mark,.mark{object-fit:contain;}  /* #265 swap-safe logo */
 </style>
@@ -113,10 +175,20 @@
       <div class="sub">Close a finished project to drop it off assigned PMs' lists (they can no longer open it). Reopen anytime — closed projects stay visible to admin / C-suite for records. New bids start in <a href="/company#proposals" style="color:var(--accent);font-weight:700;text-decoration:none;">Proposals</a>; a job that is already won can be onboarded here.</div></div>
       <button class="btn-primary" type="button" id="np-open">+ New project</button>
     </div>
-    <table id="proj-table">
-      <thead><tr><th>Project</th><th>Code</th><th>Status</th><th class="acts">Action</th></tr></thead>
-      <tbody id="proj-tbody"><tr><td colspan="4" class="muted" style="text-align:center;color:var(--muted);">Loading…</td></tr></tbody>
-    </table>
+    <!-- Nov 13 — the Projects-tab look: Active / Closed / All + search over the table; each job carries its calendar color -->
+    <div class="pa-card">
+      <div class="pa-toolbar">
+        <div class="pa-seg" role="tablist" aria-label="Show" id="pa-seg"><button type="button" role="tab" data-status="active" class="on" aria-selected="true">Active <span class="c"></span></button><button type="button" role="tab" data-status="closed" aria-selected="false">Closed <span class="c"></span></button><button type="button" role="tab" data-status="all" aria-selected="false">All <span class="c"></span></button></div>
+        <input class="pa-search" id="pa-search" type="search" placeholder="Search job, code or address…" autocomplete="off" aria-label="Search projects">
+        <span class="pa-cnt" id="pa-cnt" aria-live="polite"></span>
+      </div>
+      <div class="pa-twrap">
+        <table id="proj-table">
+          <thead><tr><th class="no">#</th><th>Project</th><th class="code">Code</th><th class="st">Status</th><th class="acts">Action</th></tr></thead>
+          <tbody id="proj-tbody"><tr><td colspan="5" class="muted" style="text-align:center;color:var(--muted);">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
   </section>
 
   <section>
@@ -155,6 +227,21 @@
     </div>
     <div class="np-foot"><button type="button" class="btn-ghost" id="cs-cancel">Cancel</button><button type="submit" class="btn-primary" id="cs-go">Save</button></div>
   </form>
+</div>
+<!-- Nov 13 — confirm before closing a job (one tap used to close it) -->
+<div class="np-overlay" id="cf-overlay" role="dialog" aria-modal="true" aria-labelledby="cf-title" aria-describedby="cf-body">
+  <div class="np-modal cf-modal">
+    <div class="cf-in">
+      <h2 id="cf-title">Close this job?</h2>
+      <div class="cf-job"><span class="pa-sw" id="cf-sw"></span><div><div class="t" id="cf-name"></div><div class="s" id="cf-code"></div></div></div>
+      <ul id="cf-body">
+        <li>It comes off the PMs' project lists and they can't open it.</li>
+        <li>Daily reports, photos, documents and invoices are all kept.</li>
+        <li>You can reopen it anytime from this page.</li>
+      </ul>
+    </div>
+    <div class="np-foot"><button type="button" class="btn-ghost" id="cf-cancel">Keep it open</button><button type="button" class="cf-go" id="cf-go">Close job</button></div>
+  </div>
 </div>
 </div><!-- /.ssc-main -->
 </div><!-- /.ssc-shell -->
@@ -261,22 +348,85 @@
     return '<span class="pill '+cls+'">'+esc(s)+'</span>';
   }
 
+  // Nov 13 — the Projects-tab look: Active / Closed / All + search; each job keeps its calendar color
+  var VIEW = { status:'active', q:'' };
+  function hi(text){   // highlight the search match (text is escaped first)
+    text = String(text==null?'':text); var q=VIEW.q; if(!q) return esc(text);
+    var k=text.toLowerCase().indexOf(q); if(k<0) return esc(text);
+    return esc(text.slice(0,k))+'<mark>'+esc(text.slice(k,k+q.length))+'</mark>'+esc(text.slice(k+q.length));
+  }
+  function jobColor(p){ return /^#[0-9a-fA-F]{6}$/.test(p.color||'') ? p.color : '#475569'; }
   function renderProjects(){
-    var tb=$('proj-tbody');
-    if(!STATE.projects.length){ tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);">No projects yet.</td></tr>'; return; }
-    tb.innerHTML = STATE.projects.map(function(p){
-      var st=(p.status||'active').toLowerCase();
-      var isClosed = st==='closed';
+    var tb=$('proj-tbody'), q=VIEW.q, all=STATE.projects;
+    var stOf=function(p){ return (p.status||'active').toLowerCase()==='closed' ? 'closed' : 'active'; };
+    $('pa-seg').querySelectorAll('[data-status]').forEach(function(b){
+      var on=b.dataset.status===VIEW.status; b.classList.toggle('on',on); b.setAttribute('aria-selected',on?'true':'false');
+      b.querySelector('.c').textContent = all.filter(function(p){ return b.dataset.status==='all' || stOf(p)===b.dataset.status; }).length;
+    });
+    var rows = all.filter(function(p){
+      return (VIEW.status==='all' || stOf(p)===VIEW.status)
+        && (!q || [p.name, p.project_code, p.address, p.job_number!=null?'#'+p.job_number:''].join(' ').toLowerCase().indexOf(q)>=0);
+    }).sort(function(a,b){
+      return (stOf(a)==='closed')-(stOf(b)==='closed') || ((a.job_number==null)-(b.job_number==null)) || ((a.job_number||0)-(b.job_number||0))
+        || String(a.name||a.project_code).localeCompare(String(b.name||b.project_code));
+    });
+    $('pa-cnt').textContent = q ? rows.length+' match'+(rows.length===1?'':'es') : '';
+    if(!rows.length){
+      tb.innerHTML = '<tr><td colspan="5" class="pa-empty"><b>'+(q?'No projects match':(all.length?'No jobs here':'No projects yet'))+'</b>'
+        + (q?'Try a different search, or switch to All.':(all.length?'Switch to All to see every job.':'Add one with "+ New project".'))+'</td></tr>';
+      return;
+    }
+    tb.innerHTML = rows.map(function(p){
+      var isClosed = stOf(p)==='closed', code=p.project_code;
+      var pill = statusPill(stOf(p));
       var btn = isClosed
-        ? '<button class="btn-sm" onclick="setStatus(\''+esc(p.project_code)+'\',\'active\')">Reopen</button>'
-        : '<button class="btn-sm danger" onclick="setStatus(\''+esc(p.project_code)+'\',\'closed\')">Close</button>';
-      var crewBtn = '<button class="btn-sm" onclick="openCrew(\''+esc(p.project_code)+'\')">Crew &amp; site</button> ';
-      return '<tr><td class="nm">'+esc(p.name||p.project_code)+'</td>'
-        + '<td class="code">'+esc(p.project_code)+'</td>'
-        + '<td>'+statusPill(st)+'</td>'
+        ? '<button class="btn-sm" type="button" data-pa-reopen="'+esc(code)+'">Reopen</button>'
+        : '<button class="btn-sm danger" type="button" data-pa-close="'+esc(code)+'">Close</button>';
+      var crewBtn = '<button class="btn-sm" type="button" data-pa-crew="'+esc(code)+'">Crew &amp; site</button> ';
+      return '<tr class="'+(isClosed?'is-closed':'')+'">'
+        + '<td class="no">'+(p.job_number!=null ? hi('#'+p.job_number) : '—')+'</td>'
+        + '<td><div class="pa-job"><span class="pa-sw" style="background:'+jobColor(p)+'" title="Calendar color"></span><div>'
+        +   '<div class="nm">'+hi(p.name||code)+'</div>'
+        +   '<div class="s"><span class="m-code">'+hi(code)+(p.address?' · ':'')+'</span>'+hi(p.address||'')+'</div>'
+        +   pill+'</div></div></td>'
+        + '<td class="code">'+hi(code)+'</td>'
+        + '<td class="st">'+pill+'</td>'
         + '<td class="acts">'+crewBtn+btn+'</td></tr>';
     }).join('');
   }
+  $('pa-seg').addEventListener('click', function(e){ var b=e.target.closest('[data-status]'); if(!b) return; VIEW.status=b.dataset.status; renderProjects(); });
+  $('pa-search').addEventListener('input', function(){ VIEW.q=this.value.trim().toLowerCase(); renderProjects(); });
+  $('proj-tbody').addEventListener('click', function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    if(b.dataset.paClose) openCloseConfirm(b.dataset.paClose);
+    else if(b.dataset.paReopen) setStatus(b.dataset.paReopen, 'active');
+    else if(b.dataset.paCrew) openCrew(b.dataset.paCrew);
+  });
+
+  // Close asks first; only "Close job" closes it. Reopen stays one tap.
+  var CF = { code:null, back:null };
+  function openCloseConfirm(code){
+    var p = STATE.projects.filter(function(x){ return x.project_code===code; })[0]; if(!p) return;
+    CF.code=code; CF.back=document.activeElement;
+    var nm = p.name||code;
+    $('cf-title').textContent = 'Close '+nm+'?';
+    $('cf-name').textContent = nm;
+    $('cf-code').textContent = (p.job_number!=null ? '#'+p.job_number+' · ' : '')+code;
+    $('cf-sw').style.background = jobColor(p);
+    $('cf-go').disabled=false;
+    $('cf-overlay').classList.add('open'); $('cf-cancel').focus();
+  }
+  function closeCloseConfirm(){
+    $('cf-overlay').classList.remove('open'); CF.code=null;
+    if(CF.back && document.contains(CF.back) && CF.back.focus) CF.back.focus();
+  }
+  $('cf-cancel').addEventListener('click', closeCloseConfirm);
+  $('cf-overlay').addEventListener('click', function(e){ if(e.target===$('cf-overlay')) closeCloseConfirm(); });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && $('cf-overlay').classList.contains('open')) closeCloseConfirm(); });
+  $('cf-go').addEventListener('click', async function(){
+    if(!CF.code) return; var code=CF.code; $('cf-go').disabled=true;
+    await setStatus(code, 'closed'); CF.back=null; closeCloseConfirm();
+  });
 
   function renderPMs(){
     var host=$('pm-list');
@@ -288,6 +438,7 @@
         var on = assigned.indexOf(p.project_code)>=0;
         return '<label class="'+(st==='closed'?'is-closed':'')+'">'
           + '<input type="checkbox" data-uid="'+pm.user_id+'" value="'+esc(p.project_code)+'" '+(on?'checked':'')+'>'
+          + '<span class="pa-sw" style="background:'+jobColor(p)+'"></span>'
           + esc(p.name||p.project_code)
           + (st==='closed'?'<span class="clbl">(closed)</span>':'')
           + '</label>';
@@ -309,8 +460,9 @@
         body: JSON.stringify({status: status})
       }).then(function(r){ return r.json(); });
       if(resp.error){ showErr(resp.error); return; }
-      showOk('Project '+code+' is now '+status+'.');
-      await load();
+      var pj = STATE.projects.filter(function(x){ return x.project_code===code; })[0], pn = (pj && pj.name) || code;
+      await load();   // load() clears the bars first, so the message goes after it
+      showOk(status==='closed' ? pn+' is closed. Find it under Closed.' : pn+' is open again.');
     }catch(e){ showErr('Network error: '+e.message); }
   };
 

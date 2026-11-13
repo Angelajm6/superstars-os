@@ -173,6 +173,12 @@ def run():
     ok("pm_cannot_close_project",
        _sc(pm1, "POST", f"/api/projects/{PROJ_A}/status", json={"status": "closed"}) == 403)
     ok("csuite_can_list_assignments", _sc(csuite, "GET", "/api/admin/pm-assignments") == 200)
+    # the Assignments table draws each job with its calendar color, number and address
+    _pa = next((p for p in csuite.get(f"{BASE}/api/admin/pm-assignments", timeout=15).json()["data"]["projects"]
+                if p["project_code"] == PROJ_A), {})
+    ok("assignments_carry_job_color",
+       str(_pa.get("color", "")).startswith("#") and len(_pa.get("color", "")) == 7
+       and "job_number" in _pa and "address" in _pa)
 
     # admin assigns A (only) to pm1 (id read from the isolated DB — our pm is is_system=1)
     pm1_id = _uid("pm1")
