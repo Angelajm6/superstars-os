@@ -21,6 +21,29 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Mark an invoice as sent + the ⋯ menu on the job's invoice rows (Bookore, 2026-11-13)
+
+* Accepted prototype: https://claude.ai/artifact/CSYZKHDEipWfsF69Nb3xmG. Asked for after an invoice had to go out from the
+  Gmail app (the old form had no Cc), so the app still said "not sent" and set no chase.
+* **Mark as sent** (`invoice_send.sent_matches / mark_sent / unmark_sent`; window in `static/js/invoice_mark_sent.js`, shared
+  by the job page and the editor): the app looks in the person's own sent mail (newest 400, from 14 days before issue) for an
+  email naming the invoice number in the subject, the first lines or a file name. Picking it takes its date and To, and files
+  that email on the invoice and the client. **Another way** (Outlook / portal / by hand) takes a day (not in the future, not
+  more than 14 days before issue) and who it went to (a plain name is fine). Nothing is emailed and the private link is not
+  touched. Chase task as in the Send window, plus **Tomorrow** when it's already past due.
+* New column `invoice.sent_how`: `app` / `gmail` (sent from the app) or `gmail_outside` / `email` / `portal` / `hand`
+  (marked). **Undo / Mark as not sent** only for a marked invoice that hasn't been emailed from the app since: clears the
+  sent fields, cancels the chase task, unfiles the email from the invoice (it stays on the client).
+* Routes (admin / C-suite, like the Send window): `GET /api/invoices/<id>/sent-matches`, `POST …/mark-sent {confirm: true,
+  mail_id | sent_on + to + how, follow_up}`, `POST …/unmark-sent {mail_id?}`.
+* **Job page → Invoices & payments:** each row's buttons are now one **⋯** menu (Email client… / Resend… / Email receipt… or
+  Issue… first, Mark as sent…, Preview, Edit / View, Download PDF, Standard layout, Record a payment…, Mark as not sent).
+  The Client column says how a marked invoice went ("sent 11/12 · from Gmail"). The editor's Send window has
+  **Already sent it?** next to Cancel while the invoice is issued and not sent.
+* Also fixed: on a phone with Gmail connected, the Send window's "From" pill squeezed the title to one word a line.
+* Tests: `tests/smoke_invoice_send.py` group 8 (matches, refusals, nothing emailed, filed, chase, undo, by hand, undo refused
+  after an app send) + page needles; `smoke_invoice_editor.py` / `smoke_claude_docs.py` needles follow the ⋯ menu.
+
 ### Email an invoice from your Gmail: thread, Cc / Bcc, Claude writes it (Bookore, 2026-11-12)
 
 * Accepted prototype: https://claude.ai/artifact/DXM2hua8SeM9mdRSr7EhkZ. The invoice editor's **Email client… / Resend… /

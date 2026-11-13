@@ -65,7 +65,8 @@ DEFAULT_PAY_INSTRUCTIONS = ("Please remit by check payable to Superstars Contrac
 _COLUMNS = (("sent_at", "TEXT"), ("sent_to", "TEXT"), ("sent_name", "TEXT"), ("sent_count", "INTEGER DEFAULT 0"),
             ("viewed_at", "TEXT"), ("view_count", "INTEGER DEFAULT 0"), ("pdf_path", "TEXT"), ("pdf_rendered_at", "TEXT"),
             ("token_hash", "TEXT"), ("token_expires_at", "TEXT"), ("last_message", "TEXT"),
-            ("design_doc_id", "INTEGER"), ("design_html", "TEXT"), ("design_at", "TEXT"), ("pdf_layout", "INTEGER DEFAULT 0"))
+            ("design_doc_id", "INTEGER"), ("design_html", "TEXT"), ("design_at", "TEXT"), ("pdf_layout", "INTEGER DEFAULT 0"),
+            ("sent_how", "TEXT"))   # sent_how (2026-11-13): app | gmail, or how someone marked it sent outside the app
 LAYOUT = 3   # 3 = several work lines + the editor's own wording (2026-11-11). Bump when the invoice layout changes: stored PDFs from an older one are redrawn
 PRIVATE_KEYS = ("pdf_path", "token_hash", "design_html")
 
@@ -641,7 +642,7 @@ def send(conn, invoice_id: int, *, to_email=None, to_name=None, message=None, ac
     if not sent:
         raise RuntimeError(f"email not sent: {err}")
     conn.execute("UPDATE invoice SET sent_at = ?, sent_to = ?, sent_name = ?, sent_count = COALESCE(sent_count, 0) + 1, "
-                 "last_message = ?, updated_at = ? WHERE id = ?", (now, to_email, to_name, message, now, invoice_id))
+                 "last_message = ?, sent_how = 'app', updated_at = ? WHERE id = ?", (now, to_email, to_name, message, now, invoice_id))
     conn.commit()
     try:
         crm.add_activity(conn, entity_type="organization", entity_id=inv["client_org_id"], activity_type="system",

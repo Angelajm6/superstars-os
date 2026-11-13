@@ -179,6 +179,7 @@
   .sx-foot{display:flex;align-items:center;gap:8px;padding:11px 20px;border-top:1px solid var(--line);background:#fff;flex-wrap:wrap}
   .sx-foot .note{color:var(--muted);font-size:12.5px;margin-right:auto;min-width:0}
   .sx-foot .note b{color:var(--ink)}
+  #sx-already[hidden]{display:none}
   .sx-err{color:var(--status-behind-deep,#A8382B);font-size:12.5px}
   .sx-mail{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
   .sx-mail .s{padding:13px 15px 5px;font-size:16px;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
@@ -217,7 +218,7 @@
     .sx-head{padding:12px 16px 8px;flex-wrap:wrap}
     .sx-head>div:first-child{flex:1 1 0}
     .sx-x{order:2}
-    .sx-from{margin-left:0;order:3;max-width:100%}
+    .sx-from{margin-left:0;order:3;max-width:100%;flex:1 0 100%;justify-content:flex-start}   /* its own line under the title (2026-11-13: it squeezed the title to one word a line) */
     .sx-tabs{display:flex;gap:4px;padding:4px 16px 0;border-bottom:1px solid var(--line)}
     .sx-tabs button{border:0;background:none;padding:8px 12px;font:inherit;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer}
     .sx-tabs button[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
@@ -229,6 +230,7 @@
     .sx-foot{padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
     .sx-foot .note{width:100%}
     .sx-foot>button{flex:1}
+    .sx-foot>#sx-already{flex-basis:100%;order:3}
     .sx-rv{grid-template-columns:minmax(0,1fr);padding:14px 16px}
     .sx-mail .bd,.sx-mail .sg,.sx-mail .fs{padding-left:15px}
     .sx-chips input,.sx-subj input,.sx-msg,.sx-ask input,.sx-q .fld{font-size:16px}
@@ -351,7 +353,7 @@
       <div class="sx-ck" id="sx-ck"></div>
     </aside>
   </div>
-  <div class="sx-foot"><div class="note" id="sx-note"></div><span class="sx-err" id="mail-err" role="alert"></span><button class="btn-ghost" type="button" id="sx-cancel">Cancel</button><button class="btn-primary" type="button" id="sx-next">Review…</button></div>
+  <div class="sx-foot"><div class="note" id="sx-note"></div><span class="sx-err" id="mail-err" role="alert"></span><button class="btn-ghost" type="button" id="sx-already" hidden title="Sent it from Gmail, Outlook, a portal or by hand? Record it without emailing">Already sent it?</button><button class="btn-ghost" type="button" id="sx-cancel">Cancel</button><button class="btn-primary" type="button" id="sx-next">Review…</button></div>
 
   <div class="sx-layer" id="sx-review" hidden>
     <div class="sx-head"><div><h3>Check it once more</h3><div class="sx-sub">Nothing is sent until you press Send now.</div></div></div>
@@ -754,6 +756,7 @@
     $('sx-nogmail').hidden = M.gmail;
     ['sx-where', 'sx-cc-row', 'sx-subj-row', 'sx-att-sec'].forEach(id => { $(id).hidden = !M.gmail; });
     $('sx-fu-sec').hidden = !M.gmail || paidMode();
+    $('sx-already').hidden = !(r.status === 'issued' && !r.sent_at);
     $('mail-go').textContent = M.gmail ? 'Send now from my Gmail' : 'Send now';
     const fu = r.overdue ? 'after7' : 'due'; $('sx-fu').value = fu; fuNote();
     renderThreads();
@@ -825,6 +828,17 @@
   $('sx-next').addEventListener('click', review);
   $('sx-back').addEventListener('click', () => { $('sx-review').hidden = true; });
   $('mail-go').addEventListener('click', sendNow);
+  // "Already sent it?" (2026-11-13): record a send done outside the app, nothing is emailed (static/js/invoice_mark_sent.js)
+  function markSent() {
+    closeMail();
+    const go = () => window.SSCMarkSent.open(ID, { onDone: (x, info) => {
+      load(); toast(x.number + ' marked sent' + (info.chase ? ' · chase task added' : ''), false, { label: 'Undo', run: async () => {
+        try { await window.SSCMarkSent.undo(ID, info.mail_id); toast(x.number + ' is back to not sent'); load(); } catch (e) { toast(e.message, true); } } }); } });
+    if (window.SSCMarkSent) return go();
+    const sc = document.createElement('script'); sc.src = '/files/static/js/invoice_mark_sent.js?v=1'; sc.onload = go;
+    sc.onerror = () => toast('Mark as sent could not load. Refresh the page and try again.', true); document.head.appendChild(sc);
+  }
+  $('sx-already').addEventListener('click', markSent);
   $('sx-cancel').addEventListener('click', closeMail);
   $('sx-close').addEventListener('click', closeMail);
   $('sx-done').addEventListener('click', () => { closeMail(); toast(inv().number + ' emailed'); load(); });

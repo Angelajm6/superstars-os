@@ -301,9 +301,11 @@ def _extra_files(conn, inv: dict, ids) -> list:
 
 
 def follow_up_date(inv: dict, choice: str, today: Optional[date] = None) -> Optional[str]:
-    if choice not in FOLLOW_UPS or inv["status"] != "issued":
+    if (choice not in FOLLOW_UPS and choice != "tomorrow") or inv["status"] != "issued":
         return None
     today = today or date.today()
+    if choice == "tomorrow":   # already past due: chase it next working day
+        return (today + timedelta(days=1)).isoformat()
     try:
         due = date.fromisoformat(str(inv.get("due_at"))[:10]) if inv.get("due_at") else today + timedelta(days=30)
     except ValueError:
@@ -318,6 +320,27 @@ def close_chase(conn, number: str) -> int:
                        (_now(), f"{CHASE_PREFIX}{number} %"))
     conn.commit()
     return cur.rowcount or 0
+
+
+def _chase(conn, inv: dict, uid, choice: str) -> Optional[str]:
+    """"Chase it if it isn't paid": one open task for the person on the day they picked (an earlier one is closed)."""
+    when = follow_up_date(inv, choice)
+    if not when:
+        return None
+    import team_items
+    close_chase(conn, inv["number"])
+    try:
+        team_items.create(conn, {"kind": "task", "title": f"{CHASE_PREFIX}{inv['number']} · {inv.get('client_name') or ''}"[:160],
+                                 "detail": f"If it's still open, open the invoice (/invoices/{inv['id']}/edit?send=remind) and "
+                                           "Claude writes the reminder in the same email thread for you to send. "
+                                           "This task closes itself when the invoice is paid.",
+                                 "due_date": when, "assignee_user_id": uid,
+                                 "project_code": inv.get("project_code")}, actor=uid)
+        return when
+    except Exception as e:
+        conn.rollback()
+        log.info("invoice send: chase task not created (%s)", type(e).__name__)
+        return None
 
 
 def send(conn, invoice_id: int, uid, body: dict) -> dict:
@@ -375,7 +398,7 @@ def send(conn, invoice_id: int, uid, body: dict) -> dict:
     n_people = len(getaddresses([x for x in (to, cc, bcc) if x]))
     now = _now()
     conn.execute("UPDATE invoice SET sent_at = ?, sent_to = ?, sent_name = ?, sent_count = COALESCE(sent_count, 0) + 1, "
-                 "last_message = ?, updated_at = ? WHERE id = ?", (now, addr.lower(), (name or None), message[:2000], now, invoice_id))
+                 "last_message = ?, sent_how = 'gmail', updated_at = ? WHERE id = ?", (now, addr.lower(), (name or None), message[:2000], now, invoice_id))
     conn.commit()
     if how == "reply":
         try:
@@ -394,24 +417,150 @@ def send(conn, invoice_id: int, uid, body: dict) -> dict:
     except Exception as e:
         conn.rollback()
         log.info("invoice send: activity not logged (%s)", type(e).__name__)
-    chase = None
-    when = follow_up_date(inv, str(body.get("follow_up") or ""))
-    if when:
-        import team_items
-        close_chase(conn, inv["number"])
-        try:
-            team_items.create(conn, {"kind": "task", "title": f"{CHASE_PREFIX}{inv['number']} · {inv.get('client_name') or ''}"[:160],
-                                     "detail": f"If it's still open, open the invoice (/invoices/{invoice_id}/edit?send=remind) and "
-                                               "Claude writes the reminder in the same email thread for you to send. "
-                                               "This task closes itself when the invoice is paid.",
-                                     "due_date": when, "assignee_user_id": uid,
-                                     "project_code": inv.get("project_code")}, actor=uid)
-            chase = when
-        except Exception as e:
-            conn.rollback()
-            log.info("invoice send: chase task not created (%s)", type(e).__name__)
+    chase = _chase(conn, inv, uid, str(body.get("follow_up") or ""))
     return {"invoice": invoice_docs.public(invoices.get(conn, invoice_id)), "to": to, "people": n_people, "how": how,
             "chase": chase, "files": len(files)}
+
+
+# ------------------------------------------------------------------ marked sent (prototype accepted 2026-11-13:
+# https://claude.ai/artifact/CSYZKHDEipWfsF69Nb3xmG). For an invoice that went out another way: from the Gmail app,
+# Outlook, a client portal or by hand. Nothing is emailed and the private link is left alone.
+OUTSIDE = {"gmail_outside": "from Gmail", "email": "by email", "portal": "through the client's portal", "hand": "by hand or mail"}
+SENT_SCANNED = 400   # the person's newest sent emails looked at for this invoice's number
+
+
+def _issued(conn, invoice_id: int) -> dict:
+    inv = _invoice(conn, invoice_id)
+    if inv["status"] != "issued":
+        raise ValueError("Only an issued invoice that is still open can be marked sent.")
+    return inv
+
+
+def _mentions(number: str, texts) -> bool:
+    n = (number or "").lower()
+    return bool(n) and any(n in (t or "").lower() for t in texts)
+
+
+def sent_matches(conn, invoice_id: int, uid) -> dict:
+    """Emails in the person's own sent mail that carry this invoice: its number in the subject, a file name or the
+    first lines. Newest first; only headers, the snippet and file names are decrypted."""
+    import inbox
+    from email.utils import getaddresses
+    inv = _issued(conn, invoice_id)
+    try:   # the PDF can go out a little before the invoice is issued in the app
+        since = (date.fromisoformat(str(inv.get("issued_at") or "")[:10]) - timedelta(days=14)).isoformat()
+    except ValueError:
+        since = ""
+    client = {(x["email"] or "").strip().lower() for x in _rows(
+        conn, "SELECT email FROM crm_contact WHERE org_id = ? AND email IS NOT NULL AND email <> ''", (inv["client_org_id"],))}
+    out = []
+    if uid:
+        for m in _rows(conn, "SELECT id, received_at, to_enc, cc_enc, subject_enc, snippet_enc, attachments_enc FROM mail_message "
+                             "WHERE user_id = ? AND direction = 'out' AND trashed_at IS NULL ORDER BY received_at DESC, id DESC LIMIT ?",
+                       (uid, SENT_SCANNED)):
+            if since and str(m["received_at"] or "")[:10] < since:
+                continue
+            subj, snip = inbox._dec(m["subject_enc"]) or "", inbox._dec(m["snippet_enc"]) or ""
+            try:
+                files = [a.get("name") or "" for a in json.loads(inbox._dec(m["attachments_enc"]) or "[]") if not a.get("inline")]
+            except (ValueError, TypeError):
+                files = []
+            if not _mentions(inv["number"], [subj, snip, *files]):
+                continue
+            to, cc = inbox._dec(m["to_enc"]) or "", inbox._dec(m["cc_enc"]) or ""
+            addrs = {a.lower() for _, a in getaddresses([to, cc]) if a}
+            out.append({"id": m["id"], "subject": subj or "(no subject)", "to": to, "cc": cc, "received_at": m["received_at"],
+                        "files": files[:4], "client": bool(addrs & client)})
+            if len(out) >= 5:
+                break
+    return {"invoice": invoice_docs.public(inv), "matches": out, "gmail": _gmail(conn, uid),
+            "recipient": invoice_docs.default_recipient(conn, inv), "today": date.today().isoformat()}
+
+
+def mark_sent(conn, invoice_id: int, uid, body: dict) -> dict:
+    import inbox
+    import crm
+    from email.utils import getaddresses
+    inv = _issued(conn, invoice_id)
+    if inv.get("sent_at"):
+        raise ValueError(f"It's already marked sent ({str(inv['sent_at'])[:10]}).")
+    if body.get("confirm") is not True:
+        raise ValueError("Confirm to mark it sent.")
+    mid = int(body.get("mail_id") or 0)
+    if mid:
+        m = inbox.message(conn, mid, uid)
+        if not m or m["direction"] != "out":
+            raise ValueError("That email isn't in your sent mail any more. Pick it again, or choose Another way.")
+        if not _mentions(inv["number"], [m["subject"], m["snippet"], *[a.get("name") for a in m["attachments"]]]):
+            raise ValueError(f"That email doesn't mention {inv['number']}.")
+        how, sent_at, people = "gmail_outside", str(m["received_at"] or _now())[:19], m["to"] or ""
+    else:
+        how = body.get("how") if body.get("how") in OUTSIDE and body.get("how") != "gmail_outside" else "email"
+        try:
+            on = date.fromisoformat(str(body.get("sent_on") or "")[:10])
+        except ValueError:
+            raise ValueError("Pick the day it was sent.")
+        if on > date.today():
+            raise ValueError("The day it was sent can't be in the future.")
+        try:
+            issued = date.fromisoformat(str(inv.get("issued_at") or "")[:10])
+        except ValueError:
+            issued = None
+        if issued and on < issued - timedelta(days=14):
+            raise ValueError(f"It was issued on {issued.isoformat()}. Pick a day closer to that.")
+        sent_at = _now() if on == date.today() else f"{on.isoformat()}T12:00:00"
+        people = str(body.get("to") or "").strip()[:400]
+    if not people:
+        raise ValueError("Add who it went to.")
+    head = people.split(",")[0].strip()   # the first person; a plain name (handed over) has no address
+    n_, a_ = (getaddresses([head]) or [("", "")])[0]
+    addr = a_.strip().lower() if "@" in a_ else None
+    name = ((n_ if addr else head) or "").strip().strip('"')[:120] or None
+    now = _now()
+    conn.execute("UPDATE invoice SET sent_at = ?, sent_to = ?, sent_name = ?, sent_count = COALESCE(sent_count, 0) + 1, "
+                 "sent_how = ?, updated_at = ? WHERE id = ?", (sent_at, addr, name, how, now, invoice_id))
+    conn.commit()
+    if mid:
+        try:
+            inbox.link_record(conn, mid, "client", inv["client_org_id"], uid)
+            inbox.link_record(conn, mid, "invoice", invoice_id, uid)
+        except Exception as e:
+            conn.rollback()
+            log.info("invoice mark sent: email not filed (%s)", type(e).__name__)
+    try:
+        crm.add_activity(conn, entity_type="organization", entity_id=inv["client_org_id"], activity_type="system",
+                         author_user_id=uid, function_tag="finance",
+                         summary=f"Invoice {inv['number']} marked sent {OUTSIDE[how]} to {name or addr} on {sent_at[:10]}")
+    except Exception as e:
+        conn.rollback()
+        log.info("invoice mark sent: activity not logged (%s)", type(e).__name__)
+    chase = _chase(conn, inv, uid, str(body.get("follow_up") or ""))
+    return {"invoice": invoice_docs.public(invoices.get(conn, invoice_id)), "chase": chase, "how": how}
+
+
+def unmark_sent(conn, invoice_id: int, uid, body: dict) -> dict:
+    """Undo: only an invoice marked sent outside the app, and not emailed from the app since."""
+    import crm
+    inv = _invoice(conn, invoice_id)
+    if inv.get("sent_how") not in OUTSIDE or int(inv.get("sent_count") or 0) > 1:
+        raise ValueError("Only an invoice you marked sent yourself can go back to not sent.")
+    now = _now()
+    conn.execute("UPDATE invoice SET sent_at = NULL, sent_to = NULL, sent_name = NULL, sent_count = 0, sent_how = NULL, "
+                 "updated_at = ? WHERE id = ?", (now, invoice_id))
+    conn.execute("UPDATE crm_task SET status = 'cancelled', updated_at = ? WHERE status = 'open' AND title LIKE ?",
+                 (now, f"{CHASE_PREFIX}{inv['number']} %"))
+    mid = int(body.get("mail_id") or 0)
+    if mid:   # the email stays filed on the client (it did go to them); it no longer stands for this invoice's send
+        conn.execute("DELETE FROM mail_link WHERE message_id = ? AND entity_type = 'invoice' AND entity_id = ? AND "
+                     "message_id IN (SELECT id FROM mail_message WHERE user_id = ?)", (mid, str(invoice_id), uid))
+    conn.commit()
+    try:
+        crm.add_activity(conn, entity_type="organization", entity_id=inv["client_org_id"], activity_type="system",
+                         author_user_id=uid, function_tag="finance", summary=f"Invoice {inv['number']} put back to not sent")
+    except Exception as e:
+        conn.rollback()
+        log.info("invoice unmark: activity not logged (%s)", type(e).__name__)
+    return {"invoice": invoice_docs.public(invoices.get(conn, invoice_id))}
 
 
 # ------------------------------------------------------------------ routes
@@ -455,3 +604,16 @@ def register(app) -> None:
     app.add_url_rule("/api/invoices/<int:invoice_id>/send-thread/<int:mid>", "invoice_send_thread", gate(_wrap(api_thread)), methods=["GET"])
     app.add_url_rule("/api/invoices/<int:invoice_id>/send-draft", "invoice_send_draft", gate(_wrap(api_draft)), methods=["POST"])
     app.add_url_rule("/api/invoices/<int:invoice_id>/send-gmail", "invoice_send_gmail", gate(_wrap(api_send)), methods=["POST"])
+
+    def api_matches(conn, invoice_id):
+        return sent_matches(conn, invoice_id, _uid())
+
+    def api_mark(conn, invoice_id):
+        return mark_sent(conn, invoice_id, _uid(), request.get_json(silent=True) or {})
+
+    def api_unmark(conn, invoice_id):
+        return unmark_sent(conn, invoice_id, _uid(), request.get_json(silent=True) or {})
+
+    app.add_url_rule("/api/invoices/<int:invoice_id>/sent-matches", "invoice_sent_matches", gate(_wrap(api_matches)), methods=["GET"])
+    app.add_url_rule("/api/invoices/<int:invoice_id>/mark-sent", "invoice_mark_sent", gate(_wrap(api_mark)), methods=["POST"])
+    app.add_url_rule("/api/invoices/<int:invoice_id>/unmark-sent", "invoice_unmark_sent", gate(_wrap(api_unmark)), methods=["POST"])

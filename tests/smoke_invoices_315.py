@@ -508,7 +508,7 @@ def main() -> int:
         pay = invoice_docs.project_payments(conn, "INV315-A")
         assert pay["invoices"] and all("edit" in x for x in pay["invoices"])
         page = (ROOT / "dashboard-static.html").read_text(encoding="utf-8")
-        for needle in ('id="pay-edit-form"', 'data-edit="${r.id}"', "method: 'PATCH'", "Changed since sent"):
+        for needle in ('id="pay-edit-form"', "openEdit(r)", "method: 'PATCH'", "Changed since sent"):   # Edit sits in the row's ⋯ menu (2026-11-13)
             assert needle in page, needle
     finally:
         conn.close()

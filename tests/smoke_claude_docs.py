@@ -333,7 +333,7 @@ def main() -> int:
         assert "Invoice <its number> - <place>" in ca.SYSTEM
         assert 'claude_docs.filed(conn, made["doc_id"], code, saved)' in (ROOT / "claude_connector.py").read_text(encoding="utf-8")
         assert "o.kind === 'page'" in (ROOT / "static/js/pdf_view.js").read_text(encoding="utf-8")   # Preview inside the app
-        assert "data-preview=" in (ROOT / "dashboard-static.html").read_text(encoding="utf-8")
+        assert "SSC_PDF.panel({ title: 'Invoice ' + r.number" in (ROOT / "dashboard-static.html").read_text(encoding="utf-8")   # the ⋯ menu's Preview
         assert "$('inv-preview').addEventListener" in (ROOT / "company_portal.html").read_text(encoding="utf-8")
         html = (ROOT / "proposal_studio.html").read_text(encoding="utf-8")
         assert "House style Claude follows" not in html and "Your past proposals" in html

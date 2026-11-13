@@ -5655,6 +5655,16 @@
           .pay-pill{display:inline-block;font-size:13px;font-weight:700;padding:3px 8px;border-radius:999px;background:var(--status-oat-soft, #f3f0e9);color:var(--oat-ink, #8a8064);white-space:nowrap}
           .pay-pill.ok{background:var(--status-complete-soft, #e7f6f0);color:var(--status-complete-deep, #0c7a5f)} .pay-pill.active{background:var(--accent-soft, #ebf0fe);color:var(--accent-ink, #3a5fd0)} .pay-pill.bad{background:var(--status-behind-soft, #fceeec);color:var(--status-behind-deep, #A8382B)} .pay-pill.warn{background:var(--status-warn-soft, #FFF4E5);color:var(--status-warn, #9A5B00)}
           .pay-acts{display:flex;gap:6px;flex-wrap:wrap} .pay-acts .pay-btn{padding:5px 9px;font-size:13px}
+          /* row actions in one ⋯ menu (2026-11-13: the row of buttons looked cramped) */
+          .pay-dots{font:inherit;font-size:20px;line-height:1;width:36px;height:34px;border-radius:8px;border:1px solid transparent;background:none;color:var(--ink-2, #4a5061);cursor:pointer;display:grid;place-items:center}
+          .pay-dots:hover,.pay-dots[aria-expanded="true"]{background:var(--canvas, #f4f6fa);border-color:var(--line, #eceef3);color:var(--ink, #222633)}
+          .pay-menu{position:fixed;z-index:10002;min-width:220px;background:#fff;border:1px solid var(--line, #eceef3);border-radius:14px;box-shadow:0 16px 40px rgba(20,22,28,.18);padding:5px;display:flex;flex-direction:column}
+          .pay-menu[hidden]{display:none}
+          .pay-table td.pay-actd{width:1%;white-space:nowrap;padding-top:4px;padding-bottom:4px}
+          .pay-menu button,.pay-menu a{font:inherit;font-size:14px;border:0;background:none;text-align:left;padding:9px 11px;border-radius:8px;color:var(--ink, #222633);cursor:pointer;text-decoration:none;display:block}
+          .pay-menu button:hover,.pay-menu a:hover,.pay-menu button:focus-visible,.pay-menu a:focus-visible{background:var(--canvas, #f4f6fa);outline:none}
+          .pay-menu .pri{color:var(--accent-ink, #3a5fd0);font-weight:700}
+          .pay-menu hr{border:0;border-top:1px solid var(--line, #eceef3);margin:4px 2px}
           .pay-empty{text-align:center;color:var(--muted, #8c92a0);padding:26px 10px}
           /* phone (2026-11-11): each invoice is a card, so Download / Edit stay on screen instead of off to the right */
           @media (max-width:640px){
@@ -5664,7 +5674,7 @@
             #pay-table td:nth-child(1){grid-column:1;grid-row:1} #pay-table td:nth-child(3){grid-column:2;grid-row:1;font-weight:700}
             #pay-table td:nth-child(2){grid-column:1 / -1} #pay-table td:nth-child(4){display:none}
             #pay-table td:nth-child(5){grid-column:1} #pay-table td:nth-child(6){grid-column:2;text-align:right}
-            #pay-table td:nth-child(7){grid-column:1 / -1} #pay-table td:nth-child(8){grid-column:1 / -1;margin-top:8px}
+            #pay-table td:nth-child(7){grid-column:1;align-self:center} #pay-table td:nth-child(8){grid-column:2;justify-self:end;width:auto;padding:0}
             #pay-table td.pay-empty{grid-column:1 / -1}
           }
           .pay-overlay{position:fixed;inset:0;background:rgba(20,22,28,.45);display:none;align-items:center;justify-content:center;z-index:60;padding:16px} .pay-overlay.open{display:flex}
@@ -6001,38 +6011,80 @@
               <td><span class="pay-id">${esc(r.number)}</span><div class="pay-muted">${esc(String(r.kind || '').replace('_',' '))}${r.proposal_number ? ' · ' + esc(r.proposal_number) : ''}${r.has_design ? ' · designed with Claude' : ''}</div></td>
               <td>${esc(r.description || '—')}${r.status === 'issued' && r.sent_at && r.edited_at && r.edited_at > r.sent_at ? '<span class="pay-changed">Changed since sent · resend</span>' : ''}</td><td class="num">${money.format(r.amount)}</td><td class="num">${r.status === 'issued' ? '<b>' + money.format(r.balance) + '</b>' : '—'}</td>
               <td>${r.status === 'draft' ? '<span class="pay-muted">draft</span>' : fmtDate(r.due_at)}</td><td>${pill(r)}</td>
-              <td class="pay-muted">${r.sent_at ? (r.viewed_at ? 'opened ' + fmtDate(r.viewed_at) : 'sent ' + fmtDate(r.sent_at)) + (r.sent_count > 1 ? ' · ×' + r.sent_count : '') : 'not sent'}</td>
-              <td><div class="pay-acts"><a class="pay-btn" href="/api/invoices/${r.id}/preview" target="_blank" rel="noopener" data-preview="${r.id}">Preview</a>${r.edit && r.edit.editable ? (r.edit.aia ? `<button type="button" class="pay-btn" data-edit="${r.id}">Edit</button>` : `<a class="pay-btn" href="/invoices/${r.id}/edit" data-edit-full="${r.id}">Edit</a>`) : (r.source !== 'quickbooks' ? `<a class="pay-btn" href="/invoices/${r.id}/edit">View</a>` : '')}<a class="pay-btn" href="/api/invoices/${r.id}/pdf?download=1" data-dl="${r.id}">Download</a>
-                ${r.status === 'draft' ? `<button type="button" class="pay-btn primary" data-issue="${r.id}">Issue</button>` : ''}
-                ${r.status === 'issued' ? `<button type="button" class="pay-btn primary" data-mail="${r.id}">${r.sent_at ? 'Resend' : 'Email client'}</button><button type="button" class="pay-btn" data-pay="${r.id}">Payment</button>` : ''}
-                ${r.status === 'paid' ? `<button type="button" class="pay-btn" data-mail="${r.id}">Email receipt</button>` : ''}
-                ${r.has_design ? `<button type="button" class="pay-btn" data-standard="${r.id}">Standard layout</button>` : ''}</div></td></tr>`).join('') + '</tbody>';
-            $p('pay-table').querySelectorAll('[data-issue]').forEach(b => b.addEventListener('click', async () => {
-              const r = rows.find(x => String(x.id) === b.dataset.issue); if (!confirm(`Issue ${r.number} for ${money.format(r.amount)}? It becomes a receivable.`)) return;
-              try { await api('/api/invoices/' + r.id + '/issue', { method: 'POST', body: '{}' }); toast(r.number + ' issued'); load(); } catch (e) { toast(e.message, true); } }));
-            // Preview opens beside the table (the Documents tab's panel), not in a new window
-            $p('pay-table').querySelectorAll('[data-preview]').forEach(b => b.addEventListener('click', e => {
-              if (!window.SSC_PDF) return;
-              e.preventDefault();
-              const r = rows.find(x => String(x.id) === b.dataset.preview), url = '/api/invoices/' + r.id + '/preview';
+              <td class="pay-muted">${r.sent_at ? (r.viewed_at ? 'opened ' + fmtDate(r.viewed_at) : 'sent ' + fmtDate(r.sent_at)) + (r.sent_count > 1 ? ' · ×' + r.sent_count : '') + (OUTSIDE[r.sent_how] ? ' · ' + OUTSIDE[r.sent_how] : '') : 'not sent'}</td>
+              <td class="pay-actd"><button type="button" class="pay-dots" data-menu="${r.id}" aria-haspopup="menu" aria-expanded="false" aria-label="Actions for ${esc(r.number)}">⋯</button></td></tr>`).join('') + '</tbody>';
+            $p('pay-table').querySelectorAll('[data-menu]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); openMenu(b, rows.find(x => String(x.id) === b.dataset.menu)); }));
+          }
+          const OUTSIDE = { gmail_outside: 'from Gmail', email: 'by email', portal: 'portal', hand: 'by hand' };
+          const ACT = {
+            async issue(r) { if (!confirm(`Issue ${r.number} for ${money.format(r.amount)}? It becomes a receivable.`)) return;
+              try { await api('/api/invoices/' + r.id + '/issue', { method: 'POST', body: '{}' }); toast(r.number + ' issued'); load(); } catch (e) { toast(e.message, true); } },
+            preview(r) {   // beside the table (the Documents tab's panel), not in a new window
+              const url = '/api/invoices/' + r.id + '/preview';
+              if (!window.SSC_PDF) { window.open(url, '_blank', 'noopener'); return; }
               SSC_PDF.panel({ title: 'Invoice ' + r.number, sub: (r.description || '') + (r.has_design ? ' · designed with Claude' : ''), url, kind: 'page',
-                links: [{ label: 'Download', href: '/api/invoices/' + r.id + '/pdf?download=1', newtab: true }, { label: 'Open in new tab', href: url, newtab: true }] });
-            }));
-            // Download saves the PDF on every invoice, drafts included (2026-11-11); a missing PDF engine says so instead of saving an error
-            $p('pay-table').querySelectorAll('[data-dl]').forEach(b => b.addEventListener('click', async e => {
-              e.preventDefault(); const r = rows.find(x => String(x.id) === b.dataset.dl);
+                links: [{ label: 'Download', href: '/api/invoices/' + r.id + '/pdf?download=1', newtab: true }, { label: 'Open in new tab', href: url, newtab: true }] }); },
+            async download(r) {   // every invoice, drafts included; a missing PDF engine says so instead of saving an error
               try {
                 const res = await fetch('/api/invoices/' + r.id + '/pdf?download=1', { credentials: 'same-origin' });
                 if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'The PDF could not be made. Try again in a minute.'); }
                 const url = URL.createObjectURL(await res.blob()), a = document.createElement('a');
                 a.href = url; a.download = r.number + '.pdf'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
-              } catch (ex) { toast(ex.message, true); } }));
-            $p('pay-table').querySelectorAll('[data-standard]').forEach(b => b.addEventListener('click', async () => {
-              const r = rows.find(x => String(x.id) === b.dataset.standard); if (!confirm(`Show ${r.number} in the standard invoice layout again? The design made with Claude stays in the job's documents.`)) return;
-              try { await api('/api/invoices/' + r.id + '/design', { method: 'DELETE' }); toast(r.number + ' uses the standard layout'); load(); } catch (e) { toast(e.message, true); } }));
-            $p('pay-table').querySelectorAll('[data-mail]').forEach(b => b.addEventListener('click', () => { location.href = '/invoices/' + encodeURIComponent(b.dataset.mail) + '/edit?send=1'; }));   // 2026-11-12: one Send window (Gmail, thread, Cc, Claude)
-            $p('pay-table').querySelectorAll('[data-pay]').forEach(b => b.addEventListener('click', () => openPay(rows.find(x => String(x.id) === b.dataset.pay))));
-            $p('pay-table').querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openEdit(rows.find(x => String(x.id) === b.dataset.edit))));
+              } catch (ex) { toast(ex.message, true); } },
+            async standard(r) { if (!confirm(`Show ${r.number} in the standard invoice layout again? The design made with Claude stays in the job's documents.`)) return;
+              try { await api('/api/invoices/' + r.id + '/design', { method: 'DELETE' }); toast(r.number + ' uses the standard layout'); load(); } catch (e) { toast(e.message, true); } },
+            mail(r) { location.href = '/invoices/' + encodeURIComponent(r.id) + '/edit?send=1'; },   // 2026-11-12: one Send window (Gmail, thread, Cc, Claude)
+            edit(r) { if (r.edit && r.edit.editable && r.edit.aia) openEdit(r); else location.href = '/invoices/' + encodeURIComponent(r.id) + '/edit'; },
+            pay(r) { openPay(r); },
+            mark(r) {
+              const go = () => window.SSCMarkSent.open(r.id, { onDone: (inv, info) => { load();
+                toast(`${r.number} marked sent` + (info.chase ? ' · chase task added' : ''), false, { label: 'Undo', fn: () => ACT.unmark(r, info.mail_id) }); } });
+              if (window.SSCMarkSent) return go();
+              const sc = document.createElement('script'); sc.src = '/files/static/js/invoice_mark_sent.js?v=1'; sc.onload = go;
+              sc.onerror = () => toast('Mark as sent could not load. Refresh the page and try again.', true); document.head.appendChild(sc); },
+            async unmark(r, mailId) {
+              try { await (window.SSCMarkSent ? window.SSCMarkSent.undo(r.id, mailId)
+                : api('/api/invoices/' + r.id + '/unmark-sent', { method: 'POST', body: JSON.stringify({ mail_id: mailId || null }) }));
+                toast(r.number + ' is back to not sent'); load(); } catch (e) { toast(e.message, true); } },
+          };
+          function menuItems(r) {
+            const it = [], hr = () => it.push(null);
+            const canEdit = r.edit && r.edit.editable, local = r.source !== 'quickbooks';
+            if (r.status === 'draft') { it.push(['Issue…', 'issue', true]); hr(); }
+            if (r.status === 'issued') { it.push([r.sent_at ? 'Resend…' : 'Email client…', 'mail', true]); if (!r.sent_at) it.push(['Mark as sent…', 'mark']); hr(); }
+            if (r.status === 'paid') { it.push(['Email receipt…', 'mail', true]); hr(); }
+            it.push(['Preview', 'preview']);
+            if (canEdit || local) it.push([canEdit ? 'Edit' : 'View', 'edit']);
+            it.push(['Download PDF', 'download']);
+            if (r.has_design) it.push(['Standard layout', 'standard']);
+            if (r.status === 'issued') { hr(); it.push(['Record a payment…', 'pay']); }
+            if (r.status === 'issued' && OUTSIDE[r.sent_how] && (r.sent_count || 0) <= 1) it.push(['Mark as not sent', 'unmark']);
+            while (it.length && it[it.length - 1] === null) it.pop();
+            return it;
+          }
+          let menuEl = null, menuBtn = null;
+          function closeMenu() { if (!menuEl || menuEl.hidden) return; menuEl.hidden = true; if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false'); }
+          function openMenu(btn, r) {
+            if (menuEl && !menuEl.hidden && menuBtn === btn) { closeMenu(); return; }
+            closeMenu();
+            if (!menuEl) {
+              menuEl = document.createElement('div'); menuEl.className = 'pay-menu'; menuEl.setAttribute('role', 'menu'); menuEl.hidden = true; document.body.appendChild(menuEl);
+              document.addEventListener('click', e => { if (menuEl && !menuEl.contains(e.target)) closeMenu(); });
+              window.addEventListener('scroll', closeMenu, true); window.addEventListener('resize', closeMenu);
+              menuEl.addEventListener('keydown', e => {
+                const items = [...menuEl.querySelectorAll('button')], i = items.indexOf(document.activeElement);
+                if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+                else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); const b = menuBtn; closeMenu(); if (b) b.focus(); }
+              });
+            }
+            menuEl.innerHTML = menuItems(r).map(x => x ? `<button type="button" role="menuitem" data-act="${x[1]}"${x[2] ? ' class="pri"' : ''}>${esc(x[0])}</button>` : '<hr>').join('');
+            menuEl.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => { closeMenu(); ACT[b.dataset.act](r); }));
+            menuBtn = btn; menuEl.hidden = false; btn.setAttribute('aria-expanded', 'true');
+            const rc = btn.getBoundingClientRect(), w = menuEl.offsetWidth, h = menuEl.offsetHeight;
+            menuEl.style.left = Math.max(8, Math.min(rc.right - w, window.innerWidth - w - 8)) + 'px';
+            menuEl.style.top = (rc.bottom + 6 + h > window.innerHeight ? Math.max(8, rc.top - h - 6) : rc.bottom + 6) + 'px';
+            const first = menuEl.querySelector('button'); if (first) first.focus();
           }
           async function load() {
             // #317 fix — on the real /projects/<code> URL there is no ?project= and getProjectCode is not global: read the server-stamped code

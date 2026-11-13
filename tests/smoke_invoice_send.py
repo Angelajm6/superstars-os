@@ -15,6 +15,7 @@ test mail folder (SSC_MAIL_FAKE_DIR), Claude the fake model. Proves:
   * a send that fails keeps the client's old link working
   * chase: a task on the chosen day; a second send replaces it; paying the invoice in full closes it
   * new email with the link only: no attachments, Bcc kept
+  * marked sent: your sent mail matched by the number, refusals, nothing emailed, chase, filed; undo; by hand
   * page needles: the editor's Send window, the job page and the Finance panel open it
 
 Run:  venv/bin/python tests/smoke_invoice_send.py
@@ -24,6 +25,7 @@ from __future__ import annotations
 import os
 os.environ.setdefault("SSC_ALLOW_TEST_SEAMS", "1")
 import email
+import json
 import re
 import shutil
 import sys
@@ -290,6 +292,78 @@ def main() -> int:
             invoice_docs.render_pdf, invoice_docs.pdf_file = real
         inv_late = {"status": "issued", "due_at": (date.today() - timedelta(days=30)).isoformat()}
         assert invoice_send.follow_up_date(inv_late, "due") == (date.today() + timedelta(days=1)).isoformat()   # never in the past
+
+        # ---- marked sent (2026-11-13): sent from the Gmail app / Outlook / by hand; nothing is emailed
+        tomorrow, today = (date.today() + timedelta(days=1)).isoformat(), date.today().isoformat()
+        inv2 = invoices.create(conn, {"kind": "progress", "client_org_id": ids["org"], "amount": 2500, "project_code": JOB,
+                                      "description": "Parapet probes"})
+        i2 = inv2["id"]
+        assert a.post(f"/api/invoices/{i2}/mark-sent", json={"confirm": True}).status_code == 400   # a draft
+        invoices.issue(conn, i2, due_on=(date.today() + timedelta(days=5)).isoformat())
+        conn.execute("UPDATE invoice SET due_at = ? WHERE id = ?", ((date.today() - timedelta(days=2)).isoformat(), i2))   # 2 days late
+        conn.commit()
+        e_, now = inbox._enc, datetime.now().isoformat(timespec="seconds")
+        for gid, subj, files in (("g-out-1", f"Invoice {inv2['number']} · parapet probes", [{"name": f"{inv2['number']}.pdf"}]),
+                                 ("g-out-2", "Lunch Friday?", []), ("g-out-3", "Scope question", [{"name": f"Invoice {inv2['number']}.pdf"}])):
+            conn.execute("INSERT INTO mail_message (user_id, gmail_id, thread_id, direction, received_at, from_enc, to_enc, cc_enc, subject_enc, "
+                         "snippet_enc, attachments_enc, needs_action, status, ai_state, created_at) VALUES (?,?,?,'out',?,?,?,?,?,?,?,0,'new','done',?)",
+                         (ids["admin"], gid, "thr-" + gid, now, e_(f"{TAG}.admin@superstarscontracting.com"),
+                          e_("Dana Rosen <dana@invsnd-harbor.example>"), e_("ap@invsnd-harbor.example"), e_(subj), e_("Attached."),
+                          e_(json.dumps(files)), now))
+        conn.commit()
+        out_id = {r["gmail_id"]: r["id"] for r in conn.execute("SELECT id, gmail_id FROM mail_message WHERE gmail_id LIKE 'g-out-%'").fetchall()}
+        assert pm.get(f"/api/invoices/{i2}/sent-matches").status_code == 403
+        assert pm.post(f"/api/invoices/{i2}/mark-sent", json={"confirm": True, "mail_id": out_id["g-out-1"]}).status_code == 403
+        sm = a.get(f"/api/invoices/{i2}/sent-matches").get_json()["data"]
+        assert {m["id"] for m in sm["matches"]} == {out_id["g-out-1"], out_id["g-out-3"]}, sm["matches"]   # subject or file name
+        assert all(m["client"] for m in sm["matches"]) and sm["gmail"]["email"]
+        assert cs.get(f"/api/invoices/{i2}/sent-matches").get_json()["data"]["matches"] == []   # only your own sent mail
+        n_mails, tok = len(_mails()), invoices.get(conn, i2).get("token_hash")
+        for body, word in (({"mail_id": out_id["g-out-1"]}, "Confirm"), ({"confirm": True, "mail_id": ids["mid"]}, "sent mail"),
+                           ({"confirm": True, "mail_id": out_id["g-out-2"]}, "doesn't mention"),
+                           ({"confirm": True, "sent_on": tomorrow, "to": "Dana"}, "future"),
+                           ({"confirm": True, "sent_on": "2020-01-02", "to": "Dana"}, "issued"),
+                           ({"confirm": True, "sent_on": today, "to": " "}, "who it went to"), ({"confirm": True, "sent_on": "", "to": "Dana"}, "day")):
+            r = a.post(f"/api/invoices/{i2}/mark-sent", json=body)
+            assert r.status_code == 400 and word in r.get_json()["error"], (body, r.get_json())
+        r = a.post(f"/api/invoices/{i2}/mark-sent", json={"confirm": True, "mail_id": out_id["g-out-1"], "follow_up": "tomorrow"})
+        assert r.status_code == 200, r.get_json()
+        mk = r.get_json()["data"]
+        assert mk["how"] == "gmail_outside" and mk["chase"] == tomorrow
+        row = invoices.get(conn, i2)
+        assert (row["sent_at"], row["sent_to"], row["sent_name"], row["sent_count"], row["sent_how"]) == \
+            (now, "dana@invsnd-harbor.example", "Dana Rosen", 1, "gmail_outside")
+        assert row.get("token_hash") == tok and len(_mails()) == n_mails   # nothing emailed, no new link
+        filed = {(x["entity_type"], x["entity_id"]) for x in conn.execute("SELECT entity_type, entity_id FROM mail_link WHERE message_id = ?",
+                                                                          (out_id["g-out-1"],)).fetchall()}
+        assert ("client", str(ids["org"])) in filed and ("invoice", str(i2)) in filed
+        title2 = f"{invoice_send.CHASE_PREFIX}{inv2['number']} %"
+        assert [(x["due_date"], x["status"]) for x in conn.execute("SELECT due_date, status FROM crm_task WHERE title LIKE ?", (title2,)).fetchall()] == [(tomorrow, "open")]
+        assert "marked sent from Gmail" in conn.execute("SELECT summary FROM crm_activity WHERE entity_type = 'organization' AND entity_id = ? "
+                                                        "ORDER BY id DESC", (ids["org"],)).fetchone()["summary"]
+        r = a.post(f"/api/invoices/{i2}/mark-sent", json={"confirm": True, "sent_on": today, "to": "Dana"})
+        assert r.status_code == 400 and "already" in r.get_json()["error"]
+        # undo: back to not sent, the chase cancelled, the email no longer filed on the invoice (still on the client)
+        r = a.post(f"/api/invoices/{i2}/unmark-sent", json={"mail_id": out_id["g-out-1"]})
+        assert r.status_code == 200, r.get_json()
+        row = invoices.get(conn, i2)
+        assert not row["sent_at"] and not row["sent_to"] and row["sent_count"] == 0 and not row["sent_how"]
+        assert {x["status"] for x in conn.execute("SELECT status FROM crm_task WHERE title LIKE ?", (title2,)).fetchall()} == {"cancelled"}
+        filed = {(x["entity_type"], x["entity_id"]) for x in conn.execute("SELECT entity_type, entity_id FROM mail_link WHERE message_id = ?",
+                                                                          (out_id["g-out-1"],)).fetchall()}
+        assert ("invoice", str(i2)) not in filed and ("client", str(ids["org"])) in filed
+        # another way: by hand, to a name with no email address
+        r = a.post(f"/api/invoices/{i2}/mark-sent", json={"confirm": True, "sent_on": today, "to": "Dana Rosen", "how": "hand", "follow_up": ""})
+        assert r.status_code == 200, r.get_json()
+        row = invoices.get(conn, i2)
+        assert row["sent_how"] == "hand" and row["sent_name"] == "Dana Rosen" and row["sent_to"] is None and row["sent_at"][:10] == today
+        assert r.get_json()["data"]["chase"] is None
+        conn.execute("UPDATE invoice SET sent_how = 'gmail', sent_count = 2 WHERE id = ?", (i2,))   # since emailed from the app
+        conn.commit()
+        r = a.post(f"/api/invoices/{i2}/unmark-sent", json={})
+        assert r.status_code == 400 and "marked sent yourself" in r.get_json()["error"]
+        assert invoices.get(conn, i2)["sent_at"]
+        checks += 1
     finally:
         conn.close()
 
@@ -304,12 +378,20 @@ def main() -> int:
     assert "data-doc=" not in ed and "data-jobfile=" in ed
     job =(ROOT / "dashboard-static.html").read_text(encoding="utf-8")
     assert "'/edit?send=1'" in job
+    # 2026-11-13: the job's invoice rows keep their actions in one ⋯ menu; Mark as sent opens the shared window
+    for needle in ('class="pay-dots" data-menu="${r.id}"', "['Mark as sent…', 'mark']", "['Mark as not sent', 'unmark']",
+                   "invoice_mark_sent.js", 'role="menuitem"'):
+        assert needle in job, needle
+    assert 'id="sx-already"' in ed and "SSCMarkSent.open(ID" in ed
+    ms = (ROOT / "static/js/invoice_mark_sent.js").read_text(encoding="utf-8")
+    for needle in ("/sent-matches'", "/mark-sent'", "/unmark-sent'", "confirm: true", "Nothing is emailed", "SSCDatePicker"):
+        assert needle in ms, needle
     portal = (ROOT / "company_portal.html").read_text(encoding="utf-8")
     assert portal.count("/edit?send=1'") >= 2 and "Send from your Gmail" in portal
     checks += 1
 
     print(f"PASS: invoice send — gates, options, thread, Claude draft, refusals, reply with Cc/Bcc + files, link kept on failure, "
-          f"chase task, new email, pages ({checks} groups)")
+          f"chase task, new email, marked sent + undo, pages ({checks} groups)")
     return 0
 
 
