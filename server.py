@@ -294,6 +294,8 @@ import proposal_studio  # noqa: E402
 proposal_studio.register(app)   # Proposal Studio: ask Claude for a proposal, edit anything, send the PDF from Gmail
 import project_setup  # noqa: E402
 project_setup.register(app)   # Oct 7 notes batch C: job numbers, a color per job, access method, worker access
+import worker_approval  # noqa: E402
+worker_approval.register(app)   # new workers wait for an admin / C-suite / PM / super to approve them before they can sign in
 
 # #264 — the per-item VISIBILITY ENGINE (default-deny) + the read-only CLIENT portal.
 # client_portal registers a default-deny before_request gate (a `client` reaches ONLY the
@@ -3744,8 +3746,8 @@ def create_employee():
         conn = db()
         worker_id = assign_worker_id(conn)
         conn.execute(
-            "INSERT INTO employees (employee_id, worker_id, name, trade, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO employees (employee_id, worker_id, name, trade, created_at, updated_at, approval_status) "
+            "VALUES (?, ?, ?, ?, ?, ?, 'pending')",
             (employee_id, worker_id, name, trade,
              datetime.now().isoformat(), datetime.now().isoformat())
         )
@@ -4534,6 +4536,12 @@ def worker_login():
         if all(r["labor_status"] == 'inactive' for r in rows):
             conn.close()
             return jsonify({"error": "Worker is inactive — see the office"}), 403
+        # 2026-11-15 — a new worker signs in only once an admin / C-suite / PM / super approves them.
+        import worker_approval as _wa
+        if len(rows) == 1 and _wa.is_pending(conn, rows[0]["employee_id"]):
+            conn.close()
+            return jsonify({"error": "Waiting for approval — ask your PM or super",
+                            "awaiting_approval": True}), 403
         if len(rows) > 1:
             # import_workers.py blocks PIN collisions pre-flight, so this branch
             # is defensive — never auth on ambiguity, log for investigation.
@@ -5149,6 +5157,12 @@ def api_project_crew_compliance(project_code):
         today_iso = today.isoformat()
         d30_iso = (today + timedelta(days=30)).isoformat()
         base = ssc_paths.under_root("worker_records").resolve()   # #287
+        # 2026-11-15 — new workers waiting for approval; can_approve tells the page whether
+        # to show the Approve button (anyone who can open this job and is admin/C-suite/PM/super).
+        import worker_approval as _wa
+        _pending = _wa.pending_ids(conn)
+        _viewer = current_user() or {}
+        _can_approve = _viewer.get("role") in _wa.APPROVER_ROLES
         renderable = ('.jpg', '.jpeg', '.png')   # browser-renderable headshots only
         workers = []
         agg = {"total": 0, "ready": 0, "expiring": 0, "expired": 0}
@@ -5205,10 +5219,13 @@ def api_project_crew_compliance(project_code):
                 "intake_status": e["intake_status"], "cert_total": len(clist),
                 "cert_expiring": n_expiring, "cert_expired": n_expired,
                 "compliance": compliance, "certs": clist,
+                "approval_status": "pending" if e["employee_id"] in _pending else "approved",
             })
         total = agg["total"]
         pct_ready = round(100 * agg["ready"] / total) if total else 0
-        resp = response_wrapper({"workers": workers, "hero": {**agg, "pct_ready": pct_ready}})
+        resp = response_wrapper({"workers": workers, "hero": {**agg, "pct_ready": pct_ready},
+                                 "can_approve": _can_approve,
+                                 "pending_count": sum(1 for w in workers if w["approval_status"] == "pending")})
         resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         return resp
     finally:
@@ -8175,8 +8192,8 @@ def api_worker_create():
                 """INSERT INTO employees
                    (employee_id, worker_id, name, trade, dob, phone, email,
                     emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
-                    language, hire_date, pin, folder_path, intake_status)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    language, hire_date, pin, folder_path, intake_status, approval_status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')""",
                 (
                     eid, worker_id, name, data.get("trade"),
                     data.get("dob"), data.get("phone"), data.get("email"),
@@ -8269,6 +8286,7 @@ def api_worker_create():
             "worker_id": worker_id,
             "name": name,
             "assigned_to": project_codes,
+            "approval_status": "pending" if inserted else None,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -9194,6 +9212,8 @@ def api_workers_intake_summary():
             ).fetchall()
 
         today = date.today().isoformat()   # #305 — LOCAL
+        import worker_approval as _wa
+        _pending = _wa.pending_ids(conn)
         out = []
         for e in emps:
             emp_id = e["employee_id"]
@@ -9262,6 +9282,7 @@ def api_workers_intake_summary():
                 "certs_expired": expired,
                 "eligibility": eligibility,
                 "current_credential": current_credential,
+                "approval_status": "pending" if emp_id in _pending else "approved",
             })
         conn.close()
         # #247 — dict(e) spreads folder_path (name-bearing); no consumer reads

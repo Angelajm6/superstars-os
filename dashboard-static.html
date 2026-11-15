@@ -1674,6 +1674,12 @@
           .ec-menu .ec-acts .ec-yes{background:var(--status-behind-deep, #A8382B);color:#fff;border-color:transparent}
           tr.ec-fresh td{background:var(--accent-soft, #ebf0fe)}
           .ec-empty-add{margin-top:12px}
+          /* new-worker approval (2026-11-15): amber = waiting (status meaning only) */
+          .ec-wait-banner{margin:0 0 12px;padding:10px 14px;border-radius:var(--r-card, 14px);background:#fbf2dd;color:#6d4f10;font-size:14px;line-height:1.4}
+          .ec-wait{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+          .ec-wait-pill{font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;background:#fbf2dd;color:#8a6516}
+          .ec-approve{height:32px;padding:0 14px;font-size:13px}
+          @media (max-width:640px){ .ec-approve{height:44px;flex:1} }
           @media (max-width:640px){
             .ec-tools{width:100%}
             .ec-search{flex:1;min-width:0}
@@ -1700,6 +1706,7 @@
               <!-- COMPANYLINK:start --><button type="button" class="ec-add btn-primary" id="ec-add">+ Add workers</button><!-- COMPANYLINK:end -->
             </div>
           </div>
+          <div class="ec-wait-banner" id="ec-wait-banner" role="status" hidden></div>
           <div class="ec-table-wrap">
             <table class="ec-table">
               <thead><tr><th>Worker</th><th>Trade</th><th>Role on this job</th><th>Licenses</th><!-- COMPANYLINK:start --><th class="ec-more" aria-label="Actions"></th><!-- COMPANYLINK:end --></tr></thead>
@@ -7855,7 +7862,11 @@ document.querySelectorAll('.nav-link').forEach(link => {
       }
       more = '<td class="ec-more"><button type="button" class="ec-dots" aria-label="More for ' + ecEsc(w.name || id) + '" aria-haspopup="true" aria-expanded="' + (EC.menu === id) + '" data-ec-menu="' + ecEsc(id) + '">&#8943;</button>' + m + '</td>';
     }
-    return '<tr' + (EC.fresh.has(id) ? ' class="ec-fresh"' : '') + '><td class="ec-c-who"><span class="ec-wid">' + ecEsc(w.worker_id || '—') + '</span> — ' + ecEsc(w.name || '') + '</td>'
+    const wait = w.approval_status === 'pending'
+      ? '<div class="ec-wait"><span class="ec-wait-pill">Waiting for approval</span>'
+        + (EC.canApprove ? '<button type="button" class="btn-primary ec-approve" data-ec-approve="' + ecEsc(id) + '"' + (EC.approving === id ? ' disabled' : '') + '>' + (EC.approving === id ? 'Approving…' : 'Approve') + '</button>' : '')
+        + '</div>' : '';
+    return '<tr' + (EC.fresh.has(id) ? ' class="ec-fresh"' : '') + (wait ? ' data-ec-pending' : '') + '><td class="ec-c-who"><span class="ec-wid">' + ecEsc(w.worker_id || '—') + '</span> — ' + ecEsc(w.name || '') + wait + '</td>'
       + '<td class="ec-c-trade">' + ecEsc(w.trade || '—') + '</td><td class="ec-c-role">' + ecEsc(w.role_on_project || '—') + '</td>'
       + '<td class="ec-c-lic">' + (lic.length ? '<div class="ec-lic">' + lic.map(ecLicense).join('') + '</div>' : '<span style="color:var(--muted, #8c92a0)">None on file</span>') + '</td>' + more + '</tr>';
   }
@@ -7867,6 +7878,24 @@ document.querySelectorAll('.nav-link').forEach(link => {
     const empty = EC.data.length ? 'No one matches.'
       : 'No one is assigned to this job yet.' + (ecCanEdit() ? '<div class="ec-empty-add"><button type="button" class="ec-add btn-primary" data-ec-open>+ Add workers</button></div>' : '');
     tb.innerHTML = rows.length ? rows.map(ecRow).join('') : '<tr><td colspan="' + ecCols() + '" class="ec-empty">' + empty + '</td></tr>';
+    const bn = document.getElementById('ec-wait-banner');
+    if (bn) {
+      const n = EC.data.filter(w => w.approval_status === 'pending').length;
+      bn.hidden = !n;
+      bn.innerHTML = n ? '<b>' + n + (n === 1 ? ' new worker is' : ' new workers are') + ' waiting for approval.</b> '
+        + (EC.canApprove ? 'They can\u2019t sign in to the worker app until you approve them.' : 'An admin, C-suite, PM or super approves them before they can sign in.') : '';
+    }
+  }
+  async function ecApprove(id){
+    EC.approving = id; ecRender();
+    try {
+      const r = await fetch('/api/workers/' + encodeURIComponent(id) + '/approve', { method: 'POST', credentials: 'same-origin' });
+      let j = {}; try { j = await r.json(); } catch (e) {}
+      if (!r.ok) throw new Error(j.error || ('Could not approve (' + r.status + '). Try again.'));
+      const w = EC.data.find(x => x.employee_id === id); if (w) w.approval_status = 'approved';
+      EC.fresh.add(id);
+    } catch (e) { alert(e.message); }
+    EC.approving = null; ecRender();
   }
 
   // ---- the picker
@@ -7950,6 +7979,8 @@ document.querySelectorAll('.nav-link').forEach(link => {
   }
   function ecWire(){
     if (EC.wired) return; EC.wired = true;
+    // Approve sits outside the admin-only wiring below: PMs and supers approve too (the server checks the job).
+    document.addEventListener('click', e => { const b = e.target.closest('[data-ec-approve]'); if (b && !b.disabled) ecApprove(b.getAttribute('data-ec-approve')); });
     const s = document.getElementById('ec-search'); if (s) s.addEventListener('input', () => { EC.q = s.value; ecRender(); });
     const t = document.getElementById('ec-trade'); if (t) t.addEventListener('change', () => { EC.trade = t.value; ecRender(); });
     if (!ecCanEdit()) return;
@@ -7980,6 +8011,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     try {
       const resp = await fetch('/api/projects/' + encodeURIComponent(PROJECT_CODE) + '/crew-compliance').then(r => r.json());
       EC.data = ((resp && resp.data) || {}).workers || [];
+      EC.canApprove = !!((resp && resp.data) || {}).can_approve;
       EC.data.sort((a, b) => String(a.worker_id || a.employee_id).localeCompare(String(b.worker_id || b.employee_id), undefined, { numeric: true }));
       const sel = document.getElementById('ec-trade');
       if (sel) { const cur = sel.value; sel.innerHTML = '<option value="">All trades</option>' + [...new Set(EC.data.map(w => w.trade).filter(Boolean))].sort().map(t => '<option>' + ecEsc(t) + '</option>').join(''); sel.value = cur; }

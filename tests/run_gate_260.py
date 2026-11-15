@@ -136,6 +136,7 @@ GATE = [
     "smoke_nav_clarity_328.py",      # #328 guard — navigation clarity: project identity block on every view, Weekly Payroll / Pay Rates naming, company portal Projects label
     "smoke_doc_package_327.py",      # #327 guard — permits & insurance package: readiness, send to client + private link, portal share, red-flag revocation, gates
     "smoke_project_payments_326.py", # #326 guard — invoice documents: preview/pdf, email to client + private link, view tracking, project Payments, gates
+    "smoke_worker_approval.py",      # new workers wait for admin / C-suite / PM / super approval; sign-in blocked until then
     "smoke_crew_sites_325.py",       # #325 guard — crews + site coordinates + worker-app job picker: per-job geofence, chooser, shift start validation
     "smoke_project_onboard_324.py",  # #324 guard — onboard an already-won job: gates, validation, estimate→approved→convert in one step, PM assignment, numbering
     "smoke_worker_history_320.py",   # #320 guard — worker job history: hours by project/month/matrix, rate-on-date cost, assignments, certs, credentials, rate audit, gates
