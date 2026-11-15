@@ -285,17 +285,17 @@ def main() -> int:
         # ---- the clock
         conn = _db()
         try:
-            base = datetime(2026, 11, 14, 8, 0)                                                                # a Saturday
+            base = datetime(2030, 1, 5, 8, 0)                                                                # a Saturday
             assert gb.tick(conn, base) == 0
-            assert gb.tick(conn, datetime(2026, 11, 16, 7, 0)) == 0                                           # Monday, before 7:30
-            assert gb.tick(conn, datetime(2026, 11, 16, 7, 31)) == 1
-            assert gb.tick(conn, datetime(2026, 11, 16, 9, 0)) == 0                                           # once
+            assert gb.tick(conn, datetime(2030, 1, 7, 7, 0)) == 0                                           # Monday, before 7:30
+            assert gb.tick(conn, datetime(2030, 1, 7, 7, 31)) == 1
+            assert gb.tick(conn, datetime(2030, 1, 7, 9, 0)) == 0                                           # once
         finally:
             conn.close()
         assert c.put("/api/inbox/brief/settings", json={"days": "daily"}).status_code == 200
         conn = _db()
         try:
-            assert gb.tick(conn, datetime(2026, 11, 21, 7, 45)) == 1                                          # Saturday, every day
+            assert gb.tick(conn, datetime(2030, 1, 12, 7, 45)) == 1                                          # Saturday, every day
         finally:
             conn.close()
         passed += 1; print("  the clock: ready time, weekdays / every day, once a day ok")
@@ -304,7 +304,7 @@ def main() -> int:
         conn = _db()
         try:
             conn.execute("UPDATE mail_brief SET created_at = ? WHERE brief_date = ? AND user_id = ?",
-                         (datetime.now().replace(microsecond=0).isoformat(), "2026-11-21", uid))
+                         (datetime.now().replace(microsecond=0).isoformat(), "2030-01-12", uid))
             conn.commit()
             activity_feed.ensure(conn)
             feed = activity_feed.build(conn, uid)
