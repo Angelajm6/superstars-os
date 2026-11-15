@@ -1026,6 +1026,7 @@ const i18n = {
     choose_job: "Choose your job",
     away: "away",
     no_job: "No job assigned — see the office",
+    awaiting_approval: "Not approved yet — ask your PM or super to approve you",
     photos_upload: "📷 Photos and videos upload directly. Not saved to your phone.",
     photos_not_saved: "Not saved to your phone",
     signout_confirm: "Sign out for the day?",
@@ -1084,6 +1085,7 @@ const i18n = {
     choose_job: "Elige tu obra",
     away: "de distancia",
     no_job: "Sin obra asignada — habla con la oficina",
+    awaiting_approval: "Aún no estás aprobado — pide a tu PM o supervisor que te apruebe",
     photos_upload: "📷 Las fotos y videos se cargan directamente. No se guardan en tu teléfono.",
     photos_not_saved: "No se guardan en tu teléfono",
     signout_confirm: "¿Salir por hoy?",
@@ -1388,7 +1390,8 @@ async function signIn() {
     });
     const loginJson = await loginResp.json();
     if (!loginResp.ok) {
-      certDiv.textContent = '✗ ' + (loginJson.error || (lang === 'es' ? 'Inicio de sesión falló' : 'Sign-in failed'));
+      certDiv.textContent = '✗ ' + (loginJson.awaiting_approval ? t('awaiting_approval')
+        : (loginJson.error || (lang === 'es' ? 'Inicio de sesión falló' : 'Sign-in failed')));
       certDiv.className = 'cert-status blocked';
       btn.disabled = false;
       return;

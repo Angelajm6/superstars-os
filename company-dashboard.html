@@ -1679,7 +1679,10 @@ const I18N = {
     'col-docs': 'Docs',
     'col-certs': 'Certs',
     'col-health': 'Health',
-    'col-intake': 'Intake',
+    'col-intake': 'Status',
+    'wf-waiting': 'Waiting for approval',
+    'wf-approve': 'Approve',
+    'wf-approved': 'Approved',
     'col-action': 'Action',
     'issue-cof': 'Issue CoF',
     'issue-company-id': 'Issue Company ID',
@@ -1839,7 +1842,10 @@ const I18N = {
     'col-docs': 'Docs',
     'col-certs': 'Cert.',
     'col-health': 'Estado',
-    'col-intake': 'Registro',
+    'col-intake': 'Estado',
+    'wf-waiting': 'Esperando aprobación',
+    'wf-approve': 'Aprobar',
+    'wf-approved': 'Aprobado',
     'col-action': 'Acción',
     'issue-cof': 'Emitir CoF',
     'issue-company-id': 'Emitir ID de Compañía',
@@ -2317,7 +2323,13 @@ applyLanguage();
         let health = '<span class="badge-pill ok">OK</span>';
         if (r.certs_expired > 0) health = `<span class="badge-pill bad">${r.certs_expired} expired</span>`;
         else if (r.certs_expiring_30d > 0) health = `<span class="badge-pill warn">${r.certs_expiring_30d} &lt;30d</span>`;
-        const status = (r.intake_status === 'complete') ? '<span class="badge-pill ok">Complete</span>' : '<span class="badge-pill mute">Pending</span>';
+        // 2026-11-15 — Status = approval. A new worker waits here until an admin, C-suite, PM or
+        // super approves them; until then the worker app refuses their PIN. (The old Intake pill
+        // read "Pending" for everyone: no screen ever completed intake.)
+        const L = I18N[currentLang] || I18N.en;
+        const status = (r.approval_status === 'pending')
+          ? `<span class="badge-pill warn">${esc(L['wf-waiting'] || 'Waiting for approval')}</span> <button class="cred-btn issue" data-action="approve" data-emp="${esc(r.employee_id)}">${esc(L['wf-approve'] || 'Approve')}</button>`
+          : `<span class="badge-pill ok">${esc(L['wf-approved'] || 'Approved')}</span>`;
         const safeId = esc(r.employee_id);
         const inactiveBadge = (r.labor_status === 'inactive')
           ? `<span class="badge-pill mute" style="margin-left:6px;">${esc((I18N[currentLang] || I18N.en)['wf-inactive'] || 'Inactive')}</span>`
@@ -2345,6 +2357,14 @@ applyLanguage();
           e.stopPropagation();
           const action = btn.dataset.action;
           if (action === 'unknown') { alert('Reload page to refresh credential state'); return; }
+          if (action === 'approve') {
+            btn.disabled = true;
+            fetch('/api/workers/' + encodeURIComponent(btn.dataset.emp) + '/approve', { method: 'POST', credentials: 'same-origin' })
+              .then(r => r.json().then(j => ({ ok: r.ok, j })))
+              .then(({ ok, j }) => { if (!ok) throw new Error(j.error || 'Could not approve. Try again.'); return Promise.all([loadMetrics(), loadWorkforce()]); })
+              .catch(err => { btn.disabled = false; alert(err.message); });
+            return;
+          }
           if (action === 'view') {
             const url = btn.dataset.htmlUrl;
             if (url) window.open(url, '_blank');
@@ -3758,7 +3778,8 @@ applyLanguage();
       modal.classList.remove('active');
       resetIntakeForm();   // #253 — full clear incl. SSCDatePicker dataset.iso + project checks
       await Promise.all([loadMetrics(), loadWorkforce()]);
-      alert(`✓ Worker created: ${name}\nWorker ID: ${resp.data.worker_id || resp.data.employee_id}\nAssigned to: ${resp.data.assigned_to.join(', ') || '(no projects)'}`);
+      alert(`✓ Worker created: ${name}\nWorker ID: ${resp.data.worker_id || resp.data.employee_id}\nAssigned to: ${resp.data.assigned_to.join(', ') || '(no projects)'}`
+        + (resp.data.approval_status === 'pending' ? `\n\nWaiting for approval. They can sign in to the worker app once an admin, C-suite, PM or super approves them (here, or on the job under Crew).` : ''));
     } catch (e) { alert('Network error: ' + e.message); }
   });
 
