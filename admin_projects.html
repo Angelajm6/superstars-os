@@ -97,6 +97,15 @@
   .pa-cnt{margin-left:auto;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;}
   .pa-twrap{overflow-x:auto;}
   #proj-table tbody tr:hover td{background:#f6f7fa;}
+  /* Nov 15 — a row opens its job (look before closing); the buttons keep their own action */
+  #proj-table tbody tr.row-link{cursor:pointer;}
+  #proj-table a.nm{color:var(--ink);text-decoration:none;font-weight:700;}
+  #proj-table tr.row-link:hover a.nm{color:var(--accent-ink);text-decoration:underline;text-underline-offset:2px;}
+  #proj-table a.nm:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px;}
+  a.cf-job{text-decoration:none;color:inherit;}
+  a.cf-job:hover{border-color:var(--accent-edge);background:var(--accent-soft);}
+  a.cf-job:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .cf-job .go{margin-left:auto;font-size:13px;font-weight:700;color:var(--accent-ink);white-space:nowrap;}
   #proj-table td.no{color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;width:1%;}
   .pa-job{display:flex;gap:10px;align-items:flex-start;min-width:200px;}
   .pa-sw{width:12px;height:12px;border-radius:4px;flex:none;margin-top:3px;}
@@ -233,7 +242,7 @@
   <div class="np-modal cf-modal">
     <div class="cf-in">
       <h2 id="cf-title">Close this job?</h2>
-      <div class="cf-job"><span class="pa-sw" id="cf-sw"></span><div><div class="t" id="cf-name"></div><div class="s" id="cf-code"></div></div></div>
+      <a class="cf-job" id="cf-open" href="#"><span class="pa-sw" id="cf-sw"></span><div><div class="t" id="cf-name"></div><div class="s" id="cf-code"></div></div><span class="go">Open job ›</span></a>
       <ul id="cf-body">
         <li>It comes off the PMs' project lists and they can't open it.</li>
         <li>Daily reports, photos, documents and invoices are all kept.</li>
@@ -383,10 +392,10 @@
         ? '<button class="btn-sm" type="button" data-pa-reopen="'+esc(code)+'">Reopen</button>'
         : '<button class="btn-sm danger" type="button" data-pa-close="'+esc(code)+'">Close</button>';
       var crewBtn = '<button class="btn-sm" type="button" data-pa-crew="'+esc(code)+'">Crew &amp; site</button> ';
-      return '<tr class="'+(isClosed?'is-closed':'')+'">'
+      return '<tr class="row-link'+(isClosed?' is-closed':'')+'" data-pa-open="'+esc(code)+'">'
         + '<td class="no">'+(p.job_number!=null ? hi('#'+p.job_number) : '—')+'</td>'
         + '<td><div class="pa-job"><span class="pa-sw" style="background:'+jobColor(p)+'" title="Calendar color"></span><div>'
-        +   '<div class="nm">'+hi(p.name||code)+'</div>'
+        +   '<div><a class="nm" href="/projects/'+encodeURIComponent(code)+'">'+hi(p.name||code)+'</a></div>'
         +   '<div class="s"><span class="m-code">'+hi(code)+(p.address?' · ':'')+'</span>'+hi(p.address||'')+'</div>'
         +   pill+'</div></div></td>'
         + '<td class="code">'+hi(code)+'</td>'
@@ -397,7 +406,12 @@
   $('pa-seg').addEventListener('click', function(e){ var b=e.target.closest('[data-status]'); if(!b) return; VIEW.status=b.dataset.status; renderProjects(); });
   $('pa-search').addEventListener('input', function(){ VIEW.q=this.value.trim().toLowerCase(); renderProjects(); });
   $('proj-tbody').addEventListener('click', function(e){
-    var b=e.target.closest('button'); if(!b) return;
+    var b=e.target.closest('button');
+    if(!b){   // anywhere else on the row opens the job; the name is a real link (Cmd/Ctrl-click = new tab)
+      if(e.target.closest('a')) return;
+      var tr=e.target.closest('tr[data-pa-open]'); if(tr) location.href='/projects/'+encodeURIComponent(tr.dataset.paOpen);
+      return;
+    }
     if(b.dataset.paClose) openCloseConfirm(b.dataset.paClose);
     else if(b.dataset.paReopen) setStatus(b.dataset.paReopen, 'active');
     else if(b.dataset.paCrew) openCrew(b.dataset.paCrew);
@@ -413,6 +427,7 @@
     $('cf-name').textContent = nm;
     $('cf-code').textContent = (p.job_number!=null ? '#'+p.job_number+' · ' : '')+code;
     $('cf-sw').style.background = jobColor(p);
+    $('cf-open').href = '/projects/'+encodeURIComponent(code);
     $('cf-go').disabled=false;
     $('cf-overlay').classList.add('open'); $('cf-cancel').focus();
   }
