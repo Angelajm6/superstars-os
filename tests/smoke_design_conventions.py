@@ -586,7 +586,8 @@ def main():
     # EXEMPT (legacy, pre-rebuild artifacts). A new template that registers
     # in neither fails the build — the forcing function that closes the
     # "guard never looked here" gap for good.
-    REGISTERED = {"company-dashboard.html", "dashboard-static.html", "admin_labor_rates.html",
+    REGISTERED = {"chat_page.html",   # company chat (2026-11-16)
+                  "company-dashboard.html", "dashboard-static.html", "admin_labor_rates.html",
                   "login.html", "worker-app.html", "rfi_submission_form.html",
                   "admin_users.html", "set_password.html",   # #257 multi-user accounts & roles
                   "admin_projects.html",   # #263 PM project-scoping (assignment + close screen)

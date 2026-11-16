@@ -280,6 +280,8 @@ import calendar_import  # noqa: E402
 calendar_import.register(app)   # each person's main Google Calendar, copied privately for them (only they see it)
 import event_reminders  # noqa: E402
 event_reminders.register(app)   # emails 1 day + 1 hour before every meeting, event, timed task and walkthrough
+import chat  # noqa: E402
+chat.register(app)   # company chat: channels, job channels, private + group messages, photos and files (office + worker app)
 import inbox_schedule  # noqa: E402
 inbox_schedule.register(app)   # Inbox Mine (everyone) / All (admin + C-suite, server-checked): calendar + assigned work
 import today_feed  # noqa: E402

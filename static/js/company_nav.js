@@ -22,6 +22,7 @@
     home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
     dashboard: '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
     inbox: '<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5.5 5h13L21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6z"/>',
+    chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z"/>',
     claude: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>',
     projects: '<path d="M3 21V7l7-4v18M10 21h11V11l-4-2v12"/><path d="M6 9h1M6 13h1M6 17h1M14 13h1M14 17h1"/>',
     clients: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
@@ -43,6 +44,9 @@
     // 2026-10-16: PMs and supers get it too, as /inbox: their own calendar + assigned work (inbox_schedule.py)
     { key: 'inbox', label: 'Inbox', href: '/company#inbox', roles: COMPANY.concat(['pm', 'super']),
       hrefFor: { pm: '/inbox', super: '/inbox' }, at: [['/company', 'inbox'], ['/inbox', null]] },
+    // Chat (2026-11-16, accepted prototype https://claude.ai/artifact/C7oS45e2gZxt6wGGDC7VMs): channels, job channels,
+    // private + group messages for everyone at the company (chat.py); the red count is unread messages
+    { key: 'chat', label: 'Chat', href: '/chat', roles: COMPANY.concat(['pm', 'super', 'estimator']), at: [['/chat', null]] },
     { key: 'projects', label: 'Projects', href: '/company#projects', roles: COMPANY,
       at: [['/company', 'projects'], ['/company', 'calendar'], ['/company', 'buildings'], ['/admin/projects', null]],
       sub: [['All projects', '/company#projects'], ['Calendar', '/company#calendar'], ['Assignments & onboarding', '/admin/projects']] },
@@ -123,7 +127,8 @@
       var href = (t.hrefFor && role && t.hrefFor[role]) || t.href;
       return '<a href="' + href + '" data-tab="' + t.key + '" data-roles="' + t.roles.join(',') + '"' + (allowed(t.roles) ? '' : ' hidden') +
         (cur && cur.key === t.key ? ' class="active"' : '') +
-        '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + I[t.key] + '</svg>' + esc(t.label) + '</a>';
+        '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + I[t.key] + '</svg>' + esc(t.label) +
+        (t.key === 'chat' ? '<span class="ssc-nav-badge" data-chat-badge' + (chatUnread ? '' : ' hidden') + '>' + (chatUnread > 99 ? '99+' : chatUnread) + '</span>' : '') + '</a>';
     }).join('');
     renderPinned(nav);
   }
@@ -164,9 +169,36 @@
   }
   function refresh() { if (redirectIfRetired()) return; renderNav(); renderSubtabs(); renderTitles(); }
 
+  // ---- Chat's unread count on the sidebar (every 45 s while the page is open and visible) ----
+  var chatUnread = 0, chatTimer = null;
+  function setChatUnread(n) {
+    chatUnread = Math.max(0, n | 0);
+    var b = document.querySelectorAll('[data-chat-badge]');
+    for (var i = 0; i < b.length; i++) { b[i].textContent = chatUnread > 99 ? '99+' : String(chatUnread); b[i].hidden = !chatUnread; }
+  }
+  function pollChat() {
+    if (document.hidden || !role || !allowed(['admin', 'c_suite', 'pm', 'super', 'estimator'])) return;
+    fetch('/api/chat/unread', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { if (j && j.data) setChatUnread(j.data.unread); })
+      .catch(function () {});
+  }
+  function startChatPoll() {
+    if (chatTimer) return;
+    if (!document.getElementById('ssc-nav-badge-css')) {
+      var st = document.createElement('style'); st.id = 'ssc-nav-badge-css';
+      st.textContent = '.ssc-nav-badge{margin-left:auto;min-width:20px;padding:1px 6px;border-radius:99px;background:var(--brand-red,#B11E2E);color:#fff;font-size:11px;font-weight:700;line-height:16px;text-align:center}';
+      document.head.appendChild(st);
+    }
+    pollChat(); chatTimer = setInterval(pollChat, 45000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) pollChat(); });
+  }
+  // the Chat page reports its own live count, so the badge never lags behind what it shows
+  document.addEventListener('ssc:chat-unread', function (e) { setChatUnread(e.detail && e.detail.unread); });
+
   // The admin pages call this with the signed-in role (and auth_menu.js fires
   // 'ssc:user-loaded' everywhere) — the same hook the old per-page sidebars used.
-  window.sscNavForRole = function (r) { role = r || null; refresh(); };
+  window.sscNavForRole = function (r) { role = r || null; refresh(); if (role) startChatPoll(); };
   document.addEventListener('ssc:user-loaded', function (e) { if (e.detail && e.detail.role) window.sscNavForRole(e.detail.role); });
   window.addEventListener('hashchange', refresh);
 

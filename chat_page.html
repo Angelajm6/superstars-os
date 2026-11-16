@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
+<link rel="stylesheet" href="/files/static/css/widgets.css?v=1008">
+<link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
+<script src="/files/static/js/company_nav.js?v=1029"></script>
+<script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
+<script src="/files/static/js/shell.js?v=1007" defer></script>
+<script src="/files/static/js/auth_menu.js?v=1015" defer></script>
+<script src="/files/static/js/datepicker.js?v=1007" defer></script>
+<script src="/files/static/js/file_drop.js?v=1" defer></script>
+<script src="/files/static/js/chat.js?v=1" defer></script>
+<title>Chat · Superstars Contracting</title>
+<link rel="icon" type="image/svg+xml" href="/files/static/brand/mark.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/files/static/brand/favicon-32.png">
+<link rel="apple-touch-icon" href="/files/static/brand/apple-touch-icon.png">
+<!-- Company chat (2026-11-16, accepted prototype https://claude.ai/artifact/C7oS45e2gZxt6wGGDC7VMs; chat.py, static/js/chat.js).
+     Conversation list · the open chat · Files & people. Phone (<=860px): the list, or the open chat full screen. -->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--canvas);color:var(--ink);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;}
+  [hidden]{display:none !important;}
+  .brand-mark{object-fit:contain;}
+  body.ch-page .ssc-shell{height:100vh;height:100dvh;min-height:0;}
+  body.ch-page .ssc-main{display:flex;flex-direction:column;min-height:0;height:100vh;height:100dvh;overflow:hidden;}
+  .ch{flex:1;display:flex;min-height:0;}
+  button{font-family:inherit;cursor:pointer;}
+  button:focus-visible,a:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  /* list */
+  .ch-list{width:310px;flex:none;border-right:1px solid var(--line);background:#fff;display:flex;flex-direction:column;min-height:0;}
+  .ch-lh{display:flex;align-items:center;gap:8px;padding:14px 16px 10px;}
+  .ch-lh b{font-size:15px;}
+  .ch-new{margin-left:auto;display:flex;align-items:center;gap:6px;}
+  .ch-search{margin:0 16px 8px;position:relative;}
+  .ch-search input{width:100%;border:1px solid var(--line);background:var(--canvas);border-radius:10px;padding:9px 10px 9px 32px;font:inherit;font-size:14px;color:var(--ink);}
+  .ch-search svg{position:absolute;left:10px;top:11px;width:15px;height:15px;color:var(--muted);}
+  .ch-filters{display:flex;gap:6px;padding:0 16px 8px;flex-wrap:wrap;}
+  .ch-chip{border:1px solid var(--line);background:#fff;color:var(--ink-2,#4A4F59);border-radius:99px;padding:4px 10px;font-size:12px;font-weight:500;}
+  .ch-chip.on{background:var(--accent-soft);border-color:var(--accent-edge);color:var(--accent-ink);}
+  .ch-convs{flex:1;overflow-y:auto;padding:0 8px 16px;}
+  .ch-sec{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:12px 8px 4px;display:flex;align-items:center;}
+  .ch-sec button{margin-left:auto;border:none;background:none;color:var(--muted);font-size:17px;line-height:1;padding:0 4px;}
+  .ch-conv{display:flex;align-items:center;gap:10px;width:100%;border:none;background:none;text-align:left;padding:8px;border-radius:10px;color:var(--ink);}
+  .ch-conv:hover{background:#f3f5fa;}
+  .ch-conv.on{background:var(--accent-soft);}
+  .ch-conv .m{min-width:0;flex:1;}
+  .ch-conv .n{display:flex;gap:6px;align-items:baseline;font-weight:500;font-size:13.5px;}
+  .ch-conv .n span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ch-conv .t{margin-left:auto;font-size:11px;color:var(--muted);flex:none;}
+  .ch-conv .p{display:flex;gap:6px;font-size:12.5px;color:var(--muted);margin-top:1px;}
+  .ch-conv .p span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+  .ch-conv.unread .n{font-weight:700;}
+  .ch-conv.unread .p{color:var(--ink-2,#4A4F59);}
+  .ch-badge{background:var(--accent);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:1px 7px;flex:none;}
+  .ch-badge.at{background:var(--brand-red);}
+  .ch-empty{color:var(--muted);font-size:13px;padding:8px;line-height:1.5;}
+  .ch-av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:12px;color:#fff;flex:none;position:relative;}
+  .ch-av.sq{border-radius:10px;background:#f0f2f7;color:var(--ink-2,#4A4F59);font-size:16px;font-weight:600;}
+  .ch-av.job{border-radius:10px;background:#e3f4f4;color:#0f7a7c;font-size:10.5px;}
+  .ch-av.grp{background:none;}
+  .ch-av.grp i{position:absolute;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:9.5px;color:#fff;border:2px solid #fff;}
+  .ch-av.grp i:first-child{left:0;top:0;}.ch-av.grp i:last-child{right:0;bottom:0;}
+  .ch-av.sm{width:24px;height:24px;font-size:10px;}
+
+  /* thread */
+  .ch-thread{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--canvas);}
+  .ch-th{display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:1px solid var(--line);background:#fff;}
+  .ch-th .ti{min-width:0;flex:1;}
+  .ch-th h2{font-size:15.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ch-th .sub{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ch-th .sub a{color:#0f7a7c;font-weight:600;text-decoration:none;}
+  .ch-ib{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:#fff;color:var(--ink);display:grid;place-items:center;flex:none;}
+  .ch-ib:hover{border-color:var(--accent-edge);}
+  .ch-ib svg{width:17px;height:17px;}
+  .ch-back{display:none;}
+  .ch-mem{display:flex;align-items:center;border:1px solid var(--line);border-radius:99px;padding:3px 10px 3px 4px;background:#fff;color:var(--ink-2,#4A4F59);font-size:12px;font-weight:600;gap:6px;}
+  .ch-mem .st{display:flex;}
+  .ch-mem .st i{width:22px;height:22px;border-radius:50%;margin-left:-6px;border:2px solid #fff;font-style:normal;font-size:9px;color:#fff;display:grid;place-items:center;}
+  .ch-mem .st i:first-child{margin-left:0;}
+  .ch-msgs{flex:1;overflow-y:auto;padding:12px 20px 8px;display:flex;flex-direction:column;gap:1px;}
+  .ch-more{align-self:center;margin:6px 0;}
+  .ch-day{align-self:center;font-size:11.5px;font-weight:600;color:var(--muted);background:#fff;border:1px solid var(--line);border-radius:99px;padding:3px 12px;margin:12px 0;}
+  .ch-sys{align-self:center;text-align:center;font-size:12px;color:var(--muted);padding:6px 12px;max-width:60ch;}
+  .ch-msg{display:flex;gap:10px;padding:5px 8px;border-radius:10px;position:relative;}
+  .ch-msg:hover,.ch-msg.tools-on{background:#f3f5fa;}
+  .ch-msg.cont{padding-top:1px;}
+  .ch-msg.cont>.ch-av{visibility:hidden;height:0;}
+  .ch-msg.flash{animation:chflash 1.6s ease-out;}
+  @keyframes chflash{from{background:var(--accent-soft);}}
+  .ch-msg .b{min-width:0;flex:1;}
+  .ch-msg .w{display:flex;gap:8px;align-items:baseline;font-size:13px;flex-wrap:wrap;}
+  .ch-msg .w b{font-weight:600;}
+  .ch-msg .w .rl{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:0 5px;}
+  .ch-msg .w .tm{font-size:11px;color:var(--muted);}
+  .ch-msg .x{line-height:1.5;color:var(--ink);overflow-wrap:anywhere;white-space:pre-wrap;font-size:14px;}
+  .ch-msg .x a{color:var(--accent-ink);}
+  .ch-msg .x.del{color:var(--muted);font-style:italic;}
+  .ch-at{color:var(--accent-ink);background:var(--accent-soft);border-radius:5px;padding:0 3px;font-weight:600;}
+  .ch-quote{border-left:3px solid var(--accent-edge);padding:2px 8px;margin:2px 0 4px;font-size:12.5px;color:var(--ink-2,#4A4F59);background:none;border-top:none;border-right:none;border-bottom:none;text-align:left;display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ch-atts{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
+  .ch-photo{display:block;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#f0f2f7;padding:0;}
+  .ch-photo img{display:block;width:220px;max-width:100%;height:165px;object-fit:cover;}
+  .ch-file{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px;min-width:0;max-width:320px;color:var(--ink);text-decoration:none;}
+  .ch-file:hover{border-color:var(--accent-edge);}
+  .ch-ext{width:34px;height:40px;border-radius:6px;background:#fdeceb;color:#b8382e;font-size:10px;font-weight:700;display:grid;place-items:center;flex:none;text-transform:uppercase;}
+  .ch-ext.xls,.ch-ext.xlsx,.ch-ext.csv{background:#e6f4ec;color:#1d7f52;}
+  .ch-ext.doc,.ch-ext.docx,.ch-ext.txt{background:#e8eefc;color:#2f57c8;}
+  .ch-file .fn{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ch-file .fs{font-size:11.5px;color:var(--muted);}
+  .ch-file>div{min-width:0;}
+  .ch-reacts{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;}
+  .ch-react{border:1px solid var(--line);background:#fff;border-radius:99px;font-size:12px;padding:1px 8px;color:var(--ink-2,#4A4F59);}
+  .ch-react.mine{border-color:var(--accent-edge);background:var(--accent-soft);}
+  .ch-tools{position:absolute;right:10px;top:-14px;display:none;background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:0 2px 8px rgba(0,0,0,.08);z-index:2;}
+  .ch-msg:hover .ch-tools,.ch-msg.tools-on .ch-tools{display:flex;}
+  .ch-tools button{border:none;background:none;padding:5px 8px;font-size:12.5px;color:var(--ink-2,#4A4F59);white-space:nowrap;}
+  .ch-tools button:hover{background:#f3f5fa;}
+  .ch-tools .danger{color:#c2453a;}
+  .ch-noth{flex:1;display:grid;place-items:center;color:var(--muted);font-size:14px;text-align:center;padding:24px;}
+
+  /* composer */
+  .ch-comp{padding:8px 20px 14px;}
+  .ch-box{position:relative;border:1px solid var(--line);background:#fff;border-radius:14px;padding:8px;}
+  .ch-box:focus-within{border-color:var(--accent-edge);box-shadow:0 0 0 3px var(--accent-soft);}
+  .ch-box.drag{border-color:var(--accent);background:var(--accent-soft);}
+  .ch-replying{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2,#4A4F59);padding:2px 4px 8px;border-bottom:1px solid var(--line);margin-bottom:6px;}
+  .ch-replying span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+  .ch-replying button{border:none;background:none;color:var(--muted);font-size:14px;}
+  .ch-pend{display:flex;gap:8px;flex-wrap:wrap;padding:2px 2px 8px;}
+  .ch-pend:empty{display:none;}
+  .ch-pc{position:relative;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:5px 26px 5px 5px;max-width:230px;font-size:12px;}
+  .ch-pc img{width:40px;height:40px;object-fit:cover;border-radius:7px;}
+  .ch-pc .ch-ext{width:30px;height:36px;font-size:9px;}
+  .ch-pc span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ch-pc small{color:var(--muted);}
+  .ch-pc.err{border-color:#e9685a;color:#c2453a;}
+  .ch-pc button{position:absolute;right:4px;top:4px;border:none;background:#f0f2f7;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:1;color:var(--ink-2,#4A4F59);}
+  .ch-ta{display:block;width:100%;border:none;resize:none;outline:none;background:none;font:inherit;font-size:14.5px;color:var(--ink);padding:6px;min-height:34px;max-height:160px;}
+  .ch-ta:focus-visible{outline:none;}
+  .ch-tb{display:flex;align-items:center;gap:2px;}
+  .ch-tool{border:none;background:none;width:36px;height:36px;border-radius:9px;color:var(--ink-2,#4A4F59);display:grid;place-items:center;}
+  .ch-tool:hover{background:#f3f5fa;}
+  .ch-tool svg{width:19px;height:19px;}
+  .ch-send{margin-left:auto;display:flex;align-items:center;gap:6px;}
+  .ch-send:disabled{opacity:.45;cursor:default;}
+  .ch-hint{font-size:11px;color:var(--muted);padding:6px 4px 0;}
+  .ch-err{font-size:12.5px;color:#c2453a;padding:6px 4px 0;}
+  .ch-mpop{position:absolute;bottom:100%;left:0;margin-bottom:6px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px rgba(20,28,60,.16);width:270px;max-width:100%;padding:6px;z-index:5;}
+  .ch-mpop button{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;padding:6px;border-radius:8px;color:var(--ink);text-align:left;font-size:13px;}
+  .ch-mpop button:hover,.ch-mpop button.sel{background:#f3f5fa;}
+  .ch-mpop small{display:block;color:var(--muted);font-size:11.5px;}
+
+  /* files & people */
+  .ch-side{width:300px;flex:none;border-left:1px solid var(--line);background:#fff;display:flex;flex-direction:column;min-height:0;}
+  .ch-sh{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);gap:8px;}
+  .ch-sh b{font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ch-stabs{display:flex;gap:4px;padding:10px 16px;}
+  .ch-sb{overflow-y:auto;padding:0 16px 16px;display:flex;flex-direction:column;gap:8px;}
+  .ch-pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+  .ch-pgrid button{border:1px solid var(--line);border-radius:8px;overflow:hidden;padding:0;background:#f0f2f7;}
+  .ch-pgrid img{display:block;width:100%;aspect-ratio:1;object-fit:cover;}
+  .ch-person{display:flex;align-items:center;gap:10px;padding:4px 0;}
+  .ch-person .nm{font-weight:600;font-size:13px;}.ch-person .rl{font-size:12px;color:var(--muted);}
+
+  /* modals */
+  .ch-modal-bg{position:fixed;inset:0;background:rgba(15,20,40,.45);display:grid;place-items:center;z-index:10003;padding:16px;}
+  .ch-modal{background:#fff;border-radius:16px;width:460px;max-width:100%;box-shadow:0 12px 40px rgba(20,28,60,.2);max-height:88vh;display:flex;flex-direction:column;}
+  .ch-modal header{padding:18px 20px 4px;}
+  .ch-modal h3{font-size:17px;}
+  .ch-modal .lead{color:var(--muted);font-size:13px;margin-top:4px;}
+  .ch-modal .mb{padding:12px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;}
+  .ch-modal footer{display:flex;gap:8px;justify-content:flex-end;padding:12px 20px 18px;border-top:1px solid var(--line);}
+  .ch-seg{display:flex;background:#f0f2f7;border-radius:10px;padding:3px;}
+  .ch-seg button{flex:1;border:none;background:none;border-radius:8px;padding:7px;font-weight:600;color:var(--ink-2,#4A4F59);font-size:13px;}
+  .ch-seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08);}
+  .ch-lbl{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;color:var(--ink-2,#4A4F59);}
+  .ch-pick{display:flex;flex-direction:column;max-height:260px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;}
+  .ch-pk{display:flex;align-items:center;gap:10px;padding:8px 10px;border:none;background:none;border-bottom:1px solid var(--line);text-align:left;color:var(--ink);}
+  .ch-pk:last-child{border-bottom:none;}
+  .ch-pk .bx{margin-left:auto;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line);display:grid;place-items:center;color:#fff;font-size:12px;flex:none;}
+  .ch-pk.sel .bx{background:var(--accent);border-color:var(--accent);}
+  .ch-pk .nm{font-weight:600;font-size:13px;}.ch-pk .rl{font-size:12px;color:var(--muted);}
+  .ch-check{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-2,#4A4F59);}
+  .ch-merr{color:#c2453a;font-size:12.5px;}
+  .ch-light{position:fixed;inset:0;background:rgba(10,12,20,.9);z-index:10004;display:flex;flex-direction:column;}
+  .ch-light .bar{display:flex;gap:8px;justify-content:flex-end;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;}
+  .ch-light .bar a,.ch-light .bar button{color:#fff;background:rgba(255,255,255,.12);border:none;border-radius:9px;padding:8px 12px;font-size:13px;font-weight:600;text-decoration:none;}
+  .ch-light .img{flex:1;display:grid;place-items:center;min-height:0;padding:0 12px 16px;}
+  .ch-light img{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;}
+  .ch-toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#222633;color:#fff;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:500;z-index:10005;box-shadow:0 8px 24px rgba(0,0,0,.2);display:flex;gap:12px;align-items:center;}
+  .ch-toast a{color:#a9bcff;font-weight:600;}
+
+  @media (max-width:1180px){.ch-side{position:fixed;right:0;top:0;bottom:0;z-index:20;box-shadow:0 12px 40px rgba(20,28,60,.16);}}
+  @media (max-width:860px){
+    body.ch-page .ssc-shell{grid-template-rows:auto minmax(0,1fr);}
+    body.ch-page .ssc-main{height:auto;}
+    .ch-list{width:100%;border-right:none;}
+    .ch-thread{display:none;}
+    .ch.open .ch-list{display:none;}
+    .ch.open .ch-thread{display:flex;}
+    body.ch-page.ch-in .ssc-top{display:none;}
+    .ch-th{padding:8px 12px 8px 8px;}
+    .ch-back{display:grid;border:none;}
+    .ch-mem .lbl{display:none;}
+    .ch-msgs{padding:10px 10px 8px;}
+    .ch-comp{padding:6px 10px calc(10px + env(safe-area-inset-bottom,0px));}
+    .ch-hint{display:none;}
+    .ch-side{width:100%;}
+    .ch-photo img{width:200px;height:150px;}
+    .ch-modal-bg{padding:0;place-items:end stretch;}
+    .ch-modal{border-radius:16px 16px 0 0;width:100%;padding-bottom:env(safe-area-inset-bottom,0px);}
+    .ch-tools{top:auto;bottom:100%;right:8px;}
+    .ch-msg:hover .ch-tools{display:none;}
+    .ch-msg.tools-on .ch-tools{display:flex;}
+  }
+</style>
+</head>
+<body class="ch-page">
+<div class="ssc-shell">
+<aside class="ssc-side" aria-label="Company navigation">
+  <div class="brand">
+    <img class="brand-mark" width="34" height="34" src="/files/static/brand/mark.svg" alt="Superstars Contracting">
+    <img class="brand-full" src="/files/static/brand/logo-full.png" width="320" height="189" alt="Superstars Contracting Inc">
+  </div>
+  <nav class="ssc-nav" id="ssc-nav" data-company-nav></nav>
+  <script>SSC_NAV.mount();</script>
+</aside>
+<div class="ssc-main">
+<header class="ssc-top">
+  <div class="ssc-top-title"><h1 data-nav-h1>Chat</h1></div>
+  <div class="ssc-top-right"><span id="who" hidden></span><div id="user-menu" aria-live="polite"></div></div>
+</header>
+<main class="ch" id="ch" aria-label="Chat">
+  <section class="ch-list" aria-label="Conversations">
+    <div class="ch-lh">
+      <b>Conversations</b>
+      <button class="btn-primary ch-new" id="ch-new" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>New</button>
+    </div>
+    <div class="ch-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="ch-q" class="ssc-field" type="search" placeholder="Search people, channels, jobs" autocomplete="off" aria-label="Search chats"></div>
+    <div class="ch-filters" id="ch-filters">
+      <button class="ch-chip on" data-f="all" type="button">All</button>
+      <button class="ch-chip" data-f="unread" type="button">Unread</button>
+      <button class="ch-chip" data-f="job" type="button">Jobs</button>
+      <button class="ch-chip" data-f="dm" type="button">Direct</button>
+    </div>
+    <div class="ch-convs" id="ch-convs"><p class="ch-empty">Loading your chats…</p></div>
+  </section>
+
+  <section class="ch-thread" aria-label="Open chat">
+    <div class="ch-noth" id="ch-noth">Pick a chat on the left, or press New to message someone.</div>
+    <div class="ch-th" id="ch-th" hidden>
+      <button class="ch-ib ch-back" id="ch-back" type="button" aria-label="Back to chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div id="ch-tav"></div>
+      <div class="ti"><h2 id="ch-tname"></h2><div class="sub" id="ch-tsub"></div></div>
+      <button class="ch-mem" id="ch-membtn" type="button"><span class="st" id="ch-tstack"></span><span class="lbl" id="ch-tcount"></span></button>
+      <button class="ch-ib" id="ch-filesbtn" type="button" aria-label="Files and people" title="Files and people"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.4 11.6-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button>
+    </div>
+    <div class="ch-msgs" id="ch-msgs" hidden aria-live="polite"></div>
+    <div class="ch-comp" id="ch-comp" hidden>
+      <div class="ch-box" id="ch-box">
+        <div class="ch-mpop" id="ch-mpop" hidden></div>
+        <div class="ch-replying" id="ch-replying" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v6"/></svg><span id="ch-replytxt"></span><button type="button" id="ch-replyx" aria-label="Cancel reply">✕</button></div>
+        <div class="ch-pend" id="ch-pend"></div>
+        <textarea class="ch-ta" id="ch-ta" rows="1" placeholder="Message" aria-label="Message"></textarea>
+        <div class="ch-tb">
+          <button class="ch-tool" id="ch-attach" type="button" aria-label="Attach files" title="Attach files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.4 11.6-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button>
+          <button class="ch-tool" id="ch-cam" type="button" aria-label="Take or pick a photo" title="Photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg></button>
+          <button class="ch-tool" id="ch-atbtn" type="button" aria-label="Mention someone" title="Mention someone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg></button>
+          <input type="file" id="ch-file" multiple hidden>
+          <input type="file" id="ch-photo" accept="image/*" capture="environment" hidden>
+          <button class="btn-primary ch-send" id="ch-send" type="button" disabled>Send<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg></button>
+        </div>
+      </div>
+      <div class="ch-err" id="ch-err" hidden></div>
+      <div class="ch-hint">Enter to send · Shift+Enter for a new line · drop or paste files · type @ to mention</div>
+    </div>
+  </section>
+
+  <aside class="ch-side" id="ch-side" hidden aria-label="Files and people">
+    <div class="ch-sh"><b id="ch-stitle">Details</b><button class="ch-ib" id="ch-sclose" type="button" aria-label="Close">✕</button></div>
+    <div class="ch-stabs" id="ch-stabs"><button class="ch-chip on" data-p="files" type="button">Files &amp; photos</button><button class="ch-chip" data-p="people" type="button">People</button></div>
+    <div class="ch-sb" id="ch-sbody"></div>
+  </aside>
+</main>
+</div><!-- /.ssc-main -->
+</div><!-- /.ssc-shell -->
+
+<div class="ch-modal-bg" id="ch-newbg" hidden>
+  <div class="ch-modal" role="dialog" aria-modal="true" aria-labelledby="ch-ntitle">
+    <header><h3 id="ch-ntitle">New message</h3><p class="lead" id="ch-nlead">Pick one person for a private chat, or several for a group.</p></header>
+    <div class="mb">
+      <div class="ch-seg" id="ch-nseg"><button class="on" data-m="dm" type="button">Message</button><button data-m="channel" type="button" id="ch-nsegch">Channel</button></div>
+      <label class="ch-lbl" id="ch-nnamel" hidden>Channel name<input id="ch-nname" class="ssc-field" placeholder="e.g. scaffold-crew" autocomplete="off" maxlength="40"></label>
+      <label class="ch-lbl" id="ch-ntopicl" hidden>What it's for (optional)<input id="ch-ntopic" class="ssc-field" placeholder="e.g. Scaffold and rigging questions" autocomplete="off" maxlength="200"></label>
+      <label class="ch-lbl">People<input id="ch-nq" class="ssc-field" placeholder="Search by name, role or trade" autocomplete="off"></label>
+      <div class="ch-pick" id="ch-npick"></div>
+      <div class="ch-check" id="ch-nprivrow" hidden><input type="checkbox" id="ch-npriv"><label for="ch-npriv">Private: only the people you add can see it</label></div>
+      <div class="ch-merr" id="ch-nerr" hidden></div>
+    </div>
+    <footer><button class="btn-ghost" id="ch-ncancel" type="button">Cancel</button><button class="btn-primary" id="ch-ngo" type="button" disabled>Start chat</button></footer>
+  </div>
+</div>
+
+<div class="ch-modal-bg" id="ch-addbg" hidden>
+  <div class="ch-modal" role="dialog" aria-modal="true" aria-labelledby="ch-atitle">
+    <header><h3 id="ch-atitle">Add people</h3><p class="lead">They will see the whole history of this channel.</p></header>
+    <div class="mb">
+      <label class="ch-lbl">People<input id="ch-aq" class="ssc-field" placeholder="Search by name, role or trade" autocomplete="off"></label>
+      <div class="ch-pick" id="ch-apick"></div>
+      <div class="ch-merr" id="ch-aerr" hidden></div>
+    </div>
+    <footer><button class="btn-ghost" id="ch-acancel" type="button">Cancel</button><button class="btn-primary" id="ch-ago" type="button" disabled>Add</button></footer>
+  </div>
+</div>
+
+<div class="ch-modal-bg" id="ch-taskbg" hidden>
+  <div class="ch-modal" role="dialog" aria-modal="true" aria-labelledby="ch-ktitle">
+    <header><h3 id="ch-ktitle">Make a task</h3><p class="lead">The task links back to this message.</p></header>
+    <div class="mb">
+      <label class="ch-lbl">Task<input id="ch-ktask" class="ssc-field" maxlength="120" autocomplete="off"></label>
+      <label class="ch-lbl">Assign to<select id="ch-kwho" class="ssc-field"></select></label>
+      <label class="ch-lbl">Due date (optional)<input id="ch-kdue" class="ssc-field ssc-date" type="date"></label>
+      <div class="ch-merr" id="ch-kerr" hidden></div>
+    </div>
+    <footer><button class="btn-ghost" id="ch-kcancel" type="button">Cancel</button><button class="btn-primary" id="ch-kgo" type="button">Make task</button></footer>
+  </div>
+</div>
+
+<div class="ch-light" id="ch-light" hidden role="presentation">
+  <div class="bar"><a id="ch-lopen" href="#" target="_blank" rel="noopener">Open full size</a><a id="ch-ldl" href="#">Download</a><button type="button" id="ch-lclose">Close</button></div>
+  <div class="img"><img id="ch-limg" alt="Photo"></div>
+</div>
+<div class="ch-toast" id="ch-toast" hidden></div>
+</body>
+</html>

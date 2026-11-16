@@ -72,6 +72,35 @@ grant, or elevation code.
 * Tests: `tests/smoke_invoice_send.py` group 8 (matches, refusals, nothing emailed, filed, chase, undo, by hand, undo refused
   after an app send) + page needles; `smoke_invoice_editor.py` / `smoke_claude_docs.py` needles follow the ⋯ menu.
 
+### Company chat: job channels, channels, private + group messages, photos and files (Bookore, 2026-11-16)
+
+* Accepted prototype: https://claude.ai/artifact/C7oS45e2gZxt6wGGDC7VMs. **/chat** (`chat.py`, `chat_page.html`, `static/js/chat.js`)
+  for admin / C-suite / PM / super / estimator (estimator allowed in `role_containment`), a **Chat** sidebar tab after Inbox
+  with a red unread count (`company_nav.js` polls `/api/chat/unread` every 45 s; the page reports its own count).
+  Field workers: a **Chat** button on the worker app's signed-in screen → `screen-chat` (English / Spanish).
+* Member keys: `u:<users.id>` (logins) and `e:<employee_id>` (worker app). The worker app always acts as the worker, never as a
+  linked login (a PIN session must not open an office account's private chats). Workers chat **only while signed in on a
+  shift**: every call carries the shift token (`/api/worker/chat`, op-based; `/upload`; `/file` is a POST so the token is
+  never in a URL); sign-out revokes it.
+* Who sees what (`chat.can_see`, every call): #general (`everyone=1`) everybody; **job channels** one per open project, made on
+  demand; admin / C-suite every open job, PM their assigned jobs, super open jobs, estimator none, worker the jobs they are
+  actively crewed on; members shown = assigned PMs + active crew, so crew changes need no sync. Channels: private = members;
+  public = any office login (posting joins). DMs / groups (up to 30): members only, one chat per set of people (`conv_key`).
+  Workers can message the office and the crews of their own jobs; they can't make channels.
+* Tables (boot-ensured, `chat.ensure`): chat_conv, chat_member, chat_read (per-person last read id; a shared channel starts
+  "read" for someone new), chat_msg (`mentions` = `,key,` list for LIKE), chat_file, chat_react, chat_change (the poll:
+  `/api/chat/poll` = MAX(id); a change refetches the list + open chat; the page polls every 4 s while visible).
+* Files: up to 10 per message, 25 MB each; photos through `field_photos.process_image` (GPS stripped, downscaled, a thumb);
+  everything encrypted with `secret_box` under `data_room/chat_files/YYYY-MM/`; served only by id with the access re-checked,
+  `nosniff`, `no-store`, CSP sandbox. Unsent uploads are the uploader's only and are pruned after a day. No key on the server
+  → a clear 503 message, never a 500.
+* Also: @mentions (red @ badge), reactions (👍 ❤️ ✅ 😂), reply (quotes the message), delete (own; admin / C-suite any),
+  **Make task** (office only) → `team_items.create` with a link back (`/chat#c<id>`), on the job when it is a job channel.
+* Guard: `tests/smoke_chat.py` (in the gate). The nav label lists in `smoke_one_home_339` / `smoke_client_portal_tab_360`
+  now include Chat; `company_nav.js?v=1029` in every shell; worker SW `CACHE_VERSION` v11.
+* Not done (ask Angela): phone push / email for unread chat; "Save to job" for photos and files from a job channel; full
+  threads; a worker chat outside a shift (needs its own sign-in).
+
 ### Email an invoice from your Gmail: thread, Cc / Bcc, Claude writes it (Bookore, 2026-11-12)
 
 * Accepted prototype: https://claude.ai/artifact/DXM2hua8SeM9mdRSr7EhkZ. The invoice editor's **Email client… / Resend… /

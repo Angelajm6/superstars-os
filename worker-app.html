@@ -848,6 +848,48 @@
         height: 100vh;
       }
     }
+    /* ---- company chat (2026-11-16, chat.py): a Chat button on the signed-in screen + screen-chat ---- */
+    .wc-open { margin-top: 28px; display: flex; align-items: center; gap: 10px; padding: 14px 26px; border-radius: 999px; border: 2px solid var(--color-ink); background: white; color: var(--color-ink); font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; position: relative; }
+    .wc-badge { background: var(--color-red); color: white; border-radius: 999px; font-size: 13px; font-weight: 700; padding: 1px 9px; }
+    .chat-screen { flex-direction: column; background: var(--color-cream); }
+    .wc-top { display: flex; align-items: center; gap: 10px; background: white; border-bottom: 1px solid var(--color-hairline); padding: calc(10px + env(safe-area-inset-top)) 12px 10px; }
+    .wc-top button { border: none; background: none; font: inherit; font-size: 15px; font-weight: 600; color: var(--color-ink); padding: 8px 6px; cursor: pointer; }
+    .wc-top .wc-ttl { flex: 1; min-width: 0; font-weight: 700; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wc-top .wc-new { color: var(--color-red); }
+    .wc-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px 12px 12px; }
+    .wc-sec { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--color-mute); padding: 12px 4px 4px; }
+    .wc-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: white; border: 1px solid var(--color-hairline); border-radius: 14px; padding: 12px; margin-bottom: 8px; font: inherit; color: var(--color-ink); cursor: pointer; }
+    .wc-row .wc-m { flex: 1; min-width: 0; }
+    .wc-row .wc-n { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wc-row .wc-p { font-size: 13px; color: var(--color-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wc-row.unread .wc-n { font-weight: 700; }
+    .wc-row.sel { border-color: var(--color-red); box-shadow: 0 0 0 2px rgba(177,30,46,.15); }
+    .wc-av { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; color: white; font-weight: 700; font-size: 13px; flex: none; }
+    .wc-av.sq { border-radius: 10px; background: #EFEBE4; color: var(--color-ink); font-size: 17px; }
+    .wc-msg { display: flex; flex-direction: column; align-items: flex-start; margin: 6px 0; }
+    .wc-msg.mine { align-items: flex-end; }
+    .wc-who { font-size: 12px; color: var(--color-mute); margin: 0 6px 2px; }
+    .wc-bub { background: white; border: 1px solid var(--color-hairline); border-radius: 14px; padding: 8px 12px; max-width: 85%; font-size: 15px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
+    .wc-msg.mine .wc-bub { background: #FBEDEE; border-color: #F0CFD3; }
+    .wc-bub.del { color: var(--color-mute); font-style: italic; }
+    .wc-q { font-size: 12.5px; color: var(--color-mute); border-left: 3px solid #E0D6CC; padding-left: 8px; margin-bottom: 4px; }
+    .wc-img { display: block; width: 220px; max-width: 100%; height: 165px; object-fit: cover; border-radius: 10px; margin-top: 4px; background: #EFEBE4; border: 1px solid var(--color-hairline); }
+    .wc-file { display: block; margin-top: 4px; padding: 8px 10px; border-radius: 10px; background: #F6F2EC; font-size: 13px; font-weight: 600; color: var(--color-ink); border: none; font-family: inherit; text-align: left; cursor: pointer; }
+    .wc-acts { display: flex; gap: 6px; margin: 2px 6px 0; font-size: 12px; color: var(--color-mute); }
+    .wc-acts button { border: none; background: none; font: inherit; color: var(--color-mute); padding: 2px 4px; cursor: pointer; }
+    .wc-day { text-align: center; font-size: 12px; font-weight: 700; color: var(--color-mute); margin: 14px 0 6px; }
+    .wc-comp { background: white; border-top: 1px solid var(--color-hairline); padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); }
+    .wc-pend { display: flex; gap: 6px; flex-wrap: wrap; padding-bottom: 6px; font-size: 12px; color: var(--color-mute); }
+    .wc-pend span { background: #F6F2EC; border-radius: 8px; padding: 4px 8px; }
+    .wc-line { display: flex; align-items: flex-end; gap: 6px; }
+    .wc-line textarea { flex: 1; min-height: 44px; max-height: 120px; resize: none; border: 1px solid var(--color-hairline); border-radius: 14px; padding: 11px 14px; font: inherit; font-size: 16px; -webkit-user-select: text; user-select: text; }
+    .wc-ic { width: 44px; height: 44px; border-radius: 50%; border: none; background: #F6F2EC; font-size: 20px; cursor: pointer; flex: none; }
+    .wc-send { height: 44px; border-radius: 14px; border: none; background: var(--color-red); color: white; font: inherit; font-weight: 700; padding: 0 16px; cursor: pointer; flex: none; }
+    .wc-send:disabled { opacity: .45; }
+    .wc-note { text-align: center; color: var(--color-mute); font-size: 14px; padding: 24px 12px; }
+    .wc-err { color: var(--color-red); font-size: 13px; padding: 4px 4px 0; }
+    .wc-start { display: block; width: 100%; margin-top: 8px; padding: 14px; border: none; border-radius: 14px; background: var(--color-red); color: white; font: inherit; font-weight: 700; font-size: 16px; }
+    .wc-start:disabled { opacity: .45; }
   </style>
 </head>
 <body>
@@ -915,6 +957,7 @@
         <span style="font-size:48px;">📸</span>
         <div class="photo-btn-text" id="photo-btn-text">Photo or video</div>
       </button>
+      <button type="button" class="wc-open" id="wc-open" onclick="wcOpen()"><span aria-hidden="true">💬</span><span id="wc-open-text">Chat</span><span class="wc-badge" id="wc-badge" hidden></span></button>
     </div>
     <div class="photo-banner" id="photo-banner">📷 Photos upload directly. Not saved to your phone.</div>
     <div class="working-footer">
@@ -980,6 +1023,24 @@
 
     <button class="form-submit" onclick="uploadPhoto()" id="submit-photo-text">Send</button>
     <div class="photo-status" id="photo-status" role="status" aria-live="polite" hidden></div>
+  </div>
+
+  <!-- company chat (2026-11-16, chat.py): jobs, #general, private messages; works while signed in -->
+  <div class="screen chat-screen" id="screen-chat">
+    <div class="wc-top"><button type="button" id="wc-back">‹ Back</button><div class="wc-ttl" id="wc-title">Chat</div><button type="button" class="wc-new" id="wc-new">+ New</button></div>
+    <div class="wc-body" id="wc-body"></div>
+    <div class="wc-comp" id="wc-comp" hidden>
+      <div class="wc-pend" id="wc-pend"></div>
+      <div class="wc-line">
+        <button type="button" class="wc-ic" id="wc-photo" aria-label="Photo">📷</button>
+        <button type="button" class="wc-ic" id="wc-attach" aria-label="File">📎</button>
+        <textarea id="wc-ta" rows="1" placeholder="Message" aria-label="Message"></textarea>
+        <button type="button" class="wc-send" id="wc-send" disabled>Send</button>
+      </div>
+      <input type="file" id="wc-photo-in" accept="image/*" capture="environment" hidden>
+      <input type="file" id="wc-file-in" multiple hidden>
+      <div class="wc-err" id="wc-err" hidden></div>
+    </div>
   </div>
 
   <div class="screen signout-screen" id="screen-signout">
@@ -1067,7 +1128,13 @@ const i18n = {
     ot_note: "Add details",
     ot_other_needs_note: "Write a few words about why.",
     ot_sent: "8 hrs recorded. Extra hours sent to the office for approval.",
-    ot_failed: "Could not sign out. Try again."
+    ot_failed: "Could not sign out. Try again.",
+    chat: "Chat", chat_title: "Company chat", chat_new: "New", chat_back: "Back", chat_empty: "No chats yet.",
+    chat_placeholder: "Message", chat_send: "Send", chat_loading: "Loading...", chat_pick: "Who do you want to message?",
+    chat_start: "Start chat", chat_signin: "Sign in again to use chat.", chat_deleted: "Message deleted",
+    chat_uploading: "Uploading...", chat_jobs: "Jobs", chat_channels: "Channels", chat_direct: "Direct messages",
+    chat_you: "You", chat_delete: "Delete", chat_failed: "Could not send. Try again.", chat_today: "Today",
+    chat_yesterday: "Yesterday", chat_first: "No messages yet. Say hello."
   },
   es: {
     sign_in: "Iniciar Sesión",
@@ -1126,7 +1193,13 @@ const i18n = {
     ot_note: "Agrega detalles",
     ot_other_needs_note: "Escribe unas palabras sobre por qué.",
     ot_sent: "8 horas registradas. Las horas extra se enviaron a la oficina para aprobación.",
-    ot_failed: "No se pudo salir. Intenta de nuevo."
+    ot_failed: "No se pudo salir. Intenta de nuevo.",
+    chat: "Chat", chat_title: "Chat de la empresa", chat_new: "Nuevo", chat_back: "Atrás", chat_empty: "Todavía no hay chats.",
+    chat_placeholder: "Mensaje", chat_send: "Enviar", chat_loading: "Cargando...", chat_pick: "¿A quién quieres escribir?",
+    chat_start: "Empezar chat", chat_signin: "Vuelve a entrar para usar el chat.", chat_deleted: "Mensaje borrado",
+    chat_uploading: "Subiendo...", chat_jobs: "Trabajos", chat_channels: "Canales", chat_direct: "Mensajes directos",
+    chat_you: "Tú", chat_delete: "Borrar", chat_failed: "No se pudo enviar. Intenta de nuevo.", chat_today: "Hoy",
+    chat_yesterday: "Ayer", chat_first: "Todavía no hay mensajes. Saluda."
   }
 };
 
@@ -1966,6 +2039,189 @@ window.addEventListener('load', () => {
   updateGeofence();
   setInterval(updateGeofence, 10000);
 });
+</script>
+<script>
+/* Company chat in the worker app (2026-11-16, chat.py /api/worker/chat). Works while signed in on a shift:
+   every call carries the shift token, which sign-out revokes. Photos and files load through a POST, so the
+   token never sits in a URL. */
+(function () {
+  var W = { view: 'list', cur: null, convs: [], msgs: [], rev: -1, pend: [], people: null, picked: {}, blobs: {}, timer: null, slow: null };
+  var COLORS = ['#4364dc', '#0f8b8d', '#7a5cc7', '#3c7f5a', '#c0632f', '#4a6fa5', '#9b4f8a', '#5b6b2e'];
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function tt(k) { return (i18n[lang] && i18n[lang][k]) || i18n.en[k] || k; }
+  function color(k) { var h = 0; for (var i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) | 0; return COLORS[Math.abs(h) % COLORS.length]; }
+  function ini(n) { var p = String(n || '?').trim().split(/\s+/); return ((p[0] || '?')[0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase(); }
+  function on() { return !!(sessionData && sessionData.sessionToken); }
+  function call(op, extra) {
+    var b = Object.assign({ op: op, session_token: sessionData.sessionToken, employee_id: sessionData.employeeId }, extra || {});
+    return fetch('/api/worker/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(r.status === 401 ? tt('chat_signin') : (j.error || tt('chat_failed'))); e.status = r.status; throw e; } return j.data; }); });
+  }
+  function parse(s) { var m = /^(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d)/.exec(s || ''); return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) : new Date(); }
+  function dkey(d) { return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); }
+  function clock(d) { return d.toLocaleTimeString(lang === 'es' ? 'es-MX' : 'en-US', { hour: 'numeric', minute: '2-digit' }); }
+  function dayLabel(d) {
+    var t = new Date(), y = new Date(t.getFullYear(), t.getMonth(), t.getDate() - 1);
+    if (dkey(d) === dkey(t)) return tt('chat_today');
+    if (dkey(d) === dkey(y)) return tt('chat_yesterday');
+    return d.toLocaleDateString(lang === 'es' ? 'es-MX' : 'en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  }
+  function badge(n) { var b = $('wc-badge'); if (!b) return; b.textContent = n > 99 ? '99+' : String(n); b.hidden = !n; }
+  function labels() {
+    $('wc-open-text').textContent = tt('chat');
+    $('wc-back').textContent = '‹ ' + tt('chat_back');
+    $('wc-new').textContent = '+ ' + tt('chat_new');
+    $('wc-ta').placeholder = tt('chat_placeholder');
+    $('wc-send').textContent = tt('chat_send');
+  }
+  function refreshUnread() {
+    if (!on() || document.hidden) return;
+    call('unread').then(function (d) { badge(d.unread); }).catch(function () {});
+  }
+
+  function renderList() {
+    $('wc-title').textContent = tt('chat_title');
+    $('wc-new').hidden = false; $('wc-comp').hidden = true;
+    var h = '', groups = [['job', 'chat_jobs'], ['channel', 'chat_channels'], ['dm', 'chat_direct']];
+    groups.forEach(function (g) {
+      var items = W.convs.filter(function (c) { return c.kind === g[0]; });
+      if (!items.length) return;
+      h += '<div class="wc-sec">' + esc(tt(g[1])) + '</div>';
+      items.forEach(function (c) {
+        var av = c.kind === 'dm' && c['with'] && c['with'].length ? '<div class="wc-av" style="background:' + color(c['with'][0].key) + '">' + esc(ini(c['with'][0].name)) + '</div>' : '<div class="wc-av sq">' + (c.kind === 'job' ? '🏗' : '#') + '</div>';
+        h += '<button type="button" class="wc-row' + (c.unread ? ' unread' : '') + '" data-c="' + c.id + '">' + av + '<div class="wc-m"><div class="wc-n">' + esc(c.kind === 'channel' ? '# ' + c.title : c.title) + '</div><div class="wc-p">' + esc(c.preview || '') + '</div></div>' + (c.unread ? '<span class="wc-badge">' + c.unread + '</span>' : '') + '</button>';
+      });
+    });
+    $('wc-body').innerHTML = h || '<div class="wc-note">' + esc(tt('chat_empty')) + '</div>';
+  }
+  function loadList() {
+    return call('convs').then(function (l) { W.convs = l; badge(l.reduce(function (s, c) { return s + c.unread; }, 0)); if (W.view === 'list') renderList(); })
+      .catch(function (e) { if (W.view === 'list') $('wc-body').innerHTML = '<div class="wc-note">' + esc(e.message) + '</div>'; });
+  }
+  function fileBlob(f, thumb) {
+    var k = f.id + (thumb ? 't' : '');
+    if (W.blobs[k]) return Promise.resolve(W.blobs[k]);
+    return fetch('/api/worker/chat/file', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_token: sessionData.sessionToken, employee_id: sessionData.employeeId, file_id: f.id, thumb: !!thumb }) })
+      .then(function (r) { if (!r.ok) throw new Error('file'); return r.blob(); }).then(function (b) { W.blobs[k] = URL.createObjectURL(b); return W.blobs[k]; });
+  }
+  function renderThread() {
+    var box = $('wc-body'), atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 80, h = '', last = '';
+    W.msgs.forEach(function (m) {
+      var d = parse(m.at);
+      if (dkey(d) !== last) { h += '<div class="wc-day">' + esc(dayLabel(d)) + '</div>'; last = dkey(d); }
+      var who = m.mine ? tt('chat_you') : m.name;
+      h += '<div class="wc-msg' + (m.mine ? ' mine' : '') + '"><div class="wc-who">' + esc(who) + ' · ' + esc(clock(d)) + '</div>';
+      if (m.deleted) h += '<div class="wc-bub del">' + esc(tt('chat_deleted')) + '</div>';
+      else {
+        if (m.body || m.reply) h += '<div class="wc-bub">' + (m.reply ? '<div class="wc-q">' + esc(m.reply.name) + ': ' + esc(m.reply.body) + '</div>' : '') + esc(m.body) + '</div>';
+        (m.files || []).forEach(function (f) {
+          h += f.kind === 'image' ? '<img class="wc-img" data-f="' + f.id + '" data-thumb="1" alt="">' : '<button type="button" class="wc-file" data-open="' + f.id + '">📄 ' + esc(f.name) + '</button>';
+        });
+        var r = (m.reacts || []).map(function (x) { return esc(x.emoji) + ' ' + x.count; }).join('  ');
+        h += '<div class="wc-acts"><span>' + r + '</span><button type="button" data-like="' + m.id + '">👍</button>' + (m.mine ? '<button type="button" data-del="' + m.id + '">' + esc(tt('chat_delete')) + '</button>' : '') + '</div>';
+      }
+      h += '</div>';
+    });
+    box.innerHTML = h || '<div class="wc-note">' + esc(tt('chat_first')) + '</div>';
+    Array.prototype.forEach.call(box.querySelectorAll('img[data-f]'), function (img) {
+      var f = { id: +img.dataset.f };
+      fileBlob(f, true).then(function (u) { img.src = u; }).catch(function () {});
+    });
+    if (atEnd || !W.drawn) box.scrollTop = box.scrollHeight;
+    W.drawn = true;
+  }
+  function loadThread() {
+    var id = W.cur;
+    return call('msgs', { conv_id: id }).then(function (d) {
+      if (W.cur !== id || W.view !== 'thread') return;
+      W.msgs = d.messages; renderThread();
+      if (W.msgs.length) call('read', { conv_id: id, last_id: W.msgs[W.msgs.length - 1].id }).catch(function () {});
+    }).catch(function (e) { if (e.status === 404) { openList(); } });
+  }
+  function openThread(id) {
+    var c = W.convs.filter(function (x) { return x.id === +id; })[0];
+    W.view = 'thread'; W.cur = +id; W.msgs = []; W.pend = []; W.drawn = false; renderPend();
+    $('wc-title').textContent = c ? (c.kind === 'channel' ? '# ' + c.title : c.title) : '';
+    $('wc-new').hidden = true; $('wc-comp').hidden = false; $('wc-err').hidden = true;
+    $('wc-body').innerHTML = '<div class="wc-note">' + esc(tt('chat_loading')) + '</div>';
+    loadThread();
+  }
+  function openList() { W.view = 'list'; W.cur = null; renderList(); loadList(); }
+  function openPeople() {
+    W.view = 'people'; W.picked = {};
+    $('wc-title').textContent = tt('chat_pick'); $('wc-new').hidden = true; $('wc-comp').hidden = true;
+    $('wc-body').innerHTML = '<div class="wc-note">' + esc(tt('chat_loading')) + '</div>';
+    call('people').then(function (ps) { W.people = ps.filter(function (p) { return p.key !== 'e:' + sessionData.employeeId; }); renderPeople(); })
+      .catch(function (e) { $('wc-body').innerHTML = '<div class="wc-note">' + esc(e.message) + '</div>'; });
+  }
+  function renderPeople() {
+    var n = Object.keys(W.picked).length;
+    $('wc-body').innerHTML = W.people.map(function (p) {
+      return '<button type="button" class="wc-row' + (W.picked[p.key] ? ' sel' : '') + '" data-p="' + esc(p.key) + '"><div class="wc-av" style="background:' + color(p.key) + '">' + esc(ini(p.name)) + '</div><div class="wc-m"><div class="wc-n">' + esc(p.name) + '</div><div class="wc-p">' + esc(p.role) + '</div></div>' + (W.picked[p.key] ? '✓' : '') + '</button>';
+    }).join('') + '<button type="button" class="wc-start" id="wc-go"' + (n ? '' : ' disabled') + '>' + esc(tt('chat_start')) + '</button>';
+  }
+  function renderPend() {
+    $('wc-pend').innerHTML = W.pend.map(function (p) { return '<span>' + esc(p.name) + ' · ' + esc(p.err || (p.id ? '✓' : tt('chat_uploading'))) + '</span>'; }).join('');
+    $('wc-send').disabled = W.pend.some(function (p) { return !p.id && !p.err; }) || !($('wc-ta').value.trim() || W.pend.some(function (p) { return p.id; }));
+  }
+  function upload(f) {
+    var p = { name: f.name || 'photo.jpg', id: null, err: null }; W.pend.push(p); renderPend();
+    var fd = new FormData();
+    fd.append('session_token', sessionData.sessionToken); fd.append('employee_id', sessionData.employeeId);
+    fd.append('conv_id', W.cur); fd.append('file', f, p.name);
+    fetch('/api/worker/chat/upload', { method: 'POST', body: fd }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || tt('chat_failed')); return j.data; }); })
+      .then(function (d) { p.id = d.id; }).catch(function (e) { p.err = e.message; }).then(renderPend);
+  }
+  function send() {
+    var body = $('wc-ta').value.trim(), ids = W.pend.filter(function (p) { return p.id; }).map(function (p) { return p.id; });
+    if (!body && !ids.length) return;
+    $('wc-send').disabled = true; $('wc-err').hidden = true;
+    call('send', { conv_id: W.cur, body: body, file_ids: ids }).then(function (m) {
+      $('wc-ta').value = ''; W.pend = []; renderPend(); W.msgs.push(m); W.drawn = false; renderThread();
+    }).catch(function (e) { $('wc-err').textContent = e.message; $('wc-err').hidden = false; renderPend(); });
+  }
+  function tick() {
+    if (!on()) { stop(); return; }
+    if (currentScreen !== 'chat' || document.hidden) return;
+    call('poll').then(function (d) {
+      if (d.rev === W.rev) return;
+      var first = W.rev === -1; W.rev = d.rev; if (first) return;
+      if (W.view === 'thread') loadThread(); else if (W.view === 'list') loadList();
+    }).catch(function () {});
+  }
+  function stop() {
+    clearInterval(W.timer); clearInterval(W.slow); W.timer = W.slow = null; W.rev = -1; W.convs = []; badge(0);
+    Object.keys(W.blobs).forEach(function (k) { try { URL.revokeObjectURL(W.blobs[k]); } catch (e) {} }); W.blobs = {};
+  }
+  function start() { if (!W.timer) W.timer = setInterval(tick, 4000); if (!W.slow) { refreshUnread(); W.slow = setInterval(refreshUnread, 30000); } }
+
+  window.wcOpen = function () { labels(); goToScreen('chat'); start(); openList(); };
+  document.addEventListener('DOMContentLoaded', function () {
+    labels();
+    $('wc-back').addEventListener('click', function () { if (W.view === 'list') { goToScreen('working'); refreshUnread(); } else openList(); });
+    $('wc-new').addEventListener('click', openPeople);
+    $('wc-body').addEventListener('click', function (e) {
+      var t = e.target.closest('[data-c],[data-p],#wc-go,[data-like],[data-del],[data-open],img[data-f]'); if (!t) return;
+      if (t.dataset.c) openThread(t.dataset.c);
+      else if (t.dataset.p) { if (W.picked[t.dataset.p]) delete W.picked[t.dataset.p]; else W.picked[t.dataset.p] = 1; renderPeople(); }
+      else if (t.id === 'wc-go') { t.disabled = true; call('create', { members: Object.keys(W.picked) }).then(function (d) { return loadList().then(function () { openThread(d.id); }); }).catch(function (er) { t.disabled = false; t.textContent = er.message; }); }
+      else if (t.dataset.like) call('react', { msg_id: +t.dataset.like, emoji: '👍' }).then(loadThread).catch(function () {});
+      else if (t.dataset.del) { if (t.dataset.sure) call('delete', { msg_id: +t.dataset.del }).then(loadThread).catch(function () {}); else { t.dataset.sure = '1'; t.textContent = tt('chat_delete') + '?'; } }
+      else if (t.dataset.open || t.dataset.f) {
+        var w = window.open('', '_blank');
+        fileBlob({ id: +(t.dataset.open || t.dataset.f) }, false).then(function (u) { if (w) w.location = u; else location.href = u; }).catch(function () { if (w) w.close(); });
+      }
+    });
+    $('wc-ta').addEventListener('input', renderPend);
+    $('wc-send').addEventListener('click', send);
+    $('wc-photo').addEventListener('click', function () { $('wc-photo-in').click(); });
+    $('wc-attach').addEventListener('click', function () { $('wc-file-in').click(); });
+    ['wc-photo-in', 'wc-file-in'].forEach(function (id) { $(id).addEventListener('change', function (e) { Array.prototype.forEach.call(e.target.files, upload); e.target.value = ''; }); });
+    // the Chat button's count while signed in (checked when the signed-in screen shows, then every 30 s)
+    setInterval(function () { if (on() && currentScreen === 'working') { start(); } else if (!on() && W.timer) stop(); }, 5000);
+  });
+})();
 </script>
 </body>
 </html>
