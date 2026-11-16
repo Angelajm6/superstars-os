@@ -76,7 +76,7 @@
       items.forEach(function (c) {
         h += '<button type="button" class="ch-conv' + (S.cur === c.id ? ' on' : '') + (c.unread ? ' unread' : '') + '" data-id="' + c.id + '">' + convAvatar(c) +
           '<div class="m"><div class="n"><span>' + esc(convTitle(c)) + '</span><span class="t">' + esc(shortWhen(c.last_at)) + '</span></div>' +
-          '<div class="p"><span>' + esc(c.preview || (c.joined ? 'No messages yet' : 'Open to read and join')) + '</span>' +
+          '<div class="p"><span>' + esc(c.preview || (c.joined ? 'No messages yet' : 'Open to read and join')) + '</span>' + (c.notify === 'off' ? '<span class="mute" title="Muted">muted</span>' : '') +
           (c.unread ? '<span class="ch-badge' + (c.mention ? ' at' : '') + '">' + (c.mention ? '@' : (c.unread > 99 ? '99+' : c.unread)) + '</span>' : '') + '</div></div></button>';
       });
     });
@@ -151,6 +151,7 @@
     var mem = c.members || [];
     $('ch-tstack').innerHTML = mem.slice(0, 3).map(function (p) { return '<i style="background:' + color(p.key) + '">' + esc(initials(p.name)) + '</i>'; }).join('');
     $('ch-tcount').textContent = c.everyone ? 'Everyone' : String(c.member_count);
+    renderBell(c.notify);
     $('ch-ta').placeholder = 'Message ' + (c.kind === 'channel' ? '#' + c.title : c.kind === 'job' ? 'the ' + c.project_code + ' crew' : c.title);
   }
   function markRead() {
@@ -477,6 +478,25 @@
       .then(function () { $('ch-kgo').disabled = false; });
   });
 
+  // ---- alerts for this chat (the bell): all messages / mentions only / mute ----
+  var BELL = { all: 'All messages', mentions: 'Mentions only', off: 'Muted' };
+  function renderBell(mode) {
+    var b = $('ch-bell'); b.className = 'ch-bell ' + mode; $('ch-belllbl').textContent = BELL[mode] || BELL.mentions;
+    Array.prototype.forEach.call($('ch-bellmenu').querySelectorAll('[data-n]'), function (x) {
+      var on = x.dataset.n === mode; x.querySelector('.ck').textContent = on ? '✓' : ''; x.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+  }
+  $('ch-bell').addEventListener('click', function (e) { e.stopPropagation(); var m = $('ch-bellmenu'); m.hidden = !m.hidden; this.setAttribute('aria-expanded', String(!m.hidden)); });
+  document.addEventListener('click', function (e) { if (!e.target.closest('.ch-bellw')) { $('ch-bellmenu').hidden = true; $('ch-bell').setAttribute('aria-expanded', 'false'); } });
+  $('ch-bellmenu').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-n]'); if (!b || !S.detail) return;
+    var mode = b.dataset.n; $('ch-bellmenu').hidden = true;
+    api('/convs/' + S.cur + '/notify', { method: 'POST', body: { mode: mode } }).then(function () {
+      S.detail.notify = mode; renderBell(mode); loadConvs();
+      toast(mode === 'all' ? 'Every new message in this chat will pop up' : mode === 'off' ? 'Chat muted: no alerts and no count' : 'Alerts only when someone @mentions you');
+    }).catch(function (er) { toast(er.message); });
+  });
+
   // ---- misc ----
   function toast(t) { var el = $('ch-toast'); el.textContent = t; el.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(function () { el.hidden = true; }, 3200); }
   $('ch-back').addEventListener('click', closeThread);
@@ -485,6 +505,7 @@
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
     ['ch-newbg', 'ch-addbg', 'ch-taskbg'].forEach(function (id) { $(id).hidden = true; });
+    $('ch-bellmenu').hidden = true;
     if (!$('ch-light').hidden) $('ch-lclose').click();
     $('ch-mpop').hidden = true;
   });

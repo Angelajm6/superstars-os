@@ -6,13 +6,13 @@
 <link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=1008">
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1029"></script>
+<script src="/files/static/js/company_nav.js?v=1030"></script>
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1015" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <script src="/files/static/js/file_drop.js?v=1" defer></script>
-<script src="/files/static/js/chat.js?v=1" defer></script>
+<script src="/files/static/js/chat.js?v=2" defer></script>
 <title>Chat · Superstars Contracting</title>
 <link rel="icon" type="image/svg+xml" href="/files/static/brand/mark.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="/files/static/brand/favicon-32.png">
@@ -77,6 +77,17 @@
   .ch-ib:hover{border-color:var(--accent-edge);}
   .ch-ib svg{width:17px;height:17px;}
   .ch-back{display:none;}
+  .ch-bellw{position:relative;flex:none;}
+  .ch-bell{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;border-radius:99px;padding:5px 10px;font-size:12px;font-weight:600;color:var(--ink-2,#4A4F59);}
+  .ch-bell svg{width:15px;height:15px;}
+  .ch-bell.off{color:var(--muted);}
+  .ch-bell.all{color:var(--accent-ink);border-color:var(--accent-edge);background:var(--accent-soft);}
+  .ch-bellmenu{position:absolute;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px rgba(20,28,60,.16);padding:6px;width:260px;z-index:15;}
+  .ch-bellmenu button{display:flex;gap:10px;width:100%;text-align:left;border:none;background:none;border-radius:8px;padding:8px;color:var(--ink);font-size:13px;}
+  .ch-bellmenu button:hover{background:#f3f5fa;}
+  .ch-bellmenu small{display:block;color:var(--muted);font-size:12px;}
+  .ch-bellmenu .ck{width:16px;color:var(--accent);font-weight:700;flex:none;}
+  .ch-conv .mute{color:var(--muted);font-size:11px;flex:none;}
   .ch-mem{display:flex;align-items:center;border:1px solid var(--line);border-radius:99px;padding:3px 10px 3px 4px;background:#fff;color:var(--ink-2,#4A4F59);font-size:12px;font-weight:600;gap:6px;}
   .ch-mem .st{display:flex;}
   .ch-mem .st i{width:22px;height:22px;border-radius:50%;margin-left:-6px;border:2px solid #fff;font-style:normal;font-size:9px;color:#fff;display:grid;place-items:center;}
@@ -206,6 +217,8 @@
     .ch-th{padding:8px 12px 8px 8px;}
     .ch-back{display:grid;border:none;}
     .ch-mem .lbl{display:none;}
+    .ch-bell span{display:none;}
+    .ch-bell{padding:7px;}
     .ch-msgs{padding:10px 10px 8px;}
     .ch-comp{padding:6px 10px calc(10px + env(safe-area-inset-bottom,0px));}
     .ch-hint{display:none;}
@@ -256,6 +269,14 @@
       <button class="ch-ib ch-back" id="ch-back" type="button" aria-label="Back to chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg></button>
       <div id="ch-tav"></div>
       <div class="ti"><h2 id="ch-tname"></h2><div class="sub" id="ch-tsub"></div></div>
+      <div class="ch-bellw">
+        <button class="ch-bell" id="ch-bell" type="button" aria-haspopup="true" aria-expanded="false" title="Alerts for this chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span id="ch-belllbl">Mentions only</span></button>
+        <div class="ch-bellmenu" id="ch-bellmenu" hidden role="menu">
+          <button type="button" role="menuitemradio" data-n="all"><span class="ck"></span><span>All messages<small>Every new message pops up</small></span></button>
+          <button type="button" role="menuitemradio" data-n="mentions"><span class="ck"></span><span>Mentions only<small>Pops up when someone @mentions you</small></span></button>
+          <button type="button" role="menuitemradio" data-n="off"><span class="ck"></span><span>Mute this chat<small>No alerts and no count</small></span></button>
+        </div>
+      </div>
       <button class="ch-mem" id="ch-membtn" type="button"><span class="st" id="ch-tstack"></span><span class="lbl" id="ch-tcount"></span></button>
       <button class="ch-ib" id="ch-filesbtn" type="button" aria-label="Files and people" title="Files and people"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.4 11.6-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button>
     </div>

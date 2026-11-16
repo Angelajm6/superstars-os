@@ -72,6 +72,23 @@ grant, or elevation code.
 * Tests: `tests/smoke_invoice_send.py` group 8 (matches, refusals, nothing emailed, filed, chase, undo, by hand, undo refused
   after an app send) + page needles; `smoke_invoice_editor.py` / `smoke_claude_docs.py` needles follow the ⋯ menu.
 
+### Chat alerts on every page + Chat under Claude (Bookore, 2026-11-16)
+
+* Accepted prototype: https://claude.ai/artifact/VJ7fRgnsXV3FxTmTL8Ez5g. The Chat tab now sits **under Claude** in the sidebar.
+* **Alerts** (`static/js/chat_alerts.js`, loaded by `company_nav.js` itself, so every page with the sidebar has it and no page
+  includes it): polls `/api/chat/poll` every 6 s (20 s in a background tab); on a change asks `GET /api/chat/alerts?after=<id>`
+  (`chat.alerts`; no `after` = "where is now"; never replays more than 200 messages, returns at most 10). The last id seen is
+  kept per tab (sessionStorage) so moving between pages misses nothing. A card bottom-right (top on a phone): who, which
+  chat, 2 lines, a photo thumb, **Open chat**, **Reply** (sends in the thread and marks it read), 8 s (12 s for private
+  messages and @mentions), paused on hover, 3 at most then "+N more in Chat". The chat you are reading never alerts.
+  Background tab: a computer notification (asked once, `localStorage ssc.chat.osn.asked`; `tag` per message so several tabs
+  show one).
+* **What pops up** (`chat_read.notify`, per person per chat; NULL = default): private / group = `all`; job chats, channels,
+  #general = `mentions`; `off` = mute (no alerts, no count). The bell in each chat's header (`POST /api/chat/convs/<id>/notify`).
+* Worker app: the same alerts as a banner at the top while signed in (`op: alerts / notify`), Abrir / Responder. SW cache v12.
+* Guard: `smoke_chat` "alerts" group (defaults, mention / all / mute, never your own, never a chat you can't see, per person,
+  the worker app). Not done: push to a phone when the app is closed.
+
 ### Company chat: job channels, channels, private + group messages, photos and files (Bookore, 2026-11-16)
 
 * Accepted prototype: https://claude.ai/artifact/C7oS45e2gZxt6wGGDC7VMs. **/chat** (`chat.py`, `chat_page.html`, `static/js/chat.js`)
@@ -97,7 +114,7 @@ grant, or elevation code.
 * Also: @mentions (red @ badge), reactions (👍 ❤️ ✅ 😂), reply (quotes the message), delete (own; admin / C-suite any),
   **Make task** (office only) → `team_items.create` with a link back (`/chat#c<id>`), on the job when it is a job channel.
 * Guard: `tests/smoke_chat.py` (in the gate). The nav label lists in `smoke_one_home_339` / `smoke_client_portal_tab_360`
-  now include Chat; `company_nav.js?v=1029` in every shell; worker SW `CACHE_VERSION` v11.
+  now include Chat; `company_nav.js?v=1030` in every shell; worker SW `CACHE_VERSION` v11.
 * Not done (ask Angela): phone push / email for unread chat; "Save to job" for photos and files from a job channel; full
   threads; a worker chat outside a shift (needs its own sign-in).
 
