@@ -44,9 +44,6 @@
     // 2026-10-16: PMs and supers get it too, as /inbox: their own calendar + assigned work (inbox_schedule.py)
     { key: 'inbox', label: 'Inbox', href: '/company#inbox', roles: COMPANY.concat(['pm', 'super']),
       hrefFor: { pm: '/inbox', super: '/inbox' }, at: [['/company', 'inbox'], ['/inbox', null]] },
-    // Chat (2026-11-16, accepted prototype https://claude.ai/artifact/C7oS45e2gZxt6wGGDC7VMs): channels, job channels,
-    // private + group messages for everyone at the company (chat.py); the red count is unread messages
-    { key: 'chat', label: 'Chat', href: '/chat', roles: COMPANY.concat(['pm', 'super', 'estimator']), at: [['/chat', null]] },
     { key: 'projects', label: 'Projects', href: '/company#projects', roles: COMPANY,
       at: [['/company', 'projects'], ['/company', 'calendar'], ['/company', 'buildings'], ['/admin/projects', null]],
       sub: [['All projects', '/company#projects'], ['Calendar', '/company#calendar'], ['Assignments & onboarding', '/admin/projects']] },
@@ -70,7 +67,11 @@
       // Templates (2026-10-26): the company's blank forms, letters and plans, sorted by Claude (company_templates.py)
       sub: [['Documents & vehicles', '/company#company'], ['Templates', '/company#templates'], ['Compliance documents', '/#compliance'], ['Specs', '/#specs']] },
     // Claude (2026-10-15): the full page of the "Ask Claude" window, for everyone Claude is offered to; last tab (2026-10-16)
-    { key: 'claude', label: 'Claude', href: '/claude', roles: ['admin', 'c_suite', 'pm', 'super'], at: [['/claude', null]] }
+    { key: 'claude', label: 'Claude', href: '/claude', roles: ['admin', 'c_suite', 'pm', 'super'], at: [['/claude', null]] },
+    // Chat (2026-11-16, accepted prototype https://claude.ai/artifact/C7oS45e2gZxt6wGGDC7VMs; under Claude since
+    // https://claude.ai/artifact/VJ7fRgnsXV3FxTmTL8Ez5g): channels, job channels,
+    // private + group messages for everyone at the company (chat.py); the red count is unread messages
+    { key: 'chat', label: 'Chat', href: '/chat', roles: COMPANY.concat(['pm', 'super', 'estimator']), at: [['/chat', null]] }
   ];
 
   // #341 — Settings pinned as its own entry at the sidebar's bottom edge (a sibling
@@ -191,10 +192,16 @@
       document.head.appendChild(st);
     }
     pollChat(); chatTimer = setInterval(pollChat, 45000);
+    // chat alerts on every page (static/js/chat_alerts.js): loaded once, here, so no page has to include it
+    if (!document.querySelector('script[data-chat-alerts]')) {
+      var sc = document.createElement('script'); sc.src = '/files/static/js/chat_alerts.js?v=1'; sc.defer = true;
+      sc.setAttribute('data-chat-alerts', ''); document.head.appendChild(sc);
+    }
     document.addEventListener('visibilitychange', function () { if (!document.hidden) pollChat(); });
   }
   // the Chat page reports its own live count, so the badge never lags behind what it shows
   document.addEventListener('ssc:chat-unread', function (e) { setChatUnread(e.detail && e.detail.unread); });
+  document.addEventListener('ssc:chat-refresh', pollChat);   // an alert arrived: refresh the count now
 
   // The admin pages call this with the signed-in role (and auth_menu.js fires
   // 'ssc:user-loaded' everywhere) — the same hook the old per-page sidebars used.

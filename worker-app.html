@@ -890,6 +890,20 @@
     .wc-err { color: var(--color-red); font-size: 13px; padding: 4px 4px 0; }
     .wc-start { display: block; width: 100%; margin-top: 8px; padding: 14px; border: none; border-radius: 14px; background: var(--color-red); color: white; font: inherit; font-weight: 700; font-size: 16px; }
     .wc-start:disabled { opacity: .45; }
+    /* chat alerts (2026-11-16, https://claude.ai/artifact/VJ7fRgnsXV3FxTmTL8Ez5g): a banner at the top while signed in */
+    .wa-stack { position: fixed; left: 10px; right: 10px; top: calc(10px + env(safe-area-inset-top)); z-index: 50; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+    .wa { pointer-events: auto; background: white; border: 1px solid var(--color-hairline); border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 12px; display: flex; gap: 10px; position: relative; }
+    .wa.at { border-color: rgba(177,30,46,.4); }
+    .wa .wa-bd { flex: 1; min-width: 0; }
+    .wa .wa-hd { font-size: 13px; color: var(--color-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 22px; }
+    .wa .wa-hd b { color: var(--color-ink); }
+    .wa .wa-msg { font-size: 15px; line-height: 1.4; margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+    .wa .wa-acts { display: flex; gap: 8px; margin-top: 8px; }
+    .wa .wa-acts button, .wa .wa-rep button { border: 1px solid var(--color-hairline); background: white; border-radius: 10px; padding: 8px 14px; font: inherit; font-size: 14px; font-weight: 700; color: var(--color-ink); }
+    .wa .wa-acts .wa-open, .wa .wa-rep button { background: var(--color-red); border-color: var(--color-red); color: white; }
+    .wa .wa-rep { display: flex; gap: 6px; margin-top: 8px; }
+    .wa .wa-rep input { flex: 1; min-width: 0; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 16px; -webkit-user-select: text; user-select: text; }
+    .wa .wa-x { position: absolute; right: 6px; top: 6px; border: none; background: none; font-size: 16px; color: var(--color-mute); width: 28px; height: 28px; }
   </style>
 </head>
 <body>
@@ -1134,7 +1148,9 @@ const i18n = {
     chat_start: "Start chat", chat_signin: "Sign in again to use chat.", chat_deleted: "Message deleted",
     chat_uploading: "Uploading...", chat_jobs: "Jobs", chat_channels: "Channels", chat_direct: "Direct messages",
     chat_you: "You", chat_delete: "Delete", chat_failed: "Could not send. Try again.", chat_today: "Today",
-    chat_yesterday: "Yesterday", chat_first: "No messages yet. Say hello."
+    chat_yesterday: "Yesterday", chat_first: "No messages yet. Say hello.",
+    chat_open: "Open", chat_reply: "Reply", chat_photo: "Sent a photo", chat_file: "Sent a file", chat_at: "@ you",
+    chat_private: "Private message"
   },
   es: {
     sign_in: "Iniciar Sesión",
@@ -1199,7 +1215,9 @@ const i18n = {
     chat_start: "Empezar chat", chat_signin: "Vuelve a entrar para usar el chat.", chat_deleted: "Mensaje borrado",
     chat_uploading: "Subiendo...", chat_jobs: "Trabajos", chat_channels: "Canales", chat_direct: "Mensajes directos",
     chat_you: "Tú", chat_delete: "Borrar", chat_failed: "No se pudo enviar. Intenta de nuevo.", chat_today: "Hoy",
-    chat_yesterday: "Ayer", chat_first: "Todavía no hay mensajes. Saluda."
+    chat_yesterday: "Ayer", chat_first: "Todavía no hay mensajes. Saluda.",
+    chat_open: "Abrir", chat_reply: "Responder", chat_photo: "Envió una foto", chat_file: "Envió un archivo", chat_at: "@ tú",
+    chat_private: "Mensaje privado"
   }
 };
 
@@ -2195,6 +2213,54 @@ window.addEventListener('load', () => {
     Object.keys(W.blobs).forEach(function (k) { try { URL.revokeObjectURL(W.blobs[k]); } catch (e) {} }); W.blobs = {};
   }
   function start() { if (!W.timer) W.timer = setInterval(tick, 4000); if (!W.slow) { refreshUnread(); W.slow = setInterval(refreshUnread, 30000); } }
+
+  // ---- alerts (a banner at the top, any screen, while signed in; never for the chat being read) ----
+  var A = { rev: -1, last: null, busy: false };
+  function alertStack() { var s = $('wa-stack'); if (!s) { s = document.createElement('div'); s.id = 'wa-stack'; s.className = 'wa-stack'; s.setAttribute('aria-live', 'polite'); document.body.appendChild(s); } return s; }
+  function alertCard(a) {
+    var s = alertStack(); while (s.children.length >= 2) s.removeChild(s.firstChild);
+    var el = document.createElement('div'); el.className = 'wa' + (a.mention ? ' at' : '');
+    var text = a.body || (a.image_id ? tt('chat_photo') : tt('chat_file'));
+    el.innerHTML = '<div class="wa-bd"><div class="wa-hd"><b>' + esc(a.who) + '</b> · ' + esc(a.dm && a.where === 'Private message' ? tt('chat_private') : a.where) + (a.mention ? ' · ' + esc(tt('chat_at')) : '') + '</div>' +
+      '<div class="wa-msg">' + esc(text) + '</div><div class="wa-acts"><button type="button" class="wa-open">' + esc(tt('chat_open')) + '</button><button type="button" class="wa-reply">' + esc(tt('chat_reply')) + '</button></div></div><button type="button" class="wa-x" aria-label="Close">✕</button>';
+    s.appendChild(el);
+    var timer = setTimeout(function () { el.remove(); }, (a.mention || a.dm) ? 12000 : 8000);
+    el.querySelector('.wa-x').onclick = function () { clearTimeout(timer); el.remove(); };
+    el.querySelector('.wa-open').onclick = function () {
+      clearTimeout(timer); el.remove(); labels(); goToScreen('chat'); start();
+      loadList().then(function () { openThread(a.conv_id); });
+    };
+    el.querySelector('.wa-reply').onclick = function () {
+      clearTimeout(timer);
+      var f = document.createElement('form'); f.className = 'wa-rep';
+      f.innerHTML = '<input aria-label="' + esc(tt('chat_reply')) + '" maxlength="4000"><button type="submit">' + esc(tt('chat_send')) + '</button>';
+      el.querySelector('.wa-acts').replaceWith(f); f.querySelector('input').focus();
+      f.onsubmit = function (e) {
+        e.preventDefault(); var v = f.querySelector('input').value.trim(); if (!v) return;
+        f.querySelector('button').disabled = true;
+        call('send', { conv_id: a.conv_id, body: v, reply_to: a.id }).then(function () {
+          call('read', { conv_id: a.conv_id, last_id: a.id }).catch(function () {});
+          el.querySelector('.wa-msg').textContent = tt('chat_you') + ': ' + v; f.remove(); refreshUnread();
+          setTimeout(function () { el.remove(); }, 1800);
+        }).catch(function (er) { f.querySelector('button').disabled = false; el.querySelector('.wa-msg').textContent = er.message; });
+      };
+    };
+  }
+  function checkAlerts() {
+    if (!on() || A.busy || document.hidden) return;
+    A.busy = true;
+    call('poll').then(function (d) {
+      if (d.rev === A.rev) return;
+      A.rev = d.rev;
+      return call('alerts', A.last == null ? {} : { after: A.last }).then(function (r) {
+        var first = A.last == null; A.last = r.latest; if (first) return;
+        var reading = currentScreen === 'chat' && W.view === 'thread' ? W.cur : null;
+        (r.alerts || []).forEach(function (a) { if (a.conv_id !== reading) alertCard(a); });
+        if ((r.alerts || []).length) refreshUnread();
+      });
+    }).catch(function () {}).then(function () { A.busy = false; });
+  }
+  setInterval(function () { if (on()) checkAlerts(); else { A.rev = -1; A.last = null; } }, 6000);
 
   window.wcOpen = function () { labels(); goToScreen('chat'); start(); openList(); };
   document.addEventListener('DOMContentLoaded', function () {

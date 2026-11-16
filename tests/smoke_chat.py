@@ -357,15 +357,61 @@ def main() -> int:
         assert C["quinn"].post(f"/api/chat/messages/{m2['id']}/task", json={"title": "chatsmk x"}).status_code == 404
         passed += 1; print("  make task ok")
 
+        # ---- alerts (https://claude.ai/artifact/VJ7fRgnsXV3FxTmTL8Ez5g): what pops up, the bell, mute
+        def AL(k, after):
+            r = C[k].get("/api/chat/alerts" + ("" if after is None else f"?after={after}"))
+            assert r.status_code == 200, r.status_code
+            return r.get_json()["data"]
+        assert C["pat"].get(f"/api/chat/convs/{dm}").get_json()["data"]["notify"] == "all", "private: all by default"
+        assert C["pat"].get(f"/api/chat/convs/{ja}").get_json()["data"]["notify"] == "mentions", "job: mentions by default"
+        base = AL("pat", None)["latest"]
+        assert AL("pat", None)["alerts"] == []
+        C["ada"].post(f"/api/chat/convs/{dm}/messages", json={"body": "chatsmk ping"})
+        C["sam"].post(f"/api/chat/convs/{ja}/messages", json={"body": "chatsmk no mention"})
+        C["sam"].post(f"/api/chat/convs/{ja}/messages", json={"body": "chatsmk @Pat Manager look", "mentions": [key["pat"]]})
+        got = AL("pat", base)["alerts"]
+        assert [(a["conv_id"], a["mention"]) for a in got] == [(dm, False), (ja, True)], got
+        assert got[0]["dm"] and got[0]["where"] == "Private message" and got[0]["who"] == "Ada Admin"
+        assert not [a for a in AL("ada", base)["alerts"] if a["body"] == "chatsmk ping"], "never your own"
+        assert not [a for a in AL("quinn", base)["alerts"] if a["conv_id"] in (dm, ja)], "never a chat you can't see"
+        assert C["pat"].post(f"/api/chat/convs/{ja}/notify", json={"mode": "loud"}).status_code == 400
+        assert C["pat"].post(f"/api/chat/convs/{ja}/notify", json={"mode": "all"}).status_code == 200
+        b2 = AL("pat", None)["latest"]
+        C["sam"].post(f"/api/chat/convs/{ja}/messages", json={"body": "chatsmk all on"})
+        assert [a["body"] for a in AL("pat", b2)["alerts"]] == ["chatsmk all on"]
+        assert C["pat"].post(f"/api/chat/convs/{ja}/notify", json={"mode": "off"}).status_code == 200
+        b3 = AL("pat", None)["latest"]
+        C["sam"].post(f"/api/chat/convs/{ja}/messages", json={"body": "chatsmk @Pat Manager muted", "mentions": [key["pat"]]})
+        assert AL("pat", b3)["alerts"] == [], "muted: not even a mention"
+        pj = [c for c in convs("pat") if c["id"] == ja][0]
+        assert pj["notify"] == "off" and pj["unread"] == 0, "muted: no count"
+        assert [c for c in convs("sam") if c["id"] == ja][0]["notify"] == "mentions", "the bell is per person"
+        C["pat"].post(f"/api/chat/convs/{ja}/notify", json={"mode": "mentions"})
+        wb = W(tok1, "alerts").get_json()["data"]["latest"]
+        C["sam"].post("/api/chat/convs", json={"kind": "dm", "members": [f"e:{W1}"]})
+        wdm = C["sam"].post("/api/chat/convs", json={"kind": "dm", "members": [f"e:{W1}"]}).get_json()["data"]["id"]
+        C["sam"].post(f"/api/chat/convs/{wdm}/messages", json={"body": "chatsmk to the field"})
+        wa = W(tok1, "alerts", after=wb).get_json()["data"]["alerts"]
+        assert [a["body"] for a in wa] == ["chatsmk to the field"]
+        assert W(tok2, "alerts", after=wb).get_json()["data"]["alerts"] == []
+        assert W(tok1, "notify", conv_id=wdm, mode="off").status_code == 200
+        passed += 1; print("  alerts ok")
+
         # ---- page + nav needles
         page = (ROOT / "chat_page.html").read_text(encoding="utf-8")
         nav = (ROOT / "static" / "js" / "company_nav.js").read_text(encoding="utf-8")
         js = (ROOT / "static" / "js" / "chat.js").read_text(encoding="utf-8")
         assert page.count("data-nav-h1") == 1 and "SSC_NAV.mount()" in page
         assert "key: 'chat'" in nav and "/api/chat/unread" in nav and "ssc:chat-unread" in js
+        assert nav.index("key: 'claude'") < nav.index("key: 'chat'"), "Chat sits under Claude"
+        assert "chat_alerts.js" in nav, "every page with the sidebar loads the alerts"
+        al = (ROOT / "static" / "js" / "chat_alerts.js").read_text(encoding="utf-8")
+        assert "/api/chat/alerts" in al and "Notification" in al and "openConv()" in al
+        assert 'id="ch-bell"' in page and "/notify" in js
         assert "toISOString" not in js and "SSCDatePicker.getISO" in js
         wapp = (ROOT / "worker-app.html").read_text(encoding="utf-8")
         assert "screen-chat" in wapp and "/api/worker/chat" in wapp, "the worker app has its Chat screen"
+        assert "checkAlerts" in wapp and "chat_reply" in wapp, "the worker app shows alerts"
         passed += 1; print("  page needles ok")
     finally:
         try:
