@@ -23,8 +23,9 @@ _COMMON_EXACT = {"/login", "/set-password", "/forgot-password", "/reset-password
                  "/api/health", "/api/today"}
 
 ESTIMATOR_PREFIXES = _COMMON_PREFIXES + ("/estimating", "/api/estimating/", "/settings/interface", "/api/ui/",
-                                         "/api/account/", "/api/2fa/")   # their own account page
-ESTIMATOR_EXACT = _COMMON_EXACT | {"/estimating", "/account", "/api/account"}
+                                         "/api/account/", "/api/2fa/",   # their own account page
+                                         "/api/chat/")   # company chat (2026-11-16)
+ESTIMATOR_EXACT = _COMMON_EXACT | {"/estimating", "/account", "/api/account", "/chat"}
 ESTIMATOR_HOME = "/estimating"
 
 

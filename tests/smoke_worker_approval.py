@@ -53,6 +53,9 @@ def _db():
     return db_layer.connect(pragma_fk=False)
 
 
+_PAUSED: list = []   # other suites' open jobs, closed during this run
+
+
 def _cleanup_rows(conn):
     for sql in ("DELETE FROM worker_app_session WHERE employee_id IN (SELECT employee_id FROM employees WHERE name LIKE 'Wapprove %')",
                 "DELETE FROM sign_in_log WHERE project_code LIKE 'WAP-%'",
@@ -83,7 +86,12 @@ def _seed() -> dict:
                          (email, auth.hash_password(PW), "pm" if role == "pm2" else role, f"Smoke {role}"))
             ids[role] = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()["id"]
         _cleanup_rows(conn)
-        conn.execute("DELETE FROM projects WHERE status = 'active' OR status IS NULL")   # isolated copy: only our jobs
+        # only our jobs are open: other suites' jobs are CLOSED for this run and reopened in _cleanup (deleting them
+        # broke on Postgres when another suite's job was still referenced, e.g. by ira_job)
+        _PAUSED[:] = [r[0] for r in conn.execute("SELECT project_code FROM projects WHERE (status = 'active' OR status IS NULL) "
+                                                 "AND project_code NOT LIKE 'WAP-%'").fetchall()]
+        for code in _PAUSED:
+            conn.execute("UPDATE projects SET status = 'closed' WHERE project_code = ?", (code,))
         for code in (JOB, OTHER):
             conn.execute("INSERT INTO projects (project_code, name, address, status) VALUES (?, ?, 'x', 'active')",
                          (code, f"Wapprove {code}"))
@@ -104,6 +112,8 @@ def _cleanup():
     conn = _db()
     try:
         _cleanup_rows(conn)
+        for code in _PAUSED:
+            conn.execute("UPDATE projects SET status = 'active' WHERE project_code = ?", (code,))
         uids = [r["id"] for r in conn.execute("SELECT id FROM users WHERE email LIKE ?", (f"{TAG}.%",)).fetchall()]
         conn.commit()
         purge_users(conn, uids)
