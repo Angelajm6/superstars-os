@@ -16,9 +16,13 @@ Brand COLOURS are theme tokens, not in these files — see brand.py (BRAND) and 
 :root tokens in static/css/widgets.css. Update those for a colourway change.
 The company NAME/wordmark text is brand.py COMPANY_NAME.
 
-logo-full.png — the full printed logo (star + SUPERSTARS / CONTRACTING INC), exactly as
-  supplied. It is the top-left brand in every app sidebar/top bar (.brand-full, widgets.css);
+logo-full.svg — THE MASTER full logo (star + SUPERSTARS / CONTRACTING INC), the approved
+  vector original. Use this for print, signage and design work; never retrace or redraw it.
+logo-full.png — a 1280x756 transparent render of logo-full.svg (4x the 320x189 slot, sharp on
+  retina). It is the top-left brand in every app sidebar/top bar (.brand-full, widgets.css);
   the star (mark.svg) stays for the collapsed icon rail, favicons and reports.
+  Re-render it from logo-full.svg (same framing, viewBox "178.5 -0.3 654.7 386.7") if the
+  SVG ever changes.
 
 favicon-32.png / apple-touch-icon.png — PNG renders of mark.svg for the
   browser tab (Safari has no SVG favicons) and iPhone home screen (cream background, since iOS
