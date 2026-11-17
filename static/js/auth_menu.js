@@ -249,10 +249,10 @@
     var css = document.createElement('link');
     css.id = 'ab-css';
     css.rel = 'stylesheet';
-    css.href = '/files/static/css/activity_bell.css?v=4';
+    css.href = '/files/static/css/activity_bell.css?v=5';
     document.head.appendChild(css);
     var js = document.createElement('script');
-    js.src = '/files/static/js/activity_bell.js?v=4';
+    js.src = '/files/static/js/activity_bell.js?v=5';
     js.defer = true;
     document.head.appendChild(js);
   }

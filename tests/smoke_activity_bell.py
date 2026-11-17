@@ -86,6 +86,7 @@ def _cleanup():
         proposals.ensure_schema(conn)
         invoices.ensure_schema(conn)
         conn.execute("DELETE FROM activity_decision WHERE kind <> 'start'")
+        conn.execute("DELETE FROM activity_checked WHERE user_id IN (SELECT id FROM users WHERE email LIKE ?)", (f"{TAG}.%",))
         conn.execute("UPDATE activity_decision SET decided_at = ? WHERE kind = 'start'", (datetime.now().isoformat(timespec="seconds"),))   # a shared database has an older one
         uids = [r["id"] for r in conn.execute("SELECT id FROM users WHERE email LIKE ?", (f"{TAG}.%",)).fetchall()]
         ph = lambda xs: ",".join("?" * len(xs)) or "NULL"  # noqa: E731
@@ -371,6 +372,34 @@ def main() -> int:
         assert [i for i in feed()["for_you"] if i["id"] == f"you:claude:{aid}"]
         passed += 1; print("  for you ok")
 
+        # ---- checked: opening an item from the bell takes it off the badge; it stays listed, dimmed; changed counts again
+        d = feed()
+        assert d["for_you"] and not any(i["checked"] for i in d["for_you"] + d["waiting"]), "nothing opened yet"
+        first, before = d["for_you"][0], d["badge"]
+        chk = lambda ids, client=None: (client or me).post("/api/activity/checked", json={"ids": ids})  # noqa: E731
+        r = chk([first["id"]])
+        assert r.status_code == 200 and r.get_json()["data"]["badge"] == before - 1, r.get_json()
+        d = feed()
+        assert d["badge"] == before - 1 and [i for i in d["for_you"] if i["id"] == first["id"]][0]["checked"], "listed, checked"
+        assert not conn.execute(
+            "SELECT 1 FROM activity_checked WHERE user_id = ?", (ids["mate"],)).fetchone(), "mine only"
+        assert chk([first["id"]]).get_json()["data"]["badge"] == before - 1, "twice is once"
+        assert chk(["you:not-on-my-list"]).get_json()["data"]["badge"] == before - 1, "only what is on the list counts"
+        assert not conn.execute("SELECT 1 FROM activity_checked WHERE item_id = 'you:not-on-my-list'").fetchone()
+        assert chk([]).status_code == 400 and me.post("/api/activity/checked", json={"ids": "x"}).status_code == 400
+        conn.execute("UPDATE activity_checked SET title = 'an older title' WHERE user_id = ?", (ids["me"],)); conn.commit()
+        assert feed()["badge"] == before, "a card that changed counts again"
+        conn.execute("UPDATE activity_checked SET title = ?, checked_at = ? WHERE user_id = ?",
+                     (first["title"], (datetime.now() - af.CHECKED_KEEP - timedelta(days=1)).isoformat(timespec="seconds"), ids["me"])); conn.commit()
+        assert feed()["badge"] == before, "still open a month later: counts again"
+        everything = [i["id"] for i in d["for_you"] + d["waiting"]]
+        assert chk(everything).get_json()["data"]["badge"] == 0 and feed()["badge"] == 0, "Mark all checked"
+        assert len(feed()["for_you"]) == len(d["for_you"]), "checked stays listed"
+        many = [{"id": f"you:x{n}", "title": "t", "group": "soon"} for n in range(5)]
+        assert af._mark_checked(many, {"you:x1": "t", "you:x2": "changed"}) == 4 and many[1]["checked"] and not many[2]["checked"]
+        conn.execute("DELETE FROM activity_checked WHERE user_id = ?", (ids["me"],)); conn.commit()
+        passed += 1; print("  checked ok")
+
         # ---- the morning banner: once a day, after 5 AM, only with something to say
         nine = datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
         m = af.build(conn, ids["me"], now=nine)["morning"]
@@ -390,13 +419,13 @@ def main() -> int:
         assert "body.user.role === 'admin') loadBell()" in am and "activity_bell.js?v=" in am and "activity_bell.css?v=" in am
         js = (ROOT / "static/js/activity_bell.js").read_text(encoding="utf-8")
         for needle in ("'/api/activity'", "'/api/activity/seen'", "esc(it.title)", "esc(it.href)", "Your own actions don’t appear here", "document.hidden",
-                       "'For you'", "'What happened'", "what: 'morning'", "S.data.for_you", "data-ab=\"see-today\""):
+                       "'For you'", "'What happened'", "'/api/activity/checked'", "data-ab=\"check-all\"", "ab-checked", "what: 'morning'", "S.data.for_you", "data-ab=\"see-today\""):
             assert needle in js, needle
         portal = (ROOT / "company_portal.html").read_text(encoding="utf-8")
         assert "view === 'invoice' && arg" in portal and "'ssc:activity-changed'" in portal
         for page in ROOT.glob("*.html"):
             t = page.read_text(encoding="utf-8")
-            assert not any(f"auth_menu.js?v={v}" in t for v in (1010, 1011, 1012, 1013, 1014)), f"{page.name} keeps a cached script without the bell"
+            assert not any(f"auth_menu.js?v={v}" in t for v in (1010, 1011, 1012, 1013, 1014, 1015)), f"{page.name} keeps a cached script without the bell"
         passed += 1; print("  pages ok")
     finally:
         conn.close()
