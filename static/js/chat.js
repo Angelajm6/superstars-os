@@ -1,13 +1,29 @@
 /* Company chat page (/chat). Server: chat.py. Accepted prototype 2026-11-16:
  * https://claude.ai/artifact/C7oS45e2gZxt6wGGDC7VMs
  * Live by polling: /api/chat/poll every 4 s while the page is visible (one tiny query); a change
- * refetches the list and the open chat. Times are the server's LOCAL ISO strings, parsed as local. */
+ * refetches the list and the open chat. Times are the server's LOCAL ISO strings, parsed as local.
+ *
+ * 2026-11-17 (accepted prototype https://claude.ai/artifact/4qCXUYDRtc2xQ5AWLgz15i): the same code runs in the floating
+ * Chat window on every other page (static/js/chat_widget.js sets window.SSC_CHAT_W and injects chat_fragment.html);
+ * there it is always one column, never touches the address bar, and reads / polls only while the window is open.
+ * New: edit your own messages (↑ edits the last one; earlier versions under "(edited)"), Seen by (double-click or
+ * double-tap a message; a line under your latest one), a pinned message, who is on site, "is typing", Translate to
+ * English, Catch me up (Claude), and quick replies in job chats. */
 (function () {
   'use strict';
+  if (window.SSC_CHAT) return;
   var $ = function (id) { return document.getElementById(id); };
+  var W = window.SSC_CHAT_W || null;   // the floating window; null on the /chat page
   var COLORS = ['#4364dc', '#0f8b8d', '#7a5cc7', '#3c7f5a', '#c0632f', '#4a6fa5', '#9b4f8a', '#5b6b2e'];
   var S = { me: null, convs: [], cur: null, detail: null, msgs: [], more: false, rev: -1, filter: 'all',
-            pending: [], reply: null, mentions: {}, people: null, side: 'files', sending: false, lastRead: {} };
+            pending: [], reply: null, mentions: {}, people: null, side: 'files', sending: false, lastRead: {},
+            edit: null, hist: {}, tr: {}, seen: null, onsite: {}, catchup: null, typing: [], pinged: 0, tap: null };
+  function phone() { return window.matchMedia('(max-width:860px)').matches; }
+  function wide() { return !W && !phone(); }   // the three-column /chat page
+  function awake() { return !document.hidden && (!W || W.isOpen()); }
+  function layout() { var ch = $('ch'); if (ch) ch.classList.toggle('compact', !!W || phone()); }
+  function hm(t) { var m = /^(\d\d?):(\d\d)/.exec(t || ''); if (!m) return t || ''; var h = +m[1]; return ((h % 12) || 12) + ':' + m[2] + ' ' + (h < 12 ? 'AM' : 'PM'); }
+  function first(n) { return String(n || '').split(' ')[0]; }
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function api(path, opt) {
@@ -24,7 +40,11 @@
   }
   function color(key) { var h = 0; for (var i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0; return COLORS[Math.abs(h) % COLORS.length]; }
   function initials(n) { var p = String(n || '?').trim().split(/\s+/); return ((p[0] || '?')[0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase(); }
-  function avatar(key, name, cls) { return '<div class="ch-av ' + (cls || '') + '" style="background:' + color(key) + '">' + esc(initials(name)) + '</div>'; }
+  function avatar(key, name, cls) {
+    var on = S.onsite && S.onsite[key];
+    return '<div class="ch-av ' + (cls || '') + '" style="background:' + color(key) + '"' + (on ? ' title="' + esc(name + ' · on site since ' + hm(on.since)) + '"' : '') + '>' +
+      esc(initials(name)) + (on ? '<i class="ch-on" aria-label="On site"></i>' : '') + '</div>';
+  }
   function convAvatar(c) {
     if (c.kind === 'job') return '<div class="ch-av job">JOB</div>';
     if (c.kind === 'channel') return '<div class="ch-av sq">#</div>';
@@ -68,14 +88,17 @@
       return !q || (convTitle(c) + ' ' + (c.preview || '') + ' ' + (c.project_code || '')).toLowerCase().indexOf(q) !== -1;
     };
     var groups = [['Jobs', 'job'], ['Channels', 'channel'], ['Direct messages', 'dm']], h = '';
+    var here = W && W.job;   // the window on a job's page: that job's chat first
     groups.forEach(function (g) {
       var items = S.convs.filter(function (c) { return c.kind === g[1] && show(c); });
+      if (here && g[1] === 'job') items.sort(function (a, b) { return (b.project_code === here) - (a.project_code === here); });
       if (!items.length && (g[1] === 'job' || q || S.filter !== 'all')) return;
       h += '<div class="ch-sec">' + g[0] + (g[1] !== 'job' && (g[1] === 'dm' || S.me.can_channel) ? '<button type="button" data-add="' + g[1] + '" aria-label="New ' + (g[1] === 'dm' ? 'message' : 'channel') + '" title="New ' + (g[1] === 'dm' ? 'message' : 'channel') + '">+</button>' : '') + '</div>';
       if (!items.length) h += '<p class="ch-empty">' + (g[1] === 'dm' ? 'No private messages yet. Press + to message someone.' : 'No channels yet.') + '</p>';
       items.forEach(function (c) {
-        h += '<button type="button" class="ch-conv' + (S.cur === c.id ? ' on' : '') + (c.unread ? ' unread' : '') + '" data-id="' + c.id + '">' + convAvatar(c) +
-          '<div class="m"><div class="n"><span>' + esc(convTitle(c)) + '</span><span class="t">' + esc(shortWhen(c.last_at)) + '</span></div>' +
+        var isHere = here && c.kind === 'job' && c.project_code === here;
+        h += '<button type="button" class="ch-conv' + (S.cur === c.id ? ' on' : '') + (c.unread ? ' unread' : '') + (isHere ? ' here' : '') + '" data-id="' + c.id + '">' + convAvatar(c) +
+          '<div class="m"><div class="n"><span>' + esc(convTitle(c)) + '</span>' + (isHere ? '<span class="ch-herel">This job</span>' : '') + '<span class="t">' + esc(shortWhen(c.last_at)) + '</span></div>' +
           '<div class="p"><span>' + esc(c.preview || (c.joined ? 'No messages yet' : 'Open to read and join')) + '</span>' + (c.notify === 'off' ? '<span class="mute" title="Muted">muted</span>' : '') +
           (c.unread ? '<span class="ch-badge' + (c.mention ? ' at' : '') + '">' + (c.mention ? '@' : (c.unread > 99 ? '99+' : c.unread)) + '</span>' : '') + '</div></div></button>';
       });
@@ -83,7 +106,7 @@
     $('ch-convs').innerHTML = h || '<p class="ch-empty">No chats match. Try a name, a job code like FR-BX-001, or a channel name.</p>';
     var total = S.convs.reduce(function (s, c) { return s + (c.unread || 0); }, 0);
     document.dispatchEvent(new CustomEvent('ssc:chat-unread', { detail: { unread: total } }));
-    document.title = (total ? '(' + total + ') ' : '') + 'Chat · Superstars Contracting';
+    if (!W) document.title = (total ? '(' + total + ') ' : '') + 'Chat · Superstars Contracting';
   }
   function loadConvs() {
     return api('/convs').then(function (list) { S.convs = list || []; renderList(); })
@@ -118,6 +141,8 @@
     else if (c.everyone) h += '<div class="ch-sys">Everyone at the company is in #' + esc(c.title) + ', office and field.</div>';
     else if (!S.msgs.length) h += '<div class="ch-sys">This is the start of ' + esc(c.kind === 'channel' ? '#' + c.title : 'your conversation with ' + c.title) + '.</div>';
     var lastDay = '', lastAuthor = '', lastT = 0;
+    var ed = document.activeElement && document.activeElement.id === 'ch-edta' ? document.activeElement : null;
+    var caret = ed ? [ed.selectionStart, ed.selectionEnd] : null;
     S.msgs.forEach(function (m) {
       var d = parse(m.at) || new Date(), dk = dayKey(d);
       if (dk !== lastDay) { h += '<div class="ch-day">' + esc(dayLabel(d)) + '</div>'; lastDay = dk; lastAuthor = ''; }
@@ -126,36 +151,152 @@
       h += '<div class="ch-msg' + (cont ? ' cont' : '') + '" data-mid="' + m.id + '">' + avatar(m.author, m.name) + '<div class="b">' +
         (cont ? '' : '<div class="w"><b>' + esc(m.mine ? m.name + ' (you)' : m.name) + '</b>' + (m.field ? '<span class="rl">Field</span>' : '') + '<span class="tm">' + clock(d) + '</span></div>') +
         (m.reply ? '<button type="button" class="ch-quote" data-jump="' + m.reply.id + '"><b>' + esc(m.reply.name) + ':</b> ' + esc(m.reply.body) + '</button>' : '') +
-        (m.deleted ? '<div class="x del">Message deleted</div>' : (m.body ? '<div class="x">' + fmtBody(m) + '</div>' : '')) +
+        bodyHTML(m) +
         (m.files && m.files.length ? '<div class="ch-atts">' + attHTML(m.files) + '</div>' : '') +
         (m.reacts && m.reacts.length ? '<div class="ch-reacts">' + m.reacts.map(function (r) { return '<button type="button" class="ch-react' + (r.mine ? ' mine' : '') + '" data-react="' + m.id + '" data-emoji="' + esc(r.emoji) + '" title="' + esc(r.who.join(', ')) + '">' + esc(r.emoji) + ' ' + r.count + '</button>'; }).join('') + '</div>' : '') +
-        '</div>' + (m.deleted ? '' : toolsHTML(m)) + '</div>';
+        '</div>' + (m.deleted || (S.edit && S.edit.id === m.id) ? '' : toolsHTML(m)) + '</div>';
+      if (S.seen && S.seen.msg_id === m.id && !m.deleted) { h += seenHTML(S.seen); lastAuthor = ''; }
     });
     box.innerHTML = h;
+    var nta = $('ch-edta');
+    if (nta && S.edit) { nta.value = S.edit.draft; growEd(nta); if (ed || S.edit.focus) { nta.focus(); var p = caret || [nta.value.length, nta.value.length]; nta.setSelectionRange(p[0], p[1]); S.edit.focus = false; } }
     if (keepScroll === 'older') box.scrollTop = box.scrollHeight - oldH + oldTop;
     else if (!keepScroll || atBottom) box.scrollTop = box.scrollHeight;
     else box.scrollTop = oldTop;
   }
+  function bodyHTML(m) {
+    if (m.deleted) return '<div class="x del">Message deleted</div>';
+    if (S.edit && S.edit.id === m.id) {
+      return '<div class="ch-edbox"><textarea id="ch-edta" rows="2" maxlength="4000" aria-label="Edit message"></textarea>' +
+        '<div class="ch-edbar"><span>' + (phone() ? '' : 'Enter to save · Esc to cancel') + '</span><button type="button" class="btn-ghost" data-edcancel="1">Cancel</button>' +
+        '<button type="button" class="btn-primary" data-edsave="' + m.id + '">Save</button></div></div>';
+    }
+    var tr = S.tr[m.id], showTr = tr && tr.on && tr.text;
+    var h = '';
+    if (m.body || m.edited) {
+      h += '<div class="x">' + (showTr ? esc(tr.text) : fmtBody(m)) +
+        (m.edited ? ' <button type="button" class="ch-edited" data-hist="' + m.id + '" title="Edited ' + esc(stamp(m.edited)) + '. Show the earlier version">(edited)</button>' : '') + '</div>';
+    }
+    var hs = S.hist[m.id];
+    if (hs && hs.open) {
+      h += '<div class="ch-prev">' + (hs.edits ? (hs.edits.length ? hs.edits.map(function (e, i) {
+        return '<div><b>' + (i === 0 ? 'Original' : 'Version ' + (i + 1)) + '</b> · changed ' + esc(stamp(e.at)) + '<br>' + esc(e.body || '(no text)') + '</div>';
+      }).join('') : 'No earlier versions.') : 'Loading…') + '</div>';
+    }
+    if (m.es && m.body && !S.me.worker) {
+      h += showTr ? '<div class="ch-trn">Translated from Spanish by Claude · <button type="button" class="ch-tr" data-tr="' + m.id + '">Show original</button></div>'
+        : '<button type="button" class="ch-tr" data-tr="' + m.id + '"' + (tr && tr.busy ? ' disabled' : '') + '>' + (tr && tr.busy ? 'Translating…' : 'Translate to English') + '</button>';
+    }
+    return h;
+  }
+  function stamp(s) { var d = parse(s); if (!d) return ''; return dayKey(d) === dayKey(new Date()) ? clock(d) : shortWhen(s) + ' ' + clock(d); }
+  function seenHTML(s) {
+    var label;
+    if (!s.count) label = 'Sent';
+    else if (s.total === 1) label = 'Seen' + (s.at ? ' ' + stamp(s.at) : '');
+    else if (s.count >= s.total) label = 'Seen by everyone';
+    else { var n = s.who.map(function (p) { return first(p.name); }); label = 'Seen by ' + (s.count > 2 ? n.slice(0, 2).join(', ') + ' +' + (s.count - 2) : n.join(' and ')); }
+    var st = s.count && s.total > 1 ? '<span class="st">' + s.who.slice(0, 3).map(function (p) { return '<i style="background:' + color(p.key) + '">' + esc(initials(p.name)) + '</i>'; }).join('') + '</span>' : '';
+    return '<button type="button" class="ch-seen" data-seen="' + s.msg_id + '" title="Who has seen it">' + st + esc(label) + '</button>';
+  }
   function toolsHTML(m) {
     var em = (S.me.emoji || []).slice(0, 4).map(function (e) { return '<button type="button" data-react="' + m.id + '" data-emoji="' + esc(e) + '" title="React ' + esc(e) + '">' + esc(e) + '</button>'; }).join('');
+    var pinned = S.detail.pin && S.detail.pin.id === m.id;
     return '<div class="ch-tools">' + em + '<button type="button" data-reply="' + m.id + '">Reply</button>' +
+      (m.mine ? '<button type="button" data-edit="' + m.id + '">Edit</button>' : '') +
+      (S.me.worker ? '' : '<button type="button" data-seen="' + m.id + '">Seen by</button>') +
+      (S.detail.can_pin ? '<button type="button" data-pin="' + (pinned ? 0 : m.id) + '">' + (pinned ? 'Unpin' : 'Pin') + '</button>' : '') +
       (S.detail.can_task ? '<button type="button" data-task="' + m.id + '">Make task</button>' : '') +
       (m.mine || S.me.can_delete_any ? '<button type="button" class="danger" data-del="' + m.id + '">Delete</button>' : '') + '</div>';
+  }
+  function growEd(t) { t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 200) + 'px'; }
+  function startEdit(id) {
+    var m = S.msgs.filter(function (x) { return x.id === +id; })[0];
+    if (!m || !m.mine || m.deleted) return;
+    S.edit = { id: m.id, draft: m.body || '', focus: true };
+    renderThread(true);
+    var el = document.querySelector('.ch-msg[data-mid="' + m.id + '"]'); if (el) el.scrollIntoView({ block: 'nearest' });
+  }
+  function cancelEdit() { S.edit = null; renderThread(true); ta.focus(); }
+  function saveEdit() {
+    if (!S.edit || S.edit.busy) return;
+    var e = S.edit, v = ($('ch-edta') ? $('ch-edta').value : e.draft).trim();
+    var m = S.msgs.filter(function (x) { return x.id === e.id; })[0];
+    if (m && v === (m.body || '')) { cancelEdit(); return; }
+    e.busy = true;
+    api('/messages/' + e.id, { method: 'PATCH', body: { body: v } }).then(function (nm) {
+      S.msgs = S.msgs.map(function (x) { return x.id === nm.id ? nm : x; });
+      delete S.hist[nm.id]; delete S.tr[nm.id];
+      S.edit = null; renderThread(true); ta.focus(); loadConvs();
+    }).catch(function (er) { e.busy = false; toast(er.message); });
   }
   function headerFor(c) {
     $('ch-tav').innerHTML = convAvatar(S.convs.filter(function (x) { return x.id === c.id; })[0] || c);
     $('ch-tname').textContent = c.kind === 'channel' ? '# ' + c.title : c.title;
     var sub = c.sub || '';
     if (c.kind === 'dm') { var o = c.members.filter(function (p) { return p.key !== S.me.key; }); sub = o.length > 1 ? 'Group · ' + c.members.length + ' people' : (o[0] ? o[0].role || '' : ''); }
-    $('ch-tsub').innerHTML = esc(sub) + (c.kind === 'job' ? ' · <a href="/projects/' + encodeURIComponent(c.project_code) + '">Open job</a>' : '');
+    var on = (c.members || []).filter(function (p) { return p.key !== S.me.key && S.onsite[p.key]; }).map(function (p) { return first(p.name); });
+    var onTxt = !on.length || c.everyone ? '' : on.length > 2 ? on.length + ' on site' : on.join(' and ') + ' on site';
+    $('ch-tsub').innerHTML = (onTxt ? '<span class="ch-sub-on">● ' + esc(onTxt) + '</span> · ' : '') + esc(sub) +
+      (c.kind === 'job' && !(W && W.job === c.project_code) ? ' · <a href="/projects/' + encodeURIComponent(c.project_code) + '">Open job</a>' : '');
+    renderPin();
+    quick();
     var mem = c.members || [];
     $('ch-tstack').innerHTML = mem.slice(0, 3).map(function (p) { return '<i style="background:' + color(p.key) + '">' + esc(initials(p.name)) + '</i>'; }).join('');
     $('ch-tcount').textContent = c.everyone ? 'Everyone' : String(c.member_count);
     renderBell(c.notify);
     $('ch-ta').placeholder = 'Message ' + (c.kind === 'channel' ? '#' + c.title : c.kind === 'job' ? 'the ' + c.project_code + ' crew' : c.title);
   }
+  function renderPin() {
+    var p = S.detail && S.detail.pin, bar = $('ch-pin');
+    bar.hidden = !p;
+    if (!p) return;
+    $('ch-pingo').innerHTML = '<b>' + esc(p.name) + ':</b> ' + esc(p.body);
+    $('ch-pinx').hidden = !S.detail.can_pin;
+  }
+  function pin(id) {
+    api('/convs/' + S.cur + '/pin', { method: 'POST', body: { msg_id: id || null } }).then(function (d) {
+      S.detail.pin = d.pin; renderPin(); renderThread(true); toast(d.pin ? 'Pinned to the top of this chat' : 'Unpinned');
+    }).catch(function (er) { toast(er.message); });
+  }
+  function jumpTo(id) {
+    var el = document.querySelector('.ch-msg[data-mid="' + id + '"]');
+    if (!el) { toast('That message is further back. Use Show earlier messages to find it.'); return; }
+    el.scrollIntoView({ block: 'center' }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  }
+  function quick() {
+    var q = $('ch-quick'); if (!q) return;
+    q.hidden = !(S.detail && S.detail.kind === 'job') || !!ta.value.trim() || S.pending.length > 0 || !!S.reply;
+  }
+  // "Catch me up": offered when you open a chat with 3 or more new messages
+  function renderCatch() {
+    var w = $('ch-catchw'), k = S.catchup;
+    if (!k || k.conv !== S.cur || k.pending || k.closed) { w.innerHTML = ''; return; }
+    if (k.bullets) {
+      w.innerHTML = '<div class="ch-sum" role="note"><button type="button" class="x" data-catchx="1" aria-label="Close summary">✕</button><b><span aria-hidden="true">✦</span>Claude · ' + k.count + ' new since ' + esc(stamp(k.since)) + '</b><ul>' +
+        k.bullets.map(function (b) { return '<li>' + esc(b) + '</li>'; }).join('') + '</ul></div>';
+      return;
+    }
+    w.innerHTML = '<div class="ch-catch"><span><b>' + k.count + ' new</b> since you last looked</span><button type="button" data-catch="1"' + (k.busy ? ' disabled' : '') + '><span aria-hidden="true">✦</span>' + (k.busy ? 'Reading…' : 'Catch me up') + '</button><button type="button" class="x" data-catchx="1" aria-label="Dismiss">✕</button></div>';
+  }
+  $('ch-catchw').addEventListener('click', function (e) {
+    var k = S.catchup, t = e.target.closest('button'); if (!t || !k) return;
+    if (t.dataset.catchx) { k.closed = true; renderCatch(); return; }
+    if (t.dataset.catch && !k.busy) {
+      k.busy = true; renderCatch();
+      api('/convs/' + k.conv + '/catchup', { method: 'POST', body: { after_id: k.after } })
+        .then(function (d) { k.bullets = d.bullets; k.count = d.count; k.since = d.since; })
+        .catch(function (er) { toast(er.message); })
+        .then(function () { k.busy = false; renderCatch(); });
+    }
+  });
+  function renderTyping() {
+    var el = $('ch-typing'), n = S.typing || [];
+    el.hidden = !n.length;
+    if (n.length) el.innerHTML = '<span class="ch-dots" aria-hidden="true"><i></i><i></i><i></i></span>' + esc(n.length > 2 ? 'Several people are typing…' : n.join(' and ') + (n.length > 1 ? ' are' : ' is') + ' typing…');
+  }
   function markRead() {
-    if (!S.cur || document.hidden || !S.msgs.length) return;
+    if (!S.cur || !awake() || !S.msgs.length) return;
     var last = S.msgs[S.msgs.length - 1].id;
     if (S.lastRead[S.cur] >= last) return;
     S.lastRead[S.cur] = last;
@@ -168,8 +309,10 @@
     var id = S.cur;
     return Promise.all([api('/convs/' + id), api('/convs/' + id + '/messages')]).then(function (r) {
       if (S.cur !== id) return;
-      S.detail = r[0]; S.msgs = r[1].messages; S.more = r[1].more;
-      headerFor(S.detail); renderThread(keep); markRead();
+      S.detail = r[0]; S.msgs = r[1].messages; S.more = r[1].more; S.seen = r[1].seen; S.onsite = r[0].on_site || {};
+      var k = S.catchup;
+      if (k && k.conv === id && k.pending) { k.pending = false; k.after = r[1].read_id; if (k.count < 3 || S.me.worker) S.catchup = null; }
+      headerFor(S.detail); renderThread(keep); renderCatch(); markRead();
       if (!$('ch-side').hidden) renderSide();
     }).catch(function (e) {
       if (S.cur !== id) return;
@@ -178,27 +321,40 @@
   }
   function open(id, opts) {
     id = +id; if (!id) return;
-    if (S.cur !== id) { S.pending = []; S.reply = null; S.mentions = {}; renderPending(); renderReply(); $('ch-ta').value = ''; grow(); }
+    if (S.cur !== id) {
+      S.pending = []; S.reply = null; S.mentions = {}; S.edit = null; S.seen = null; S.typing = []; renderPending(); renderReply(); $('ch-ta').value = ''; grow();
+      var c = S.convs.filter(function (x) { return x.id === id; })[0];
+      S.catchup = { conv: id, pending: true, count: c ? c.unread || 0 : 0 };
+      $('ch-pin').hidden = true; $('ch-catchw').innerHTML = ''; renderTyping();
+    }
     S.cur = id;
-    try { history.replaceState(null, '', '#c' + id); } catch (e) {}
+    if (W) W.onConv(id);
+    else { try { history.replaceState(null, '', '#c' + id); } catch (e) {} }
     $('ch-noth').hidden = true; $('ch-th').hidden = false; $('ch-msgs').hidden = false; $('ch-comp').hidden = false;
-    $('ch').classList.add('open'); document.body.classList.add('ch-in');
+    $('ch').classList.add('open'); if (!W) document.body.classList.add('ch-in');
     $('ch-msgs').innerHTML = '<div class="ch-sys">Loading…</div>';
     renderList();
-    loadThread().then(function () { if (!(opts && opts.noFocus) && window.matchMedia('(min-width:861px)').matches) $('ch-ta').focus(); });
+    return loadThread().then(function () { if (!(opts && opts.noFocus) && !phone()) $('ch-ta').focus(); });
   }
   function closeThread() {
-    S.cur = null; S.detail = null;
+    S.cur = null; S.detail = null; S.edit = null; S.typing = []; renderTyping();
     $('ch').classList.remove('open'); document.body.classList.remove('ch-in');
     $('ch-noth').hidden = false; $('ch-th').hidden = true; $('ch-msgs').hidden = true; $('ch-comp').hidden = true; $('ch-side').hidden = true;
-    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+    $('ch-pin').hidden = true; $('ch-catchw').innerHTML = '';
+    if (W) W.onConv(null);
+    else { try { history.replaceState(null, '', location.pathname); } catch (e) {} }
     renderList();
   }
 
   // ---- live: one cheap poll; a change refetches ----
   function tick() {
-    if (document.hidden) return;
-    api('/poll').then(function (d) {
+    if (!awake()) return;
+    var cur = S.cur;
+    api('/poll' + (cur ? '?conv=' + cur : '')).then(function (d) {
+      if (cur && cur === S.cur) {
+        var t = d.typing || [];
+        if (t.join() !== (S.typing || []).join()) { S.typing = t; renderTyping(); }
+      }
       if (d.rev === S.rev) return;
       var first = S.rev === -1; S.rev = d.rev;
       if (first) return;
@@ -209,7 +365,12 @@
   // ---- composer ----
   var ta = $('ch-ta');
   function grow() { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; }
-  function canSend() { $('ch-send').disabled = S.sending || S.pending.some(function (p) { return !p.id && !p.err; }) || !(ta.value.trim() || S.pending.some(function (p) { return p.id; })); }
+  function canSend() { $('ch-send').disabled = S.sending || S.pending.some(function (p) { return !p.id && !p.err; }) || !(ta.value.trim() || S.pending.some(function (p) { return p.id; })); quick(); }
+  function ping() {   // "is typing": at most one tiny call every 4 s while you type
+    if (!S.cur || !ta.value.trim() || Date.now() - S.pinged < 4000) return;
+    S.pinged = Date.now();
+    api('/convs/' + S.cur + '/typing', { method: 'POST', body: {} }).catch(function () {});
+  }
   function showErr(t) { $('ch-err').textContent = t || ''; $('ch-err').hidden = !t; }
   function send() {
     var body = ta.value.trim(), ids = S.pending.filter(function (p) { return p.id; }).map(function (p) { return p.id; });
@@ -219,14 +380,14 @@
     var id = S.cur;
     api('/convs/' + id + '/messages', { method: 'POST', body: { body: body, file_ids: ids, reply_to: S.reply ? S.reply.id : null, mentions: ment } })
       .then(function (m) {
-        ta.value = ''; grow(); S.pending = []; S.reply = null; S.mentions = {}; renderPending(); renderReply();
-        if (S.cur === id) { S.msgs.push(m); renderThread(); S.lastRead[id] = m.id; }
+        ta.value = ''; grow(); S.pending = []; S.reply = null; S.mentions = {}; S.pinged = 0; renderPending(); renderReply();
+        if (S.cur === id) { S.msgs.push(m); S.seen = { msg_id: m.id, count: 0, total: 0, who: [] }; renderThread(); S.lastRead[id] = m.id; }
         loadConvs();
       })
       .catch(function (e) { showErr(e.message); })
       .then(function () { S.sending = false; canSend(); });
   }
-  ta.addEventListener('input', function () { grow(); canSend(); mentionCheck(); showErr(''); });
+  ta.addEventListener('input', function () { grow(); canSend(); mentionCheck(); showErr(''); ping(); });
   ta.addEventListener('keydown', function (e) {
     var pop = $('ch-mpop');
     if (!pop.hidden) {
@@ -235,9 +396,16 @@
       if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); (pop.querySelector('.sel') || bs[0]).click(); return; }
       if (e.key === 'Escape') { pop.hidden = true; return; }
     }
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && window.matchMedia('(min-width:861px)').matches) { e.preventDefault(); send(); }
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !phone()) { e.preventDefault(); send(); return; }
+    if (e.key === 'ArrowUp' && !ta.value && !S.pending.length) {   // ↑ in an empty box: edit your last message
+      for (var j = S.msgs.length - 1; j >= 0; j--) { if (S.msgs[j].mine && !S.msgs[j].deleted) { e.preventDefault(); startEdit(S.msgs[j].id); return; } }
+    }
   });
   $('ch-send').addEventListener('click', send);
+  $('ch-quick').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-q]'); if (!b) return;
+    ta.value = b.dataset.q; grow(); canSend(); ta.focus();
+  });
 
   // attachments: picked, dropped or pasted; each uploads at once, Send waits for them
   function upload(f) {
@@ -276,6 +444,7 @@
   function renderReply() {
     $('ch-replying').hidden = !S.reply;
     if (S.reply) $('ch-replytxt').textContent = 'Replying to ' + S.reply.name + ': ' + (S.reply.body || 'Attachment');
+    quick();
   }
   $('ch-replyx').addEventListener('click', function () { S.reply = null; renderReply(); ta.focus(); });
 
@@ -311,12 +480,34 @@
   // ---- message actions ----
   $('ch-msgs').addEventListener('click', function (e) {
     var t = e.target.closest('button,a'), msgEl = e.target.closest('.ch-msg');
-    if (!t) {   // phone: a tap on a message shows its actions
-      if (msgEl && !window.matchMedia('(min-width:861px)').matches) {
-        var was = msgEl.classList.contains('tools-on');
-        Array.prototype.forEach.call(document.querySelectorAll('.ch-msg.tools-on'), function (x) { x.classList.remove('tools-on'); });
-        if (!was) msgEl.classList.add('tools-on');
+    if (!t) {   // phone: a tap on a message shows its actions; a double-tap shows who has seen it
+      if (msgEl && phone() && !e.target.closest('.ch-edbox')) {
+        var now = Date.now(), mid = msgEl.dataset.mid;
+        Array.prototype.forEach.call(document.querySelectorAll('.ch-msg.tools-on'), function (x) { if (x !== msgEl) x.classList.remove('tools-on'); });
+        if (S.tap && S.tap.id === mid && now - S.tap.t < 350) { S.tap = null; msgEl.classList.remove('tools-on'); openSeen(mid); return; }
+        S.tap = { id: mid, t: now };
+        msgEl.classList.toggle('tools-on');
       }
+      return;
+    }
+    if (t.dataset.edit) { startEdit(t.dataset.edit); return; }
+    if (t.dataset.edsave) { saveEdit(); return; }
+    if (t.dataset.edcancel) { cancelEdit(); return; }
+    if (t.dataset.seen) { if (msgEl) msgEl.classList.remove('tools-on'); openSeen(t.dataset.seen); return; }
+    if (t.dataset.pin !== undefined) { if (msgEl) msgEl.classList.remove('tools-on'); pin(+t.dataset.pin); return; }
+    if (t.dataset.hist) {
+      var hid = +t.dataset.hist, hs = S.hist[hid] = S.hist[hid] || {};
+      hs.open = !hs.open; renderThread(true);
+      if (hs.open && !hs.edits) api('/messages/' + hid + '/info').then(function (d) { hs.edits = d.edits; renderThread(true); }).catch(function (er) { hs.open = false; toast(er.message); renderThread(true); });
+      return;
+    }
+    if (t.dataset.tr) {
+      var tid = +t.dataset.tr, tr = S.tr[tid] = S.tr[tid] || {};
+      if (tr.text) { tr.on = !tr.on; renderThread(true); return; }
+      if (tr.busy) return;
+      tr.busy = true; renderThread(true);
+      api('/messages/' + tid + '/translate', { method: 'POST', body: { lang: 'en' } }).then(function (d) { tr.text = d.text; tr.on = true; })
+        .catch(function (er) { toast(er.message); }).then(function () { tr.busy = false; renderThread(true); });
       return;
     }
     if (t.id === 'ch-older') {
@@ -338,11 +529,49 @@
     } else if (t.dataset.photo) {
       openPhoto(t.dataset.photo);
     } else if (t.dataset.jump) {
-      var el = document.querySelector('.ch-msg[data-mid="' + t.dataset.jump + '"]');
-      if (el) { el.scrollIntoView({ block: 'center' }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+      jumpTo(t.dataset.jump);
     }
     if (msgEl) msgEl.classList.remove('tools-on');
   });
+  // double-click a message: who has seen it, and when
+  $('ch-msgs').addEventListener('dblclick', function (e) {
+    var el = e.target.closest('.ch-msg');
+    if (!el || e.target.closest('button,a,textarea,.ch-edbox') || phone()) return;
+    try { window.getSelection().removeAllRanges(); } catch (er) {}
+    openSeen(el.dataset.mid);
+  });
+  $('ch-msgs').addEventListener('keydown', function (e) {
+    if (e.target.id !== 'ch-edta') return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelEdit(); }
+    else if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !phone()) { e.preventDefault(); saveEdit(); }
+  });
+  $('ch-msgs').addEventListener('input', function (e) { if (e.target.id === 'ch-edta' && S.edit) { S.edit.draft = e.target.value; growEd(e.target); } });
+  $('ch-pingo').addEventListener('click', function () { if (S.detail && S.detail.pin) jumpTo(S.detail.pin.id); });
+  $('ch-pinx').addEventListener('click', function () { pin(null); });
+
+  // ---- seen by ----
+  function openSeen(id) {
+    id = +id;
+    var m = S.msgs.filter(function (x) { return x.id === id; })[0];
+    if (!m || m.deleted || S.me.worker) return;
+    $('ch-stl').textContent = 'Seen by'; $('ch-slead').textContent = '';
+    $('ch-sq').textContent = (m.mine ? 'You' : m.name) + ': ' + (m.body || (m.files && m.files.length ? 'Attachment' : ''));
+    $('ch-slist').innerHTML = '<p class="ch-empty">Loading…</p>';
+    $('ch-seenbg').hidden = false;
+    api('/messages/' + id + '/info').then(function (d) {
+      $('ch-stl').textContent = d.total ? 'Seen by ' + d.seen.length + ' of ' + d.total : 'Seen by';
+      $('ch-slead').textContent = 'Sent ' + stamp(d.sent_at) + (d.edited_at ? ' · edited ' + stamp(d.edited_at) : '');
+      var row = function (p, at, no) {
+        return '<div class="ch-seenrow' + (no ? ' no' : '') + '">' + avatar(p.key, p.name) + '<div><div class="nm">' + esc(p.key === S.me.key ? p.name + ' (you)' : p.name) + '</div><div class="rl">' + esc(p.role || '') + (p.field ? ' · worker app' : '') + '</div></div>' +
+          '<span class="tm">' + (no ? '—' : at ? esc(stamp(at)) : 'Seen') + '</span></div>';
+      };
+      var h = '';
+      if (d.seen.length) h += '<div class="ch-seenlbl">Seen</div>' + d.seen.map(function (p) { return row(p, p.at); }).join('');
+      if (d.waiting.length) h += '<div class="ch-seenlbl">Not seen yet</div>' + d.waiting.map(function (p) { return row(p, null, true); }).join('');
+      $('ch-slist').innerHTML = h || '<p class="ch-empty">Nobody else is in this chat yet.</p>';
+    }).catch(function (er) { $('ch-slist').innerHTML = '<p class="ch-empty">' + esc(er.message) + '</p>'; });
+  }
+  $('ch-sclose2').addEventListener('click', function () { $('ch-seenbg').hidden = true; });
   function openPhoto(id) {
     $('ch-limg').src = '/api/chat/files/' + id; $('ch-lopen').href = '/api/chat/files/' + id; $('ch-ldl').href = '/api/chat/files/' + id + '?download=1';
     $('ch-light').hidden = false;
@@ -504,23 +733,42 @@
   $('ch-q').addEventListener('input', renderList);
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    ['ch-newbg', 'ch-addbg', 'ch-taskbg'].forEach(function (id) { $(id).hidden = true; });
+    var dlg = ['ch-newbg', 'ch-addbg', 'ch-taskbg', 'ch-seenbg'].some(function (id) { return !$(id).hidden; }) || !$('ch-light').hidden;
+    ['ch-newbg', 'ch-addbg', 'ch-taskbg', 'ch-seenbg'].forEach(function (id) { $(id).hidden = true; });
     $('ch-bellmenu').hidden = true;
     if (!$('ch-light').hidden) $('ch-lclose').click();
     $('ch-mpop').hidden = true;
+    if (!dlg && W && W.isOpen() && !S.edit) W.escape();   // the window: Esc with nothing else open minimizes it
   });
-  ['ch-newbg', 'ch-addbg', 'ch-taskbg'].forEach(function (id) { $(id).addEventListener('click', function (e) { if (e.target === this) this.hidden = true; }); });
+  ['ch-newbg', 'ch-addbg', 'ch-taskbg', 'ch-seenbg'].forEach(function (id) { $(id).addEventListener('click', function (e) { if (e.target === this) this.hidden = true; }); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) { tick(); markRead(); } });
   window.addEventListener('focus', markRead);
-  window.addEventListener('hashchange', function () { var m = /^#c(\d+)$/.exec(location.hash); if (m && +m[1] !== S.cur) open(m[1]); });
+  if (!W) window.addEventListener('hashchange', function () { var m = /^#c(\d+)$/.exec(location.hash); if (m && +m[1] !== S.cur) open(m[1]); });
+  layout();
+  if (!W) window.matchMedia('(max-width:860px)').addEventListener('change', layout);
 
-  api('/me').then(function (me) {
+  // what the floating window (chat_widget.js) and the alerts (chat_alerts.js) call
+  window.SSC_CHAT = {
+    open: function (id) { return (S.me ? Promise.resolve() : ready).then(function () { return open(id); }); },
+    current: function () { return S.cur; },
+    convs: function () { return S.convs; },
+    wake: function () { S.rev = -1; loadConvs(); if (S.cur) loadThread(true); tick(); },
+    focus: function () { if (S.cur && !phone()) ta.focus(); }
+  };
+
+  var ready = api('/me').then(function (me) {
     S.me = me;
     return loadConvs();
-  }).then(function () {
-    var m = /^#c(\d+)$/.exec(location.hash);
-    if (m) open(m[1], { noFocus: true });
-    else if (window.matchMedia('(min-width:861px)').matches && S.convs.length) open(S.convs[0].id, { noFocus: true });
-    tick(); setInterval(tick, 4000); setInterval(function () { if (!document.hidden) loadConvs(); }, 60000);
+  });
+  ready.then(function () {
+    if (W) {
+      var id = W.start(S.convs);
+      if (id) open(id, { noFocus: phone() });
+    } else {
+      var m = /^#c(\d+)$/.exec(location.hash);
+      if (m) open(m[1], { noFocus: true });
+      else if (wide() && S.convs.length) open(S.convs[0].id, { noFocus: true });
+    }
+    tick(); setInterval(tick, 4000); setInterval(function () { if (awake()) loadConvs(); }, 60000);
   }).catch(function (e) { $('ch-convs').innerHTML = '<p class="ch-empty">' + esc(e.message) + '</p>'; });
 })();

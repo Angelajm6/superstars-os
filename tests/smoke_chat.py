@@ -16,6 +16,11 @@ Flask test client on an ISOLATED database (honors SSC_DB_URL; builds a throwaway
   * reactions toggle; delete is own-only (admin may), deleted text never comes back
   * make task: a crm_task for the person picked, linked to the chat
   * worker app: the shift token; a revoked / wrong token is 401; send, read, upload and fetch a file
+  * 2026-11-17 (https://claude.ai/artifact/4qCXUYDRtc2xQ5AWLgz15i): edit is own-only, keeps every earlier version,
+    refuses empty text; Seen by = who read it and when (a worker counts), the line under your latest message, delete
+    clears the history; one pinned message per chat; "is typing" rides on the poll and clears on send; on site =
+    signed in today, not out (office only); Spanish is spotted and translated (cached); Catch me up; the floating
+    window's fragment is staff-only and the /chat page is built from the same fragment
 
 Run:  venv/bin/python tests/smoke_chat.py
 """
@@ -111,6 +116,9 @@ def _cleanup(conn):
     if ids:
         marks = ",".join("?" * len(ids))
         for sql in (f"DELETE FROM chat_react WHERE msg_id IN (SELECT id FROM chat_msg WHERE conv_id IN ({marks}))",
+                    f"DELETE FROM chat_edit WHERE msg_id IN (SELECT id FROM chat_msg WHERE conv_id IN ({marks}))",
+                    f"DELETE FROM chat_tr WHERE msg_id IN (SELECT id FROM chat_msg WHERE conv_id IN ({marks}))",
+                    f"DELETE FROM chat_seen WHERE conv_id IN ({marks})", f"DELETE FROM chat_typing WHERE conv_id IN ({marks})",
                     f"DELETE FROM chat_file WHERE conv_id IN ({marks})", f"DELETE FROM chat_msg WHERE conv_id IN ({marks})",
                     f"DELETE FROM chat_member WHERE conv_id IN ({marks})", f"DELETE FROM chat_read WHERE conv_id IN ({marks})",
                     f"DELETE FROM chat_conv WHERE id IN ({marks}) AND conv_key <> 'general'"):
@@ -121,6 +129,7 @@ def _cleanup(conn):
             conn.execute("DELETE FROM chat_msg WHERE conv_id = ? AND body LIKE 'chatsmk%'", (gen[0],))
     conn.execute("DELETE FROM crm_task WHERE title LIKE 'chatsmk%'")
     conn.execute("DELETE FROM worker_app_session WHERE employee_id LIKE 'E-971%'")
+    conn.execute("DELETE FROM sign_in_log WHERE employee_id LIKE 'E-971%'")
     conn.execute("DELETE FROM project_assignments WHERE project_code LIKE 'CHAT-%'")
     conn.execute("DELETE FROM pm_project_assignment WHERE project_code LIKE 'CHAT-%'")
     conn.execute("DELETE FROM employees WHERE employee_id LIKE 'E-971%'")
@@ -397,16 +406,112 @@ def main() -> int:
         assert W(tok1, "notify", conv_id=wdm, mode="off").status_code == 200
         passed += 1; print("  alerts ok")
 
+        # ---- edit, seen by, pin, typing, on site, translate, catch me up, the window (2026-11-17)
+        d2 = C["ada"].post("/api/chat/convs", json={"kind": "dm", "members": [key["cy"]]}).get_json()["data"]["id"]
+        em = C["ada"].post(f"/api/chat/convs/{d2}/messages", json={"body": "chatsmk approved today"}).get_json()["data"]
+        assert em["edited"] is None
+        assert C["cy"].patch(f"/api/chat/messages/{em['id']}", json={"body": "chatsmk hijack"}).status_code == 403, "own only"
+        assert C["ada"].patch(f"/api/chat/messages/{em['id']}", json={"body": "  "}).status_code == 400
+        assert C["sam"].patch(f"/api/chat/messages/{em['id']}", json={"body": "x"}).status_code == 404
+        r = C["ada"].patch(f"/api/chat/messages/{em['id']}", json={"body": "chatsmk approved tomorrow"})
+        assert r.status_code == 200 and r.get_json()["data"]["edited"] and r.get_json()["data"]["body"].endswith("tomorrow")
+        C["ada"].patch(f"/api/chat/messages/{em['id']}", json={"body": "chatsmk approved Friday"})
+        info = C["cy"].get(f"/api/chat/messages/{em['id']}/info").get_json()["data"]
+        assert [e["body"] for e in info["edits"]] == ["chatsmk approved today", "chatsmk approved tomorrow"], info["edits"]
+        assert C["sam"].get(f"/api/chat/messages/{em['id']}/info").status_code == 404
+        cm = [m for m in C["cy"].get(f"/api/chat/convs/{d2}/messages").get_json()["data"]["messages"] if m["id"] == em["id"]][0]
+        assert cm["edited"] and cm["body"] == "chatsmk approved Friday"
+        # seen by: nobody yet, then Cy reads it
+        info = C["ada"].get(f"/api/chat/messages/{em['id']}/info").get_json()["data"]
+        assert info["seen"] == [] and [p["key"] for p in info["waiting"]] == [key["cy"]] and info["total"] == 1
+        line = C["ada"].get(f"/api/chat/convs/{d2}/messages").get_json()["data"]["seen"]
+        assert line["msg_id"] == em["id"] and line["count"] == 0
+        rv = C["ada"].get("/api/chat/poll").get_json()["data"]["rev"]
+        C["cy"].post(f"/api/chat/convs/{d2}/read", json={"last_id": em["id"]})
+        assert C["ada"].get("/api/chat/poll").get_json()["data"]["rev"] > rv, "a read refreshes the sender's Seen line"
+        info = C["ada"].get(f"/api/chat/messages/{em['id']}/info").get_json()["data"]
+        assert [p["key"] for p in info["seen"]] == [key["cy"]] and info["seen"][0]["at"] and info["waiting"] == []
+        line = C["ada"].get(f"/api/chat/convs/{d2}/messages").get_json()["data"]["seen"]
+        assert line["count"] == 1 and line["at"], line
+        n0 = conn.execute("SELECT COUNT(*) FROM chat_seen WHERE conv_id = ?", (d2,)).fetchone()[0]
+        C["cy"].post(f"/api/chat/convs/{d2}/read", json={"last_id": em["id"]})
+        assert conn.execute("SELECT COUNT(*) FROM chat_seen WHERE conv_id = ?", (d2,)).fetchone()[0] == n0, "no move, no row"
+        gm = C["sam"].post(f"/api/chat/convs/{g}/messages", json={"body": "chatsmk group check"}).get_json()["data"]
+        W(tok1, "read", conv_id=g, last_id=gm["id"])
+        gi = C["sam"].get(f"/api/chat/messages/{gm['id']}/info").get_json()["data"]
+        assert [p["key"] for p in gi["seen"]] == [f"e:{W1}"] and [p["key"] for p in gi["waiting"]] == [key["pat"]], gi
+        assert W(tok1, "info", msg_id=gm["id"]).status_code == 404, "Seen by is office-only for now"
+        assert W(tok1, "edit", msg_id=gm["id"], body="x").status_code == 404
+        # pin: one per chat; only a message of this chat; cleared when the message is deleted
+        pm = C["cy"].post(f"/api/chat/convs/{d2}/messages", json={"body": "chatsmk gate code 4417"}).get_json()["data"]
+        assert C["cy"].post(f"/api/chat/convs/{d2}/pin", json={"msg_id": pm["id"]}).get_json()["data"]["pin"]["id"] == pm["id"]
+        assert C["ada"].get(f"/api/chat/convs/{d2}").get_json()["data"]["pin"]["body"] == "chatsmk gate code 4417"
+        assert C["cy"].post(f"/api/chat/convs/{d2}/pin", json={"msg_id": gm["id"]}).status_code == 404
+        assert C["sam"].post(f"/api/chat/convs/{d2}/pin", json={"msg_id": pm["id"]}).status_code == 404
+        C["cy"].delete(f"/api/chat/messages/{pm['id']}")
+        assert C["ada"].get(f"/api/chat/convs/{d2}").get_json()["data"]["pin"] is None
+        # delete takes the earlier versions with it
+        C["ada"].delete(f"/api/chat/messages/{em['id']}")
+        assert conn.execute("SELECT COUNT(*) FROM chat_edit WHERE msg_id = ?", (em["id"],)).fetchone()[0] == 0
+        assert C["cy"].get(f"/api/chat/messages/{em['id']}/info").status_code == 400
+        # typing
+        assert C["cy"].post(f"/api/chat/convs/{d2}/typing", json={}).status_code == 200
+        assert C["ada"].get(f"/api/chat/poll?conv={d2}").get_json()["data"]["typing"] == ["Cy"]
+        assert C["cy"].get(f"/api/chat/poll?conv={d2}").get_json()["data"]["typing"] == [], "never yourself"
+        r = C["sam"].get(f"/api/chat/poll?conv={d2}")
+        assert r.status_code == 200 and r.get_json()["data"]["typing"] == [], "a chat you can't see: nothing, no error"
+        C["cy"].post(f"/api/chat/convs/{d2}/messages", json={"body": "chatsmk done typing"})
+        assert C["ada"].get(f"/api/chat/poll?conv={d2}").get_json()["data"]["typing"] == []
+        # on site: signed in today and not out
+        conn.execute("INSERT INTO sign_in_log (date, employee_id, project_code, time_in) VALUES (?, ?, ?, '06:58')",
+                     (datetime.now().date().isoformat(), W1, JOB))
+        conn.commit()
+        dj = C["pat"].get(f"/api/chat/convs/{ja}").get_json()["data"]
+        assert dj["on_site"].get(f"e:{W1}", {}).get("since") == "06:58", dj["on_site"]
+        assert W(tok1, "detail", conv_id=ja).get_json()["data"]["on_site"] == {}, "office only"
+        # translate (Claude's test seam) and catch me up
+        os.environ["SSC_ASSISTANT_FAKE"] = "1"
+        try:
+            es = W(tok1, "send", conv_id=ja, body="chatsmk necesitamos 6 bolsas de mortero para el parapeto norte").get_json()["data"]
+            en = C["pat"].post(f"/api/chat/convs/{ja}/messages", json={"body": "chatsmk we need six bags of mortar"}).get_json()["data"]
+            ms = {m["id"]: m for m in C["pat"].get(f"/api/chat/convs/{ja}/messages").get_json()["data"]["messages"]}
+            assert ms[es["id"]]["es"] and not ms[en["id"]]["es"], "Spanish is spotted, English is not"
+            t1 = C["pat"].post(f"/api/chat/messages/{es['id']}/translate", json={"lang": "en"}).get_json()["data"]["text"]
+            t2 = C["pat"].post(f"/api/chat/messages/{es['id']}/translate", json={"lang": "en"}).get_json()["data"]["text"]
+            assert t1 == t2 and t1.startswith("[EN]")
+            assert conn.execute("SELECT COUNT(*) FROM chat_tr WHERE msg_id = ?", (es["id"],)).fetchone()[0] == 1, "cached"
+            assert C["quinn"].post(f"/api/chat/messages/{es['id']}/translate", json={}).status_code == 404
+            assert W(tok1, "translate", msg_id=es["id"]).status_code == 404
+            cu = C["pat"].post(f"/api/chat/convs/{ja}/catchup", json={"after_id": 0}).get_json()["data"]
+            assert cu["bullets"] and cu["count"] >= 2
+            assert C["pat"].post(f"/api/chat/convs/{ja}/catchup", json={"after_id": en["id"]}).status_code == 400
+            assert C["quinn"].post(f"/api/chat/convs/{ja}/catchup", json={"after_id": 0}).status_code == 404
+        finally:
+            os.environ.pop("SSC_ASSISTANT_FAKE", None)
+        # the window: the same fragment, staff only; the page is built from it
+        r = C["ada"].get("/api/chat/widget")
+        assert r.status_code == 200 and b'id="ch-msgs"' in r.data and b'id="ch-seenbg"' in r.data and b"<html" not in r.data
+        assert C["cleo"].get("/api/chat/widget").status_code in (302, 403)
+        assert app.test_client().get("/api/chat/widget").status_code in (302, 401)
+        pg = C["ada"].get("/chat").data
+        assert b'id="ch-seenbg"' in pg and b"<!--CHAT_FRAGMENT-->" not in pg and b"chat.css" in pg
+        passed += 1; print("  edit / seen by / pin / typing / on site / translate / catch up / window ok")
+
         # ---- page + nav needles
-        page = (ROOT / "chat_page.html").read_text(encoding="utf-8")
+        page = (ROOT / "chat_page.html").read_text(encoding="utf-8") + (ROOT / "chat_fragment.html").read_text(encoding="utf-8")
         nav = (ROOT / "static" / "js" / "company_nav.js").read_text(encoding="utf-8")
         js = (ROOT / "static" / "js" / "chat.js").read_text(encoding="utf-8")
         assert page.count("data-nav-h1") == 1 and "SSC_NAV.mount()" in page
         assert "key: 'chat'" in nav and "/api/chat/unread" in nav and "ssc:chat-unread" in js
         assert nav.index("key: 'claude'") < nav.index("key: 'chat'"), "Chat sits under Claude"
-        assert "chat_alerts.js" in nav, "every page with the sidebar loads the alerts"
+        assert "chat_widget.js" in nav, "every page with the sidebar loads the window (and with it the alerts)"
+        wjs = (ROOT / "static" / "js" / "chat_widget.js").read_text(encoding="utf-8")
+        assert "chat_alerts.js" in wjs and "/api/chat/unread" in wjs and "/api/chat/widget" in wjs and "clx-fab" in wjs
+        assert "chat_widget.js" in (ROOT / "dashboard-static.html").read_text(encoding="utf-8"), "a job's page has the window"
+        assert "dblclick" in js and "/info" in js and "ArrowUp" in js and "SSC_CHAT_W" in js
+        assert "toISOString" not in wjs
         al = (ROOT / "static" / "js" / "chat_alerts.js").read_text(encoding="utf-8")
-        assert "/api/chat/alerts" in al and "Notification" in al and "openConv()" in al
+        assert "/api/chat/alerts" in al and "Notification" in al and "openConv()" in al and "SSC_CHAT_OPEN" in al
         assert 'id="ch-bell"' in page and "/notify" in js
         assert "toISOString" not in js and "SSCDatePicker.getISO" in js
         wapp = (ROOT / "worker-app.html").read_text(encoding="utf-8")
