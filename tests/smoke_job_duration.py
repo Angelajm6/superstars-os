@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 _TMP = tempfile.mkdtemp(prefix="ssc_jobdur_")
 
-from _isolated_db import build_isolated_sqlite as _build_isolated_sqlite  # noqa: E402
+from _isolated_db import build_isolated_sqlite as _build_isolated_sqlite, purge_users  # noqa: E402
 
 if not (os.environ.get("SSC_DB_URL") or "").strip():
     os.environ["SSC_DB_URL"] = _build_isolated_sqlite()
@@ -64,6 +64,12 @@ class _Scratch:
         self.c.commit()
 
 
+def _purge(conn, email: str) -> None:
+    uids = [r["id"] for r in conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchall()]
+    purge_users(conn, uids)
+    conn.commit()
+
+
 def main() -> int:
     passed = 0
 
@@ -86,7 +92,7 @@ def main() -> int:
     conn = db_layer.connect(pragma_fk=False)
     try:
         email = f"{TAG}.admin@example.com"
-        conn.execute("DELETE FROM users WHERE email = ?", (email,))
+        _purge(conn, email)
         conn.execute("INSERT INTO users (email, password_hash, role, full_name, is_active, status, must_reset_password, is_system) "
                      "VALUES (?, ?, 'admin', 'Smoke admin Jobdur', 1, 'active', 0, 1)", (email, auth.hash_password(PW)))
         conn.execute("DELETE FROM projects WHERE project_code = ?", (CODE,))
@@ -158,8 +164,8 @@ def main() -> int:
     conn = db_layer.connect(pragma_fk=False)
     try:
         conn.execute("DELETE FROM projects WHERE project_code = ?", (CODE,))
-        conn.execute("DELETE FROM users WHERE email = ?", (email,))
         conn.commit()
+        _purge(conn, email)   # sessions etc. first: Postgres enforces the users foreign keys
     finally:
         conn.close()
     shutil.rmtree(_TMP, ignore_errors=True)
