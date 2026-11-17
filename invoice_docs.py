@@ -68,7 +68,7 @@ _COLUMNS = (("sent_at", "TEXT"), ("sent_to", "TEXT"), ("sent_name", "TEXT"), ("s
             ("token_hash", "TEXT"), ("token_expires_at", "TEXT"), ("last_message", "TEXT"),
             ("design_doc_id", "INTEGER"), ("design_html", "TEXT"), ("design_at", "TEXT"), ("pdf_layout", "INTEGER DEFAULT 0"),
             ("sent_how", "TEXT"))   # sent_how (2026-11-13): app | gmail, or how someone marked it sent outside the app
-LAYOUT = 4   # 3 = several work lines + the editor's own wording (2026-11-11); 4 = Zelle under Check (2026-11-13). Bump when the invoice layout changes: stored PDFs from an older one are redrawn
+LAYOUT = 5   # 3 = several work lines + the editor's own wording (2026-11-11); 4 = Zelle under Check (2026-11-13). 5 = one page, Thank-you included (2026-11-17). Bump when the invoice layout changes: stored PDFs from an older one are redrawn
 PRIVATE_KEYS = ("pdf_path", "token_hash", "design_html")
 
 
@@ -243,7 +243,17 @@ _INV_CSS = """
   .inv-cols{grid-auto-flow:row}.inv-cols>div+div{border-left:0;border-top:1px solid #DCDDE0}.inv-cols>div:empty{display:none}.inv-cols.zelle{border-top:1px solid #DCDDE0}
 }
 @page{size:letter;margin:.4in .5in}
-@media print{body{background:#fff}.inv{max-width:none;padding:0}.inv-top{margin-top:24px}.inv-parties>div{padding-top:18px}.inv-work{margin-top:22px}.inv-tot{margin-top:12px}.inv-pay{margin-top:22px}.inv-cols>div{padding:10px}.inv-thanks{margin-top:20px;padding-top:14px}.inv-word::after,.inv-thanks h2::after,.inv-lh{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+@media print{body{background:#fff;font-size:12px;line-height:1.38}.inv{max-width:none;padding:0}
+  .inv-lh{padding-bottom:8px}.inv-lh .brand-logo{max-height:46px}.inv-co{font-size:11px}.inv-co b{font-size:12.5px}
+  .inv-top{margin-top:14px;padding-bottom:8px}.inv-word{font-size:28px}.inv-word::after{margin-top:9px;width:48px}
+  .inv-meta>*{padding:2px 0}.inv-meta dt{font-size:10px}.inv-meta dd{font-size:11.5px}
+  .inv-parties>div{padding:10px 0 8px}.inv-label{margin-bottom:4px}.inv-parties .s{margin-bottom:2px;font-size:13px}
+  .inv-work{margin-top:14px}.inv-work .hd{padding-bottom:5px}.inv-work .ln{padding:8px 10px}
+  .inv-tot{margin-top:8px}.inv-tot .r{padding:4px 10px;font-size:12.5px}
+  .inv-pay{margin-top:14px}.inv-cols>div{padding:6px 10px}.inv-cols small{margin-bottom:2px}.inv-cols b{font-size:12.5px}.inv-cols em{font-size:11px;margin-top:2px}
+  .inv-more{margin-top:6px;font-size:11.5px}.inv-notes{margin-top:12px}
+  .inv-thanks{margin-top:14px;padding-top:10px}.inv-thanks h2{font-size:18px}.inv-thanks h2::after{margin:6px auto 7px}.inv-thanks p{font-size:12px}.inv-thanks p+p{font-size:11px;margin-top:3px}
+  .inv-word::after,.inv-thanks h2::after,.inv-lh{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 """
 
 
@@ -512,6 +522,31 @@ def _pdf_dir() -> Path:
     return ssc_paths.under_root("data_room", "invoices")
 
 
+FIT_ZOOMS = (0.9, 0.8, 0.72, 0.65, 0.58)   # tried in order until the PDF is one page; the last is the smallest still readable
+
+
+def _is_aia(conn, inv: dict) -> bool:
+    try:
+        import aia_billing
+        return bool(aia_billing.for_invoice(conn, inv["id"]))
+    except Exception:
+        return False
+
+
+def _pdf_pages(path: Path) -> Optional[int]:
+    """Page count from the PDF's page tree (Chromium writes it plainly); None when it can't be read."""
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None
+    counts = [int(x) for x in re.findall(rb"/Type\s*/Pages\b[^>]*?/Count\s+(\d+)", data)]
+    counts += [int(x) for x in re.findall(rb"/Count\s+(\d+)[^>]*?/Type\s*/Pages\b", data)]
+    if counts:
+        return max(counts)
+    n = len(re.findall(rb"/Type\s*/Page\b", data))
+    return n or None
+
+
 def render_pdf(conn, invoice_id: int, *, actor=None) -> dict:
     inv = invoices.get(conn, invoice_id)
     if not inv:
@@ -522,8 +557,18 @@ def render_pdf(conn, invoice_id: int, *, actor=None) -> dict:
         d.mkdir(parents=True, exist_ok=True)
         html_path = d / f"{inv['number']}.html"
         pdf_path = d / f"{inv['number']}.pdf"
-        html_path.write_text(render_document(conn, inv), encoding="utf-8")
+        html = render_document(conn, inv)
+        html_path.write_text(html, encoding="utf-8")
         res = pdf_export.render_html_to_pdf(html_path, pdf_path, timeout_sec=90)
+        if res.get("ok") and not _is_aia(conn, inv):   # the G702 + G703 is two pages by design
+            for zoom in FIT_ZOOMS:   # one page, Thank-you included: a longer invoice is drawn a little smaller
+                if (_pdf_pages(pdf_path) or 1) <= 1:
+                    break
+                html_path.write_text(html.replace("</head>", f"<style>@media print{{html{{zoom:{zoom}}}}}</style></head>", 1),
+                                     encoding="utf-8")
+                res = pdf_export.render_html_to_pdf(html_path, pdf_path, timeout_sec=90)
+                if not res.get("ok"):
+                    break
         try:
             html_path.unlink(missing_ok=True)
         except Exception:
