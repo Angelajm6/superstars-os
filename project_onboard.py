@@ -343,6 +343,10 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     target = _valid_date(p.get("target_completion"))          # #332 — the calendar bar's end
     if target and provided_start and target < provided_start:
         raise ValueError("target completion cannot be before the start date")
+    # job duration — the end date expected at the start; left blank, it is the first target
+    anticipated = _valid_date(p.get("anticipated_completion")) or target
+    if anticipated and provided_start and anticipated < provided_start:
+        raise ValueError("anticipated completion cannot be before the start date")
     notes = (p.get("notes") or "").strip()[:2000]
     site = _site_fields(p, partial=True)          # #325 — validated before anything is written
     crew_ids = _crew_ids(conn, p)
@@ -416,7 +420,8 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
     code = res["project_code"]
     conn.execute("UPDATE projects SET name = ?, updated_at = ? WHERE project_code = ?", (name, now, code))
     try:
-        conn.execute("UPDATE projects SET start_date = ?, target_completion = ? WHERE project_code = ?", (provided_start, target, code))
+        conn.execute("UPDATE projects SET start_date = ?, target_completion = ?, anticipated_completion = ? WHERE project_code = ?",
+                     (provided_start, target, anticipated, code))
     except Exception as e:   # projects.start_date exists only where the legacy ALTER ran
         log.info("#324 projects.start_date not set: %s", e)
         try:
@@ -503,7 +508,7 @@ def onboard(conn, payload: dict, *, actor=None) -> dict:
                                 "site_lat, site_lng, geofence_m FROM projects WHERE project_code = ?", (code,)))
     return {"project_code": code, "project": project, "estimate_id": est["id"], "estimate_code": est["code"],
             "from_proposal_id": prop["id"] if prop else None,
-            "client_org_id": org_id, "pm_user_id": pm_user_id, "billing_type": bt, "modules": list(project_modules.KEYS) if modules is None else modules, "start_date": provided_start, "target_completion": target, "contract_value": contract,
+            "client_org_id": org_id, "pm_user_id": pm_user_id, "billing_type": bt, "modules": list(project_modules.KEYS) if modules is None else modules, "start_date": provided_start, "target_completion": target, "anticipated_completion": anticipated, "contract_value": contract,
             "crew": crew_change["added"], "job_number": setup.get("job_number"), "setup": setup}
 
 
@@ -581,6 +586,8 @@ def register(app) -> None:
         apply_project_site_325.ensure(conn)          # #325 — site columns heal at boot
         import apply_project_dates_334
         apply_project_dates_334.ensure(conn)         # #334 — start_date / target_completion heal at boot (preprod lacked them)
+        import apply_job_duration
+        apply_job_duration.ensure(conn)              # anticipated / actual completion (job duration)
     except Exception as e:   # a fresh preprod DB may migrate later; never block boot
         log.warning("#325 project site columns ensure skipped: %s", e)
     finally:

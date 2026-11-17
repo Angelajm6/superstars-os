@@ -291,27 +291,30 @@ def _set_assignments():
 
 @requires_company
 def _set_project_status(project_code):
-    """POST /api/projects/<code>/status — {status:'active'|'closed'} marks a project
-    closed or reopens it. admin/c_suite ONLY (server-enforced; the before_request hook
+    """POST /api/projects/<code>/status — {status:'active'|'closed', actual_completion?} marks a
+    project closed (stamping its actual completion, today unless given) or reopens it. admin/c_suite ONLY (server-enforced; the before_request hook
     also runs first — company roles always pass it). A closed project drops off assigned
     PMs' active-projects view and they can no longer open it; admin/c_suite still see it."""
     data = request.get_json(silent=True) or {}
     status = (data.get("status") or "").strip().lower()
     if status not in ("active", "closed"):
         return jsonify({"error": "status must be 'active' or 'closed'"}), 400
+    import project_details
     conn = _db()
     try:
         if not _project_exists(conn, project_code):
             return jsonify({"error": "project not found"}), 404
-        conn.execute(
-            "UPDATE projects SET status = ? WHERE project_code = ?", (status, project_code))
-        conn.commit()
+        try:   # closing stamps actual_completion (job duration); reopening clears it
+            out = project_details.set_status(conn, project_code, status,
+                                             actual_completion=data.get("actual_completion"))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
     finally:
         conn.close()
     logging.info(
         f"pm_scoping: project {project_code} status -> {status} "
         f"by={(current_user() or {}).get('id')}")
-    return jsonify({"data": {"project_code": project_code, "status": status}})
+    return jsonify({"data": out})
 
 
 @requires_company

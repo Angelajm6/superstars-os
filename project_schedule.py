@@ -45,6 +45,7 @@ def _job(conn, code: str, today: date) -> dict:
     if time_pct is not None and drops_pct is not None:
         pace = "on_pace" if drops_pct + PACE_SLACK_PCT >= time_pct else "behind"
     return {"start_date": h.get("start_date"), "target_completion": h.get("target_completion"),
+            "anticipated_completion": h.get("anticipated_completion"), "duration": h.get("duration") or {},
             "days_left": h.get("days_left"), "time_pct": time_pct,
             "drops_total": total, "drops_complete": done, "drops_pct": drops_pct, "pace": pace}
 

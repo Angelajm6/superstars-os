@@ -12,7 +12,7 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1016" defer></script>
-<script src="/files/static/js/new_project_modal.js?v=1026" defer></script>
+<script src="/files/static/js/new_project_modal.js?v=1117" defer></script>
 <title>Project Assignments · Superstars Contracting</title>
 <link rel="icon" type="image/svg+xml" href="/files/static/brand/mark.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="/files/static/brand/favicon-32.png">
@@ -248,6 +248,7 @@
         <li>Daily reports, photos, documents and invoices are all kept.</li>
         <li>You can reopen it anytime from this page.</li>
       </ul>
+      <div class="np-field"><label for="cf-act">Actual completion</label><input id="cf-act" type="date" class="ssc-date"><div class="np-hint">The day the work finished. It sets the job's actual duration.</div></div>
     </div>
     <div class="np-foot"><button type="button" class="btn-ghost" id="cf-cancel">Keep it open</button><button type="button" class="cf-go" id="cf-go">Close job</button></div>
   </div>
@@ -429,6 +430,8 @@
     $('cf-sw').style.background = jobColor(p);
     $('cf-open').href = '/projects/'+encodeURIComponent(code);
     $('cf-go').disabled=false;
+    var dp=window.SSCDatePicker; if(dp && typeof dp.wire==='function' && !$('cf-act').dataset.sscDp){ try{ dp.wire($('cf-act'), {}); }catch(e){} }
+    var t=new Date(); npDateSet($('cf-act'), t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'));   // the local date, not UTC
     $('cf-overlay').classList.add('open'); $('cf-cancel').focus();
   }
   function closeCloseConfirm(){
@@ -440,7 +443,7 @@
   document.addEventListener('keydown', function(e){ if(e.key==='Escape' && $('cf-overlay').classList.contains('open')) closeCloseConfirm(); });
   $('cf-go').addEventListener('click', async function(){
     if(!CF.code) return; var code=CF.code; $('cf-go').disabled=true;
-    await setStatus(code, 'closed'); CF.back=null; closeCloseConfirm();
+    await setStatus(code, 'closed', npDateGet($('cf-act')) || null); CF.back=null; closeCloseConfirm();
   });
 
   function renderPMs(){
@@ -467,12 +470,12 @@
     }).join('');
   }
 
-  window.setStatus = async function(code, status){
+  window.setStatus = async function(code, status, actual){
     clearBars();
     try{
       var resp = await fetch('/api/projects/'+encodeURIComponent(code)+'/status', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({status: status})
+        body: JSON.stringify(actual ? {status: status, actual_completion: actual} : {status: status})
       }).then(function(r){ return r.json(); });
       if(resp.error){ showErr(resp.error); return; }
       var pj = STATE.projects.filter(function(x){ return x.project_code===code; })[0], pn = (pj && pj.name) || code;

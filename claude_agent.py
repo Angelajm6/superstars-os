@@ -1097,8 +1097,9 @@ def _undo_issue(ctx, action, result):
 
 # ---- jobs (2026-10-22): a job's details, status and access methods, through the same code as Edit project
 _JOB_FIELDS = {"name": "Name", "address": "Address", "city_zip": "City / ZIP", "start_date": "Start date",
-               "target_completion": "Target completion", "contract_value": "Contract value"}
-_JOB_DATES = ("start_date", "target_completion")
+               "anticipated_completion": "Anticipated completion", "target_completion": "Target completion",
+               "contract_value": "Contract value"}
+_JOB_DATES = ("start_date", "anticipated_completion", "target_completion")
 _JOB_STATUSES = ("active", "closed")
 
 
@@ -1178,9 +1179,9 @@ def _job_card(ctx, inp):
     return {"title": "Change job details", "fields": fields}
 
 
-def _set_job_status(conn, code, status, actor):
-    conn.execute("UPDATE projects SET status = ? WHERE project_code = ?", (status, code))
-    conn.commit()
+def _set_job_status(conn, code, status, actor, actual_completion=None):
+    import project_details
+    project_details.set_status(conn, code, status, actual_completion=actual_completion)   # closing stamps actual_completion; reopening clears it
     log.info("claude job status %s -> %s by user %s", code, status, actor)
 
 
@@ -1197,6 +1198,7 @@ def _exec_job(ctx, inp):
         project_setup.update(ctx.conn, code, {"access_methods": c["access"][1]}, actor=ctx.uid)
     if c["status"]:
         before["status"] = now.get("status") or "active"
+        before["actual_completion"] = now.get("actual_completion")   # an undone reopen gets its old date back
         _set_job_status(ctx.conn, code, c["status"], ctx.uid)
     what = [("client" if k == "client_org_id" else _JOB_FIELDS[k].lower()) for k in det]
     what += (["access methods"] if c["access"] else []) + (["status"] if c["status"] else [])
@@ -1215,7 +1217,7 @@ def _undo_job(ctx, action, result):
     if "access_methods" in b:
         project_setup.update(ctx.conn, code, {"access_methods": b["access_methods"]}, actor=ctx.uid)
     if "status" in b:
-        _set_job_status(ctx.conn, code, b["status"], ctx.uid)
+        _set_job_status(ctx.conn, code, b["status"], ctx.uid, b.get("actual_completion"))
 
 
 # ---- inbox (2026-10-14): cards born from an email in the person's own mailbox
@@ -1739,11 +1741,11 @@ TOOLS += [
 ]
 TOOLS += [
     Tool("update_job", "Change job details", "Propose changing a job: name, address, city / ZIP, client (client_org_id "
-         "from find), start date, target completion, contract value, status (active or closed) and the access methods "
+         "from find), start date, anticipated completion (the end date expected at the start; it does not move), target completion, contract value, status (active or closed) and the access methods "
          "of an Exterior Restoration job (add_access_methods / remove_access_methods: suspended_scaffold, "
          "supported_scaffold, rope_access, boom_lift). Pass only what changes; look the job up first.",
          {"project_code": _S, "name": _S, "address": _S, "city_zip": _S, "client_org_id": _I, "start_date": _D,
-          "target_completion": _D, "contract_value": {"type": "number"}, "status": {"type": "string", "enum": list(_JOB_STATUSES)},
+          "anticipated_completion": _D, "target_completion": _D, "contract_value": {"type": "number"}, "status": {"type": "string", "enum": list(_JOB_STATUSES)},
           "add_access_methods": _ACCESS, "remove_access_methods": _ACCESS},
          ["project_code"], write=True, roles=OFFICE_ROLES, run=_check_job, card=_job_card, execute=_exec_job,
          undo=_undo_job),

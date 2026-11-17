@@ -127,6 +127,7 @@ GATE = [
     "smoke_job_sites_337.py",        # #337 guard — job sites without a project offered with a one-click path; ledger records boot-ensured migrations
     "smoke_building3d_336.py",       # #336 guard — the building in 3D: geocode/footprint cache (stubbed), maths, model, gates incl. client audience, page + vendored three.js
     "smoke_project_dates_334.py",    # #334 guard — projects.start_date / target_completion ensured dual-backend; odd date values never 500 the calendar
+    "smoke_job_duration.py",         # job duration — anticipated / target / actual completion; close stamps, reopen clears
     "smoke_calendar_plus_333.py",    # #333 guard — calendar extras: headcount, milestones, weather mapping (stubbed), reschedule, page hooks
     "smoke_calendar_332.py",         # #332 guard — jobs calendar: window rules, open-ended / closed / undated, report dots, dates via onboarding + Crew & site, pages
     "smoke_regions_331.py",          # #331 guard — regions beyond the boroughs: one list, metas, NJ estimate series, LI job + job-site label, pickers
