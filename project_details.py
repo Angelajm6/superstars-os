@@ -7,8 +7,8 @@ changes: it is the key on every report, document and DCR number.
   GET /api/projects/<code>/details         internal roles (the #263 scoping hook keeps a pm to
                                            their own jobs); `can_edit` says whether to offer Edit
   PUT /api/admin/projects/<code>/details   admin / c_suite — any subset of:
-        name, address, city_zip, client_org_id | new_org_name, start_date, target_completion,
-        contract_value
+        name, address, city_zip, client_org_id | new_org_name, start_date, anticipated_completion,
+        target_completion, actual_completion, contract_value
 
 Rules
   * Everything is validated before anything is written (a refused edit changes nothing and never
@@ -20,13 +20,18 @@ Rules
   * Contract value: an AIA job's contract IS its schedule of values (edit the SOV); otherwise it is
     the converted estimate's final amount, which is what this edits. A job with neither can't take
     one here.
+  * Job duration: anticipated_completion is the end date expected when the job started (it does
+    not move with the schedule; target_completion does), actual_completion the day the work
+    finished. `duration` compares them in calendar days from the start date. Actual completion
+    belongs to a closed job: `set_status` stamps it with today on close (unless one is given or
+    already set) and clears it on reopen; it can't be in the future.
   * Each saved edit lands on the client's timeline ("Project X updated: name, address") so the
     company can see who changed what; values never go to the log.
 """
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from flask import jsonify, request
@@ -42,7 +47,9 @@ log = logging.getLogger("ssc.project_details")
 
 INTERNAL = ("admin", "c_suite", "pm", "super")
 LABELS = {"name": "name", "address": "address", "city_zip": "city / ZIP", "client_org_id": "client",
-          "start_date": "start date", "target_completion": "target completion", "contract_value": "contract value"}
+          "start_date": "start date", "anticipated_completion": "anticipated completion",
+          "target_completion": "target completion", "actual_completion": "actual completion", "contract_value": "contract value"}
+DATE_KEYS = ("start_date", "anticipated_completion", "target_completion", "actual_completion")
 
 
 def _one(cur) -> Optional[dict]:
@@ -55,9 +62,31 @@ def _converted_estimate(conn, code: str) -> Optional[dict]:
                              "ORDER BY id DESC LIMIT 1", (code,)))
 
 
+def _days(a, b) -> Optional[int]:
+    try:
+        return (date.fromisoformat(str(b)[:10]) - date.fromisoformat(str(a)[:10])).days if a and b else None
+    except ValueError:
+        return None
+
+
+def duration(start, anticipated, target, actual, status) -> dict:
+    """Calendar days from the start date to each end date, and how the job compares with what was
+    anticipated: the actual duration once the job is closed, the current target while it is open."""
+    closed = (status or "active") == "closed"
+    expected, target_days = _days(start, anticipated), _days(start, target)
+    actual_days = _days(start, actual) if closed else None
+    so_far = None if closed or not start else max(0, _days(start, date.today().isoformat()) or 0)
+    against = actual_days if closed else target_days
+    variance = (against - expected) if (expected is not None and against is not None) else None
+    pct = round(abs(variance) / expected * 100) if (variance is not None and expected) else None
+    return {"expected_days": expected, "target_days": target_days, "actual_days": actual_days, "so_far_days": so_far,
+            "variance_days": variance, "variance_pct": pct, "measured": "actual" if closed else "target"}
+
+
 def details(conn, code: str) -> Optional[dict]:
     p = _one(conn.execute("SELECT project_code, name, address, city_zip, status, client_org_id, start_date, "
-                          "target_completion, building_id FROM projects WHERE project_code = ?", (code,)))
+                          "anticipated_completion, target_completion, actual_completion, building_id "
+                          "FROM projects WHERE project_code = ?", (code,)))
     if not p:
         return None
     org = crm.get_org(conn, p["client_org_id"]) if p.get("client_org_id") else None
@@ -73,10 +102,46 @@ def details(conn, code: str) -> Optional[dict]:
         "project_code": p["project_code"], "name": p.get("name"), "address": p.get("address"),
         "city_zip": p.get("city_zip"), "status": p.get("status") or "active",
         "client_org_id": p.get("client_org_id"), "client_name": (org or {}).get("name"),
-        "start_date": p.get("start_date"), "target_completion": p.get("target_completion"),
+        "start_date": p.get("start_date"), "anticipated_completion": p.get("anticipated_completion"),
+        "target_completion": p.get("target_completion"), "actual_completion": p.get("actual_completion"),
+        "duration": duration(p.get("start_date"), p.get("anticipated_completion"), p.get("target_completion"),
+                             p.get("actual_completion"), p.get("status")),
         "contract_value": contract.get("value"), "contract_source": contract.get("source"),
         "contract_editable": bool(est), "contract_note": note,
     }
+
+
+def _check_dates(want: dict, cur: dict) -> None:
+    start = want.get("start_date", cur.get("start_date"))
+    for k in ("anticipated_completion", "target_completion", "actual_completion"):
+        end = want.get(k, cur.get(k))
+        if start and end and str(end)[:10] < str(start)[:10]:
+            raise ValueError(f"{LABELS[k]} cannot be before the start date")
+    actual = want.get("actual_completion")
+    if actual:
+        if (cur.get("status") or "active") != "closed":
+            raise ValueError("close the job to set its actual completion")
+        if str(actual)[:10] > date.today().isoformat():
+            raise ValueError("actual completion cannot be in the future")
+
+
+def set_status(conn, code: str, status: str, *, actual_completion=None) -> dict:
+    """Close or reopen a job. Closing stamps actual_completion (the one given, else the one already
+    set, else today); reopening clears it, since the work is not finished. Commits."""
+    if status not in ("active", "closed"):
+        raise ValueError("status must be 'active' or 'closed'")
+    row = _one(conn.execute("SELECT start_date, actual_completion FROM projects WHERE project_code = ?", (code,)))
+    if row is None:
+        raise LookupError("project not found")
+    if status == "closed":
+        actual = project_onboard._valid_date(actual_completion) or row.get("actual_completion") or date.today().isoformat()
+        _check_dates({"actual_completion": actual}, {"start_date": row.get("start_date"), "status": "closed"})
+    else:
+        actual = None
+    conn.execute("UPDATE projects SET status = ?, actual_completion = ?, updated_at = ? WHERE project_code = ?",
+                 (status, actual, datetime.now().isoformat(timespec="seconds"), code))
+    conn.commit()
+    return {"project_code": code, "status": status, "actual_completion": actual}
 
 
 def _text(p: dict, key: str, label: str, max_len: int, required: bool) -> Optional[str]:
@@ -101,13 +166,10 @@ def update(conn, code: str, p: dict, *, actor=None) -> dict:
         want["address"] = _text(p, "address", "address", 300, required=True)
     if "city_zip" in p:
         want["city_zip"] = _text(p, "city_zip", "city / ZIP", 120, required=False)
-    for k in ("start_date", "target_completion"):
+    for k in DATE_KEYS:
         if k in p:
             want[k] = project_onboard._valid_date(p.get(k))
-    start = want.get("start_date", cur.get("start_date"))
-    target = want.get("target_completion", cur.get("target_completion"))
-    if start and target and str(target)[:10] < str(start)[:10]:
-        raise ValueError("target completion cannot be before the start date")
+    _check_dates(want, cur)
 
     new_org_name = (p.get("new_org_name") or "").strip()
     if p.get("client_org_id") not in (None, ""):
@@ -144,7 +206,7 @@ def update(conn, code: str, p: dict, *, actor=None) -> dict:
         return details(conn, code)
 
     now = datetime.now().isoformat(timespec="seconds")
-    cols = [k for k in changed if k in ("name", "address", "city_zip", "client_org_id", "start_date", "target_completion")]
+    cols = [k for k in changed if k in ("name", "address", "city_zip", "client_org_id") + DATE_KEYS]
     if cols:
         conn.execute(f"UPDATE projects SET {', '.join(k + ' = ?' for k in cols)}, updated_at = ? WHERE project_code = ?",
                      (*[want[k] for k in cols], now, code))

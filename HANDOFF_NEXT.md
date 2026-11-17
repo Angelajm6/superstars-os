@@ -21,6 +21,23 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Job duration: anticipated vs. target vs. actual completion (Bookore, 2026-11-17)
+
+* Accepted prototype: https://claude.ai/artifact/CGJfemZZ9r9fb7bQ1132cu. New `projects.anticipated_completion` (the end date
+  expected at the start; it doesn't move) and `projects.actual_completion` (`apply_job_duration.py`, dual-backend, ensured at
+  boot in `project_onboard.register`). `target_completion` stays the working end date the calendar draws.
+* `project_details.duration()` = calendar days from the start to each end date + the variance against the anticipated end
+  (the target while open, the actual once closed). Returned on `/details` (`duration`), the Summary header and the Schedule
+  job row (a "N days over / early" pill).
+* `project_details.set_status()` is the ONE close / reopen path (`POST /api/projects/<code>/status` and Claude's job tool):
+  close stamps `actual_completion` (the date given, else the one already set, else today); reopen clears it. Actual can't be
+  before the start, in the future, or set on an open job (`PUT …/details` refuses).
+* UI: Edit project → Dates & people (Anticipated, Target, Actual, Status, live duration strip); job Settings → Project
+  details (rows + inline form); Assignments → Close asks for the actual date (today by default). New jobs: Anticipated
+  starts as the first target (mirrored visibly in the window; the server does the same when it's left blank). Existing
+  jobs start blank.
+* Guard: `tests/smoke_job_duration.py` (in the gate). Modal script is `?v=1117`.
+
 ### Chat: talk to type + translate the message box (Bookore, 2026-11-17)
 
 * Accepted prototype: https://claude.ai/artifact/4qCXUYDRtc2xQ5AWLgz15i (v2). A **mic** in the message box (`#ch-mic`, `/chat` and the
