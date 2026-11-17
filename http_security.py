@@ -42,7 +42,8 @@ def apply_http_security_headers(app) -> None:
         self_frame = _frameable_by_self(request.path)
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN" if self_frame else "DENY")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        response.headers.setdefault("Permissions-Policy", "camera=(self), geolocation=(self), microphone=()")
+        # microphone=(self) (2026-11-17): chat talk-to-type on our own pages; still never another site or an embed
+        response.headers.setdefault("Permissions-Policy", "camera=(self), geolocation=(self), microphone=(self)")
         response.headers.setdefault(
             "Content-Security-Policy",
             "base-uri 'self'; frame-ancestors " + ("'self'" if self_frame else "'none'")

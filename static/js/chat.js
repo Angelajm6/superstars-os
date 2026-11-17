@@ -8,7 +8,7 @@
  * there it is always one column, never touches the address bar, and reads / polls only while the window is open.
  * New: edit your own messages (↑ edits the last one; earlier versions under "(edited)"), Seen by (double-click or
  * double-tap a message; a line under your latest one), a pinned message, who is on site, "is typing", Translate to
- * English, Catch me up (Claude), and quick replies in job chats. */
+ * English, Catch me up (Claude), and quick replies in job chats. Later the same day: talk to type (the mic). */
 (function () {
   'use strict';
   if (window.SSC_CHAT) return;
@@ -322,6 +322,7 @@
   function open(id, opts) {
     id = +id; if (!id) return;
     if (S.cur !== id) {
+      if (V && V.rec) stopVoice(true);
       S.pending = []; S.reply = null; S.mentions = {}; S.edit = null; S.seen = null; S.typing = []; renderPending(); renderReply(); $('ch-ta').value = ''; grow();
       var c = S.convs.filter(function (x) { return x.id === id; })[0];
       S.catchup = { conv: id, pending: true, count: c ? c.unread || 0 : 0 };
@@ -337,6 +338,7 @@
     return loadThread().then(function () { if (!(opts && opts.noFocus) && !phone()) $('ch-ta').focus(); });
   }
   function closeThread() {
+    if (V && V.rec) stopVoice(true);
     S.cur = null; S.detail = null; S.edit = null; S.typing = []; renderTyping();
     $('ch').classList.remove('open'); document.body.classList.remove('ch-in');
     $('ch-noth').hidden = false; $('ch-th').hidden = true; $('ch-msgs').hidden = true; $('ch-comp').hidden = true; $('ch-side').hidden = true;
@@ -365,7 +367,7 @@
   // ---- composer ----
   var ta = $('ch-ta');
   function grow() { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; }
-  function canSend() { $('ch-send').disabled = S.sending || S.pending.some(function (p) { return !p.id && !p.err; }) || !(ta.value.trim() || S.pending.some(function (p) { return p.id; })); quick(); }
+  function canSend() { $('ch-send').disabled = S.sending || S.pending.some(function (p) { return !p.id && !p.err; }) || !(ta.value.trim() || S.pending.some(function (p) { return p.id; })); quick(); if (V) trbox(); }
   function ping() {   // "is typing": at most one tiny call every 4 s while you type
     if (!S.cur || !ta.value.trim() || Date.now() - S.pinged < 4000) return;
     S.pinged = Date.now();
@@ -373,6 +375,7 @@
   }
   function showErr(t) { $('ch-err').textContent = t || ''; $('ch-err').hidden = !t; }
   function send() {
+    if (V.rec) stopVoice(true);
     var body = ta.value.trim(), ids = S.pending.filter(function (p) { return p.id; }).map(function (p) { return p.id; });
     if ((!body && !ids.length) || $('ch-send').disabled) return;
     var ment = Object.keys(S.mentions).filter(function (k) { return body.indexOf('@' + S.mentions[k]) !== -1; });
@@ -405,6 +408,72 @@
   $('ch-quick').addEventListener('click', function (e) {
     var b = e.target.closest('[data-q]'); if (!b) return;
     ta.value = b.dataset.q; grow(); canSend(); ta.focus();
+  });
+
+  // ---- talk to type (2026-11-17, accepted prototype https://claude.ai/artifact/4qCXUYDRtc2xQ5AWLgz15i v2) ----
+  // The phone's / browser's own speech recognition writes into the box as you talk (English or Spanish; no audio is
+  // kept, only the text, which you can still edit). "✦ To English / A español" has Claude rewrite the box before you
+  // send (POST /api/chat/translate), with Undo. The mic shows only where the browser has speech recognition.
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var V = { rec: null, lang: null, base: '', busy: false };
+  var ES = /\b(el|la|los|las|que|de|del|para|por|con|una|necesitamos|necesito|está|están|estamos|mañana|hoy|gracias|vamos|pero|también|después|terminado|aquí|ya|hay|muy|bien|tenemos|tengo|más)\b/gi;
+  function looksEs(t) { var w = (t.match(/[a-záéíóúñü]+/gi) || []).length, h = (t.match(ES) || []).length; return /[ñ¿¡]/.test(t) || (h >= 2 && h / Math.max(w, 1) >= 0.2) || (w < 4 && h >= 1); }
+  function vlang() {
+    if (!V.lang) { try { V.lang = localStorage.getItem('ssc.chat.vlang'); } catch (e) {} }
+    return V.lang === 'es' || V.lang === 'en' ? V.lang : (/^es/i.test(navigator.language || '') ? 'es' : 'en');
+  }
+  function trbox() {
+    var b = $('ch-trbox'), v = ta.value.trim();
+    b.hidden = !v || !!V.rec || !S.me || !!S.me.worker;
+    if (!b.hidden && !V.busy) $('ch-trlbl').textContent = looksEs(v) ? 'To English' : 'A español';
+  }
+  function renderListen() {
+    $('ch-listen').hidden = !V.rec;
+    var mic = $('ch-mic'); mic.classList.toggle('live', !!V.rec); mic.setAttribute('aria-label', V.rec ? 'Stop talking' : 'Talk to type');
+    mic.setAttribute('aria-pressed', V.rec ? 'true' : 'false');
+    Array.prototype.forEach.call($('ch-listen').querySelectorAll('[data-vl]'), function (b) { b.classList.toggle('on', b.dataset.vl === vlang()); });
+    trbox();
+  }
+  function startVoice() {
+    if (!SR || V.rec || !S.cur) return;
+    var r = new SR();
+    r.lang = vlang() === 'es' ? 'es-US' : 'en-US'; r.continuous = true; r.interimResults = true;
+    V.base = ta.value ? ta.value.replace(/\s*$/, ' ') : '';
+    r.onresult = function (e) {
+      var said = '';
+      for (var i = 0; i < e.results.length; i++) said += e.results[i][0].transcript;
+      ta.value = (V.base + said.trim()).replace(/^\s+/, ''); grow(); canSend(); ping();
+    };
+    r.onerror = function (e) {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('Allow the microphone for this site to talk to type.');
+      else if (e.error === 'no-speech') toast('Nothing heard. Tap the mic and try again.');
+      else if (e.error === 'network') toast('Talk to type needs a connection. Try again.');
+      else if (e.error !== 'aborted') toast('Talk to type stopped. Tap the mic to go on.');
+    };
+    r.onend = function () { if (V.rec === r) { V.rec = null; renderListen(); if (!phone()) ta.focus(); } };
+    try { r.start(); V.rec = r; renderListen(); } catch (er) { toast('Talk to type could not start. Try again.'); }
+  }
+  function stopVoice(hard) {   // hard: drop what is still on its way (sending, another chat)
+    var r = V.rec; if (!r) return;
+    if (hard) { r.onresult = null; V.rec = null; renderListen(); try { r.abort(); } catch (e) {} return; }
+    try { r.stop(); } catch (e) { V.rec = null; renderListen(); }
+  }
+  $('ch-mic').hidden = !SR;
+  $('ch-mic').addEventListener('click', function () { if (V.rec) stopVoice(); else startVoice(); });
+  $('ch-vstop').addEventListener('click', function () { stopVoice(); });
+  $('ch-listen').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-vl]'); if (!b || b.dataset.vl === vlang()) return;
+    V.lang = b.dataset.vl; try { localStorage.setItem('ssc.chat.vlang', V.lang); } catch (er) {}
+    if (V.rec) { stopVoice(true); startVoice(); } else renderListen();   // go on in the other language, keeping the text
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && V.rec) stopVoice(); });
+  $('ch-trbox').addEventListener('click', function () {
+    var v = ta.value.trim(), b = $('ch-trbox'); if (!v || V.busy) return;
+    V.busy = true; b.disabled = true; $('ch-trlbl').textContent = 'Translating…';
+    api('/translate', { method: 'POST', body: { text: v } }).then(function (d) {
+      var was = ta.value; ta.value = d.text; grow(); canSend(); ta.focus();
+      undoToast('Translated by Claude', function () { ta.value = was; grow(); canSend(); ta.focus(); });
+    }).catch(function (er) { toast(er.message); }).then(function () { V.busy = false; b.disabled = false; trbox(); });
   });
 
   // attachments: picked, dropped or pasted; each uploads at once, Send waits for them
@@ -728,6 +797,12 @@
 
   // ---- misc ----
   function toast(t) { var el = $('ch-toast'); el.textContent = t; el.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(function () { el.hidden = true; }, 3200); }
+  function undoToast(t, undo) {
+    var el = $('ch-toast'); el.textContent = t + ' · ';
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = 'Undo';
+    b.addEventListener('click', function () { el.hidden = true; undo(); });
+    el.appendChild(b); el.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(function () { el.hidden = true; }, 6000);
+  }
   $('ch-back').addEventListener('click', closeThread);
   $('ch-filters').addEventListener('click', function (e) { var b = e.target.closest('.ch-chip'); if (!b) return; S.filter = b.dataset.f; Array.prototype.forEach.call(this.children, function (x) { x.classList.toggle('on', x === b); }); renderList(); });
   $('ch-q').addEventListener('input', renderList);

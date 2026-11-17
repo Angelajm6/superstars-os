@@ -21,6 +21,21 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Chat: talk to type + translate the message box (Bookore, 2026-11-17)
+
+* Accepted prototype: https://claude.ai/artifact/4qCXUYDRtc2xQ5AWLgz15i (v2). A **mic** in the message box (`#ch-mic`, `/chat` and the
+  floating window) shows only where the browser has speech recognition (`SpeechRecognition` / `webkitSpeechRecognition`:
+  iPhone Safari, Chrome). Tap → "Listening…" with an **EN / ES** switch (remembered in `localStorage ssc.chat.vlang`; first
+  time = the browser's language); words land in the box as you talk, editable; tap again / Stop / Esc to stop; switching
+  language mid-way keeps the text. Sending or changing chats stops it. The phone / browser does the speech-to-text (Apple or
+  Google, as with the keyboard's own dictation); **no audio is kept** and nothing new is stored.
+* **✦ To English / A español** (`#ch-trbox`, shows when the box has text): `POST /api/chat/translate` {text} → Claude rewrites the
+  box (Spanish-looking → English, else → Spanish; `chat.translate_text`, office only, nothing stored), with Undo in the toast.
+* `http_security.py`: `Permissions-Policy` now `microphone=(self)` (was `microphone=()`, which blocked the mic everywhere).
+  Still never another site or an embed. Toasts sit above the message box on a phone.
+* Guard: `smoke_chat` (translate both ways, empty / too long 400, client 403, signed out 401, the mic / button / header needles).
+  Checked in headless Chrome with a stand-in recognizer (headless has no mic). **One live check on a real phone is still needed.**
+
 ### Chat everywhere: a floating window, edit, Seen by, and more (Bookore, 2026-11-17)
 
 * Accepted prototype: https://claude.ai/artifact/4qCXUYDRtc2xQ5AWLgz15i. A blue **Chat** button with the unread count sits beside

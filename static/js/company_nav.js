@@ -195,7 +195,7 @@
     // the floating Chat window + chat alerts on every page (static/js/chat_widget.js loads chat_alerts.js):
     // loaded once, here, so no page has to include them. Both show only for the roles that have Chat.
     if (!document.querySelector('script[data-chat-widget]')) {
-      var sc = document.createElement('script'); sc.src = '/files/static/js/chat_widget.js?v=1'; sc.defer = true;
+      var sc = document.createElement('script'); sc.src = '/files/static/js/chat_widget.js?v=2'; sc.defer = true;
       sc.setAttribute('data-chat-widget', ''); document.head.appendChild(sc);
     }
     document.addEventListener('visibilitychange', function () { if (!document.hidden) pollChat(); });
