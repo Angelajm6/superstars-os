@@ -6,6 +6,8 @@
  * Two tabs (accepted prototype 2026-11-11, https://claude.ai/artifact/E3AZ6ytnir14NxaBCnQgK6): For you = this person's
  * day (the dashboard's Needs you cards, plus decisions waiting), What happened = the team's news. The badge counts For
  * you; unread news shows as a dot on its tab. Once a day the first page pops the morning banner.
+ * The badge is what's left to check: opening an item from the bell checks it (it stays in the list, dimmed, until the
+ * work is done), and Mark all checked clears the rest.
  */
 (function () {
   'use strict';
@@ -58,6 +60,20 @@
     if (!S.data) return 0;
     return S.data.badge != null ? S.data.badge : S.data.unread + S.data.waiting.length;
   }
+  function youItems() {
+    return S.data ? (S.data.for_you || []).concat(S.data.waiting || []) : [];
+  }
+  function checkIds(ids) {   // opened from the bell: the badge drops now, the server keeps it
+    var left = youItems().filter(function (i) { return ids.indexOf(i.id) >= 0 && !i.checked; });
+    if (!left.length) return;
+    left.forEach(function (i) { i.checked = true; });
+    S.data.badge = Math.max(0, badgeCount() - left.length);
+    post('/api/activity/checked', { ids: left.map(function (i) { return i.id; }) }).then(function (r) {
+      return r.ok ? r.json() : null;
+    }).then(function (j) {
+      if (j && j.data && S.data) { S.data.badge = j.data.badge; renderBell(); if (S.open) renderPanel(); }
+    }).catch(function () { });
+  }
   function renderBell() {
     var n = badgeCount(), news = S.data ? S.data.unread : 0;
     bell.innerHTML = ICON.bell + (n ? '<span class="ab-badge">' + (n > 99 ? '99+' : n) + '</span>' : (news ? '<span class="ab-badge ab-badge-dot" aria-hidden="true"></span>' : ''));
@@ -65,7 +81,7 @@
     bell.setAttribute('aria-expanded', S.open ? 'true' : 'false');
   }
   function youRow(it) {
-    return '<a class="ab-item ab-you" href="' + esc(it.href) + '">' + icon(it) +
+    return '<a class="ab-item ab-you' + (it.checked ? ' ab-checked' : '') + '" href="' + esc(it.href) + '" data-you="' + esc(it.id) + '">' + icon(it) +
       '<span class="ab-body"><span class="ab-title">' + esc(it.title) + '</span>' +
       (it.sub ? '<span class="ab-sub">' + esc(it.sub) + '</span>' : '') +
       (it.pill ? '<span class="ab-pill ab-pill-' + esc(it.tint || 'plain') + '">' + esc(it.pill) + '</span>' : '') + '</span></a>';
@@ -82,7 +98,7 @@
     }).join('');
   }
   function waitRow(w) {
-    return '<div class="ab-item ab-unread ab-wait">' + icon(w) + '<span class="ab-body"><a class="ab-title" href="' + esc(w.href) + '">' + esc(w.title) + '</a>' +
+    return '<div class="ab-item ab-wait' + (w.checked ? ' ab-checked' : ' ab-unread') + '">' + icon(w) + '<span class="ab-body"><a class="ab-title" href="' + esc(w.href) + '" data-you="' + esc(w.id) + '">' + esc(w.title) + '</a>' +
       '<span class="ab-sub">' + esc(w.sub) + '</span>' + (w.note ? '<span class="ab-note">' + esc(w.note) + '</span>' : '') +
       '<span class="ab-acts">' + actionButtons(w) + '</span></span></div>';
   }
@@ -129,10 +145,11 @@
       tab('news', 'What happened', unread ? '<span class="ab-tabdot" aria-label="' + unread + ' new"></span>' : '') +
       '</div><span class="ab-head-acts">' +
       (S.tab === 'news' && unread ? '<button type="button" class="ab-link" data-ab="read-all">Mark all read</button>' : '') +
+      (S.tab === 'you' && n ? '<button type="button" class="ab-link" data-ab="check-all"><span class="ab-wide">Mark all checked</span><span class="ab-narrow">Check all</span></button>' : '') +
       '<button type="button" class="ab-close" data-ab="close" aria-label="Close">' + ICON.x + '</button></span></div>' +
       '<div class="ab-list" role="tabpanel">' + body + '</div>' +
       '<div class="ab-foot">' + (S.tab === 'news' ? 'Your own actions don’t appear here, unless they’re waiting for a decision. Admins only for now.'
-        : 'The same list as Needs you on the dashboard. Tap one to open it.') + '</div>';
+        : 'The same list as Needs you on the dashboard. Opened ones are greyed out and stay until they’re done.') + '</div>';
   }
   function markRead() {
     if (!S.data || !S.data.unread || !S.data.latest) return;
@@ -425,6 +442,7 @@
       if (what === 'close') toggle(false);
       else if (what === 'retry') load();
       else if (what === 'read-all') { markRead(); renderBell(); renderPanel(); }
+      else if (what === 'check-all') { checkIds(youItems().map(function (i) { return i.id; })); renderBell(); renderPanel(); }
       else if (what === 'tab') { S.tab = b.dataset.tab; renderPanel(); var t = panel.querySelector('.ab-tab.ab-on'); if (t) t.focus(); }
       else if (what === 'see-today') { dropBanner(b.closest('.ab-banner')); toggle(true, 'you'); }
       else if (what === 'banner-x') {
@@ -432,13 +450,15 @@
         if (bn.dataset.wait) rememberClosed(bn.dataset.id);   // it stays in the bell and doesn't pop up again
         dropBanner(bn);
       }
-      else if (what === 'decide') decide(b);
+      else if (what === 'decide') decide(b);   // an answered decision leaves the list on its own
       else if (what === 'sheet-close') closeSheet();
       else if (what === 'undo') undo(b);
       return;
     }
     var link = e.target.closest && e.target.closest('a.ab-item, .ab-wait a, .ab-banner a');
     if (link && !link.closest('.ab-banner')) {
+      var you = link.dataset.you || (link.closest('[data-you]') && link.closest('[data-you]').dataset.you);
+      if (you) checkIds([you]);
       if (S.sawNews) markRead();
       S.open = false;
       renderBell();

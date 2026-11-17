@@ -15,9 +15,11 @@ What needs a decision comes from activity_accepts.py (phase 3).
 
 "For you" (accepted prototype 2026-11-11: https://claude.ai/artifact/E3AZ6ytnir14NxaBCnQgK6): the bell's first tab is
 this person's day, the same cards as Needs you on the dashboard (today_feed.needs), so the two always match. The badge
-counts For you plus what waits for a decision. Once a day the first page shows a morning banner with the day's counts.
-Nothing here reads anyone's email, and no AI runs. `activity_seen` keeps two marks per person: what they have read (the
-badge) and what has already popped up as a banner.
+counts what is left to check: For you plus what waits for a decision, less what this person already opened from the
+bell (`activity_checked`, one row per item with the title it had, so a card that changes, like 3 receipts becoming 5,
+counts again). Opened items stay in the list, dimmed, until the work is done. Once a day the first page shows a morning
+banner with the day's counts. Nothing here reads anyone's email, and no AI runs. `activity_seen` keeps two marks per
+person: what they have read (the What happened dot) and what has already popped up as a banner.
 """
 from __future__ import annotations
 
@@ -49,6 +51,9 @@ def _rows(conn, sql, params=()) -> list:
 def ensure(conn) -> None:
     """Idempotent."""
     conn.execute("CREATE TABLE IF NOT EXISTS activity_seen (user_id INTEGER PRIMARY KEY, read_at TEXT, banner_at TEXT)")
+    conn.commit()
+    conn.execute("CREATE TABLE IF NOT EXISTS activity_checked (user_id INTEGER NOT NULL, item_id TEXT NOT NULL, "
+                 "title TEXT NOT NULL DEFAULT '', checked_at TEXT NOT NULL, PRIMARY KEY (user_id, item_id))")
     conn.commit()
     if not _has_column(conn, "activity_seen", "morning_on"):   # the day the morning banner last showed (local date)
         conn.execute("ALTER TABLE activity_seen ADD COLUMN morning_on TEXT")
@@ -288,7 +293,58 @@ def for_you(conn, uid: int, now: datetime, first: Optional[list] = None) -> list
     order = {"today": 0, "claude": 1, "soon": 2}
     items = [_for_you_item(c) for c in cards if c.get("key") and c.get("title")]
     items.sort(key=lambda i: order[i["group"]])   # stable: Needs you's own order inside each group
-    return (list(first or []) + items)[:FOR_YOU_MAX]   # first: proposal reviews waiting on this person
+    return list(first or []) + items   # first: proposal reviews waiting on this person; build() keeps FOR_YOU_MAX
+
+
+# ------------------------------------------------------------------ checked: opened from the bell
+CHECKED_KEEP = timedelta(days=30)   # an item still open after this counts again
+
+
+def _checked(conn, uid: int, now: datetime) -> dict:
+    """item id -> the title it had when this person opened it."""
+    since = _stamp(now - CHECKED_KEEP)
+    return {r["item_id"]: r["title"] for r in _rows(conn, "SELECT item_id, title FROM activity_checked WHERE user_id = ? AND checked_at >= ?",
+                                                     (uid, since))}
+
+
+def _mark_checked(items: list, checked: dict) -> int:
+    """Sets item["checked"]; returns how many are left to check."""
+    left = 0
+    for it in items:
+        it["checked"] = checked.get(it["id"]) == it["title"]
+        left += 0 if it["checked"] else 1
+    return left
+
+
+def check(conn, uid: int, ids: list, now: Optional[datetime] = None) -> int:
+    """This person opened these items from the bell (or tapped Mark all checked). Only ids on their list right now count,
+    stored with the title they have now. Returns how many are left to check."""
+    now = now or datetime.now().replace(microsecond=0)
+    ids = [str(i)[:240] for i in (ids or []) if i][:200]
+    if not ids:
+        raise ValueError("give the ids you opened")
+    import activity_accepts
+    since = _stamp(now - timedelta(days=WINDOW_DAYS))
+    try:
+        import proposal_review
+        reviews_you = proposal_review.bell(conn, uid, since)[1]
+    except Exception:
+        reviews_you = []
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+    listed = for_you(conn, uid, now, reviews_you) + [activity_accepts.public(w) for w in activity_accepts.waiting(conn, uid, now)]
+    current = {i["id"]: i["title"] for i in listed}
+    stamp = _stamp(now)
+    for i in ids:
+        if i in current:
+            conn.execute("INSERT INTO activity_checked (user_id, item_id, title, checked_at) VALUES (?,?,?,?) "
+                         "ON CONFLICT (user_id, item_id) DO UPDATE SET title = excluded.title, checked_at = excluded.checked_at",
+                         (uid, i, current[i], stamp))
+    conn.execute("DELETE FROM activity_checked WHERE user_id = ? AND checked_at < ?", (uid, _stamp(now - CHECKED_KEEP)))
+    conn.commit()
+    return _mark_checked(listed, _checked(conn, uid, now))
 
 
 def _first_name(conn, uid: int) -> str:
@@ -382,14 +438,26 @@ def build(conn, uid: int, now: Optional[datetime] = None) -> dict:
         except Exception:
             pass
         you = []
+    waiting = [activity_accepts.public(w) for w in waiting]
+    try:
+        checked = _checked(conn, uid, now)
+    except Exception as e:   # the marks failing must not take the bell down: everything counts
+        log.warning("activity checked skipped: %s", type(e).__name__)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        checked = {}
+    left = _mark_checked(you, checked) + _mark_checked(waiting, checked)
+    you = sorted(you, key=lambda i: i["checked"])[:FOR_YOU_MAX]   # stable: what's left to check gets the slots first
+    you.sort(key=lambda i: 0 if i["group"] == "review" else 1)   # reviews still lead
     try:
         good_morning = morning(conn, uid, now, you)
     except Exception as e:
         log.warning("activity morning skipped: %s", type(e).__name__)
         good_morning = None
     return {"items": items, "unread": sum(1 for i in items if i["unread"]), "banners": banners, "latest": latest,
-            "waiting": [activity_accepts.public(w) for w in waiting], "for_you": you, "morning": good_morning,
-            "badge": len(you) + len(waiting)}
+            "waiting": waiting, "for_you": you, "morning": good_morning, "badge": left}
 
 
 def _offer_undo(conn, uid: int, banners: list) -> None:
@@ -466,6 +534,20 @@ def register(app) -> None:
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
         return jsonify({"data": {"ok": True}})
+
+    @app.route("/api/activity/checked", methods=["POST"])
+    @gate
+    def activity_checked():
+        uid = (current_user() or {}).get("id")
+        body = request.get_json(silent=True) or {}
+        ids = body.get("ids")
+        if not isinstance(ids, list):
+            return jsonify({"error": "give the ids you opened"}), 400
+        try:
+            left = _with_conn(lambda c: check(c, uid, ids))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        return jsonify({"data": {"badge": left}})
 
     @app.route("/api/activity/decide", methods=["POST"])
     @gate

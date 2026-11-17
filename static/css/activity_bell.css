@@ -83,6 +83,9 @@
 .ab-item .ab-ico svg { width: 15px; height: 15px; }
 .ab-item .ab-title { font-size: 13px; font-weight: 500; }
 .ab-item.ab-unread .ab-title { font-weight: 600; }
+.ab-item.ab-checked .ab-ico, .ab-item.ab-checked .ab-pill { opacity: .5; }
+.ab-item.ab-checked .ab-title { color: #6f7584; font-weight: 400; }
+.ab-wait.ab-checked .ab-title { font-weight: 500; }
 .ab-item .ab-sub { font-size: 12px; color: #6f7584; }
 .ab-dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--accent, #4364dc); }
 .ab-empty { padding: 24px 16px; font-size: 13px; line-height: 1.5; color: #4d5362; text-align: center; }
@@ -116,7 +119,14 @@
   .ab-banners { left: max(10px, env(safe-area-inset-left, 0px)); right: max(10px, env(safe-area-inset-right, 0px)); width: auto; max-width: none; }
   .ab-scrim:not([hidden]) { display: block; position: fixed; inset: 0; width: 100%; padding: 0; border: 0; background: rgba(27,30,41,.38); z-index: 10010; }
   .ab-panel { z-index: 10020; left: 0; right: 0; top: auto; bottom: 0; width: auto; max-width: none; max-height: 82vh; border-radius: 18px 18px 0 0;   /* over Ask Claude, under dialogs */
-    padding-bottom: env(safe-area-inset-bottom, 0px); }
+    padding-bottom: env(safe-area-inset-bottom, 0px); overflow: hidden; }
+  .ab-tabs { gap: 14px; min-width: 0; }
+  .ab-head .ab-link { padding: 6px; white-space: nowrap; }
+}
+.ab-narrow { display: none; }
+@media (max-width: 380px) {
+  .ab-wide { display: none; }
+  .ab-narrow { display: inline; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ab-bell.ab-ring svg, .ab-banner { animation: none; }
