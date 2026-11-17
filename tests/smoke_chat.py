@@ -486,6 +486,14 @@ def main() -> int:
             assert cu["bullets"] and cu["count"] >= 2
             assert C["pat"].post(f"/api/chat/convs/{ja}/catchup", json={"after_id": en["id"]}).status_code == 400
             assert C["quinn"].post(f"/api/chat/convs/{ja}/catchup", json={"after_id": 0}).status_code == 404
+            # talk to type: Claude rewrites the message box (Spanish -> English, anything else -> Spanish); nothing stored
+            tb = C["ada"].post("/api/chat/translate", json={"text": "necesitamos dos andamios para mañana"}).get_json()["data"]
+            assert tb["lang"] == "en" and tb["text"].startswith("[EN]"), tb
+            assert C["ada"].post("/api/chat/translate", json={"text": "we need two scaffolds"}).get_json()["data"]["lang"] == "es"
+            assert C["ada"].post("/api/chat/translate", json={"text": "  "}).status_code == 400
+            assert C["ada"].post("/api/chat/translate", json={"text": "x" * 4001}).status_code == 400
+            assert C["cleo"].post("/api/chat/translate", json={"text": "hola"}).status_code in (302, 403)
+            assert app.test_client().post("/api/chat/translate", json={"text": "hola"}).status_code in (302, 401)
         finally:
             os.environ.pop("SSC_ASSISTANT_FAKE", None)
         # the window: the same fragment, staff only; the page is built from it
@@ -509,6 +517,8 @@ def main() -> int:
         assert "chat_alerts.js" in wjs and "/api/chat/unread" in wjs and "/api/chat/widget" in wjs and "clx-fab" in wjs
         assert "chat_widget.js" in (ROOT / "dashboard-static.html").read_text(encoding="utf-8"), "a job's page has the window"
         assert "dblclick" in js and "/info" in js and "ArrowUp" in js and "SSC_CHAT_W" in js
+        assert "webkitSpeechRecognition" in js and "'/translate'" in js and 'id="ch-mic"' in page and 'id="ch-trbox"' in page
+        assert "microphone=(self)" in (ROOT / "http_security.py").read_text(encoding="utf-8"), "talk to type needs the mic on our own pages"
         assert "toISOString" not in wjs
         al = (ROOT / "static" / "js" / "chat_alerts.js").read_text(encoding="utf-8")
         assert "/api/chat/alerts" in al and "Notification" in al and "openConv()" in al and "SSC_CHAT_OPEN" in al

@@ -209,6 +209,7 @@
   .ch-tools{top:auto;bottom:100%;right:8px;}
   .ch-msg:hover .ch-tools{display:none;}
   .ch-msg.tools-on .ch-tools{display:flex;}
+  .ch-toast{bottom:calc(120px + env(safe-area-inset-bottom,0px));max-width:calc(100% - 32px);}   /* above the message box */
 }
 
 /* ---- new: edited, seen by, pin, on site, typing, translate, catch me up, quick replies ---- */
@@ -267,6 +268,21 @@
 .ch-seenrow.no{opacity:.6;}
 .ch-seenrow .ck{width:34px;text-align:center;color:#15a07e;font-weight:700;flex:none;}
 .ch-seenlbl{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:10px 0 2px;}
+
+/* ---- talk to type (2026-11-17): the phone's own speech recognition writes into the box; Claude translates the box ---- */
+.ch-mic.live{background:#fdeceb;color:#c2453a;}
+.ch-listen{display:flex;align-items:center;gap:8px;padding:2px 4px 8px;font-size:12.5px;border-bottom:1px solid var(--line);margin-bottom:6px;}
+.ch-listen b{flex:1;font-weight:600;color:#c2453a;}
+.ch-listen .rec{width:9px;height:9px;border-radius:50%;background:#c2453a;flex:none;}
+@media (prefers-reduced-motion:no-preference){.ch-listen .rec{animation:chbob 1s infinite}}
+.ch-listen .btn-ghost{padding:4px 10px;font-size:12px;}
+.ch-lsw{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+.ch-lsw button{border:none;background:#fff;padding:3px 9px;font-size:11.5px;font-weight:700;color:var(--muted);}
+.ch-lsw button.on{background:var(--accent-soft);color:var(--accent-ink);}
+.ch-trbox{display:flex;align-items:center;gap:5px;border:1px solid var(--line);background:#fff;border-radius:99px;padding:5px 11px;font-size:12px;font-weight:600;color:#9a4a2c;margin-left:4px;white-space:nowrap;}
+.ch-trbox:hover{border-color:#e7c3b3;}
+.ch-trbox[disabled]{opacity:.6;cursor:default;}
+.ch-toast button{border:none;background:none;color:#a9bcff;font-weight:600;font-size:13px;padding:0;}
 
 /* ---- the floating window (chat_widget.js) ---- */
 .chw{position:fixed;z-index:9005;width:420px;height:min(660px,calc(100vh - 110px));height:min(660px,calc(100dvh - 110px));background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 16px 48px rgba(20,28,60,.22);display:flex;flex-direction:column;overflow:hidden;color:var(--ink);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:normal;text-align:left;-webkit-font-smoothing:antialiased;}

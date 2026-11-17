@@ -869,6 +869,26 @@ def translate(conn, me, msg_id, lang="en") -> dict:
     return {"text": text, "lang": lang}
 
 
+def translate_text(conn, me, text, lang=None) -> dict:
+    """Talk to type (2026-11-17): Claude turns the message box into the other language before it is sent.
+    No lang: Spanish-looking text goes to English, anything else to Spanish. Nothing is stored."""
+    import assistant
+    if me["worker"]:
+        raise ChatError("Translate is in the office chat for now.", 403)
+    text = (text or "").strip()
+    if not text:
+        raise ChatError("Write or say something first.")
+    if len(text) > MAX_BODY:
+        raise ChatError(f"Messages can be up to {MAX_BODY} characters. Split it into two.")
+    lang = lang if lang in LANGS else ("en" if looks_spanish(text) else "es")
+    if assistant._fake():
+        out = f"[{lang.upper()}] {text}"
+    else:
+        out = _claude(conn, me, TR_PROMPT.format(lang=LANGS[lang]), f"<message>\n{text}\n</message>", "Chat translation")[:MAX_BODY]
+    log.info("chat box translated (%s, %s chars)", lang, len(text))
+    return {"text": out, "lang": lang}
+
+
 def catch_up(conn, me, conv_id, after_id) -> dict:
     import assistant
     if me["worker"]:
@@ -1202,6 +1222,8 @@ def _api(op):
             return _run(lambda conn: list_convs(conn, me))
         if op == "people":
             return _run(lambda conn: list(_reachable(conn, me).values()))
+        if op == "translate_text":
+            return _run(lambda conn: translate_text(conn, me, b.get("text"), b.get("lang")))
         if op == "create":
             if b.get("kind") == "channel":
                 return _run(lambda conn: {"id": create_channel(conn, me, b.get("name"), b.get("members"),
@@ -1375,6 +1397,7 @@ def register(app) -> None:
             ("unread", "/api/chat/unread", ["GET"]), ("alerts", "/api/chat/alerts", ["GET"]),
             ("convs", "/api/chat/convs", ["GET"]),
             ("people", "/api/chat/people", ["GET"]), ("create", "/api/chat/convs", ["POST"]),
+            ("translate_text", "/api/chat/translate", ["POST"]),
             ("detail", "/api/chat/convs/<int:conv_id>", ["GET"]),
             ("msgs", "/api/chat/convs/<int:conv_id>/messages", ["GET"]),
             ("send", "/api/chat/convs/<int:conv_id>/messages", ["POST"]),
