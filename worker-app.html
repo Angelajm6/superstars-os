@@ -871,6 +871,7 @@
     .wc-who { font-size: 12px; color: var(--color-mute); margin: 0 6px 2px; }
     .wc-bub { background: white; border: 1px solid var(--color-hairline); border-radius: 14px; padding: 8px 12px; max-width: 85%; font-size: 15px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
     .wc-msg.mine .wc-bub { background: #FBEDEE; border-color: #F0CFD3; }
+    .wc-ed { font-size: 11px; opacity: .65; }
     .wc-bub.del { color: var(--color-mute); font-style: italic; }
     .wc-q { font-size: 12.5px; color: var(--color-mute); border-left: 3px solid #E0D6CC; padding-left: 8px; margin-bottom: 4px; }
     .wc-img { display: block; width: 220px; max-width: 100%; height: 165px; object-fit: cover; border-radius: 10px; margin-top: 4px; background: #EFEBE4; border: 1px solid var(--color-hairline); }
@@ -1145,7 +1146,7 @@ const i18n = {
     ot_failed: "Could not sign out. Try again.",
     chat: "Chat", chat_title: "Company chat", chat_new: "New", chat_back: "Back", chat_empty: "No chats yet.",
     chat_placeholder: "Message", chat_send: "Send", chat_loading: "Loading...", chat_pick: "Who do you want to message?",
-    chat_start: "Start chat", chat_signin: "Sign in again to use chat.", chat_deleted: "Message deleted",
+    chat_start: "Start chat", chat_signin: "Sign in again to use chat.", chat_deleted: "Message deleted", chat_edited: "edited",
     chat_uploading: "Uploading...", chat_jobs: "Jobs", chat_channels: "Channels", chat_direct: "Direct messages",
     chat_you: "You", chat_delete: "Delete", chat_failed: "Could not send. Try again.", chat_today: "Today",
     chat_yesterday: "Yesterday", chat_first: "No messages yet. Say hello.",
@@ -1212,7 +1213,7 @@ const i18n = {
     ot_failed: "No se pudo salir. Intenta de nuevo.",
     chat: "Chat", chat_title: "Chat de la empresa", chat_new: "Nuevo", chat_back: "Atrás", chat_empty: "Todavía no hay chats.",
     chat_placeholder: "Mensaje", chat_send: "Enviar", chat_loading: "Cargando...", chat_pick: "¿A quién quieres escribir?",
-    chat_start: "Empezar chat", chat_signin: "Vuelve a entrar para usar el chat.", chat_deleted: "Mensaje borrado",
+    chat_start: "Empezar chat", chat_signin: "Vuelve a entrar para usar el chat.", chat_deleted: "Mensaje borrado", chat_edited: "editado",
     chat_uploading: "Subiendo...", chat_jobs: "Trabajos", chat_channels: "Canales", chat_direct: "Mensajes directos",
     chat_you: "Tú", chat_delete: "Borrar", chat_failed: "No se pudo enviar. Intenta de nuevo.", chat_today: "Hoy",
     chat_yesterday: "Ayer", chat_first: "Todavía no hay mensajes. Saluda.",
@@ -2132,7 +2133,7 @@ window.addEventListener('load', () => {
       h += '<div class="wc-msg' + (m.mine ? ' mine' : '') + '"><div class="wc-who">' + esc(who) + ' · ' + esc(clock(d)) + '</div>';
       if (m.deleted) h += '<div class="wc-bub del">' + esc(tt('chat_deleted')) + '</div>';
       else {
-        if (m.body || m.reply) h += '<div class="wc-bub">' + (m.reply ? '<div class="wc-q">' + esc(m.reply.name) + ': ' + esc(m.reply.body) + '</div>' : '') + esc(m.body) + '</div>';
+        if (m.body || m.reply) h += '<div class="wc-bub">' + (m.reply ? '<div class="wc-q">' + esc(m.reply.name) + ': ' + esc(m.reply.body) + '</div>' : '') + esc(m.body) + (m.edited ? ' <span class="wc-ed">(' + esc(tt('chat_edited')) + ')</span>' : '') + '</div>';
         (m.files || []).forEach(function (f) {
           h += f.kind === 'image' ? '<img class="wc-img" data-f="' + f.id + '" data-thumb="1" alt="">' : '<button type="button" class="wc-file" data-open="' + f.id + '">📄 ' + esc(f.name) + '</button>';
         });

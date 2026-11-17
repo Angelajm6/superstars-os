@@ -1,0 +1,119 @@
+<main class="ch" id="ch" aria-label="Chat">
+  <section class="ch-list" aria-label="Conversations">
+    <div class="ch-lh">
+      <b>Conversations</b>
+      <button class="btn-primary ch-new" id="ch-new" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>New</button>
+    </div>
+    <div class="ch-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="ch-q" class="ssc-field" type="search" placeholder="Search people, channels, jobs" autocomplete="off" aria-label="Search chats"></div>
+    <div class="ch-filters" id="ch-filters">
+      <button class="ch-chip on" data-f="all" type="button">All</button>
+      <button class="ch-chip" data-f="unread" type="button">Unread</button>
+      <button class="ch-chip" data-f="job" type="button">Jobs</button>
+      <button class="ch-chip" data-f="dm" type="button">Direct</button>
+    </div>
+    <div class="ch-convs" id="ch-convs"><p class="ch-empty">Loading your chats…</p></div>
+  </section>
+
+  <section class="ch-thread" aria-label="Open chat">
+    <div class="ch-noth" id="ch-noth">Pick a chat on the left, or press New to message someone.</div>
+    <div class="ch-th" id="ch-th" hidden>
+      <button class="ch-ib ch-back" id="ch-back" type="button" aria-label="Back to chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div id="ch-tav"></div>
+      <div class="ti"><h2 id="ch-tname"></h2><div class="sub" id="ch-tsub"></div></div>
+      <div class="ch-bellw">
+        <button class="ch-bell" id="ch-bell" type="button" aria-haspopup="true" aria-expanded="false" title="Alerts for this chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span id="ch-belllbl">Mentions only</span></button>
+        <div class="ch-bellmenu" id="ch-bellmenu" hidden role="menu">
+          <button type="button" role="menuitemradio" data-n="all"><span class="ck"></span><span>All messages<small>Every new message pops up</small></span></button>
+          <button type="button" role="menuitemradio" data-n="mentions"><span class="ck"></span><span>Mentions only<small>Pops up when someone @mentions you</small></span></button>
+          <button type="button" role="menuitemradio" data-n="off"><span class="ck"></span><span>Mute this chat<small>No alerts and no count</small></span></button>
+        </div>
+      </div>
+      <button class="ch-mem" id="ch-membtn" type="button"><span class="st" id="ch-tstack"></span><span class="lbl" id="ch-tcount"></span></button>
+      <button class="ch-ib" id="ch-filesbtn" type="button" aria-label="Files and people" title="Files and people"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.4 11.6-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button>
+    </div>
+    <div class="ch-pin" id="ch-pin" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg><button type="button" class="go" id="ch-pingo" title="Go to the pinned message"></button><button type="button" class="x" id="ch-pinx" aria-label="Unpin" title="Unpin">✕</button></div>
+    <div id="ch-catchw"></div>
+    <div class="ch-msgs" id="ch-msgs" hidden aria-live="polite"></div>
+    <div class="ch-typing" id="ch-typing" hidden aria-live="polite"></div>
+    <div class="ch-comp" id="ch-comp" hidden>
+      <div class="ch-box" id="ch-box">
+        <div class="ch-mpop" id="ch-mpop" hidden></div>
+        <div class="ch-replying" id="ch-replying" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v6"/></svg><span id="ch-replytxt"></span><button type="button" id="ch-replyx" aria-label="Cancel reply">✕</button></div>
+        <div class="ch-pend" id="ch-pend"></div>
+        <div class="ch-quick" id="ch-quick" hidden aria-label="Quick replies"><button type="button" data-q="On my way">On my way</button><button type="button" data-q="Done ✅">Done ✅</button><button type="button" data-q="Need material, sending a photo">Need material</button><button type="button" data-q="Running 15 minutes late">15 min late</button><button type="button" data-q="Call me when you can">Call me</button></div>
+        <textarea class="ch-ta" id="ch-ta" rows="1" placeholder="Message" aria-label="Message"></textarea>
+        <div class="ch-tb">
+          <button class="ch-tool" id="ch-attach" type="button" aria-label="Attach files" title="Attach files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.4 11.6-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button>
+          <button class="ch-tool" id="ch-cam" type="button" aria-label="Take or pick a photo" title="Photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg></button>
+          <button class="ch-tool" id="ch-atbtn" type="button" aria-label="Mention someone" title="Mention someone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg></button>
+          <input type="file" id="ch-file" multiple hidden>
+          <input type="file" id="ch-photo" accept="image/*" capture="environment" hidden>
+          <button class="btn-primary ch-send" id="ch-send" type="button" disabled>Send<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg></button>
+        </div>
+      </div>
+      <div class="ch-err" id="ch-err" hidden></div>
+      <div class="ch-hint">Enter to send · Shift+Enter for a new line · ↑ edits your last message · double-click a message to see who saw it</div>
+    </div>
+  </section>
+
+  <aside class="ch-side" id="ch-side" hidden aria-label="Files and people">
+    <div class="ch-sh"><b id="ch-stitle">Details</b><button class="ch-ib" id="ch-sclose" type="button" aria-label="Close">✕</button></div>
+    <div class="ch-stabs" id="ch-stabs"><button class="ch-chip on" data-p="files" type="button">Files &amp; photos</button><button class="ch-chip" data-p="people" type="button">People</button></div>
+    <div class="ch-sb" id="ch-sbody"></div>
+  </aside>
+</main>
+
+<div class="ch-modal-bg" id="ch-newbg" hidden>
+  <div class="ch-modal" role="dialog" aria-modal="true" aria-labelledby="ch-ntitle">
+    <header><h3 id="ch-ntitle">New message</h3><p class="lead" id="ch-nlead">Pick one person for a private chat, or several for a group.</p></header>
+    <div class="mb">
+      <div class="ch-seg" id="ch-nseg"><button class="on" data-m="dm" type="button">Message</button><button data-m="channel" type="button" id="ch-nsegch">Channel</button></div>
+      <label class="ch-lbl" id="ch-nnamel" hidden>Channel name<input id="ch-nname" class="ssc-field" placeholder="e.g. scaffold-crew" autocomplete="off" maxlength="40"></label>
+      <label class="ch-lbl" id="ch-ntopicl" hidden>What it's for (optional)<input id="ch-ntopic" class="ssc-field" placeholder="e.g. Scaffold and rigging questions" autocomplete="off" maxlength="200"></label>
+      <label class="ch-lbl">People<input id="ch-nq" class="ssc-field" placeholder="Search by name, role or trade" autocomplete="off"></label>
+      <div class="ch-pick" id="ch-npick"></div>
+      <div class="ch-check" id="ch-nprivrow" hidden><input type="checkbox" id="ch-npriv"><label for="ch-npriv">Private: only the people you add can see it</label></div>
+      <div class="ch-merr" id="ch-nerr" hidden></div>
+    </div>
+    <footer><button class="btn-ghost" id="ch-ncancel" type="button">Cancel</button><button class="btn-primary" id="ch-ngo" type="button" disabled>Start chat</button></footer>
+  </div>
+</div>
+
+<div class="ch-modal-bg" id="ch-addbg" hidden>
+  <div class="ch-modal" role="dialog" aria-modal="true" aria-labelledby="ch-atitle">
+    <header><h3 id="ch-atitle">Add people</h3><p class="lead">They will see the whole history of this channel.</p></header>
+    <div class="mb">
+      <label class="ch-lbl">People<input id="ch-aq" class="ssc-field" placeholder="Search by name, role or trade" autocomplete="off"></label>
+      <div class="ch-pick" id="ch-apick"></div>
+      <div class="ch-merr" id="ch-aerr" hidden></div>
+    </div>
+    <footer><button class="btn-ghost" id="ch-acancel" type="button">Cancel</button><button class="btn-primary" id="ch-ago" type="button" disabled>Add</button></footer>
+  </div>
+</div>
+
+<div class="ch-modal-bg" id="ch-taskbg" hidden>
+  <div class="ch-modal" role="dialog" aria-modal="true" aria-labelledby="ch-ktitle">
+    <header><h3 id="ch-ktitle">Make a task</h3><p class="lead">The task links back to this message.</p></header>
+    <div class="mb">
+      <label class="ch-lbl">Task<input id="ch-ktask" class="ssc-field" maxlength="120" autocomplete="off"></label>
+      <label class="ch-lbl">Assign to<select id="ch-kwho" class="ssc-field"></select></label>
+      <label class="ch-lbl">Due date (optional)<input id="ch-kdue" class="ssc-field ssc-date" type="date"></label>
+      <div class="ch-merr" id="ch-kerr" hidden></div>
+    </div>
+    <footer><button class="btn-ghost" id="ch-kcancel" type="button">Cancel</button><button class="btn-primary" id="ch-kgo" type="button">Make task</button></footer>
+  </div>
+</div>
+
+<div class="ch-modal-bg" id="ch-seenbg" hidden>
+  <div class="ch-modal" role="dialog" aria-modal="true" aria-labelledby="ch-stl">
+    <header><h3 id="ch-stl">Seen by</h3><p class="lead" id="ch-slead"></p></header>
+    <div class="mb"><div class="ch-seenq" id="ch-sq"></div><div class="ch-seenlist" id="ch-slist"><p class="ch-empty">Loading…</p></div></div>
+    <footer><button class="btn-ghost" id="ch-sclose2" type="button">Close</button></footer>
+  </div>
+</div>
+
+<div class="ch-light" id="ch-light" hidden role="presentation">
+  <div class="bar"><a id="ch-lopen" href="#" target="_blank" rel="noopener">Open full size</a><a id="ch-ldl" href="#">Download</a><button type="button" id="ch-lclose">Close</button></div>
+  <div class="img"><img id="ch-limg" alt="Photo"></div>
+</div>
+<div class="ch-toast" id="ch-toast" hidden></div>

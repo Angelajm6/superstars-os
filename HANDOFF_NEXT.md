@@ -21,6 +21,39 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Chat everywhere: a floating window, edit, Seen by, and more (Bookore, 2026-11-17)
+
+* Accepted prototype: https://claude.ai/artifact/4qCXUYDRtc2xQ5AWLgz15i. A blue **Chat** button with the unread count sits beside
+  **Ask Claude** on every page with the sidebar and on a job's own page (`static/js/chat_widget.js`, loaded by `company_nav.js`
+  and by `dashboard-static.html`; it shows only when `/api/chat/unread` answers, so clients / architects on a job page get
+  nothing). It opens a floating window (420 px; full screen ≤640 px, above a job page's bottom bar). On a job page it opens that
+  job's chat. Open / closed and the open chat are kept per tab (sessionStorage `ssc.chatw.*`), so it stays open as you move
+  between pages. It moves aside when the Claude drawer is open; Esc minimizes it; ↗ opens the full `/chat` page there. `/chat` has no window.
+* **One chat, two places:** the chat markup is now `chat_fragment.html` (the `/chat` page gets it through the `<!--CHAT_FRAGMENT-->`
+  marker; the window fetches it from `GET /api/chat/widget`), its styles are `static/css/chat.css` (out of `chat_page.html`),
+  and `static/js/chat.js` runs in both (`window.SSC_CHAT_W` = window mode: always `.ch.compact`, no address bar, reads and
+  polls only while the window is open). The phone layout is the `.ch.compact` class, not a media query, so the window reuses it.
+* `chat_widget.js` now loads `chat_alerts.js` (the nav no longer loads the alerts directly). An alert's **Open chat** opens the window
+  (`window.SSC_CHAT_OPEN`); the chat open in the window never alerts; cards move to the top while it is open.
+* **Edit** (own messages only, admin included; `PATCH /api/chat/messages/<id>`): `edited_at` + `chat_edit` (the text before each
+  edit). Everyone who can see the message sees "(edited)" and, on a tap, every earlier version. ↑ in an empty box edits your
+  last one. Delete removes the earlier versions too. The worker app shows "(edited)" / "(editado)" (SW `v13`).
+* **Seen by** (office only; `GET /api/chat/messages/<id>/info`): double-click a message (double-tap on a phone), or "Seen by" in
+  its tools. `chat_seen` gets a row each time someone's read marker moves (`mark_read`, and on send). Seen by X = their first
+  row at or after the message. Messages from before this shipped fall back to the read marker, with no time
+  (`app_settings` `chat.receipts_from`). Workers count (a worker with a login is counted either way). A line under your latest
+  message: "Sent" / "Seen 2:14 PM" / "Seen by Luis, Pria +1" / "Seen by everyone". A read now bumps `chat_change`, so the line updates live.
+* **Also:** a pinned message per chat (`chat_conv.pin_msg_id`, office; "Pin" in a message's tools, the bar under the header jumps
+  to it); **on site** = signed in today and not out (`sign_in_log`): a green dot and "Luis and Marco on site" in the header (office
+  only); **"is typing"** (`chat_typing`, a ping every ≤4 s while typing, rides on `/api/chat/poll?conv=`, cleared on send);
+  **Translate to English** under messages that look Spanish (`looks_spanish`, Claude, cached in `chat_tr`); **Catch me up** when
+  you open a chat with 3+ new (Claude, 2–4 bullets, "Asks you:" first); **quick replies** in job chats. Message text goes to
+  Claude only for these two buttons; it is data, never instructions. Logs carry ids and counts only.
+* Guard: `smoke_chat` new group (edit own-only + history + empty refused, seen by / waiting / the live line / no duplicate rows,
+  a worker read counts, worker can't edit / see receipts, pin, delete clears history and pin, typing never yourself and never
+  a chat you can't see, on site office-only, Spanish spotted + translation cached, catch up, the fragment staff-only and the page built from it).
+* Not done (ask Angela): Seen by / edit in the worker app; translate English → Spanish for the crew; voice notes; phone push.
+
 ### Company → Specs revamp: go-to list, data sheets, products per job, submittal package (Bookore, 2026-11-13)
 
 * Accepted prototype: https://claude.ai/artifact/9WFt7rm2HWsV8Rp41MisNc. The old 7-column table (attach dropdown per row,

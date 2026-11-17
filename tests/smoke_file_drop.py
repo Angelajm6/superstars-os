@@ -22,7 +22,8 @@ def ok(name, cond):
 
 pages = [p for p in list(ROOT.glob("*.html")) + list((ROOT / "templates" / "v2").glob("*.html"))
          if re.search(r"type=[\"']file[\"']", p.read_text(encoding="utf-8"))]
-skip = {"worker-app.html"}   # phones: no drag and drop
+skip = {"worker-app.html",   # phones: no drag and drop
+        "chat_fragment.html"}   # not a page: served inside /chat (which loads file_drop.js) and the Chat window; chat.js takes dropped files itself
 missing = [p.name for p in pages if p.name not in skip and "/files/static/js/file_drop.js" not in p.read_text(encoding="utf-8")]
 ok("pages with file inputs load file_drop.js", not missing)
 if missing:

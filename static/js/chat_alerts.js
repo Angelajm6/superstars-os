@@ -3,7 +3,9 @@
  * the page is visible, 20 s while it is in a background tab; on a change asks /api/chat/alerts what should pop up
  * (chat.py decides: private / group messages, @mentions, chats set to "All messages"; never muted chats).
  * Visible tab: a card bottom-right (top on a phone) with Open chat and Reply. Background tab: a computer
- * notification, once the person turned them on. The chat you are reading never alerts. */
+ * notification, once the person turned them on. The chat you are reading never alerts.
+ * 2026-11-17: loaded by chat_widget.js; Open chat opens the floating Chat window on the same page, and the chat open
+ * in that window never alerts. Cards move to the top while the window is open. */
 (function () {
   'use strict';
   if (window.__sscChatAlerts) return;
@@ -21,7 +23,11 @@
     return fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (j) { return j.data; });
   }
-  function openConv() { var m = /^\/chat\/?$/.test(location.pathname) && /^#c(\d+)$/.exec(location.hash); return m ? +m[1] : null; }
+  function openConv() {
+    if (window.SSC_CHAT_W && window.SSC_CHAT_W.isOpen() && window.SSC_CHAT) return window.SSC_CHAT.current();   // the floating window
+    var m = /^\/chat\/?$/.test(location.pathname) && /^#c(\d+)$/.exec(location.hash); return m ? +m[1] : null;
+  }
+  function go(id) { if (window.SSC_CHAT_OPEN) window.SSC_CHAT_OPEN(id); else location.href = '/chat#c' + id; }
 
   function css() {
     if (document.getElementById('ca-css')) return;
@@ -55,6 +61,7 @@
       '.ca-osn .ca-row{display:flex;gap:8px;margin-top:8px}' +
       '.ca-osn button{border:none;border-radius:10px;padding:6px 10px;font:inherit;font-weight:600;font-size:12.5px;cursor:pointer}' +
       '.ca-osn .ca-y{background:var(--accent,#4364dc);color:#fff}.ca-osn .ca-n{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.3)}' +
+      'body.chw-open .ca-stack{bottom:auto;top:calc(16px + env(safe-area-inset-top,0px));flex-direction:column}' +
       '@media (max-width:860px){.ca-stack{left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));top:calc(10px + env(safe-area-inset-top,0px));bottom:auto;width:auto;max-width:none;flex-direction:column}}';
     document.head.appendChild(st);
   }
@@ -96,7 +103,7 @@
     el.addEventListener('mouseenter', pause);
     el.addEventListener('mouseleave', function () { if (!el.querySelector('.ca-rep')) { paused = false; run(); } });
     el.querySelector('.ca-x').addEventListener('click', close);
-    el.querySelector('.ca-open').addEventListener('click', function () { close(); location.href = '/chat#c' + a.conv_id; });
+    el.querySelector('.ca-open').addEventListener('click', function () { close(); go(a.conv_id); });
     el.querySelector('.ca-reply').addEventListener('click', function () {
       pause();
       var acts = el.querySelector('.ca-acts'), f = document.createElement('form');
@@ -133,7 +140,7 @@
       var n = new Notification(a.who + (a.dm ? '' : ' · ' + a.where), {
         body: (a.mention ? '@ you · ' : '') + (a.body || (a.image_id ? 'Sent a photo' : 'Sent a file')),
         tag: 'ssc-chat-' + a.id, icon: '/files/static/brand/favicon-32.png' });
-      n.onclick = function () { window.focus(); location.href = '/chat#c' + a.conv_id; n.close(); };
+      n.onclick = function () { window.focus(); go(a.conv_id); n.close(); };
     } catch (e) { /* some phones only allow notifications from an installed app */ }
   }
   function offerOsn() {

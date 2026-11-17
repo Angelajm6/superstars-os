@@ -192,10 +192,11 @@
       document.head.appendChild(st);
     }
     pollChat(); chatTimer = setInterval(pollChat, 45000);
-    // chat alerts on every page (static/js/chat_alerts.js): loaded once, here, so no page has to include it
-    if (!document.querySelector('script[data-chat-alerts]')) {
-      var sc = document.createElement('script'); sc.src = '/files/static/js/chat_alerts.js?v=1'; sc.defer = true;
-      sc.setAttribute('data-chat-alerts', ''); document.head.appendChild(sc);
+    // the floating Chat window + chat alerts on every page (static/js/chat_widget.js loads chat_alerts.js):
+    // loaded once, here, so no page has to include them. Both show only for the roles that have Chat.
+    if (!document.querySelector('script[data-chat-widget]')) {
+      var sc = document.createElement('script'); sc.src = '/files/static/js/chat_widget.js?v=1'; sc.defer = true;
+      sc.setAttribute('data-chat-widget', ''); document.head.appendChild(sc);
     }
     document.addEventListener('visibilitychange', function () { if (!document.hidden) pollChat(); });
   }

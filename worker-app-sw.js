@@ -1,6 +1,6 @@
 // Bump CACHE_VERSION any time worker-app.html changes
 // to force iPhones to grab the new version.
-const CACHE_VERSION = 'v12-2026-11-16b';   // chat alerts
+const CACHE_VERSION = 'v13-2026-11-17';   // chat: (edited)
 const ASSETS = ['/worker-app.html', '/worker-app-manifest.json'];
 
 self.addEventListener('install', (e) => {

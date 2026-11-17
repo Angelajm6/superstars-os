@@ -587,6 +587,7 @@ def main():
     # in neither fails the build — the forcing function that closes the
     # "guard never looked here" gap for good.
     REGISTERED = {"chat_page.html",   # company chat (2026-11-16)
+                  "chat_fragment.html",   # the chat itself: /chat and the floating Chat window (2026-11-17)
                   "company-dashboard.html", "dashboard-static.html", "admin_labor_rates.html",
                   "login.html", "worker-app.html", "rfi_submission_form.html",
                   "admin_users.html", "set_password.html",   # #257 multi-user accounts & roles
