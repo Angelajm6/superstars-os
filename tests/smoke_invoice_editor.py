@@ -120,7 +120,7 @@ def main() -> int:
     ids = _seed()
     admin = _login(app, "admin")
     checks = 0
-    assert invoice_docs.LAYOUT == 4
+    assert invoice_docs.LAYOUT == 5
 
     conn = _db()
     try:
