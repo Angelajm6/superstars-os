@@ -186,11 +186,15 @@ def plan(conn, uid: int, inp: dict) -> dict:
         groups[gk]["rows"].append(row)
     out = [groups[k] for k in order if groups[k]["rows"]]
     out.sort(key=lambda g: 0 if not g["dir"] else 1)   # the estimate's own files first
-    return {"job": job, "groups": out, "count": sum(1 for g in out for r in g["rows"] if not r["dupe"])}
+    return {"job": job, "groups": out, "count": sum(1 for g in out for r in g["rows"] if not r["dupe"]),
+            "offered": sum(len(g["rows"]) for g in out)}
 
 
 def check(ctx, inp) -> None:
     p = plan(ctx.conn, ctx.uid, inp)
+    if not p["offered"]:   # every file was a logo, a small picture or a type the Documents tab can't hold (2026-11-18 evals)
+        raise ValueError("none of those files can go in a job's Documents (only PDFs, pictures and spreadsheets; logos and "
+                         "small pictures are left out)")
     if not p["count"]:
         raise ValueError(f"every one of those files is already on {p['job']['project_code']}; nothing to file")
 
