@@ -101,6 +101,7 @@ DUAL_BACKEND_MIGRATIONS = (
     "apply_client_profile.py",
     "apply_hours_overtime.py",
     "apply_job_duration.py",
+    "apply_completion_original.py",
 )
 
 

@@ -88,7 +88,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
 .np-filled[hidden]{display:none;}
 @media (max-width:600px){ .np-ra{grid-template-columns:1fr;} .np-ra .np-ck{min-height:56px;} .np-alist li[data-k]{min-height:44px;} .np-field input,.np-field select{font-size:16px;} }
 .np-dur{grid-column:1 / -1;border:1px solid var(--line);border-radius:10px;background:#F4F5F8;padding:12px 14px;display:grid;gap:10px;}
-.np-dur-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+.np-dur-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;} .np-dur-row.two{grid-template-columns:repeat(2,minmax(0,1fr));}
 .np-dur .k{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);}
 .np-dur .v{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums;} .np-dur .s{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}
 .np-dur-bar{position:relative;height:10px;border-radius:5px;background:var(--line);}
@@ -98,7 +98,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
 .np-chip.ok{color:var(--status-complete-deep,#0c7a5f);background:var(--status-complete-soft,#e7f6f0);} .np-chip.warn{color:#9a6200;background:#fdf3e1;}
 .np-chip.bad{color:var(--status-behind-deep,#A8382B);background:var(--status-behind-soft,#fceeec);} .np-chip.n{color:var(--muted);background:#fff;}
 @media (max-width:980px){ .np-main{grid-template-columns:minmax(0,1fr);} .np-rail,.np-prev{display:none;} }
-@media (max-width:600px){ .np-sec{grid-template-columns:1fr;} .np-dur-row{grid-template-columns:1fr;} .np-dur-row>div{display:flex;align-items:baseline;gap:10px;} .np-dur-row .k{flex:1;} .np-dur-row .s{min-width:7.5em;text-align:right;} .np-dur .v{font-size:16px;} .np-overlay{padding:0;} .np-modal{border-radius:0;max-height:100vh;} }`;
+@media (max-width:600px){ .np-sec{grid-template-columns:1fr;} .np-dur-row,.np-dur-row.two{grid-template-columns:1fr;} .np-dur-row>div{display:flex;align-items:baseline;gap:10px;} .np-dur-row .k{flex:1;} .np-dur-row .s{min-width:7.5em;text-align:right;} .np-dur .v{font-size:16px;} .np-overlay{padding:0;} .np-modal{border-radius:0;max-height:100vh;} }`;
   var st = document.createElement('style'); st.id = 'np-style'; st.textContent = CSS; document.head.appendChild(st);
 
   var HTML = `<div class="np-overlay" id="np-overlay" role="dialog" aria-modal="true" aria-labelledby="np-title">
@@ -136,8 +136,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
         </section>
         <section class="np-sec" id="np-s-dates"><h3>Dates &amp; people</h3>
           <div class="np-field"><label for="np-start">Start date</label><input id="np-start" type="date" class="ssc-date"></div>
-          <div class="np-field"><label for="np-ant">Anticipated completion</label><input id="np-ant" type="date" class="ssc-date"><div class="np-hint">The end date you expected when the job started. It stays the same when the schedule moves.</div></div>
-          <div class="np-field"><label for="np-end">Target completion</label><input id="np-end" type="date" class="ssc-date" title="Optional — the job shows on the calendar from start to this date"><div class="np-hint">The current end date. The calendar draws the job to this date.</div></div>
+          <div class="np-field"><label for="np-end">Anticipated completion</label><input id="np-end" type="date" class="ssc-date" title="Optional — the job shows on the calendar from start to this date"><div class="np-hint" id="np-end-hint">When you expect the job to finish. The calendar draws the job to this date.</div></div>
           <div class="np-field" id="np-act-wrap" hidden><label for="np-act">Actual completion</label><input id="np-act" type="date" class="ssc-date"><div class="np-hint" id="np-act-hint"></div></div>
           <div class="np-field" id="np-status-wrap" hidden><label for="np-status">Status</label><select id="np-status"><option value="active">Active</option><option value="closed">Closed</option></select></div>
           <div class="np-dur" id="np-dur" aria-live="polite"></div>
@@ -300,9 +299,8 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
   function mount() {
     if (NP.mounted) return; NP.mounted = true;
     var host = document.createElement('div'); host.innerHTML = HTML; document.body.appendChild(host.firstElementChild);
-    // job duration: redraw as the dates move; a new job's anticipated date starts as its first target (visible before saving)
-    ['np-start', 'np-ant', 'np-end', 'np-act'].forEach(function (id) { ['change', 'input'].forEach(function (ev) { $(id).addEventListener(ev, drawDuration); }); });
-    $('np-end').addEventListener('change', function () { if (NP.mode === 'new' && !npDateGet($('np-ant')) && npDateGet($('np-end'))) { npDateSet($('np-ant'), npDateGet($('np-end'))); drawDuration(); } });
+    // job duration: redraw as the dates move
+    ['np-start', 'np-end', 'np-act'].forEach(function (id) { ['change', 'input'].forEach(function (ev) { $(id).addEventListener(ev, drawDuration); }); });
     $('np-status').addEventListener('change', function () {
       if ($('np-status').value === 'closed' && !npDateGet($('np-act'))) npDateSet($('np-act'), ymd(new Date()));
       if ($('np-status').value === 'active') npDateSet($('np-act'), '');
@@ -364,34 +362,41 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
     $('np-act-hint').textContent = closed ? 'The day the work finished. Used for the actual duration.' : "Filled in with today's date when the job is closed. You can change it.";
     drawDuration();
   }
+  // the first anticipated date is kept by the server (original_completion); a new job has none yet
   function drawDuration() {
-    var st = npDateGet($('np-start')), an = npDateGet($('np-ant')), tg = npDateGet($('np-end')), ac = npDateGet($('np-act'));
+    var st = npDateGet($('np-start')), an = npDateGet($('np-end')), ac = npDateGet($('np-act'));
+    var fi = (NP.mode === 'edit' && NP.cur && NP.cur.original) || an;
     var closed = NP.mode === 'edit' && $('np-status').value === 'closed', box = $('np-dur');
-    if (!st || !an) { box.innerHTML = '<div class="s">Set the start date and anticipated completion to measure this job\u2019s duration.</div>'; return; }
-    var exp = span(st, an), tgd = tg ? span(st, tg) : null, act = closed && ac ? span(st, ac) : null;
-    var sofar = closed ? null : Math.max(0, span(st, ymd(new Date())));
-    if (exp < 0) { box.innerHTML = '<div class="s">Anticipated completion is before the start date.</div>'; return; }
-    var third = closed ? ['Actual', act == null ? '\u2014' : act + ' days', ac ? 'Finished ' + mdy(ac) : 'Add the actual completion date']
-                       : ['So far', sofar + ' days', NP.mode === 'edit' ? 'Job still open' : 'Not started yet'];
-    if (NP.mode !== 'edit' || sofar < 0) third = ['So far', '\u2014', 'Not started yet'];
-    var max = Math.max(exp, tgd || 0, act || 0, (third[1] === '\u2014' ? 0 : sofar) || 0, 1);
+    var moved = fi && an ? span(fi, an) : 0;
+    $('np-end-hint').textContent = moved
+      ? 'Originally ' + mdy(fi) + ' · moved ' + Math.abs(moved) + ' ' + dWord(moved) + (moved > 0 ? ' later' : ' earlier') + '. The calendar draws the job to this date.'
+      : 'When you expect the job to finish. The calendar draws the job to this date.';
+    if (!st || !an) { box.innerHTML = '<div class="s">Set the start date and anticipated completion to measure this job’s duration.</div>'; return; }
+    var exp = span(st, fi), now = span(st, an), act = closed && ac ? span(st, ac) : null;
+    if (now < 0) { box.innerHTML = '<div class="s">Anticipated completion is before the start date.</div>'; return; }
+    var started = NP.mode === 'edit' && span(st, ymd(new Date())) >= 0;
+    var sofar = closed || !started ? null : span(st, ymd(new Date()));
+    var mid = moved ? ['Anticipated now', now + ' days', 'To ' + mdy(an)]
+                    : (closed ? null : ['Days left', Math.max(0, span(ymd(new Date()), an)) + ' days', 'To ' + mdy(an)]);
+    var third = closed ? ['Actual', act == null ? '—' : act + ' days', ac ? 'Finished ' + mdy(ac) : 'Add the actual completion date']
+                       : ['So far', sofar == null ? '—' : sofar + ' days', started ? 'Job still open' : 'Not started yet'];
+    var max = Math.max(exp, now, act || 0, sofar || 0, 1);
     function w(n) { return (Math.max(0, Math.min(n, max)) / max * 100).toFixed(1) + '%'; }
+    function cell(c) { return '<div><div class="k">' + c[0] + '</div><div class="v">' + c[1] + '</div><div class="s">' + c[2] + '</div></div>'; }
     var c = closed ? (act == null ? '' : chip(act - exp, exp, ''))
-                   : (tgd == null ? '' : tgd === exp ? '<span class="np-chip n">Target matches the anticipated date</span>' : chip(tgd - exp, exp, ' if it ends on target'));
-    box.innerHTML = '<div class="np-dur-row">'
-      + '<div><div class="k">Expected</div><div class="v">' + exp + ' days</div><div class="s">To ' + mdy(an) + '</div></div>'
-      + '<div><div class="k">Target now</div><div class="v">' + (tgd == null ? '\u2014' : tgd + ' days') + '</div><div class="s">' + (tg ? 'To ' + mdy(tg) : 'No target set') + '</div></div>'
-      + '<div><div class="k">' + third[0] + '</div><div class="v">' + third[1] + '</div><div class="s">' + third[2] + '</div></div></div>'
+                   : (moved ? chip(now - exp, exp, ' if it ends then') : '<span class="np-chip n">On the original date</span>');
+    box.innerHTML = '<div class="np-dur-row' + (mid ? '' : ' two') + '">'
+      + cell(['Expected', exp + ' days', 'To ' + mdy(fi) + (moved ? ' (original)' : '')]) + (mid ? cell(mid) : '') + cell(third) + '</div>'
       + '<div class="np-dur-bar" role="img" aria-label="Expected ' + exp + ' days, ' + third[0].toLowerCase() + ' ' + third[1] + '"><i class="e" style="width:' + w(exp) + '"></i>'
-      + '<i class="a" style="width:' + w(closed ? (act || 0) : (third[1] === '\u2014' ? 0 : sofar)) + '"></i>'
-      + (tgd != null ? '<span class="t" style="left:calc(' + w(tgd) + ' - 1px)"></span>' : '') + '</div>' + c;
+      + '<i class="a" style="width:' + w(closed ? (act || 0) : (sofar || 0)) + '"></i>'
+      + (moved ? '<span class="t" title="Anticipated now" style="left:calc(' + w(now) + ' - 1px)"></span>' : '') + '</div>' + c;
   }
 
   function payloadFromForm() {
     var isNew = $('np-client').value === '__new';
     return { client_org_id: isNew ? null : ($('np-client').value || null), new_org_name: isNew ? $('np-neworg').value.trim() : '',
       est_type: $('np-type').value, borough: $('np-borough').value, address: $('np-address').value.trim(), city_zip: $('np-cityzip').value.trim() || null, name: $('np-name').value.trim(),
-      contract_value: $('np-contract').value.trim() || null, start_date: npDateGet($('np-start')) || null, anticipated_completion: npDateGet($('np-ant')) || null, target_completion: npDateGet($('np-end')) || null,
+      contract_value: $('np-contract').value.trim() || null, start_date: npDateGet($('np-start')) || null, target_completion: npDateGet($('np-end')) || null,
       actual_completion: npDateGet($('np-act')) || null, status: $('np-status').value,
       pm_user_id: $('np-pm').value || null, notes: $('np-notes').value.trim(), billing_type: $('np-billing').value || null,
       site_lat: $('np-lat').value.trim() || null, site_lng: $('np-lng').value.trim() || null, geofence_m: $('np-radius').value.trim() || null, crew: crewChecked($('np-crew')),
@@ -430,7 +435,7 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
   async function saveJob(p) {
     var code = NP.code, cur = NP.cur || {}, steps = [];
     var det = { name: p.name || p.address, address: p.address, city_zip: p.city_zip || '', start_date: p.start_date,
-                anticipated_completion: p.anticipated_completion, target_completion: p.target_completion };
+                target_completion: p.target_completion };
     var wasClosed = cur.status === 'closed', closing = p.status === 'closed' && !wasClosed;
     if (wasClosed && p.status === 'closed') det.actual_completion = p.actual_completion;   // closing / reopening set it through the status step
     if (p.client_org_id) det.client_org_id = p.client_org_id; else if (p.new_org_name) det.new_org_name = p.new_org_name;
@@ -478,14 +483,14 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
     $('np-borough').innerHTML = '<option value="">— choose borough / region —</option>' + (m.regions || m.boroughs.map(function (b) { return { code: b, label: b }; })).map(function (r) { return '<option value="' + esc(r.code) + '">' + esc(r.label) + ' (' + esc(r.code) + ')</option>'; }).join('');   // #331
     $('np-billing').innerHTML = '<option value="">— choose —</option>' + (m.billing_types || []).map(function (b) { return '<option value="' + esc(b.code) + '">' + esc(b.label) + '</option>'; }).join('');   // #356
     $('np-pm').innerHTML = '<option value="">— assign later —</option>' + m.pms.map(function (p) { return '<option value="' + p.user_id + '">' + esc(p.name) + '</option>'; }).join('');
-    var p = window.SSCDatePicker; if (p && typeof p.wire === 'function') { ['np-start', 'np-ant', 'np-end', 'np-act'].forEach(function (id) { if (!$(id).dataset.sscDp) { try { p.wire($(id), {}); } catch (e) {} } }); }
+    var p = window.SSCDatePicker; if (p && typeof p.wire === 'function') { ['np-start', 'np-end', 'np-act'].forEach(function (id) { if (!$(id).dataset.sscDp) { try { p.wire($(id), {}); } catch (e) {} } }); }
   }
   function resetForm() {
     clearFieldErrors(); $('np-err').className = 'np-err'; $('np-ok').textContent = '';
     ['np-address', 'np-cityzip', 'np-name', 'np-contract', 'np-notes', 'np-lat', 'np-lng', 'np-radius', 'np-neworg', 'np-other'].forEach(function (id) { $(id).value = ''; });
     addrClose(); $('np-filled').hidden = true;
     $('np-other-wrap').hidden = true; drawTabs([]);
-    $('np-neworg-wrap').hidden = true; npDateSet($('np-start'), ''); npDateSet($('np-end'), ''); npDateSet($('np-ant'), ''); npDateSet($('np-act'), '');
+    $('np-neworg-wrap').hidden = true; npDateSet($('np-start'), ''); npDateSet($('np-end'), ''); npDateSet($('np-act'), '');
     $('np-act-wrap').hidden = true; $('np-status-wrap').hidden = true; $('np-status').value = 'active'; drawDuration();
     NP.files = []; drawFiles(); $('np-dwg-note').textContent = ''; $('np-contract').readOnly = false; $('np-contract-note').textContent = '';
     $('np-type').disabled = false; $('np-borough').disabled = false; $('np-client').disabled = false; $('np-pm-wrap').hidden = false; $('np-pm-note').hidden = true;
@@ -595,8 +600,8 @@ body .np-modal .np-foot .btn-ghost.np-del{margin-right:auto;color:var(--status-b
       $('np-billing').value = prof.billing_type || '';
       $('np-contract').value = d.contract_value != null ? d.contract_value : ''; $('np-contract').readOnly = !d.contract_editable; $('np-contract-note').textContent = d.contract_note || '';
       npDateSet($('np-start'), d.start_date || ''); npDateSet($('np-end'), d.target_completion || '');
-      npDateSet($('np-ant'), d.anticipated_completion || ''); npDateSet($('np-act'), d.actual_completion || '');
-      NP.cur.status = d.status || 'active'; $('np-status').value = NP.cur.status;
+      npDateSet($('np-act'), d.actual_completion || '');
+      NP.cur.status = d.status || 'active'; NP.cur.original = d.original_completion || ''; $('np-status').value = NP.cur.status;
       $('np-act-wrap').hidden = false; $('np-status-wrap').hidden = false; drawStatus();
       $('np-pm-wrap').hidden = true; $('np-pm-note').hidden = false;
       $('np-notes').closest('.np-field').hidden = true;   // notes go on the job's estimate when it is created

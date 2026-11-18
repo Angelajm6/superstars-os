@@ -61,7 +61,7 @@ def _num(v) -> float:
 # ---------------------------------------------------------------- blocks
 def _duration(p: dict) -> dict:
     import project_details
-    return project_details.duration(p.get("start_date"), p.get("anticipated_completion"), p.get("target_completion"),
+    return project_details.duration(p.get("start_date"), p.get("original_completion"), p.get("target_completion"),
                                     p.get("actual_completion"), p.get("status"))
 
 
@@ -90,7 +90,7 @@ def _header(conn, code, today, role=None):
             "color": project_setup.color_hex({**p, "project_code": code}), "color_ink": project_setup.color_ink({**p, "project_code": code}), "can_edit": role in FINANCIAL_ROLES, "address": p.get("address"), "status": p.get("status") or "active",
             "billing_type": bt, "billing_label": billing_type.label(bt), "billing_short": billing_type.SHORT.get(bt or "", "Not set"),
             "start_date": start, "target_completion": end, "days_left": days_left, "time_elapsed_pct": elapsed,
-            "anticipated_completion": p.get("anticipated_completion"), "actual_completion": p.get("actual_completion"),
+            "original_completion": p.get("original_completion"), "actual_completion": p.get("actual_completion"),
             "duration": _duration(p),
             "client": people.get("owner_client"), "project_manager": people.get("project_manager"),
             "superintendent": people.get("superintendent")}

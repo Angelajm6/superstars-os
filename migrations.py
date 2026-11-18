@@ -191,6 +191,7 @@ BOOT_ENSURED = {
     "apply_client_profile.py": ("crm_organization.client_kind", "crm_contact.roles"),
     "apply_hours_overtime.py": ("hours_overtime",),
     "apply_job_duration.py": ("projects.anticipated_completion", "projects.actual_completion"),
+    "apply_completion_original.py": ("projects.original_completion",),
 }
 
 

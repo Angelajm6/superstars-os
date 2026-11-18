@@ -64,7 +64,7 @@ PROJECT_FOLDERS = ("PERMITS", "DRAWINGS", "CONTRACTS", "INSPECTIONS", "SAFETY", 
 FIELD_SOURCES = (
     ("job_address", "Job address"), ("job_number", "Job number"), ("job_name", "Job name"),
     ("owner", "Owner / client"), ("client_contact", "Client contact"), ("start_date", "Start date"),
-    ("target_completion", "Target completion"), ("contract_value", "Contract value"),
+    ("target_completion", "Anticipated completion"), ("contract_value", "Contract value"),
     ("superintendent", "Superintendent"), ("project_manager", "Project manager"),
     ("company", "Our company details"), ("today", "Today's date"), ("other", "Not on file"),
 )
