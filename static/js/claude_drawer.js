@@ -101,6 +101,24 @@
 .clx-card dd textarea{min-height:52px;resize:vertical}\
 .clx-card dd .hint{display:block;font-size:12px;color:#868C98;margin-top:2px}\
 .clx-acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}\
+.clx-who{font-size:12.5px;color:#868C98}.clx-who b{color:#1B1F27;font-weight:600}\
+.clx-grp{border:1px solid #E6E8EE;border-radius:9px;overflow:hidden;container-type:inline-size}\
+.clx-grp-h{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline;padding:7px 10px;background:#fafbfd;border-bottom:1px solid #E6E8EE;font-size:13px}\
+.clx-grp-h small{color:#868C98}.clx-new{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:5px;padding:1px 6px;background:#E3F3EE;color:#0c7a5f;margin-left:4px}\
+.clx-row{display:grid;grid-template-columns:20px 104px minmax(0,1fr) minmax(0,1.25fr);gap:4px 10px;align-items:center;padding:7px 10px;border-top:1px solid #E6E8EE;font-size:13px}\
+.clx-grp-h+.clx-row{border-top:0}\
+.clx-row input[type=checkbox]{width:16px;height:16px;margin:0;accent-color:#0c7a5f}\
+.clx-row label{color:#868C98}\
+.clx-old{color:#868C98;text-decoration:line-through;text-decoration-color:#A8382B;overflow-wrap:anywhere}.clx-old.none{text-decoration:none;font-style:italic}\
+.clx-nv{display:flex;align-items:center;gap:6px;min-width:0}.clx-nv:before{content:"\\2192";color:#868C98}\
+.clx-nv input[type=text]{flex:1;min-width:0;font:13px Inter,sans-serif;color:#1B1F27;background:#fff;border:1px solid #E6E8EE;border-radius:8px;padding:5px 8px}\
+.clx-row.off .clx-nv,.clx-row.off .clx-old{opacity:.45}\
+.clx-why{grid-column:3/-1;font-size:12px;color:#868C98}\
+.clx-chips{display:flex;flex-wrap:wrap;gap:5px}\
+.clx-chip{border:1px solid #E6E8EE;background:#fff;color:#1B1F27;border-radius:999px;padding:3px 9px;font:500 12px Inter,sans-serif;cursor:pointer}\
+.clx-chip[aria-pressed=true]{border-color:#0c7a5f;background:#E3F3EE;color:#0c7a5f}\
+.clx-res ul{margin:4px 0 0;padding-left:18px;font-weight:400;color:#1B1F27}\
+@container (max-width:520px){.clx-row{grid-template-columns:20px minmax(0,1fr)}.clx-old,.clx-nv,.clx-why{grid-column:2}.clx-old:before{content:"Now: ";display:inline-block;margin-right:3px}}\
 .clx-res{font-size:12.5px;font-weight:600;color:#0c7a5f}.clx-res.no{color:#868C98}.clx-res.bad{color:#A8382B}\
 .clx-res a{color:inherit}\
 .clx-err{font-size:12.5px;color:#A8382B}\
@@ -814,6 +832,43 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
       : '<input' + attrs + ' type="' + (f.type === 'date' || f.type === 'time' ? f.type : 'text') + '" value="' + esc(f.value) + '">';
     return '<dt><label for="' + id + '">' + esc(f.label) + '</label></dt><dd>' + input + hint + '</dd>';
   }
+  // update_client_record (2026-11-18): rows of what is on file now -> the new value, each with a tick box
+  function changeRows(a, c) {
+    var opts = c.role_options || [];
+    return (c.client ? '<div class="clx-who">For <b>' + esc(c.client) + '</b></div>' : '') + (c.groups || []).map(function (g) {
+      return '<div class="clx-grp"><div class="clx-grp-h"><b>' + esc(g.title) + (g.is_new ? '<span class="clx-new">New</span>' : '') + '</b><small>' + esc(g.meta) + '</small></div>' +
+        g.rows.map(function (r) {
+          var id = 'clx-a' + a.id + '-' + r.key.replace(/[^\w-]/g, '_');
+          var val = r.roles
+            ? '<div class="clx-chips" role="group" aria-label="' + esc(r.label) + '"><input type="hidden" data-key="' + esc(r.key) + '" id="' + id + '" value="' + esc(r.new) + '">' +
+              opts.map(function (o) { return '<button type="button" class="clx-chip" data-chip="' + esc(o.value) + '" data-for="' + id + '" aria-pressed="' + (r.new.split(',').indexOf(o.value) > -1) + '">' + esc(o.label) + '</button>'; }).join('') + '</div>'
+            : '<input type="text" id="' + id + '" data-key="' + esc(r.key) + '" value="' + esc(r.new) + '" aria-label="New ' + esc(r.label) + '">';
+          return '<div class="clx-row"><input type="checkbox" checked data-tick="' + id + '" id="' + id + '-t" aria-label="Keep this change">' +
+            '<label for="' + id + '-t">' + esc(r.label) + '</label>' +
+            '<span class="clx-old' + (r.old ? '' : ' none') + '">' + esc(r.old || 'not on file') + '</span>' +
+            '<div class="clx-nv">' + val + '</div>' + (r.why ? '<div class="clx-why">' + esc(r.why) + '</div>' : '') + '</div>';
+        }).join('') + '</div>';
+    }).join('');
+  }
+  function changeCount(cardEl) {
+    var n = cardEl.querySelectorAll('[data-tick]:checked').length, b = cardEl.querySelector('[data-approve]');
+    if (b) { b.textContent = 'Approve ' + n + ' change' + (n === 1 ? '' : 's'); b.disabled = !n; }
+  }
+  document.addEventListener('change', function (e) {
+    var t = e.target.closest && e.target.closest('[data-tick]'); if (!t) return;
+    var row = t.closest('.clx-row'), inp = document.getElementById(t.getAttribute('data-tick'));
+    row.classList.toggle('off', !t.checked);
+    if (inp) inp.disabled = !t.checked;
+    row.querySelectorAll('.clx-chip').forEach(function (b) { b.disabled = !t.checked; });
+    changeCount(t.closest('.clx-card'));
+  });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-chip]'); if (!b) return;
+    var inp = document.getElementById(b.getAttribute('data-for')); if (!inp) return;
+    var on = b.getAttribute('aria-pressed') !== 'true', v = inp.value ? inp.value.split(',') : [], k = b.getAttribute('data-chip');
+    v = on ? v.concat(v.indexOf(k) > -1 ? [] : [k]) : v.filter(function (x) { return x !== k; });
+    b.setAttribute('aria-pressed', String(on)); inp.value = v.join(',');
+  });
   function card(a) {
     var c = a.card || { title: a.label, fields: [] };
     var state = a.closed_note ? 'Already done' : { pending: 'Needs your approval', approved: 'Approved', declined: 'Declined', expired: 'Expired', undone: 'Undone', failed: 'Failed' }[a.status] || a.status;
@@ -829,8 +884,17 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
       : a.status === 'expired' ? '<div class="clx-res no">Expired · ask Claude again</div>'
       : a.status === 'undone' ? '<div class="clx-res no">Undone</div>'
       : '<div class="clx-res bad">That change failed; nothing was saved.</div>';
+    var body;
+    if (c.groups) {
+      var n = (c.fields || []).length;
+      body = a.status === 'pending' ? changeRows(a, c) : '';
+      if (a.status === 'pending') foot = foot.replace('>Approve</button>', '>Approve ' + n + ' change' + (n === 1 ? '' : 's') + '</button>');
+      if (a.status === 'approved' && a.result && a.result.lines) foot = foot.replace(/<\/div>$/, '<ul>' + a.result.lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul></div>');
+    } else {
+      body = '<dl>' + (c.fields || []).filter(function (f) { return a.status === 'pending' || f.value !== ''; }).map(function (f) { return field(a, f); }).join('') + '</dl>';
+    }
     return '<div class="clx-card ' + esc(a.status) + '" id="clx-card' + a.id + '"><div class="clx-card-h"><b>' + esc(state) + '</b><span class="clx-tag">' + esc(c.title) + '</span></div>' +
-      '<dl>' + (c.fields || []).filter(function (f) { return a.status === 'pending' || f.value !== ''; }).map(function (f) { return field(a, f); }).join('') + '</dl>' + foot + '</div>';
+      body + foot + '</div>';
   }
   async function onCardClick(e) {
     var say = e.target.closest('[data-say]'); if (say) { send(say.getAttribute('data-say')); return; }
@@ -844,7 +908,7 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     if (ap) document.querySelectorAll('#clx-card' + id + ' [data-key]').forEach(function (el) {
       var v = el.value, dp = window.SSCDatePicker;   // pages that restyle date boxes show MM-DD-YYYY; send ISO
       if (dp && typeof dp.getISO === 'function' && /^\d{2}-\d{2}-\d{4}$/.test(v || '')) { var iso = dp.getISO(el); if (iso) v = iso; }
-      values[el.getAttribute('data-key')] = v;
+      values[el.getAttribute('data-key')] = el.disabled ? '' : v;   // an unticked change row is skipped
     });
     (ap || de || un).disabled = true;
     try {
@@ -905,7 +969,7 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
     document.querySelectorAll('#clx-card' + id + ' [data-key]').forEach(function (el) {
       var v = el.value, dp = window.SSCDatePicker;
       if (dp && typeof dp.getISO === 'function' && /^\d{2}-\d{2}-\d{4}$/.test(v || '')) { var iso = dp.getISO(el); if (iso) v = iso; }
-      values[el.getAttribute('data-key')] = v;
+      values[el.getAttribute('data-key')] = el.disabled ? '' : v;   // an unticked change row is skipped
     });
     return values;
   }

@@ -21,6 +21,26 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Claude updates client records from email, one card per email (Bookore, 2026-11-18)
+
+* Accepted prototype: https://claude.ai/artifact/JWDdszQjNdNqPyPcnKN3st. Piece 3 of the Inbox-accuracy plan. New tool
+  `update_client_record` (`client_updates.py`): Claude sends a flat list of changes ({contact_id | new_contact | neither
+  = the client, field, value, why}); `plan()` turns it into groups (people first, the client last) of rows showing what is
+  on file NOW → the new value. Values already on file are dropped (email case, phone digits, website prefix); a "new"
+  person already on the client (same email, else name) becomes that contact; nothing left = refused at creation and,
+  for a waiting card, closed as "already matches this email" (`MOOT`).
+* Fields: a contact's name / email / phone / title / roles (roles only ADD); the client's phone / email / website / address /
+  billing email. Never payment terms, deposit, retainage or the primary contact; never deletes. Angela's two choices: a
+  Cc-only person is added only when the email says why; billing email only when the email clearly asks.
+* Drawer (v=20): `card.groups` draws `changeRows` (tick box, struck old value, editable new value, role chips); the card's
+  `fields` (type `change`) carry the same keys so `_decide` accepts edits; an unticked row's input is disabled and sent
+  as '' → skipped. Rows stack by the card's own width (`@container`), so the 440px drawer and a phone get the stacked layout.
+* Approve: `crm.update_org` / `update_contact` / `create_contact`, files the email on the client, one activity line
+  ("Updated from <sender>'s email: …"). Undo restores old values; a contact it added is deleted (made inactive if an
+  estimate or proposal already uses it). Needs you shows "Client details" with the rows, opening the email to approve.
+* `live_state` now lists the client's contacts by name, contact_id, title and roles only (never email or phone).
+* Guard: `tests/smoke_client_updates.py` (new, in the gate).
+
 ### Claude sees where things stand before it suggests anything on an email (Bookore, 2026-11-18)
 
 * Piece 2 of the Inbox-accuracy plan. `inbox.live_state(conn, m)` adds a "Where things stand right now" block to
