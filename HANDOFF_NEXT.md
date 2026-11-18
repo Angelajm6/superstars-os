@@ -21,6 +21,15 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Claude sees where things stand before it suggests anything on an email (Bookore, 2026-11-18)
+
+* Piece 2 of the Inbox-accuracy plan. `inbox.live_state(conn, m)` adds a "Where things stand right now" block to
+  `suggest_prompt`, before the email text: the matched client's proposals (number, proposal_id, title, status with its
+  date, sent date, price; not deleted / superseded), estimates and bids (status, bid due, the job it became), its jobs
+  with the documents filed (not superseded), and what was already approved in this conversation. The client comes from
+  the email's match, else its proposal / estimate / job. The rule: trust this over the email; never repeat a done step.
+* Wrapped by `_safe_state`: a failed read leaves the block out, never the email. Guard: `tests/smoke_inbox_live_state.py`.
+
 ### Claude's cards close themselves when the record moved past them (Bookore, 2026-11-18)
 
 * Why: a "Mark the proposal as sent" card stayed up after the proposal was signed. Cards were checked when made and on
