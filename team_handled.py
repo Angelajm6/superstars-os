@@ -267,7 +267,7 @@ def handled(conn, uid: int) -> list:
     from email.utils import parseaddr
     since = (datetime.now() - claude_agent.CARD_TTL).isoformat(timespec="seconds")
     out = []
-    for a in _rows(conn, "SELECT a.id, a.tool, a.input, a.result, a.decided_at, c.mail_id FROM claude_action a "
+    for a in _rows(conn, "SELECT a.id, a.tool, a.summary, a.input, a.result, a.decided_at, c.mail_id FROM claude_action a "
                          "JOIN claude_chat c ON c.id = a.chat_id WHERE a.user_id = ? AND a.status = 'declined' AND c.source = 'mail' "
                          "AND a.created_at >= ? AND a.result LIKE '%\"handled\"%' ORDER BY a.decided_at DESC LIMIT 20", (uid, since)):
         m = inbox.message(conn, a["mail_id"], uid) if a.get("mail_id") else None
@@ -277,8 +277,11 @@ def handled(conn, uid: int) -> list:
         if a["tool"] == "draft_proposal":
             addr = claude_agent._draft_facts(json.loads(a["input"] or "{}"))["building_address"]
             title = f"{who} asked for a proposal" + (f": {addr}" if addr else "")
-        else:
+        elif a["tool"] == "reply_email":
             title = f"{who} was waiting for a reply"
+        else:   # closed because the record moved on (claude_agent.sweep_moot)
+            t = claude_agent.BY_NAME.get(a["tool"])
+            title = (a.get("summary") or (t.label if t else a["tool"].replace("_", " ")))[:160]
         out.append({"action_id": a["id"], "title": title, "note": json.loads(a["result"]).get("summary") or "",
                     "when": a["decided_at"]})
     return out

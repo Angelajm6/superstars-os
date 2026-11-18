@@ -898,6 +898,7 @@ def today_cards(conn, uid: int) -> list:
         return []
     import claude_agent
     import team_handled
+    claude_agent.sweep_moot(conn, user_id=uid)   # e.g. "mark as sent" for a proposal signed since
     since = (datetime.now() - claude_agent.CARD_TTL).isoformat(timespec="seconds")
     rows = _rows(conn, "SELECT a.id, a.tool, a.input, a.summary, a.created_at, c.mail_id FROM claude_action a "
                        "JOIN claude_chat c ON c.id = a.chat_id WHERE a.user_id = ? AND a.status = 'pending' "
@@ -964,11 +965,14 @@ def suggest_prompt(conn, m: dict, user_name: str) -> str:
         "- a request for a proposal, price or quote: draft_proposal with the facts only (client, building, job type, and "
         "`what`: the work, quantities, the drawings or report it refers to, any prices given); once approved, Proposal "
         "Studio writes it in the company's own layout and the person checks and sends it from there\n"
-        "- a proposal or price sent from Gmail outside the software: log_proposal_sent for the matching draft\n"
+        "- a proposal or price sent from Gmail outside the software: log_proposal_sent for the matching draft (only a "
+        "proposal still in draft: look up its status first)\n"
         "- attachments for an existing bid or estimate: save_email_attachments\n"
         f"- a question or request that needs an answer: reply_email with a complete, ready-to-send reply, {sign}\n"
         "- a meeting, walkthrough or inspection: create_event; a promise or deadline: create_task; useful history: add_client_note\n"
         "Write a reply as a normal email in plain text (greeting, the answer, sign-off), never a summary. "
+        "Before proposing a change to a proposal, estimate or task, look up its current status: never move it backward or "
+        "repeat a step it is past (a signed, declined or sent proposal is never marked sent). "
         "Propose nothing when nothing is needed. Never propose replying to automatic notices or to email the person sent "
         "themselves. Finish with one or two plain sentences: what the email is and what you propose.\n\n"
         + (("Already waiting for this person's approval in this conversation (do not propose these again): "

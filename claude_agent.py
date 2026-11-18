@@ -2077,7 +2077,113 @@ def purge_expired(conn, throttle: bool = False) -> int:
     conn.commit()
     if n:
         log.info("claude purged %s unanswered card(s)", n)
+    sweep_moot(conn)
     return n or 0
+
+
+# ------------------------------------------------------------------ cards the records moved past
+def _went(p: dict) -> str:
+    import proposals
+    on = {"signed": p.get("signed_at"), "declined": p.get("declined_at")}.get(p["status"]) or p.get("sent_at")
+    return f"Proposal {proposals._label(p)} is already {p['status']}" + (f" ({str(on)[:10]})" if on else "")
+
+
+def _moot_proposal(conn, inp: dict, ok: tuple) -> Optional[str]:
+    import proposals
+    p = proposals.get(conn, int(inp.get("proposal_id") or 0))
+    if not p:
+        return "That proposal was deleted"
+    return None if p["status"] in ok else _went(p)
+
+
+def _moot_new_proposal(conn, inp: dict) -> Optional[str]:
+    import estimates
+    e = estimates.get_estimate(conn, int(inp.get("estimate_id") or 0))
+    if not e:
+        return "That estimate was deleted"
+    o = _one(conn, "SELECT number, status FROM proposal WHERE estimate_id = ? AND status IN ('draft','sent','viewed','signed') "
+                   "ORDER BY id DESC LIMIT 1", (e["id"],))
+    if o:
+        return f"Proposal {o['number']} for {e['code']} is already {o['status']}"
+    return f"{e['code']} is already {e['status']}" if e["status"] in ("lost", "approved") else None
+
+
+def _moot_estimate_status(conn, inp: dict) -> Optional[str]:
+    import estimates
+    e = estimates.get_estimate(conn, int(inp.get("estimate_id") or 0))
+    if not e:
+        return "That estimate was deleted"
+    to = str(inp.get("status") or "").lower()
+    if e["status"] == to or to not in estimates.allowed_transitions(e["status"]):
+        return f"{e['code']} is already {e['status']}"
+    return None
+
+
+def _moot_done(conn, inp: dict) -> Optional[str]:
+    import team_items
+    t = team_items.get_item(conn, int(inp.get("item_id") or 0))
+    if not t or (t.get("status") or "open") == "cancelled":
+        return "That task was deleted"
+    done = str(inp.get("done", True)).lower() not in ("false", "0")
+    if (t.get("status") or "open") == ("done" if done else "open"):
+        return f"\"{(t.get('title') or 'The task')[:60]}\" is already {'done' if done else 'open'}"
+    return None
+
+
+# Only the record's own state, never a field the person can still fill on the card (a missing price, a date): a card
+# that only needs an edit stays open. reply_email / draft_proposal are closed by team_handled (who answered the email).
+MOOT = {"log_proposal_sent": lambda c, i: _moot_proposal(c, i, ("draft",)),
+        "update_proposal": lambda c, i: _moot_proposal(c, i, ("draft",)),
+        "send_proposal": lambda c, i: _moot_proposal(c, i, ("draft", "sent", "viewed")),
+        "create_proposal": _moot_new_proposal,
+        "change_estimate_status": _moot_estimate_status,
+        "mark_done": _moot_done}
+
+
+def moot_reason(conn, a: dict) -> Optional[str]:
+    """Why a waiting card no longer makes sense because the record moved on, or None (Angela 2026-11-18: a "Mark the
+    proposal as sent" card stayed up after Proposal 1255 was signed). Reads only; a failed check keeps the card."""
+    f = MOOT.get(a.get("tool"))
+    if not f:
+        return None
+    try:
+        return f(conn, json.loads(a.get("input") or "{}"))
+    except Exception as e:
+        log.info("moot check skipped for card %s (%s)", a.get("id"), type(e).__name__)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return None
+
+
+def close_moot(conn, a: dict, why: str) -> None:
+    """Closes it onto Handled (like a draft the team already sent) and tells Claude, so it isn't proposed again."""
+    cur = conn.execute("UPDATE claude_action SET status = 'declined', decided_at = ?, result = ? WHERE id = ? AND status = 'pending'",
+                       (_now(), json.dumps({"summary": f"{why}, so this was closed", "undo": False,
+                                            "handled": {"proposal_id": 0, "how": "moot"}}), a["id"]))
+    if (getattr(cur, "rowcount", 1) or 0) > 0:
+        _add_msg(conn, a["chat_id"], "user", "note", [{"type": "text", "text":
+                 f"[Platform note] Card A-{a['id']} ({a['tool']}) was closed without a change: {why}."}])
+        log.info("claude action %s closed: the record moved on", a["id"])
+    conn.commit()
+
+
+def sweep_moot(conn, chat_id: Optional[int] = None, user_id: Optional[int] = None) -> int:
+    """Close every waiting card the records have moved past (one chat, one person, or everyone). Cheap: a few cards."""
+    sql = f"SELECT id, chat_id, tool, input FROM claude_action WHERE status = 'pending' AND tool IN ({','.join('?' * len(MOOT))})"
+    params = list(MOOT)
+    if chat_id:
+        sql, params = sql + " AND chat_id = ?", params + [chat_id]
+    if user_id:
+        sql, params = sql + " AND user_id = ?", params + [user_id]
+    n = 0
+    for a in _rows(conn, sql, params):
+        why = moot_reason(conn, a)
+        if why:
+            close_moot(conn, a, why)
+            n += 1
+    return n
 
 
 # ------------------------------------------------------------------ shapes
@@ -2101,12 +2207,15 @@ def _action_public(conn, a: dict, me_id=None) -> dict:
             "decided_at": a.get("decided_at"), "decided_by": a.get("decided_by_name"),
             "expires_at": until.isoformat(timespec="seconds") if status in ("pending", "declined") and live else None,
             "mine": me_id is not None and a["user_id"] == me_id,
-            "can_reopen": bool(status == "declined" and live and me_id is not None and a["user_id"] == me_id),
+            "closed_note": (res or {}).get("summary") if status == "declined" and (res or {}).get("handled") else None,
+            "can_reopen": bool(status == "declined" and live and me_id is not None and a["user_id"] == me_id
+                               and ((res or {}).get("handled") or {}).get("how") != "moot"),
             "can_undo": bool(status == "approved" and tool and tool.undo and res and res.get("undo"))}
 
 
 def _chat_view(conn, chat: dict) -> dict:
     purge_expired(conn, throttle=True)
+    sweep_moot(conn, chat_id=chat["id"])   # every read: a card must never ask for what is already done
     msgs = _rows(conn, "SELECT id, role, kind, content, created_at FROM claude_chat_message WHERE chat_id = ? ORDER BY id",
                  (chat["id"],))
     acts = {}
@@ -2478,6 +2587,10 @@ def _decide(action_id, verb):
                 return _err("This card was already decided.", 409)
             if datetime.fromisoformat(a["created_at"]) < datetime.now() - CARD_TTL:
                 return _err("This card expired. Ask Claude again so it uses today's information.", 409)
+            why = moot_reason(conn, a) if verb != "decline" else None
+            if why:
+                close_moot(conn, a, why)
+                return _err(f"{why}, so this was closed. Nothing was changed.", 409)
             if verb != "decline" and a["tool"] == "draft_proposal":
                 import team_handled
                 why = team_handled.done_already(conn, me["id"], a, chat.get("mail_id"))
@@ -2561,7 +2674,7 @@ def _api_actions():
         return _err("forbidden", 403)
     conn = _conn()
     try:
-        purge_expired(conn)
+        purge_expired(conn)   # also closes the cards the records moved past (sweep_moot)
         sql = ("SELECT a.*, u.full_name AS decided_by_name, r.full_name AS asked_by_name FROM claude_action a "
                "LEFT JOIN users u ON u.id = a.decided_by LEFT JOIN users r ON r.id = a.user_id")
         params = []

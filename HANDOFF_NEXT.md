@@ -21,6 +21,20 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Claude's cards close themselves when the record moved past them (Bookore, 2026-11-18)
+
+* Why: a "Mark the proposal as sent" card stayed up after the proposal was signed. Cards were checked when made and on
+  Approve, never while they waited their 48 hours. Piece 1 of the Inbox-accuracy plan (2: give Claude the client's live
+  state; 3: client-record updates from email; 4: file sent documents to the job; 5: an email test set in the gate).
+* `claude_agent.MOOT` + `moot_reason` / `close_moot` / `sweep_moot`: per kind, only the record's own state (a proposal no
+  longer a draft, an estimate already at that status or with a proposal started, a task already done), never a field the
+  person can still fill on the card. Swept on every conversation view, the dashboard's Needs you, the approvals log,
+  `purge_expired` (so the Inbox counts) and on Approve (409 "…is already signed, so this was closed").
+* Closed like team_handled (status `declined`, `result.handled.how = "moot"`): on Handled with the reason, the drawer
+  shows "Already done · ✓ … Nothing was changed." (`closed_note`, drawer v=19), no Bring it back; a platform note tells
+  Claude. The inbox prompt now says to look up the status first and never move a record backward.
+* Guard: `tests/smoke_moot_cards.py` (new, in the gate).
+
 ### Job duration: Anticipated + Actual completion, the original kept (Bookore, 2026-11-17 → v2 2026-11-18)
 
 * Accepted prototype (v2): https://claude.ai/artifact/CGJfemZZ9r9fb7bQ1132cu. Angela cut v1's three dates to two.
