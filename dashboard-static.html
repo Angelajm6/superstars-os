@@ -2098,7 +2098,7 @@
           .pd-note.add{background:var(--fill,#f4f5f8);color:var(--ink-2,#4a4f59)}
           .pd-who{display:inline;font-size:12px;font-weight:700;color:var(--pd-accent-ink);background:var(--pd-accent-soft);border-radius:6px;padding:0 6px;margin-right:2px}
           /* suggested documents */
-          .pd-sugg{margin-top:22px}
+          .pd-sugg{margin-top:28px}
           .pd-sugg-not{font-size:12px;color:var(--pd-muted);margin:8px 2px 0}
           /* 2026-10-23 — Additional documents: subcontractors' and other companies' papers, apart from ours */
           .pd-addl{margin-top:22px;display:flex;flex-direction:column;gap:10px}
@@ -2188,13 +2188,6 @@
               <button class="btn-primary" id="pd-approve-all" type="button" hidden></button></div>
             <div class="pd-cards" id="pd-cards"></div>
           </section>
-          <section class="pd-sugg" id="pd-sugg" hidden aria-labelledby="pd-sugg-t">
-            <div class="pd-sugg-h"><b id="pd-sugg-t">Still needed now</b>
-              <span id="pd-sugg-fit"></span></div>
-            <div class="pd-sugg-list" id="pd-sugg-list"></div>
-            <div class="pd-sugg-not" id="pd-sugg-not" hidden></div>
-            <input type="file" id="pd-sugg-input" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.xlsx,.xlsm,.xls,.csv" hidden>
-          </section>
           <div class="pd-sec"><b>Filed</b>
             <label class="pd-search"><svg class="pd-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="pd-q" placeholder="Search filed documents" aria-label="Search filed documents" autocomplete="off"></label>
           </div>
@@ -2206,6 +2199,14 @@
             <button class="pd-bb-clear" id="pd-bb-clear" type="button">Clear</button>
           </div>
           <div id="pd-checklist"></div>
+          <!-- Still needed sits below what is filed: scan what is logged first, then what is missing. -->
+          <section class="pd-sugg" id="pd-sugg" hidden aria-labelledby="pd-sugg-t">
+            <div class="pd-sugg-h"><b id="pd-sugg-t">Still needed now</b>
+              <span id="pd-sugg-fit"></span></div>
+            <div class="pd-sugg-list" id="pd-sugg-list"></div>
+            <div class="pd-sugg-not" id="pd-sugg-not" hidden></div>
+            <input type="file" id="pd-sugg-input" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.xlsx,.xlsm,.xls,.csv" hidden>
+          </section>
           <!-- 2026-11-13 Specs revamp: the products on this job (Company → Specs → "Add to job"), each with its data
                sheet; hidden until the job has one. Compact on purpose: the old Specifications table left this tab
                on 2026-10-22. Logic: the PD_loadSpecs script below. -->
