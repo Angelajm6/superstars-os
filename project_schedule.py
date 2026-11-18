@@ -1,6 +1,6 @@
 """The job dashboard's Schedule window: one payload for the whole view.
 
-    job       start / target completion, days left, % of time used vs % of drops
+    job       start / anticipated completion (target_completion), days left, % of time used vs % of drops
               complete, and a pace verdict (from project_summary).
     lookahead the two-week board (lookahead.load_window), re-projected from THIS
               week's Drop Plan progress through the window being viewed, so paging
@@ -45,7 +45,7 @@ def _job(conn, code: str, today: date) -> dict:
     if time_pct is not None and drops_pct is not None:
         pace = "on_pace" if drops_pct + PACE_SLACK_PCT >= time_pct else "behind"
     return {"start_date": h.get("start_date"), "target_completion": h.get("target_completion"),
-            "anticipated_completion": h.get("anticipated_completion"), "duration": h.get("duration") or {},
+            "original_completion": h.get("original_completion"), "duration": h.get("duration") or {},
             "days_left": h.get("days_left"), "time_pct": time_pct,
             "drops_total": total, "drops_complete": done, "drops_pct": drops_pct, "pace": pace}
 

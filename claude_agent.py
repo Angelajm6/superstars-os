@@ -1097,9 +1097,8 @@ def _undo_issue(ctx, action, result):
 
 # ---- jobs (2026-10-22): a job's details, status and access methods, through the same code as Edit project
 _JOB_FIELDS = {"name": "Name", "address": "Address", "city_zip": "City / ZIP", "start_date": "Start date",
-               "anticipated_completion": "Anticipated completion", "target_completion": "Target completion",
-               "contract_value": "Contract value"}
-_JOB_DATES = ("start_date", "anticipated_completion", "target_completion")
+               "target_completion": "Anticipated completion", "contract_value": "Contract value"}
+_JOB_DATES = ("start_date", "target_completion")   # target_completion is the job's Anticipated completion
 _JOB_STATUSES = ("active", "closed")
 
 
@@ -1741,11 +1740,11 @@ TOOLS += [
 ]
 TOOLS += [
     Tool("update_job", "Change job details", "Propose changing a job: name, address, city / ZIP, client (client_org_id "
-         "from find), start date, anticipated completion (the end date expected at the start; it does not move), target completion, contract value, status (active or closed) and the access methods "
+         "from find), start date, anticipated completion (target_completion: when the job is expected to finish; the first date is kept automatically to measure slippage), contract value, status (active or closed) and the access methods "
          "of an Exterior Restoration job (add_access_methods / remove_access_methods: suspended_scaffold, "
          "supported_scaffold, rope_access, boom_lift). Pass only what changes; look the job up first.",
          {"project_code": _S, "name": _S, "address": _S, "city_zip": _S, "client_org_id": _I, "start_date": _D,
-          "anticipated_completion": _D, "target_completion": _D, "contract_value": {"type": "number"}, "status": {"type": "string", "enum": list(_JOB_STATUSES)},
+          "target_completion": _D, "contract_value": {"type": "number"}, "status": {"type": "string", "enum": list(_JOB_STATUSES)},
           "add_access_methods": _ACCESS, "remove_access_methods": _ACCESS},
          ["project_code"], write=True, roles=OFFICE_ROLES, run=_check_job, card=_job_card, execute=_exec_job,
          undo=_undo_job),

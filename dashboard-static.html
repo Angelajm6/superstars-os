@@ -1451,7 +1451,7 @@
               const code = decodeURIComponent((location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || '');
               const go = () => window.SSCNewProject.edit(code);
               if (window.SSCNewProject) return go();
-              const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1117'; sc.onload = go; document.head.appendChild(sc);
+              const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1118'; sc.onload = go; document.head.appendChild(sc);
             };
             document.addEventListener('click', e => { if (e.target.closest('#jx-edit')) window.SSC_editProject(); });
             const jxWx = $j('jx-wx');   // the weather block (filled by the weather loader), re-attached after each render
@@ -2674,17 +2674,16 @@
         function renderJob(){
           const j=S.job, el=$('sc-job');
           if(!j.start_date||!j.target_completion){
-            el.innerHTML='<div class="sc-jrow"><span class="m">Set the job\'s start and target completion dates (Edit project) to see the timeline.</span></div>'; return;
+            el.innerHTML='<div class="sc-jrow"><span class="m">Set the job\'s start and anticipated completion dates (Edit project) to see the timeline.</span></div>'; return;
           }
           const pace=j.pace==='on_pace'?'<span class="sc-pill ok">On pace</span>':(j.pace==='behind'?'<span class="sc-pill bad">Behind pace</span>':'');
           const du=j.duration||{}, dv=du.variance_days;   // job duration: the target (or actual) against the anticipated end
-          const slip=dv==null||dv===0?'':'<span class="sc-pill '+(dv>0?'bad':'ok')+'" title="Against the anticipated completion">'+Math.abs(dv)+(Math.abs(dv)===1?' day ':' days ')+(dv>0?'over':'early')+'</span>';
+          const slip=dv==null||dv===0?'':'<span class="sc-pill '+(dv>0?'bad':'ok')+'" title="Against the original anticipated completion">'+Math.abs(dv)+(Math.abs(dv)===1?' day ':' days ')+(dv>0?'over':'early')+'</span>';
           const tp=Math.max(0,Math.min(100,j.time_pct||0));
           const dl=j.days_left;
           el.innerHTML='<div class="sc-jrow"><span><span class="m">Start</span> <b>'+mdy(j.start_date)+'</b></span>'
-            +(j.anticipated_completion?'<span><span class="m">Anticipated</span> <b>'+mdy(j.anticipated_completion)+'</b></span>':'')
-            +'<span><span class="m">Target completion</span> <b>'+mdy(j.target_completion)+'</b></span><span class="sp"></span>'
-            +(dl==null?'':(dl>=0?'<span><b>'+dl+'</b> <span class="m">days left</span></span>':'<span><b>'+(-dl)+'</b> <span class="m">days past target</span></span>'))+slip+pace+'</div>'
+            +'<span><span class="m">Anticipated completion</span> <b>'+mdy(j.target_completion)+'</b>'+((j.duration||{}).moved_days?' <span class="m">(originally '+mdy(j.original_completion)+')</span>':'')+'</span><span class="sp"></span>'
+            +(dl==null?'':(dl>=0?'<span><b>'+dl+'</b> <span class="m">days left</span></span>':'<span><b>'+(-dl)+'</b> <span class="m">days past anticipated</span></span>'))+slip+pace+'</div>'
             +'<div class="sc-bars" aria-hidden="true"><i class="tr"></i><i class="tm" style="width:'+tp+'%"></i>'
             +(j.drops_pct!=null?'<i class="dr" style="width:'+j.drops_pct+'%"></i>':'')+'<i class="now" style="left:'+tp+'%"></i></div>'
             +'<div class="sc-key"><span><i class="sc-sw" style="background:var(--accent-edge)"></i>Time used '+Math.round(tp)+'%</span>'
@@ -6820,8 +6819,7 @@
               <div class="ps-f"><label for="ps-f-client">Client</label><select id="ps-f-client" class="ssc-field"></select></div>
               <div class="ps-f" id="ps-f-newclient-wrap" hidden><label for="ps-f-newclient">New client name</label><input id="ps-f-newclient" class="ssc-field" maxlength="200" autocomplete="off"></div>
               <div class="ps-f"><label for="ps-f-start">Start date</label><input type="text" id="ps-f-start" class="ssc-date ssc-field" placeholder="MM-DD-YYYY"></div>
-              <div class="ps-f"><label for="ps-f-ant">Anticipated completion</label><input type="text" id="ps-f-ant" class="ssc-date ssc-field" placeholder="MM-DD-YYYY"><div class="ps-hint">The end date expected when the job started. It stays the same when the schedule moves.</div></div>
-              <div class="ps-f"><label for="ps-f-target">Target completion</label><input type="text" id="ps-f-target" class="ssc-date ssc-field" placeholder="MM-DD-YYYY"><div class="ps-hint">The current end date. The calendar draws the job to this date.</div></div>
+              <div class="ps-f"><label for="ps-f-target">Anticipated completion</label><input type="text" id="ps-f-target" class="ssc-date ssc-field" placeholder="MM-DD-YYYY"><div class="ps-hint" id="ps-f-target-hint">When you expect the job to finish. The calendar draws the job to this date.</div></div>
               <div class="ps-f" id="ps-f-act-wrap" hidden><label for="ps-f-act">Actual completion</label><input type="text" id="ps-f-act" class="ssc-date ssc-field" placeholder="MM-DD-YYYY"><div class="ps-hint">The day the work finished.</div></div>
               <div class="ps-f full"><label for="ps-f-contract">Contract value (USD)</label><div class="ps-money"><span aria-hidden="true">$</span><input id="ps-f-contract" class="ssc-field" inputmode="decimal" autocomplete="off"></div><div class="ps-hint" id="ps-f-contract-note"></div></div>
               <div class="ps-hint full">The project code stays the same — it is on every report and document.</div>
@@ -6907,16 +6905,17 @@
         function durLine(d) {
           const u = d.duration || {}; if (u.expected_days == null) return '—';
           let t = u.expected_days + ' days expected';
-          const v = u.measured === 'actual' ? u.actual_days : u.target_days, dv = u.variance_days;
-          if (v != null && dv != null) t += ' · ' + v + (u.measured === 'actual' ? ' actual' : ' to target') + ' (' + (dv === 0 ? 'on time' : (dv > 0 ? '+' : '') + dv + (Math.abs(dv) === 1 ? ' day' : ' days')) + ')';
+          const v = u.measured === 'actual' ? u.actual_days : u.current_days, dv = u.variance_days;
+          if (v != null && dv != null && (u.measured === 'actual' || dv !== 0)) t += ' · ' + v + (u.measured === 'actual' ? ' actual' : ' anticipated now') + ' (' + (dv === 0 ? 'on time' : (dv > 0 ? '+' : '') + dv + (Math.abs(dv) === 1 ? ' day' : ' days')) + ')';
           return t;
         }
+        const movedNote = d => (d.duration || {}).moved_days ? ' (originally ' + mdy(d.original_completion) + ')' : '';
         const escD = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
         function renderDetails() {
           const d = DET; if (!d) return;
           const rows = [['Project code', d.project_code], ['Name', d.name || '—'], ['Address', [d.address, d.city_zip].filter(Boolean).join(', ') || '—'],
-            ['Client', d.client_name || '—'], ['Start', mdy(d.start_date)], ['Anticipated completion', mdy(d.anticipated_completion)],
-            ['Target completion', mdy(d.target_completion)], ['Actual completion', d.status === 'closed' ? mdy(d.actual_completion) : 'Open'], ['Duration', durLine(d)]];
+            ['Client', d.client_name || '—'], ['Start', mdy(d.start_date)], ['Anticipated completion', mdy(d.target_completion) + movedNote(d)],
+            ['Actual completion', d.status === 'closed' ? mdy(d.actual_completion) : 'Open'], ['Duration', durLine(d)]];
           if (document.getElementById('jx-money') || d.can_edit) rows.push(['Contract value', money0(d.contract_value)]);   // money: company roles only
           $s('ps-det-view').innerHTML = rows.map(r => '<dt>' + r[0] + '</dt><dd>' + escD(r[1]) + '</dd>').join('');
           $s('ps-det-edit').hidden = !d.can_edit;
@@ -6942,13 +6941,14 @@
           $s('ps-f-newclient-wrap').hidden = true; $s('ps-f-newclient').value = '';
           $s('ps-f-name').value = d.name || ''; $s('ps-f-address').value = d.address || ''; $s('ps-f-cityzip').value = d.city_zip || '';
           $s('ps-f-start').value = (d.start_date || '').slice(0, 10); $s('ps-f-target').value = (d.target_completion || '').slice(0, 10);
-          $s('ps-f-ant').value = (d.anticipated_completion || '').slice(0, 10); $s('ps-f-act').value = (d.actual_completion || '').slice(0, 10);
+          $s('ps-f-target-hint').textContent = (d.duration || {}).moved_days ? 'Originally ' + mdy(d.original_completion) + '. The calendar draws the job to this date.' : 'When you expect the job to finish. The calendar draws the job to this date.';
+          $s('ps-f-act').value = (d.actual_completion || '').slice(0, 10);
           $s('ps-f-act-wrap').hidden = d.status !== 'closed';   // set on close; editable once the job is closed
           const c = $s('ps-f-contract'); c.value = d.contract_value == null ? '' : d.contract_value; c.disabled = !d.contract_editable;
           $s('ps-f-contract-note').textContent = d.contract_note || '';
           $s('ps-det-msg').textContent = '';
           $s('ps-det-view').hidden = true; $s('ps-det-edit').hidden = true; $s('ps-det-form').hidden = false;
-          if (window.SSCDatePicker) { try { SSCDatePicker.wire($s('ps-f-start')); SSCDatePicker.wire($s('ps-f-ant')); SSCDatePicker.wire($s('ps-f-target')); SSCDatePicker.wire($s('ps-f-act')); } catch (e) {} }
+          if (window.SSCDatePicker) { try { SSCDatePicker.wire($s('ps-f-start')); SSCDatePicker.wire($s('ps-f-target')); SSCDatePicker.wire($s('ps-f-act')); } catch (e) {} }
           $s('ps-f-name').focus();
         }
         function closeDetailsForm() { $s('ps-det-form').hidden = true; $s('ps-det-view').hidden = false; renderDetails(); }
@@ -6958,7 +6958,7 @@
         $s('ps-proj-edit').addEventListener('click', function () {
           const go = () => window.SSCNewProject.edit(decodeURIComponent((location.pathname.match(/\/projects\/([^/]+)/) || [])[1] || ''));
           if (window.SSCNewProject) return go();
-          const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1117'; sc.onload = go; document.head.appendChild(sc);
+          const sc = document.createElement('script'); sc.src = '/files/static/js/new_project_modal.js?v=1118'; sc.onload = go; document.head.appendChild(sc);
         });
         document.addEventListener('ssc:project-updated', () => location.reload());
         $s('ps-det-cancel').addEventListener('click', closeDetailsForm);
@@ -6966,7 +6966,7 @@
           e.preventDefault();
           const msg = $s('ps-det-msg'); msg.style.color = ''; msg.textContent = '';
           const body = { name: $s('ps-f-name').value.trim(), address: $s('ps-f-address').value.trim(), city_zip: $s('ps-f-cityzip').value.trim(),
-                         start_date: $s('ps-f-start').value.trim(), anticipated_completion: $s('ps-f-ant').value.trim(), target_completion: $s('ps-f-target').value.trim() };
+                         start_date: $s('ps-f-start').value.trim(), target_completion: $s('ps-f-target').value.trim() };
           if (DET.status === 'closed') body.actual_completion = $s('ps-f-act').value.trim();
           if (!body.name) { msg.textContent = 'Enter the project name.'; return; }
           if (!body.address) { msg.textContent = 'Enter the address.'; return; }
