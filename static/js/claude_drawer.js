@@ -118,7 +118,14 @@
 .clx-chip{border:1px solid #E6E8EE;background:#fff;color:#1B1F27;border-radius:999px;padding:3px 9px;font:500 12px Inter,sans-serif;cursor:pointer}\
 .clx-chip[aria-pressed=true]{border-color:#0c7a5f;background:#E3F3EE;color:#0c7a5f}\
 .clx-res ul{margin:4px 0 0;padding-left:18px;font-weight:400;color:#1B1F27}\
-@container (max-width:520px){.clx-row{grid-template-columns:20px minmax(0,1fr)}.clx-old,.clx-nv,.clx-why{grid-column:2}.clx-old:before{content:"Now: ";display:inline-block;margin-right:3px}}\
+.clx-row.file{grid-template-columns:20px minmax(0,1.4fr) 190px minmax(0,1fr)}\
+.clx-row select{width:100%;font:13px Inter,sans-serif;color:#1B1F27;background:#fff;border:1px solid #E6E8EE;border-radius:8px;padding:5px 6px}\
+.clx-row .clx-title{min-width:0}.clx-row .clx-title input{width:100%;box-sizing:border-box;font:13px Inter,sans-serif;color:#1B1F27;background:#fff;border:1px solid #E6E8EE;border-radius:8px;padding:5px 8px}\
+.clx-meta{font-size:12px;color:#868C98;overflow-wrap:anywhere}\
+.clx-row.dupe{background:#fafbfd}.clx-row.dupe .clx-meta.st{color:#0c7a5f}\
+.clx-row.off .clx-title,.clx-row.off select,.clx-row.off .clx-meta{opacity:.45}\
+.clx-dir{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:5px;padding:1px 6px;margin-right:6px;background:#ebf0fe;color:#3a5fd0}\
+@container (max-width:520px){.clx-row,.clx-row.file{grid-template-columns:20px minmax(0,1fr)}.clx-old,.clx-nv,.clx-why,.clx-row.file>:not(input[type=checkbox]){grid-column:2}.clx-old:before{content:"Now: ";display:inline-block;margin-right:3px}}\
 .clx-res{font-size:12.5px;font-weight:600;color:#0c7a5f}.clx-res.no{color:#868C98}.clx-res.bad{color:#A8382B}\
 .clx-res a{color:inherit}\
 .clx-err{font-size:12.5px;color:#A8382B}\
@@ -835,10 +842,19 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
   // update_client_record (2026-11-18): rows of what is on file now -> the new value, each with a tick box
   function changeRows(a, c) {
     var opts = c.role_options || [];
-    return (c.client ? '<div class="clx-who">For <b>' + esc(c.client) + '</b></div>' : '') + (c.groups || []).map(function (g) {
-      return '<div class="clx-grp"><div class="clx-grp-h"><b>' + esc(g.title) + (g.is_new ? '<span class="clx-new">New</span>' : '') + '</b><small>' + esc(g.meta) + '</small></div>' +
+    return (c.client ? '<div class="clx-who">For <b>' + esc(c.client) + '</b>' + (c.subtitle ? ' · ' + esc(c.subtitle) : '') + '</div>' : '') + (c.groups || []).map(function (g) {
+      return '<div class="clx-grp"><div class="clx-grp-h"><b>' + (g.dir ? '<span class="clx-dir">' + esc(g.dir) + '</span>' : '') + esc(g.title) + (g.is_new ? '<span class="clx-new">New</span>' : '') + '</b><small>' + esc(g.meta) + '</small></div>' +
         g.rows.map(function (r) {
           var id = 'clx-a' + a.id + '-' + r.key.replace(/[^\w-]/g, '_');
+          if (r.kind === 'file') {   // file_to_job (2026-11-18): title + folder, or "Already filed"
+            var meta = '<span class="clx-meta">' + esc(r.name) + (r.size ? ' · ' + esc(r.size) : '') + (r.note ? '<br>' + esc(r.note) : '') + '</span>';
+            var fname = ((c.folder_options || []).filter(function (o) { return o.value === r.folder; })[0] || {}).label || r.folder;
+            if (r.dupe) return '<div class="clx-row file dupe"><input type="checkbox" disabled aria-label="Already filed"><span class="clx-meta">' + esc(r.name) + '</span><span class="clx-meta st">' + esc(r.dupe) + '</span><span class="clx-meta">' + esc(fname) + '</span></div>';
+            return '<div class="clx-row file"><input type="checkbox" checked data-tick="' + id + '" id="' + id + '-t" aria-label="File ' + esc(r.name) + '">' +
+              '<div class="clx-title"><input type="text" id="' + id + '" data-key="' + esc(r.key) + '.title" value="' + esc(r.title) + '" aria-label="Title for ' + esc(r.name) + '"></div>' +
+              '<select id="' + id + '-f" data-key="' + esc(r.key) + '.folder" aria-label="Folder for ' + esc(r.name) + '">' + (c.folder_options || []).map(function (o) { return '<option value="' + esc(o.value) + '"' + (o.value === r.folder ? ' selected' : '') + '>' + esc(o.label) + '</option>'; }).join('') + '</select>' +
+              meta + '</div>';
+          }
           var val = r.roles
             ? '<div class="clx-chips" role="group" aria-label="' + esc(r.label) + '"><input type="hidden" data-key="' + esc(r.key) + '" id="' + id + '" value="' + esc(r.new) + '">' +
               opts.map(function (o) { return '<button type="button" class="clx-chip" data-chip="' + esc(o.value) + '" data-for="' + id + '" aria-pressed="' + (r.new.split(',').indexOf(o.value) > -1) + '">' + esc(o.label) + '</button>'; }).join('') + '</div>'
@@ -850,15 +866,16 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
         }).join('') + '</div>';
     }).join('');
   }
+  function approveLabel(c, n) { return (c.approve_word || 'Approve') + ' ' + n + ' ' + (c.unit || 'change') + (n === 1 ? '' : 's'); }
   function changeCount(cardEl) {
     var n = cardEl.querySelectorAll('[data-tick]:checked').length, b = cardEl.querySelector('[data-approve]');
-    if (b) { b.textContent = 'Approve ' + n + ' change' + (n === 1 ? '' : 's'); b.disabled = !n; }
+    if (b) { b.textContent = approveLabel({ approve_word: b.getAttribute('data-word'), unit: b.getAttribute('data-unit') }, n); b.disabled = !n; }
   }
   document.addEventListener('change', function (e) {
     var t = e.target.closest && e.target.closest('[data-tick]'); if (!t) return;
-    var row = t.closest('.clx-row'), inp = document.getElementById(t.getAttribute('data-tick'));
+    var row = t.closest('.clx-row');
     row.classList.toggle('off', !t.checked);
-    if (inp) inp.disabled = !t.checked;
+    row.querySelectorAll('[data-key]').forEach(function (x) { x.disabled = !t.checked; });   // all sent as '' = skipped
     row.querySelectorAll('.clx-chip').forEach(function (b) { b.disabled = !t.checked; });
     changeCount(t.closest('.clx-card'));
   });
@@ -886,9 +903,9 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
       : '<div class="clx-res bad">That change failed; nothing was saved.</div>';
     var body;
     if (c.groups) {
-      var n = (c.fields || []).length;
+      var n = c.count != null ? c.count : (c.fields || []).length;
       body = a.status === 'pending' ? changeRows(a, c) : '';
-      if (a.status === 'pending') foot = foot.replace('>Approve</button>', '>Approve ' + n + ' change' + (n === 1 ? '' : 's') + '</button>');
+      if (a.status === 'pending') foot = foot.replace('data-approve="' + a.id + '">Approve</button>', 'data-approve="' + a.id + '" data-word="' + esc(c.approve_word || 'Approve') + '" data-unit="' + esc(c.unit || 'change') + '">' + esc(approveLabel(c, n)) + '</button>');
       if (a.status === 'approved' && a.result && a.result.lines) foot = foot.replace(/<\/div>$/, '<ul>' + a.result.lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul></div>');
     } else {
       body = '<dl>' + (c.fields || []).filter(function (f) { return a.status === 'pending' || f.value !== ''; }).map(function (f) { return field(a, f); }).join('') + '</dl>';

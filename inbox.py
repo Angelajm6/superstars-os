@@ -958,7 +958,8 @@ def live_state(conn, m: dict) -> str:
 TODAY_TOOLS = {"draft_proposal": ("email money", "now"), "reply_email": ("email", "today"),
                "create_estimate": ("email", "today"), "create_event": ("email", "today"), "create_task": ("email", "today"),
                "save_email_attachments": ("email", "week"), "log_proposal_sent": ("email money", "today"),
-               "add_client_note": ("email", "week"), "update_client_record": ("email", "week")}
+               "add_client_note": ("email", "week"), "update_client_record": ("email", "week"),
+               "file_to_job": ("email", "week")}
 
 
 def today_cards(conn, uid: int) -> list:
@@ -1008,6 +1009,13 @@ def today_cards(conn, uid: int) -> list:
             card.update(title=f"{who} is waiting for a reply", why=(m["subject"] or "")[:160], pill="Reply drafted",
                         draft={"label": "Claude drafted the reply", "text": str(inp.get("body") or "")[:600]},
                         actions=[{"type": "open", "label": "Review & send", "primary": True}])
+        elif a["tool"] == "file_to_job":
+            import job_filing
+            text = job_filing.today_text(conn, uid, inp)
+            card.update(title=(a.get("summary") or "File documents to the job")[:160],
+                        why=f"From {who}: {(m['subject'] or '')[:120]}", pill="Job documents",
+                        draft={"label": "Claude will file", "text": text[:600]} if text else None,
+                        actions=[{"type": "open", "label": "Review & file", "primary": True}])
         elif a["tool"] == "update_client_record":
             import client_updates
             text = client_updates.today_text(conn, inp)
@@ -1021,6 +1029,25 @@ def today_cards(conn, uid: int) -> list:
                         actions=[{"type": "approve", "label": "Approve", "primary": True}, {"type": "open", "label": "Open the email"}])
         team_handled.dress(card, st, m)
         out.append(card)
+    import job_filing   # a new job's "Claude found N documents" card (job_filing.offer_on_new_job): no email behind it
+    for a in _rows(conn, "SELECT a.id, a.input, a.summary, a.created_at FROM claude_action a JOIN claude_chat c ON c.id = a.chat_id "
+                         "WHERE a.user_id = ? AND a.status = 'pending' AND a.tool = 'file_to_job' AND c.source = 'job' "
+                         "AND a.created_at >= ? ORDER BY a.created_at DESC LIMIT 10", (uid, since)):
+        try:
+            inp = json.loads(a["input"] or "{}")
+        except ValueError:
+            continue
+        text = job_filing.today_text(conn, uid, inp)
+        if not text:
+            continue
+        code = inp.get("project_code") or ""
+        out.append({"key": f"claude:{a['id']}", "cat": "email", "urgency": "week", "icon": "mail", "action_id": a["id"],
+                    "tool": "file_to_job", "href": f"/projects/{code}#documents", "source": "New job · " + code,
+                    "when": a["created_at"], "created_at": a["created_at"], "pill": "Job documents",
+                    "title": (a.get("summary") or f"File documents to {code}")[:160],
+                    "why": "Claude found these in the estimate and your email about this job.",
+                    "draft": {"label": "Claude will file", "text": text[:600]},
+                    "actions": [{"type": "open", "label": "Review & file", "primary": True}]})
     return out
 
 
@@ -1062,6 +1089,9 @@ def suggest_prompt(conn, m: dict, user_name: str) -> str:
         "- new or changed details for the client or its people (a signature with a new phone or title, a new person the "
         "email says to copy or deal with, \"send invoices to …\"): ONE update_client_record with only what changed, each "
         "change with the words that show it\n"
+        "- files sent or received in a conversation about a job that exists (drawings, specs, reports, permits, COIs, "
+        "schedules): ONE file_to_job with each attachment's exact name, its folder and a short title; never signature "
+        "logos or the signed proposal\n"
         "- a meeting, walkthrough or inspection: create_event; a promise or deadline: create_task; useful history: add_client_note\n"
         "Write a reply as a normal email in plain text (greeting, the answer, sign-off), never a summary. "
         "Before proposing a change to a proposal, estimate or task, look up its current status: never move it backward or "
