@@ -21,6 +21,21 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### The Inbox accuracy test set: 30 made-up emails in the gate + a live scorer (Bookore, 2026-11-18)
+
+* Piece 5 (last) of the Inbox-accuracy plan. `tests/inbox_evals/cases.json`: 30 fictional cases (the 1255 signed-proposal
+  case first), each a world (client, contacts, proposals with status, estimates, a job with documents, another client) +
+  one email + what Claude must / must not be told + planted proposals ("card" or "refused: <server words>") + an optional
+  later change and the waiting card's fate. `tests/inbox_evals/engine.py` builds and reads them.
+* `tests/smoke_inbox_evals.py` (in the gate, free): each email goes through the REAL pipeline (`inbox.process`, planted
+  triage + planted tool calls via SSC_ASSISTANT_FAKE steps) and every expectation is checked. Mutation-checked: removing
+  the draft-only rule on log_proposal_sent fails 2 cases.
+* `tests/inbox_evals/run_live.py --yes` (by hand, costs ~30 real passes): same cases, the real model, scored on `live.must`
+  / `live.must_not`; refuses without --yes or ANTHROPIC_API_KEY; always a fresh isolated DB; --max-usd stop (default 5).
+  Run it after changing Claude's instructions or tools and compare scores.
+* **When Claude gets a real email wrong: add a case** (same shape, fictional names, never the real text). The gate holds it.
+* Found by the cases: a .zip / logo-only filing said "already on the job"; it now says none of those files can go in Documents.
+
 ### Claude files emailed documents into the job's Documents (Bookore, 2026-11-18)
 
 * Accepted prototype: https://claude.ai/artifact/VrgB7MGzsHfG9VyUZZB4nG. Piece 4 of the Inbox-accuracy plan. One card kind,

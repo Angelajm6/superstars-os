@@ -1,0 +1,294 @@
+{
+  "about": "The Inbox accuracy test set (piece 5, 2026-11-18). Fictional people and buildings only. engine.py explains the fields. Add a case whenever Claude gets an email wrong in real life: copy the shape of that email here (never the real text or names), say what should have happened, and the gate holds it from then on.",
+  "cases": [
+    {
+      "id": "signed-proposal-not-marked-sent",
+      "why": "Angela 2026-11-18: Claude suggested marking Proposal 1255 as sent after it was signed.",
+      "world": {"contacts": [{"ref": "C1", "name": "Dana Ievlone", "email": "dana@ievl-01.example"}],
+                "proposals": [{"ref": "P1", "status": "signed", "price": 25500, "sent": "2026-11-16T09:00:00", "signed": "2026-11-17T15:00:00",
+                               "title": "Garage fireproofing and fire stopping"}]},
+      "link": {"client": true},
+      "email": {"from": "Dana Ievlone <dana@ievl-01.example>", "subject": "Signed proposal", "body": "Thanks, signed copy attached. When can you start?"},
+      "prompt_has": ["Proposal {P1.label} (proposal_id {P1.id}) · Garage fireproofing and fire stopping · signed 2026-11-17 · sent 2026-11-16 · $25,500.00",
+                     "a signed, declined or sent proposal is never marked sent"],
+      "calls": [{"name": "log_proposal_sent", "input": {"proposal_id": "{P1.id}", "sent_on": "2026-11-17"}, "expect": "refused: is already signed"}],
+      "live": {"must": ["reply_email"], "must_not": ["log_proposal_sent", "send_proposal", "draft_proposal"]}
+    },
+    {
+      "id": "sent-proposal-question",
+      "world": {"contacts": [{"ref": "C1", "name": "Lee Ievltwo", "email": "lee@ievl-02.example"}],
+                "proposals": [{"ref": "P1", "status": "sent", "price": 18000, "sent": "2026-11-10T09:00:00", "title": "Parapet rebuild"}]},
+      "link": {"client": true},
+      "email": {"from": "Lee Ievltwo <lee@ievl-02.example>", "subject": "Question on your proposal", "body": "Does the price include the sidewalk shed?"},
+      "prompt_has": ["Proposal {P1.label} (proposal_id {P1.id}) · Parapet rebuild · sent 2026-11-10"],
+      "calls": [{"name": "log_proposal_sent", "input": {"proposal_id": "{P1.id}"}, "expect": "refused: is already sent"},
+                {"name": "reply_email", "input": {"mail_id": "{mail_id}", "body": "Hi Lee,\n\nYes, the shed is included.\n\nAngela"}, "expect": "card"}],
+      "live": {"must": ["reply_email"], "must_not": ["log_proposal_sent", "draft_proposal"]}
+    },
+    {
+      "id": "draft-proposal-sent-from-gmail",
+      "world": {"contacts": [{"ref": "C1", "name": "Sam Ievlthree", "email": "sam@ievl-03.example"}],
+                "proposals": [{"ref": "P1", "status": "draft", "price": 9400, "title": "Roof drain repairs"}]},
+      "link": {"client": true},
+      "email": {"dir": "out", "to": "Sam Ievlthree <sam@ievl-03.example>", "subject": "Proposal - roof drain repairs",
+                "body": "Hi Sam, our proposal for the roof drain repairs is attached ($9,400).", "attachments": [{"name": "Proposal {P1.label}.pdf", "size": 300000}]},
+      "prompt_has": ["Proposal {P1.label} (proposal_id {P1.id}) · Roof drain repairs · draft"],
+      "calls": [{"name": "log_proposal_sent", "input": {"proposal_id": "{P1.id}", "mail_id": "{mail_id}"}, "expect": "card"}],
+      "live": {"must": ["log_proposal_sent"], "must_not": ["reply_email", "draft_proposal"]}
+    },
+    {
+      "id": "declined-proposal-not-resent",
+      "world": {"contacts": [{"ref": "C1", "name": "Ari Ievlfour", "email": "ari@ievl-04.example"}],
+                "proposals": [{"ref": "P1", "status": "declined", "price": 30000, "sent": "2026-10-01T09:00:00", "declined": "2026-10-20T09:00:00", "title": "Facade cleaning"}]},
+      "link": {"client": true},
+      "email": {"from": "Ari Ievlfour <ari@ievl-04.example>", "subject": "Facade cleaning", "body": "We went with another contractor for now. Thanks."},
+      "prompt_has": ["declined 2026-10-20"],
+      "calls": [{"name": "send_proposal", "input": {"proposal_id": "{P1.id}"}, "expect": "refused: a declined proposal cannot be sent"}],
+      "live": {"must_not": ["send_proposal", "log_proposal_sent", "draft_proposal"]}
+    },
+    {
+      "id": "sent-proposal-not-edited",
+      "world": {"contacts": [{"ref": "C1", "name": "Kai Ievlfive", "email": "kai@ievl-05.example"}],
+                "proposals": [{"ref": "P1", "status": "sent", "price": 12000, "sent": "2026-11-12T09:00:00", "title": "Lintel replacement"}]},
+      "link": {"client": true},
+      "email": {"from": "Kai Ievlfive <kai@ievl-05.example>", "subject": "Lintels", "body": "Can you take out the 3rd floor lintels and send a new number?"},
+      "calls": [{"name": "update_proposal", "input": {"proposal_id": "{P1.id}", "price": 9000}, "expect": "refused: only a draft can be changed"}],
+      "live": {"must_not": ["update_proposal", "log_proposal_sent"]}
+    },
+    {
+      "id": "no-second-proposal-draft",
+      "world": {"contacts": [{"ref": "C1", "name": "Ren Ievlsix", "email": "ren@ievl-06.example"}],
+                "proposals": [{"ref": "P1", "status": "draft", "title": "Balcony repairs"}]},
+      "link": {"client": true},
+      "email": {"from": "Ren Ievlsix <ren@ievl-06.example>", "subject": "Balconies", "body": "Any update on the balcony proposal?"},
+      "calls": [{"name": "create_proposal", "input": {"estimate_id": "{P1.estimate}"}, "expect": "refused: change that one instead"}],
+      "live": {"must_not": ["create_proposal", "draft_proposal", "log_proposal_sent"]}
+    },
+    {
+      "id": "estimate-already-submitted",
+      "world": {"contacts": [{"ref": "C1", "name": "Mo Ievlseven", "email": "mo@ievl-07.example"}], "estimates": [{"ref": "E1", "status": "submitted"}]},
+      "link": {"client": true},
+      "email": {"from": "Mo Ievlseven <mo@ievl-07.example>", "subject": "Got it", "body": "Received your estimate, will review with the board."},
+      "prompt_has": ["(estimate_id {E1.id}) · {address} · submitted"],
+      "calls": [{"name": "change_estimate_status", "input": {"estimate_id": "{E1.id}", "status": "submitted"}, "expect": "refused: it can move to"}],
+      "live": {"must_not": ["change_estimate_status", "create_estimate"]}
+    },
+    {
+      "id": "estimate-moves-forward",
+      "world": {"contacts": [{"ref": "C1", "name": "Bo Ievleight", "email": "bo@ievl-08.example"}], "estimates": [{"ref": "E1", "status": "scoping"}]},
+      "link": {"client": true},
+      "email": {"dir": "out", "to": "Bo Ievleight <bo@ievl-08.example>", "subject": "Estimate", "body": "Attached is our estimate for the repairs.",
+                "attachments": [{"name": "Estimate {E1.code}.pdf", "size": 200000}]},
+      "calls": [{"name": "change_estimate_status", "input": {"estimate_id": "{E1.id}", "status": "submitted"}, "expect": "card"}],
+      "live": {"must_not": ["create_estimate", "reply_email"]}
+    },
+    {
+      "id": "new-phone-in-signature",
+      "world": {"contacts": [{"ref": "C1", "name": "Jo Ievlnine", "email": "jo@ievl-09.example", "phone": "(718) 555-0101", "title": "Super"}]},
+      "link": {"client": true},
+      "email": {"from": "Jo Ievlnine <jo@ievl-09.example>", "subject": "Access Monday", "body": "Gate code is 4411.\n\nJo Ievlnine\nSuper\nNew cell: (917) 555-0177"},
+      "prompt_has": ["Contacts on file: Jo Ievlnine (contact_id {C1.id}, Super)"],
+      "prompt_lacks": ["555-0101", "jo@ievl-09.example)"],
+      "calls": [{"name": "update_client_record", "input": {"client_org_id": "{org}", "mail_id": "{mail_id}",
+                 "changes": [{"contact_id": "{C1.id}", "field": "phone", "value": "(917) 555-0177", "why": "New cell"}]}, "expect": "card", "rows": 1}],
+      "live": {"must": ["update_client_record"]}
+    },
+    {
+      "id": "same-phone-other-format",
+      "world": {"contacts": [{"ref": "C1", "name": "Al Ievlten", "email": "al@ievl-10.example", "phone": "(718) 555-0102"}]},
+      "link": {"client": true},
+      "email": {"from": "Al Ievlten <al@ievl-10.example>", "subject": "Schedule", "body": "Thursday works.\n\nAl\n718.555.0102"},
+      "calls": [{"name": "update_client_record", "input": {"client_org_id": "{org}", "changes": [{"contact_id": "{C1.id}", "field": "phone", "value": "718.555.0102"}]},
+                 "expect": "refused: already has all of this"}],
+      "live": {"must_not": ["update_client_record"]}
+    },
+    {
+      "id": "same-email-other-case",
+      "world": {"contacts": [{"ref": "C1", "name": "Cy Ievleleven", "email": "cy@ievl-11.example"}]},
+      "link": {"client": true},
+      "email": {"from": "Cy Ievleleven <CY@IEVL-11.EXAMPLE>", "subject": "Hello", "body": "Please call me tomorrow."},
+      "calls": [{"name": "update_client_record", "input": {"client_org_id": "{org}", "changes": [{"contact_id": "{C1.id}", "field": "email", "value": "CY@IEVL-11.EXAMPLE"}]},
+                 "expect": "refused: already has all of this"}],
+      "live": {"must_not": ["update_client_record"]}
+    },
+    {
+      "id": "copy-ap-on-invoices",
+      "why": "A Cc'd person is added only when the email says why (Angela 2026-11-18).",
+      "world": {"contacts": [{"ref": "C1", "name": "Pat Ievltwelve", "email": "pat@ievl-12.example"}]},
+      "link": {"client": true},
+      "email": {"from": "Pat Ievltwelve <pat@ievl-12.example>", "cc": "Sky Ievlap <sky@ievl-12.example>", "subject": "Invoices",
+                "body": "Please copy Sky, our AP manager, on all invoices going forward."},
+      "calls": [{"name": "update_client_record", "input": {"client_org_id": "{org}", "mail_id": "{mail_id}", "changes": [
+                  {"new_contact": "Sky Ievlap", "field": "email", "value": "sky@ievl-12.example", "why": "Cc line"},
+                  {"new_contact": "Sky Ievlap", "field": "title", "value": "AP Manager", "why": "our AP manager"},
+                  {"new_contact": "Sky Ievlap", "field": "roles", "value": "Billing / AP", "why": "copy Sky on all invoices"}]}, "expect": "card", "rows": 4}],
+      "live": {"must": ["update_client_record"]}
+    },
+    {
+      "id": "cc-only-not-added",
+      "why": "Someone only on the Cc line, with no reason given, is not a new contact.",
+      "world": {"contacts": [{"ref": "C1", "name": "Vi Ievlthirteen", "email": "vi@ievl-13.example"}]},
+      "link": {"client": true},
+      "email": {"from": "Vi Ievlthirteen <vi@ievl-13.example>", "cc": "Lou Ievlcc <lou@ievl-13.example>", "subject": "Walkthrough", "body": "Tuesday 10am works for the walkthrough."},
+      "live": {"must_not": ["update_client_record"]}
+    },
+    {
+      "id": "deposit-never-changed",
+      "world": {"contacts": [{"ref": "C1", "name": "Ty Ievlfourteen", "email": "ty@ievl-14.example"}]},
+      "link": {"client": true},
+      "email": {"from": "Ty Ievlfourteen <ty@ievl-14.example>", "subject": "Terms", "body": "Our board only approves a 10% deposit."},
+      "calls": [{"name": "update_client_record", "input": {"client_org_id": "{org}", "changes": [{"field": "deposit_pct", "value": "10"}]}, "expect": "refused: can't be changed here"}],
+      "live": {"must_not": ["update_client_record"]}
+    },
+    {
+      "id": "other-clients-contact-refused",
+      "world": {"contacts": [{"ref": "C1", "name": "Em Ievlfifteen", "email": "em@ievl-15.example"}], "other_client": {"contacts": [{"ref": "X1", "name": "Not Theirs"}]}},
+      "link": {"client": true},
+      "email": {"from": "Em Ievlfifteen <em@ievl-15.example>", "subject": "Hi", "body": "New title: Director of Operations.\n\nEm"},
+      "calls": [{"name": "update_client_record", "input": {"client_org_id": "{org}", "changes": [{"contact_id": "{X1.id}", "field": "title", "value": "Director"}]}, "expect": "refused: is not on"}],
+      "live": {"must": ["update_client_record"]}
+    },
+    {
+      "id": "billing-email-when-asked",
+      "world": {"contacts": [{"ref": "C1", "name": "Ola Ievlsixteen", "email": "ola@ievl-16.example"}]},
+      "link": {"client": true},
+      "email": {"from": "Ola Ievlsixteen <ola@ievl-16.example>", "subject": "Invoices", "body": "From now on send all invoices to ap@ievl-16.example."},
+      "calls": [{"name": "update_client_record", "input": {"client_org_id": "{org}", "changes": [{"field": "billing_email", "value": "ap@ievl-16.example", "why": "send all invoices to"}]}, "expect": "card", "rows": 1}],
+      "live": {"must": ["update_client_record"]}
+    },
+    {
+      "id": "known-person-not-duplicated",
+      "world": {"contacts": [{"ref": "C1", "name": "Rae Ievlseventeen", "email": "rae@ievl-17.example"}, {"ref": "C2", "name": "Gus Ievlap", "email": "gus@ievl-17.example"}]},
+      "link": {"client": true},
+      "email": {"from": "Rae Ievlseventeen <rae@ievl-17.example>", "cc": "Gus Ievlap <gus@ievl-17.example>", "subject": "Payments", "body": "Gus handles payments, please copy him on invoices."},
+      "calls": [{"name": "update_client_record", "input": {"client_org_id": "{org}", "changes": [
+                  {"new_contact": "Gus Ievlap", "field": "email", "value": "gus@ievl-17.example"},
+                  {"new_contact": "Gus Ievlap", "field": "roles", "value": "Billing / AP", "why": "handles payments"}]}, "expect": "card", "rows": 1}],
+      "live": {"must": ["update_client_record"]}
+    },
+    {
+      "id": "drawings-sent-for-job",
+      "world": {"contacts": [{"ref": "C1", "name": "Ed Ievleighteen", "email": "ed@ievl-18.example"}], "job": {}},
+      "link": {"client": true, "job": true},
+      "email": {"dir": "out", "to": "Ed Ievleighteen <ed@ievl-18.example>", "subject": "Shop drawings and product data",
+                "body": "Attached are the shop drawings and the mortar product data.",
+                "attachments": [{"name": "Shop drawings A.pdf", "size": 900000}, {"name": "Mortar product data.pdf", "size": 300000}]},
+      "prompt_has": ["Job {J}"],
+      "calls": [{"name": "file_to_job", "input": {"project_code": "{J}", "files": [
+                  {"mail_id": "{mail_id}", "name": "Shop drawings A.pdf", "folder": "DRAWINGS", "title": "Shop drawings"},
+                  {"mail_id": "{mail_id}", "name": "Mortar product data.pdf", "folder": "DRAWINGS", "title": "Mortar product data"}]}, "expect": "card", "rows": 2}],
+      "live": {"must": ["file_to_job"]}
+    },
+    {
+      "id": "file-already-on-job",
+      "world": {"contacts": [{"ref": "C1", "name": "Ivy Ievlnineteen", "email": "ivy@ievl-19.example"}], "job": {"docs": [{"name": "COI 2026.pdf", "size": 190000, "folder": "CONTRACTS"}]}},
+      "link": {"client": true, "job": true},
+      "email": {"dir": "out", "to": "Ivy Ievlnineteen <ivy@ievl-19.example>", "subject": "COI", "body": "Our COI is attached.", "attachments": [{"name": "COI 2026.pdf", "size": 190000}]},
+      "calls": [{"name": "file_to_job", "input": {"project_code": "{J}", "files": [{"mail_id": "{mail_id}", "name": "COI 2026.pdf", "folder": "CONTRACTS"}]}, "expect": "refused: already on"}],
+      "live": {"must_not": ["file_to_job"]}
+    },
+    {
+      "id": "new-revision-replaces-old",
+      "world": {"contacts": [{"ref": "C1", "name": "Hal Ievltwenty", "email": "hal@ievl-20.example"}], "job": {"docs": [{"name": "Elevations rev B.pdf", "title": "Elevations Rev B"}]}},
+      "link": {"client": true, "job": true},
+      "email": {"from": "Hal Ievltwenty <hal@ievl-20.example>", "subject": "Revised elevations", "body": "Rev C attached.", "attachments": [{"name": "Elevations Rev C.pdf", "size": 400000}]},
+      "calls": [{"name": "file_to_job", "input": {"project_code": "{J}", "files": [{"mail_id": "{mail_id}", "name": "Elevations Rev C.pdf", "folder": "DRAWINGS", "title": "Elevations Rev C"}]},
+                 "expect": "card", "rows": 1, "note": "New version of “Elevations Rev B”"}],
+      "live": {"must": ["file_to_job"]}
+    },
+    {
+      "id": "zip-not-filed",
+      "world": {"contacts": [{"ref": "C1", "name": "Uma Ievltwentyone", "email": "uma@ievl-21.example"}], "job": {}},
+      "link": {"client": true, "job": true},
+      "email": {"from": "Uma Ievltwentyone <uma@ievl-21.example>", "subject": "Photos", "body": "Site photos zipped.", "attachments": [{"name": "photos.zip", "size": 9000000}]},
+      "calls": [{"name": "file_to_job", "input": {"project_code": "{J}", "files": [{"mail_id": "{mail_id}", "name": "photos.zip"}]}, "expect": "refused: none of those files can go in a job's Documents"}],
+      "live": {"must_not": ["file_to_job"]}
+    },
+    {
+      "id": "logo-not-filed",
+      "world": {"contacts": [{"ref": "C1", "name": "Max Ievltwentytwo", "email": "max@ievl-22.example"}], "job": {}},
+      "link": {"client": true, "job": true},
+      "email": {"from": "Max Ievltwentytwo <max@ievl-22.example>", "subject": "Thanks", "body": "Thanks for today.", "attachments": [{"name": "logo.png", "size": 6000}]},
+      "calls": [{"name": "file_to_job", "input": {"project_code": "{J}", "files": [{"mail_id": "{mail_id}", "name": "logo.png"}]}, "expect": "refused: none of those files can go in a job's Documents"}],
+      "live": {"must_not": ["file_to_job"]}
+    },
+    {
+      "id": "teammates-email-not-read",
+      "world": {"contacts": [{"ref": "C1", "name": "Nia Ievltwentythree", "email": "nia@ievl-23.example"}], "job": {}},
+      "link": {"client": true, "job": true},
+      "email": {"from": "Nia Ievltwentythree <nia@ievl-23.example>", "subject": "Report", "body": "Report attached.", "attachments": [{"name": "Probe report.pdf", "size": 500000}]},
+      "mate_email": {"from": "Nia Ievltwentythree <nia@ievl-23.example>", "subject": "Other", "body": "For your teammate.", "attachments": [{"name": "Private.pdf", "size": 100000}]},
+      "calls": [{"name": "file_to_job", "input": {"project_code": "{J}", "files": [{"mail_id": "{mate_mail_id}", "name": "Private.pdf"}]}, "expect": "refused: not in this person's inbox"}],
+      "live": {"must": ["file_to_job"]}
+    },
+    {
+      "id": "invented-attachment-refused",
+      "world": {"contacts": [{"ref": "C1", "name": "Oz Ievltwentyfour", "email": "oz@ievl-24.example"}], "job": {}},
+      "link": {"client": true, "job": true},
+      "email": {"from": "Oz Ievltwentyfour <oz@ievl-24.example>", "subject": "Permit", "body": "Permit attached.", "attachments": [{"name": "Shed permit.pdf", "size": 200000}]},
+      "calls": [{"name": "file_to_job", "input": {"project_code": "{J}", "files": [{"mail_id": "{mail_id}", "name": "Work permit.pdf"}]}, "expect": "refused: is not attached to that email"},
+                {"name": "file_to_job", "input": {"project_code": "{J}", "files": [{"mail_id": "{mail_id}", "name": "Shed permit.pdf", "folder": "PERMITS", "title": "Sidewalk shed permit"}]}, "expect": "card", "rows": 1}],
+      "live": {"must": ["file_to_job"]}
+    },
+    {
+      "id": "no-leak-of-other-client",
+      "world": {"contacts": [{"ref": "C1", "name": "Liv Ievltwentyfive", "email": "liv@ievl-25.example"}],
+                "proposals": [{"ref": "P1", "status": "sent", "sent": "2026-11-01T09:00:00", "title": "Our own job"}],
+                "other_client": {"proposals": [{"ref": "X1", "status": "sent", "title": "Someone else's secret job"}]}},
+      "link": {"client": true},
+      "email": {"from": "Liv Ievltwentyfive <liv@ievl-25.example>", "subject": "Status", "body": "Any update?"},
+      "prompt_has": ["Our own job"],
+      "prompt_lacks": ["Someone else's secret job", "proposal_id {X1.id})"],
+      "live": {"must": ["reply_email"]}
+    },
+    {
+      "id": "already-approved-in-thread",
+      "world": {"contacts": [{"ref": "C1", "name": "Ben Ievltwentysix", "email": "ben@ievl-26.example"}]},
+      "link": {"client": true},
+      "prior": {"from": "Ben Ievltwentysix <ben@ievl-26.example>", "subject": "Walkthrough", "body": "Can we meet Friday 9am?",
+                "approved": [{"tool": "create_event", "summary": "Walkthrough Friday 9:00"}]},
+      "email": {"from": "Ben Ievltwentysix <ben@ievl-26.example>", "subject": "Re: Walkthrough", "body": "Great, see you Friday at 9."},
+      "prompt_has": ["Already approved in this conversation", "create_event: Walkthrough Friday 9:00"],
+      "live": {"must_not": ["create_event"]}
+    },
+    {
+      "id": "stranger-gets-no-state",
+      "world": {},
+      "email": {"from": "Nobody Ievlstranger <nobody@ievl-none.example>", "subject": "Quote request", "body": "Do you do brick pointing in Queens?"},
+      "prompt_lacks": ["Where things stand right now"],
+      "live": {"must": ["reply_email"], "must_not": ["update_client_record", "file_to_job", "log_proposal_sent"]}
+    },
+    {
+      "id": "mark-sent-card-closes-when-signed",
+      "world": {"contacts": [{"ref": "C1", "name": "Gil Ievltwentyeight", "email": "gil@ievl-28.example"}],
+                "proposals": [{"ref": "P1", "status": "draft", "price": 7000, "title": "Coping stones"}]},
+      "link": {"client": true},
+      "email": {"dir": "out", "to": "Gil Ievltwentyeight <gil@ievl-28.example>", "subject": "Proposal", "body": "Our proposal is attached.",
+                "attachments": [{"name": "Proposal {P1.label}.pdf", "size": 250000}]},
+      "calls": [{"name": "log_proposal_sent", "input": {"proposal_id": "{P1.id}", "mail_id": "{mail_id}"}, "expect": "card"}],
+      "then": [{"sign": "P1"}],
+      "after": "closed: is already signed",
+      "live": {"must": ["log_proposal_sent"]}
+    },
+    {
+      "id": "client-card-closes-when-done-by-hand",
+      "world": {"contacts": [{"ref": "C1", "name": "Tess Ievltwentynine", "email": "tess@ievl-29.example", "title": "Coordinator"}]},
+      "link": {"client": true},
+      "email": {"from": "Tess Ievltwentynine <tess@ievl-29.example>", "subject": "Hello", "body": "Thanks.\n\nTess\nProperty Manager"},
+      "calls": [{"name": "update_client_record", "input": {"client_org_id": "{org}", "changes": [{"contact_id": "{C1.id}", "field": "title", "value": "Property Manager"}]}, "expect": "card", "rows": 1}],
+      "then": [{"contact": {"C1": {"title": "Property Manager"}}}],
+      "after": "closed: record already matches this email",
+      "live": {"must": ["update_client_record"]}
+    },
+    {
+      "id": "filing-card-closes-when-filed",
+      "world": {"contacts": [{"ref": "C1", "name": "Wyn Ievlthirty", "email": "wyn@ievl-30.example"}], "job": {}},
+      "link": {"client": true, "job": true},
+      "email": {"from": "Wyn Ievlthirty <wyn@ievl-30.example>", "subject": "Inspection report", "body": "TR1 attached.", "attachments": [{"name": "TR1 report.pdf", "size": 300000}]},
+      "calls": [{"name": "file_to_job", "input": {"project_code": "{J}", "files": [{"mail_id": "{mail_id}", "name": "TR1 report.pdf", "folder": "INSPECTIONS"}]}, "expect": "card", "rows": 1}],
+      "then": [{"job_doc_from_mail": ["TR1 report.pdf"]}],
+      "after": "closed: Every file is already on",
+      "live": {"must": ["file_to_job"]}
+    }
+  ]
+}
