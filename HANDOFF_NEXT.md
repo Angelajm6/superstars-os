@@ -21,6 +21,26 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Claude files emailed documents into the job's Documents (Bookore, 2026-11-18)
+
+* Accepted prototype: https://claude.ai/artifact/VrgB7MGzsHfG9VyUZZB4nG. Piece 4 of the Inbox-accuracy plan. One card kind,
+  `file_to_job` (`job_filing.py`): files = [{mail_id, name} | {estimate_doc_id}] + folder / title each. Two places:
+  Claude proposes it on an email (sent OR received) about a job that exists; and `estimates.convert_to_project` (so also
+  a signed proposal starting a job) calls `offer_on_new_job`, which builds the card itself (chat source `job`, no
+  Claude call) from the estimate's own files + attachments in the CREATOR's threads linked to the estimate / its proposals
+  or naming the same address (house number + street word). Never another person's mailbox. Never raises into the job.
+* Rows: tick, title, folder (the job's six). "Already filed": same `project_documents.source_key` (new column
+  'mail:<gmail id>:<name>' / 'estdoc:<id>'), same name + size, the signed proposal (signed_contracts), or a source in
+  `job_file_seen` (identical bytes found on approval; new table). Not offered: logos / images under 30 KB, file types the
+  Documents tab can't hold (.zip, .dwg). A same-family name (Rev C after Rev B) is filed as the new version (`supersedes_id`,
+  old row superseded). Approve hashes bytes against the job's files, files the email on the job; Undo deletes what it filed
+  and un-supersedes.
+* Job page: Documents tab shows `#pd-claude` ("Claude found N documents for this job") mounting the card via
+  `GET /api/claude/job-filing/<code>`; `/projects/<code>#documents` opens the tab. Needs you lists job cards ("Job documents").
+* Drawer (v=21): `changeRows` draws `kind: 'file'` rows (title + folder select), Sent / Received chips on groups;
+  `approveLabel` ("File 4 documents"); a tick disables every `[data-key]` in its row (sent as '' = skipped).
+* Guard: `tests/smoke_job_filing.py` (new, in the gate).
+
 ### Claude updates client records from email, one card per email (Bookore, 2026-11-18)
 
 * Accepted prototype: https://claude.ai/artifact/JWDdszQjNdNqPyPcnKN3st. Piece 3 of the Inbox-accuracy plan. New tool

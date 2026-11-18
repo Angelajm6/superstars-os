@@ -848,7 +848,7 @@
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
-<script src="/files/static/js/claude_drawer.js?v=20" defer></script>
+<script src="/files/static/js/claude_drawer.js?v=21" defer></script>
 <script src="/files/static/js/chat_widget.js?v=2" defer></script>
 <script src="/files/static/js/dcr_steps.js?v=2" defer></script>
 <style>
@@ -1818,6 +1818,9 @@
           .pd-wrap,.pd-overlay{--pd-ink:var(--ink, #222633);--pd-muted:var(--muted, #8c92a0);--pd-line:var(--line, #eceef3);--pd-accent:var(--accent, #4364dc);--pd-accent-ink:var(--accent-ink, #3a5fd0);--pd-accent-soft:var(--accent-soft, #ebf0fe);--pd-accent-edge:rgba(67,100,220,.30);--on-ink:var(--status-complete-deep, #0c7a5f);--on-soft:var(--status-complete-soft, #e7f6f0);--miss-ink:var(--oat-ink, #8a8064);--miss-soft:var(--status-oat-soft, #f3f0e9);--miss:var(--status-oat, #cabfad);--warn-ink:var(--status-behind, #e9685a);--warn-soft:var(--status-behind-soft, #fceeec)}
           .pd-wrap{color:var(--pd-ink);font:14px/1.55 -apple-system,"Segoe UI",Inter,Roboto,sans-serif}
           .pd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+          .pd-claude{border:1px solid #E7C3B3;background:#FFFAF7;border-radius:14px;padding:10px 12px;display:grid;gap:10px;margin-bottom:16px}
+          .pd-claude-h{display:flex;align-items:center;gap:8px;font-size:13.5px;color:#1B1F27}
+          .pd-claude-h i{width:22px;height:22px;border-radius:6px;background:#A84E2C;color:#fff;display:grid;place-items:center;font-size:12px;font-style:normal;flex:none}
           .pd-h1{margin:0;font-size:20px;font-weight:700}.pd-sub{color:var(--pd-muted);font-size:13px;margin-top:3px}
           .pd-ic{width:15px;height:15px;flex:none}
           .pd-upload{background:var(--pd-accent);border:none;color:#fff;border-radius:10px;padding:9px 15px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;box-shadow:0 2px 8px rgba(67,100,220,.25)}
@@ -2169,6 +2172,8 @@
             <div><h1 class="pd-h1">Documents</h1><div class="pd-sub">Drop anything for this job. Claude reads it, tags it, and files it once you approve.</div></div>
             <div class="pd-stats" id="pd-stats"></div>
           </div>
+          <!-- 2026-11-18: Claude's "found N documents for this job" card (job_filing) -->
+          <section class="pd-claude" id="pd-claude" hidden aria-label="Documents Claude found"></section>
           <!-- Drop zone: the whole tab takes drops; this is the visible target. -->
           <section class="pd-canvas" id="pd-canvas" aria-label="Drop documents here">
             <div class="pd-cv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></div>
@@ -7153,6 +7158,7 @@
 // #payments opens Invoices & Payments (the invoice editor's back link, 2026-11-11)
 // (the selector is unquoted on purpose: a pm's page, Money stripped, must not carry the quoted view name)
 document.addEventListener('DOMContentLoaded', () => { if (location.hash === '#payments') setTimeout(() => { const l = document.querySelector('.nav-link[data-view=payments]'); if (l && !l.hidden) l.click(); }, 0); });
+document.addEventListener('DOMContentLoaded', () => { if (location.hash === '#documents') setTimeout(() => { const l = document.querySelector('.nav-link[data-view=documents]'); if (l && !l.hidden) l.click(); }, 0); });   // Claude's "found N documents" card links here (2026-11-18)
 // the view a job page opens on counts as opened (redesign step 1)
 document.addEventListener('DOMContentLoaded', () => { const a = document.querySelector('.nav-link.active[data-view]'); if (a) SSC_track('job', a.getAttribute('data-view')); });
 // Sidebar navigation - view switching
@@ -9643,6 +9649,20 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
     if(/(permit|pw2|best|variance|shed)/.test(f))return 'PERMITS';
     return 'PERMITS';}
 
+  // 2026-11-18 — Claude's card for documents it found in the estimate and email threads (job_filing). Mounted once per
+  // card; an approved card stays visible (with Undo) until the tab is opened again.
+  var PDC={chat:null};
+  async function pdClaude(){
+    var box=$('pd-claude'); if(!box||!window.SSC_CLAUDE||!SSC_CLAUDE.mountCards)return;
+    var j=null; try{j=await jget('/api/claude/job-filing/'+encodeURIComponent(PROJECT_CODE));}catch(e){return;}
+    var d=j&&j.data;
+    if(!d){ if(!PDC.chat)box.hidden=true; return; }
+    if(PDC.chat===d.chat_id)return;
+    PDC.chat=d.chat_id;
+    box.innerHTML='<div class="pd-claude-h"><i aria-hidden="true">✦</i><span><b>Claude found '+d.count+' document'+(d.count===1?'':'s')+' for this job</b> in its estimate and your email about it. Review and file them in one step.</span></div><div id="pd-claude-cards"></div>';
+    box.hidden=false;
+    SSC_CLAUDE.mountCards($('pd-claude-cards'),d.chat_id,function(){loadDocs();},{cardsOnly:true});
+  }
   async function loadDocs(){
     pdWire();
     PD.sel.clear(); renderBulkBar();   // #270 — a reload resets the bulk selection
@@ -9652,6 +9672,7 @@ document.querySelectorAll('button[data-link]').forEach(btn => {
       dzWire(); renderStats(); renderSuggest(); renderFolders(); renderChecklist();
       if(window.PD_loadSpecs)window.PD_loadSpecs(PROJECT_CODE);   // 2026-11-13 — the job's products + data sheets
       if(!DZ.loaded){DZ.loaded=true; dzLoadTypes().then(dzLoadIntake);} else renderTray();
+      pdClaude();
     }catch(e){console.warn('[projdocs] load failed',e);var h=$('pd-folders');if(h)h.innerHTML='<div class="pd-empty">Could not load documents.</div>';}
   }
 

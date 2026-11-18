@@ -1737,6 +1737,20 @@ TOOLS += [
          card=lambda ctx, inp: __import__("client_updates").card(ctx, inp),
          execute=lambda ctx, inp: __import__("client_updates").execute(ctx, inp),
          undo=lambda ctx, a, res: __import__("client_updates").undo(ctx, a, res)),
+    Tool("file_to_job", "File to the job", "Propose filing files from emails into a job's Documents (project_code), as ONE "
+         "card: for each file the mail_id and the attachment's exact name, the job folder it belongs in and a short title "
+         "(\"Shop drawings Rev C\", not the file name). Sent and received files both count. Not signature logos or small "
+         "pictures, not the signed proposal (it is filed by itself). Files already on the job are skipped for you.",
+         {"project_code": _S,
+          "files": {"type": "array", "items": {"type": "object", "additionalProperties": False, "required": ["mail_id", "name"],
+                    "properties": {"mail_id": _I, "name": _S, "title": _S,
+                                   "folder": {"type": "string", "enum": ["PERMITS", "DRAWINGS", "CONTRACTS", "INSPECTIONS",
+                                                                         "SAFETY", "CLOSEOUT"]}}}}},
+         ["project_code", "files"], write=True, roles=OFFICE_ROLES, office_only=True,
+         run=lambda ctx, inp: __import__("job_filing").check(ctx, inp),
+         card=lambda ctx, inp: __import__("job_filing").card(ctx, inp),
+         execute=lambda ctx, inp: __import__("job_filing").execute(ctx, inp),
+         undo=lambda ctx, a, res: __import__("job_filing").undo(ctx, a, res)),
     Tool("email_client", "Email to a client", "Propose an email to one client contact (by contact_id). It is sent from "
          "the company address with replies going to the person; sign it with their name. Plain text, short paragraphs.",
          {"contact_id": _I, "subject": _S, "body": _S}, ["contact_id", "subject", "body"], write=True, roles=OFFICE_ROLES,
@@ -2160,7 +2174,8 @@ MOOT = {"log_proposal_sent": lambda c, i: _moot_proposal(c, i, ("draft",)),
         "create_proposal": _moot_new_proposal,
         "change_estimate_status": _moot_estimate_status,
         "mark_done": _moot_done,
-        "update_client_record": lambda c, i: __import__("client_updates").moot(c, i)}
+        "update_client_record": lambda c, i: __import__("client_updates").moot(c, i),
+        "file_to_job": lambda c, i: None}   # moot_reason calls job_filing.moot with the card (its owner's mailbox)
 
 
 def moot_reason(conn, a: dict) -> Optional[str]:
@@ -2170,6 +2185,8 @@ def moot_reason(conn, a: dict) -> Optional[str]:
     if not f:
         return None
     try:
+        if a.get("tool") == "file_to_job":   # whose mailbox the files are in matters
+            return __import__("job_filing").moot(conn, a, json.loads(a.get("input") or "{}"))
         return f(conn, json.loads(a.get("input") or "{}"))
     except Exception as e:
         log.info("moot check skipped for card %s (%s)", a.get("id"), type(e).__name__)
@@ -2194,7 +2211,7 @@ def close_moot(conn, a: dict, why: str) -> None:
 
 def sweep_moot(conn, chat_id: Optional[int] = None, user_id: Optional[int] = None) -> int:
     """Close every waiting card the records have moved past (one chat, one person, or everyone). Cheap: a few cards."""
-    sql = f"SELECT id, chat_id, tool, input FROM claude_action WHERE status = 'pending' AND tool IN ({','.join('?' * len(MOOT))})"
+    sql = f"SELECT id, chat_id, user_id, tool, input FROM claude_action WHERE status = 'pending' AND tool IN ({','.join('?' * len(MOOT))})"
     params = list(MOOT)
     if chat_id:
         sql, params = sql + " AND chat_id = ?", params + [chat_id]
@@ -2689,6 +2706,18 @@ def _api_reopen(action_id):
     return _decide(action_id, "reopen")
 
 
+@requires_role(*OFFICE_ROLES)
+def _api_job_filing(project_code):
+    """The job's Documents tab: this person's waiting "file these documents" card for the job, if any (job_filing)."""
+    me = _me()
+    conn = _conn()
+    try:
+        import job_filing
+        return jsonify({"data": job_filing.pending_for_job(conn, me["id"], str(project_code)[:40])})
+    finally:
+        conn.close()
+
+
 @requires_role(*TEAM_ROLES)
 def _api_actions():
     me = _me()
@@ -2748,6 +2777,7 @@ def register(app) -> None:
     app.add_url_rule("/api/claude/chats/<int:chat_id>", "claude_chat_update", _api_chat_update, methods=["PATCH"])
     app.add_url_rule("/api/claude/chats/<int:chat_id>/messages", "claude_message", _api_message, methods=["POST"])
     app.add_url_rule("/api/claude/actions", "claude_actions", _api_actions, methods=["GET"])
+    app.add_url_rule("/api/claude/job-filing/<project_code>", "claude_job_filing", _api_job_filing, methods=["GET"])
     app.add_url_rule("/api/claude/actions/<int:action_id>/approve", "claude_approve", _api_approve, methods=["POST"])
     app.add_url_rule("/api/claude/actions/<int:action_id>/decline", "claude_decline", _api_decline, methods=["POST"])
     app.add_url_rule("/api/claude/actions/<int:action_id>/undo", "claude_undo", _api_undo, methods=["POST"])

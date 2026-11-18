@@ -217,7 +217,7 @@ def main() -> int:
         assert "555" not in state and "jordan@" not in state, "never a contact's phone or email"
         assert "ONE update_client_record" in prompt and "update_client_record" in [t.name for t in ca.TOOLS]
         js = (ROOT / "static/js/claude_drawer.js").read_text(encoding="utf-8")
-        for needle in ("function changeRows(a, c)", "el.disabled ? '' : v", "data-tick", "data-chip", "'Approve ' + n + ' change'"):
+        for needle in ("function changeRows(a, c)", "el.disabled ? '' : v", "data-tick", "data-chip", "function approveLabel(c, n)"):
             assert js.count(needle) >= 1, needle
         assert js.count("el.disabled ? '' : v") == 2, "both Approve paths skip unticked rows"
         v = re.search(r"claude_drawer\.js\?v=(\d+)", (ROOT / "claude.html").read_text(encoding="utf-8")).group(1)
