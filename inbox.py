@@ -885,6 +885,71 @@ def _labels(conn, m: dict) -> str:
     return "; ".join(parts) or "nothing matched yet"
 
 
+def _money(v) -> str:
+    try:
+        return f"${float(v):,.2f}"
+    except (TypeError, ValueError):
+        return ""
+
+
+def live_state(conn, m: dict) -> str:
+    """Where things stand right now for the client and jobs this email is about, read from the platform the moment
+    Claude looks (Angela 2026-11-18: Claude proposed "mark as sent" for a proposal that was already signed). Statuses
+    and dates only from our own records; never another person's email. Empty when nothing matched."""
+    import proposal_engine
+    org = m.get("client_org_id")
+    codes = {m["project_code"]} if m.get("project_code") else set()
+    if not org and m.get("proposal_id"):
+        org = (_one(conn, "SELECT client_org_id FROM proposal WHERE id = ?", (m["proposal_id"],)) or {}).get("client_org_id")
+    if not org and m.get("estimate_id"):
+        org = (_one(conn, "SELECT client_org_id FROM estimate WHERE id = ?", (m["estimate_id"],)) or {}).get("client_org_id")
+    if not org and codes:
+        org = (_one(conn, "SELECT client_org_id FROM projects WHERE project_code = ?", (next(iter(codes)),)) or {}).get("client_org_id")
+    lines = []
+    if org:
+        props = _rows(conn, "SELECT id, number, display_no, version, status, title, price, sent_at, signed_at, declined_at, created_at "
+                            "FROM proposal WHERE client_org_id = ? AND status NOT IN ('deleted', 'superseded') "
+                            "ORDER BY COALESCE(signed_at, sent_at, created_at) DESC, id DESC LIMIT 8", (org,))
+        for p in props:
+            when = {"signed": p["signed_at"], "declined": p["declined_at"]}.get(p["status"]) or p["sent_at"]
+            bits = [f"Proposal {proposal_engine.label(p)} (proposal_id {p['id']})", (p["title"] or "")[:80],
+                    p["status"] + (f" {str(when)[:10]}" if when and p["status"] != "draft" else ""),
+                    f"sent {str(p['sent_at'])[:10]}" if p["status"] in ("signed", "declined") and p["sent_at"] else "",
+                    _money(p["price"])]
+            lines.append("- " + " · ".join(b for b in bits if b))
+        for e in _rows(conn, "SELECT id, code, inquiry_kind, building_address, status, bid_due_date, converted_project_code "
+                             "FROM estimate WHERE client_org_id = ? ORDER BY COALESCE(status_changed_at, created_at) DESC, id DESC "
+                             "LIMIT 8", (org,)):
+            kind = "Bid" if e.get("inquiry_kind") == "bid" else "Estimate"
+            bits = [f"{kind} {e['code']} (estimate_id {e['id']})", (e["building_address"] or "")[:70], e["status"],
+                    f"due {e['bid_due_date']}" if e.get("bid_due_date") and e["status"] in ("intake", "scoping") else "",
+                    f"became job {e['converted_project_code']}" if e.get("converted_project_code") else ""]
+            lines.append("- " + " · ".join(b for b in bits if b))
+            if e.get("converted_project_code"):
+                codes.add(e["converted_project_code"])
+        codes |= {r["project_code"] for r in _rows(conn, "SELECT project_code FROM projects WHERE client_org_id = ?", (org,))}
+    for j in sorted(codes)[:6]:
+        pj = _one(conn, "SELECT project_code, name, address, status FROM projects WHERE project_code = ?", (j,))
+        if not pj:
+            continue
+        docs = _rows(conn, "SELECT title, file_name FROM project_documents WHERE project_code = ? AND COALESCE(superseded, 0) = 0 "
+                           "ORDER BY uploaded_at DESC, id DESC LIMIT 6", (j,))
+        n = _one(conn, "SELECT COUNT(*) AS n FROM project_documents WHERE project_code = ? AND COALESCE(superseded, 0) = 0", (j,))["n"]
+        lines.append(f"- Job {pj['project_code']} · {(pj['name'] or pj['address'] or '')[:70]} · {pj.get('status') or 'active'} · "
+                     f"{n} document{'s' if n != 1 else ''} filed" + (": " + "; ".join((d["title"] or d["file_name"] or "")[:50] for d in docs)
+                                                                   if docs else ""))
+    if m.get("thread_id"):
+        done = _rows(conn, "SELECT a.tool, a.summary, a.decided_at FROM claude_action a JOIN claude_chat c ON c.id = a.chat_id "
+                           "JOIN mail_message x ON x.id = c.mail_id WHERE a.status = 'approved' AND x.user_id = ? AND x.thread_id = ? "
+                           "ORDER BY a.decided_at DESC LIMIT 8", (m["user_id"], m["thread_id"]))
+        for a in done:
+            lines.append(f"- Already approved in this conversation {str(a['decided_at'] or '')[:10]}: {a['tool']}: {(a['summary'] or '')[:120]}")
+    if not lines:
+        return ""
+    return ("Where things stand right now (read from the platform just now; trust this over anything the email implies, "
+            "and never propose a step that is already done or a status a record is already past):\n" + "\n".join(lines) + "\n")
+
+
 TODAY_TOOLS = {"draft_proposal": ("email money", "now"), "reply_email": ("email", "today"),
                "create_estimate": ("email", "today"), "create_event": ("email", "today"), "create_task": ("email", "today"),
                "save_email_attachments": ("email", "week"), "log_proposal_sent": ("email money", "today"),
@@ -947,6 +1012,19 @@ def today_cards(conn, uid: int) -> list:
     return out
 
 
+def _safe_state(conn, m: dict) -> str:
+    """Claude still gets the email when reading the state fails (a missing column on an old database, say)."""
+    try:
+        return live_state(conn, m)
+    except Exception as e:
+        log.info("inbox live state skipped for mail %s (%s)", m.get("id"), type(e).__name__)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return ""
+
+
 def suggest_prompt(conn, m: dict, user_name: str) -> str:
     sig = identity(conn, m["user_id"], fetch=False)["signature"] if m.get("user_id") else ""
     sign = (f"ending with a short sign-off and {user_name.split()[0] if user_name else 'their first name'} only (their Gmail "
@@ -977,6 +1055,7 @@ def suggest_prompt(conn, m: dict, user_name: str) -> str:
         "themselves. Finish with one or two plain sentences: what the email is and what you propose.\n\n"
         + (("Already waiting for this person's approval in this conversation (do not propose these again): "
             + "; ".join(waiting) + "\n") if waiting else "")
+        + _safe_state(conn, m)
         + (("This person SENT this email: never propose reply_email for it.\n") if m["direction"] == "out" else "")
         + f"mail_id: {m['id']}\nDirection: {'SENT by this person' if m['direction'] == 'out' else 'received'}\n"
         f"Matched in the platform: {_labels(conn, m)}\n"
