@@ -268,7 +268,7 @@ def main() -> int:
         for needle in ("r.kind === 'file'", "'.folder\" aria-label=\"Folder for '", "row.querySelectorAll('[data-key]')", "function approveLabel(c, n)"):
             assert needle in js, needle
         page = (ROOT / "dashboard-static.html").read_text(encoding="utf-8")
-        assert "async function pdClaude()" in page and "'#documents': 'documents'" in page and 'id="pd-claude"' in page
+        assert "async function pdClaude()" in page and "location.hash === '#documents'" in page and 'id="pd-claude"' in page
         v = re.search(r"claude_drawer\.js\?v=(\d+)", (ROOT / "claude.html").read_text(encoding="utf-8")).group(1)
         assert f"claude_drawer.js?v={v}\"" in page
         prompt = inbox.suggest_prompt(conn, inbox.message(conn, m5), "Jfile Me")

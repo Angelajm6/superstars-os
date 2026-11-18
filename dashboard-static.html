@@ -1818,7 +1818,7 @@
           .pd-wrap,.pd-overlay{--pd-ink:var(--ink, #222633);--pd-muted:var(--muted, #8c92a0);--pd-line:var(--line, #eceef3);--pd-accent:var(--accent, #4364dc);--pd-accent-ink:var(--accent-ink, #3a5fd0);--pd-accent-soft:var(--accent-soft, #ebf0fe);--pd-accent-edge:rgba(67,100,220,.30);--on-ink:var(--status-complete-deep, #0c7a5f);--on-soft:var(--status-complete-soft, #e7f6f0);--miss-ink:var(--oat-ink, #8a8064);--miss-soft:var(--status-oat-soft, #f3f0e9);--miss:var(--status-oat, #cabfad);--warn-ink:var(--status-behind, #e9685a);--warn-soft:var(--status-behind-soft, #fceeec)}
           .pd-wrap{color:var(--pd-ink);font:14px/1.55 -apple-system,"Segoe UI",Inter,Roboto,sans-serif}
           .pd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
-          .pd-claude{border:1px solid #E7C3B3;background:#FFFAF7;border-radius:12px;padding:10px 12px;display:grid;gap:10px;margin-bottom:16px}
+          .pd-claude{border:1px solid #E7C3B3;background:#FFFAF7;border-radius:14px;padding:10px 12px;display:grid;gap:10px;margin-bottom:16px}
           .pd-claude-h{display:flex;align-items:center;gap:8px;font-size:13.5px;color:#1B1F27}
           .pd-claude-h i{width:22px;height:22px;border-radius:6px;background:#A84E2C;color:#fff;display:grid;place-items:center;font-size:12px;font-style:normal;flex:none}
           .pd-h1{margin:0;font-size:20px;font-weight:700}.pd-sub{color:var(--pd-muted);font-size:13px;margin-top:3px}
@@ -7157,7 +7157,8 @@
 <script>
 // #payments opens Invoices & Payments (the invoice editor's back link, 2026-11-11)
 // (the selector is unquoted on purpose: a pm's page, Money stripped, must not carry the quoted view name)
-document.addEventListener('DOMContentLoaded', () => { const v = { '#payments': 'payments', '#documents': 'documents' }[location.hash]; if (v) setTimeout(() => { const l = document.querySelector('.nav-link[data-view=' + v + ']'); if (l && !l.hidden) l.click(); }, 0); });
+document.addEventListener('DOMContentLoaded', () => { if (location.hash === '#payments') setTimeout(() => { const l = document.querySelector('.nav-link[data-view=payments]'); if (l && !l.hidden) l.click(); }, 0); });
+document.addEventListener('DOMContentLoaded', () => { if (location.hash === '#documents') setTimeout(() => { const l = document.querySelector('.nav-link[data-view=documents]'); if (l && !l.hidden) l.click(); }, 0); });   // Claude's "found N documents" card links here (2026-11-18)
 // the view a job page opens on counts as opened (redesign step 1)
 document.addEventListener('DOMContentLoaded', () => { const a = document.querySelector('.nav-link.active[data-view]'); if (a) SSC_track('job', a.getAttribute('data-view')); });
 // Sidebar navigation - view switching
