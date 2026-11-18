@@ -816,12 +816,14 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
   }
   function card(a) {
     var c = a.card || { title: a.label, fields: [] };
-    var state = { pending: 'Needs your approval', approved: 'Approved', declined: 'Declined', expired: 'Expired', undone: 'Undone', failed: 'Failed' }[a.status] || a.status;
+    var state = a.closed_note ? 'Already done' : { pending: 'Needs your approval', approved: 'Approved', declined: 'Declined', expired: 'Expired', undone: 'Undone', failed: 'Failed' }[a.status] || a.status;
     var foot = a.status === 'pending'
       ? '<div class="clx-acts"><button type="button" class="clx-btn ok" data-approve="' + a.id + '">Approve</button><button type="button" class="clx-btn" data-decline="' + a.id + '">Decline</button><span class="clx-err" id="clx-e' + a.id + '"></span></div>' +
         (a.expires_at ? '<div class="clx-res no">Deleted if nobody answers by ' + esc(fmtStamp(a.expires_at)) + '</div>' : '')
       : a.status === 'approved' ? '<div class="clx-res">✓ ' + esc((a.result && a.result.summary) || 'Done') + (a.decided_by ? ' · approved by ' + esc(a.decided_by) : '') +
           (a.result && a.result.link ? ' · <a href="' + esc(a.result.link) + '">Open</a>' : '') + (a.can_undo ? ' · <a href="#" data-undo="' + a.id + '">Undo</a>' : '') + '</div>'
+      : a.status === 'declined' && a.closed_note ? '<div class="clx-res">✓ ' + esc(a.closed_note) + '. Nothing was changed.' + (a.can_reopen ? ' · <a href="#" data-reopen="' + a.id + '">Bring it back</a>' : '') +
+          '<span class="clx-err" id="clx-e' + a.id + '"></span></div>'
       : a.status === 'declined' ? '<div class="clx-res no">Declined · nothing was changed' + (a.can_reopen ? ' · <a href="#" data-reopen="' + a.id + '">Undo decline</a> until ' + esc(fmtStamp(a.expires_at)) : '') +
           '<span class="clx-err" id="clx-e' + a.id + '"></span></div>'
       : a.status === 'expired' ? '<div class="clx-res no">Expired · ask Claude again</div>'
