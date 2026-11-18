@@ -1715,6 +1715,28 @@ TOOLS += [
     Tool("add_client_note", "Client note", "Propose a note on a client's activity (a call, meeting or plain note).",
          {"client_id": _I, "kind": {"type": "string", "enum": ["note", "call", "meeting", "email"]}, "when": _D, "note": _S},
          ["client_id", "note"], write=True, roles=OFFICE_ROLES, run=_check_note, card=_note_card, execute=_exec_note),
+    Tool("update_client_record", "Update client record", "Propose updating a client's record from an email, as ONE card "
+         "with every change in it: a contact's new phone, title, email or name (contact_id from the client's contacts), a new "
+         "person (new_contact: their full name, with their email, phone, title and roles as separate changes), or the client's "
+         "own phone, email, website, address or billing email (no contact_id, no new_contact). Give only what the email shows, "
+         "each with `why`: the words that show it (a signature line, \"send invoices to …\"). Add a person who is only on the Cc "
+         "line ONLY when the email says why (\"copy Sam on invoices\"); change the billing email ONLY when the email clearly asks "
+         "for invoices to go somewhere. Never payment terms, deposit, retainage or the primary contact; never remove anything. "
+         "Values already on file are dropped, so you can't propose what is already there.",
+         {"client_org_id": _I, "mail_id": _I,
+          "changes": {"type": "array", "items": {"type": "object", "additionalProperties": False, "required": ["field", "value"],
+                      "properties": {"contact_id": _I, "new_contact": _S,
+                                     "field": {"type": "string", "enum": ["full_name", "email", "phone", "title", "roles",
+                                                                          "website", "address_line", "city", "state", "zip",
+                                                                          "billing_email"]},
+                                     "value": {"type": "string", "description": "the new value; roles: comma list of Signs contracts, "
+                                               "Billing / AP, Project manager, Site super, Board member, Managing agent"},
+                                     "why": _S}}}},
+         ["client_org_id", "changes"], write=True, roles=OFFICE_ROLES, office_only=True,
+         run=lambda ctx, inp: __import__("client_updates").check(ctx, inp),
+         card=lambda ctx, inp: __import__("client_updates").card(ctx, inp),
+         execute=lambda ctx, inp: __import__("client_updates").execute(ctx, inp),
+         undo=lambda ctx, a, res: __import__("client_updates").undo(ctx, a, res)),
     Tool("email_client", "Email to a client", "Propose an email to one client contact (by contact_id). It is sent from "
          "the company address with replies going to the person; sign it with their name. Plain text, short paragraphs.",
          {"contact_id": _I, "subject": _S, "body": _S}, ["contact_id", "subject", "body"], write=True, roles=OFFICE_ROLES,
@@ -2137,7 +2159,8 @@ MOOT = {"log_proposal_sent": lambda c, i: _moot_proposal(c, i, ("draft",)),
         "send_proposal": lambda c, i: _moot_proposal(c, i, ("draft", "sent", "viewed")),
         "create_proposal": _moot_new_proposal,
         "change_estimate_status": _moot_estimate_status,
-        "mark_done": _moot_done}
+        "mark_done": _moot_done,
+        "update_client_record": lambda c, i: __import__("client_updates").moot(c, i)}
 
 
 def moot_reason(conn, a: dict) -> Optional[str]:
