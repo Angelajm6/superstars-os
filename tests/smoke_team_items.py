@@ -295,12 +295,15 @@ def main() -> int:
         assert needle in tt, needle
     for needle in ('id="tk-card"', 'data-tk-dir', 'team_tasks.js?v=', 'data-tk-filter="mine"', 'data-tk-filter="by"', 'id="cal-new-item"', 'id="td-quick"',
                    "SSC_TASKS.view(it)", "wireItemChips($('cc-week-row'), d);",
-                   "wireItemChips($('cal-grid'), d);",
-                   'id="dy-overlay"', 'id="dy-add"', "function openDay(iso, d)", "dayClicks($('cc-week-row'), () => DAY.week);",
-                   "dayClicks($('cal-grid'), () => CAL.data);", 'data-day="${k}"', "openItem(null, { date: iso })",
-                   "if (e.target.closest('a, button, [data-item], [data-mine], [data-job], [data-more], [data-ms], .cal-bar, .cc-week-bar, .cal-grip')) return;",
-                   "past ? (info.headcount || 0) + ' on site' : ''"):
+                   "function openDay(iso, d)", "JC.openDay(iso, d)", "dayClicks($('cc-week-row'), () => DAY.week);",
+                   'data-day="${k}"',
+                   "if (e.target.closest('a, button, [data-item], [data-mine], [data-job], [data-more], [data-ms], .cal-bar, .cc-week-bar, .cal-grip')) return;"):
         assert needle in html, needle
+    # 2026-11-19: the calendar's chips, days and "add on this day" are static/js/jobs_calendar.js (the day panel too)
+    jc = (ROOT / "static" / "js" / "jobs_calendar.js").read_text(encoding="utf-8")
+    for needle in ("host.openItem(x.src)", "host.openMine(x.src)", "host.openItem(null, { date: iso })", "if (t.dataset.day) openDay(t.dataset.day, d);",
+                   "(s.past ? 'on site' : 'crew')"):
+        assert needle in jc, needle
     ov = html[html.index("async function loadOverview()"):html.index("// ---------- TASKS & EVENTS")]
     assert re.findall(r"tile\('([^']+)'", ov) == ["Active jobs", "On site now", "Weather", "Payments due"]
     assert "Money at a glance" not in html and "ov-money" not in html

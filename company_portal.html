@@ -17,6 +17,7 @@
 <script src="/files/static/js/claude_drawer.js?v=21" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/team_tasks.css?v=1" id="tt-css">
+<link rel="stylesheet" href="/files/static/css/jobs_calendar.css?v=4">
 <script src="/files/static/js/team_tasks.js?v=1" defer data-team-tasks></script>
 <script src="/files/static/js/new_project_modal.js?v=1118" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1016" defer></script>
@@ -26,6 +27,7 @@
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
 <script src="/files/static/js/pdf_view.js?v=4" defer></script>
 <script src="/files/static/js/company_templates.js?v=2"></script>
+<script src="/files/static/js/jobs_calendar.js?v=4"></script>
 <style>
   /* #302 Company Portal — tokens come from widgets.css :root (accent, ink, muted, line,
      canvas, brand-red, status-*). This block only lays out the shell + portal components. */
@@ -1507,19 +1509,18 @@
             .cal-print-list h3{font-size:13px;margin:0 0 6px} }
           @media (max-width:760px){ .cal-title{min-width:0} .cal-bar small{display:none} .cal-row{min-height:88px} .cal-weather div{font-size:13px;gap:4px} .cal-hc{display:none} }
         </style>
-        <div class="cal" id="cal">
+        <!-- 2026-11-19: projects, assigned tasks and NYC weather; drawn by static/js/jobs_calendar.js -->
+        <div class="jc" id="cal">
           <div class="cal-head">
-            <div><h2 class="cal-title" id="cal-range">—</h2><div class="cal-sub" id="cal-sub">Jobs, tasks and events by day · click one to open it</div></div>
+            <div><h2 class="cal-title" id="cal-range">—</h2><div class="cal-sub" id="cal-sub">Projects, tasks and NYC weather</div></div>
+            <span class="jc-spacer"></span>
             <button type="button" class="btn-primary btn-sm" id="cal-new-item">+ Task or event</button>
-            <label class="mine-tg" hidden><input type="checkbox" data-mine-toggle checked> My Google events</label>
-            <div class="cal-seg" role="tablist"><button type="button" data-cal-view="3day">3 days</button><button type="button" data-cal-view="week">Week</button><button type="button" data-cal-view="month" class="on">Month</button></div>
-            <div class="cal-nav"><button type="button" id="cal-prev" title="Previous">‹</button><button type="button" id="cal-today" class="cal-now">This week</button><button type="button" id="cal-next" title="Next">›</button><button type="button" id="cal-print" title="Print this view as a sheet for the foremen">Print</button></div>
+            <div class="cal-seg" id="jc-seg" role="group" aria-label="View"></div>
+            <div class="cal-nav"><button type="button" id="cal-prev" title="Previous" aria-label="Previous">‹</button><button type="button" id="cal-today" class="cal-now">This week</button><button type="button" id="cal-next" title="Next" aria-label="Next">›</button><button type="button" id="cal-print" title="Print this view as a sheet for the foremen">Print</button></div>
           </div>
+          <div class="jc-layers" id="jc-layers" role="group" aria-label="Show on the calendar"></div>
           <div id="cal-note"></div>
-          <div class="cal-dow" id="cal-dow"></div>
-          <div class="cal-weather" id="cal-weather" hidden></div>
-          <div class="cal-grid" id="cal-grid"><div class="cp-skel"></div></div>
-          <div class="cal-foot" id="cal-foot"></div>
+          <div id="jc-view"><div class="cp-skel"></div></div>
           <div class="cal-print-list" id="cal-print-list"></div>
         </div>
         <div class="cal-tip" id="cal-tip"></div>
@@ -2316,14 +2317,7 @@
   </form>
 </div>
 
-<!-- one calendar day: everything on it -->
-<div class="cp-overlay" id="dy-overlay" role="dialog" aria-modal="true" aria-labelledby="dy-title">
-  <div class="cp-modal dy-modal">
-    <div class="cp-modal-head"><h2 id="dy-title">Day</h2><p class="cp-muted" id="dy-sub" style="margin:6px 0 0;font-size:13px"></p></div>
-    <div class="dy-body" id="dy-body"></div>
-    <div class="cp-modal-foot"><button class="btn-ghost" type="button" data-cancel>Close</button><button class="btn-primary" type="button" id="dy-add">+ Task or event on this day</button></div>
-  </div>
-</div>
+<!-- one calendar day: the side panel / bottom sheet is static/js/jobs_calendar.js (2026-11-19) -->
 <!-- tasks, events and meetings: the View card and the New / Edit window are static/js/team_tasks.js (2026-11-19) -->
 
 <!-- company document modal -->
@@ -2846,10 +2840,9 @@
     const more = document.querySelector('#td-quick [data-tt-more]');
     if ($('td-quick-in').value.trim() && more) more.click(); else openItem(null);
   });
-  $('cal-new-item').addEventListener('click', () => openItem(null, { date: todayISO() }));
   // every task write (here, in the Inbox, from an email or a pop-up) refreshes what shows it
   document.addEventListener('ssc:items-changed', () => {
-    loadTasks(); loadWeekStrip(); CAL.cache = {};
+    loadTasks(); loadWeekStrip(); if (JC) JC.reset();
     if (location.hash.startsWith('#calendar')) loadCalendar();
     if (IB.sched && /^#inbox\/(mine|all)/.test(location.hash)) IB.sched.reload();
     if (/^#(overview)?$/.test(location.hash || '#')) loadToday(true);
@@ -2858,59 +2851,8 @@
   const DAY = { week: null, iso: null };
   const DOWL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], MONL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const JOB_COLORS = ['#4B5F94', '#3F7F76', '#9A6A30', '#7B68B5', '#8E4A6A', '#3F78A3', '#6B7D3E', '#A9524F', '#B35E44', '#3D7B5C', '#5670C0', '#94549A', '#7E5F45', '#6A6560', '#A85A77', '#3A7E90', '#5A7A5F', '#5A7287', '#8A6A86', '#85712A', '#55743F', '#2F6B5A', '#34557F', '#66466E', '#82424F', '#6E4C3C', '#48467E', '#6B6390', '#9A4E2E', '#4A525C', '#A0646A', '#2E6670', '#BCD9F2', '#F7E7A1', '#F9CFA5', '#C4E6D2', '#F4CBD6', '#D9D0F0', '#BFE5E6', '#F5C3B8', '#D5E2C0', '#E6CDE8', '#E8DCC6', '#C9D2F2'];   // = project_setup.PALETTE (each job's saved color)
-  function openDay(iso, d) {
-    if (!d || !iso) return;
-    DAY.iso = iso;
-    const [y, m, dd] = iso.split('-').map(Number), x = new Date(y, m - 1, dd), today = todayISO();
-    const info = d.days[iso] || {}, onSite = info.on_site || {}, reports = info.reports || [];
-    const jobs = d.jobs.filter(j => j.start_date <= iso && (j.open_ended || (j.end_date && j.end_date >= iso)));
-    const its = itemsOn(d, iso), ms = info.milestones || [];
-    const past = iso <= today;
-    $('dy-title').textContent = DOWL[x.getDay()] + ', ' + MONL[m - 1] + ' ' + dd + (iso === today ? ' · Today' : '');
-    const filed = jobs.filter(j => reports.includes(j.project_code)).length;
-    $('dy-sub').textContent = [jobs.length + ' job' + (jobs.length === 1 ? '' : 's') + ' running', past ? (info.headcount || 0) + ' on site' : '',
-      past && jobs.length ? filed + ' of ' + jobs.length + ' daily reports filed' : '', its.length ? its.length + ' task' + (its.length === 1 ? '' : 's') + ' / event' + (its.length === 1 ? '' : 's') : ''].filter(Boolean).join(' · ');
-    const jobRows = jobs.map(j => {
-      const n = onSite[j.project_code] || 0, rep = reports.includes(j.project_code);
-      return `<div class="dy-row"><span class="dy-sw" style="background:${JOB_COLORS[j.color % JOB_COLORS.length]}"></span><div class="dy-main"><div class="dy-t">${esc(j.name)}</div><div class="dy-m">` +
-        `${j.client_name ? `<span>${esc(j.client_name)}</span>` : ''}${j.pm ? `<span>PM ${esc(j.pm)}</span>` : ''}` +
-        (past ? `<span>${n ? n + ' on site' : 'Nobody signed in'}</span>` + (rep ? '<span class="dy-ok">Daily report filed ✓</span>' : '<span class="dy-no">No daily report</span>') : `<span>${j.crew_count || 0} on the crew</span>`) +
-        `</div></div><a class="dy-go" href="/projects/${encodeURIComponent(j.project_code)}">Open job →</a></div>`;
-    }).join('');
-    const itemRows = its.map(it => {
-      if (it.kind === 'mine')
-        return `<div class="dy-row it" data-day-mine="${it.id}" role="button" tabindex="0"><span class="mine-lock" aria-hidden="true">${LOCK}</span><div class="dy-main"><div class="dy-t">${esc(it.title)}</div><div class="dy-m">` +
-          `<span>${it.start_date === iso && it.start_time ? fmtTime(it.start_time) + (it.end_time ? '–' + fmtTime(it.end_time) : '') : 'All day'}</span><span class="mine-tag">Only you</span>${it.location ? `<span>${esc(it.location)}</span>` : ''}</div></div></div>`;
-      const t = (it.kind === 'event' || it.kind === 'meeting') ? (it.start_date === iso && it.start_time ? fmtTime(it.start_time) + (it.end_time ? '–' + fmtTime(it.end_time) : '') : 'All day') : (it.due_time ? 'Due ' + fmtTime(it.due_time) : 'Due today');
-      return `<div class="dy-row it" data-day-item="${it.id}" role="button" tabindex="0"><span class="${(it.kind === 'event' || it.kind === 'meeting') ? 'tk-ev' : 'tk-check' + (it.status === 'done' ? ' on' : '')}" aria-hidden="true" style="pointer-events:none">${(it.kind === 'event' || it.kind === 'meeting') ? '●' : (it.status === 'done' ? '✓' : '')}</span><div class="dy-main"><div class="dy-t"${it.status === 'done' ? ' style="text-decoration:line-through;color:var(--muted)"' : ''}>${esc(it.title)}</div><div class="dy-m"><span>${esc(t)}</span>` +
-        `${it.overdue ? '<span class="cp-pill bad">overdue</span>' : ''}${it.source === 'gcal' ? '<span class="cp-pill">from Google</span>' : ''}${it.project_name ? `<span>${esc(it.project_name)}</span>` : ''}<span class="tk-who${it.mine ? ' me' : ''}">${it.assignee_name ? (it.mine ? 'You' : esc(it.assignee_name)) : 'Unassigned'}</span>` +
-        `${it.address ? `<span class="tk-addr-txt">📍 ${esc(it.address)}</span>` : ''}</div></div>${it.address ? `<a class="tk-dir" href="${esc(it.directions_url)}" target="_blank" rel="noopener" data-tk-dir>Directions ↗</a>` : ''}</div>`;
-    }).join('');
-    const msRows = ms.map(mm => `<div class="dy-row"><div class="dy-main"><div class="dy-t">${mm.kind === 'invoice' ? esc(mm.number) + ' due' : esc(mm.label) + (mm.late ? ' expired' : ' expires')}</div><div class="dy-m">` +
-      (mm.kind === 'invoice' ? `<span>${esc(mm.client_name || '')}</span><span>${money2.format(mm.balance || 0)} open</span>` : `<span>${esc(mm.project_name || mm.project_code || '')}</span>`) + `</div></div>` +
-      (mm.kind === 'invoice' ? '<a class="dy-go" href="#finance">Finance →</a>' : (mm.project_code ? `<a class="dy-go" href="/projects/${encodeURIComponent(mm.project_code)}">Open job →</a>` : '')) + '</div>').join('');
-    $('dy-body').innerHTML =
-      `<div class="dy-sec">Jobs · ${jobs.length}</div>` + (jobRows || '<div class="dy-empty">No job is scheduled on this day.</div>') +
-      `<div class="dy-sec">Tasks &amp; events · ${its.length}</div>` + (itemRows || '<div class="dy-empty">Nothing planned. Use the button below to add a task or event on this day.</div>') +
-      (ms.length ? `<div class="dy-sec">Due · ${ms.length}</div>` + msRows : '');
-    $('dy-body').querySelectorAll('[data-day-mine]').forEach(el => {
-      const open = () => { const e = (d.mine || []).find(z => String(z.id) === el.dataset.dayMine); closeDay(); openMine(e); };
-      el.addEventListener('click', open);
-      el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); } });
-    });
-    $('dy-body').querySelectorAll('[data-day-item]').forEach(el => {
-      const open = (ev) => { if (ev.target.closest('[data-tk-dir]')) return; const it = (d.items || []).find(z => String(z.id) === el.dataset.dayItem); closeDay(); openItem(it); };
-      el.addEventListener('click', open);
-      el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(ev); } });
-    });
-    $('dy-overlay').classList.add('open');
-    setTimeout(() => $('dy-overlay').querySelector('[data-cancel]').focus(), 30);
-  }
-  function closeDay() { $('dy-overlay').classList.remove('open'); }
-  $('dy-overlay').querySelector('[data-cancel]').addEventListener('click', closeDay);
-  $('dy-overlay').addEventListener('click', (e) => { if (e.target === $('dy-overlay')) closeDay(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('dy-overlay').classList.contains('open') && !$('tk-overlay').classList.contains('open')) closeDay(); });
-  $('dy-add').addEventListener('click', () => { const iso = DAY.iso; closeDay(); openItem(null, { date: iso }); });
+  // a day (the week strip, the calendar): everything on it, in the calendar's side panel / bottom sheet
+  function openDay(iso, d) { if (iso && d && JC) JC.openDay(iso, d); }
   // a click on a day's empty space (not a job bar, chip, link or "+ more") opens that day
   function dayClicks(host, getData) {
     host.addEventListener('click', (e) => {
@@ -2919,7 +2861,6 @@
     });
   }
   dayClicks($('cc-week-row'), () => DAY.week); dayClicks($('cc-week-list'), () => DAY.week);
-  dayClicks($('cal-grid'), () => CAL.data);
 
   // calendar chips: a task on its deadline day, an event on each of its days
   const MINE = { on: true };   // your own Google events on the calendars, only you see them; hidden per device
@@ -2940,7 +2881,7 @@
   function mineRefresh() {
     document.querySelectorAll('[data-mine-toggle]').forEach(el => { el.checked = MINE.on; });
     loadWeekStrip();
-    if (CAL.data && $('cal-grid').innerHTML) renderCalendar(calDays(), CAL.data);
+    if (JC) JC.refresh();
   }
   document.querySelectorAll('[data-mine-toggle]').forEach(el => el.addEventListener('change', () => {
     MINE.on = el.checked; try { localStorage.setItem('cp_mine_cal', MINE.on ? 'on' : 'off'); } catch (e) {} mineRefresh();
@@ -3439,179 +3380,31 @@
     mineShowToggles(d);
   }
 
-  // ---------- CALENDAR (#332) ----------
-  const CAL = { view: 'month', anchor: null, data: null, cache: {} };
-  try { CAL.view = localStorage.getItem('cp_cal_view') || 'month'; } catch (e) {}
-  const calISO = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  const calParse = iso => { const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d); };
-  const calAdd = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-  const calMonday = d => calAdd(d, -((d.getDay() + 6) % 7));
-  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const DOW = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  function calDays() {
-    const a = CAL.anchor || new Date();
-    if (CAL.view === '3day') return Array.from({ length: 3 }, (_, i) => calAdd(a, i));
-    if (CAL.view === 'week') { const m = calMonday(a); return Array.from({ length: 7 }, (_, i) => calAdd(m, i)); }
-    const first = new Date(a.getFullYear(), a.getMonth(), 1), last = new Date(a.getFullYear(), a.getMonth() + 1, 0);
-    const start = calMonday(first), end = calAdd(calMonday(last), 6);
-    const out = []; for (let d = start; d <= end; d = calAdd(d, 1)) out.push(d); return out;
+  // ---------- CALENDAR (#332; 2026-11-19 easier to scan: static/js/jobs_calendar.js) ----------
+  const JC = (window.SSC_JOBCAL && $('cal')) ? SSC_JOBCAL.mount({
+    root: $('cal'), api, toast, openItem,
+    openMine: e => openMine(e),
+    openJob: code => { location.hash = '#projects/' + encodeURIComponent(code); },
+    mineOn: () => MINE.on,
+    setMine: on => { MINE.on = !!on; try { localStorage.setItem('cp_mine_cal', MINE.on ? 'on' : 'off'); } catch (e) {} mineRefresh(); },
+    canDrag: true,   // the portal is admin / C-suite only; the server checks the role again on the PUT
+    toastUndo: (html, undo) => {
+      const t = $('cp-toast'); t.innerHTML = html + ' &nbsp;<a href="#" id="cal-undo" style="color:#fff;text-decoration:underline">Undo</a>';
+      t.className = 'cp-toast show'; clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 6000);
+      $('cal-undo').addEventListener('click', async ev => { ev.preventDefault(); try { await undo(); } catch (e) { toast(e.message, true); } });
+    },
+    onData: d => mineShowToggles(d),
+    nowLabel: (days, view, anchor) => calNowLabel(days, view, anchor)
+  }) : null;
+  function loadCalendar() { if (JC) JC.load(); }
+  // in place of "Today": the period in view, e.g. "Nov 16 – 22 · Mon – Sun" or "December · 2026" (clicking it comes back to today)
+  function calNowLabel(days, view, anchor) {
+    const a = anchor || new Date(), t = new Date(), f = parseISO(days[0]), l = parseISO(days[days.length - 1]);
+    if (view === 'month') return MONL[a.getMonth()] + ' <small>· ' + (a.getMonth() === t.getMonth() && a.getFullYear() === t.getFullYear() ? 'this month' : a.getFullYear()) + '</small>';
+    if (view === 'day') return MONL[a.getMonth()].slice(0, 3) + ' ' + a.getDate() + ' <small>· ' + (a.toDateString() === t.toDateString() ? 'today' : DOWL[a.getDay()].slice(0, 3)) + '</small>';
+    return weekRangeLabel(f, l, 'Mon – Sun');
   }
-  function calLabel(days) {
-    const a = CAL.anchor || new Date();
-    if (CAL.view === 'month') return MONTHS[a.getMonth()] + ' ' + a.getFullYear();
-    const f = days[0], l = days[days.length - 1];
-    const fm = MONTHS[f.getMonth()].slice(0, 3), lm = MONTHS[l.getMonth()].slice(0, 3);
-    return fm + ' ' + f.getDate() + ' – ' + (fm === lm ? '' : lm + ' ') + l.getDate() + ', ' + l.getFullYear();
-  }
-  // in place of "Today": the period in view, e.g. "Oct 19 – 25 · Mon – Sun" or "December · 2026" (clicking it comes back to today)
-  function calNowLabel(days) {
-    const a = CAL.anchor || new Date(), t = new Date();
-    if (CAL.view === 'month') return MONTHS[a.getMonth()] + ' <small>· ' + (a.getMonth() === t.getMonth() && a.getFullYear() === t.getFullYear() ? 'this month' : a.getFullYear()) + '</small>';
-    const f = days[0], l = days[days.length - 1];
-    if (CAL.view === 'week') return weekRangeLabel(f, l, 'Mon – Sun');
-    return weekRangeLabel(f, l, DOW[(f.getDay() + 6) % 7] + ' – ' + DOW[(l.getDay() + 6) % 7]);
-  }
-  async function loadCalendar() {
-    if (!CAL.anchor) CAL.anchor = new Date();
-    document.querySelectorAll('[data-cal-view]').forEach(b => b.classList.toggle('on', b.dataset.calView === CAL.view));
-    $('cal').className = 'cal v' + CAL.view;
-    const days = calDays(); const from = calISO(days[0]), to = calISO(days[days.length - 1]);
-    $('cal-range').textContent = calLabel(days);
-    $('cal-today').innerHTML = calNowLabel(days); $('cal-today').title = 'Back to ' + (CAL.view === 'month' ? 'this month' : CAL.view === 'week' ? 'this week' : 'today');
-    try {
-      const key = from + '|' + to; const { data: d } = CAL.cache[key] ? { data: CAL.cache[key] } : await api('/calendar?from=' + from + '&to=' + to);
-      CAL.cache[key] = d; CAL.data = d; renderCalendar(days, d);
-    } catch (e) { toast(e.message, true); $('cal-grid').innerHTML = empty('Could not load the calendar', e.message); }
-  }
-  function renderCalendar(days, d) {
-    const today = d.range.today; const cols = CAL.view === 'month' ? 7 : days.length; const rows = [];
-    for (let i = 0; i < days.length; i += cols) rows.push(days.slice(i, i + cols));
-    $('cal-dow').style.gridTemplateColumns = `repeat(${cols},1fr)`;
-    $('cal-dow').innerHTML = (CAL.view === 'month' ? DOW : rows[0].map(x => DOW[(x.getDay() + 6) % 7] + ' ' + x.getDate())).map((t, i) => `<div class="${CAL.view !== 'month' && calISO(rows[0][i]) === today ? 'today' : ''}">${t}</div>`).join('');
-    const jobs = d.jobs.slice().sort((a, b) => (a.start_date < b.start_date ? -1 : a.start_date > b.start_date ? 1 : (b.days || 999) - (a.days || 999)));
-    const onView = new Set(); const maxLanes = CAL.view === 'month' ? 3 : 12; const laneH = 28;
-    const inMonth = x => CAL.view !== 'month' || x.getMonth() === (CAL.anchor || new Date()).getMonth();
-    let html = '';
-    rows.forEach(row => {
-      const rf = calISO(row[0]), rt = calISO(row[row.length - 1]);
-      const segs = []; const lanes = []; const overflow = {};
-      jobs.forEach(j => {
-        const js = j.start_date, je = j.open_ended ? '9999-12-31' : j.end_date;
-        if (je < rf || js > rt) return;
-        onView.add(j.project_code);
-        const c0 = Math.max(0, row.findIndex(x => calISO(x) >= js)); let c1 = row.length - 1;
-        for (let i = row.length - 1; i >= 0; i--) { if (calISO(row[i]) <= je) { c1 = i; break; } }
-        let lane = 0; while (lanes[lane] && lanes[lane].some(([a, b]) => !(c1 < a || c0 > b))) lane++;
-        (lanes[lane] = lanes[lane] || []).push([c0, c1]);
-        if (lane >= maxLanes) { for (let i = c0; i <= c1; i++) overflow[i] = (overflow[i] || 0) + 1; return; }
-        segs.push({ j, c0, c1, lane, starts: js >= rf, ends: !j.open_ended && je <= rt, fade: j.open_ended && row === rows[rows.length - 1] });
-      });
-      const laneCount = Math.min(lanes.length, maxLanes);
-      const msRows = Math.max(0, ...row.map(x => Math.min(((d.days[calISO(x)] || {}).milestones || []).length + itemsOn(d, calISO(x)).length, CAL.view === 'month' ? 3 : 8)));
-      const minH = (CAL.view === 'month' ? Math.max(112, 44 + laneCount * laneH + 18) : Math.max(170, 44 + laneCount * laneH + 40)) + msRows * 19;
-      html += `<div class="cal-row" style="grid-template-columns:repeat(${cols},1fr);min-height:${minH}px">` + row.map((x, i) => {
-        const iso = calISO(x); const wk = x.getDay() === 0 || x.getDay() === 6; const reps = ((d.days[iso] || {}).reports || []);
-        const dots = reps.map(code => { const j = d.jobs.find(z => z.project_code === code); return `<span class="cal-dot c${j ? j.color : 0}" title="Daily report · ${esc(j ? j.name : code)}"></span>`; }).join('');
-        const info = d.days[iso] || {}; const hc = info.headcount || 0; const maxMs = CAL.view === 'month' ? 3 : 8; const its = itemsOn(d, iso); const msAll = info.milestones || [];
-        const room = Math.max(0, maxMs - its.length), hidden = Math.max(0, its.length - maxMs) + Math.max(0, msAll.length - room);
-        const ms = its.slice(0, maxMs).map(it => itemChip(it, iso)).join('') + msAll.slice(0, room).map(m => `<span class="${m.kind === 'invoice' ? 'inv' : ''} ${m.late ? 'late' : ''}" data-ms="${esc(m.project_code || '')}" title="${esc(m.kind === 'invoice' ? (m.number + ' · ' + (m.client_name || '') + ' · ' + money2.format(m.balance || 0) + (m.late ? ' · overdue' : ' due')) : ((m.project_name || m.project_code || '') + ' · ' + m.label + (m.late ? ' · expired' : ' expires')))}">${m.kind === 'invoice' ? '$ ' : '◆ '}${esc(m.kind === 'invoice' ? m.number : m.label)}</span>`).join('') + (hidden ? `<span class="more">+${hidden} more</span>` : '');
-        const hcTag = hc ? `<span class="cal-hc" title="${Object.entries(info.on_site || {}).map(([c, n]) => n + ' · ' + esc((d.jobs.find(z => z.project_code === c) || {}).name || c)).join(' · ')}">${hc} on site</span>` : '';
-        return `<div class="cal-cell ${wk ? 'wknd' : ''} ${inMonth(x) ? '' : 'other'} ${iso === today ? 'today' : ''}" data-day="${iso}" style="padding-top:${44 + laneCount * laneH}px;position:relative"><div class="cal-date" style="position:absolute;left:8px;right:8px;top:8px"><span class="n">${x.getDate()}</span>${CAL.view === 'month' && x.getDate() === 1 ? `<small>${MONTHS[x.getMonth()].slice(0, 3)}</small>` : ''}${iso === today ? '<small>Today</small>' : ''}${hcTag}</div><div class="cal-dots">${dots}</div><div class="cal-ms">${ms}</div></div>`;
-      }).join('') + `<div class="cal-lanes" style="height:${laneCount * laneH}px">` + segs.map(s => {
-        const left = (s.c0 / cols * 100).toFixed(3), width = ((s.c1 - s.c0 + 1) / cols * 100).toFixed(3);
-        const label = esc(s.j.name) + (CAL.view !== 'month' || s.c1 - s.c0 >= 2 ? `<small>${esc(s.j.client_name || '')}</small>` : '');
-        return `<div class="cal-bar c${s.j.color} ${s.starts ? 'starts' : 'cont'} ${s.ends ? 'ends' : 'goes'} ${s.fade ? 'fade' : ''} ${s.j.status !== 'active' ? 'closed' : ''}" style="left:calc(${left}% + 4px);width:calc(${width}% - 8px);top:${s.lane * laneH}px" data-job="${esc(s.j.project_code)}">${label}<span class="cal-grip" title="Drag to change the end date"></span></div>`;
-      }).join('') + Object.keys(overflow).map(i => `<div class="cal-more" style="left:calc(${(i / cols * 100).toFixed(3)}% + 6px);top:${maxLanes * laneH}px" data-more="${calISO(row[i])}">+${overflow[i]} more</div>`).join('') + '</div></div>';
-    });
-    $('cal-grid').innerHTML = html;
-    wireItemChips($('cal-grid'), d);
-    CAL.cols = cols;
-    $('cal-grid').querySelectorAll('[data-ms]').forEach(el => el.addEventListener('click', ev => { ev.stopPropagation(); if (el.dataset.ms) location.hash = '#projects/' + encodeURIComponent(el.dataset.ms); }));
-    $('cal-grid').querySelectorAll('[data-job]').forEach(el => {
-      el.addEventListener('click', () => { if (el.dataset.dragged) { delete el.dataset.dragged; return; } location.hash = '#projects/' + encodeURIComponent(el.dataset.job); });
-      calDrag(el, d.jobs.find(j => j.project_code === el.dataset.job));
-      el.addEventListener('mousemove', ev => calTip(ev, d.jobs.find(j => j.project_code === el.dataset.job)));
-      el.addEventListener('mouseleave', () => { $('cal-tip').style.display = 'none'; });
-    });
-    $('cal-grid').querySelectorAll('[data-more]').forEach(el => el.addEventListener('click', () => { CAL.anchor = calParse(el.dataset.more); CAL.view = 'week'; try { localStorage.setItem('cp_cal_view', 'week'); } catch (e) {} loadCalendar(); }));
-    const legend = jobs.filter(j => onView.has(j.project_code)).map(j => `<span class="cal-chip" data-job="${esc(j.project_code)}"><i class="c${j.color}"></i>${esc(j.name)}<span class="cp-muted">· ${j.crew_count} crew${j.open_ended ? ' · no end date' : ''}</span></span>`).join('');
-    $('cal-foot').innerHTML = (legend || '<span>No jobs scheduled in this range.</span>') + mineFoot(d) + `<span style="margin-left:auto">● daily report filed</span>`;
-    mineShowToggles(d);
-    $('cal-foot').querySelectorAll('[data-job]').forEach(el => el.addEventListener('click', () => { location.hash = '#projects/' + encodeURIComponent(el.dataset.job); }));
-    $('cal-note').innerHTML = d.undated.length ? `<div class="cal-note">${d.undated.length} active job(s) have no start date yet, so they are not on the calendar: ${d.undated.map(u => `<b>${esc(u.project_code)}</b>`).join(', ')}. Set the dates under <a class="cp-link" href="/admin/projects">Crew &amp; site</a>.</div>` : '';
-    $('cal-sub').textContent = `${onView.size} job(s) in view · click a job to open it · drag a bar to move it, drag its edge to change the end`;
-    loadWeather(days);
-  }
-  // #333 — weather strip for the short views (the DCR's provider, cached server-side)
-  async function loadWeather(days) {
-    const host = $('cal-weather'); const grid = $('cal-grid');
-    if (CAL.view === 'month' || days.length > 14) { host.hidden = true; host.innerHTML = ''; $('cal').classList.remove('has-wx'); return; }
-    try {
-      const { data: w } = await api('/calendar/weather?from=' + calISO(days[0]) + '&to=' + calISO(days[days.length - 1]));
-      const cells = days.map(x => { const r = w.days[calISO(x)]; if (!r) return '<div><span class="cp-muted">—</span></div>';
-        const t = (r.temp_max != null ? Math.round(r.temp_max) + '°' : '') + (r.temp_min != null ? ' / ' + Math.round(r.temp_min) + '°' : '');
-        return `<div title="${esc(r.label)}"><b>${esc(r.label)}</b>${t}${r.precip_prob != null && r.precip_prob >= 30 ? `<span class="rain">${r.precip_prob}% rain</span>` : ''}</div>`; });
-      if (Object.keys(w.days).length) { host.style.gridTemplateColumns = `repeat(${days.length},1fr)`; host.innerHTML = cells.join(''); host.hidden = false; $('cal').classList.add('has-wx'); }
-      else { host.hidden = true; $('cal').classList.remove('has-wx'); }
-    } catch (e) { host.hidden = true; $('cal').classList.remove('has-wx'); }
-  }
-  // #333 — drag a bar to move the job, drag its right edge to change the end date (saved through Crew & site)
-  function calDrag(el, j) {
-    if (!j) return;
-    let st = null;
-    el.addEventListener('pointerdown', ev => {
-      if (ev.button !== 0) return;
-      st = { grip: ev.target.classList.contains('cal-grip'), x0: ev.clientX, moved: 0, width: el.getBoundingClientRect().width, row: el.closest('.cal-row') };
-      el.setPointerCapture(ev.pointerId); ev.preventDefault();
-    });
-    el.addEventListener('pointermove', ev => {
-      if (!st) return; const dayW = st.row.getBoundingClientRect().width / CAL.cols; const delta = Math.round((ev.clientX - st.x0) / dayW);
-      if (delta === st.moved) return; st.moved = delta; el.classList.add('dragging'); $('cal-tip').style.display = 'none';
-      if (st.grip) el.style.width = Math.max(dayW * 0.6, st.width + delta * dayW) + 'px'; else el.style.transform = `translateX(${delta * dayW}px)`;
-    });
-    const done = async ev => {
-      if (!st) return; const delta = st.moved, grip = st.grip; st = null; el.classList.remove('dragging'); el.style.transform = ''; el.style.width = '';
-      if (!delta) return; el.dataset.dragged = '1'; setTimeout(() => { delete el.dataset.dragged; }, 300);
-      const shift = (iso, n) => calISO(calAdd(calParse(iso), n));
-      const before = { start_date: j.start_date, target_completion: j.end_date };
-      let after;
-      if (grip) after = { start_date: j.start_date, target_completion: shift(j.end_date || j.start_date, delta) };
-      else after = { start_date: shift(j.start_date, delta), target_completion: j.end_date ? shift(j.end_date, delta) : null };
-      if (after.target_completion && after.target_completion < after.start_date) { toast('The end cannot be before the start', true); return; }
-      try {
-        await api('/admin/projects/' + encodeURIComponent(j.project_code) + '/crew', { method: 'PUT', body: JSON.stringify(after) }, true);
-        CAL.cache = {}; await loadCalendar();
-        const t = $('cp-toast'); t.innerHTML = `${esc(j.name)}: ${fmtDate(after.start_date)} → ${after.target_completion ? fmtDate(after.target_completion) : 'no end'} &nbsp;<a href="#" id="cal-undo" style="color:#fff;text-decoration:underline">Undo</a>`;
-        t.className = 'cp-toast show'; clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 6000);
-        $('cal-undo').addEventListener('click', async ev2 => { ev2.preventDefault(); try { await api('/admin/projects/' + encodeURIComponent(j.project_code) + '/crew', { method: 'PUT', body: JSON.stringify(before) }, true); CAL.cache = {}; loadCalendar(); toast('Restored'); } catch (e) { toast(e.message, true); } });
-      } catch (e) { toast(e.message, true); }
-    };
-    el.addEventListener('pointerup', done); el.addEventListener('pointercancel', done);
-  }
-  // #333 — a sheet for the foremen: the grid as shown + the jobs in view, printed
-  function printCalendar() {
-    const d = CAL.data; if (!d) return; const days = calDays(); const from = calISO(days[0]), to = calISO(days[days.length - 1]);
-    const jobs = d.jobs.filter(j => j.start_date <= to && (j.open_ended || j.end_date >= from));
-    $('cal-print-list').innerHTML = `<h3>${esc(calLabel(days))} · ${jobs.length} job(s)</h3><table><thead><tr><th>Job</th><th>Client</th><th>Address</th><th>Dates</th><th>PM</th><th>Crew</th></tr></thead><tbody>${jobs.map(j => `<tr><td><b>${esc(j.project_code)}</b> ${esc(j.name)}</td><td>${esc(j.client_name || '')}</td><td>${esc(j.address || '')}</td><td>${fmtDate(j.start_date)} → ${j.open_ended ? 'open' : fmtDate(j.end_date)}</td><td>${esc(j.pm || '')}</td><td>${j.crew_count}</td></tr>`).join('')}</tbody></table>` +
-      (days.length <= 14 ? `<h3 style="margin-top:12px">By day</h3><table><thead><tr><th>Day</th><th>Jobs</th><th>On site</th><th>Milestones</th></tr></thead><tbody>${days.map(x => { const iso = calISO(x), info = d.days[iso] || {}; const on = jobs.filter(j => j.start_date <= iso && (j.open_ended || j.end_date >= iso)); return `<tr><td>${DOW[(x.getDay() + 6) % 7]} ${fmtDate(iso)}</td><td>${on.map(j => esc(j.name)).join(', ') || '—'}</td><td>${info.headcount || ''}</td><td>${(info.milestones || []).map(m => esc(m.kind === 'invoice' ? m.number + ' due' : m.label + ' expires')).join(', ')}</td></tr>`; }).join('')}</tbody></table>` : '');
-    window.print();
-  }
-  function calTip(ev, j) {
-    if (!j) return; const t = $('cal-tip');
-    t.innerHTML = `<b>${esc(j.name)}</b><span class="m">${esc(j.client_name || '')}${j.address ? ' · ' + esc(j.address) : ''}</span><br>${fmtDate(j.start_date)} → ${j.open_ended ? 'no end date' : fmtDate(j.end_date)}${j.days ? ' · ' + j.days + ' days' : ''}<br><span class="m">${j.pm ? 'PM ' + esc(j.pm) + ' · ' : ''}${j.crew_count} on the crew${j.status !== 'active' ? ' · ' + esc(j.status) : ''}</span>`;
-    t.style.display = 'block'; const w = t.offsetWidth, h = t.offsetHeight;
-    t.style.left = Math.min(ev.clientX + 14, window.innerWidth - w - 8) + 'px'; t.style.top = (ev.clientY + 16 + h > window.innerHeight ? ev.clientY - h - 10 : ev.clientY + 16) + 'px';
-  }
-  function wireCalendar() {
-    if (!$('cal')) return;
-    document.querySelectorAll('[data-cal-view]').forEach(b => b.addEventListener('click', () => { CAL.view = b.dataset.calView; try { localStorage.setItem('cp_cal_view', CAL.view); } catch (e) {} loadCalendar(); }));
-    const step = () => CAL.view === 'month' ? 0 : (CAL.view === 'week' ? 7 : 3);
-    $('cal-prev').addEventListener('click', () => { const a = CAL.anchor || new Date(); CAL.anchor = CAL.view === 'month' ? new Date(a.getFullYear(), a.getMonth() - 1, 1) : calAdd(a, -step()); loadCalendar(); });
-    $('cal-next').addEventListener('click', () => { const a = CAL.anchor || new Date(); CAL.anchor = CAL.view === 'month' ? new Date(a.getFullYear(), a.getMonth() + 1, 1) : calAdd(a, step()); loadCalendar(); });
-    $('cal-today').addEventListener('click', () => { CAL.anchor = new Date(); loadCalendar(); });
-    $('cal-print').addEventListener('click', printCalendar);
-  }
-  wireCalendar();
+  function parseISO(s) { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); }
 
   // ---------- PROJECTS (#330) — jobs, one page each ----------
   // 2026-10-23: the list is the first thing on the tab. Signed proposals that are not a job yet wait behind
@@ -7198,7 +6991,7 @@
     $('cp-title').textContent = TITLES[v];
     if (v === 'finance') $('inv-status').value = ['overdue', 'draft', 'issued', 'paid', 'void'].includes(arg) ? arg : '';
     if (v === 'finance' && arg === 'qb-review') QB.wantReview = true;   // #316 1b: Today's "new clients to review"
-    if (v === 'calendar' && arg && /^\d{4}-\d{2}-\d{2}$/.test(arg)) { CAL.anchor = calParse(arg); loadCalendar(); }
+    if (v === 'calendar' && arg && /^\d{4}-\d{2}-\d{2}$/.test(arg)) { if (JC) JC.setAnchor(arg); loadCalendar(); }
     if (v === 'inbox') loadInbox(arg); else if (v === 'clients' && arg) loadClientDetail(arg); else if (v === 'proposals' && arg === 'estimate' && h.split('/')[2]) loadEstimateDetail(h.split('/')[2]); else if (v === 'proposals' && arg === 'before' && h.split('/')[2]) prArchFromLink(h.split('/')[2], h.split('/')[3] === 'signed'); else if (v === 'proposals' && PRK_ALIAS[arg]) { setKind(PRK_ALIAS[arg]); location.replace('#proposals'); } else if (v === 'proposals' && arg && h.split('/')[2] === 'page') loadProposalDetail(arg); else if (v === 'proposals' && arg) openProposalPanel(arg); else if (v === 'workforce' && arg) loadWorkerDetail(decodeURIComponent(arg)); else LOADERS[v]();
     window.scrollTo(0, 0);
   }

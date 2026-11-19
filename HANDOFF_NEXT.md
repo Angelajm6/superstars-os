@@ -21,6 +21,39 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Calendar, easier to scan: projects, assigned tasks, NYC weather (Bookore, 2026-11-19)
+
+* Accepted prototype (v3): https://claude.ai/artifact/Xs5kMdaim3nW3FzoBcSUEb. Angela cut it to three things: the **projects**
+  running, the **tasks / meetings people are assigned** (with who) and **New York City's weather**. Paperwork (document expiries),
+  money (invoices due), daily-report dots and double-booking are OFF the calendar (the API still returns `days[].milestones` /
+  `reports`; the dashboard's week strip still shows milestones).
+* Projects → Calendar is drawn by `static/js/jobs_calendar.js` (`SSC_JOBCAL.mount`, loaded non-deferred in the head) +
+  `static/css/jobs_calendar.css`; `company_portal.html` lends it `api`, `toast`, the task card (`openItem`), the Google card
+  (`openMine`), `MINE` and an Undo toast. Desktop / tablet: **Day · Week · Month** (the old 3-day view is gone; a saved `3day`
+  becomes Week; the middle nav button still names the period in view, `calNowLabel`, per the 2026-10-21 polish). Week = day headers with a one-line summary (projects · on site / crew · tasks) + flag pills, an **NYC weather row**,
+  the project bars (drag to move / stretch, Undo, as before), untimed tasks, and an hour grid (meetings / timed tasks at their time,
+  overlaps side by side, a red now-line). Month = bars (3 lanes, "+N projects"), weather per day, 3 chips + "+N more". Phone
+  (≤760px): **List** (sticky week strip with weather + dots, day by day, swipe for another week) · **Month** (heat map + the day).
+* **Show** chips (Projects · Tasks · Meetings & events · My Google events, with counts; remembered per browser) and **Assigned to**
+  (Everyone / Me / a person in view, by `assignee_ids` + `attendee_ids`). Amber day = weather that can stop a project working
+  (wind ≥ 20 mph or gusts ≥ 30 on rope access / suspended scaffold / boom lift or an IRA job; rain ≥ 60% on FR / IRA jobs; not
+  Sundays, not past days). Red day = an overdue task; today also counts every open task past its deadline (`data.overdue`).
+* **Day panel** (side panel; bottom sheet on a phone, swipe down to close) replaces the `dy-overlay` modal everywhere, including
+  the dashboard's "This week" strip (`openDay` → `JC.openDay`, unfiltered there): needs attention, NYC weather with "OK to work /
+  Too windy / Rain risk" per project, projects with on site (past / today, from sign-ins) or crew (future weekdays), tasks,
+  meetings & events, "+ Task or event on …". Fixed on the way: Escape with the old day modal open threw (it read the removed
+  `tk-overlay`).
+* **API** (`portal_calendar.py`): each job has `weather_risk` {wind, rain, access labels} (from `projects.access_methods` + the
+  code's type); the read carries `overdue` (open tasks due before today, max 50). `weather()` is now ONE Open-Meteo daily call at
+  NYC's coordinates (never a job address) with `wind_max` / `gust_max`, up to 45 days, only the days the service covers (last 31,
+  next 16), cached 30 min; thresholds come back in the payload. Tests swap `portal_calendar._get_json`.
+* Phone gotcha: the shell's `.ssc-main { overflow-x: hidden }` stops `position: sticky`; on the Calendar view only (≤760px) it is
+  `overflow-x: clip` and the top bar scrolls away (`:has(#view-calendar:not([hidden]))`, the #client-detail pattern), so the week
+  strip sticks under the brand bar. Local dev: macOS Python may lack CA certs for Open-Meteo (`SSL_CERT_FILE=$(certifi)`); Render is fine.
+* Guards: `tests/smoke_calendar_scan.py` (new, in the gate); `smoke_calendar_332` / `smoke_calendar_plus_333` updated (views from
+  the module, weather stub on the new seam). Verified in headless Chrome at 1440 / 900 / 390 px: no console errors, no sideways
+  scroll, drag + Undo, the strip's day panel.
+
 ### Tasks flow: add from the top, view before edit, several people, crews, pop-ups (Bookore, 2026-11-19)
 
 * Accepted prototype: https://claude.ai/artifact/KnHuD7Ys632eNf2MCtNpmU. One shared View card + New / Edit window for every
