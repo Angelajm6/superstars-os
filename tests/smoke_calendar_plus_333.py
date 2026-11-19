@@ -7,10 +7,11 @@ Boots the real app (`import server`) on an ISOLATED database. Proves:
   * milestones: a document expiring in the window (with `late` when past) and an issued
     invoice falling due (balance, client) land on their days; a draft invoice and a
     superseded document do not
-  * weather: the endpoint maps the provider's per-day answer (stubbed — no network in
-    the test) onto dates with a label; > 14 days -> 400; a failing day is left out
+  * weather (2026-11-19: ONE New York City forecast with wind): the endpoint maps the provider's
+    daily answer (stubbed — no network in the test) onto dates with a label; > 45 days -> 400;
+    a failing provider gives no days instead of an error
   * rescheduling by drag uses the existing Crew & site PUT: start and end move together
-  * served page: the strip, the drag grips, the print button and print stylesheet exist
+  * served page: the calendar module, the drag grips, the print button and print stylesheet exist
 Run:  venv/bin/python tests/smoke_calendar_plus_333.py
 """
 from __future__ import annotations
@@ -165,32 +166,44 @@ def main() -> int:
     assert not [m for m in days.get(D(3), {}).get("milestones", []) if m.get("number") == ids["draft"]["number"]], "drafts are not due"
     passed += 1; print("  milestones ok")
 
-    # weather: stub the provider, exercise the mapping + limits
-    calls = []
-    def fake(lat, lng, date_str=None):
-        calls.append(date_str)
-        if date_str == D(1):
-            raise RuntimeError("provider down")
-        return {"condition_code": 61 if date_str == D(0) else 2, "temp_max": 71.5, "temp_min": 58.0, "precip_prob_today": 40}
+    # weather: stub the provider, exercise the mapping + limits (one call, NYC, daily wind)
+    urls = []
+    def fake_get(url):
+        urls.append(url)
+        return {"daily": {"time": [D(0), D(1), D(2)], "weather_code": [61, 2, None], "temperature_2m_max": [71.5, 60, 55],
+                          "temperature_2m_min": [58.0, 50, 44], "precipitation_probability_max": [40, 10, 80],
+                          "wind_speed_10m_max": [12.0, 24.5, 9], "wind_gusts_10m_max": [20.0, 38.0, 15]}}
     conn = _db()
     try:
-        w = portal_calendar.weather(conn, TODAY, TODAY + timedelta(days=2), fetch=fake)
+        w = portal_calendar.weather(conn, TODAY, TODAY + timedelta(days=2), get=fake_get)
     finally:
         conn.close()
-    assert calls == [D(0), D(1), D(2)] and set(w["days"]) == {D(0), D(2)}, w
-    assert w["days"][D(0)]["label"] == "Light rain" and w["days"][D(2)]["label"] == "Partly cloudy" and w["days"][D(0)]["precip_prob"] == 40
-    assert "lat" in w["site"] and "lng" in w["site"]
-    real = server.fetch_open_meteo_weather
-    server.fetch_open_meteo_weather = fake
+    assert len(urls) == 1 and "latitude=40.8083" in urls[0] and "wind_gusts_10m_max" in urls[0], urls
+    assert set(w["days"]) == {D(0), D(1), D(2)} and w["site"]["name"] == "New York City", w
+    assert w["days"][D(0)]["label"] == "Light rain" and w["days"][D(1)]["label"] == "Partly cloudy" and w["days"][D(0)]["precip_prob"] == 40
+    assert w["days"][D(1)]["wind_max"] == 24.5 and w["days"][D(1)]["gust_max"] == 38.0 and w["days"][D(2)]["label"] == "—"
+    assert w["thresholds"] == {"wind_mph": 20, "gust_mph": 30, "rain_pct": 60}
+    conn = _db()
+    try:   # a window entirely in the far future: nothing to ask for
+        assert portal_calendar.weather(conn, TODAY + timedelta(days=30), TODAY + timedelta(days=40), get=fake_get)["days"] == {} and len(urls) == 1
+        def down(url):
+            raise RuntimeError("provider down")
+        assert portal_calendar.weather(conn, TODAY, TODAY + timedelta(days=2), get=down)["days"] == {}
+    finally:
+        conn.close()
+    real = portal_calendar._get_json
+    portal_calendar._get_json = fake_get
+    portal_calendar._WX_CACHE.clear()
     try:
-        assert cs.get(API + f"/weather?from={D(0)}&to={D(20)}").status_code == 400
+        assert cs.get(API + f"/weather?from={D(0)}&to={D(60)}").status_code == 400
         assert cs.get(API + "/weather?from=2026-13-01").status_code == 400
         r = cs.get(API + f"/weather?from={D(0)}&to={D(2)}")
         assert r.status_code == 200 and D(0) in r.get_json()["data"]["days"]
         assert _login("pm").get(API + "/weather").status_code == 403
         assert server.app.test_client().get(API + "/weather").status_code == 401
     finally:
-        server.fetch_open_meteo_weather = real
+        portal_calendar._get_json = real
+        portal_calendar._WX_CACHE.clear()
     passed += 1; print("  weather ok")
 
     # drag = the Crew & site PUT, start and end together
@@ -201,8 +214,8 @@ def main() -> int:
     assert j["start_date"] == D(-1) and j["end_date"] == D(12) and j["days"] == 14
     passed += 1; print("  reschedule ok")
 
-    html = cs.get("/company").get_data(as_text=True)
-    for needle in ('id="cal-weather"', 'class="cal-grip"', 'id="cal-print"', "@media print", "cal-print-list", "calendar/weather", "cal-ms"):
+    html = cs.get("/company").get_data(as_text=True) + cs.get("/files/static/js/jobs_calendar.js").get_data(as_text=True)
+    for needle in ("jobs_calendar.js", 'class="cal-grip"', 'id="cal-print"', "@media print", "cal-print-list", "calendar/weather", "jc-wxrow"):
         assert needle in html, needle
     passed += 1; print("  served page ok")
 

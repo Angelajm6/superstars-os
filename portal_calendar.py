@@ -9,6 +9,10 @@ One read: every job whose [start_date, end] overlaps the requested window, as ba
   * `days` carries the daily reports filed per date (project codes), so a day shows
     which jobs actually reported.
   * A job's colour is a stable function of its code, so it looks the same in every view.
+  * 2026-11-19 (calendar, easier to scan): each job says whether weather can stop it
+    (`weather_risk`: wind for rope access / suspended scaffold / boom lift, rain for exterior
+    work), the weather is ONE New York City forecast with wind (`weather()`), and the
+    calendar read carries the open tasks that are already overdue (`overdue`).
 
 Company-portal section (admin / c_suite). Read-only. No PII: names of jobs, clients and
 PMs only.
@@ -29,8 +33,14 @@ log = logging.getLogger("ssc.portal_calendar")
 
 MAX_DAYS = 120
 PALETTE = 8                  # the old hash colors; saved colors run 0..43 (project_setup.PALETTE)
-WEATHER_MAX_DAYS = 14          # #333 — the strip is for the 3-day / week views only
-DEFAULT_SITE = (40.8083, -73.9162)   # the company's home borough when no job has coordinates
+WEATHER_MAX_DAYS = 45          # a month view (6 weeks); days outside the forecast just come back empty
+WEATHER_PAST_DAYS = 31         # the forecast service keeps recent days; older ones are left out
+WEATHER_AHEAD_DAYS = 15        # ... and forecasts 16 days, today included
+NYC = (40.8083, -73.9162)      # the weather on the calendar is New York City's (the company's home borough)
+DEFAULT_SITE = NYC
+WIND_METHODS = ("rope_access", "suspended_scaffold", "boom_lift")   # work that stops in high wind
+OUTDOOR_TYPES = ("FR", "IRA")  # exterior restoration and rope-access jobs stop in the rain (by the job code's type)
+WIND_MPH, GUST_MPH, RAIN_PCT = 20, 30, 60   # the thresholds the calendar warns at
 
 
 
@@ -67,6 +77,25 @@ def color_index(code: str) -> int:
     return sum(ord(c) for c in (code or "")) % PALETTE
 
 
+def job_type(code: str) -> str:
+    """The type part of a job code: FR-BX-001 -> FR, IRA-MN-002 -> IRA."""
+    return (str(code or "").split("-")[0] or "").upper()
+
+
+def weather_risk(code: str, methods: list) -> dict:
+    """What weather can stop this job: wind (rope access, suspended scaffold, boom lift, or a rope-access
+    job) and rain (exterior work). Interiors and garages are never warned."""
+    t = job_type(code)
+    wind = bool(set(methods or []) & set(WIND_METHODS)) or t == "IRA"
+    labels = []
+    try:
+        import project_setup
+        labels = [project_setup.ACCESS_LABELS[m] for m in (methods or []) if m in project_setup.ACCESS_LABELS]
+    except Exception:
+        pass
+    return {"wind": wind, "rain": t in OUTDOOR_TYPES, "access": labels}
+
+
 def window(conn, start: date, end: date) -> dict:
     """Jobs overlapping [start, end] inclusive, plus the daily reports filed in it."""
     if end < start:
@@ -88,6 +117,14 @@ def window(conn, start: date, end: date) -> dict:
         if codes:
             colors = {r["project_code"]: int(r["color_index"]) for r in conn.execute(
                 f"SELECT project_code, color_index FROM projects WHERE project_code IN ({marks}) AND color_index IS NOT NULL", codes).fetchall()}
+    except Exception:
+        conn.rollback()
+    access: dict = {}   # access methods (project_setup), for the weather warnings
+    try:
+        if codes:
+            import project_setup
+            access = {r["project_code"]: (project_setup.access_methods(r) or []) for r in _rows(conn.execute(
+                f"SELECT project_code, access_methods FROM projects WHERE project_code IN ({marks})", codes))}
     except Exception:
         conn.rollback()
     pms: dict = {}
@@ -139,6 +176,7 @@ def window(conn, start: date, end: date) -> dict:
             "days": ((date.fromisoformat(end_d) - date.fromisoformat(start_d)).days + 1) if end_d else None,
             "pm": ", ".join(pms.get(r["project_code"], [])) or None, "crew_count": crew.get(r["project_code"], 0),
             "color": colors.get(r["project_code"], color_index(r["project_code"])), "today_on": start_d <= today and (open_ended or end_d >= today),
+            "weather_risk": weather_risk(r["project_code"], access.get(r["project_code"]) or []),
         })
     undated = [r for r in _rows(conn.execute(
         "SELECT project_code, name, start_date FROM projects WHERE COALESCE(status,'active') = 'active' ORDER BY project_code"))
@@ -196,50 +234,70 @@ def window(conn, start: date, end: date) -> dict:
     return {"range": {"from": s, "to": e, "today": today}, "jobs": jobs, "undated": undated, "days": days}
 
 
-def _site(conn) -> tuple:
-    """Coordinates for the weather strip: the one active job with a site, else the home borough."""
-    try:
-        rows = _rows(conn.execute(
-            "SELECT site_lat, site_lng FROM projects WHERE COALESCE(status,'active') = 'active' AND site_lat IS NOT NULL "
-            "AND site_lng IS NOT NULL ORDER BY start_date DESC LIMIT 1"))
-        if rows:
-            return float(rows[0]["site_lat"]), float(rows[0]["site_lng"])
-    except Exception:
-        pass
-    return DEFAULT_SITE
+_WX_CACHE: dict = {}
+_WX_TTL = 30 * 60
 
 
-def weather(conn, start: date, end: date, fetch=None) -> dict:
-    """Per-day conditions for a short window (≤ 14 days), read through the same provider
-    helper the DCR uses (cached 30 min per date; a provider failure just leaves a day out)."""
+def _get_json(url: str) -> dict:
+    """The forecast service (Open-Meteo, no key). One place, so tests swap it out: no network in CI."""
+    import json
+    import urllib.request
+    with urllib.request.urlopen(url, timeout=6) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def weather(conn, start: date, end: date, get=None, today: Optional[date] = None) -> dict:
+    """New York City's weather per day for [start, end], in ONE call: high / low, the condition, the chance
+    of rain and the day's strongest wind and gusts (mph). Only the days the service covers come back
+    (the last month and the next 16 days); a failure returns no days instead of breaking the calendar.
+    `conn` is unused (kept for callers); the coordinates are always NYC's, never a job's address."""
     if end < start:
         raise ValueError("the window ends before it starts")
     if (end - start).days + 1 > WEATHER_MAX_DAYS:
         raise ValueError(f"weather covers at most {WEATHER_MAX_DAYS} days")
-    if fetch is None:
-        import server
-        fetch, labels = server.fetch_open_meteo_weather, server._WMO_LABELS
-    else:
-        labels = {}
-        try:
-            import server
-            labels = server._WMO_LABELS
-        except Exception:
-            pass
-    lat, lng = _site(conn)
-    out = {}
-    d = start
-    while d <= end:
-        try:
-            w = fetch(lat, lng, d.isoformat()) or {}
-            code = w.get("condition_code")
-            out[d.isoformat()] = {"code": code, "label": labels.get(code, "—") if code is not None else "—",
-                                  "temp_max": w.get("temp_max"), "temp_min": w.get("temp_min"),
-                                  "precip_prob": w.get("precip_prob_today")}
-        except Exception as ex:
-            log.info("#333 weather skipped for %s: %s", d, ex)
-        d += timedelta(days=1)
-    return {"site": {"lat": lat, "lng": lng}, "days": out}
+    today = today or date.today()
+    lo, hi = max(start, today - timedelta(days=WEATHER_PAST_DAYS)), min(end, today + timedelta(days=WEATHER_AHEAD_DAYS))
+    lat, lng = NYC
+    out: dict = {}
+    if lo <= hi:
+        key = (lo.isoformat(), hi.isoformat())
+        hit = _WX_CACHE.get(key)
+        import time
+        if get is None and hit and time.time() - hit[0] < _WX_TTL:
+            out = hit[1]
+        else:
+            import urllib.parse
+            url = "https://api.open-meteo.com/v1/forecast?" + urllib.parse.urlencode({
+                "latitude": lat, "longitude": lng, "start_date": lo.isoformat(), "end_date": hi.isoformat(),
+                "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,"
+                         "wind_speed_10m_max,wind_gusts_10m_max",
+                "temperature_unit": "fahrenheit", "wind_speed_unit": "mph", "timezone": "America/New_York"})
+            try:
+                labels = {}
+                try:
+                    import server
+                    labels = server._WMO_LABELS
+                except Exception:
+                    pass
+                daily = ((get or _get_json)(url) or {}).get("daily") or {}
+
+                def col(name, i):
+                    v = daily.get(name) or []
+                    return v[i] if i < len(v) else None
+                for i, d in enumerate(daily.get("time") or []):
+                    code = col("weather_code", i)
+                    out[str(d)[:10]] = {
+                        "code": code, "label": labels.get(code, "—") if code is not None else "—",
+                        "temp_max": col("temperature_2m_max", i), "temp_min": col("temperature_2m_min", i),
+                        "precip_prob": col("precipitation_probability_max", i),
+                        "wind_max": col("wind_speed_10m_max", i), "gust_max": col("wind_gusts_10m_max", i)}
+                if get is None:
+                    _WX_CACHE[key] = (time.time(), out)
+            except Exception as ex:
+                log.info("calendar weather unavailable: %s", type(ex).__name__)
+                out = {}
+    return {"site": {"lat": lat, "lng": lng, "name": "New York City"}, "days": out,
+            "thresholds": {"wind_mph": WIND_MPH, "gust_mph": GUST_MPH, "rain_pct": RAIN_PCT}}
 
 
 def _api_weather():
@@ -284,6 +342,21 @@ def _api_calendar():
         except Exception as ex:
             log.warning("calendar items skipped: %s", type(ex).__name__)
             data["items"] = []
+        # open tasks already past their deadline (any date before today), so today can say so
+        data["overdue"] = []
+        try:
+            import team_items
+            u = current_user() or {}
+            y = (date.today() - timedelta(days=1)).isoformat()
+            data["overdue"] = [it for it in team_items.list_items(conn, status="open", kind="task", date_from="1900-01-01", date_to=y,
+                                                                    me=u.get("id"), can_edit=u.get("role") in team_items.EDIT_ROLES)
+                               if it.get("overdue")][:50]
+        except Exception as ex:
+            log.warning("calendar overdue skipped: %s", type(ex).__name__)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         # the signed-in person's OWN Google events (private: calendar_import.events_for is the only reader,
         # and it gets this user's id only); drawn as "only you" chips, never anyone else's
         data["mine"], data["mine_connected"] = [], False

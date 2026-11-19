@@ -185,7 +185,8 @@ def main() -> int:
     html = cs.get("/company").get_data(as_text=True)
     assert 'data-subtabs="projects"' in html and 'id="view-calendar"' in html and "loadCalendar" in html   # #339: Calendar is a Projects sub-tab
     assert "'Calendar', '/company#calendar'" in (ROOT / "static" / "js" / "company_nav.js").read_text(encoding="utf-8")
-    assert 'data-cal-view="3day"' in html and 'data-cal-view="week"' in html and 'data-cal-view="month"' in html
+    jc = cs.get("/files/static/js/jobs_calendar.js").get_data(as_text=True)   # 2026-11-19: the views are drawn by jobs_calendar.js
+    assert "jobs_calendar.js" in html and 'id="jc-seg"' in html and "[['day', 'Day'], ['week', 'Week'], ['month', 'Month']]" in jc and "[['list', 'List'], ['month', 'Month']]" in jc
     ap = admin.get("/admin/projects").get_data(as_text=True)
     mod = admin.get("/files/static/js/new_project_modal.js").get_data(as_text=True)   # the shared "+ New project" form
     assert 'id="np-end"' in mod and "target_completion" in mod and 'id="cs-start"' in ap and 'id="cs-end"' in ap and "target_completion" in ap
