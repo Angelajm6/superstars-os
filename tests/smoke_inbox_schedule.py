@@ -226,7 +226,8 @@ def main() -> int:
         passed += 1; print("  All ok (assignee shown; assignee / type / date filters; bad input 400)")
 
         # ---- meetings: who may create, who may be in one
-        _post(c["pm"], "/api/team/items", {"kind": "meeting", "title": "Inbsched pm meeting", "start_date": D(1)}, 403)
+        _post(c["pm"], "/api/team/items", {"kind": "meeting", "title": "Inbsched pm meeting", "start_date": D(1),
+                                           "assignee_user_ids": [ids["cs"]]}, 403)   # a pm: only their crew (2026-11-19)
         _post(c["admin"], "/api/team/items", {"kind": "meeting", "title": "Inbsched bad people", "start_date": D(1),
                                               "attendee_user_ids": [ids["client"]]}, 400)
         _post(c["admin"], "/api/team/items", {"kind": "meeting", "title": "Inbsched bad people", "start_date": D(1),

@@ -183,7 +183,9 @@
       if (place) meta.push(esc(place));
       if (r.project_code) meta.push(esc(r.project_code));
       if (r.kind === 'calendar' && r.source_tz && r.source_start_time) meta.push('<span class="isx-tz">Set in ' + esc(zoneName(r.source_tz)) + ' time: ' + esc(t12(r.source_start_time)) + '</span>');
-      if (S.scope === 'all') meta.unshift('<span class="isx-who">' + (r.assignee_user_id ? av(r.assignee_user_id, r.assignee_name) + esc(r.assignee_name) : 'Nobody yet') + '</span>');
+      var aIds = r.assignee_ids || (r.assignee_user_id ? [r.assignee_user_id] : []), aNames = r.assignee_names || (r.assignee_name ? [r.assignee_name] : []);   // a task can be for several people (2026-11-19)
+      if (S.scope === 'all') meta.unshift('<span class="isx-who">' + (aIds.length ? av(aIds[0], aNames[0]) + esc(aNames.join(', ')) : 'Nobody yet') + '</span>');
+      else if (r.kind === 'task' && aIds.length > 1) meta.push('With ' + esc(aNames.filter(function (_, k) { return aIds[k] !== S.me; }).join(', ')));
       if (r.kind === 'meeting' && (r.attendee_names || []).length) {
         var others = S.scope === 'mine' ? (r.attendee_names || []).filter(function (_, k) { return r.attendee_ids[k] !== S.me; }).concat(r.assignee_user_id && r.assignee_user_id !== S.me ? [r.assignee_name] : []) : r.attendee_names;
         others = others.filter(function (n, k, a) { return n && a.indexOf(n) === k; });
@@ -225,6 +227,8 @@
     }
 
     function openRow(r) {
+      // a team item opens the shared View card (team_tasks.js) for everyone; Edit is one tap away there for whoever may
+      if (r.kind !== 'calendar' && window.SSC_TASKS) { window.SSC_TASKS.view(r); return; }
       if (r.kind !== 'calendar' && r.can_edit && typeof opts.onOpenItem === 'function') { opts.onOpenItem(r); return; }
       var w = whenOf(r), kv = [];
       var whenTxt = w.d ? dayLabel(w.d) + ', ' + w.t + (w.end ? ' to ' + w.end : '') : 'No date yet';

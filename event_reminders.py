@@ -137,6 +137,11 @@ def _team_items(conn, today: str, horizon: str) -> list:
         marks = ",".join("?" * len(meeting_ids))
         for a in _rows(conn, f"SELECT task_id, user_id FROM crm_task_attendee WHERE task_id IN ({marks})", tuple(meeting_ids)):
             people.setdefault(a["task_id"], set()).add(a["user_id"])
+    all_ids = [r["id"] for r in rows]
+    for k in range(0, len(all_ids), 500):   # a task for several people reminds each of them (team_items.crm_task_assignee)
+        chunk = all_ids[k:k + 500]
+        for a in _rows(conn, f"SELECT task_id, user_id FROM crm_task_assignee WHERE task_id IN ({','.join('?' * len(chunk))})", tuple(chunk)):
+            people.setdefault(a["task_id"], set()).add(a["user_id"])
     out = []
     for r in rows:
         dated = r["kind"] in ("event", "meeting")

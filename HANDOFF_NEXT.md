@@ -21,6 +21,30 @@ Real external users are on the live system: two **clients** and one
 per request — see "Access model" below before touching any portal,
 grant, or elevation code.
 
+### Tasks flow: add from the top, view before edit, several people, crews, pop-ups (Bookore, 2026-11-19)
+
+* Accepted prototype: https://claude.ai/artifact/KnHuD7Ys632eNf2MCtNpmU. One shared View card + New / Edit window for every
+  page: `static/js/team_tasks.js` (`SSC_TASKS.view / edit / quick`) + `static/css/team_tasks.css`. The dashboard's old
+  `tk-overlay` editor is gone; `openItem(it)` now VIEWS (calendar, week, day, Your day, list, Inbox), `openItem(null, preset)` = New.
+* **Add from the top:** "Add a task…" line under the greeting (a day, a time and `@names` are parsed; Enter adds; + Task with
+  something typed opens the window filled in). Tasks & events moved right under This week. Same line on `/inbox` for PMs / supers.
+* **The window:** Task / Event / Meeting; deadline chips (No date / Today / Tomorrow / Friday / Monday / Pick a date… through
+  SSCDatePicker); a time box that takes "2p" / "1430" or a 15-minute list (no browser hh:mm squares); "Who it's for" = one or more.
+* **Several people:** `crm_task_assignee` holds all of them; `crm_task.assignee_user_id` stays the FIRST (every module that reads
+  or makes one-person tasks keeps working; reads take the union). One of them ticking it finishes it for everyone.
+* **Crews:** PMs and supers create tasks for themselves (nobody named = theirs) and for the people on their own jobs
+  (`pm_project_assignment`), linked to their own jobs; they edit / delete only what they added. Admin / C-suite: anyone, anything.
+* **Pop-ups for everyone on the team** (`static/js/task_alerts.js`, loaded by `company_nav.js` for admin, C-suite, PM, super; polls
+  `/api/team/notices` every 30 s while visible): "X assigned you a task" (Open / Mark done; stays until opened or closed),
+  "X finished a task", "X changed the time", "X took you off a task", "X deleted a task". New dot + count on Mine until opened.
+  Tasks made by other modules (invoice chase, chat, Claude, QuickBooks, proposals) pop up too. Admins' bell banners share the column.
+* **Activity** on each task (`team_item_log`, ids only): added / assigned to, saw it, changed the time, done, reopened, deleted.
+* Undo on add, done and delete (`POST /api/team/items/<id>/restore`). Filters: Open / Mine / I assigned / Done.
+* Gotcha: the dashboard already has ids `tt-save`, `tt-table`, `tt-core`, `tt-msg` (job-type tabs), so the shared window's element
+  ids are all `tsk-…` (classes stay `tt-…`); the smoke checks no id clashes. Not in this round: crew members who only use the
+  worker app (no team login) don't get tasks or pop-ups there. Guards: `tests/smoke_tasks_flow.py` (new, in the gate); the old
+  task smokes now expect PM / super creates.
+
 ### The Inbox accuracy test set: 30 made-up emails in the gate + a live scorer (Bookore, 2026-11-18)
 
 * Piece 5 (last) of the Inbox-accuracy plan. `tests/inbox_evals/cases.json`: 30 fictional cases (the 1255 signed-proposal

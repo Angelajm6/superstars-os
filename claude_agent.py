@@ -591,8 +591,8 @@ def _check_done(ctx, inp):
     cur = team_items.get_item(ctx.conn, int(inp.get("item_id") or 0))
     if not cur or (cur.get("status") or "open") == "cancelled":
         raise LookupError("no task or event with that id")
-    if ctx.role not in team_items.EDIT_ROLES and cur.get("assignee_user_id") != ctx.uid:
-        raise PermissionError("only the person it is assigned to, or admin / C-suite, can do that")
+    if ctx.role not in team_items.EDIT_ROLES and ctx.uid not in cur.get("assignee_ids", []) and cur.get("created_by") != ctx.uid:
+        raise PermissionError("only the people it is for, whoever added it, or admin / C-suite, can do that")   # = team_items.set_done
 
 
 def _done_card(ctx, inp):

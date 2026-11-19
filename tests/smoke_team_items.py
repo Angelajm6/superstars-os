@@ -4,7 +4,8 @@
 Boots the real app on an ISOLATED database. Proves:
   * schema: crm_task gains the task/event columns, idempotently
   * gates: anonymous 401; a client 403; pm / super READ the list and the people;
-    only admin / c_suite create, edit and delete
+    admin / c_suite create, edit and delete anything; a pm / super adds their own task and deletes
+    what they added (2026-11-19, smoke_tasks_flow.py covers crews, several people and pop-ups)
   * create: task with no deadline; a deadline time needs a date; blank title, bad kind,
     an assignee who is not an active team member (client, test account) -> 400; an
     unknown job -> 404. Event: needs a date; ends before it starts / end time before
@@ -144,7 +145,10 @@ def main() -> int:
     assert cl.get("/api/team/items").status_code == 403 and cl.get("/api/team/people").status_code == 403
     for c in (pm, sup):
         assert c.get("/api/team/items").status_code == 200 and c.get("/api/team/people").status_code == 200
-        assert c.post("/api/team/items", json={"title": "Teamitems nope"}).status_code == 403
+        r = c.post("/api/team/items", json={"title": "Teamitems own"})
+        assert r.status_code == 201, r.get_json()   # nobody named: it is their own
+        own = r.get_json()["data"]["id"]
+        assert c.delete(f"/api/team/items/{own}").status_code == 200, "and they delete what they added"
     people = {p["id"]: p for p in pm.get("/api/team/people").get_json()["data"]}
     assert ids["pm"] in people and ids["super"] in people and ids["cs"] in people
     assert ids["client"] not in people and ids["fixture"] not in people, "no clients, no test accounts"
@@ -283,12 +287,15 @@ def main() -> int:
     # ---- the dashboard + the date picker
     html = (ROOT / "company_portal.html").read_text(encoding="utf-8")
     assert 'id="tk-location"' not in html and "Place name" not in html, "events have the address only (Oct 13)"
-    for needle in ('id="tk-card"', 'id="tk-overlay"', 'id="tk-kind-task"', 'id="tk-kind-event"', 'id="tk-assignee"', 'id="tk-project"',
-                   'id="tk-due"', 'id="tk-due-time"', 'id="tk-start"', 'id="tk-end"', 'id="tk-start-time"', 'id="tk-end-time"',
-                   'id="tk-delete"', 'id="tk-address"', 'id="tk-addr-list"', 'data-tk-dir',
-                   "'https://www.google.com/maps/dir/?api=1&destination='", "address: $('tk-address').value.trim() || null", 'data-tk-filter="mine"', 'id="cal-new-item"',
-                   "dateGet($('tk-due'))", "dateGet($('tk-start'))", "dateSet($('tk-due'), it.due_date)", "wireItemChips($('cc-week-row'), d);",
-                   "wireItemChips($('cal-grid'), d);", "'/team/items/' + it.id + '/done'",
+    # 2026-11-19: the New / Edit window and the View card moved to static/js/team_tasks.js (one for every page)
+    tt = (ROOT / "static" / "js" / "team_tasks.js").read_text(encoding="utf-8")
+    for needle in ('id="tsk-form"', 'data-kind="', 'id="tsk-job"', 'id="tsk-date" type="date"', 'id="tsk-end" type="date"', 'id="tsk-address"',
+                   'id="tsk-addr-list"', 'data-tt="del"', "dpGet(g('tsk-date'))", "dpGet(g('tsk-end'))", "address: g('tsk-address').value.trim() || null",
+                   "/team/address-suggest?q=", "function view(", "function edit(", "'/team/items/' + it.id + '/done'"):
+        assert needle in tt, needle
+    for needle in ('id="tk-card"', 'data-tk-dir', 'team_tasks.js?v=', 'data-tk-filter="mine"', 'data-tk-filter="by"', 'id="cal-new-item"', 'id="td-quick"',
+                   "SSC_TASKS.view(it)", "wireItemChips($('cc-week-row'), d);",
+                   "wireItemChips($('cal-grid'), d);",
                    'id="dy-overlay"', 'id="dy-add"', "function openDay(iso, d)", "dayClicks($('cc-week-row'), () => DAY.week);",
                    "dayClicks($('cal-grid'), () => CAL.data);", 'data-day="${k}"', "openItem(null, { date: iso })",
                    "if (e.target.closest('a, button, [data-item], [data-mine], [data-job], [data-more], [data-ms], .cal-bar, .cc-week-bar, .cal-grip')) return;",

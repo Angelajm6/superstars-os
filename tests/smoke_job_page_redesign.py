@@ -150,7 +150,7 @@ def main() -> int:
     assert mk({"kind": "event", "title": f"{TAG} job walk", "project_code": P, "start_date": D(2)}).status_code == 201
     assert mk({"kind": "event", "title": f"{TAG} past walk", "project_code": P, "start_date": D(-3)}).status_code == 201
     assert mk({"kind": "task", "title": f"{TAG} other job", "project_code": P2, "due_date": D(1)}).status_code == 201
-    assert pm.post("/api/team/items", json={"kind": "task", "title": f"{TAG} pm try", "project_code": P}).status_code == 403
+    assert pm.post("/api/team/items", json={"kind": "task", "title": f"{TAG} pm try", "project_code": P2}).status_code == 403   # not their job (2026-11-19)
     o = _summary(cs)["open_items"]
     titles = [x["title"] for x in o["items"]]
     assert titles == [f"{TAG} overdue call", f"{TAG} job walk", f"{TAG} later task", f"{TAG} undated task"], titles

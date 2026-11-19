@@ -321,7 +321,8 @@ def main() -> int:
         for bad in (["not-an-email"], "everyone", [f"g{i}@x.example" for i in range(51)], ["a b@x.example"]):
             assert admin.post("/api/team/items", json={"kind": "meeting", "title": "Meetinv bad", "start_date": D(1),
                                                         "guest_emails": bad}).status_code == 400, bad
-        assert pm.post("/api/team/items", json={"kind": "meeting", "title": "Meetinv pm", "start_date": D(1)}).status_code == 403
+        assert pm.post("/api/team/items", json={"kind": "meeting", "title": "Meetinv pm", "start_date": D(1),
+                                                "assignee_user_ids": [ids["cs"]]}).status_code == 403, "a pm: only their crew"
         r = admin.post("/api/team/items", json={"kind": "task", "title": "Meetinv task", "guest_emails": [OUTSIDE], "video": True})
         tid = r.get_json()["data"]["id"]
         it = _item(admin, tid)

@@ -131,7 +131,8 @@ def main() -> int:
     t_pm = r.get_json()["data"]["id"]
     r = cs.post("/api/team/items", json={"kind": "event", "title": "TeamHome inspection", "assignee_user_id": ids["super"], "start_date": D(0)})
     t_sup = r.get_json()["data"]["id"]
-    assert pm.post("/api/team/items", json={"title": "TeamHome nope"}).status_code == 403, "pm cannot create"
+    assert pm.post("/api/team/items", json={"title": "TeamHome nope", "assignee_user_ids": [ids["pm2"]]}).status_code == 403, \
+        "a pm gives tasks only to themselves and the people on their jobs"
     passed += 1; print("  items ok")
 
     # ---- what each role gets
