@@ -313,7 +313,8 @@ def _still_mine_but_old(conn, uid, item_id) -> bool:
     if not r or (r["status"] or "open") == "cancelled":
         return False
     if r["assignee_user_id"] != uid and not conn.execute(
-            "SELECT 1 FROM crm_task_attendee WHERE task_id = ? AND user_id = ?", (item_id, uid)).fetchone():
+            "SELECT 1 FROM crm_task_attendee WHERE task_id = ? AND user_id = ? UNION ALL "
+            "SELECT 1 FROM crm_task_assignee WHERE task_id = ? AND user_id = ?", (item_id, uid, item_id, uid)).fetchone():
         return False
     last = r["end_date"] or r["start_date"] or r["due_date"]
     return bool(last) and last < (date.today() - timedelta(days=KEEP_DAYS)).isoformat()

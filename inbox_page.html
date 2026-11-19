@@ -6,14 +6,16 @@
 <link rel="stylesheet" href="/files/static/fonts/typography.css?v=1014">
 <link rel="stylesheet" href="/files/static/css/widgets.css?v=1008">
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1032"></script>
+<script src="/files/static/js/company_nav.js?v=1033"></script>
 <script src="/files/static/js/claude_drawer.js?v=21" defer></script>
 <!-- #359 — apply a remembered collapsed rail before the first paint -->
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1016" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
-<script src="/files/static/js/inbox_schedule.js?v=5" defer></script>
+<link rel="stylesheet" href="/files/static/css/team_tasks.css?v=1" id="tt-css">
+<script src="/files/static/js/team_tasks.js?v=1" defer data-team-tasks></script>
+<script src="/files/static/js/inbox_schedule.js?v=6" defer></script>
 <title>Inbox · Superstars Contracting</title>
 <link rel="icon" type="image/svg+xml" href="/files/static/brand/mark.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="/files/static/brand/favicon-32.png">
@@ -30,6 +32,11 @@
   .ix-wrap{padding:20px 28px 40px;max-width:1060px;width:100%;}
   .ix-sub{color:var(--muted);margin:0 0 14px;font-size:14px;}
   @media (max-width:820px){.ix-wrap{padding:16px 16px 40px;}}
+  /* add a task for yourself or your crew (2026-11-19, team_tasks.js) */
+  .ix-add{display:flex;gap:8px;align-items:flex-start;margin:0 0 16px}
+  .ix-add .ix-quickwrap{flex:1;min-width:0}
+  .ix-add .btn-primary{flex:none;min-height:44px}
+  @media (max-width:640px){#ix-quick [data-tt-more]{display:none !important}}   /* + Task takes what you typed */
 </style>
 </head>
 <body>
@@ -49,13 +56,33 @@
 </header>
 <main class="ix-wrap" aria-label="Inbox">
   <p class="ix-sub"><b>My calendar</b>: your Google Calendar and everything assigned to you. Only you see your calendar.</p>
+  <div class="ix-add">
+    <div class="ix-quickwrap">
+      <form class="tt-quick" id="ix-quick" autocomplete="off">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+        <input id="ix-quick-in" maxlength="200" placeholder="Add a task… e.g. Order anchors tomorrow 7am @Luis" aria-label="Add a task">
+        <button type="button" class="btn-ghost btn-sm" data-tt-more>More</button>
+      </form>
+      <div class="tt-qchips" data-tt-chips hidden></div>
+      <div class="tt-qhint" data-tt-hint>For you, or for the people on your jobs with @name. A day and a time are picked up. Press Enter to add.</div>
+    </div>
+    <button type="button" class="btn-primary" id="ix-new">+ Task</button>
+  </div>
   <div id="ix-sched"></div>
 </main>
 </div><!-- /.ssc-main -->
 </div><!-- /.ssc-shell -->
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  if (window.SSC_SCHEDULE) window.SSC_SCHEDULE.mount(document.getElementById('ix-sched'), { scope: 'mine', admin: false, next: '/inbox' });
+  var sched = window.SSC_SCHEDULE ? window.SSC_SCHEDULE.mount(document.getElementById('ix-sched'), { scope: 'mine', admin: false, next: '/inbox' }) : null;
+  if (window.SSC_TASKS) {
+    window.SSC_TASKS.quick(document.getElementById('ix-quick'));
+    document.getElementById('ix-new').addEventListener('click', function () {   // with something typed, + Task opens the window with it filled in
+      var more = document.querySelector('#ix-quick [data-tt-more]');
+      if (document.getElementById('ix-quick-in').value.trim() && more) more.click(); else window.SSC_TASKS.edit(null);
+    });
+  }
+  document.addEventListener('ssc:items-changed', function () { if (sched && sched.reload) sched.reload(); });
 });
 </script>
 <link rel="stylesheet" href="/files/static/css/unify.css?v=16">

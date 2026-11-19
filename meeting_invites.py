@@ -64,7 +64,7 @@ def can_organize(conn, uid) -> bool:
 # ------------------------------------------------------------------ the Google event
 def guest_emails(conn, it: dict, organizer_emails: set) -> list:
     """Everyone invited: the assignee, the team people in it, the outside guests. Not the organizer."""
-    ids = [i for i in [it.get("assignee_user_id"), *(it.get("attendee_ids") or [])] if i]
+    ids = list(dict.fromkeys(i for i in [it.get("assignee_user_id"), *(it.get("assignee_ids") or []), *(it.get("attendee_ids") or [])] if i))
     out = []
     if ids:
         marks = ",".join("?" * len(ids))

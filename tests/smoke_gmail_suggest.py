@@ -313,7 +313,8 @@ def main() -> int:
         assert st[s7["id"]] == "dismissed" and st[a["id"]] == "added"
         assert pm.post(f"/api/gmail/suggestions/{s7['id']}/undo").status_code == 200
         assert pm.get("/api/gmail/status").get_json()["data"]["new_count"] == 3
-        assert pm.post("/api/team/items", json={"title": "Gmail nope"}).status_code == 403, "a pm still cannot create tasks directly"
+        assert pm.post("/api/team/items", json={"title": "Gmail nope", "assignee_user_ids": [ids["cs"]]}).status_code == 403, \
+            "a pm gives tasks only to themselves and the people on their jobs (2026-11-19)"
         passed += 1; print("  accept ok")
 
         # ---- expired sign-in, then disconnect

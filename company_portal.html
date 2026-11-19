@@ -13,13 +13,15 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <link rel="stylesheet" href="/files/static/css/shell.css?v=1007">
-<script src="/files/static/js/company_nav.js?v=1032"></script>
+<script src="/files/static/js/company_nav.js?v=1033"></script>
 <script src="/files/static/js/claude_drawer.js?v=21" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
+<link rel="stylesheet" href="/files/static/css/team_tasks.css?v=1" id="tt-css">
+<script src="/files/static/js/team_tasks.js?v=1" defer data-team-tasks></script>
 <script src="/files/static/js/new_project_modal.js?v=1118" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1016" defer></script>
 <script src="/files/static/js/gcal_connect.js?v=1017" defer></script>
-<script src="/files/static/js/inbox_schedule.js?v=5" defer></script>
+<script src="/files/static/js/inbox_schedule.js?v=6" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
 <script src="/files/static/js/pdf_view.js?v=4" defer></script>
@@ -1266,34 +1268,7 @@
           .tk-meta{font-size:13px;color:var(--ink-2,#4A4F59);margin-top:2px;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
           .tk-who{font-size:13px;font-weight:600;padding:1px 8px;border-radius:99px;background:#F0F1F4;color:#4A4F59;white-space:nowrap}
           .tk-who.me{background:#EEF2FF;color:#24418C}
-          .tk-kind-seg{display:flex;gap:6px;flex-wrap:wrap}
-          .tk-kind-seg label .cp-muted{display:none}   /* three types fit one row; the icons and names say enough */
-          .tk-people{display:flex;flex-wrap:wrap;gap:6px}
-          .cp-field .tk-people input{width:auto;height:auto;margin:0;padding:0;flex:none}
-          .cp-field .tk-people label{white-space:nowrap;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line,#E3E5EA);border-radius:10px;padding:5px 11px;font-size:13px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer;margin:0;color:var(--ink,#222633)}
-          .tk-people label:has(input:checked){border-color:#4364DC;background:#EEF2FF;color:#24418C}
-          .tk-people small{color:var(--muted,#8C92A0);font-size:11.5px}
           /* meeting invitations + Google Meet (2026-10-18, meeting_invites.py) */
-          .tk-ext{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid var(--line,#E3E5EA);border-radius:10px;padding:6px 8px;margin-top:8px}
-          #tk-ext #tk-ext-in{border:0 !important;outline:0;flex:1;min-width:160px;width:auto;padding:4px;background:transparent;box-shadow:none !important;height:auto}
-          .tk-chip{display:inline-flex;align-items:center;gap:4px;background:var(--canvas,#FAFBFD);border:1px solid var(--line,#E3E5EA);border-radius:999px;padding:3px 4px 3px 10px;font-size:13px}
-          .tk-chip button{border:0;background:none;cursor:pointer;color:var(--muted,#8C92A0);padding:0 6px;font-size:15px;line-height:1}
-          .tk-sub{font-size:12.5px;color:var(--muted,#8C92A0);margin:6px 0 0}
-          .tk-meetbtn{display:inline-flex;align-items:center;gap:10px;border:1px solid var(--line,#E3E5EA);background:#fff;border-radius:10px;padding:9px 14px;cursor:pointer;font-weight:600;font-size:13.5px;color:var(--ink,#222633)}
-          .tk-meetbtn:disabled{opacity:.55;cursor:not-allowed}
-          .tk-meeton{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid #0B8043;background:#E6F4EA;border-radius:10px;padding:9px 12px}
-          .tk-meeton .t{flex:1;min-width:160px;font-size:13px}.tk-meeton b{display:block;font-size:13.5px}
-          .tk-meeton a{color:#0B8043;font-weight:600}
-          .tk-meet-ic{width:22px;height:22px;flex:none}
-          .tk-warn{background:#FFF6E5;border:1px solid #F0D39A;color:#7A5410;border-radius:10px;padding:9px 12px;font-size:13px;margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-          .tk-warn p{margin:0;flex:1;min-width:200px}
-          .tk-kind-seg label{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line,#E3E5EA);border-radius:8px;padding:9px 10px;cursor:pointer;font-weight:600;font-size:13px;text-transform:none;letter-spacing:0;color:var(--ink,#222633);margin:0;position:relative}
-          .tk-lbl{display:block;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
-          .tk-kind-seg input{position:absolute;opacity:0;pointer-events:none}
-          .tk-kind-seg label:has(input:checked){border-color:#4364DC;background:#EEF2FF;color:#24418C}
-          .tk-kind-seg label:focus-within{outline:2px solid #4364DC;outline-offset:1px}
-          .tk-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-          .tk-addr-wrap{position:relative}
           .cal-cell, .cc-week-cell{cursor:pointer}
           .cal-cell:hover, .cc-week-cell:hover{background-image:linear-gradient(rgba(67,100,220,.05),rgba(67,100,220,.05))}
           .dy-modal{max-width:620px}
@@ -1312,24 +1287,40 @@
           .dy-go{flex:none;align-self:center;font-weight:600;font-size:13px;color:#24418C;text-decoration:none;white-space:nowrap}
           .dy-row.it{cursor:pointer;border-radius:6px} .dy-row.it:hover{background:#F7F8FB}
           .dy-empty{font-size:13px;color:var(--muted,#8c92a0);padding:6px 0}
-          .tk-addr-list{position:absolute;left:0;right:0;top:64px;z-index:5;margin:0;padding:4px;list-style:none;background:#fff;border:1px solid var(--line,#E3E5EA);border-radius:8px;box-shadow:0 8px 24px rgba(20,22,28,.12);max-height:240px;overflow:auto}
-          .tk-addr-list[hidden]{display:none}
-          .tk-addr-list li{padding:8px 10px;border-radius:6px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;gap:8px}
-          .tk-addr-list li[aria-selected="true"], .tk-addr-list li:hover{background:#EEF2FF}
-          .tk-addr-list li small{color:var(--muted,#8c92a0);white-space:nowrap}
-          .tk-addr-help{margin-top:4px;font-size:13px;display:flex;flex-wrap:wrap;gap:6px}
           .tk-dir{display:inline-flex;align-items:center;gap:4px;font-weight:600;color:#24418C;text-decoration:none;white-space:nowrap;padding:2px 0}
           .tk-dir:hover{text-decoration:underline}
           .tk-addr-txt{overflow-wrap:anywhere}
-          .tk-grid2 > div{display:flex;flex-direction:column;gap:6px;min-width:0}
-          .tk-fields[hidden]{display:none}
-          @media (max-width:560px){ .tk-grid2{grid-template-columns:1fr} }
-          #tk-delete[hidden]{display:none}
+          /* 2026-11-19 tasks flow: add from the top, under the week, the New dot, several people per task */
+          .td-add{display:flex;gap:8px;align-items:flex-start;margin:12px 0 4px}
+          .td-quickwrap{flex:1;min-width:0}
+          .td-addtask{flex:none;min-height:44px}
+          #tk-card{margin-bottom:18px}
+          .tk-n{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 5px;margin-left:6px;border-radius:999px;background:#B11E2E;color:#fff;font-size:10.5px;font-weight:700}
+          .tk-n[hidden]{display:none}
+          .tk-row .tt-new{margin-left:auto;align-self:center}
+          .tk-row .tk-check{border-radius:50%}
+          .tk-who .tt-stack{margin-right:5px;vertical-align:-5px}
+          .tk-who{display:inline-flex;align-items:center}
+          /* a phone: Chat and Ask Claude already float bottom-right, so + Task stays beside the line; More goes (+ Task takes what you typed) */
+          @media (max-width:640px){ #td-quick [data-tt-more]{display:none !important} }
         </style>
         <!-- Today (accepted prototype 2026-10-19, today_feed.py): four cards, the week, Needs you (live) + Your day -->
         <div class="cp-card td-brief" id="td-brief">
           <div class="td-date" id="td-date"></div>
           <h2 class="td-hello" id="td-hello">Today</h2>
+          <!-- add a task from the top (2026-11-19, team_tasks.js): write it how you'd say it, or + Task for every field -->
+          <div class="td-add">
+            <div class="td-quickwrap">
+              <form class="tt-quick" id="td-quick" autocomplete="off">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+                <input id="td-quick-in" maxlength="200" placeholder="Add a task… e.g. Call the architect tomorrow 2pm @Marco" aria-label="Add a task">
+                <button type="button" class="btn-ghost btn-sm" data-tt-more>More</button>
+              </form>
+              <div class="tt-qchips" data-tt-chips hidden></div>
+              <div class="tt-qhint" data-tt-hint>Write it how you’d say it. A day, a time and one or more @names are picked up. Press Enter to add.</div>
+            </div>
+            <button type="button" class="btn-primary td-addtask" id="td-new-task">+ Task</button>
+          </div>
           <div class="td-sum" id="td-sum" aria-label="Jump to"></div>
           <div class="cp-kpis" id="ov-kpis"></div>
           <form class="td-ask" id="td-ask" autocomplete="off">
@@ -1352,6 +1343,18 @@
           <div class="cc-week-row" id="cc-week-row"><div class="cp-empty" style="grid-column:1 / -1">Loading this week…</div></div>
           <div class="cc-week-list" id="cc-week-list"></div>
           <div class="cc-week-foot" id="cc-week-foot"></div>
+        </div>
+        <!-- the team to-do list: tasks (with or without a deadline) and events, on the calendar too.
+             2026-11-19: right under the week (it was at the very bottom); Mine counts what is New for you -->
+        <div class="cp-card tk-card" id="tk-card">
+          <div class="cp-card-head"><h2>Tasks &amp; events</h2>
+            <div class="tk-head-right">
+              <div class="cal-seg" role="tablist" aria-label="Which tasks"><button type="button" data-tk-filter="open" class="on">Open</button><button type="button" data-tk-filter="mine">Mine<span class="tk-n" id="tk-new-n" hidden></span></button><button type="button" data-tk-filter="by">I assigned</button><button type="button" data-tk-filter="done">Done</button></div>
+              <button type="button" class="btn-primary btn-sm" id="tk-new">+ Task</button>
+            </div>
+          </div>
+          <div data-gcal hidden></div>
+          <div id="tk-list" class="tk-list"></div>
         </div>
         <div class="td-cols">
           <section class="td-needs-wrap" aria-label="Needs you">
@@ -1376,17 +1379,6 @@
             </div>
           </aside>
         </div>
-          <!-- the team to-do list: tasks (with or without a deadline) and events, on the calendar too -->
-          <div class="cp-card tk-card" id="tk-card" style="margin-top:16px">
-            <div class="cp-card-head"><h2>Tasks &amp; events</h2>
-              <div class="tk-head-right">
-                <div class="cal-seg" role="tablist" aria-label="Which tasks"><button type="button" data-tk-filter="open" class="on">Open</button><button type="button" data-tk-filter="mine">Mine</button><button type="button" data-tk-filter="done">Done</button></div>
-                <button type="button" class="btn-primary btn-sm" id="tk-new">+ New</button>
-              </div>
-            </div>
-            <div data-gcal hidden></div>
-            <div id="tk-list" class="tk-list"></div>
-          </div>
 
         <div class="td-scrim" id="pd-scrim" hidden></div>
         <div class="td-wx" id="wx-modal" role="dialog" aria-modal="true" aria-labelledby="wx-title" hidden>
@@ -2332,55 +2324,7 @@
     <div class="cp-modal-foot"><button class="btn-ghost" type="button" data-cancel>Close</button><button class="btn-primary" type="button" id="dy-add">+ Task or event on this day</button></div>
   </div>
 </div>
-<!-- meeting invitations: Send / Don't send, like Google Calendar (meeting_invites.py) -->
-<div class="cp-overlay" id="tk-send" role="dialog" aria-modal="true" aria-labelledby="tk-send-h" style="z-index:60">
-  <div class="cp-modal" style="max-width:420px">
-    <div class="cp-modal-head"><h2 id="tk-send-h">Send invitations?</h2><p class="cp-muted" id="tk-send-p" style="margin:6px 0 0;font-size:13.5px"></p></div>
-    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="tk-send-no">Don&#39;t send</button><button class="btn-primary" type="button" id="tk-send-yes">Send</button></div>
-  </div>
-</div>
-<!-- team task / event: one dialog for new and edit -->
-<div class="cp-overlay" id="tk-overlay" role="dialog" aria-modal="true" aria-labelledby="tk-title">
-  <form class="cp-modal" id="tk-form" novalidate>
-    <div class="cp-modal-head"><h2 id="tk-title">New task, event or meeting</h2><p class="cp-muted" style="margin:6px 0 0;font-size:13px">It shows on the team calendar for everyone. Leave the person or the deadline empty if there isn&#39;t one yet. Meeting guests get a Google Calendar invitation by email.</p></div>
-    <div class="cp-modal-body">
-      <div class="cp-field full"><span class="tk-lbl" id="tk-kind-label">Type</span>
-        <div class="tk-kind-seg" role="radiogroup" aria-labelledby="tk-kind-label">
-          <label><input type="radio" name="tk-kind" id="tk-kind-task" value="task" checked>☐ Task <span class="cp-muted" style="font-weight:400">a to-do</span></label>
-          <label><input type="radio" name="tk-kind" id="tk-kind-event" value="event">● Event <span class="cp-muted" style="font-weight:400">happens on a day</span></label>
-          <label><input type="radio" name="tk-kind" id="tk-kind-meeting" value="meeting">◆ Meeting <span class="cp-muted" style="font-weight:400">with people</span></label>
-        </div></div>
-      <div class="cp-field full"><label for="tk-title-in">What</label><input id="tk-title-in" class="ssc-field" required maxlength="200" placeholder="e.g. Call the property manager, Job walkthrough, Send invoice"></div>
-      <div class="cp-field full" id="tk-people-field" hidden><span class="tk-lbl" id="tk-people-label">Guests</span>
-        <div class="tk-people" id="tk-people" role="group" aria-labelledby="tk-people-label"></div>
-        <div class="tk-ext" id="tk-ext"><input id="tk-ext-in" type="email" autocomplete="off" placeholder="Add guests by email, e.g. a client or an architect" aria-label="Add a guest by email"></div>
-        <p class="tk-sub" id="tk-inv-sub">Each guest gets the invitation from your Gmail, like any Google Calendar invite, and can answer Yes / No / Maybe.</p>
-        <span class="tk-lbl" style="margin-top:14px;display:block">Video</span>
-        <div id="tk-video"></div>
-        <div id="tk-gcal-warn"></div></div>
-      <div class="cp-field"><label for="tk-assignee">Assign to</label><select id="tk-assignee" class="ssc-field"><option value="">Nobody yet</option></select></div>
-      <div class="cp-field"><label for="tk-project">Job (optional)</label><select id="tk-project" class="ssc-field"><option value="">No job</option></select></div>
-      <div class="tk-fields tk-grid2 cp-field full" id="tk-task-fields">
-        <div><label for="tk-due">Deadline (optional)</label><input id="tk-due" type="date" class="ssc-field"></div>
-        <div><label for="tk-due-time">Time (optional)</label><input id="tk-due-time" type="time" class="ssc-field"></div>
-      </div>
-      <div class="tk-fields tk-grid2 cp-field full" id="tk-event-fields" hidden>
-        <div><label for="tk-start">Date</label><input id="tk-start" type="date" class="ssc-field"></div>
-        <div><label for="tk-end">Ends (if more than one day)</label><input id="tk-end" type="date" class="ssc-field"></div>
-        <div><label for="tk-start-time">Start time (optional)</label><input id="tk-start-time" type="time" class="ssc-field"></div>
-        <div><label for="tk-end-time">End time (optional)</label><input id="tk-end-time" type="time" class="ssc-field"></div>
-      </div>
-      <div class="cp-field full tk-addr-wrap"><label for="tk-address">Address (optional)</label>
-        <input id="tk-address" class="ssc-field" maxlength="300" autocomplete="off" placeholder="Start typing a street address, e.g. 890 East 135th Street" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="tk-addr-list">
-        <ul class="tk-addr-list" id="tk-addr-list" role="listbox" hidden></ul>
-        <div class="tk-addr-help"><span class="cp-muted">Anyone on the team can tap it for directions in Google Maps.</span> <a id="tk-addr-go" class="cp-link" target="_blank" rel="noopener" hidden>Test directions ↗</a></div>
-      </div>
-      <div class="cp-field full"><label for="tk-detail">Details</label><textarea id="tk-detail" class="ssc-field" maxlength="2000"></textarea></div>
-      <div class="cp-form-err" id="tk-err" role="alert"></div>
-    </div>
-    <div class="cp-modal-foot"><button class="btn-ghost" type="button" id="tk-delete" hidden style="margin-right:auto;color:#B11E2E">Delete</button><button class="btn-ghost" type="button" data-cancel>Cancel</button><button class="btn-primary" type="submit" id="tk-save">Add</button></div>
-  </form>
-</div>
+<!-- tasks, events and meetings: the View card and the New / Edit window are static/js/team_tasks.js (2026-11-19) -->
 
 <!-- company document modal -->
 <div class="cp-overlay" id="cd-overlay" role="dialog" aria-modal="true" aria-labelledby="cd-title">
@@ -2824,46 +2768,58 @@
   }));
 
   // ---------- TASKS & EVENTS (the team to-do list; also drawn on the calendar) ----------
-  const TK = { filter: 'open', rows: [], people: null, projects: null };
+  // 2026-11-19 (accepted prototype https://claude.ai/artifact/KnHuD7Ys632eNf2MCtNpmU): a click anywhere VIEWS the task
+  // first (static/js/team_tasks.js, the same card on every page); New / Edit is the shared window too. A task can be
+  // for several people; Mine counts what is New for you; I assigned = what you handed to someone else.
+  const TK = { filter: 'open', rows: [] };
   const DOW3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function todayISO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function fmtTime(t) { if (!t) return ''; const [h, m] = t.split(':').map(Number); return (h % 12 || 12) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? ' AM' : ' PM'); }
   function fmtDay(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); const x = new Date(y, m - 1, d); return DOW3[x.getDay()] + ', ' + MON3[m - 1] + ' ' + d; }
-  function itemWhen(it) {
-    if ((it.kind === 'event' || it.kind === 'meeting')) {
-      const t = it.start_time ? ' · ' + fmtTime(it.start_time) + (it.end_time ? '–' + fmtTime(it.end_time) : '') : '';
-      return fmtDay(it.start_date) + (it.end_date ? ' → ' + fmtDay(it.end_date) : '') + t;
-    }
-    return it.due_date ? 'Due ' + fmtDay(it.due_date) + (it.due_time ? ' · ' + fmtTime(it.due_time) : '') : 'No deadline';
+  function itemWhen(it) { return window.SSC_TASKS ? SSC_TASKS.when(it) : (it.due_date || it.start_date || ''); }
+  const TK_COLORS = ['#4B5F94', '#3F7F76', '#9A6A30', '#7B68B5', '#8E4A6A', '#3F78A3', '#6B7D3E', '#A9524F'];
+  function tkAva(id, name) { const p = String(name || '?').trim().split(/\s+/); return `<span class="tt-ava" style="background:${TK_COLORS[Math.abs(+id || 0) % TK_COLORS.length]}" aria-hidden="true">${esc(((p[0] || '?')[0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase())}</span>`; }
+  function tkWho(it) {
+    const me = (window.__SSC_USER || {}).id, ids = it.assignee_ids || [], nm = it.assignee_names || [];
+    if (!ids.length) return '<span class="tk-who">Nobody yet</span>';
+    const ppl = ids.map((id, k) => ({ id, name: nm[k] }));
+    const label = window.SSC_TASKS ? SSC_TASKS.names(ppl, me) : nm.join(', ');
+    return `<span class="tk-who${it.mine ? ' me' : ''}"><span class="tt-stack">${ppl.slice(0, 3).map(p => tkAva(p.id, p.name)).join('')}</span>${esc(label)}</span>`;
   }
   function tkRow(it) {
     const done = it.status === 'done';
     const box = (it.kind === 'event' || it.kind === 'meeting') ? '<span class="tk-ev" aria-hidden="true">●</span>'
-      : `<button type="button" class="tk-check" data-tk-done="${it.id}" ${it.can_complete ? '' : 'disabled'} aria-label="${done ? 'Mark not done' : 'Mark done'}: ${esc(it.title)}">${done ? '✓' : ''}</button>`;
-    const who = it.assignee_name ? `<span class="tk-who${it.mine ? ' me' : ''}">${it.mine ? 'You' : esc(it.assignee_name)}</span>` : '<span class="tk-who">Unassigned</span>';
+      : `<button type="button" class="tk-check" data-tk-done="${it.id}" ${it.can_complete ? '' : 'disabled title="Only the people it is for, whoever added it, or admin can tick it"'} aria-label="${done ? 'Mark not done' : 'Mark done'}: ${esc(it.title)}">${done ? '✓' : ''}</button>`;
     const where = it.project_name ? `<span>${esc(it.project_name)}</span>` : (it.org_name ? `<span>${esc(it.org_name)}</span>` : '');
     const loc = ((it.kind === 'event' || it.kind === 'meeting') && it.location ? `<span>@ ${esc(it.location)}</span>` : '') +
       (it.address ? `<span class="tk-addr-txt">📍 ${esc(it.address)}</span><a class="tk-dir" href="${esc(it.directions_url)}" target="_blank" rel="noopener" data-tk-dir>Directions ↗</a>` : '');
     return `<div class="tk-row${done ? ' done' : ''}" data-tk-open="${it.id}" role="button" tabindex="0">${box}<div class="tk-main"><div class="tk-title">${esc(it.title)}</div>` +
-      `<div class="tk-meta"><span>${esc(itemWhen(it))}</span>${it.overdue ? '<span class="cp-pill bad">overdue</span>' : ''}${it.source === 'gcal' ? '<span class="cp-pill" title="Added in Google Calendar; changes there update it here">from Google</span>' : ''}${where}${loc}${who}</div></div></div>`;
+      `<div class="tk-meta"><span>${esc(itemWhen(it))}</span>${it.overdue ? '<span class="cp-pill bad">overdue</span>' : ''}${it.source === 'gcal' ? '<span class="cp-pill" title="Added in Google Calendar; changes there update it here">from Google</span>' : ''}${where}${loc}${tkWho(it)}</div></div>` +
+      `${it.new ? '<span class="tt-new"><i></i>New</span>' : ''}</div>`;
   }
   async function loadTasks() {
     const host = $('tk-list'); if (!host) return;
-    skeleton(host, 3);
-    const q = TK.filter === 'done' ? 'status=done' : 'status=open' + (TK.filter === 'mine' ? '&mine=1' : '');
+    if (!TK.rows.length) skeleton(host, 3);
+    const q = { done: 'status=done', mine: 'status=open&mine=1', by: 'status=open&by=1' }[TK.filter] || 'status=open';
     try {
       const { data } = await api('/team/items?' + q, null, true);
       const t = todayISO();
       // an event that is over drops off the open list (it stays on the calendar)
       TK.rows = TK.filter === 'done' ? data : data.filter(it => !((it.kind === 'event' || it.kind === 'meeting') && (it.calendar_to || it.calendar_from) < t));
-      if (!TK.rows.length) { host.innerHTML = empty(TK.filter === 'done' ? 'Nothing done yet' : (TK.filter === 'mine' ? 'Nothing assigned to you' : 'No open tasks or events'), TK.filter === 'done' ? '' : 'Use "+ New" to add a call, a walkthrough, an invoice to send, a proposal to submit…'); return; }
+      if (TK.filter !== 'done') { const n = TK.rows.filter(r => r.new).length; if (TK.filter === 'mine' || TK.filter === 'open') { $('tk-new-n').hidden = !n; $('tk-new-n').textContent = n; } }
+      if (!TK.rows.length) {
+        host.innerHTML = empty({ done: 'Nothing done yet', mine: 'Nothing for you right now', by: 'You haven’t handed anything to anyone' }[TK.filter] || 'No open tasks or events',
+          TK.filter === 'done' ? '' : 'Add one with the box at the top or + Task: a call, a walkthrough, an invoice to send, a proposal to submit…');
+        return;
+      }
       if (TK.filter === 'done') { host.innerHTML = TK.rows.slice(0, 30).map(tkRow).join(''); return; }
       const groups = [['Overdue', r => r.overdue], ['Today', r => !r.overdue && r.today], ['Coming up', r => !r.overdue && !r.today && r.calendar_from], ['No deadline', r => !r.calendar_from]];
       host.innerHTML = groups.map(([label, f]) => { const g = TK.rows.filter(f); return g.length ? `<div class="tk-group">${label} · ${g.length}</div>` + g.map(tkRow).join('') : ''; }).join('');
     } catch (e) { host.innerHTML = empty('Could not load tasks', e.message); }
   }
+  document.addEventListener('ssc:tasks-new', (e) => { const n = (e.detail && e.detail.count) || 0; $('tk-new-n').hidden = !n; $('tk-new-n').textContent = n; });
   document.querySelectorAll('[data-tk-filter]').forEach(b => b.addEventListener('click', () => {
-    TK.filter = b.dataset.tkFilter; document.querySelectorAll('[data-tk-filter]').forEach(x => x.classList.toggle('on', x === b)); loadTasks();
+    TK.filter = b.dataset.tkFilter; TK.rows = []; document.querySelectorAll('[data-tk-filter]').forEach(x => x.classList.toggle('on', x === b)); loadTasks();
   }));
   $('tk-list').addEventListener('click', async (e) => {
     if (e.target.closest('[data-tk-dir]')) return;   // the directions link just opens Maps
@@ -2871,165 +2827,32 @@
     if (done) {
       e.stopPropagation(); const it = TK.rows.find(r => String(r.id) === done.dataset.tkDone); if (!it) return;
       done.disabled = true;
-      try { await api('/team/items/' + it.id + '/done', { method: 'POST', body: JSON.stringify({ done: it.status !== 'done' }) }, true); toast(it.status !== 'done' ? 'Marked done' : 'Reopened'); loadTasks(); loadWeekStrip(); }
-      catch (ex) { toast(ex.message, true); done.disabled = false; }
+      try { await SSC_TASKS.setDone(it, it.status !== 'done'); } catch (ex) { done.disabled = false; }
       return;
     }
     const row = e.target.closest('[data-tk-open]'); if (row) openItem(TK.rows.find(r => String(r.id) === row.dataset.tkOpen));
   });
   $('tk-list').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-tk-open]')) { e.preventDefault(); e.target.click(); } });
-  async function tkLists() {
-    if (!TK.people) { try { TK.people = (await api('/team/people', null, true)).data; } catch (e) { TK.people = []; } }
-    if (!TK.projects) { try { const r = (await api('/projects', null, true)).data || []; TK.projects = r.filter(p => String(p.status || 'active').toLowerCase() !== 'closed'); } catch (e) { TK.projects = []; } }
-    $('tk-assignee').innerHTML = '<option value="">Nobody yet</option>' + TK.people.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
-    $('tk-project').innerHTML = '<option value="">No job</option>' + TK.projects.map(p => `<option value="${esc(p.project_code)}">${esc(p.name || p.project_code)} · ${esc(p.project_code)}</option>`).join('');
+  // a click on any task (the list, the week, the calendar, a day, Your day, the Inbox) opens it to VIEW;
+  // no item = the New window (preset.date = the day it was added from)
+  function openItem(it, preset) {
+    if (!window.SSC_TASKS) { toast('Still loading, try again in a moment', true); return; }
+    if (it) SSC_TASKS.view(it); else SSC_TASKS.edit(null, preset || {});
   }
-  function tkKind() { return $('tk-kind-meeting').checked ? 'meeting' : $('tk-kind-event').checked ? 'event' : 'task'; }
-  function tkShowKind() { const k = tkKind(), ev = k !== 'task'; $('tk-task-fields').hidden = ev; $('tk-event-fields').hidden = !ev; $('tk-people-field').hidden = k !== 'meeting'; }
-  function tkPeople(sel) { $('tk-people').innerHTML = (TK.people || []).map(p => `<label><input type="checkbox" value="${p.id}"${(sel || []).includes(p.id) ? ' checked' : ''}>${esc(p.name)}${p.hint ? ` <small>${esc(p.hint)}</small>` : ''}</label>`).join(''); }
-  // ---- meeting guests by email + Google Meet (meeting_invites.py)
-  const TKI = { guests: [], video: false, meet: null, problem: null, can: false, gcal: null };
-  const TK_MEET_IC = '<svg class="tk-meet-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="13" height="12" rx="2.5" fill="#00832d"/><path d="M15 10.5l5.2-3.4c.5-.3 1.1 0 1.1.6v8.6c0 .6-.6.9-1.1.6L15 13.5z" fill="#00ac47"/><rect x="2" y="6" width="5" height="6" rx="1" fill="#0066da"/><rect x="2" y="12" width="5" height="6" rx="1" fill="#2684fc"/></svg>';
-  const TK_EMAIL = /^[^@\s<>(),;:"]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
-  function tkInvites() {
-    $('tk-ext').querySelectorAll('.tk-chip').forEach(x => x.remove());
-    $('tk-ext-in').insertAdjacentHTML('beforebegin', TKI.guests.map((g, i) => `<span class="tk-chip">${esc(g)}<button type="button" data-tkx="${i}" aria-label="Remove ${esc(g)}">×</button></span>`).join(''));
-    $('tk-video').innerHTML = !TKI.can ? `<button type="button" class="tk-meetbtn" disabled>${TK_MEET_IC}Add Google Meet video conferencing</button>`
-      : TKI.video ? `<div class="tk-meeton">${TK_MEET_IC}<div class="t"><b>Join with Google Meet</b>${TKI.meet ? `<a href="${esc(TKI.meet)}" target="_blank" rel="noopener">${esc(TKI.meet.replace(/^https:\/\//, ''))}</a>` : '<span class="cp-muted">The link is made when you save</span>'}</div><button type="button" class="btn-ghost btn-sm" id="tk-video-off">Remove</button></div>`
-      : `<button type="button" class="tk-meetbtn" id="tk-video-on">${TK_MEET_IC}Add Google Meet video conferencing</button>`;
-    const next = encodeURIComponent(location.pathname + location.hash);
-    $('tk-gcal-warn').innerHTML = TKI.can ? (TKI.problem ? `<div class="tk-warn"><p>${esc(TKI.problem)}.</p></div>` : '')
-      : `<div class="tk-warn"><p><b>${TKI.gcal && TKI.gcal.status === 'needs_reconnect' ? 'Reconnect' : 'Connect'} your Google Calendar to send invitations and add video.</b> Until then the meeting is saved for the team, but guests are not emailed.</p>${TKI.gcal && TKI.gcal.available ? `<a class="btn-primary btn-sm" href="/google-calendar/connect?next=${next}">${TKI.gcal.status === 'needs_reconnect' ? 'Reconnect' : 'Connect'}</a>` : ''}</div>`;
-    $('tk-inv-sub').hidden = !TKI.can;
-  }
-  function tkAddGuest() {
-    const inp = $('tk-ext-in'), v = inp.value.trim().replace(/[,;]$/, '').toLowerCase();
-    if (!v) return true;
-    if (!TK_EMAIL.test(v)) { formErr('tk-err', 'That guest email address isn\'t valid.'); return false; }
-    if (!TKI.guests.includes(v)) TKI.guests.push(v);
-    inp.value = ''; $('tk-err').className = 'cp-form-err'; tkInvites(); return true;
-  }
-  $('tk-ext-in').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ',' || e.key === ';') { e.preventDefault(); tkAddGuest(); } else if (e.key === 'Backspace' && !e.target.value && TKI.guests.length) { TKI.guests.pop(); tkInvites(); } });
-  $('tk-ext-in').addEventListener('blur', () => { if ($('tk-ext-in').value.trim()) tkAddGuest(); });
-  $('tk-ext').addEventListener('click', (e) => { const b = e.target.closest('[data-tkx]'); if (b) { TKI.guests.splice(+b.dataset.tkx, 1); tkInvites(); } else if (e.target === $('tk-ext')) $('tk-ext-in').focus(); });
-  $('tk-video').addEventListener('click', (e) => { if (e.target.closest('#tk-video-on')) { TKI.video = true; tkInvites(); } else if (e.target.closest('#tk-video-off')) { TKI.video = false; TKI.meet = null; tkInvites(); } });
-  async function tkGcal() {
-    try { TKI.gcal = (await api('/google-calendar/status', null, true)).data; } catch (e) { TKI.gcal = null; }
-    TKI.can = !!(TKI.gcal && TKI.gcal.available && TKI.gcal.connected && TKI.gcal.status === 'active');
-  }
-  function tkAsk(n, video) {   // Send / Don't send, like Google Calendar; resolves true / false, or null when closed
-    return new Promise(res => {
-      $('tk-send-p').textContent = `Email a Google Calendar invitation to ${n} guest${n === 1 ? '' : 's'}${video ? ', with the Google Meet link' : ''}? Choose Don't send to save it without emailing anyone.`;
-      const ov = $('tk-send'); ov.classList.add('open'); $('tk-send-yes').focus();
-      const done = v => { ov.classList.remove('open'); $('tk-send-yes').onclick = $('tk-send-no').onclick = ov.onclick = null; res(v); };
-      $('tk-send-yes').onclick = () => done(true); $('tk-send-no').onclick = () => done(false);
-      ov.onclick = (e) => { if (e.target === ov) done(null); };
-    });
-  }
-  ['tk-kind-task', 'tk-kind-event', 'tk-kind-meeting'].forEach(i => $(i).addEventListener('change', tkShowKind));
-  async function openItem(it, preset) {
-    if (it && !it.can_edit) { toast('Only admin and C-suite can edit this. ' + itemWhen(it)); return; }
-    const ov = $('tk-overlay'), f = $('tk-form'); f.reset(); f.dataset.item = it ? it.id : '';
-    ['tk-due', 'tk-start', 'tk-end'].forEach(i => dateSet($(i), ''));   // reset() leaves the picker value behind
-    $('tk-err').className = 'cp-form-err';
-    ov.classList.add('open');   // open at once; the two pick-lists fill in a moment later on first use
-    $('tk-title').textContent = it ? ({ event: 'Edit event', meeting: 'Edit meeting' }[it.kind] || 'Edit task') : 'New task, event or meeting';
-    $('tk-save').textContent = it ? 'Save' : 'Add'; $('tk-delete').hidden = !it;
-    $('tk-save').disabled = true;
-    await tkLists();
-    $('tk-save').disabled = false;
-    const kind = it ? it.kind : ((preset && preset.kind) || 'task');
-    $('tk-kind-task').checked = kind === 'task'; $('tk-kind-event').checked = kind === 'event'; $('tk-kind-meeting').checked = kind === 'meeting'; tkShowKind();
-    tkPeople(it ? it.attendee_ids : []);
-    Object.assign(TKI, { guests: it ? (it.guest_emails || []).slice() : [], video: !!(it && it.video), meet: it ? it.meet_url : null, problem: it ? it.invite_problem : null, owner: it ? it.invites : false });
-    $('tk-ext-in').value = '';
-    await tkGcal(); tkInvites();
-    if (it) {
-      $('tk-title-in').value = it.title || ''; $('tk-detail').value = it.detail || '';
-      $('tk-assignee').value = it.assignee_user_id || ''; $('tk-project').value = it.project_code || '';
-      dateSet($('tk-due'), it.due_date); $('tk-due-time').value = it.due_time || '';
-      dateSet($('tk-start'), it.start_date); dateSet($('tk-end'), it.end_date); $('tk-start-time').value = it.start_time || '';
-      $('tk-end-time').value = it.end_time || ''; $('tk-address').value = it.address || '';
-    } else if (preset && preset.date) { dateSet($('tk-due'), preset.date); dateSet($('tk-start'), preset.date); }
-    tkAddrGo(); tkAddrClose();
-    $('tk-title-in').focus();
-  }
-  function closeItem() { $('tk-overlay').classList.remove('open'); tkAddrClose(); }
-  $('tk-overlay').querySelector('[data-cancel]').addEventListener('click', closeItem);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('tk-addr-list').hidden) closeItem(); });
-  // ---- address: suggestions while typing (jobs first, then NYC addresses), the job's address on pick
-  const ADDR = { t: null, items: [], i: -1, seq: 0 };
-  function tkMapsUrl(a) { return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(a); }
-  function tkAddrGo() { const a = $('tk-address').value.trim(), go = $('tk-addr-go'); go.hidden = !a; if (a) go.href = tkMapsUrl(a); }
-  function tkAddrClose() { $('tk-addr-list').hidden = true; $('tk-address').setAttribute('aria-expanded', 'false'); ADDR.items = []; ADDR.i = -1; }
-  function tkAddrPick(k) { const it = ADDR.items[k]; if (!it) return; $('tk-address').value = it.label; tkAddrClose(); tkAddrGo(); }
-  function tkAddrRender() {
-    const ul = $('tk-addr-list');
-    if (!ADDR.items.length) { tkAddrClose(); return; }
-    ul.innerHTML = ADDR.items.map((x, k) => `<li role="option" id="tk-addr-${k}" aria-selected="${k === ADDR.i}" data-k="${k}"><span>${esc(x.label)}</span>${x.job ? `<small>${esc(x.job)}</small>` : ''}</li>`).join('');
-    ul.hidden = false; $('tk-address').setAttribute('aria-expanded', 'true');
-  }
-  $('tk-address').addEventListener('input', () => {
-    tkAddrGo(); clearTimeout(ADDR.t); const q = $('tk-address').value.trim();
-    if (q.length < 3) { tkAddrClose(); return; }
-    ADDR.t = setTimeout(async () => {
-      const seq = ++ADDR.seq;
-      try { const { data } = await api('/team/address-suggest?q=' + encodeURIComponent(q), null, true); if (seq !== ADDR.seq) return; ADDR.items = data; ADDR.i = -1; tkAddrRender(); }
-      catch (e) { tkAddrClose(); }
-    }, 250);
-  });
-  $('tk-address').addEventListener('keydown', (e) => {
-    if ($('tk-addr-list').hidden) return;
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); ADDR.i = (ADDR.i + (e.key === 'ArrowDown' ? 1 : -1) + ADDR.items.length) % ADDR.items.length; tkAddrRender(); }
-    else if (e.key === 'Enter' && ADDR.i >= 0) { e.preventDefault(); tkAddrPick(ADDR.i); }
-    else if (e.key === 'Escape') { e.stopPropagation(); tkAddrClose(); }
-  });
-  $('tk-addr-list').addEventListener('mousedown', (e) => { const li = e.target.closest('[data-k]'); if (li) { e.preventDefault(); tkAddrPick(+li.dataset.k); } });
-  $('tk-address').addEventListener('blur', () => setTimeout(tkAddrClose, 150));
-  $('tk-project').addEventListener('change', () => {   // a linked job brings its address when none is typed yet
-    const p = (TK.projects || []).find(x => x.project_code === $('tk-project').value);
-    if (p && p.address && !$('tk-address').value.trim()) { $('tk-address').value = [p.address, p.city_zip].filter(Boolean).join(', '); tkAddrGo(); }
-  });
+  if (window.SSC_TASKS) SSC_TASKS.quick($('td-quick'));
+  else document.addEventListener('DOMContentLoaded', () => { if (window.SSC_TASKS) SSC_TASKS.quick($('td-quick')); });
   $('tk-new').addEventListener('click', () => openItem(null));
-  document.addEventListener('ssc:items-changed', () => { loadTasks(); loadWeekStrip(); CAL.cache = {}; });   // e.g. a task added from an email
-  $('cal-new-item').addEventListener('click', () => openItem(null, { date: todayISO() }));
-  function tkAfterSave(msg) { toast(msg); closeItem(); loadTasks(); loadWeekStrip(); CAL.cache = {}; if (location.hash.startsWith('#calendar')) loadCalendar(); if (IB.sched && /^#inbox\/(mine|all)/.test(location.hash)) IB.sched.reload(); }
-  $('tk-form').addEventListener('submit', async (e) => {
-    e.preventDefault(); $('tk-err').className = 'cp-form-err';
-    const id = $('tk-form').dataset.item, kind = tkKind(), title = $('tk-title-in').value.trim();
-    if (!title) { formErr('tk-err', 'Say what it is.'); return; }
-    if (kind !== 'task' && !dateGet($('tk-start'))) { formErr('tk-err', 'Pick the day of the ' + kind + '.'); return; }
-    const body = { kind, title, detail: $('tk-detail').value.trim() || null, assignee_user_id: $('tk-assignee').value ? Number($('tk-assignee').value) : null, project_code: $('tk-project').value || null, address: $('tk-address').value.trim() || null };
-    if (kind === 'meeting') {
-      if (!tkAddGuest()) return;
-      body.attendee_user_ids = [...$('tk-people').querySelectorAll('input:checked')].map(x => Number(x.value));
-      Object.assign(body, { guest_emails: TKI.guests.slice(), video: TKI.can && TKI.video });
-      const me = String((window.__SSC_USER || {}).id || ''), ppl = new Set([...body.attendee_user_ids, ...(body.assignee_user_id ? [body.assignee_user_id] : [])].map(String));
-      ppl.delete(me);   // the organizer is not invited to their own meeting
-      const n = ppl.size + TKI.guests.length;
-      if (TKI.can && n) {
-        const send = await tkAsk(n, body.video);
-        if (send === null) return;
-        body.send_invites = send;
-      }
-    }
-    if (kind === 'task') Object.assign(body, { due_date: dateGet($('tk-due')) || null, due_time: $('tk-due-time').value || null });
-    else Object.assign(body, { start_date: dateGet($('tk-start')), end_date: dateGet($('tk-end')) || null, start_time: $('tk-start-time').value || null, end_time: $('tk-end-time').value || null });   // no place name: the address covers it (older events keep theirs)
-    $('tk-save').disabled = true;
-    try {
-      if (id) await api('/team/items/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) }, true);
-      else await api('/team/items', { method: 'POST', body: JSON.stringify(body) }, true);
-      tkAfterSave((id ? 'Saved' : ({ event: 'Event added', meeting: 'Meeting added' }[kind] || 'Task added')) + (body.send_invites ? ' · invitations sent' : ''));
-    } catch (ex) { formErr('tk-err', ex.message); }
-    finally { $('tk-save').disabled = false; }
+  $('td-new-task').addEventListener('click', () => {   // with something typed, + Task opens the window with it filled in
+    const more = document.querySelector('#td-quick [data-tt-more]');
+    if ($('td-quick-in').value.trim() && more) more.click(); else openItem(null);
   });
-  $('tk-delete').addEventListener('click', async () => {
-    const id = $('tk-form').dataset.item; if (!id) return;
-    if (!confirm('Delete "' + ($('tk-title-in').value.trim() || 'this item') + '"? It comes off the list and the calendar.')) return;
-    $('tk-delete').disabled = true;
-    try { await api('/team/items/' + encodeURIComponent(id), { method: 'DELETE' }, true); tkAfterSave('Deleted'); }
-    catch (ex) { formErr('tk-err', ex.message); }
-    finally { $('tk-delete').disabled = false; }
+  $('cal-new-item').addEventListener('click', () => openItem(null, { date: todayISO() }));
+  // every task write (here, in the Inbox, from an email or a pop-up) refreshes what shows it
+  document.addEventListener('ssc:items-changed', () => {
+    loadTasks(); loadWeekStrip(); CAL.cache = {};
+    if (location.hash.startsWith('#calendar')) loadCalendar();
+    if (IB.sched && /^#inbox\/(mine|all)/.test(location.hash)) IB.sched.reload();
+    if (/^#(overview)?$/.test(location.hash || '#')) loadToday(true);
   });
   // ---------- ONE DAY: click any calendar day for everything on it ----------
   const DAY = { week: null, iso: null };

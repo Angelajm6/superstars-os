@@ -198,6 +198,11 @@
       var sc = document.createElement('script'); sc.src = '/files/static/js/chat_widget.js?v=2'; sc.defer = true;
       sc.setAttribute('data-chat-widget', ''); document.head.appendChild(sc);
     }
+    // task pop-ups on every page ("Angela assigned you a task", "Marco finished a task"; 2026-11-19), team roles only
+    if (allowed(['admin', 'c_suite', 'pm', 'super']) && !document.querySelector('script[data-task-alerts]')) {
+      var ta = document.createElement('script'); ta.src = '/files/static/js/task_alerts.js?v=1'; ta.defer = true;
+      ta.setAttribute('data-task-alerts', ''); document.head.appendChild(ta);
+    }
     document.addEventListener('visibilitychange', function () { if (!document.hidden) pollChat(); });
   }
   // the Chat page reports its own live count, so the badge never lags behind what it shows
