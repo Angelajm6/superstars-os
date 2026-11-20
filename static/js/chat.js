@@ -8,7 +8,9 @@
  * there it is always one column, never touches the address bar, and reads / polls only while the window is open.
  * New: edit your own messages (↑ edits the last one; earlier versions under "(edited)"), Seen by (double-click or
  * double-tap a message; a line under your latest one), a pinned message, who is on site, "is typing", Translate to
- * English, Catch me up (Claude), and quick replies in job chats. Later the same day: talk to type (the mic). */
+ * English, Catch me up (Claude), and quick replies in job chats. Later the same day: talk to type (the mic).
+ *
+ * 2026-11-20 (accepted prototype https://claude.ai/artifact/ALPoow8uphCdyxHP5N8i3v): an emoji picker (the smiley next to @). */
 (function () {
   'use strict';
   if (window.SSC_CHAT) return;
@@ -339,7 +341,7 @@
   }
   function closeThread() {
     if (V && V.rec) stopVoice(true);
-    S.cur = null; S.detail = null; S.edit = null; S.typing = []; renderTyping();
+    S.cur = null; S.detail = null; S.edit = null; S.typing = []; renderTyping(); emoOpen(false);
     $('ch').classList.remove('open'); document.body.classList.remove('ch-in');
     $('ch-noth').hidden = false; $('ch-th').hidden = true; $('ch-msgs').hidden = true; $('ch-comp').hidden = true; $('ch-side').hidden = true;
     $('ch-pin').hidden = true; $('ch-catchw').innerHTML = '';
@@ -383,7 +385,7 @@
     var id = S.cur;
     api('/convs/' + id + '/messages', { method: 'POST', body: { body: body, file_ids: ids, reply_to: S.reply ? S.reply.id : null, mentions: ment } })
       .then(function (m) {
-        ta.value = ''; grow(); S.pending = []; S.reply = null; S.mentions = {}; S.pinged = 0; renderPending(); renderReply();
+        ta.value = ''; grow(); emoOpen(false); S.pending = []; S.reply = null; S.mentions = {}; S.pinged = 0; renderPending(); renderReply();
         if (S.cur === id) { S.msgs.push(m); S.seen = { msg_id: m.id, count: 0, total: 0, who: [] }; renderThread(); S.lastRead[id] = m.id; }
         loadConvs();
       })
@@ -545,6 +547,54 @@
     var p = ta.selectionStart, sp = p && !/\s/.test(ta.value[p - 1]) ? ' ' : '';
     ta.value = ta.value.slice(0, p) + sp + '@' + ta.value.slice(p); ta.focus(); ta.selectionStart = ta.selectionEnd = p + sp.length + 1; mentionCheck();
   });
+
+  // ---- emoji picker (2026-11-20, accepted prototype https://claude.ai/artifact/ALPoow8uphCdyxHP5N8i3v): tap to put one
+  // at the caret; it stays open for more. Recent is per device (localStorage ssc.chat.emoji). The emoji live here.
+  var EMOJI = [
+    ['Smileys', '😀 smile happy grin|😃 smile happy|😄 laugh happy|😁 grin|😆 laugh|😅 sweat relief phew|😂 joy laugh tears lol|🙂 smile|😉 wink|😊 blush smile|😇 angel|🥰 love|😍 love heart eyes|😘 kiss|😋 yum|😎 cool sunglasses|🤓 nerd|🤩 star struck wow|🥳 party celebrate|😏 smirk|😌 relieved|😴 sleep tired|🤔 think hmm|🤨 raised eyebrow doubt|😐 neutral|😑 expressionless|😶 speechless|🙄 eye roll|😬 grimace awkward|😮‍💨 exhale phew|🤐 zip quiet|😕 confused|😟 worried|🙁 frown sad|😮 surprised wow|😲 astonished|😳 flushed|🥺 please|😢 cry sad|😭 sob|😤 huff angry|😠 angry mad|😡 rage|🤯 mind blown|😱 scream shock|🥵 hot heat|🥶 cold freezing|🤒 sick|🤕 hurt injured|🤧 sneeze sick|😷 mask sick|🤠 cowboy|🫡 salute respect|🤗 hug|🤭 oops giggle|🫠 melting|😈 devil|💀 skull dead|👀 eyes look watching|🙈 see no evil oops'],
+    ['Hands', '👍 thumbs up ok yes good like|👎 thumbs down no bad|👌 ok perfect|🤞 fingers crossed luck|✌️ peace victory|🤙 call me shaka|👋 wave hello hi bye|🤚 raised hand stop|✋ hand stop high five|🖐️ hand|👏 clap applause bravo|🙌 raise hands celebrate|🙏 pray thanks please|🤝 handshake deal agree|💪 strong muscle|👊 fist bump|✊ fist|🫶 heart hands|👉 point right|👈 point left|👆 point up|👇 point down|☝️ one point|✍️ write sign|🫵 you|🤌 pinched'],
+    ['Job site', '👷 worker construction hard hat|👷‍♀️ worker woman construction|⛑️ helmet safety rescue|🦺 safety vest|🏗️ crane construction building|🚧 barrier construction caution work|🧱 brick masonry wall|🪨 rock stone|🪵 wood lumber|🔨 hammer|⚒️ hammer pick|🛠️ tools|🔧 wrench|🪛 screwdriver|🪚 saw|🧰 toolbox|🪜 ladder|🪝 hook rigging|⛓️ chain|🧲 magnet|🔩 bolt nut|⚙️ gear settings|📐 triangle ruler measure|📏 ruler measure|🧹 broom clean|🪣 bucket|🖌️ paint brush|🎨 paint|🧯 fire extinguisher|⚡ power electric|💡 idea light|🔌 plug power|🔦 flashlight|🚚 truck delivery|🚛 truck|🛻 pickup truck|🚜 tractor|🏢 building office|🏬 building|🏠 house home|🏚️ old house|🌆 city skyline|🗽 nyc new york|🚇 subway metro|🅿️ parking garage|📋 clipboard checklist|📝 notes memo|📄 document page|📑 documents|📁 folder|📎 attach paperclip|📌 pin|📍 location pin site|🗺️ map|📅 calendar date|🗓️ schedule calendar|⏰ alarm time|⏳ waiting time|📸 photo camera|📷 camera photo|📞 phone call|📱 phone mobile|✉️ email letter|📧 email|💲 money dollar price|💵 cash money dollar|💰 money bag|🧾 receipt invoice|💳 card payment|📈 up chart growth|📉 down chart|📊 chart report'],
+    ['Weather', '☀️ sun sunny|🌤️ sun cloud|⛅ partly cloudy|☁️ cloud cloudy|🌦️ sun rain|🌧️ rain|⛈️ storm thunder|🌩️ lightning|🌨️ snow|❄️ snow cold freeze|☃️ snowman|🌬️ wind|💨 wind dash|🌪️ tornado|🌫️ fog|🌡️ temperature thermometer|☔ umbrella rain|💧 water drop leak|🌊 water wave flood|🔥 fire hot lit|🌈 rainbow|🌙 night moon'],
+    ['Symbols', '✅ check done yes ok approved|☑️ check box|✔️ check|❌ no cross wrong rejected|❎ cross|⚠️ warning caution|⛔ no entry stop|🚫 forbidden no|❗ important exclamation|❓ question|‼️ urgent|🔴 red stop|🟠 orange|🟡 yellow|🟢 green go|🔵 blue|⭐ star|🌟 star glow|✨ sparkles new|🎉 party celebrate tada|🎊 confetti|🏆 trophy win|🥇 first gold|🎯 target goal|🚀 rocket launch fast|💯 hundred perfect|❤️ heart love red|🧡 heart orange|💛 heart yellow|💚 heart green|💙 heart blue|🖤 heart black|💔 broken heart|🔒 lock secure|🔓 unlock|🔑 key|➕ plus add|➖ minus|➡️ right arrow|⬅️ left arrow|⬆️ up arrow|⬇️ down arrow|🔁 repeat|🔄 refresh update|🆕 new|🆗 ok|🆘 sos help|ℹ️ info|☕ coffee|🍕 pizza lunch|🍔 burger lunch|🌮 taco|🍩 donut|🎂 birthday cake']
+  ].map(function (t) { return [t[0], t[1].split('|').map(function (e) { var i = e.indexOf(' '); return [e.slice(0, i), e.slice(i + 1)]; })]; });
+  var EM = { tab: null, s: 0, e: 0 }, EKEY = 'ssc.chat.emoji';
+  function emoRecent() { try { var r = JSON.parse(localStorage.getItem(EKEY) || '[]'); return Array.isArray(r) ? r.filter(function (x) { return typeof x === 'string' && x.length <= 16; }) : []; } catch (e) { return []; } }
+  function emoRemember(ch) { var r = emoRecent().filter(function (x) { return x !== ch; }); r.unshift(ch); try { localStorage.setItem(EKEY, JSON.stringify(r.slice(0, 16))); } catch (e) {} }
+  function emoCaret() { EM.s = ta.selectionStart == null ? ta.value.length : ta.selectionStart; EM.e = ta.selectionEnd == null ? EM.s : ta.selectionEnd; }
+  function emoDraw() {
+    var q = $('ch-eq').value.trim().toLowerCase(), list;
+    if (q) { list = []; EMOJI.forEach(function (t) { t[1].forEach(function (e) { if (e[1].split(' ').some(function (w) { return w.indexOf(q) === 0; })) list.push(e); }); }); }
+    else if (EM.tab === 'Recent') list = emoRecent().map(function (ch) { return [ch, 'recent']; });
+    else list = (EMOJI.filter(function (t) { return t[0] === EM.tab; })[0] || EMOJI[0])[1];
+    $('ch-etabs').innerHTML = ['Recent'].concat(EMOJI.map(function (t) { return t[0]; })).map(function (n) {
+      return '<button type="button" role="tab" data-etab="' + esc(n) + '" aria-selected="' + (n === EM.tab && !q) + '">' + (n === 'Recent' ? '🕘 Recent' : esc(n)) + '</button>'; }).join('');
+    $('ch-egrid').innerHTML = list.length ? list.map(function (e) { var nm = esc(e[1].split(' ')[0]);
+      return '<button type="button" data-emo="' + esc(e[0]) + '" title="' + nm + '" aria-label="' + nm + '">' + esc(e[0]) + '</button>'; }).join('')
+      : '<div class="ch-eempty">' + (q ? 'No emoji for "' + esc(q) + '". Try another word.' : 'Emoji you use show up here.') + '</div>';
+  }
+  function emoOpen(on) {
+    $('ch-emo').hidden = !on; $('ch-emb').setAttribute('aria-expanded', String(on));
+    if (!on) return;
+    $('ch-mpop').hidden = true; emoCaret(); $('ch-eq').value = '';
+    if (!EM.tab) EM.tab = emoRecent().length ? 'Recent' : 'Smileys';
+    emoDraw();
+    if (window.matchMedia && window.matchMedia('(hover:hover)').matches) $('ch-eq').focus();   // no keyboard pop-up on a phone
+  }
+  ['keyup', 'click', 'input', 'select', 'blur'].forEach(function (ev) { ta.addEventListener(ev, emoCaret); });
+  $('ch-emb').addEventListener('mousedown', function (e) { e.preventDefault(); });
+  $('ch-emb').addEventListener('click', function () { emoOpen($('ch-emo').hidden); });
+  $('ch-etabs').addEventListener('click', function (e) { var b = e.target.closest('[data-etab]'); if (!b) return; EM.tab = b.getAttribute('data-etab'); $('ch-eq').value = ''; emoDraw(); });
+  $('ch-eq').addEventListener('input', emoDraw);
+  $('ch-egrid').addEventListener('mousedown', function (e) { e.preventDefault(); });   // keep the caret in the box
+  $('ch-egrid').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-emo]'); if (!b) return;
+    var ch = b.getAttribute('data-emo'), v = ta.value, s = Math.min(EM.s, v.length), en = Math.min(Math.max(EM.e, s), v.length);
+    ta.value = v.slice(0, s) + ch + v.slice(en); EM.s = EM.e = s + ch.length; emoRemember(ch);
+    if (document.activeElement !== $('ch-eq')) { ta.focus(); ta.selectionStart = ta.selectionEnd = EM.s; }
+    grow(); canSend();
+    if (EM.tab === 'Recent' && !$('ch-eq').value) emoDraw();
+  });
+  document.addEventListener('mousedown', function (e) { if (!$('ch-emo').hidden && !e.target.closest('#ch-emo, #ch-emb')) emoOpen(false); });
 
   // ---- message actions ----
   $('ch-msgs').addEventListener('click', function (e) {
@@ -808,7 +858,8 @@
   $('ch-q').addEventListener('input', renderList);
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    var dlg = ['ch-newbg', 'ch-addbg', 'ch-taskbg', 'ch-seenbg'].some(function (id) { return !$(id).hidden; }) || !$('ch-light').hidden;
+    var dlg = ['ch-newbg', 'ch-addbg', 'ch-taskbg', 'ch-seenbg'].some(function (id) { return !$(id).hidden; }) || !$('ch-light').hidden || !$('ch-emo').hidden;
+    if (!$('ch-emo').hidden) { emoOpen(false); if (!phone()) ta.focus(); }
     ['ch-newbg', 'ch-addbg', 'ch-taskbg', 'ch-seenbg'].forEach(function (id) { $(id).hidden = true; });
     $('ch-bellmenu').hidden = true;
     if (!$('ch-light').hidden) $('ch-lclose').click();

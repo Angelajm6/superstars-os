@@ -145,6 +145,19 @@
 .ch-mpop button{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;padding:6px;border-radius:8px;color:var(--ink);text-align:left;font-size:13px;}
 .ch-mpop button:hover,.ch-mpop button.sel{background:#f3f5fa;}
 .ch-mpop small{display:block;color:var(--muted);font-size:11.5px;}
+/* emoji picker (2026-11-20, accepted prototype https://claude.ai/artifact/ALPoow8uphCdyxHP5N8i3v): above the box, like the @ list */
+.ch-tool[aria-expanded="true"]{background:var(--accent-soft);color:var(--accent-ink);}
+.ch-emo{position:absolute;bottom:100%;left:0;right:0;margin-bottom:6px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px rgba(20,28,60,.16);display:grid;grid-template-rows:auto auto minmax(0,1fr);max-height:300px;z-index:5;}
+.ch-emo input{margin:8px 8px 4px;font:inherit;font-size:13px;color:var(--ink);background:var(--canvas);border:1px solid var(--line);border-radius:8px;padding:7px 10px;}
+.ch-etabs{display:flex;gap:2px;padding:0 6px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;}
+.ch-etabs::-webkit-scrollbar{display:none;}
+.ch-etabs button{flex:none;border:none;background:none;padding:7px 8px 8px;font-size:12px;font-weight:600;color:var(--ink-2,#4A4F59);border-bottom:2px solid transparent;white-space:nowrap;}
+.ch-etabs button[aria-selected="true"]{color:var(--accent-ink);border-bottom-color:var(--accent);}
+.ch-egrid{overflow-y:auto;padding:6px;display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));align-content:start;min-height:120px;}
+.ch-egrid button{border:none;background:none;height:40px;border-radius:8px;font-size:22px;line-height:1;padding:0;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;}
+.ch-egrid button:hover,.ch-egrid button:focus-visible{background:#f3f5fa;}
+.ch-eempty{grid-column:1/-1;color:var(--muted);font-size:12.5px;padding:14px 6px;text-align:center;}
+@media (max-width:360px){.ch-tb{flex-wrap:wrap;row-gap:4px;}.ch-tool{flex:none;}}   /* small phones: Send drops to its own row when the tools do not fit */
 
 /* files & people */
 .ch-side{width:300px;flex:none;border-left:1px solid var(--line);background:#fff;display:flex;flex-direction:column;min-height:0;}

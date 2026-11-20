@@ -38,6 +38,7 @@
     <div class="ch-comp" id="ch-comp" hidden>
       <div class="ch-box" id="ch-box">
         <div class="ch-mpop" id="ch-mpop" hidden></div>
+        <div class="ch-emo" id="ch-emo" role="dialog" aria-label="Add an emoji" hidden><input id="ch-eq" type="search" placeholder="Search emoji" aria-label="Search emoji" autocomplete="off"><div class="ch-etabs" id="ch-etabs" role="tablist"></div><div class="ch-egrid" id="ch-egrid"></div></div>
         <div class="ch-replying" id="ch-replying" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v6"/></svg><span id="ch-replytxt"></span><button type="button" id="ch-replyx" aria-label="Cancel reply">✕</button></div>
         <div class="ch-pend" id="ch-pend"></div>
         <div class="ch-quick" id="ch-quick" hidden aria-label="Quick replies"><button type="button" data-q="On my way">On my way</button><button type="button" data-q="Done ✅">Done ✅</button><button type="button" data-q="Need material, sending a photo">Need material</button><button type="button" data-q="Running 15 minutes late">15 min late</button><button type="button" data-q="Call me when you can">Call me</button></div>
@@ -47,6 +48,7 @@
           <button class="ch-tool" id="ch-attach" type="button" aria-label="Attach files" title="Attach files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.4 11.6-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button>
           <button class="ch-tool" id="ch-cam" type="button" aria-label="Take or pick a photo" title="Photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg></button>
           <button class="ch-tool" id="ch-atbtn" type="button" aria-label="Mention someone" title="Mention someone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg></button>
+          <button class="ch-tool" id="ch-emb" type="button" aria-label="Add an emoji" title="Emoji" aria-expanded="false" aria-controls="ch-emo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01" stroke-width="3" stroke-linecap="round"/></svg></button>
           <button class="ch-tool ch-mic" id="ch-mic" type="button" hidden aria-label="Talk to type" title="Talk to type (English or Spanish)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
           <button class="ch-trbox" id="ch-trbox" type="button" hidden><span aria-hidden="true">✦</span><span id="ch-trlbl">To English</span></button>
           <input type="file" id="ch-file" multiple hidden>
