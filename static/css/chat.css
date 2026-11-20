@@ -148,7 +148,7 @@
 /* emoji picker (2026-11-20, accepted prototype https://claude.ai/artifact/ALPoow8uphCdyxHP5N8i3v): above the box, like the @ list */
 .ch-tool[aria-expanded="true"]{background:var(--accent-soft);color:var(--accent-ink);}
 .ch-emo{position:absolute;bottom:100%;left:0;right:0;margin-bottom:6px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px rgba(20,28,60,.16);display:grid;grid-template-rows:auto auto minmax(0,1fr);max-height:300px;z-index:5;}
-.ch-emo input{margin:8px 8px 4px;font:inherit;font-size:13px;color:var(--ink);background:var(--canvas);border:1px solid var(--line);border-radius:8px;padding:7px 10px;}
+.ch-emo input{width:auto;margin:8px 8px 4px;font:inherit;font-size:13px;color:var(--ink);background:var(--canvas);border:1px solid var(--line);border-radius:8px;padding:7px 10px;}
 .ch-etabs{display:flex;gap:2px;padding:0 6px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;}
 .ch-etabs::-webkit-scrollbar{display:none;}
 .ch-etabs button{flex:none;border:none;background:none;padding:7px 8px 8px;font-size:12px;font-weight:600;color:var(--ink-2,#4A4F59);border-bottom:2px solid transparent;white-space:nowrap;}
