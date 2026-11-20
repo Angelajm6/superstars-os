@@ -18,6 +18,10 @@
  * only; on a job dashboard it shows a "start a new chat here" panel. Claude sees the page (the
  * "Claude sees" line, × to hide it), a line picked on the page (select text → "Ask Claude about
  * this") and @-mentions of jobs, bids, clients and people (/mentions).
+ *
+ * 2026-11-20 (accepted prototype https://claude.ai/artifact/5fSibAJPzT4o3c9KY5pYJ9): a 😊 button opens an
+ * emoji picker (search, Recent on this device in localStorage ssc.claude.emoji, Job site set). Tapping one
+ * puts it at the caret; the picker stays open until 😊, Esc, a tap outside or Send. Emoji live in this file.
  */
 (function () {
   'use strict';
@@ -198,6 +202,20 @@ a.clx-att:hover{border-color:#C2603B}\
 .clx-mhint{font-size:12.5px;color:#5B6170;padding:8px 10px}\
 .clx-at{flex:none;border:1px solid #E6E8EE;background:#F6F7FA;border-radius:10px;width:40px;height:44px;cursor:pointer;font:600 16px Inter,sans-serif;color:#343A48}\
 .clx-at:hover{border-color:#C2603B}\
+.clx-emb{flex:none;border:1px solid #E6E8EE;background:#F6F7FA;border-radius:10px;width:40px;height:44px;cursor:pointer;font-size:17px;line-height:1;padding:0}\
+.clx-emb:hover{border-color:#C2603B}.clx-emb[aria-expanded="true"]{border-color:#C2603B;background:#FBEFE9}\
+.clx-emo{border:1px solid #E6E8EE;border-radius:12px;background:#fff;box-shadow:0 8px 24px rgba(20,22,28,.10);display:grid;grid-template-rows:auto auto minmax(0,1fr);max-height:280px}\
+.clx-emo[hidden]{display:none}\
+.clx-emo input{margin:8px 8px 4px;font:13px Inter,sans-serif;color:#1B1F27;background:#F6F7FA;border:1px solid #E6E8EE;border-radius:8px;padding:7px 10px}\
+.clx-etabs{display:flex;gap:2px;padding:0 6px;border-bottom:1px solid #E6E8EE;overflow-x:auto}\
+.clx-etabs button{flex:none;border:0;background:none;padding:7px 8px 8px;font:600 12px Inter,sans-serif;color:#5B6170;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}\
+.clx-etabs button[aria-selected="true"]{color:#A84E2C;border-bottom-color:#C2603B}\
+.clx-egrid{overflow-y:auto;padding:6px;display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));align-content:start;min-height:96px}\
+.clx-egrid button{border:0;background:none;height:40px;border-radius:8px;font-size:22px;line-height:1;cursor:pointer;padding:0;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}\
+.clx-egrid button:hover,.clx-egrid button:focus-visible{background:#F3F5FA}\
+.clx-eempty{grid-column:1/-1;color:#868C98;font-size:12.5px;padding:14px 6px;text-align:center}\
+.clx-f form,.clx-f textarea{min-width:0}\
+@media (max-width:420px){.clx-clip,.clx-at,.clx-emb{width:36px}.clx-f form{gap:6px}}\
 .clx-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px;color:#5B6170}\
 .clx-lock{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;background:#EEF0F4;color:#343A48;font-weight:600}\
 .clx-mq{border-left:3px solid #24418C;padding-left:8px;font-size:12.5px;font-style:italic;color:#343A48;margin-bottom:4px;white-space:pre-wrap}\
@@ -255,8 +273,11 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
   var FORM = '<div class="clx-f"><div id="clx-off" hidden></div><div class="clx-pend" id="clx-pend"></div>' +
     '<div class="clx-ment" id="clx-ment" role="listbox" aria-label="Point Claude at" hidden></div>' +
     '<div class="clx-quote" id="clx-quote" hidden></div><div class="clx-see" id="clx-see" hidden></div>' +
+    '<div class="clx-emo" id="clx-emo" role="dialog" aria-label="Add an emoji" hidden><input id="clx-eq" type="search" placeholder="Search emoji" aria-label="Search emoji" autocomplete="off">' +
+    '<div class="clx-etabs" id="clx-etabs" role="tablist"></div><div class="clx-egrid" id="clx-egrid"></div></div>' +
     '<form id="clx-form"><button type="button" class="clx-clip" id="clx-clip" aria-label="Attach files" title="Attach files: PDF, photos, Word, Excel, CSV (up to 20 MB each, 5 per message)">📎</button>' +
     '<button type="button" class="clx-at" id="clx-at" aria-label="Point Claude at a job, bid, client or person" title="Point Claude at a job, bid, client or person">@</button>' +
+    '<button type="button" class="clx-emb" id="clx-emb" aria-label="Add an emoji" aria-expanded="false" aria-controls="clx-emo" title="Add an emoji">😊</button>' +
     '<input id="clx-file" type="file" multiple hidden accept="' + ACCEPT + '">' +
     '<textarea id="clx-in" rows="2" placeholder="Ask Claude… type @ to point at a job, bid or client" aria-label="Message to Claude"></textarea>' +
     '<button class="clx-btn go" id="clx-send" type="submit">Send</button></form>' +
@@ -298,6 +319,7 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
       el.value = pre + add + v.slice(at); el.focus(); el.selectionStart = el.selectionEnd = at + add.length; mentCheck();
     });
     $('clx-in').addEventListener('input', mentCheck);
+    emoWire();
     $('clx-ment').addEventListener('mousedown', function (e) { e.preventDefault(); });   // keep the caret in the box
     $('clx-ment').addEventListener('click', function (e) { var b = e.target.closest('[data-mi]'); if (b) mentPick(+b.getAttribute('data-mi')); });
     $('clx-quote').addEventListener('click', function (e) { if (e.target.closest('[data-unquote]')) { S.quote = ''; drawQuote(); } });
@@ -935,6 +957,57 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
       if (ap) document.dispatchEvent(new CustomEvent('ssc:claude-changed', { detail: { action: +id } }));
     } catch (x) { var el = $('clx-e' + id); if (el) el.textContent = x.message; else { $('clx-msgs').insertAdjacentHTML('beforeend', '<div class="clx-err">' + esc(x.message) + '</div>'); } (ap || de || un).disabled = false; }
   }
+  // ---- emoji picker (😊): tap to insert at the caret; stays open for more
+  var EMOJI = [
+    ['Smileys', '😀 smile happy grin|😃 smile happy|😄 laugh happy|😁 grin|😆 laugh|😅 sweat relief phew|😂 joy laugh tears lol|🙂 smile|😉 wink|😊 blush smile|😇 angel|🥰 love|😍 love heart eyes|😘 kiss|😋 yum|😎 cool sunglasses|🤓 nerd|🤩 star struck wow|🥳 party celebrate|😏 smirk|😌 relieved|😴 sleep tired|🤔 think hmm|🤨 raised eyebrow doubt|😐 neutral|😑 expressionless|😶 speechless|🙄 eye roll|😬 grimace awkward|😮‍💨 exhale phew|🤐 zip quiet|😕 confused|😟 worried|🙁 frown sad|😮 surprised wow|😲 astonished|😳 flushed|🥺 please|😢 cry sad|😭 sob|😤 huff angry|😠 angry mad|😡 rage|🤯 mind blown|😱 scream shock|🥵 hot heat|🥶 cold freezing|🤒 sick|🤕 hurt injured|🤧 sneeze sick|😷 mask sick|🤠 cowboy|🫡 salute respect|🤗 hug|🤭 oops giggle|🫠 melting|😈 devil|💀 skull dead|👀 eyes look watching|🙈 see no evil oops'],
+    ['Hands', '👍 thumbs up ok yes good like|👎 thumbs down no bad|👌 ok perfect|🤞 fingers crossed luck|✌️ peace victory|🤙 call me shaka|👋 wave hello hi bye|🤚 raised hand stop|✋ hand stop high five|🖐️ hand|👏 clap applause bravo|🙌 raise hands celebrate|🙏 pray thanks please|🤝 handshake deal agree|💪 strong muscle|👊 fist bump|✊ fist|🫶 heart hands|👉 point right|👈 point left|👆 point up|👇 point down|☝️ one point|✍️ write sign|🫵 you|🤌 pinched'],
+    ['Job site', '👷 worker construction hard hat|👷‍♀️ worker woman construction|⛑️ helmet safety rescue|🦺 safety vest|🏗️ crane construction building|🚧 barrier construction caution work|🧱 brick masonry wall|🪨 rock stone|🪵 wood lumber|🔨 hammer|⚒️ hammer pick|🛠️ tools|🔧 wrench|🪛 screwdriver|🪚 saw|🧰 toolbox|🪜 ladder|🪝 hook rigging|⛓️ chain|🧲 magnet|🔩 bolt nut|⚙️ gear settings|📐 triangle ruler measure|📏 ruler measure|🧹 broom clean|🪣 bucket|🖌️ paint brush|🎨 paint|🧯 fire extinguisher|⚡ power electric|💡 idea light|🔌 plug power|🔦 flashlight|🚚 truck delivery|🚛 truck|🛻 pickup truck|🚜 tractor|🏢 building office|🏬 building|🏠 house home|🏚️ old house|🌆 city skyline|🗽 nyc new york|🚇 subway metro|🅿️ parking garage|📋 clipboard checklist|📝 notes memo|📄 document page|📑 documents|📁 folder|📎 attach paperclip|📌 pin|📍 location pin site|🗺️ map|📅 calendar date|🗓️ schedule calendar|⏰ alarm time|⏳ waiting time|📸 photo camera|📷 camera photo|📞 phone call|📱 phone mobile|✉️ email letter|📧 email|💲 money dollar price|💵 cash money dollar|💰 money bag|🧾 receipt invoice|💳 card payment|📈 up chart growth|📉 down chart|📊 chart report'],
+    ['Weather', '☀️ sun sunny|🌤️ sun cloud|⛅ partly cloudy|☁️ cloud cloudy|🌦️ sun rain|🌧️ rain|⛈️ storm thunder|🌩️ lightning|🌨️ snow|❄️ snow cold freeze|☃️ snowman|🌬️ wind|💨 wind dash|🌪️ tornado|🌫️ fog|🌡️ temperature thermometer|☔ umbrella rain|💧 water drop leak|🌊 water wave flood|🔥 fire hot lit|🌈 rainbow|🌙 night moon'],
+    ['Symbols', '✅ check done yes ok approved|☑️ check box|✔️ check|❌ no cross wrong rejected|❎ cross|⚠️ warning caution|⛔ no entry stop|🚫 forbidden no|❗ important exclamation|❓ question|‼️ urgent|🔴 red stop|🟠 orange|🟡 yellow|🟢 green go|🔵 blue|⭐ star|🌟 star glow|✨ sparkles new|🎉 party celebrate tada|🎊 confetti|🏆 trophy win|🥇 first gold|🎯 target goal|🚀 rocket launch fast|💯 hundred perfect|❤️ heart love red|🧡 heart orange|💛 heart yellow|💚 heart green|💙 heart blue|🖤 heart black|💔 broken heart|🔒 lock secure|🔓 unlock|🔑 key|➕ plus add|➖ minus|➡️ right arrow|⬅️ left arrow|⬆️ up arrow|⬇️ down arrow|🔁 repeat|🔄 refresh update|🆕 new|🆗 ok|🆘 sos help|ℹ️ info|☕ coffee|🍕 pizza lunch|🍔 burger lunch|🌮 taco|🍩 donut|🎂 birthday cake']
+  ].map(function (t) { return [t[0], t[1].split('|').map(function (e) { var i = e.indexOf(' '); return [e.slice(0, i), e.slice(i + 1)]; })]; });
+  var EMO = { tab: null, s: 0, e: 0 }, EKEY = 'ssc.claude.emoji';
+  function emoRecent() { try { var r = JSON.parse(localStorage.getItem(EKEY) || '[]'); return Array.isArray(r) ? r.filter(function (x) { return typeof x === 'string' && x.length <= 16; }) : []; } catch (e) { return []; } }
+  function emoRemember(ch) { var r = emoRecent().filter(function (x) { return x !== ch; }); r.unshift(ch); try { localStorage.setItem(EKEY, JSON.stringify(r.slice(0, 16))); } catch (e) {} }
+  function emoCaret() { var el = $('clx-in'); EMO.s = el.selectionStart == null ? el.value.length : el.selectionStart; EMO.e = el.selectionEnd == null ? EMO.s : el.selectionEnd; }
+  function emoDraw() {
+    var q = $('clx-eq').value.trim().toLowerCase(), list;
+    if (q) { list = []; EMOJI.forEach(function (t) { t[1].forEach(function (e) { if (e[1].split(' ').some(function (w) { return w.indexOf(q) === 0; })) list.push(e); }); }); }
+    else if (EMO.tab === 'Recent') list = emoRecent().map(function (ch) { return [ch, 'recent']; });
+    else list = (EMOJI.filter(function (t) { return t[0] === EMO.tab; })[0] || EMOJI[0])[1];
+    $('clx-etabs').innerHTML = ['Recent'].concat(EMOJI.map(function (t) { return t[0]; })).map(function (n) {
+      return '<button type="button" role="tab" data-etab="' + esc(n) + '" aria-selected="' + (n === EMO.tab && !q) + '">' + (n === 'Recent' ? '🕘 Recent' : esc(n)) + '</button>'; }).join('');
+    $('clx-egrid').innerHTML = list.length ? list.map(function (e) { var nm = esc(e[1].split(' ')[0]);
+      return '<button type="button" data-emo="' + esc(e[0]) + '" title="' + nm + '" aria-label="' + nm + '">' + esc(e[0]) + '</button>'; }).join('')
+      : '<div class="clx-eempty">' + (q ? 'No emoji for "' + esc(q) + '". Try another word.' : 'Emoji you use show up here.') + '</div>';
+  }
+  function emoOpen(on) {
+    var b = $('clx-emo'); if (!b) return;
+    b.hidden = !on; $('clx-emb').setAttribute('aria-expanded', String(on));
+    if (!on) return;
+    mentClose(); emoCaret(); $('clx-eq').value = '';
+    if (!EMO.tab) EMO.tab = emoRecent().length ? 'Recent' : 'Smileys';
+    emoDraw();
+    if (window.matchMedia && window.matchMedia('(hover:hover)').matches) $('clx-eq').focus();   // no keyboard pop-up on a phone
+  }
+  function emoWire() {
+    var el = $('clx-in');
+    ['keyup', 'click', 'input', 'select', 'blur'].forEach(function (ev) { el.addEventListener(ev, emoCaret); });
+    $('clx-emb').addEventListener('mousedown', function (e) { e.preventDefault(); });
+    $('clx-emb').addEventListener('click', function () { emoOpen($('clx-emo').hidden); });
+    $('clx-etabs').addEventListener('click', function (e) { var b = e.target.closest('[data-etab]'); if (!b) return; EMO.tab = b.getAttribute('data-etab'); $('clx-eq').value = ''; emoDraw(); });
+    $('clx-eq').addEventListener('input', emoDraw);
+    $('clx-egrid').addEventListener('mousedown', function (e) { e.preventDefault(); });   // keep the caret in the box
+    $('clx-egrid').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-emo]'); if (!b) return;
+      var ch = b.getAttribute('data-emo'), v = el.value, s = Math.min(EMO.s, v.length), en = Math.min(Math.max(EMO.e, s), v.length);
+      el.value = v.slice(0, s) + ch + v.slice(en); EMO.s = EMO.e = s + ch.length; emoRemember(ch);
+      if (document.activeElement !== $('clx-eq')) { el.focus(); el.selectionStart = el.selectionEnd = EMO.s; }
+      if (EMO.tab === 'Recent' && !$('clx-eq').value) emoDraw();
+    });
+    $('clx-emo').addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); emoOpen(false); el.focus(); } });
+    el.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('clx-emo').hidden) { e.stopPropagation(); emoOpen(false); } });
+    document.addEventListener('mousedown', function (e) { var b = $('clx-emo'); if (b && !b.hidden && !e.target.closest('#clx-emo, #clx-emb')) emoOpen(false); });
+  }
   async function send(text) {
     text = (text || '').trim();
     if (!text && S.quote) text = 'What about this?';
@@ -946,7 +1019,7 @@ a.clx-btn{text-decoration:none;display:inline-flex;align-items:center}\
       $('clx-in').value = '';
       var r = await api('/chats/' + S.chat.chat.id + '/messages', { method: 'POST', body: JSON.stringify({ text: text, page: page(),
         quote: S.quote || undefined, refs: S.refs.length ? S.refs : undefined, file_ids: ready.map(function (f) { return f.id; }) }) });
-      S.files = []; drawPend(); S.quote = ''; S.refs = []; drawQuote(); mentClose();
+      S.files = []; drawPend(); S.quote = ''; S.refs = []; drawQuote(); mentClose(); emoOpen(false);
       S.sending = false; apply(r.data); tell(r.data.chat.id);
     } catch (e) {
       S.sending = false; $('clx-in').value = text;
