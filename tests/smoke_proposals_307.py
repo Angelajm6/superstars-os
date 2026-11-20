@@ -415,7 +415,11 @@ def main() -> int:
     html = (ROOT / "company_portal.html").read_text(encoding="utf-8")
     for needle in ("pdf_view.js", "'Before the app'", "include: 'archive'", 'data-m="pdf">View the PDF', 'id="pr-pdf-pages"', "'Proposal No. ' + p.label"):
         assert needle in html, needle
-    nav = (ROOT / "static/js/company_nav.js").read_text(encoding="utf-8")
+    # 2026-11-20: View shows the page the PDF is printed from at once (the server needs 25-50 s to draw the PDF)
+    assert "url: page ? `/api/proposals/${r.id}/preview` : url, kind: page ? 'page' : 'pdf'" in html, "View: instant page, uploaded PDFs as PDFs"
+    studio = (ROOT / "proposal_studio.html").read_text(encoding="utf-8")
+    assert "url: `/api/proposals/${p.id}/preview`, kind: 'page'" in studio, "Studio View: instant page"
+    nav =(ROOT / "static/js/company_nav.js").read_text(encoding="utf-8")
     assert "Estimating queue" not in nav and "hrefFor: { estimator: '/estimating' }" in nav, "the sub-tab is gone; estimators keep their page"
     assert (ROOT / "static/vendor/pdfjs-4.0.379/pdf.min.js").exists() and (ROOT / "static/vendor/pdfjs-4.0.379/pdf.worker.min.js").exists()
     passed += 1; print("  numbers + PDF in the page ok")

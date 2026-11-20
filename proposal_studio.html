@@ -12,7 +12,7 @@
 <script>try{if(localStorage.getItem('ssc.side.rail')==='1')document.documentElement.classList.add('side-rail')}catch(e){}</script>
 <script src="/files/static/js/shell.js?v=1007" defer></script>
 <script src="/files/static/js/auth_menu.js?v=1016" defer></script>
-<script src="/files/static/js/pdf_view.js?v=4" defer></script>
+<script src="/files/static/js/pdf_view.js?v=5" defer></script>
 <script src="/files/static/js/datepicker.js?v=1007" defer></script>
 <title>Proposal Studio · Superstars Contracting</title>
 <link rel="icon" type="image/svg+xml" href="/files/static/brand/mark.svg">
@@ -1304,7 +1304,8 @@
   $('s-back').addEventListener('click', () => stepSend(1));
   $('e-view').addEventListener('click', async () => {
     await flush(false); const p = S.v.proposal, no = S.v.label || p.number;
-    window.SSC_PDF.panel({ title: (/^\d/.test(no) ? 'Proposal ' : '') + no, sub: p.client_name || '', url: `/api/proposals/${p.id}/pdf`, links: [{ label: 'Download', href: `/api/proposals/${p.id}/pdf`, download: true }] });
+    // 2026-11-20: the page the PDF is printed from, at once (the server takes 25-50 s to draw the PDF); Download = the PDF
+    window.SSC_PDF.panel({ title: (/^\d/.test(no) ? 'Proposal ' : '') + no, sub: p.client_name || '', url: `/api/proposals/${p.id}/preview`, kind: 'page', links: [{ label: 'Download', href: `/api/proposals/${p.id}/pdf`, download: true }] });
   });
   $('s-pdfview').addEventListener('click', () => $('e-view').click());
   // the PDF is made from what is saved: finish saving the last edit first, so it never shows an older amount
