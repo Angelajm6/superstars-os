@@ -14,7 +14,7 @@
   'use strict';
   if (window.__sscChatW) return;
   window.__sscChatW = true;
-  var V = '2';
+  var V = '3';
   function loadAlerts() {
     if (document.querySelector('script[data-chat-alerts]')) return;
     var sc = document.createElement('script'); sc.src = '/files/static/js/chat_alerts.js?v=2'; sc.defer = true;
@@ -114,7 +114,7 @@
           escape: function () { if (w.contains(document.activeElement)) setOpen(false); }
         };
         return new Promise(function (res, rej) {
-          var sc = document.createElement('script'); sc.src = '/files/static/js/chat.js?v=4';
+          var sc = document.createElement('script'); sc.src = '/files/static/js/chat.js?v=5';
           sc.onload = res; sc.onerror = rej; document.head.appendChild(sc);
         });
       })
