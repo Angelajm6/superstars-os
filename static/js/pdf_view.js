@@ -56,9 +56,15 @@
     style();
     var mine = ++token; host.classList.add('sscpdf-pages');
     host.innerHTML = '<div class="sscpdf-msg">Loading the PDF…</div>';
+    // a PDF the server has to draw first can take most of a minute: say so instead of looking stuck (2026-11-20)
+    var slow = setTimeout(function () {
+      var m = mine === token && host.querySelector('.sscpdf-msg');
+      if (m) m.textContent = 'Still preparing the PDF. This can take up to a minute after a change.';
+    }, 6000);
     try {
       var pdfjs = await load();
       var doc = await pdfjs.getDocument({ url: url, withCredentials: true }).promise;
+      clearTimeout(slow);
       if (mine !== token) return;
       host.innerHTML = '';
       var ratio = Math.min(2, (window.devicePixelRatio || 1) * 1.5);

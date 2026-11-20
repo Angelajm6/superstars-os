@@ -25,7 +25,7 @@
 <script src="/files/static/js/inbox_schedule.js?v=6" defer></script>
 <script>window.SSC_track=window.SSC_track||function(s,v){(window.SSC_trackQ=window.SSC_trackQ||[]).push([s,v]);};</script>
 <script src="/files/static/js/usage_beacon.js?v=1008" defer></script>
-<script src="/files/static/js/pdf_view.js?v=4" defer></script>
+<script src="/files/static/js/pdf_view.js?v=5" defer></script>
 <script src="/files/static/js/company_templates.js?v=2"></script>
 <script src="/files/static/js/jobs_calendar.js?v=4"></script>
 <style>
@@ -4439,7 +4439,12 @@
     const url = arch ? r.pdf_url : `/api/proposals/${r.id}/pdf`;
     const links = [{ label: 'Download', href: url, download: true }];
     if (!arch && !r.original_pdf) links.unshift({ label: r.layout === 'ssc' ? 'Open in Proposal Studio' : 'Open', href: r.layout === 'ssc' ? `/proposal-studio#p/${r.id}` : `#proposals/${r.id}` });
-    window.SSC_PDF.panel({ title: (/^\d/.test(no) ? 'Proposal ' : '') + no, sub: [r.client_name, r.price != null ? money.format(r.price) : '', arch ? 'Before the app' : r.display_status].filter(Boolean).join(' · '), url, links });
+    // 2026-11-20: a proposal made in the app shows the very page its PDF is printed from, at once. Drawing the PDF
+    // takes 25-50 s on the server after any change (Chromium on a 0.5-CPU host), so the panel sat on "Loading".
+    // Download still gives the real PDF. Uploaded PDFs (before the app / original) are files already: shown as PDFs.
+    const page = !arch && !r.original_pdf;
+    window.SSC_PDF.panel({ title: (/^\d/.test(no) ? 'Proposal ' : '') + no, sub: [r.client_name, r.price != null ? money.format(r.price) : '', arch ? 'Before the app' : r.display_status].filter(Boolean).join(' · '),
+      url: page ? `/api/proposals/${r.id}/preview` : url, kind: page ? 'page' : 'pdf', links });
   }
   function prPill(p) { const st = p.display_status || p.status; return `<span class="cp-pill ${PR_PILL[st] || ''}">${esc(PR_WORD[st] || st)}</span>`; }
   // a sent proposal close to its valid-until date: follow up (the Dashboard's Needs you has the same card)
