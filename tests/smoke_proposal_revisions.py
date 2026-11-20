@@ -620,7 +620,7 @@ def main() -> int:
         html = (ROOT / "proposal_studio.html").read_text(encoding="utf-8")
         for needle in ("confirm: true, expected_total", 'id="s-step2"', "'/send-options'", "'/send-preview'", 'data-rk="all"', 'id="rq-m"', 'id="dc-m"',
                        "data-pt=\"exclude\"", "'/proposal-studio/' + S.id + '/' + verb", 'id="ex-list"', 'id="chat-card"', "chatPanel(",
-                       "$('e-pdf').addEventListener('click'", "await flushNow();", "markStep(j.step || 0)", 'id="e-expiry"', "SSC_CLAUDE.ask(q)",
+                       "$('e-pdf').addEventListener('click'", "await flushNow();", "fetch(`/api/proposals/${p.id}/pdf`", "markStep(j.step || 0)", 'id="e-expiry"', "SSC_CLAUDE.ask(q)",
                        "if (S.asking) return;", "'/proposals/revisions/' + S.decide.id"):
             assert needle in html, needle
         assert "setInterval(() => { shown" not in html, "the draft steps follow the server, not a timer"

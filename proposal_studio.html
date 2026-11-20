@@ -1308,11 +1308,23 @@
   });
   $('s-pdfview').addEventListener('click', () => $('e-view').click());
   // the PDF is made from what is saved: finish saving the last edit first, so it never shows an older amount
+  // Fetched, then saved from a blob (as the invoice editor does): a link clicked after an await can lose the click in the
+  // browser, and a server error would save a broken file instead of saying what went wrong.
+  let pdfBusy = false;
   $('e-pdf').addEventListener('click', async e => {
-    if (!S.v || !S.v.editable) return;
-    e.preventDefault(); $('e-saved').textContent = 'Saving…';
-    await flushNow();
-    const a = document.createElement('a'); a.href = $('e-pdf').href; a.download = ''; document.body.appendChild(a); a.click(); a.remove();
+    e.preventDefault();
+    if (!S.v || pdfBusy) return;
+    pdfBusy = true; const btn = $('e-pdf'); btn.setAttribute('aria-busy', 'true'); btn.style.opacity = '.6';
+    try {
+      if (S.v.editable) await flushNow();
+      const p = S.v.proposal, res = await fetch(`/api/proposals/${p.id}/pdf`, { credentials: 'same-origin' });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'The PDF could not be made. Try again in a minute.'); }
+      const cd = res.headers.get('Content-Disposition') || '', m = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(cd);
+      const name = m ? decodeURIComponent(m[1] || m[2]) : (S.v.label || p.number || 'proposal') + '.pdf';
+      const url = URL.createObjectURL(await res.blob()), a = document.createElement('a');
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (ex) { toast(ex.message || 'The PDF could not be downloaded.', true); }
+    finally { pdfBusy = false; btn.removeAttribute('aria-busy'); btn.style.opacity = ''; }
   });
   // Send is never a dead button: when something blocks it, pressing it shows what (the server refuses the send anyway)
   function blockers(v) { return (ssc() && v.checks ? v.checks.filter(x => x.level === 'block').map(x => x.text) : []); }
